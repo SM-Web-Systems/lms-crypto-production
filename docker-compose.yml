@@ -1,0 +1,71 @@
+# Full stack: API + SPA + edge nginx on port 80.
+#
+# Runbook: DEPLOY.md (health URLs, env, secrets, node_modules ownership).
+#
+# Prerequisites:
+#   1. LMS-Server/.env — CLERK_SECRET_KEY, DATABASE_PATH, etc.
+#   2. VITE_CLERK_PUBLISHABLE_KEY for the web image build (Compose interpolation). Either:
+#        - Create LMS-final/.env (see .env.docker.example), or
+#        - Reuse the frontend file: docker compose --env-file ./LMS-Frontend/.env up --build
+#   3. Run from THIS directory (LMS-final): docker compose up --build
+#
+# Open http://localhost (or FRONTEND_URL). API is same-origin at /api/v1. Health: GET /health on the edge.
+#
+# Slow "pulling fs layer" / TLS during build is network to Docker Hub, not a code error.
+
+services:
+  api:
+    build: ./LMS-Server
+    container_name: lms-api
+    env_file:
+      - ./LMS-Server/.env
+    environment:
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+    volumes:
+      - lms-data:/app/data
+      - lms-uploads:/app/uploads
+    expose:
+      - "3001"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+  web:
+    build:
+      context: ./LMS-Frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?Set VITE_CLERK_PUBLISHABLE_KEY (e.g. LMS-final/.env or --env-file ./LMS-Frontend/.env)}
+    container_name: lms-web
+    expose:
+      - "80"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+  proxy:
+    image: nginx:alpine
+    container_name: lms-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.edge.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
+volumes:
+  lms-data:
+  lms-uploads:

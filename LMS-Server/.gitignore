@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Uploads directory (but keep the folder)
+uploads/*
+!uploads/.gitkeep
+
+# Database files (but keep the folder)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+!data/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/

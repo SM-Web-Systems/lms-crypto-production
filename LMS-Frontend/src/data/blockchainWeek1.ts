@@ -1,0 +1,137 @@
+import { Course } from '../types/course';
+
+export const blockchainBasicsWeek1: Course = {
+  id: 'blockchain-basics',
+  title: 'Blockchain Basics',
+  courseCode: 'BLOCKCHAIN-101',
+  description:
+    'Prerequisite module for Stellar smart contract development. Covers blockchain fundamentals, consensus mechanisms, and the Stellar network and development stack.',
+  weeks: [
+    {
+      id: 'week-1',
+      title: 'Week 1',
+      order: 1,
+      sections: [
+        {
+          id: 'overview',
+          title: 'Week 1 Overview',
+          objective: 'During Week One you will focus on: Blockchain fundamentals, consensus mechanisms, and the Stellar network and development stack.',
+          outcome: 'By the end of this week you should be able to: Explain how blockchains work; understand how Stellar reaches consensus; identify the main components of the Stellar Stack.',
+          items: [],
+        },
+        {
+          id: 'day1',
+          title: 'Day 1 - Introduction to Blockchain',
+          objective: 'Build a strong mental model of what blockchain is, why it exists, and how it works before narrowing down to Stellar.',
+          outcome: 'You should understand blocks, transactions, decentralization, and why blockchains are useful.',
+          items: [
+            {
+              id: 'd1-playlist',
+              type: 'link',
+              title: 'Full Playlist',
+              url: 'https://www.youtube.com/playlist?list=PL6x19QC2pW49lvxs3yjgeOjvfhQ0aXeMv',
+              order: 1,
+            },
+            {
+              id: 'd1-slides',
+              type: 'link',
+              title: 'Slides',
+              url: 'https://drive.google.com/file/d/1SXYj6TtWZZU_7IRbRRfoCswQN59FNmvH/view',
+              order: 2,
+            },
+            { id: 'd1-p1', type: 'video', title: 'Part 1', url: 'https://www.youtube.com/embed/NiC-V_PcVQg', order: 3 },
+            { id: 'd1-p2', type: 'video', title: 'Part 2', url: 'https://www.youtube.com/embed/t6Ci3Ls7Bys', order: 4 },
+            { id: 'd1-p3', type: 'video', title: 'Part 3', url: 'https://www.youtube.com/embed/pweK7R8QZf0', order: 5 },
+            { id: 'd1-p4', type: 'video', title: 'Part 4', url: 'https://www.youtube.com/embed/0BLQ0P_02Io', order: 6 },
+          ],
+        },
+        {
+          id: 'day2',
+          title: 'Day 2 - Stellar Consensus Protocol (SCP)',
+          objective: 'Understand how Stellar reaches agreement without mining or proof-of-work, and why SCP is different from other consensus mechanisms.',
+          outcome: 'You should understand quorums, voting, ledgers, and trustlines.',
+          items: [
+            {
+              id: 'd2-playlist',
+              type: 'link',
+              title: 'Full Playlist',
+              url: 'https://www.youtube.com/playlist?list=PL6x19QC2pW4-alt80HwjXcdPE0F4HLkHy',
+              order: 1,
+            },
+            {
+              id: 'd2-slides',
+              type: 'link',
+              title: 'Slides',
+              url: 'https://drive.google.com/file/d/1W-h66y7HVzFpxinL1wmwWSQO5QBHa3xl/view',
+              order: 2,
+            },
+            { id: 'd2-1', type: 'video', title: 'SCP – Intro & Agenda', url: 'https://www.youtube.com/embed/D3_36JXbR9E', order: 3 },
+            { id: 'd2-2', type: 'video', title: 'Consensus Mechanisms Overview', url: 'https://www.youtube.com/embed/DmOXji_sJYo', order: 4 },
+            { id: 'd2-3', type: 'video', title: 'Stellar Consensus Protocol Overview', url: 'https://www.youtube.com/embed/2xpyIYKlV0o', order: 5 },
+            { id: 'd2-4', type: 'video', title: 'Core SCP Concepts', url: 'https://www.youtube.com/embed/pZXFWhOVomg', order: 6 },
+            { id: 'd2-5', type: 'video', title: 'Desired Properties of Consensus', url: 'https://www.youtube.com/embed/5o12rZpunBQ', order: 7 },
+            { id: 'd2-6', type: 'video', title: 'Quorums Explained', url: 'https://www.youtube.com/embed/W3nOrEiuZIY', order: 8 },
+            { id: 'd2-7', type: 'video', title: 'Statements & Node Opinions', url: 'https://www.youtube.com/embed/ASxu8gH3NGY', order: 9 },
+            { id: 'd2-8', type: 'video', title: 'Voting in SCP', url: 'https://www.youtube.com/embed/7KocUSUU4wQ', order: 10 },
+            { id: 'd2-9', type: 'video', title: 'Ledgers', url: 'https://www.youtube.com/embed/oKIojYC9v0M', order: 11 },
+            { id: 'd2-10', type: 'video', title: 'Accounts, Trustlines & Assets', url: 'https://www.youtube.com/embed/QVnhXeO1dqw', order: 12 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'week-2',
+      title: 'Week 2',
+      order: 2,
+      sections: [
+        {
+          id: 'day3',
+          title: 'Day 3 - Introduction to the Stellar Stack',
+          objective: 'Learn how Stellar is structured and how developers interact with the network.',
+          outcome: 'You should understand how developers interact with Stellar, manage networks, handle fees and reserves, and safely move applications from test environments to production.',
+          items: [
+            {
+              id: 'd3-playlist',
+              type: 'link',
+              title: 'Full Playlist',
+              url: 'https://www.youtube.com/playlist?list=PL6x19QC2pW4-MKNSFs5i5AZUDV8E4Tv-W',
+              order: 1,
+            },
+            {
+              id: 'd3-slides',
+              type: 'link',
+              title: 'Slides',
+              url: 'https://drive.google.com/file/d/113gQT5GW0aU0nKc5WajeYQEdhbClRnV_/view',
+              order: 2,
+            },
+            { id: 'd3-1', type: 'video', title: 'Welcome & Overview', url: 'https://www.youtube.com/embed/p8vKlmUpeEU', order: 3 },
+            { id: 'd3-2', type: 'video', title: 'Introduction to Stellar', url: 'https://www.youtube.com/embed/mIOdsL7MHPs', order: 4 },
+            { id: 'd3-3', type: 'video', title: 'Stellar Stack Architecture', url: 'https://www.youtube.com/embed/nB0RxPo4MPg', order: 5 },
+            { id: 'd3-4', type: 'video', title: 'Stellar Networks (Public vs Testnet)', url: 'https://www.youtube.com/embed/JutwmhgRpE8', order: 6 },
+            { id: 'd3-5', type: 'video', title: 'Stellar Core', url: 'https://www.youtube.com/embed/flAFeP2HXTI', order: 7 },
+            { id: 'd3-6', type: 'video', title: 'Horizon API', url: 'https://www.youtube.com/embed/8AEFF6MYLo8', order: 8 },
+            { id: 'd3-7', type: 'video', title: 'RPC Overview', url: 'https://www.youtube.com/embed/QBcA0s-DVT8', order: 9 },
+            { id: 'd3-8', type: 'video', title: 'Developing with SDKs', url: 'https://www.youtube.com/embed/Hw6Zzyw2uns', order: 10 },
+            { id: 'd3-9', type: 'video', title: 'XLM, Fees and Base Reserves', url: 'https://www.youtube.com/embed/8phJ7iBUYU4', order: 11 },
+            { id: 'd3-10', type: 'video', title: 'TestNet and FutureNet Resets', url: 'https://www.youtube.com/embed/rcZUZamFNtU', order: 12 },
+            { id: 'd3-11', type: 'video', title: 'TestNet and FutureNet Best Practices', url: 'https://www.youtube.com/embed/I-oA0vTquIs', order: 13 },
+            { id: 'd3-12', type: 'video', title: 'Moving to Production', url: 'https://www.youtube.com/embed/2Bvzb3HXpNQ', order: 14 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'week-3',
+      title: 'Week 3',
+      order: 3,
+      sections: [
+        {
+          id: 'checklist',
+          title: 'Completion Checklist',
+          outcome: 'Before moving forward, make sure you can: Explain what a blockchain is; describe how Stellar reaches consensus; understand accounts, assets, and trustlines; explain the role of Stellar Core and Horizon.',
+          items: [],
+        },
+      ],
+    },
+  ],
+};
