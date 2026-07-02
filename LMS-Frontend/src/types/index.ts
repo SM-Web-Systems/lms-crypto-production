@@ -1,9 +1,10 @@
-export type UserRole = 'student' | 'admin';
+export type UserRole = "student" | "admin";
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  walletAddress: string;
   role: UserRole;
 }
 
@@ -26,7 +27,7 @@ export interface Submission {
   fileName: string;
   fileSize: number;
   fileUrl: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected";
   submittedAt: string;
   reviewedAt?: string;
   reviewedBy?: string;
@@ -61,4 +62,3 @@ export interface DocumentFormData {
   category: string;
   file: File | null;
 }
-

@@ -1,7 +1,7 @@
-import { Request } from 'express';
+import { Request } from "express";
 
 // User Types
-export type UserRole = 'student' | 'admin';
+export type UserRole = "student" | "admin";
 
 export interface User {
   id: string;
@@ -9,6 +9,7 @@ export interface User {
   email: string;
   password_hash: string;
   role: UserRole;
+  walletAddress: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -18,6 +19,7 @@ export interface UserResponse {
   name: string;
   email: string;
   role: UserRole;
+  walletAddress: string;
   courseCodes?: string[];
 }
 
@@ -47,7 +49,7 @@ export interface StudentResponse {
 }
 
 // Submission Types
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type SubmissionStatus = "pending" | "approved" | "rejected";
 
 export interface Submission {
   id: string;
@@ -194,11 +196,27 @@ export interface ForumPostResponse {
 
 // Course API Types (BACKEND_UPDATE_REQUIREMENTS)
 export type CourseItem =
-  | { id: string; type: 'video'; title: string; order?: number; url: string; description?: string; information?: string }
-  | { id: string; type: 'link'; title: string; order?: number; url: string; description?: string; information?: string }
   | {
       id: string;
-      type: 'pdf';
+      type: "video";
+      title: string;
+      order?: number;
+      url: string;
+      description?: string;
+      information?: string;
+    }
+  | {
+      id: string;
+      type: "link";
+      title: string;
+      order?: number;
+      url: string;
+      description?: string;
+      information?: string;
+    }
+  | {
+      id: string;
+      type: "pdf";
       title: string;
       order?: number;
       documentId?: string;
@@ -269,15 +287,14 @@ export interface DashboardAnalytics {
 
 // Error Codes
 export const ErrorCodes = {
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-  NOT_FOUND: 'NOT_FOUND',
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
-  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
-  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
-  INVALID_FILE_TYPE: 'INVALID_FILE_TYPE',
-  SUBMISSION_LOCKED: 'SUBMISSION_LOCKED',
-  DUPLICATE_ENTRY: 'DUPLICATE_ENTRY',
-  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+  INVALID_CREDENTIALS: "INVALID_CREDENTIALS",
+  FILE_TOO_LARGE: "FILE_TOO_LARGE",
+  INVALID_FILE_TYPE: "INVALID_FILE_TYPE",
+  SUBMISSION_LOCKED: "SUBMISSION_LOCKED",
+  DUPLICATE_ENTRY: "DUPLICATE_ENTRY",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
-

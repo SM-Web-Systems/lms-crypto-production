@@ -24,19 +24,23 @@ This document provides a complete specification for building a backend server th
 ## Overview
 
 ### Application Purpose
+
 A student management system for KanyaCSI that allows:
+
 - **Students** to submit written work/assignments for review
 - **Students** to download course materials/learning documents uploaded by admins
 - **Administrators** to manage students and review/approve/reject submissions
 - **Administrators** to upload and manage course documents for students
 
 ### User Roles
-| Role | Permissions |
-|------|-------------|
-| `student` | View own profile, create/view/delete own submissions, download course documents |
-| `admin` | Full CRUD on students, review all submissions, view analytics, upload/manage course documents |
+
+| Role      | Permissions                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------- |
+| `student` | View own profile, create/view/delete own submissions, download course documents               |
+| `admin`   | Full CRUD on students, review all submissions, view analytics, upload/manage course documents |
 
 ### Base URL
+
 ```
 Production: https://api.yourdomain.com/api/v1
 Development: http://localhost:3001/api/v1
@@ -47,6 +51,7 @@ Development: http://localhost:3001/api/v1
 ## Technology Recommendations
 
 The backend can be built with any technology. Recommended stacks:
+
 - **Node.js**: Express.js or Fastify with TypeScript
 - **Python**: FastAPI or Django REST Framework
 - **Go**: Gin or Echo
@@ -58,72 +63,77 @@ The backend can be built with any technology. Recommended stacks:
 ## Data Models
 
 ### User
+
 ```typescript
 interface User {
-  id: string;                    // UUID or database ID
-  name: string;                  // Full name
-  email: string;                 // Unique, used for login
-  password: string;              // Hashed, never returned in responses
-  role: 'student' | 'admin';     // User role
-  createdAt: string;             // ISO 8601 timestamp
-  updatedAt: string;             // ISO 8601 timestamp
+  id: string; // UUID or database ID
+  name: string; // Full name
+  email: string; // Unique, used for login
+  password: string; // Hashed, never returned in responses
+  role: "student" | "admin"; // User role
+  walletAddress: string; // Wallet address generated on sign up
+  createdAt: string; // ISO 8601 timestamp
+  updatedAt: string; // ISO 8601 timestamp
 }
 ```
 
 ### Student
+
 ```typescript
 interface Student {
-  id: string;                    // UUID or database ID
-  userId?: string;               // Optional link to User account
-  name: string;                  // Full name
-  email: string;                 // Contact email
-  enrollmentNumber: string;      // Unique enrollment/registration number
-  department: string;            // Department name
-  semester: number;              // Current semester (1-8)
-  createdAt: string;             // ISO 8601 timestamp
-  updatedAt: string;             // ISO 8601 timestamp
+  id: string; // UUID or database ID
+  userId?: string; // Optional link to User account
+  name: string; // Full name
+  email: string; // Contact email
+  enrollmentNumber: string; // Unique enrollment/registration number
+  department: string; // Department name
+  semester: number; // Current semester (1-8)
+  createdAt: string; // ISO 8601 timestamp
+  updatedAt: string; // ISO 8601 timestamp
 }
 ```
 
 ### Submission
+
 ```typescript
 interface Submission {
-  id: string;                    // UUID or database ID
-  studentId: string;             // Reference to Student
-  studentName: string;           // Denormalized for display
-  title: string;                 // Assignment title
-  description: string;           // Assignment description
-  fileName: string;              // Original filename
-  fileSize: number;              // File size in bytes
-  fileUrl: string;               // URL to download the file
-  fileMimeType?: string;         // MIME type of uploaded file
-  status: 'pending' | 'approved' | 'rejected';
-  submittedAt: string;           // ISO 8601 timestamp
-  reviewedAt?: string;           // ISO 8601 timestamp (when reviewed)
-  reviewedBy?: string;           // Name of admin who reviewed
-  reviewedById?: string;         // ID of admin who reviewed
-  feedback?: string;             // Admin feedback/comments
-  createdAt: string;             // ISO 8601 timestamp
-  updatedAt: string;             // ISO 8601 timestamp
+  id: string; // UUID or database ID
+  studentId: string; // Reference to Student
+  studentName: string; // Denormalized for display
+  title: string; // Assignment title
+  description: string; // Assignment description
+  fileName: string; // Original filename
+  fileSize: number; // File size in bytes
+  fileUrl: string; // URL to download the file
+  fileMimeType?: string; // MIME type of uploaded file
+  status: "pending" | "approved" | "rejected";
+  submittedAt: string; // ISO 8601 timestamp
+  reviewedAt?: string; // ISO 8601 timestamp (when reviewed)
+  reviewedBy?: string; // Name of admin who reviewed
+  reviewedById?: string; // ID of admin who reviewed
+  feedback?: string; // Admin feedback/comments
+  createdAt: string; // ISO 8601 timestamp
+  updatedAt: string; // ISO 8601 timestamp
 }
 ```
 
 ### CourseDocument ⭐ NEW
+
 ```typescript
 interface CourseDocument {
-  id: string;                    // UUID or database ID
-  title: string;                 // Document title (max 200 chars)
-  description: string;           // Document description (max 1000 chars)
-  category: string;              // Category for grouping (e.g., "Lecture Notes")
-  fileName: string;              // Original filename
-  fileSize: number;              // File size in bytes
-  fileUrl: string;               // URL/path to download the file
-  fileMimeType?: string;         // MIME type of the file
-  uploadedBy: string;            // Name of admin who uploaded
-  uploadedById: string;          // ID of admin who uploaded
-  uploadedAt: string;            // ISO 8601 timestamp
-  createdAt: string;             // ISO 8601 timestamp
-  updatedAt?: string;            // ISO 8601 timestamp
+  id: string; // UUID or database ID
+  title: string; // Document title (max 200 chars)
+  description: string; // Document description (max 1000 chars)
+  category: string; // Category for grouping (e.g., "Lecture Notes")
+  fileName: string; // Original filename
+  fileSize: number; // File size in bytes
+  fileUrl: string; // URL/path to download the file
+  fileMimeType?: string; // MIME type of the file
+  uploadedBy: string; // Name of admin who uploaded
+  uploadedById: string; // ID of admin who uploaded
+  uploadedAt: string; // ISO 8601 timestamp
+  createdAt: string; // ISO 8601 timestamp
+  updatedAt?: string; // ISO 8601 timestamp
 }
 ```
 
@@ -132,21 +142,25 @@ interface CourseDocument {
 ## Authentication
 
 ### Method
+
 JWT (JSON Web Token) Bearer authentication
 
 ### Token Structure
+
 ```typescript
 interface JWTPayload {
   userId: string;
   email: string;
-  role: 'student' | 'admin';
-  iat: number;      // Issued at
-  exp: number;      // Expiration (recommended: 24 hours)
+  role: "student" | "admin";
+  iat: number; // Issued at
+  exp: number; // Expiration (recommended: 24 hours)
 }
 ```
 
 ### Authentication Header
+
 All protected endpoints require:
+
 ```
 Authorization: Bearer <jwt_token>
 ```
@@ -154,9 +168,11 @@ Authorization: Bearer <jwt_token>
 ### Auth Endpoints
 
 #### POST /auth/login
+
 Authenticate user and return JWT token.
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -165,6 +181,7 @@ Authenticate user and return JWT token.
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -181,6 +198,7 @@ Authenticate user and return JWT token.
 ```
 
 **Error Response (401):**
+
 ```json
 {
   "success": false,
@@ -192,11 +210,13 @@ Authenticate user and return JWT token.
 ```
 
 #### POST /auth/logout
+
 Invalidate the current token (optional, for token blacklisting).
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -205,11 +225,13 @@ Invalidate the current token (optional, for token blacklisting).
 ```
 
 #### GET /auth/me
+
 Get current authenticated user info.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -229,6 +251,7 @@ Get current authenticated user info.
 ### Students API (Admin Only)
 
 #### GET /students
+
 Get all students with optional filtering and pagination.
 
 **Headers:** `Authorization: Bearer <admin_token>`
@@ -243,6 +266,7 @@ Get all students with optional filtering and pagination.
 | `semester` | number | Filter by semester |
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -269,11 +293,13 @@ Get all students with optional filtering and pagination.
 ```
 
 #### GET /students/:id
+
 Get a single student by ID.
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -290,11 +316,13 @@ Get a single student by ID.
 ```
 
 #### POST /students
+
 Create a new student.
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Request Body:**
+
 ```json
 {
   "name": "Jane Smith",
@@ -306,6 +334,7 @@ Create a new student.
 ```
 
 **Success Response (201):**
+
 ```json
 {
   "success": true,
@@ -322,6 +351,7 @@ Create a new student.
 ```
 
 **Validation Errors (400):**
+
 ```json
 {
   "success": false,
@@ -330,18 +360,23 @@ Create a new student.
     "message": "Validation failed",
     "details": [
       { "field": "email", "message": "Email already exists" },
-      { "field": "enrollmentNumber", "message": "Enrollment number already exists" }
+      {
+        "field": "enrollmentNumber",
+        "message": "Enrollment number already exists"
+      }
     ]
   }
 }
 ```
 
 #### PUT /students/:id
+
 Update an existing student.
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Request Body (partial update allowed):**
+
 ```json
 {
   "name": "Jane Smith Updated",
@@ -350,6 +385,7 @@ Update an existing student.
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -367,11 +403,13 @@ Update an existing student.
 ```
 
 #### DELETE /students/:id
+
 Delete a student and all their submissions.
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -384,11 +422,13 @@ Delete a student and all their submissions.
 ### Submissions API
 
 #### GET /submissions
+
 Get submissions (filtered by role).
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Behavior:**
+
 - **Students**: Returns only their own submissions
 - **Admins**: Returns all submissions
 
@@ -401,6 +441,7 @@ Get submissions (filtered by role).
 | `studentId` | string | Filter by student (admin only) |
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -433,15 +474,18 @@ Get submissions (filtered by role).
 ```
 
 #### GET /submissions/:id
+
 Get a single submission.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Access Control:**
+
 - Students can only view their own submissions
 - Admins can view any submission
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -464,9 +508,11 @@ Get a single submission.
 ```
 
 #### POST /submissions
+
 Create a new submission (multipart/form-data for file upload).
 
-**Headers:** 
+**Headers:**
+
 - `Authorization: Bearer <student_token>`
 - `Content-Type: multipart/form-data`
 
@@ -478,6 +524,7 @@ Create a new submission (multipart/form-data for file upload).
 | `file` | File | Yes | The file to upload |
 
 **Accepted File Types:**
+
 - PDF (application/pdf)
 - DOC (application/msword)
 - DOCX (application/vnd.openxmlformats-officedocument.wordprocessingml.document)
@@ -487,6 +534,7 @@ Create a new submission (multipart/form-data for file upload).
 **Max File Size:** 10 MB
 
 **Success Response (201):**
+
 ```json
 {
   "success": true,
@@ -506,6 +554,7 @@ Create a new submission (multipart/form-data for file upload).
 ```
 
 **Error Response (400) - File too large:**
+
 ```json
 {
   "success": false,
@@ -517,11 +566,13 @@ Create a new submission (multipart/form-data for file upload).
 ```
 
 #### PUT /submissions/:id
+
 Update a submission (only allowed if status is 'pending').
 
 **Headers:** `Authorization: Bearer <student_token>`
 
 **Request Body:**
+
 ```json
 {
   "title": "Updated Title",
@@ -530,6 +581,7 @@ Update a submission (only allowed if status is 'pending').
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -544,6 +596,7 @@ Update a submission (only allowed if status is 'pending').
 ```
 
 **Error Response (403) - Already reviewed:**
+
 ```json
 {
   "success": false,
@@ -555,15 +608,18 @@ Update a submission (only allowed if status is 'pending').
 ```
 
 #### DELETE /submissions/:id
+
 Delete a submission.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Access Control:**
+
 - Students can delete their own pending submissions
 - Admins can delete any submission
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -572,25 +628,30 @@ Delete a submission.
 ```
 
 #### GET /submissions/:id/download
+
 Download the submission file.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Access Control:**
+
 - Students can download their own files
 - Admins can download any file
 
 **Response:**
+
 - Content-Type: (file's MIME type)
 - Content-Disposition: attachment; filename="original_filename.pdf"
 - Body: Binary file data
 
 #### POST /submissions/:id/review (Admin Only)
+
 Review a submission (approve or reject).
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Request Body:**
+
 ```json
 {
   "status": "approved",
@@ -608,10 +669,12 @@ OR
 ```
 
 **Validation:**
+
 - `status` must be 'approved' or 'rejected'
 - `feedback` is required when rejecting
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -633,6 +696,7 @@ OR
 This API allows admins to upload learning materials and students to download them.
 
 #### GET /documents
+
 Get all course documents with optional filtering and pagination.
 
 **Access:** All authenticated users (students and admins)
@@ -648,6 +712,7 @@ Get all course documents with optional filtering and pagination.
 | `search` | string | Search in title and description |
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -678,6 +743,7 @@ Get all course documents with optional filtering and pagination.
 ```
 
 #### GET /documents/:id
+
 Get a single document by ID.
 
 **Access:** All authenticated users
@@ -685,6 +751,7 @@ Get a single document by ID.
 **Headers:** `Authorization: Bearer <token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -705,6 +772,7 @@ Get a single document by ID.
 ```
 
 **Error Response (404):**
+
 ```json
 {
   "success": false,
@@ -716,9 +784,11 @@ Get a single document by ID.
 ```
 
 #### POST /documents (Admin Only)
+
 Upload a new course document.
 
-**Headers:** 
+**Headers:**
+
 - `Authorization: Bearer <admin_token>`
 - `Content-Type: multipart/form-data`
 
@@ -731,6 +801,7 @@ Upload a new course document.
 | `file` | File | Yes | The file to upload |
 
 **Accepted File Types:**
+
 - PDF (`application/pdf`)
 - DOC (`application/msword`)
 - DOCX (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
@@ -743,6 +814,7 @@ Upload a new course document.
 **Max File Size:** 10 MB
 
 **Success Response (201):**
+
 ```json
 {
   "success": true,
@@ -763,6 +835,7 @@ Upload a new course document.
 ```
 
 **Error Response (400) - File too large:**
+
 ```json
 {
   "success": false,
@@ -774,6 +847,7 @@ Upload a new course document.
 ```
 
 **Error Response (400) - Invalid file type:**
+
 ```json
 {
   "success": false,
@@ -785,6 +859,7 @@ Upload a new course document.
 ```
 
 **Error Response (403) - Not admin:**
+
 ```json
 {
   "success": false,
@@ -796,11 +871,13 @@ Upload a new course document.
 ```
 
 #### PUT /documents/:id (Admin Only)
+
 Update document metadata (title, description, category).
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Request Body (partial update allowed):**
+
 ```json
 {
   "title": "Updated Title",
@@ -810,6 +887,7 @@ Update document metadata (title, description, category).
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -831,11 +909,13 @@ Update document metadata (title, description, category).
 ```
 
 #### DELETE /documents/:id (Admin Only)
+
 Delete a document and its associated file.
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -844,6 +924,7 @@ Delete a document and its associated file.
 ```
 
 **Error Response (404):**
+
 ```json
 {
   "success": false,
@@ -855,6 +936,7 @@ Delete a document and its associated file.
 ```
 
 #### GET /documents/:id/download
+
 Download the document file.
 
 **Access:** All authenticated users
@@ -862,6 +944,7 @@ Download the document file.
 **Headers:** `Authorization: Bearer <token>`
 
 **Response Headers:**
+
 ```
 Content-Type: <file's MIME type>
 Content-Disposition: attachment; filename="original_filename.pdf"
@@ -871,6 +954,7 @@ Content-Length: <file size in bytes>
 **Response Body:** Binary file data
 
 #### GET /documents/categories
+
 Get list of all unique categories currently in use.
 
 **Access:** All authenticated users
@@ -878,6 +962,7 @@ Get list of all unique categories currently in use.
 **Headers:** `Authorization: Bearer <token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -901,11 +986,13 @@ Get list of all unique categories currently in use.
 ### Analytics API (Admin Only)
 
 #### GET /analytics/dashboard
+
 Get dashboard statistics.
 
 **Headers:** `Authorization: Bearer <admin_token>`
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -940,16 +1027,19 @@ Get dashboard statistics.
 ## File Upload
 
 ### Storage Requirements
+
 - Store files in a persistent storage system (cloud storage recommended)
 - Generate unique filenames to prevent conflicts (e.g., UUID + original extension)
 - Store original filename in database for display
 
 ### File Serving
+
 - Serve files through authenticated endpoints only
 - Set appropriate Content-Type and Content-Disposition headers
 - Consider signed URLs for cloud storage
 
 ### Example File Storage Structure
+
 ```
 /uploads/
   /submissions/
@@ -969,30 +1059,32 @@ Get dashboard statistics.
 ## Error Handling
 
 ### Standard Error Response Format
+
 ```json
 {
   "success": false,
   "error": {
     "code": "ERROR_CODE",
     "message": "Human readable message",
-    "details": []  // Optional, for validation errors
+    "details": [] // Optional, for validation errors
   }
 }
 ```
 
 ### Error Codes
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `UNAUTHORIZED` | 401 | Missing or invalid token |
-| `FORBIDDEN` | 403 | Insufficient permissions |
-| `NOT_FOUND` | 404 | Resource not found |
-| `VALIDATION_ERROR` | 400 | Invalid request data |
-| `INVALID_CREDENTIALS` | 401 | Wrong email/password |
-| `FILE_TOO_LARGE` | 400 | File exceeds size limit |
-| `INVALID_FILE_TYPE` | 400 | Unsupported file type |
-| `SUBMISSION_LOCKED` | 403 | Cannot modify reviewed submission |
-| `DUPLICATE_ENTRY` | 409 | Email or enrollment number exists |
-| `INTERNAL_ERROR` | 500 | Server error |
+
+| Code                  | HTTP Status | Description                       |
+| --------------------- | ----------- | --------------------------------- |
+| `UNAUTHORIZED`        | 401         | Missing or invalid token          |
+| `FORBIDDEN`           | 403         | Insufficient permissions          |
+| `NOT_FOUND`           | 404         | Resource not found                |
+| `VALIDATION_ERROR`    | 400         | Invalid request data              |
+| `INVALID_CREDENTIALS` | 401         | Wrong email/password              |
+| `FILE_TOO_LARGE`      | 400         | File exceeds size limit           |
+| `INVALID_FILE_TYPE`   | 400         | Unsupported file type             |
+| `SUBMISSION_LOCKED`   | 403         | Cannot modify reviewed submission |
+| `DUPLICATE_ENTRY`     | 409         | Email or enrollment number exists |
+| `INTERNAL_ERROR`      | 500         | Server error                      |
 
 ---
 
@@ -1001,6 +1093,7 @@ Get dashboard statistics.
 The backend must allow requests from the frontend origin.
 
 ### Development Configuration
+
 ```
 Access-Control-Allow-Origin: http://localhost:5173
 Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
@@ -1009,6 +1102,7 @@ Access-Control-Allow-Credentials: true
 ```
 
 ### Production Configuration
+
 ```
 Access-Control-Allow-Origin: https://your-frontend-domain.com
 Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
@@ -1173,9 +1267,9 @@ Once the backend is ready, update the frontend:
 ## Changelog
 
 ### v1.1 (January 7, 2026)
+
 - Added **Course Documents API** - Allows admins to upload learning materials for students to download
 - Added `CourseDocument` data model
 - Added `course_documents` database table schema
 - Updated user roles with new permissions
 - Added 7 new endpoints for document management
-

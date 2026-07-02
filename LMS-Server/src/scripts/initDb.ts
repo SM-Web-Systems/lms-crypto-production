@@ -1,9 +1,9 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
-import { db, close } from '../config/database.js';
-import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+import { db, close } from "../config/database.js";
+import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
 
 const createTablesSQL = `
 -- Drop tables if they exist (for clean setup)
@@ -19,6 +19,7 @@ CREATE TABLE users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('student', 'admin')),
+  walletAddress TEXT UNIQUE, 
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -85,80 +86,150 @@ CREATE INDEX idx_documents_uploaded_by ON course_documents(uploaded_by_id);
 
 async function initDatabase() {
   try {
-    console.log('🔄 Creating database tables...');
-    
+    console.log("🔄 Creating database tables...");
+
     // Execute each statement separately
-    const statements = createTablesSQL.split(';').filter(s => s.trim());
+    const statements = createTablesSQL.split(";").filter((s) => s.trim());
     for (const statement of statements) {
       if (statement.trim()) {
         db.exec(statement);
       }
     }
-    console.log('✅ Tables created successfully');
+    console.log("✅ Tables created successfully");
 
     // Create admin user
     const adminId = uuidv4();
-    const adminPasswordHash = await bcrypt.hash('admin123', 10);
+    const adminPasswordHash = await bcrypt.hash("admin123", 10);
     db.prepare(
-      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`
-    ).run(adminId, 'Admin User', 'admin@kanya.edu', adminPasswordHash, 'admin');
-    console.log('✅ Admin user created (email: admin@kanya.edu, password: admin123)');
+      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
+    ).run(adminId, "Admin User", "admin@kanya.edu", adminPasswordHash, "admin");
+    console.log(
+      "✅ Admin user created (email: admin@kanya.edu, password: admin123)",
+    );
 
     // Create sample students with user accounts
-    const studentPasswordHash = await bcrypt.hash('student123', 10);
-    
+    const studentPasswordHash = await bcrypt.hash("student123", 10);
+
     const sampleStudents = [
-      { name: 'John Doe', email: 'john@kanya.edu', enrollment: 'KCS2024001', dept: 'Computer Science', sem: 4 },
-      { name: 'Jane Smith', email: 'jane@kanya.edu', enrollment: 'KCS2024002', dept: 'Information Technology', sem: 2 },
-      { name: 'Bob Wilson', email: 'bob@kanya.edu', enrollment: 'KCS2024003', dept: 'Electronics', sem: 6 },
-      { name: 'Alice Brown', email: 'alice@kanya.edu', enrollment: 'KCS2024004', dept: 'Computer Science', sem: 3 },
-      { name: 'Charlie Davis', email: 'charlie@kanya.edu', enrollment: 'KCS2024005', dept: 'Information Technology', sem: 5 },
+      {
+        name: "John Doe",
+        email: "john@kanya.edu",
+        enrollment: "KCS2024001",
+        dept: "Computer Science",
+        sem: 4,
+      },
+      {
+        name: "Jane Smith",
+        email: "jane@kanya.edu",
+        enrollment: "KCS2024002",
+        dept: "Information Technology",
+        sem: 2,
+      },
+      {
+        name: "Bob Wilson",
+        email: "bob@kanya.edu",
+        enrollment: "KCS2024003",
+        dept: "Electronics",
+        sem: 6,
+      },
+      {
+        name: "Alice Brown",
+        email: "alice@kanya.edu",
+        enrollment: "KCS2024004",
+        dept: "Computer Science",
+        sem: 3,
+      },
+      {
+        name: "Charlie Davis",
+        email: "charlie@kanya.edu",
+        enrollment: "KCS2024005",
+        dept: "Information Technology",
+        sem: 5,
+      },
     ];
 
     const insertUser = db.prepare(
-      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
     );
     const insertStudent = db.prepare(
-      `INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
 
     for (const student of sampleStudents) {
       const userId = uuidv4();
       const studentId = uuidv4();
-      
-      insertUser.run(userId, student.name, student.email, studentPasswordHash, 'student');
-      insertStudent.run(studentId, userId, student.name, student.email, student.enrollment, student.dept, student.sem);
+
+      insertUser.run(
+        userId,
+        student.name,
+        student.email,
+        studentPasswordHash,
+        "student",
+      );
+      insertStudent.run(
+        studentId,
+        userId,
+        student.name,
+        student.email,
+        student.enrollment,
+        student.dept,
+        student.sem,
+      );
     }
-    console.log('✅ Sample students created (password: student123)');
+    console.log("✅ Sample students created (password: student123)");
 
     // Create a few more students without user accounts (admin-managed)
     const additionalStudents = [
-      { name: 'David Miller', email: 'david@kanya.edu', enrollment: 'KCS2024006', dept: 'Electronics', sem: 4 },
-      { name: 'Eva Garcia', email: 'eva@kanya.edu', enrollment: 'KCS2024007', dept: 'Computer Science', sem: 1 },
-      { name: 'Frank Johnson', email: 'frank@kanya.edu', enrollment: 'KCS2024008', dept: 'Information Technology', sem: 7 },
+      {
+        name: "David Miller",
+        email: "david@kanya.edu",
+        enrollment: "KCS2024006",
+        dept: "Electronics",
+        sem: 4,
+      },
+      {
+        name: "Eva Garcia",
+        email: "eva@kanya.edu",
+        enrollment: "KCS2024007",
+        dept: "Computer Science",
+        sem: 1,
+      },
+      {
+        name: "Frank Johnson",
+        email: "frank@kanya.edu",
+        enrollment: "KCS2024008",
+        dept: "Information Technology",
+        sem: 7,
+      },
     ];
 
     const insertStudentNoUser = db.prepare(
-      `INSERT INTO students (id, name, email, enrollment_number, department, semester) VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO students (id, name, email, enrollment_number, department, semester) VALUES (?, ?, ?, ?, ?, ?)`,
     );
 
     for (const student of additionalStudents) {
       const studentId = uuidv4();
-      insertStudentNoUser.run(studentId, student.name, student.email, student.enrollment, student.dept, student.sem);
+      insertStudentNoUser.run(
+        studentId,
+        student.name,
+        student.email,
+        student.enrollment,
+        student.dept,
+        student.sem,
+      );
     }
-    console.log('✅ Additional students created (no login accounts)');
+    console.log("✅ Additional students created (no login accounts)");
 
-    console.log('\n📋 Database initialization complete!');
-    console.log('\n🔑 Test Credentials:');
-    console.log('   Admin: admin@kanya.edu / admin123');
-    console.log('   Student: john@kanya.edu / student123');
-    console.log('            jane@kanya.edu / student123');
-    console.log('            bob@kanya.edu / student123');
-    console.log('            alice@kanya.edu / student123');
-    console.log('            charlie@kanya.edu / student123');
-
+    console.log("\n📋 Database initialization complete!");
+    console.log("\n🔑 Test Credentials:");
+    console.log("   Admin: admin@kanya.edu / admin123");
+    console.log("   Student: john@kanya.edu / student123");
+    console.log("            jane@kanya.edu / student123");
+    console.log("            bob@kanya.edu / student123");
+    console.log("            alice@kanya.edu / student123");
+    console.log("            charlie@kanya.edu / student123");
   } catch (error) {
-    console.error('❌ Error initializing database:', error);
+    console.error("❌ Error initializing database:", error);
     throw error;
   } finally {
     close();
