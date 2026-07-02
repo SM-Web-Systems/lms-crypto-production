@@ -348,7 +348,7 @@ export async function getMe(
     }
 
     const user = queryOne<User>(
-      "SELECT id, name, email, role FROM users WHERE id = ?",
+      "SELECT id, name, email, role, walletAddress FROM users WHERE id = ?",
       [req.user.userId],
     );
 
@@ -363,6 +363,7 @@ export async function getMe(
         name: user.name,
         email: user.email,
         role: user.role,
+        walletAddress: user.walletAddress,
         courseCodes: getUserCourseCodes(user.id),
       },
     });
