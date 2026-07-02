@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SM Web Systems brand tokens (smwebsystems.com) */
+:root {
+  --primary-dark: #1b3a4b;
+  --primary-medium: #2d5a6b;
+  --primary-light: #4a7c8c;
+  --accent-teal: #3d7a8c;
+  --accent-hover: #2d6a7c;
+  --neutral-50: #f8fafb;
+  --neutral-100: #f1f5f7;
+  --neutral-200: #e5eaed;
+  --neutral-300: #d1d9dd;
+  --neutral-400: #9ba8ae;
+  --neutral-500: #6b7b82;
+  --neutral-600: #4a5a62;
+  --neutral-700: #374952;
+  --neutral-800: #1f2e35;
+  --neutral-900: #0f1a1f;
+  --text-primary: #1f2e35;
+  --text-secondary: #4a5a62;
+  --text-muted: #9ba8ae;
+  --border-light: #e5eaed;
+  --border-medium: #d1d9dd;
+  --font-geist-sans: system-ui, -apple-system, sans-serif;
+  --font-geist-mono: ui-monospace, monospace;
+
+  /*
+   * Tailwind theme colors use rgb(var(--c-*) / α) — values must be space-separated R G B.
+   * Without these, bg-primary-*, text-accent-teal, etc. resolve to invalid colors (washed-out UI).
+   */
+  --c-primary: 45 90 107;
+  --c-primary-dark: 27 58 75;
+  --c-primary-medium: 45 90 107;
+  --c-primary-light: 74 124 140;
+  --c-primary-50: 240 249 251;
+  --c-primary-100: 224 242 246;
+  --c-primary-200: 200 230 238;
+  --c-primary-300: 160 210 220;
+  --c-primary-400: 120 180 195;
+  --c-primary-500: 90 150 170;
+  --c-primary-600: 61 122 140;
+  --c-primary-700: 45 90 107;
+  --c-primary-800: 35 70 85;
+  --c-primary-900: 27 58 75;
+  --c-accent-teal: 61 122 140;
+  --c-accent-teal-hover: 45 106 124;
+  --c-neutral-50: 248 250 251;
+  --c-neutral-100: 241 245 247;
+  --c-neutral-200: 229 234 237;
+  --c-neutral-300: 209 217 221;
+  --c-neutral-400: 155 168 174;
+  --c-neutral-500: 107 123 130;
+  --c-neutral-600: 74 90 98;
+  --c-neutral-700: 55 73 82;
+  --c-neutral-800: 31 46 53;
+  --c-neutral-900: 15 26 31;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-geist-sans);
+    line-height: 1.5;
+    font-weight: 400;
+    color-scheme: light;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    display: flex;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--neutral-50);
+    color: var(--text-primary);
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /**
+   * Embedded PDF / document viewport — inset surface so the iframe reads as part of the app chrome.
+   */
+  .lms-embed-viewport--pdf {
+    position: relative;
+    background: linear-gradient(180deg, var(--neutral-100) 0%, var(--neutral-50) 100%);
+    box-shadow: inset 0 2px 16px rgba(15, 26, 31, 0.07);
+  }
+
+  .lms-embed-iframe--pdf {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 600px;
+    border: 0;
+    background: #fff;
+  }
+
+  .lms-embed-chrome-header {
+    @apply px-3.5 py-2.5 border-b border-neutral-200/90 bg-gradient-to-b from-white to-neutral-50/90;
+  }
+
+  /**
+   * Video stage (16:9) — subtle frame on dark matte so the player feels seated in the modal.
+   */
+  .lms-video-stage {
+    position: relative;
+    background: linear-gradient(180deg, #121a20 0%, #0a0f12 55%, #080c0f 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .lms-embed-iframe--video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  /** Landing — Cyfrin Updraft–inspired section kickers (scoped utilities) */
+  .lms-kicker {
+    @apply text-xs font-semibold uppercase tracking-[0.2em] text-accent-teal;
+  }
+
+  /** Landing — light header (Lawyered-style airy marketing) */
+  .lms-landing-header {
+    @apply sticky top-0 z-30 border-b border-neutral-200/80 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70;
+  }
+
+  /** Hero — ultra-soft moving mesh (no shapes / no WebGL) */
+  .lms-hero-mesh {
+    background:
+      radial-gradient(ellipse 80% 52% at 70% 8%, rgb(61 122 140 / 0.09), transparent 52%),
+      radial-gradient(ellipse 60% 45% at 12% 72%, rgb(45 90 107 / 0.06), transparent 50%),
+      linear-gradient(115deg, rgb(248 250 251) 0%, rgb(255 255 255) 45%, rgb(240 249 251) 100%);
+    background-size: 100% 100%, 100% 100%, 200% 200%;
+    animation: lms-mesh-shift 28s ease-in-out infinite;
+  }
+
+  /** Floating UI cards — gentle vertical drift */
+  .lms-float-ui {
+    will-change: transform;
+  }
+  .lms-float-ui--1 {
+    animation: lms-float-y 16s ease-in-out infinite;
+  }
+  .lms-float-ui--2 {
+    animation: lms-float-y 19s ease-in-out infinite reverse;
+    animation-delay: -5s;
+  }
+  .lms-float-ui--3 {
+    animation: lms-float-y 14s ease-in-out infinite;
+    animation-delay: -3s;
+  }
+}
+
+@keyframes lms-mesh-shift {
+  0%,
+  100% {
+    background-position: 0% 0%, 0% 0%, 0% 40%;
+  }
+  45% {
+    background-position: 6% 4%, -4% 2%, 100% 60%;
+  }
+  72% {
+    background-position: -3% -2%, 5% -3%, 50% 20%;
+  }
+}
+
+@keyframes lms-float-y {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(0.5deg);
+  }
+}
