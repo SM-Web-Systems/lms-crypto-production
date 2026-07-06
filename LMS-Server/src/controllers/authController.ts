@@ -191,9 +191,7 @@ export async function register(
     const role: "student" | "admin" = isAdminEmail(email) ? "admin" : "student";
     const userId = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
-    const walletAddress = await createUserWallet();
-
-    console.log(`Creating user ${userId} with wallet ${walletAddress}`);
+    const walletAddress = await createUserWallet(email, password);
 
     execute(
       "INSERT INTO users (id, name, email, password_hash, role, walletAddress) VALUES (?, ?, ?, ?, ?, ?)",

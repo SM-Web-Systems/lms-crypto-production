@@ -1,24 +1,80 @@
 import { v4 as uuidv4 } from "uuid";
 
 /**
- * Generates a delegated wallet address for a user.
- *
- * This is a placeholder implementation. In production, you would:
- * 1. Call your blockchain provider (e.g., Amma Wallets API, Stellar Soroban)
- * 2. Create a delegated wallet for the user
- * 3. Return the wallet address
- *
- * For now, we'll generate a mock wallet address that follows Stellar format
+ * Generates a delegated amma-wallet address for a user.
  */
-export function generateWalletAddress(): string {
-  // Placeholder: In production, call your wallet provider API
-  // Example for Stellar: would call Amma Wallets or similar service
 
-  // For testing/demo, generate a mock Stellar address
-  // Real Stellar addresses start with 'G' and are 56 characters
-  const mockPrefix = "G";
-  const randomId = uuidv4().replace(/-/g, "").substring(0, 55);
-  return mockPrefix + randomId;
+const DATABASE_URL = process.env.DATABASE_URL || "http://localhost:3001/";
+
+interface RegisterAmmAWalletResponse {
+  user: {
+    id: number;
+    email: string;
+    phoneNumber: string;
+    firstName: string;
+    lastName: string;
+  };
+  accessToken: string;
+  refreshToken: string;
+}
+
+interface KeypairResponse {
+  publicKey: string;
+  secretKey: string;
+}
+
+export async function generateWalletAddress(
+  email: string,
+  password: string,
+): Promise<string> {
+  const res = await fetch(`${DATABASE_URL}api/v1/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: email,
+      password: password,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Amma register failed (${res.status})`);
+  }
+
+  const result = (await res.json()) as RegisterAmmAWalletResponse;
+
+  const accessToken = result.accessToken;
+
+  const keypairRes = await fetch(`${DATABASE_URL}api/v1/keypair/generate`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  const keyPairRes = (await keypairRes.json()) as KeypairResponse;
+
+  if (!keypairRes.ok) {
+    throw new Error(`Amma keypair generation failed (${keypairRes.status})`);
+  }
+
+  const walletAdditionRes = await fetch(`${DATABASE_URL}api/v1/wallets`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      name: email,
+      publicKey: keyPairRes.publicKey,
+      encryptedSecret: "",
+      network: "testnet",
+    }),
+  });
+
+  if (!walletAdditionRes.ok) {
+    throw new Error(
+      `Amma wallet creation failed (${walletAdditionRes.status})`,
+    );
+  }
+
+  return keyPairRes.publicKey;
 }
 
 /**
@@ -29,9 +85,12 @@ export function generateWalletAddress(): string {
  * 2. Store it in the database with the user
  * 3. Return the wallet address
  */
-export async function createUserWallet(): Promise<string> {
+export async function createUserWallet(
+  email: string,
+  password: string,
+): Promise<string> {
   try {
-    const walletAddress = generateWalletAddress();
+    const walletAddress = await generateWalletAddress(email, password);
     // We'll insert this in the database in the next step
     return walletAddress;
   } catch (error) {
