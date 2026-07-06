@@ -9,8 +9,6 @@ export const WalletDisplay: React.FC<WalletDisplayProps> = ({ walletAddress }) =
     return null;
   }
 
-  // const shortAddress = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
-
   return (
     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
       <p className="text-sm text-gray-600">Your Wallet Address</p>
