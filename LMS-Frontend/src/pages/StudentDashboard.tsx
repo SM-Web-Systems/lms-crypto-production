@@ -215,7 +215,7 @@ const StudentDashboard: React.FC = () => {
                 Your learning hub
               </p>
               <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 tracking-tight">
-                {greeting}, {firstName}! {user?.walletAddress}
+                {greeting}, {firstName}!
               </h1>
               <p className="text-neutral-700 text-base sm:text-lg leading-relaxed">
                 Pick up where you left off — course, quizzes, and classmates are one tap away.
