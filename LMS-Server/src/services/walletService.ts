@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
  * Generates a delegated amma-wallet address for a user.
  */
 
-const DATABASE_URL = process.env.DATABASE_URL || "http://localhost:3001/";
+const AMMA_WALLET_URL = process.env.DATABASE_URL || "http://localhost:3001/";
 
 interface RegisterAmmAWalletResponse {
   user: {
@@ -27,7 +27,7 @@ export async function generateWalletAddress(
   email: string,
   password: string,
 ): Promise<string> {
-  const res = await fetch(`${DATABASE_URL}api/v1/auth/register`, {
+  const res = await fetch(`${AMMA_WALLET_URL}api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -44,7 +44,7 @@ export async function generateWalletAddress(
 
   const accessToken = result.accessToken;
 
-  const keypairRes = await fetch(`${DATABASE_URL}api/v1/keypair/generate`, {
+  const keypairRes = await fetch(`${AMMA_WALLET_URL}api/v1/keypair/generate`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -54,7 +54,7 @@ export async function generateWalletAddress(
     throw new Error(`Amma keypair generation failed (${keypairRes.status})`);
   }
 
-  const walletAdditionRes = await fetch(`${DATABASE_URL}api/v1/wallets`, {
+  const walletAdditionRes = await fetch(`${AMMA_WALLET_URL}api/v1/wallets`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

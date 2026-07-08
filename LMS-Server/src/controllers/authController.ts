@@ -10,6 +10,8 @@ import { createUserWallet } from "../services/walletService.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const AMMA_WALLET_URL = process.env.DATABASE_URL || "http://localhost:3001/";
+
 /** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
 function isAdminEmail(email: string): boolean {
   const raw = process.env.ADMIN_EMAILS?.trim();
@@ -109,6 +111,25 @@ export async function login(
       );
       studentId = student?.id;
     }
+
+    // LOG IN TO AMMA WALLET AS WELL
+    const loginRes = await fetch(`${AMMA_WALLET_URL}api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email,
+        phoneNumber: "",
+        password: password,
+        turnstileToken: "",
+        twoFaToken: ""
+      }),
+    });
+
+    if (!loginRes.ok) {
+      throw new Error(`Amma login failed (${loginRes.status})`);
+    }
+
+    console.log("Amma login successful for user:", loginRes);
 
     // Generate JWT token
     const token = generateToken({
