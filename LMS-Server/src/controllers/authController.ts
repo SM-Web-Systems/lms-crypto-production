@@ -6,11 +6,30 @@ import { query, queryOne, execute } from "../config/database.js";
 import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { createUserWallet } from "../services/walletService.js";
+import { createUserWallet, getUserNfts, type GetNFTResponse } from "../services/walletService.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const AMMA_WALLET_URL = process.env.DATABASE_URL || "http://localhost:3001/";
+
+interface LoginAmmaResponse {
+  user: {
+    id: 0,
+    email: string,
+    phoneNumber: string,
+    firstName: string,
+    lastName: string,
+    avatar: string,
+    preferredLanguage: string,
+    preferredNetwork: string
+  },
+  accessToken: string,
+  refreshToken: string,
+  twoFaRequired: boolean,
+  twoFaMethod: string,
+  message: string
+}
+
 
 /** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
 function isAdminEmail(email: string): boolean {
@@ -129,7 +148,16 @@ export async function login(
       throw new Error(`Amma login failed (${loginRes.status})`);
     }
 
-    console.log("Amma login successful for user:", loginRes);
+    const result = (await loginRes.json())as LoginAmmaResponse;
+
+    const accessToken = result.accessToken;
+    console.log("Amma Wallet Access Token:", accessToken);
+
+    let userNfts: GetNFTResponse | undefined;
+
+    userNfts = await getUserNfts(user.walletAddress);
+
+    console.log("User NFTs:", userNfts.indexed.tokens);
 
     // Generate JWT token
     const token = generateToken({
@@ -151,6 +179,7 @@ export async function login(
           walletAddress: user.walletAddress,
           courseCodes: getUserCourseCodes(user.id),
         },
+        usernfts: userNfts,
       },
     });
   } catch (error) {
