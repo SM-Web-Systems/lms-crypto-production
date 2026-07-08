@@ -1,13 +1,14 @@
-import axios, { AxiosInstance, isAxiosError } from 'axios';
-import { fromAxiosError } from '../utils/apiError';
-import { toastError } from '../utils/toastBus';
+import axios, { AxiosInstance, isAxiosError } from "axios";
+import { fromAxiosError } from "../utils/apiError";
+import { toastError } from "../utils/toastBus";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -30,8 +31,8 @@ export async function getAuthToken(): Promise<string | null> {
 
 api.interceptors.request.use(async (config) => {
   // Let the runtime set multipart boundary; default JSON Content-Type breaks FormData uploads
-  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
-    delete config.headers['Content-Type'];
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
   }
   if (tokenGetter) {
     try {
@@ -52,17 +53,17 @@ api.interceptors.response.use(
     if (!isAxiosError(error)) {
       return Promise.reject(error);
     }
-    const reqUrl = error.config?.url ?? '';
+    const reqUrl = error.config?.url ?? "";
     // Don't hard-redirect on auth endpoints: the auth context handles those errors
     // (showing form messages / clearing the session) and a redirect here would loop.
     const status = error.response?.status;
     if (status === 401) {
       const skipRedirect =
-        reqUrl.includes('/auth/login') ||
-        reqUrl.includes('/auth/google') ||
-        reqUrl.includes('/auth/me');
+        reqUrl.includes("/auth/login") ||
+        reqUrl.includes("/auth/google") ||
+        reqUrl.includes("/auth/me");
       if (!skipRedirect) {
-        window.location.href = '/login';
+        window.location.href = "/login";
       }
     }
     const parsed = fromAxiosError(error);
@@ -70,7 +71,7 @@ api.interceptors.response.use(
       toastError(parsed.message);
     }
     return Promise.reject(parsed);
-  }
+  },
 );
 
 export default api;

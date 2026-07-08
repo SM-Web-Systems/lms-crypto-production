@@ -1,11 +1,12 @@
 // User Types
-export type UserRole = 'student' | 'admin';
+export type UserRole = "student" | "admin";
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  walletAddress: string;
   /** Course codes the user can access (students). When backend supports this, include in auth/me. */
   courseCodes?: string[];
 }
@@ -45,7 +46,7 @@ export interface UpdateStudentData {
 }
 
 // Submission Types
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type SubmissionStatus = "pending" | "approved" | "rejected";
 
 export interface Submission {
   id: string;
@@ -72,7 +73,7 @@ export interface CreateSubmissionData {
 }
 
 export interface ReviewSubmissionData {
-  status: 'approved' | 'rejected';
+  status: "approved" | "rejected";
   feedback?: string;
 }
 
@@ -175,5 +176,3 @@ export interface DocumentQueryParams {
   category?: string;
   search?: string;
 }
-
-

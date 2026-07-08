@@ -79,6 +79,7 @@ describe('GET /api/v1/auth/me', () => {
       name: 'Admin User',
       email: 'admin@test.com',
       role: 'admin',
+      walletAddress: 'admin-wallet-address',
     });
     expect(res.body.data.courseCodes).toBeDefined();
   });
