@@ -12,24 +12,6 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const AMMA_WALLET_URL = process.env.DATABASE_URL || "http://localhost:3001/";
 
-interface LoginAmmaResponse {
-  user: {
-    id: 0,
-    email: string,
-    phoneNumber: string,
-    firstName: string,
-    lastName: string,
-    avatar: string,
-    preferredLanguage: string,
-    preferredNetwork: string
-  },
-  accessToken: string,
-  refreshToken: string,
-  twoFaRequired: boolean,
-  twoFaMethod: string,
-  message: string
-}
-
 
 /** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
 function isAdminEmail(email: string): boolean {
