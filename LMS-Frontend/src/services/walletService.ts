@@ -13,7 +13,6 @@ export async function getUserNfts(walletAddress: string): Promise<NFTResponse> {
   }
 
   const result = (await res.json()) as NFTResponse;
-  console.log("NFT result:", result);
   return result;
 }
 
