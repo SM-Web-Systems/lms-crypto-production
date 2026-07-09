@@ -6,7 +6,7 @@ import { query, queryOne, execute } from "../config/database.js";
 import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { createUserWallet, getUserNfts, type GetNFTResponse } from "../services/walletService.js";
+import { createUserWallet } from "../services/walletService.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -147,11 +147,6 @@ export async function login(
     if (!loginRes.ok) {
       throw new Error(`Amma login failed (${loginRes.status})`);
     }
-
-    const result = (await loginRes.json())as LoginAmmaResponse;
-
-    const accessToken = result.accessToken;
-    console.log("Amma Wallet Access Token:", accessToken);
 
     // Generate JWT token
     const token = generateToken({
