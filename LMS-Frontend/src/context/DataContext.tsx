@@ -4,7 +4,7 @@ import { submissionsService } from '../services/submissionsService';
 import { getErrorMessage } from '../utils/apiError';
 import { 
   Student, 
-  Submission, 
+  Submission,
   Pagination, 
   CreateStudentData, 
   UpdateStudentData,
@@ -162,7 +162,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateSubmission,
         deleteSubmission,
         reviewSubmission,
-        downloadSubmission,
+        downloadSubmission
       }}
     >
       {children}

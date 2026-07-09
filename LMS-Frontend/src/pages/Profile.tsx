@@ -315,6 +315,7 @@ const Profile: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-neutral-900 text-lg truncate">{displayName}</p>
+                  <p className="text-sm text-neutral-500 truncate">Wallet: {user.walletAddress}</p>
                   {!isViewingOther && (
                     <p className="text-sm text-neutral-500 truncate">{user.email}</p>
                   )}

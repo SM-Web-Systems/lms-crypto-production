@@ -153,12 +153,6 @@ export async function login(
     const accessToken = result.accessToken;
     console.log("Amma Wallet Access Token:", accessToken);
 
-    let userNfts: GetNFTResponse | undefined;
-
-    userNfts = await getUserNfts(user.walletAddress);
-
-    console.log("User NFTs:", userNfts.indexed.tokens);
-
     // Generate JWT token
     const token = generateToken({
       userId: user.id,
@@ -177,9 +171,8 @@ export async function login(
           email: user.email,
           role,
           walletAddress: user.walletAddress,
-          courseCodes: getUserCourseCodes(user.id),
+          courseCodes: getUserCourseCodes(user.id)
         },
-        usernfts: userNfts,
       },
     });
   } catch (error) {

@@ -1,3 +1,54 @@
+export interface NFTResponse {
+  indexed: {
+    tokens: [
+      {
+        token: {
+          id: number;
+          collectionId: number;
+          tokenId: number;
+          owner: string;
+          metadataUri: string;
+          name: string;
+          description: string;
+          image: string;
+          attributes: [
+            {
+              value: string;
+              trait_type: string;
+            },
+            {
+              value: string;
+              trait_type: string;
+            }
+          ],
+          isBurned: boolean;
+          lastSyncedAt: null;
+          createdAt: string;
+          updatedAt: string;
+        },
+        collection: {
+          id: number;
+          type: string;
+          contractId: string;
+          assetCode: null;
+          assetIssuer: null;
+          name: string;
+          symbol: string;
+          baseUri: string;
+          description: string;
+          image: null;
+          creator: null;
+          totalSupply: number;
+          isVerified: boolean;
+          network: string;
+          createdAt: string;
+          updatedAt: string;
+        }
+      }
+    ];
+  }
+}
+
 // User Types
 export type UserRole = "student" | "admin";
 
@@ -175,4 +226,20 @@ export interface DocumentQueryParams {
   limit?: number;
   category?: string;
   search?: string;
+}
+
+export interface NftToken {
+  id: number;
+  collectionId: number;
+  tokenId: number;
+  owner: string;
+  metadataUri: string | null;
+  name: string | null;
+  description: string | null;
+  image: string | null;
+  attributes: { trait_type: string; value: string }[] | null;
+  isBurned: boolean;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
