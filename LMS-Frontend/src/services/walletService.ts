@@ -1,11 +1,4 @@
-import api from "./api";
-import { ApiResponse } from "../types/api";
-
-export interface WalletResponse {
-  walletAddress: string;
-}
-
-const AMMA_WALLET_URL = "http://localhost:3001/";
+const AMMA_WALLET_URL = import.meta.env.VITE_AMMA_WALLET_URL || "http://localhost:3001/";
 
 export interface GetNFTResponse {
   indexed: {

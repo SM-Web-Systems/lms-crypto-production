@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
  * Generates a delegated amma-wallet address for a user.
  */
 
-const AMMA_WALLET_URL = process.env.DATABASE_URL || "http://localhost:3001/";
+const AMMA_WALLET_URL = process.env.AMMA_WALLET_URL || "http://localhost:3001/";
 
 interface RegisterAmmAWalletResponse {
   user: {
