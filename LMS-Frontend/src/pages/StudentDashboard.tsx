@@ -26,7 +26,8 @@ import {
 import { DashboardPageSkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
 import NftCard from '../components/NftCard';  
-import { getUserNfts, type GetNFTResponse }  from '../services/walletService';
+import { getUserNfts }  from '../services/walletService';
+import type { NFTResponse } from '../types/api';
 
 function greetingForHour(h: number): string {
   if (h < 12) return 'Good morning';
@@ -55,7 +56,7 @@ const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
   const { submissions, submissionsLoading, submissionsError, fetchSubmissions } = useData();
   const [quizCompletions, setQuizCompletions] = useState<QuizCompletion[] | null>(null);
-  const [nftBadges, setNftBadges] = useState<GetNFTResponse | null>(null);
+  const [nftBadges, setNftBadges] = useState<NFTResponse | null>(null);
 
   useEffect(() => {
     fetchSubmissions();
