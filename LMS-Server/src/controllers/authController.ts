@@ -10,6 +10,7 @@ import { createUserWallet } from "../services/walletService.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+
 /** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
 function isAdminEmail(email: string): boolean {
   const raw = process.env.ADMIN_EMAILS?.trim();
@@ -128,7 +129,7 @@ export async function login(
           email: user.email,
           role,
           walletAddress: user.walletAddress,
-          courseCodes: getUserCourseCodes(user.id),
+          courseCodes: getUserCourseCodes(user.id)
         },
       },
     });

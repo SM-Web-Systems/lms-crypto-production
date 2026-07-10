@@ -25,6 +25,9 @@ import {
 } from 'lucide-react';
 import { DashboardPageSkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
+import NftCard from '../components/NftCard';  
+import { getUserNfts }  from '../services/walletService';
+import type { NFTResponse } from '../types/api';
 
 function greetingForHour(h: number): string {
   if (h < 12) return 'Good morning';
@@ -53,10 +56,33 @@ const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
   const { submissions, submissionsLoading, submissionsError, fetchSubmissions } = useData();
   const [quizCompletions, setQuizCompletions] = useState<QuizCompletion[] | null>(null);
+  const [nftBadges, setNftBadges] = useState<NFTResponse | null>(null);
 
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadNfts = async () => {
+      if (!user) return;
+      try {
+        const nfts = await getUserNfts(user.walletAddress);
+        if (!cancelled) {
+          setNftBadges(nfts);
+          console.log('NFT Badges:', nfts);
+        }
+      } catch (error) {
+        console.error('Failed to load NFT badges:', error);
+      }
+    };
+
+    loadNfts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, getUserNfts]);
 
   useEffect(() => {
     const uid = user?.id;
@@ -86,6 +112,7 @@ const StudentDashboard: React.FC = () => {
   const greeting = greetingForHour(hour);
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
   const dailyLine = pickDailyLine();
+  const nftTokens = nftBadges?.indexed.tokens.map((t) => t.token) ?? [];
 
   const engagementHint = useMemo(() => {
     if (approvedCount >= 3) return { text: "You're on a roll — keep shipping great work!", icon: Trophy };
@@ -241,6 +268,7 @@ const StudentDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+            
           </div>
         </div>
       </section>
@@ -277,6 +305,23 @@ const StudentDashboard: React.FC = () => {
               </button>
             );
           })}
+        </div>
+      </section>
+
+      {/* NFT Badges */}
+      <section>
+        <h2 className="text-lg font-bold text-neutral-900 mb-4">Your NFT Badges</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <ul className="grid grid-cols-1 m:grid-cols-2 gap-2 mt-2">
+            {nftTokens.length > 0 ? (
+              nftTokens.map((token) => (<li key={token.id}><NftCard token={token} /></li>))
+            ) : (
+              <li className={`group text-left rounded-xl border border-neutral-200/90 bg-gradient-to-br p-4 shadow-card ring-1 ring-neutral-900/[0.03] transition-all hover:shadow-updraft-hover hover:-translate-y-0.5 hover:ring-neutral-900/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal focus-visible:ring-offset-2`}
+              >
+                No NFT badges yet
+              </li>
+            )}
+          </ul>
         </div>
       </section>
 
