@@ -4,7 +4,7 @@ import { signingApi, txApi } from "./api";
 import { useAuthStore } from "../store/auth";
 import { useWalletStore } from "../store/wallet";
 
-// Default server (testnet) — used as fallback
+// Default server (mainnet) — used as fallback; HORIZON_URL = https://horizon.stellar.org
 const defaultServer = new StellarSdk.Horizon.Server(HORIZON_URL);
 
 /**
@@ -90,12 +90,53 @@ export function signXdr(xdr: string, secretKey: string): string {
 }
 
 // Platform fee config
-const PLATFORM_WALLET = "GCGR5XQPJM5D4VQGLOJ7VIFVKXSYLGOG5WCJQXJRSZGBMPKZWIRC4G6H";
+// VITE_PLATFORM_WALLET is baked at build time per environment.
+// Mainnet: GDDTYCZLPCPK7PN4IDHHJ7NS4Q7KL6D5BUV6XFRI7WZST23PCOLWJ6LG (funded 2026-07-18)
+// Testnet: GAIYVA5B333KNWNXEGMUB3POATDAFWHI74QJ7LTG7OJEEE4ZWSDFMSN5 (Friendbot-funded 2026-07-20)
+const PLATFORM_WALLET: string = import.meta.env.VITE_PLATFORM_WALLET || "";
 const PLATFORM_FEE_PERCENT = 0.1; // 0.1%
 
 export function calculatePlatformFee(amount: string): string {
   const fee = (parseFloat(amount) * PLATFORM_FEE_PERCENT / 100);
   return fee > 0.0000001 ? fee.toFixed(7) : "0";
+}
+
+/**
+ * Extract a human-readable error message from a Stellar SDK submission error.
+ * The SDK wraps Horizon's JSON response; result codes live in
+ * err.response.data.extras.result_codes.
+ */
+export function extractStellarError(err: any): string {
+  const resultCodes = err?.response?.data?.extras?.result_codes;
+  if (!resultCodes) {
+    return err?.message || "Transaction failed";
+  }
+  const ops: string[] = resultCodes.operations || [];
+  const tx: string = resultCodes.transaction || "";
+
+  if (ops.includes("op_no_destination")) {
+    return "Destination account does not exist on Stellar. The recipient must receive at least 1 XLM to activate their account first.";
+  }
+  if (ops.includes("op_underfunded")) {
+    return "Insufficient balance. Each trustline raises your minimum reserve by 0.5 XLM — check your spendable balance before sending.";
+  }
+  if (ops.includes("op_no_trust")) {
+    return "The destination account has no trustline for this asset. They must add the asset first.";
+  }
+  if (ops.includes("op_line_full")) {
+    return "The destination's balance for this asset is at its limit.";
+  }
+  if (ops.includes("op_not_authorized")) {
+    return "The destination is not authorized to hold this asset.";
+  }
+  if (tx === "tx_bad_seq") {
+    return "Transaction sequence error. Please refresh the page and try again.";
+  }
+  if (tx === "tx_insufficient_fee") {
+    return "Network fee too low. Please try again.";
+  }
+  const code = ops.join(", ") || tx;
+  return `Transaction failed: ${code}`;
 }
 
 export async function buildPaymentTx(
@@ -113,6 +154,24 @@ export async function buildPaymentTx(
     assetCode === "XLM"
       ? StellarSdk.Asset.native()
       : new StellarSdk.Asset(assetCode, assetIssuer!);
+
+  // Pre-flight reserve check for XLM sends
+  if (assetCode === "XLM") {
+    const subentryCount: number = (account as any).subentry_count ?? 0;
+    const minReserve = (2 + subentryCount) * 0.5;
+    const xlmBal = parseFloat(
+      (account.balances as any[]).find((b) => b.asset_type === "native")?.balance ?? "0"
+    );
+    const available = xlmBal - minReserve;
+    if (parseFloat(amount) > available) {
+      throw new Error(
+        `Insufficient balance. Spendable: ${available.toFixed(7)} XLM ` +
+        `(balance ${xlmBal.toFixed(7)} XLM − reserve ${minReserve.toFixed(1)} XLM` +
+        (subentryCount > 0 ? ` incl. ${subentryCount} trustline${subentryCount !== 1 ? "s" : ""}` : "") +
+        `).`
+      );
+    }
+  }
 
   // Calculate fee WITHIN the amount (recipient gets less)
   const feeAmount = calculatePlatformFee(amount);

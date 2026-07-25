@@ -15,6 +15,20 @@
       "when": 1781898704004,
       "tag": "0001_grey_prism",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784293425299,
+      "tag": "0002_concerned_thunderbolts",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784293463146,
+      "tag": "0003_petite_emma_frost",
+      "breakpoints": true
     }
   ]
 }

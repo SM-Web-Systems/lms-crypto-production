@@ -15,6 +15,11 @@ import { SwapService } from "./modules/swap/swap.service";
 import { runTokenIndexer } from "./jobs/token-indexer";
 import { syncTomlImages } from "./lib/toml-sync.js";
 import { authRoutes } from "./routes/auth";
+import { ssoRoutes } from "./routes/sso";
+import { tenantRoutes } from "./routes/tenant";
+import { adminRoutes } from "./routes/admin";
+import { checkAndRunMonthlyMaintenance } from "./jobs/monthly-maintenance";
+import { checkAndRunAutoSuspension } from "./jobs/auto-suspension";
 import { twoFaRoutes } from "./routes/two-fa";
 import { walletRoutes } from "./routes/wallets";
 import { trustlineRoutes } from "./routes/trustlines";
@@ -31,7 +36,6 @@ import { db, schema } from "./db";
 import { eq, and, sql } from "drizzle-orm";
 import { authMiddleware } from "./middleware/auth";
 import { auditLog } from "./lib/audit";
-import { apiKeyMiddleware } from "./lib/api-key";
 import { decryptSecret } from "./lib/decrypt-secret";
 
 const app = Fastify({
@@ -228,6 +232,9 @@ async function bootstrap() {
   });
 
   app.register(authRoutes);
+  app.register(ssoRoutes);
+  app.register(tenantRoutes);
+  app.register(adminRoutes);
   app.register(twoFaRoutes);
   app.register(walletRoutes);
   app.register(trustlineRoutes);
@@ -2633,6 +2640,16 @@ async function bootstrap() {
   // Run token indexer on startup, then every 15 min
   runTokenIndexer().catch(console.error);
   setInterval(() => runTokenIndexer().catch(console.error), 15 * 60 * 1000);
+
+  // Monthly maintenance billing — run on startup and every hour.
+  // Idempotent: monthly_maintenance_snapshots unique constraint prevents double-charge.
+  checkAndRunMonthlyMaintenance().catch(console.error);
+  setInterval(() => checkAndRunMonthlyMaintenance().catch(console.error), 60 * 60 * 1000);
+
+  // Auto-suspension enforcement — run on startup and every hour.
+  // Detects debt_limit / maintenance_grace_expired conditions; also recovers cleared tenants.
+  checkAndRunAutoSuspension().catch(console.error);
+  setInterval(() => checkAndRunAutoSuspension().catch(console.error), 60 * 60 * 1000);
   setInterval(
     () => {
       syncTomlImages().catch(console.error);

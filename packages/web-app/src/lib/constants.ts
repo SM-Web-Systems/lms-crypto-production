@@ -17,6 +17,6 @@ export function getNetworkConfig(network: "testnet" | "public") {
 }
 
 // Defaults for backwards compat (used where store isn't available yet)
-export const HORIZON_URL = "https://horizon-testnet.stellar.org";
-export const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
+export const HORIZON_URL = "https://horizon.stellar.org";
+export const NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015";
 export const FRIENDBOT_URL = "https://friendbot.stellar.org";

@@ -173,7 +173,7 @@ export async function authRoutes(app: FastifyInstance) {
       if (email) {
         try {
           const verifyToken = randomBytes(32).toString("hex");
-          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
           await db.execute(
             sql`INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (${newUser.id}, ${verifyToken}, ${expiresAt})`,
           );
@@ -577,9 +577,11 @@ export async function authRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/auth/logout",
     {
+      preHandler: authMiddleware,
       schema: {
         description: "Revoke a refresh token, ending the session.",
         tags: ["Auth"],
+        security: [{ bearerAuth: [] }],
         body: {
           type: "object",
           properties: {
@@ -592,11 +594,12 @@ export async function authRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
+      const userId = request.user!.userId;
       const { refreshToken } = request.body as { refreshToken: string };
       if (refreshToken) {
         await revokeRefreshToken(refreshToken);
       }
-      await auditLog("password_change", { userId, ip: request.ip });
+      await auditLog("logout", { userId, ip: request.ip });
 
       return { ok: true };
     },
@@ -919,7 +922,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       try {
         const resetToken = randomBytes(32).toString("hex");
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
         await db.execute(
           sql`INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (${user.id}, ${resetToken}, ${expiresAt})`,
         );
@@ -1161,7 +1164,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       try {
         const verifyToken = randomBytes(32).toString("hex");
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         await db.execute(
           sql`INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (${userId}, ${verifyToken}, ${expiresAt})`,
         );

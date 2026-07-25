@@ -51,7 +51,7 @@ export default function LiquidityPools({ pools }: LiquidityPoolsProps) {
                   )}
                 </div>
                 <a
-                  href={`https://stellar.expert/explorer/testnet/liquidity-pool/${pool.id}`}
+                  href={`https://stellar.expert/explorer/public/liquidity-pool/${pool.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-stellar-muted hover:text-stellar-text transition-colors"

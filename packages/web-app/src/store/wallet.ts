@@ -52,7 +52,7 @@ export const useWalletStore = create<WalletState>()(
     (set, get) => ({
       accounts: [],
       activeAccountId: null,
-      network: "testnet",
+      network: (import.meta.env.VITE_DEFAULT_NETWORK as "testnet" | "public") || "public",
       isUnlocked: false,
       _secretKey: null,
       _syncing: false,
@@ -159,10 +159,6 @@ export const useWalletStore = create<WalletState>()(
           console.error("Failed to sync wallet to server:", err);
         }
 
-        try {
-          await fundTestnet(publicKey);
-        } catch {}
-
         const account: WalletAccount = {
           id: generateId(),
           serverId,
@@ -178,6 +174,11 @@ export const useWalletStore = create<WalletState>()(
           isUnlocked: true,
           _secretKey: secretKey,
         }));
+
+        // On testnet builds, auto-fund new wallets via Friendbot
+        if (import.meta.env.VITE_DEFAULT_NETWORK === "testnet") {
+          fundTestnet(publicKey).catch(() => {});
+        }
 
         return publicKey;
       },
@@ -268,10 +269,6 @@ export const useWalletStore = create<WalletState>()(
           console.error("Failed to sync wallet to server:", err);
         }
 
-        try {
-          await fundTestnet(publicKey);
-        } catch {}
-
         const account: WalletAccount = {
           id: generateId(),
           serverId,
@@ -290,6 +287,11 @@ export const useWalletStore = create<WalletState>()(
           _secretKey: secretKey,
           _mnemonic: mnemonic,
         }));
+
+        // On testnet builds, auto-fund new wallets via Friendbot
+        if (import.meta.env.VITE_DEFAULT_NETWORK === "testnet") {
+          fundTestnet(publicKey).catch(() => {});
+        }
 
         return { publicKey, mnemonic };
       },
@@ -453,7 +455,8 @@ export const useWalletStore = create<WalletState>()(
       partialize: (state) => ({
         accounts: state.accounts,
         activeAccountId: state.activeAccountId,
-        network: state.network,
+        // network is intentionally NOT persisted — always starts from default ("public")
+        // to prevent stale testnet values from localStorage affecting mainnet wallet creation
       }),
     }
   )

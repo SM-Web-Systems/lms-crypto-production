@@ -10,6 +10,7 @@ export async function earnRoutes(app: FastifyInstance) {
   app.get(
     "/api/v1/earn/pools",
     {
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
       schema: {
         tags: ["Earn"],
         summary: "List liquidity pools available for earning fees",
@@ -71,6 +72,7 @@ export async function earnRoutes(app: FastifyInstance) {
   app.get(
     "/api/v1/earn/positions/:publicKey",
     {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
       schema: {
         tags: ["Earn"],
         summary: "Get user liquidity pool positions and estimated earnings",

@@ -4,7 +4,8 @@ import { useAuthStore } from "./store/auth";
 import { useWalletStore } from "./store/wallet";
 import Layout from "./components/Layout";
 import NftsPage from "./pages/Nfts";
-const LoginPage = lazy(() => import("./pages/Login"));
+const LoginPage    = lazy(() => import("./pages/Login"));
+const SsoLoginPage = lazy(() => import("./pages/SsoLogin"));
 const RegisterPage = lazy(() => import("./pages/Register"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmail"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPassword"));
@@ -24,6 +25,10 @@ const ContactsPage = lazy(() => import("./pages/Contacts"));
 const PortfolioPage = lazy(() => import("./pages/Portfolio"));
 const EarnPage = lazy(() => import("./pages/Earn"));
 const BuySellPage = lazy(() => import("./pages/BuySell"));
+// AW-008/009 — Internal admin console (sessionStorage auth, completely separate from user flow)
+const AdminLoginPage = lazy(() => import("./pages/AdminLogin"));
+const AdminConsolePage = lazy(() => import("./pages/AdminConsole"));
+const AdminTenantDetailPage = lazy(() => import("./pages/AdminTenantDetail"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -52,6 +57,9 @@ export default function App() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div></div>}>
           <Routes>
+      {/* SSO entry point — must be outside AuthRoute so already-authenticated users pass through */}
+      <Route path="/sso/login" element={<SsoLoginPage />} />
+
       {/* Public auth routes */}
       <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><RegisterPage /></AuthRoute>} />
@@ -92,6 +100,11 @@ export default function App() {
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/nfts" element={<NftsPage />} />
       </Route>
+
+      {/* Internal admin console — sessionStorage JWT auth, no user auth required */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/tenants/:id" element={<AdminTenantDetailPage />} />
+      <Route path="/admin" element={<AdminConsolePage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

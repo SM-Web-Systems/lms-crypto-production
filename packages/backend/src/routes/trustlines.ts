@@ -10,6 +10,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // LIST all trustlines for an account
   // ──────────────────────────────────────────
   app.get("/api/v1/trustlines/:publicKey", {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
       schema: {
         description: "List all trustlines for a Stellar account, including XLM balance and reserve info.",
         tags: ["Trustlines"],
@@ -102,6 +103,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   app.get(
     "/api/v1/trustlines/check/:publicKey/:code/:issuer",
     {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
       schema: {
         description: "Pre-flight check before adding a trustline. Verifies asset exists, account has enough XLM, and trustline is not already present.",
         tags: ["Trustlines"],

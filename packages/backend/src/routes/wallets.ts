@@ -2,6 +2,14 @@ import { FastifyInstance } from "fastify";
 import { db, schema } from "../db";
 import { eq, and } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
+import { attachTenantApiKey, requireScope } from "../middleware/tenant-api-key";
+import { config } from "../config";
+import {
+  checkWalletBilling,
+  writeBillingDebit,
+  upsertTenantUser,
+  maybeNotifyDeficit,
+} from "../services/billing.service";
 
 export async function walletRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
@@ -23,6 +31,7 @@ export async function walletRoutes(app: FastifyInstance) {
                   userId: { type: "number" },
                   name: { type: "string" },
                   publicKey: { type: "string" },
+                  encryptedSecret: { type: "string", nullable: true },
                   network: { type: "string" },
                   isActive: { type: "boolean" },
                   createdAt: { type: "string", format: "date-time" },
@@ -45,8 +54,11 @@ export async function walletRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   // ADD WALLET
   // ──────────────────────────────────────────
+  // Phase 2: attachTenantApiKey added alongside authMiddleware so that server-to-server
+  // callers (e.g. LMS) can pass both a user JWT and an x-api-key. When a valid API key
+  // with a tenantId is present, wallet creation triggers a billing debit.
   app.post("/api/v1/wallets", {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, attachTenantApiKey, requireScope("wallet:create")],
       schema: {
         description: "Add a new wallet. Becomes the active wallet; all others are deactivated.",
         tags: ["Wallets"],
@@ -58,7 +70,7 @@ export async function walletRoutes(app: FastifyInstance) {
             name: { type: "string", description: "Display name for the wallet" },
             publicKey: { type: "string", description: "Stellar public key (G...)" },
             encryptedSecret: { type: "string", description: "AES-GCM encrypted secret key (for delegated mode)" },
-            network: { type: "string", enum: ["testnet", "mainnet"], default: "testnet" },
+            network: { type: "string", enum: ["testnet", "mainnet", "public"], default: "public" },
           },
         },
         response: {
@@ -75,11 +87,13 @@ export async function walletRoutes(app: FastifyInstance) {
                 },
               },
           400: { type: "object", properties: { error: { type: "string" } } },
+          402: { type: "object", properties: { error: { type: "string" } } },
           409: { type: "object", properties: { error: { type: "string" } } },
         },
       },
     }, async (request, reply) => {
     const userId = request.user!.userId;
+    const tenantCtx = request.tenantApiKeyContext;
     const { name, publicKey, encryptedSecret, network } = request.body as {
       name: string;
       publicKey: string;
@@ -90,6 +104,14 @@ export async function walletRoutes(app: FastifyInstance) {
     if (!name || !publicKey) {
       return reply.status(400).send({ error: "Name and publicKey are required" });
     }
+
+    // Always enforce the server's configured network — client-supplied value is ignored.
+    // This prevents mainnet clients from creating testnet wallets and vice versa.
+    const effectiveNetwork = config.STELLAR_NETWORK === "public"
+      ? "public"
+      : config.STELLAR_NETWORK === "testnet"
+        ? "testnet"
+        : (network || "public");
 
     // Check if wallet already exists for this user
     const existing = await db
@@ -123,23 +145,91 @@ export async function walletRoutes(app: FastifyInstance) {
       return reply.status(409).send({ error: "A wallet with this name already exists" });
     }
 
-    // Deactivate other wallets
-    await db
-      .update(schema.userWallets)
-      .set({ isActive: false })
-      .where(eq(schema.userWallets.userId, userId));
+    // ── Phase 2: billing pre-flight check ──────────────────────────────────
+    // Only applies when a tenant API key with a tenantId is present.
+    let billingResult: Awaited<ReturnType<typeof checkWalletBilling>> | null = null;
 
-    const [wallet] = await db
-      .insert(schema.userWallets)
-      .values({
-        userId,
-        name,
-        publicKey,
-        encryptedSecret: encryptedSecret || null,
-        network: network || "testnet",
-        isActive: true,
-      })
-      .returning();
+    if (tenantCtx?.tenantId) {
+      billingResult = await checkWalletBilling({ tenantId: tenantCtx.tenantId, userId });
+
+      if (!billingResult.ok) {
+        return reply.status(billingResult.httpStatus).send({ error: billingResult.message });
+      }
+    }
+
+    // ── Wallet creation + billing debit in one transaction ─────────────────
+    let debitNewBalance: string | null = null;
+
+    const wallet = await db.transaction(async (tx) => {
+      // Deactivate other wallets
+      await tx
+        .update(schema.userWallets)
+        .set({ isActive: false })
+        .where(eq(schema.userWallets.userId, userId));
+
+      // Insert new wallet
+      const [created] = await tx
+        .insert(schema.userWallets)
+        .values({
+          userId,
+          name,
+          publicKey,
+          encryptedSecret: encryptedSecret || null,
+          network: effectiveNetwork,
+          isActive: true,
+        })
+        .returning();
+
+      // Billing writes (only when a billing action is needed)
+      if (
+        billingResult?.ok &&
+        billingResult.eventType !== "no_billing" &&
+        billingResult.eventType !== "idempotent_skip" &&
+        tenantCtx?.tenantId
+      ) {
+        const { eventType, amountXlm, policy } = billingResult as Extract<
+          typeof billingResult,
+          { eventType: "new_wallet_activation" | "existing_user_onboarding" }
+        >;
+
+        const debitResult = await writeBillingDebit(tx, {
+          tenantId: tenantCtx.tenantId,
+          eventType,
+          amountXlm,
+          policyVersionId: policy.id,
+          userId,
+          apiKeyId: tenantCtx.keyId,
+          // Snapshot fields for new_wallet_activation
+          walletFundingSnapshot:
+            eventType === "new_wallet_activation" && policy.walletFundingEnabled
+              ? policy.walletFundingXlm
+              : null,
+          platformFeeSnapshot:
+            eventType === "new_wallet_activation" ? policy.newWalletPlatformFeeXlm : null,
+          // Snapshot field for existing_user_onboarding
+          onboardingFeeSnapshot:
+            eventType === "existing_user_onboarding" ? policy.onboardingFeeXlm : null,
+        });
+        debitNewBalance = debitResult.newBalance;
+
+        // Link user to tenant (idempotent — ignores conflicts)
+        await upsertTenantUser(tx, tenantCtx.tenantId, userId);
+      } else if (
+        billingResult?.ok &&
+        billingResult.eventType === "idempotent_skip" &&
+        tenantCtx?.tenantId
+      ) {
+        // Already onboarded and active — just ensure tenant_users row exists
+        await upsertTenantUser(tx, tenantCtx.tenantId, userId);
+      }
+
+      return created;
+    });
+
+    // Fire-and-forget deficit notification after transaction commits
+    if (debitNewBalance !== null && tenantCtx?.tenantId) {
+      maybeNotifyDeficit(tenantCtx.tenantId, debitNewBalance).catch(() => {});
+    }
 
     return wallet;
   });
@@ -318,5 +408,57 @@ export async function walletRoutes(app: FastifyInstance) {
     }
 
     return { ok: true };
+  });
+
+  // ──────────────────────────────────────────
+  // WALLET FUNDING NOTICE
+  // ──────────────────────────────────────────
+  // Returns whether the authenticated user has ever had a wallet activation billing event.
+  // The frontend uses this (+ localStorage dismiss flag) to show a one-time funding notice.
+  app.get("/api/v1/wallet/funding-notice", {
+    preHandler: authMiddleware,
+    schema: {
+      description: "Check if user has a wallet activation billing event (for first-time funding notice).",
+      tags: ["Wallets"],
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            hasFundingEvent: { type: "boolean" },
+            activeWalletPublicKey: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+  }, async (request) => {
+    const userId = request.user!.userId;
+
+    const [fundingRow] = await db
+      .select({ id: schema.billingEvents.id })
+      .from(schema.billingEvents)
+      .where(
+        and(
+          eq(schema.billingEvents.userId, userId),
+          eq(schema.billingEvents.eventType, "new_wallet_activation")
+        )
+      )
+      .limit(1);
+
+    const [activeWallet] = await db
+      .select({ publicKey: schema.userWallets.publicKey })
+      .from(schema.userWallets)
+      .where(
+        and(
+          eq(schema.userWallets.userId, userId),
+          eq(schema.userWallets.isActive, true)
+        )
+      )
+      .limit(1);
+
+    return {
+      hasFundingEvent: !!fundingRow,
+      activeWalletPublicKey: activeWallet?.publicKey ?? null,
+    };
   });
 }

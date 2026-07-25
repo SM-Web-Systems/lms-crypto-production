@@ -23,7 +23,6 @@ import {
   Key,
   ChevronDown,
 } from "lucide-react";
-import NetworkSwitcher from "../components/NetworkSwitcher";
 import TwoFaSettings from "../components/TwoFaSettings";
 
 export default function SettingsPage() {
@@ -382,12 +381,18 @@ export default function SettingsPage() {
 
             <div className="border-t border-stellar-border" />
 
-            {/* Network Selection */}
+            {/* Network — read-only: server enforces mainnet */}
             <div className="space-y-3">
               <label className="block text-sm text-stellar-muted">
                 {t("settings.network", "Network")}
               </label>
-              <NetworkSwitcher />
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-stellar-dark border border-stellar-border">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-sm text-stellar-text font-medium">Mainnet</span>
+                <span className="text-xs text-stellar-muted ml-auto">
+                  Managed by your institution
+                </span>
+              </div>
             </div>
           </div>
         )}

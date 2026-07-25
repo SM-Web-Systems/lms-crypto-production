@@ -138,6 +138,15 @@ export default function Layout() {
           <NotificationBell />
           <ThemeToggle />
         </div>
+        <a
+          href="https://lms.smwebsystems.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-stellar-muted hover:text-stellar-text rounded-lg hover:bg-white/5 transition-colors"
+        >
+          <ArrowLeftRight size={16} />
+          Return to LMS
+        </a>
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:text-red-300 rounded-lg hover:bg-red-500/10 transition-colors"

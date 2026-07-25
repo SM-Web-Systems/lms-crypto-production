@@ -94,7 +94,7 @@ export default function HistoryPage() {
                     </p>
                   ) : (<p className="text-xs text-stellar-muted">{type.replace(/_/g, " ")}</p>)}
                   {hash && (
-                    <a href={`https://stellar.expert/explorer/testnet/tx/${hash}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-stellar-blue hover:underline">
+                    <a href={`https://stellar.expert/explorer/public/tx/${hash}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-stellar-blue hover:underline">
                       {t("history.view")} <ExternalLink size={10} />
                     </a>
                   )}

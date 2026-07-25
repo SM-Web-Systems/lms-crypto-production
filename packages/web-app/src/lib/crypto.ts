@@ -35,15 +35,30 @@ export async function encryptSecret(secretKey: string, pin: string): Promise<str
 }
 
 export async function decryptSecret(encrypted: string, pin: string): Promise<string> {
+  if (!encrypted || encrypted.length < 100) {
+    throw new Error("Wallet data is missing — please log out and log back in to restore it.");
+  }
   const combined = Uint8Array.from(atob(encrypted), (c) => c.charCodeAt(0));
+  if (combined.length < SALT_LENGTH + IV_LENGTH + 17) {
+    throw new Error(`Wallet blob too short (${combined.length} bytes) — data may be corrupted.`);
+  }
   const salt = combined.slice(0, SALT_LENGTH);
   const iv = combined.slice(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
   const ciphertext = combined.slice(SALT_LENGTH + IV_LENGTH);
-  const key = await deriveKey(pin, salt);
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: ab(iv) } as AesGcmParams,
-    key,
-    ab(ciphertext)
-  );
-  return new TextDecoder().decode(decrypted);
+  let key: CryptoKey;
+  try {
+    key = await deriveKey(pin, salt);
+  } catch (e: any) {
+    throw new Error("Failed to derive decryption key: " + (e?.message ?? String(e)));
+  }
+  try {
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: ab(iv) } as AesGcmParams,
+      key,
+      ab(ciphertext)
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    throw new Error("Incorrect PIN — wallet could not be decrypted.");
+  }
 }

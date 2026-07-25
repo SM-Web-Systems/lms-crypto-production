@@ -78,7 +78,7 @@ export class TokenService {
           assetType,
           assetCode: asset.asset_code,
           assetIssuer: asset.asset_issuer,
-          network: config.STELLAR_NETWORK === 'mainnet' || config.STELLAR_NETWORK === 'pubnet' ? 'pubnet' : 'testnet',
+          network: config.STELLAR_NETWORK === 'mainnet' || config.STELLAR_NETWORK === 'pubnet' || config.STELLAR_NETWORK === 'public' ? 'pubnet' : 'testnet',
           totalSupply: asset.amount,
           trustlineCount: asset.num_accounts,
         })

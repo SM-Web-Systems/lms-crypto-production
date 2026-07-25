@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { config } from "../config";
+import { resolveTenantApiKey } from "./tenant-api-key";
 
 export async function verifyTurnstile(request: FastifyRequest, reply: FastifyReply) {
   // Skip in development if no key configured
@@ -7,10 +8,11 @@ export async function verifyTurnstile(request: FastifyRequest, reply: FastifyRep
     return;
   }
 
-  // Skip Turnstile for authorized API integrations using X-API-Key header
-  const apiKey = request.headers["x-api-key"] as string | undefined;
-  if (apiKey && config.API_KEYS.length > 0 && config.API_KEYS.includes(apiKey)) {
-    return;
+  // Skip Turnstile for authorized API integrations (DB keys or legacy env var keys).
+  const rawKey = request.headers["x-api-key"] as string | undefined;
+  if (rawKey) {
+    const ctx = await resolveTenantApiKey(rawKey);
+    if (ctx) return;
   }
 
   const body = request.body as any;

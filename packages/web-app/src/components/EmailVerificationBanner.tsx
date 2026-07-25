@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Mail, X, Loader2 } from "lucide-react";
 import { useAuthStore } from "../store/auth";
+import { getAccessToken } from "../lib/api";
 import { toast } from "sonner";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -15,7 +16,7 @@ export default function EmailVerificationBanner() {
   const handleResend = async () => {
     setSending(true);
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAccessToken();
       const res = await fetch(`${API_BASE}/api/v1/auth/resend-verification`, {
         method: "POST",
         headers: {

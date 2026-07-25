@@ -3,8 +3,41 @@ dist
 .env
 .env.local
 .env.production
+.env.development
+.env.*.local
 *.log
 .DS_Store
 .drizzle
 *.tsbuildinfo
 .turbo
+
+# Docker runtime env — secrets live here, never commit
+app.env
+app.env.*
+*.env.mainnet
+*.env.testnet
+
+# Database files and migration dumps
+*.db
+*.db-shm
+*.db-wal
+*.dump
+*.sql.gz
+
+# Build artifacts and caches
+.wrangler/
+.next/
+.output/
+coverage/
+
+# Logs and runtime data
+logs/
+pids/
+*.pid
+
+# Temp / scratch
+tmp/
+*.tmp
+
+# OS
+Thumbs.db

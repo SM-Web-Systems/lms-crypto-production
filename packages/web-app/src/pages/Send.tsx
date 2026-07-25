@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useWalletStore } from "../store/wallet";
 import { useAuthStore } from "../store/auth";
 import { useBalances } from "../hooks/useBalances";
-import { buildPaymentTx, calculatePlatformFee, StellarSdk } from "../lib/stellar";
+import { buildPaymentTx, calculatePlatformFee, extractStellarError, StellarSdk } from "../lib/stellar";
 import { getNetworkConfig } from "../lib/constants";
 import { signingApi } from "../lib/api";
 import PinModal from "../components/PinModal";
@@ -63,7 +63,7 @@ export default function SendPage() {
       setDestination("");
       setAmount("");
     } catch (err: any) {
-      toast.error(err.message || t("send.transactionFailed"));
+      toast.error(extractStellarError(err));
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export default function SendPage() {
         throw new Error(result.error || "Transaction failed");
       }
     } catch (err: any) {
-      toast.error(err.message || t("send.transactionFailed"));
+      toast.error(extractStellarError(err));
     } finally {
       setLoading(false);
     }

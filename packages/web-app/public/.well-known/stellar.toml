@@ -1,10 +1,10 @@
 # Amma Wallet - Stellar TOML
 # https://ammawallet.com
 
-NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+NETWORK_PASSPHRASE = "Public Global Stellar Network ; September 2015"
 TRANSFER_SERVER_SEP0024 = "https://extstellar.moneygram.com/sep24"
 WEB_AUTH_ENDPOINT = "https://extstellar.moneygram.com/sep10"
-SIGNING_KEY = "GB2VDBIFEBITKSAYR6MDZA53WKXZS73LOMIHPGXJBDXQSC2JEAGLQY4C"
+SIGNING_KEY = "GDLQEPIWVJQENAP3AJDBI6EXB6P2ZND7266P5DNVEATLRWD422IXRPTQ"
 
 [DOCUMENTATION]
 ORG_NAME = "Amma Wallet"
@@ -15,10 +15,10 @@ ORG_OFFICIAL_EMAIL = "christopher.fourquier@gmail.com"
 
 [[CURRENCIES]]
 code = "USDC"
-issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+issuer = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
 display_decimals = 7
 name = "USD Coin"
-desc = "USDC stablecoin issued by Circle on Stellar testnet"
+desc = "USDC stablecoin issued by Circle on Stellar mainnet"
 is_asset_anchored = true
 anchor_asset_type = "fiat"
 anchor_asset = "USD"

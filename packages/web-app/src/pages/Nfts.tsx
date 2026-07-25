@@ -4,6 +4,22 @@ import { useWalletStore } from "../store/wallet";
 import { nftApi } from "../lib/api";
 import { Loader2, Image, ExternalLink, RefreshCw } from "lucide-react";
 
+const LMS_API_BASE = "https://lms.smwebsystems.com";
+const LMS_CONTRACT_ID = "CDPKSOOE4UZFM4TS52H7LMP2TYNLJBFAMT6M4E2H67KZEAH6UF54H524";
+
+interface LmsCredential {
+  credentialId: string;
+  walletAddress: string;
+  txHash: string | null;
+  courseId: string | null;
+  courseTitle: string | null;
+  courseCode: string | null;
+  quizId: string | null;
+  quizTitle: string | null;
+  network: string | null;
+  mintedAt: string;
+}
+
 export default function NftsPage() {
   const { t } = useTranslation();
   const activeAccount = useWalletStore((s) => {
@@ -15,6 +31,7 @@ export default function NftsPage() {
   const [classicNfts, setClassicNfts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lmsCredentials, setLmsCredentials] = useState<LmsCredential[]>([]);
 
   const publicKey = (activeAccount as any)?.publicKey;
 
@@ -31,9 +48,26 @@ export default function NftsPage() {
     } finally {
       setLoading(false);
     }
+    // Secondary: fetch LMS course context (non-blocking, non-fatal)
+    if (publicKey) {
+      fetch(`${LMS_API_BASE}/api/v1/credentials/public?wallet=${encodeURIComponent(publicKey)}`)
+        .then((r) => r.json())
+        .then((body) => { if (body.success) setLmsCredentials(body.data?.credentials ?? []); })
+        .catch(() => {});
+    }
   };
 
   useEffect(() => { fetchNfts(); }, [publicKey]);
+
+  // Build ordered list of LMS-contract tokens for positional matching
+  const lmsIndexedTokens = indexedNfts.filter(
+    (item: any) => item.collection?.contractId === LMS_CONTRACT_ID
+  );
+  function getLmsCred(item: any): LmsCredential | null {
+    const pos = lmsIndexedTokens.indexOf(item);
+    if (pos < 0) return null;
+    return lmsCredentials[pos] ?? null;
+  }
 
   const hasNfts = indexedNfts.length > 0 || classicNfts.length > 0;
 
@@ -95,6 +129,35 @@ export default function NftsPage() {
                     <p className="text-xs text-stellar-muted truncate mt-0.5">{item.collection.name}{item.collection.symbol ? ` · ${item.collection.symbol}` : ""}</p>
                   )}
                   <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 font-medium">SEP-50</span>
+                  {(() => {
+                    const cred = getLmsCred(item);
+                    if (!cred) return null;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-stellar-border/50">
+                        <p className="text-[10px] text-stellar-muted font-semibold uppercase tracking-wide mb-0.5">LMS Certificate</p>
+                        <p className="text-xs text-stellar-text font-medium truncate">
+                          {cred.courseTitle ?? cred.quizTitle ?? "SM Web Systems"}
+                        </p>
+                        {cred.courseCode && (
+                          <p className="text-[10px] text-stellar-muted">{cred.courseCode}</p>
+                        )}
+                        {cred.mintedAt && (
+                          <p className="text-[10px] text-stellar-muted">{new Date(cred.mintedAt).toLocaleDateString()}</p>
+                        )}
+                        {cred.txHash && (
+                          <a
+                            href={`https://stellar.expert/explorer/public/tx/${cred.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-purple-400 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {cred.txHash.slice(0, 8)}… <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}

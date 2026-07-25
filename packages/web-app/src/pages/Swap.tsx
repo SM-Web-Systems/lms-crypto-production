@@ -9,7 +9,7 @@ import TokenIcon from "../components/TokenIcon";
 import PinModal from "../components/PinModal";
 import { toast } from "sonner";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { calculatePlatformFee } from "../lib/stellar";
+import { calculatePlatformFee, extractStellarError } from "../lib/stellar";
 
 interface TokenOption {
   code: string;
@@ -125,10 +125,11 @@ export default function SwapPage() {
         .addOperation(StellarSdk.Operation.pathPaymentStrictSend({ sendAsset: fromAsset, sendAmount: netSendAmount, destination: publicKey!, destAsset: toAsset, destMin }));
 
       // Platform fee from the same total
-      if (swapFeeAmount !== "0") {
+      const platformWallet: string = import.meta.env.VITE_PLATFORM_WALLET || "";
+      if (swapFeeAmount !== "0" && platformWallet) {
         txBuilder.addOperation(
           StellarSdk.Operation.payment({
-            destination: "GCGR5XQPJM5D4VQGLOJ7VIFVKXSYLGOG5WCJQXJRSZGBMPKZWIRC4G6H",
+            destination: platformWallet,
             asset: fromAsset,
             amount: swapFeeAmount,
           })
@@ -142,7 +143,7 @@ export default function SwapPage() {
       setAmount("");
     } catch (err: any) {
       console.error("Swap error:", err);
-      toast.error(err?.message || t("swap.swapFailed"));
+      toast.error(extractStellarError(err));
     } finally {
       setSubmitting(false);
     }

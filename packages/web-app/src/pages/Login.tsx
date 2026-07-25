@@ -116,7 +116,7 @@ export default function LoginPage() {
           )}
 
           <Turnstile
-            siteKey="0x4AAAAAADoSgI6oaunSiUOl"
+            siteKey="0x4AAAAAAD2WUNs4ywHK6utW"
             onVerify={(token) => setTurnstileToken(token)}
             onExpire={() => setTurnstileToken("")}
           />

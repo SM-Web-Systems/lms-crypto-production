@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ export default function RegisterPage() {
   const register = useAuthStore((s) => s.register);
   const isLoading = useAuthStore((s) => s.isLoading);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isFromLms = searchParams.get("source") === "lms";
 
   const rules = [
     { label: t("auth.rule8chars"), valid: password.length >= 8 },
@@ -50,6 +52,16 @@ export default function RegisterPage() {
           <h1 className="text-3xl font-bold text-stellar-text">{t("auth.createAccount")}</h1>
           <p className="mt-2 text-stellar-muted">{t("auth.createSubtitle")}</p>
         </div>
+
+        {isFromLms && (
+          <div className="rounded-xl border border-stellar-blue/30 bg-stellar-blue/10 px-4 py-3">
+            <p className="text-sm font-semibold text-stellar-text mb-0.5">LMS enrollment</p>
+            <p className="text-xs text-stellar-muted leading-relaxed">
+              Create this wallet to receive your NFT course certificates on the Stellar blockchain.
+              Once registered, return to the LMS and sign in with AmmaWallet to link your account.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-stellar-card border border-stellar-border rounded-2xl p-6">
           <div className="grid grid-cols-2 gap-3">
@@ -144,7 +156,7 @@ export default function RegisterPage() {
           </div>
 
           <Turnstile
-            siteKey="0x4AAAAAADoSgI6oaunSiUOl"
+            siteKey="0x4AAAAAAD2WUNs4ywHK6utW"
             onVerify={(token) => setTurnstileToken(token)}
             onExpire={() => setTurnstileToken("")}
           />

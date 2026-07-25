@@ -5,6 +5,7 @@ const requiredEnvVars = [
   "JWT_SECRET",
   "JWT_REFRESH_SECRET",
   "DATABASE_URL",
+  "ADMIN_JWT_SECRET",
 ] as const;
 
 for (const envVar of requiredEnvVars) {
@@ -20,6 +21,8 @@ export const config = {
   STELLAR_NETWORK: process.env.STELLAR_NETWORK || "testnet",
   HORIZON_URL: process.env.HORIZON_URL || "https://horizon-testnet.stellar.org",
   SOROBAN_RPC_URL: process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org",
+  // camelCase alias used by nft.service.ts
+  sorobanRpcUrl: process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org",
   WEB_APP_URL: process.env.WEB_APP_URL || "http://localhost:5173",
   API_BASE_URL: process.env.API_BASE_URL || `http://localhost:${process.env.PORT || "3001"}`,
   JWT_SECRET: process.env.JWT_SECRET!,
@@ -32,6 +35,16 @@ export const config = {
   TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY || "",
   // API keys for third-party integrations (comma-separated)
   API_KEYS: (process.env.API_KEYS || "").split(",").filter(Boolean),
+
+  // Internal admin auth — separate secret from end-user JWT_SECRET
+  // Admin tokens use type:"admin" claim and are verified by verifyInternalAdmin middleware.
+  ADMIN_JWT_SECRET: process.env.ADMIN_JWT_SECRET!,
+  ADMIN_JWT_EXPIRES_IN: parseInt(process.env.ADMIN_JWT_EXPIRES_IN || "3600", 10),
+
+  // SSO — delegated authentication for relying parties (e.g. LMS)
+  SSO_SECRET: process.env.SSO_SECRET || "",
+  // Comma-separated list of allowed callback URL prefixes
+  SSO_CALLBACK_WHITELIST: (process.env.SSO_CALLBACK_WHITELIST || "").split(",").filter(Boolean),
 
   // Platform fee
   PLATFORM_FEE_PERCENT: parseFloat(process.env.PLATFORM_FEE_PERCENT || "0.1"),
