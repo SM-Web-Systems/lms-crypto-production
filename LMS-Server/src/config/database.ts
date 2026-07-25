@@ -4,13 +4,19 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const DB_PATH = process.env.DATABASE_PATH || './data/student_ms.db';
+// In test environments (vitest sets VITEST=true), use in-memory SQLite so that
+// _resetForTests can mutate the shared `db` object in-place without relying on
+// ESM live-binding propagation across test-file imports.
+const DB_PATH = process.env.DATABASE_PATH ||
+  (process.env.VITEST ? ':memory:' : './data/student_ms.db');
 
-// Ensure directory exists
+// Ensure directory exists (skip for in-memory databases)
 import fs from 'fs';
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+if (DB_PATH !== ':memory:') {
+  const dbDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 }
 
 export let db: DatabaseType = new Database(DB_PATH);
@@ -635,8 +641,15 @@ export function close(): void {
 }
 
 export function _resetForTests(schemaSQL: string): void {
-  try { db.close(); } catch { /* already closed */ }
-  db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
+  // Drop-and-recreate without reassigning `db` so ESM imports in test files
+  // always reference the same object (avoids live-binding propagation issues).
+  db.pragma('foreign_keys = OFF');
+  const tables = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+  ).all() as { name: string }[];
+  for (const { name } of tables) {
+    db.exec(`DROP TABLE IF EXISTS "${name}"`);
+  }
   db.exec(schemaSQL);
+  db.pragma('foreign_keys = ON');
 }
