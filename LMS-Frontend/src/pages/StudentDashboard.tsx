@@ -61,6 +61,34 @@ function pickDailyLine(): string {
   return DAY_LINES[idx];
 }
 
+/** NM-C1: Plain-English descriptions for each cert application state. */
+const CERT_STATE_MSGS: Record<string, { desc: string; next: string }> = {
+  not_eligible: {
+    desc: 'You have not yet met the course requirements for a certificate.',
+    next: 'Complete all required lessons and quizzes to unlock your application.',
+  },
+  eligible: {
+    desc: 'You have completed all course requirements.',
+    next: "Request your certificate below — your lecturer will review before it's issued.",
+  },
+  pending: {
+    desc: 'Your application is under review by your instructor.',
+    next: "You'll hear back once a decision has been made. No action needed.",
+  },
+  approved: {
+    desc: 'Your application has been approved.',
+    next: 'Your NFT certificate will be minted to your wallet shortly.',
+  },
+  minted: {
+    desc: 'Your NFT certificate has been issued to your wallet.',
+    next: 'View it in AmmaWallet or follow the transaction link below.',
+  },
+  rejected: {
+    desc: 'Your application was not approved this time.',
+    next: '',
+  },
+};
+
 const StudentDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -621,6 +649,30 @@ const StudentDashboard: React.FC = () => {
                           </span>
                         )}
                       </div>
+                      {/* NM-C2: Plain-English cert status description */}
+                      {displayState !== 'loading' && CERT_STATE_MSGS[displayState] && (
+                        <p className="text-xs text-neutral-500 leading-snug mt-0.5">
+                          {CERT_STATE_MSGS[displayState].desc}
+                          {CERT_STATE_MSGS[displayState].next && (
+                            <> <span className="text-neutral-400">{CERT_STATE_MSGS[displayState].next}</span></>
+                          )}
+                        </p>
+                      )}
+                      {/* NM-C3: Rejection reason + re-apply guidance */}
+                      {displayState === 'rejected' && appStatus?.reviewNotes && (
+                        <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 mt-1">
+                          <MessageCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" aria-hidden />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-red-800">Reviewer's feedback</p>
+                            <p className="text-xs text-red-700 mt-0.5 break-words">"{appStatus.reviewNotes}"</p>
+                          </div>
+                        </div>
+                      )}
+                      {displayState === 'rejected' && prog?.canApplyForCertificate && (
+                        <p className="text-xs text-neutral-500 mt-1">
+                          You still meet all requirements — click <strong className="font-medium text-neutral-700">Re-apply</strong> to submit a new application.
+                        </p>
+                      )}
                       {/* Wallet mismatch warning */}
                       {appStatus?.walletAddress && user?.walletAddress &&
                         appStatus.walletAddress !== user.walletAddress &&
