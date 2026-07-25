@@ -379,6 +379,7 @@ export async function remintCredential(
 
     // Call mint service (throws on failure)
     let txHash: string;
+    let sorobanTokenId: number | null = null;
     try {
       const result = await mintCredential({
         userId: existing.user_id,
@@ -387,6 +388,7 @@ export async function remintCredential(
         applicationId: existing.application_id ?? existing.id,
       });
       txHash = result.txHash;
+      sorobanTokenId = result.sorobanTokenId;
     } catch (mintErr: unknown) {
       const msg = mintErr instanceof Error ? mintErr.message : String(mintErr);
       res.status(502).json({
@@ -400,14 +402,15 @@ export async function remintCredential(
     const newCredId = uuidv4();
     execute(
       `INSERT INTO nft_credentials
-         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, contract_id, network,
+         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network,
           course_id, application_id, is_superseded)
-       VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, 0)`,
+       VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?, 0)`,
       [
         newCredId,
         existing.user_id,
         targetWallet,
         txHash,
+        sorobanTokenId,
         contractId,
         existing.network ?? 'public',
         existing.course_id,

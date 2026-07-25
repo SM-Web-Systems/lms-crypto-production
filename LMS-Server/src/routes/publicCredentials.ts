@@ -30,11 +30,12 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
     quiz_title: string | null;
     network: string | null;
     created_at: string;
+    soroban_token_id: number | null;
   }>(
     `SELECT nc.id, nc.wallet_address, nc.tx_hash,
             nc.course_id, c.title AS course_title, c.course_code,
             nc.quiz_id, q.title AS quiz_title,
-            nc.network, nc.created_at
+            nc.network, nc.created_at, nc.soroban_token_id
      FROM nft_credentials nc
      LEFT JOIN courses c ON c.id = nc.course_id
      LEFT JOIN quizzes q ON q.id = nc.quiz_id
@@ -57,6 +58,7 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
         quizTitle: r.quiz_title,
         network: r.network,
         mintedAt: r.created_at,
+        sorobanTokenId: r.soroban_token_id ?? null,
       })),
     },
   });

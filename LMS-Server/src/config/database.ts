@@ -597,6 +597,17 @@ function ensureNftCredentialsIsSuperseded(): void {
 }
 ensureNftCredentialsIsSuperseded();
 
+/** NM-A2 — Add soroban_token_id column to nft_credentials.
+ *  Stores the on-chain Soroban u32 token ID returned by mint() so Nfts.tsx can match
+ *  credentials to NFTs deterministically by token ID instead of position.
+ *  Nullable: legacy credentials minted before this change have NULL. */
+function ensureNftCredentialsSorobanTokenId(): void {
+  try {
+    db.exec('ALTER TABLE nft_credentials ADD COLUMN soroban_token_id INTEGER');
+  } catch { /* column already exists */ }
+}
+ensureNftCredentialsSorobanTokenId();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];

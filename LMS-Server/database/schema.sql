@@ -218,6 +218,8 @@ ALTER TABLE nft_credentials ADD COLUMN application_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_nft_credentials_course ON nft_credentials(course_id);
 -- L-013: is_superseded marks old credential after a re-mint correction (both rows kept for audit)
 ALTER TABLE nft_credentials ADD COLUMN is_superseded INTEGER NOT NULL DEFAULT 0;
+-- NM-A2: soroban_token_id stores the on-chain Soroban u32 token ID returned by mint() for deterministic matching
+ALTER TABLE nft_credentials ADD COLUMN soroban_token_id INTEGER;
 
 -- Phase A: course_lecturers — maps lecturers to courses
 CREATE TABLE IF NOT EXISTS course_lecturers (

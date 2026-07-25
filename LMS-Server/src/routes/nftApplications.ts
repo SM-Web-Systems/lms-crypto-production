@@ -520,6 +520,7 @@ router.post(
 
     // Synchronous mint — throws on any failure
     let txHash: string;
+    let sorobanTokenId: number | null = null;
     try {
       const result = await mintCredential({
         userId: app.user_id,
@@ -528,6 +529,7 @@ router.post(
         applicationId: appId,
       });
       txHash = result.txHash;
+      sorobanTokenId = result.sorobanTokenId;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       // Persist a failed credential row so students and admins can see the error state.
@@ -560,9 +562,9 @@ router.post(
     const credId = uuidv4();
     execute(
       `INSERT INTO nft_credentials
-         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, contract_id, network, course_id, application_id)
-       VALUES (?, ?, NULL, ?, 'minted', ?, ?, 'public', ?, ?)`,
-      [credId, app.user_id, userRow.walletAddress, txHash, contractId, courseId, appId]
+         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
+       VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, 'public', ?, ?)`,
+      [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, courseId, appId]
     );
 
     execute(

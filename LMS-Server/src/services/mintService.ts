@@ -131,12 +131,21 @@ export async function mintCredentialForQuiz(params: {
     }
 
     if (getResult?.status === 'SUCCESS') {
+      let sorobanTokenId: number | null = null;
+      try {
+        if (getResult.returnValue) {
+          const native = StellarSdk.scValToNative(getResult.returnValue);
+          if (typeof native === 'number') sorobanTokenId = native;
+        }
+      } catch { /* non-fatal: legacy behaviour if extraction fails */ }
+
       execute(
-        `UPDATE nft_credentials SET mint_status = 'minted', tx_hash = ?, error = NULL, updated_at = datetime('now')
+        `UPDATE nft_credentials
+         SET mint_status = 'minted', tx_hash = ?, soroban_token_id = ?, error = NULL, updated_at = datetime('now')
          WHERE id = ?`,
-        [txHash, credId]
+        [txHash, sorobanTokenId, credId]
       );
-      console.log(`[mint] SUCCESS: user=${userId} quiz=${quizId} tx=${txHash}`);
+      console.log(`[mint] SUCCESS: user=${userId} quiz=${quizId} tx=${txHash} tokenId=${sorobanTokenId}`);
     } else {
       throw new Error(`Transaction not confirmed: status=${getResult?.status ?? 'unknown'}`);
     }
@@ -167,7 +176,7 @@ export async function mintCredential(params: {
   courseId: string;
   walletAddress: string;
   applicationId: string;
-}): Promise<{ txHash: string }> {
+}): Promise<{ txHash: string; sorobanTokenId: number | null }> {
   const { userId, courseId, walletAddress, applicationId } = params;
 
   const minterSecret = process.env.NFT_MINTER_SECRET;
@@ -224,6 +233,17 @@ export async function mintCredential(params: {
     throw new Error(`Transaction not confirmed: status=${getResult?.status ?? 'unknown'}`);
   }
 
-  console.log(`[mint-course] SUCCESS: user=${userId} course=${courseId} tx=${txHash}`);
-  return { txHash };
+  // Extract assigned on-chain token ID from Soroban return value (non-fatal if missing)
+  let sorobanTokenId: number | null = null;
+  try {
+    if (getResult.returnValue) {
+      const native = StellarSdk.scValToNative(getResult.returnValue);
+      if (typeof native === 'number') sorobanTokenId = native;
+    }
+  } catch {
+    console.warn('[mint-course] Could not extract soroban token ID from return value');
+  }
+
+  console.log(`[mint-course] SUCCESS: user=${userId} course=${courseId} tx=${txHash} tokenId=${sorobanTokenId}`);
+  return { txHash, sorobanTokenId };
 }
