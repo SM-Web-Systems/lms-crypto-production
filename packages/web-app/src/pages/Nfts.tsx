@@ -18,6 +18,7 @@ interface LmsCredential {
   quizTitle: string | null;
   network: string | null;
   mintedAt: string;
+  sorobanTokenId: number | null;  // on-chain Soroban u32 token ID for deterministic matching
 }
 
 export default function NftsPage() {
@@ -59,14 +60,35 @@ export default function NftsPage() {
 
   useEffect(() => { fetchNfts(); }, [publicKey]);
 
-  // Build ordered list of LMS-contract tokens for positional matching
-  const lmsIndexedTokens = indexedNfts.filter(
-    (item: any) => item.collection?.contractId === LMS_CONTRACT_ID
-  );
+  // Build Map<sorobanTokenId → LmsCredential> for deterministic matching.
+  // Legacy credentials (sorobanTokenId=null) fall back to positional matching by tokenId order.
+  const lmsCredMap = new Map<number, LmsCredential>();
+  const legacyCredList: LmsCredential[] = [];
+  for (const cred of lmsCredentials) {
+    if (cred.sorobanTokenId !== null) {
+      lmsCredMap.set(cred.sorobanTokenId, cred);
+    } else {
+      legacyCredList.push(cred);
+    }
+  }
+
+  // For legacy fallback: LMS-contract tokens sorted by tokenId ascending
+  const lmsIndexedTokens = [...indexedNfts]
+    .filter((item: any) => item.collection?.contractId === LMS_CONTRACT_ID)
+    .sort((a: any, b: any) => (a.token.tokenId ?? 0) - (b.token.tokenId ?? 0));
+
   function getLmsCred(item: any): LmsCredential | null {
-    const pos = lmsIndexedTokens.indexOf(item);
-    if (pos < 0) return null;
-    return lmsCredentials[pos] ?? null;
+    // Primary: deterministic match by on-chain token ID
+    const tokenId: number | undefined = item.token?.tokenId;
+    if (tokenId !== undefined && lmsCredMap.has(tokenId)) {
+      return lmsCredMap.get(tokenId)!;
+    }
+    // Legacy fallback: positional match for credentials without sorobanTokenId
+    if (legacyCredList.length > 0) {
+      const pos = lmsIndexedTokens.indexOf(item);
+      if (pos >= 0 && pos < legacyCredList.length) return legacyCredList[pos];
+    }
+    return null;
   }
 
   const hasNfts = indexedNfts.length > 0 || classicNfts.length > 0;
@@ -132,17 +154,20 @@ export default function NftsPage() {
                   {(() => {
                     const cred = getLmsCred(item);
                     if (!cred) return null;
+                    const issuedDate = cred.mintedAt
+                      ? new Date(cred.mintedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : null;
                     return (
-                      <div className="mt-2 pt-2 border-t border-stellar-border/50">
-                        <p className="text-[10px] text-stellar-muted font-semibold uppercase tracking-wide mb-0.5">LMS Certificate</p>
-                        <p className="text-xs text-stellar-text font-medium truncate">
-                          {cred.courseTitle ?? cred.quizTitle ?? "SM Web Systems"}
+                      <div className="mt-2 pt-2 border-t border-stellar-border/50 space-y-0.5">
+                        <p className="text-[10px] text-stellar-muted font-semibold uppercase tracking-wide">LMS Certificate</p>
+                        <p className="text-xs text-stellar-text font-medium truncate leading-tight">
+                          {cred.courseTitle ?? cred.quizTitle ?? "SM Web Systems Certificate"}
                         </p>
                         {cred.courseCode && (
-                          <p className="text-[10px] text-stellar-muted">{cred.courseCode}</p>
+                          <p className="text-[10px] text-purple-400 font-medium">{cred.courseCode}</p>
                         )}
-                        {cred.mintedAt && (
-                          <p className="text-[10px] text-stellar-muted">{new Date(cred.mintedAt).toLocaleDateString()}</p>
+                        {issuedDate && (
+                          <p className="text-[10px] text-stellar-muted">Issued {issuedDate}</p>
                         )}
                         {cred.txHash && (
                           <a
