@@ -45,6 +45,31 @@ function enrolStudent(userId: string, courseCode: string) {
   `);
 }
 
+function seedCourseWithItems(count: number, code?: string) {
+  const courseId = uuidv4();
+  const courseCode = code ?? `SMP-${uuidv4().slice(0, 8)}`;
+  const items = Array.from({ length: count }, (_, i) => ({
+    id: `item-${i + 1}-${courseId.slice(0, 6)}`,
+    type: 'video',
+    title: `Item ${i + 1}`,
+    url: 'https://example.com',
+  }));
+  const sections = JSON.stringify([{ id: 'section-1', title: 'Week 1', items }]);
+  db.prepare(
+    'INSERT INTO courses (id, title, course_code, sections) VALUES (?, ?, ?, ?)'
+  ).run(courseId, 'SMP Test Course', courseCode, sections);
+  return { courseId, courseCode, items };
+}
+
+function markComplete(userId: string, courseId: string, itemIds: string[]) {
+  const stmt = db.prepare(
+    'INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id) VALUES (?, ?, ?, ?, ?)'
+  );
+  for (const itemId of itemIds) {
+    stmt.run(uuidv4(), userId, courseId, itemId, 'section-1');
+  }
+}
+
 describe('GET /api/v1/students/me/progress', () => {
   it('SMP1 — 401 when no token', async () => {
     const res = await request(app).get('/api/v1/students/me/progress');
@@ -135,5 +160,94 @@ describe('GET /api/v1/students/me/progress', () => {
     const course = res.body.data.courses[0];
     expect(course.certificateStatus).toBe('pending');
     expect(course.applicationId).toBe(appId);
+  });
+
+  it('SMP6 — lessonPercentage is 0 when student has no completions in a course with items', async () => {
+    const userId = seedStudent(uuidv4().slice(0, 8));
+    const { courseCode } = seedCourseWithItems(3);
+    enrolStudent(userId, courseCode);
+    const token = makeToken({ userId, email: `smp-${userId.slice(0, 8)}@test.com`, role: 'student' });
+
+    const res = await request(app)
+      .get('/api/v1/students/me/progress')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const course = res.body.data.courses[0];
+    expect(course.lessonsCompleted).toBe(0);
+    expect(course.totalLessons).toBe(3);
+    expect(course.lessonPercentage).toBe(0);
+  });
+
+  it('SMP7 — lessonPercentage is 100 when student has completed all lessons', async () => {
+    const userId = seedStudent(uuidv4().slice(0, 8));
+    const { courseId, courseCode, items } = seedCourseWithItems(3);
+    enrolStudent(userId, courseCode);
+    markComplete(userId, courseId, items.map((i) => i.id));
+    const token = makeToken({ userId, email: `smp-${userId.slice(0, 8)}@test.com`, role: 'student' });
+
+    const res = await request(app)
+      .get('/api/v1/students/me/progress')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const course = res.body.data.courses[0];
+    expect(course.lessonsCompleted).toBe(3);
+    expect(course.totalLessons).toBe(3);
+    expect(course.lessonPercentage).toBe(100);
+  });
+
+  it('SMP8 — lessonPercentage rounds correctly (1/3 → 33, 2/3 → 67)', async () => {
+    const userId = seedStudent(uuidv4().slice(0, 8));
+    const { courseId, courseCode, items } = seedCourseWithItems(3);
+    enrolStudent(userId, courseCode);
+    const token = makeToken({ userId, email: `smp-${userId.slice(0, 8)}@test.com`, role: 'student' });
+
+    // 1 of 3 completed
+    markComplete(userId, courseId, [items[0].id]);
+    const res1 = await request(app)
+      .get('/api/v1/students/me/progress')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res1.status).toBe(200);
+    expect(res1.body.data.courses[0].lessonPercentage).toBe(33);
+
+    // 2 of 3 completed
+    markComplete(userId, courseId, [items[1].id]);
+    const res2 = await request(app)
+      .get('/api/v1/students/me/progress')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res2.status).toBe(200);
+    expect(res2.body.data.courses[0].lessonPercentage).toBe(67);
+  });
+
+  it('SMP9 — /students/me/progress and /courses/:id/progress return consistent lesson counts', async () => {
+    const userId = seedStudent(uuidv4().slice(0, 8));
+    const { courseId, courseCode, items } = seedCourseWithItems(4);
+    enrolStudent(userId, courseCode);
+    markComplete(userId, courseId, [items[0].id, items[1].id]);
+    const token = makeToken({ userId, email: `smp-${userId.slice(0, 8)}@test.com`, role: 'student' });
+
+    const [meRes, courseRes] = await Promise.all([
+      request(app)
+        .get('/api/v1/students/me/progress')
+        .set('Authorization', `Bearer ${token}`),
+      request(app)
+        .get(`/api/v1/courses/${courseId}/progress`)
+        .set('Authorization', `Bearer ${token}`),
+    ]);
+
+    expect(meRes.status).toBe(200);
+    expect(courseRes.status).toBe(200);
+
+    const me = meRes.body.data.courses[0];
+    const direct = courseRes.body.data;
+
+    // Field names differ but values must be identical
+    expect(me.lessonsCompleted).toBe(direct.completedLessonItems);
+    expect(me.totalLessons).toBe(direct.totalLessonItems);
+    expect(me.lessonPercentage).toBe(direct.lessonPercentage);
+    expect(me.lessonsCompleted).toBe(2);
+    expect(me.totalLessons).toBe(4);
+    expect(me.lessonPercentage).toBe(50);
   });
 });
