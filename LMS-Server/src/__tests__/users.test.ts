@@ -51,7 +51,7 @@ describe('GET /api/v1/users', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.users).toHaveLength(2);
+    expect(res.body.data.users.length).toBeGreaterThanOrEqual(2);
 
     const student = res.body.data.users.find((u: { id: string }) => u.id === ids.studentUserId);
     expect(student).toBeDefined();

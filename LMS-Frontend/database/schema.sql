@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
--- Course documents table
+-- Course documents table (course_ids = JSON array of course IDs for restriction; empty/null = open to all)
 CREATE TABLE IF NOT EXISTS course_documents (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS course_documents (
   file_size INTEGER NOT NULL,
   file_path TEXT NOT NULL,
   file_mime_type TEXT,
+  course_ids TEXT,
   uploaded_by_id TEXT NOT NULL REFERENCES users(id),
   uploaded_at TEXT DEFAULT (datetime('now')),
   created_at TEXT DEFAULT (datetime('now')),

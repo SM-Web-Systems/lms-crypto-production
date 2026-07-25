@@ -1,6 +1,6 @@
-// Course content layout: course → weeks → sections (with video, link, PDF items)
+// Course content layout: course → weeks → sections (with video, link, PDF, text items)
 
-export type ContentItemType = 'video' | 'link' | 'pdf';
+export type ContentItemType = 'video' | 'link' | 'pdf' | 'text';
 
 export interface CourseItemBase {
   id: string;
@@ -32,7 +32,14 @@ export interface CourseItemPdf extends CourseItemBase {
   description?: string;
 }
 
-export type CourseItem = CourseItemVideo | CourseItemLink | CourseItemPdf;
+export interface CourseItemText extends CourseItemBase {
+  type: 'text';
+  /** URL to the text resource (e.g. a markdown file, article, or course notes page). */
+  url: string;
+  description?: string;
+}
+
+export type CourseItem = CourseItemVideo | CourseItemLink | CourseItemPdf | CourseItemText;
 
 export interface CourseSection {
   id: string;
@@ -60,6 +67,8 @@ export interface Course {
   weeks?: CourseWeek[];
   /** @deprecated Use weeks[].sections. Kept for migration from old data. */
   sections?: CourseSection[];
+  /** Optional sponsor or cohort label (e.g. "USAID Cohort 2026"). */
+  sponsorLabel?: string;
 }
 
 /** Returns weeks for a course; normalizes legacy courses that only have sections into a single "Week 1". */

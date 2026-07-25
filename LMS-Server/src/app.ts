@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { db } from './config/database.js';
 
 import authRoutes from './routes/auth.js';
 import studentsRoutes from './routes/students.js';
@@ -20,6 +21,14 @@ import usersRoutes from './routes/users.js';
 import quizzesRoutes from './routes/quizzes.js';
 import invitesRoutes from './routes/invites.js';
 import announcementsRoutes from './routes/announcements.js';
+import adminRoutes from './routes/admin.js';
+import courseRequirementsRoutes from './routes/courseRequirements.js';
+import nftApplicationsRoutes from './routes/nftApplications.js';
+import lessonCompletionsRoutes from './routes/lessonCompletions.js';
+import progressRoutes from './routes/progress.js';
+import walletStatusRoutes from './routes/walletStatus.js';
+import publicCredentialsRoutes from './routes/publicCredentials.js';
+import studentProgressRoutes from './routes/studentProgress.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -135,7 +144,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 function sendHealthJson(res: Response): void {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  let dbStatus: 'ok' | 'error' = 'ok';
+  try { db.prepare('SELECT 1').get(); } catch { dbStatus = 'error'; }
+  res.json({
+    status: dbStatus === 'ok' ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    db: dbStatus,
+    ammaWallet: {
+      url: !!process.env.AMMA_WALLET_URL,
+      apiKey: !!process.env.AMMA_WALLET_API_KEY,
+      network: process.env.AMMA_WALLET_NETWORK ?? 'testnet',
+    },
+  });
 }
 
 // Health checks (no rate limit). Use /health for bare-metal probes; /api/v1/health matches the API prefix (e.g. some gateways).
@@ -148,6 +168,10 @@ app.get('/api/v1/health', (_req, res) => {
 
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);
+// studentProgressRoutes MUST be mounted before studentsRoutes — the students router applies
+// authorize('admin') to all /students/* paths, so /students/me/progress would be blocked for
+// non-admin users if studentsRoutes ran first.
+app.use('/api/v1', apiLimiter, studentProgressRoutes);
 app.use('/api/v1/students', apiLimiter, studentsRoutes);
 app.use('/api/v1/submissions', apiLimiter, submissionsRoutes);
 app.use('/api/v1/analytics', apiLimiter, analyticsRoutes);
@@ -160,6 +184,13 @@ app.use('/api/v1/users', apiLimiter, usersRoutes);
 app.use('/api/v1/quizzes', apiLimiter, quizzesRoutes);
 app.use('/api/v1', apiLimiter, invitesRoutes);
 app.use('/api/v1/announcements', apiLimiter, announcementsRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/courses', apiLimiter, courseRequirementsRoutes);
+app.use('/api/v1', apiLimiter, nftApplicationsRoutes);
+app.use('/api/v1', apiLimiter, lessonCompletionsRoutes);
+app.use('/api/v1', apiLimiter, progressRoutes);
+app.use('/api/v1', apiLimiter, walletStatusRoutes);
+app.use('/api/v1', publicCredentialsRoutes);
 
 // Serve uploaded avatars (and other uploads) as static files
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');

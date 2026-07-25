@@ -66,6 +66,7 @@ CREATE TABLE course_documents (
   file_size INTEGER NOT NULL,
   file_path TEXT NOT NULL,
   file_mime_type TEXT,
+  course_ids TEXT,
   uploaded_by_id TEXT NOT NULL REFERENCES users(id),
   uploaded_at TEXT DEFAULT (datetime('now')),
   created_at TEXT DEFAULT (datetime('now')),

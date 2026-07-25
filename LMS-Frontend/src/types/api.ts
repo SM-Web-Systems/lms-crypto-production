@@ -50,14 +50,15 @@ export interface NFTResponse {
 }
 
 // User Types
-export type UserRole = "student" | "admin";
+export type UserRole = "student" | "admin" | "lecturer";
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  walletAddress: string;
+  walletAddress: string | null;
+  walletLinkingStatus: 'none' | 'linked' | 'existing_account';
   /** Course codes the user can access (students). When backend supports this, include in auth/me. */
   courseCodes?: string[];
 }
@@ -78,6 +79,15 @@ export interface Student {
   semester: number;
   createdAt: string;
   updatedAt?: string;
+  walletAddress?: string | null;
+  walletLinkingStatus?: 'none' | 'linked' | 'existing_account';
+}
+
+export interface WalletStatusResponse {
+  walletAddress: string | null;
+  walletLinkingStatus: 'none' | 'linked' | 'existing_account';
+  network: 'mainnet' | null;
+  xlmBalance: number | null;
 }
 
 export interface CreateStudentData {
@@ -226,6 +236,105 @@ export interface DocumentQueryParams {
   limit?: number;
   category?: string;
   search?: string;
+}
+
+// Course completion / NFT application types
+export interface QuizProgressItem {
+  quizId: string;
+  quizTitle: string;
+  required: boolean;
+  passed: boolean;
+  score: number | null;
+  passingScore: number;
+}
+
+export interface CourseProgress {
+  userId: string;
+  courseId: string;
+  totalLessonItems: number;
+  completedLessonItems: number;
+  lessonPercentage: number;
+  requiredQuizzes: QuizProgressItem[];
+  allRequiredQuizzesPassed: boolean;
+  hasApprovedSubmission: boolean;
+  meetsAllRequirements: boolean;
+  canApplyForCertificate: boolean;
+}
+
+export type CertificateStatus = 'not_eligible' | 'eligible' | 'pending' | 'approved' | 'minted' | 'rejected';
+
+export interface MyCourseProgress extends CourseProgress {
+  courseName: string;
+  courseCode: string | null;
+  certificateStatus: CertificateStatus;
+  applicationId: string | null;
+  txHash: string | null;
+}
+
+export type NftApplicationStatus = 'pending' | 'approved' | 'rejected' | 'minted';
+
+export interface NftApplication {
+  applicationId: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  courseId: string;
+  courseName?: string;
+  walletAddress: string;
+  status: NftApplicationStatus;
+  appliedAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewNotes: string | null;
+  lecturerRecommendation: string | null;
+  txHash: string | null;
+  /** Populated when a failed nft_credentials row exists for this application. Admin-level detail. */
+  mintError?: string | null;
+}
+
+export type CredentialMintStatus = 'pending' | 'minted' | 'failed';
+
+/** Full credential record from nft_credentials — covers both legacy quiz-triggered and
+ *  course-level application-workflow mints. mintPath indicates which flow created it. */
+export interface IssuedCredential {
+  credentialId: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  courseId: string | null;
+  courseName: string | null;
+  quizId: string | null;
+  quizTitle: string | null;
+  applicationId: string | null;
+  walletAddress: string;
+  mintStatus: CredentialMintStatus;
+  txHash: string | null;
+  contractId: string | null;
+  network: string | null;
+  mintedAt: string | null;
+  mintError: string | null;
+  /** Null for legacy quiz-triggered mints that bypassed the application workflow. */
+  applicationStatus: NftApplicationStatus | null;
+  appliedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  mintPath: 'course_application' | 'quiz_trigger';
+  /** L-013: true when this credential has been superseded by a re-mint correction. */
+  isSuperseded: boolean;
+}
+
+/** Credential record returned by GET /credentials/mine (student's own minted certs). */
+export interface MyCredential {
+  credentialId: string;
+  walletAddress: string;
+  txHash: string | null;
+  courseId: string | null;
+  courseTitle: string | null;
+  courseCode: string | null;
+  quizId: string | null;
+  quizTitle: string | null;
+  network: string | null;
+  issuedAt: string;
 }
 
 export interface NftToken {

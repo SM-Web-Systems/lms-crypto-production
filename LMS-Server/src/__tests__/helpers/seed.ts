@@ -16,12 +16,18 @@ export interface TestIds {
   course2Id: string;
   course2Code: string;
   documentId: string;
+  linkedStudentUserId: string;
+  linkedStudentId: string;
 }
+
+export const LINKED_WALLET_ADDRESS = 'GBOH1234WGEJ';
 
 export function seedTestData(): TestIds {
   const adminId = uuidv4();
   const studentUserId = uuidv4();
   const studentId = uuidv4();
+  const linkedStudentUserId = uuidv4();
+  const linkedStudentId = uuidv4();
   const courseId = uuidv4();
   const courseCode = "BLOCK-101";
   const course2Id = uuidv4();
@@ -29,13 +35,16 @@ export function seedTestData(): TestIds {
   const documentId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress)
+    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
     VALUES
-      ('${adminId}', 'Admin User', 'admin@test.com', '${HASH}', 'admin', 'admin-wallet-address'),
-      ('${studentUserId}', 'Student User', 'student@test.com', '${HASH}', 'student', 'student-wallet-address');
+      ('${adminId}', 'Admin User', 'admin@test.com', '${HASH}', 'admin', 'admin-wallet-address', 'none'),
+      ('${studentUserId}', 'Student User', 'student@test.com', '${HASH}', 'student', 'student-wallet-address', 'none'),
+      ('${linkedStudentUserId}', 'Linked Student', 'linked@test.com', '${HASH}', 'student', '${LINKED_WALLET_ADDRESS}', 'linked');
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
-    VALUES ('${studentId}', '${studentUserId}', 'Student User', 'student@test.com', 'STU-001', 'Computer Science', 3);
+    VALUES
+      ('${studentId}', '${studentUserId}', 'Student User', 'student@test.com', 'STU-001', 'Computer Science', 3),
+      ('${linkedStudentId}', '${linkedStudentUserId}', 'Linked Student', 'linked@test.com', 'STU-002', 'Computer Science', 2);
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES
@@ -55,6 +64,8 @@ export function seedTestData(): TestIds {
     adminId,
     studentUserId,
     studentId,
+    linkedStudentUserId,
+    linkedStudentId,
     courseId,
     courseCode,
     course2Id,

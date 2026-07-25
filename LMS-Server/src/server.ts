@@ -12,6 +12,13 @@ function startServer() {
     db.prepare('SELECT 1').get();
     console.log('✅ Database connected successfully');
 
+    if (!process.env.AMMA_WALLET_URL) {
+      console.warn('⚠️  AMMA_WALLET_URL not set — wallet provisioning will use localhost fallback (not suitable for production)');
+    }
+    if (!process.env.AMMA_WALLET_API_KEY && process.env.NODE_ENV === 'production') {
+      console.warn('⚠️  AMMA_WALLET_API_KEY not set in production — wallet creation will be blocked by Turnstile CAPTCHA');
+    }
+
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       console.log(`📚 API base URL: http://localhost:${PORT}/api/v1`);

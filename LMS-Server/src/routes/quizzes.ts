@@ -8,6 +8,7 @@ import {
   getCompletionsForUser,
   getCompletion,
   submitQuiz,
+  getAnswerKeys,
 } from '../controllers/quizzesController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
@@ -16,6 +17,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/completions', getCompletionsForUser);
+router.get('/answer-keys', authorize('admin'), getAnswerKeys);
 router.get('/:id/completion', getCompletion);
 router.post('/:id/submit', submitQuiz);
 

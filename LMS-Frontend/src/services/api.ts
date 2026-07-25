@@ -60,7 +60,6 @@ api.interceptors.response.use(
     if (status === 401) {
       const skipRedirect =
         reqUrl.includes("/auth/login") ||
-        reqUrl.includes("/auth/google") ||
         reqUrl.includes("/auth/me");
       if (!skipRedirect) {
         window.location.href = "/login";

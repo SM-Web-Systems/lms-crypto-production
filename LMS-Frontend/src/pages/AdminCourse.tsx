@@ -19,16 +19,20 @@ import {
   FileSpreadsheet,
   X,
   AlertCircle,
+  ClipboardList,
 } from 'lucide-react';
 import { documentsService } from '../services/documentsService';
 import { getErrorMessage } from '../utils/apiError';
 import { useAuth } from '../context/useAuth';
 import { AdminCoursePageSkeleton } from '../components/PageSkeletons';
 import { AdminCoursePreview } from '../components/AdminCoursePreview';
+import { quizService } from '../services/quizService';
+import { courseCompletionService, type CourseRequirements } from '../services/courseCompletionService';
+import { toastSuccess } from '../utils/toastBus';
 
 type ItemDraft = {
   tempId: string;
-  type: 'video' | 'link' | 'pdf';
+  type: 'video' | 'link' | 'pdf' | 'text';
   title: string;
   order: number;
   url?: string;
@@ -250,6 +254,7 @@ const AdminCourse: React.FC = () => {
   const [courseTitle, setCourseTitle] = useState('');
   const [courseDescription, setCourseDescription] = useState('');
   const [courseCode, setCourseCode] = useState('');
+  const [sponsorLabel, setSponsorLabel] = useState('');
   const [weeks, setWeeks] = useState<WeekDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [documents, setDocuments] = useState<{ id: string; title: string; category: string }[]>([]);
@@ -265,6 +270,18 @@ const AdminCourse: React.FC = () => {
 
   // Preview state
   const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
+
+  // Certificate requirements state
+  const [quizList, setQuizList] = useState<{ id: string; title: string }[]>([]);
+  const [reqDraft, setReqDraft] = useState<CourseRequirements>({
+    requireAllLessons: false,
+    requiredQuizIds: [],
+    minQuizScore: 70,
+    requireSubmissions: false,
+  });
+  const [reqSaving, setReqSaving] = useState(false);
+  const [reqError, setReqError] = useState('');
+  const [reqScoreError, setReqScoreError] = useState('');
 
   const loadCourses = useCallback((opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -291,6 +308,15 @@ const AdminCourse: React.FC = () => {
   useEffect(() => {
     documentsService.getCategories().then(setDocCategories).catch(() => setDocCategories([]));
   }, []);
+
+  // Load quizzes + existing requirements when editing a course
+  useEffect(() => {
+    if (!editingId) return;
+    quizService.getAll().then((qs) => setQuizList(qs.map((q) => ({ id: q.id, title: q.title })))).catch(() => setQuizList([]));
+    courseCompletionService.getRequirements(editingId).then((r) => {
+      if (r) setReqDraft(r);
+    }).catch(() => {});
+  }, [editingId]);
 
   const refreshDocumentsList = useCallback(() => {
     documentsService
@@ -323,6 +349,25 @@ const AdminCourse: React.FC = () => {
     setImportParsed(null);
     setImportErrors([]);
     setImportFileName('');
+  };
+
+  const handleSaveRequirements = async () => {
+    if (!editingId) return;
+    if (reqDraft.minQuizScore < 0 || reqDraft.minQuizScore > 100) {
+      setReqScoreError('Must be 0–100');
+      return;
+    }
+    setReqScoreError('');
+    setReqSaving(true);
+    setReqError('');
+    try {
+      await courseCompletionService.saveRequirements(editingId, reqDraft);
+      toastSuccess('Certificate requirements saved');
+    } catch (e) {
+      setReqError(getErrorMessage(e, 'Failed to save requirements'));
+    } finally {
+      setReqSaving(false);
+    }
   };
 
   const handlePdfUploadForItem = async (
@@ -364,6 +409,7 @@ const AdminCourse: React.FC = () => {
     setCourseTitle('');
     setCourseDescription('');
     setCourseCode('');
+    setSponsorLabel('');
     setWeeks([]);
   };
 
@@ -372,6 +418,7 @@ const AdminCourse: React.FC = () => {
     setCourseTitle(course.title);
     setCourseDescription(course.description || '');
     setCourseCode(course.courseCode ?? '');
+    setSponsorLabel(course.sponsorLabel ?? '');
     const courseWeeks = getCourseWeeks(course);
     setWeeks(
       courseWeeks.map((w, wi) => ({
@@ -403,6 +450,7 @@ const AdminCourse: React.FC = () => {
     setCourseTitle('');
     setCourseDescription('');
     setCourseCode('');
+    setSponsorLabel('');
     setWeeks([{ tempId: newTempId(), title: 'Week 1', order: 1, sections: [] }]);
   };
 
@@ -616,6 +664,7 @@ const AdminCourse: React.FC = () => {
       title: courseTitle.trim(),
       description: courseDescription.trim() || undefined,
       courseCode: code,
+      sponsorLabel: sponsorLabel.trim() || undefined,
       weeks: weeks.map((w, wi) => ({
         id: w.tempId.startsWith('tmp-') ? courseService.generateId() : w.tempId,
         title: w.title.trim() || `Week ${wi + 1}`,
@@ -639,6 +688,9 @@ const AdminCourse: React.FC = () => {
               }
               if (it.type === 'link') {
                 return { ...base, type: 'link' as const, url: (it.url || '').trim() };
+              }
+              if (it.type === 'text') {
+                return { ...base, type: 'text' as const, url: (it.url || '').trim() };
               }
               return {
                 ...base,
@@ -729,6 +781,9 @@ const AdminCourse: React.FC = () => {
                         Code: <span className="font-medium text-neutral-700">{c.courseCode ?? c.id}</span>
                         {' · '}
                         {courseWeeks.length} week{courseWeeks.length !== 1 ? 's' : ''}, {sectionCount} section{sectionCount !== 1 ? 's' : ''}
+                        {c.sponsorLabel && (
+                          <>{' · '}<span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 text-xs font-medium ml-1">{c.sponsorLabel}</span></>
+                        )}
                       </p>
                     </div>
                     <div className="flex gap-2 flex-wrap">
@@ -787,6 +842,12 @@ const AdminCourse: React.FC = () => {
                 placeholder="e.g. BLOCKCHAIN-101 (students with this code can access the course)"
                 value={courseCode}
                 onChange={(e) => setCourseCode(e.target.value)}
+              />
+              <Input
+                label="Sponsor / Cohort label (optional)"
+                placeholder="e.g. USAID Cohort 2026"
+                value={sponsorLabel}
+                onChange={(e) => setSponsorLabel(e.target.value)}
               />
               <TextArea
                 label="Description (optional)"
@@ -856,7 +917,7 @@ const AdminCourse: React.FC = () => {
                                 </Button>
                               </div>
                               <div className="ml-7">
-                                <p className="text-sm font-medium text-neutral-600 mb-2">Items (videos, links, PDFs)</p>
+                                <p className="text-sm font-medium text-neutral-600 mb-2">Items (videos, links, text articles, PDFs)</p>
                                 {sec.items.map((it) => (
                                   <div key={it.tempId} className="mb-4 p-3 bg-neutral-50 border border-neutral-200 rounded space-y-2">
                                     <div className="flex flex-wrap gap-2 items-start">
@@ -867,6 +928,7 @@ const AdminCourse: React.FC = () => {
                                       >
                                         <option value="video">Video</option>
                                         <option value="link">Link</option>
+                                        <option value="text">Text / Article</option>
                                         <option value="pdf">PDF</option>
                                       </select>
                                       <Input
@@ -962,6 +1024,104 @@ const AdminCourse: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Certificate Requirements — only shown when editing an existing course */}
+              {editingId && (
+                <Card className="border border-neutral-200">
+                  <div className="flex items-center gap-2 px-5 py-4 border-b border-neutral-200 bg-neutral-50/60">
+                    <ClipboardList className="h-4 w-4 text-accent-teal" aria-hidden />
+                    <h3 className="text-sm font-semibold text-neutral-800">Certificate Requirements</h3>
+                  </div>
+                  <CardContent className="space-y-5 pt-4 pb-5">
+                    <p className="text-xs text-neutral-500">
+                      Configure what students must complete before they can apply for a certificate.
+                    </p>
+
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={reqDraft.requireAllLessons}
+                        onChange={(e) => setReqDraft((r) => ({ ...r, requireAllLessons: e.target.checked }))}
+                        className="h-4 w-4 rounded border-neutral-300 text-accent-teal focus:ring-accent-teal"
+                      />
+                      <span className="text-sm text-neutral-700">Require all lessons to be completed</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={reqDraft.requireSubmissions}
+                        onChange={(e) => setReqDraft((r) => ({ ...r, requireSubmissions: e.target.checked }))}
+                        className="h-4 w-4 rounded border-neutral-300 text-accent-teal focus:ring-accent-teal"
+                      />
+                      <span className="text-sm text-neutral-700">Require at least one approved submission</span>
+                    </label>
+
+                    <div className="space-y-1">
+                      <label className="block text-sm text-neutral-700">
+                        Minimum quiz score (0–100)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={reqDraft.minQuizScore}
+                        onChange={(e) => {
+                          setReqScoreError('');
+                          setReqDraft((r) => ({ ...r, minQuizScore: Number(e.target.value) }));
+                        }}
+                        className="w-32 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-teal"
+                      />
+                      {reqScoreError && (
+                        <p className="text-xs text-red-600">{reqScoreError}</p>
+                      )}
+                    </div>
+
+                    {quizList.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-neutral-700">Required quizzes</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto border border-neutral-200 rounded-lg p-3 bg-white">
+                          {quizList.map((q) => (
+                            <label key={q.id} className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={reqDraft.requiredQuizIds.includes(q.id)}
+                                onChange={(e) => {
+                                  setReqDraft((r) => ({
+                                    ...r,
+                                    requiredQuizIds: e.target.checked
+                                      ? [...r.requiredQuizIds, q.id]
+                                      : r.requiredQuizIds.filter((id) => id !== q.id),
+                                  }));
+                                }}
+                                className="h-4 w-4 rounded border-neutral-300 text-accent-teal focus:ring-accent-teal shrink-0"
+                              />
+                              <span className="text-xs text-neutral-700 truncate">{q.title}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {reqError && (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {reqError}
+                      </p>
+                    )}
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveRequirements}
+                      disabled={reqSaving || !!reqScoreError}
+                    >
+                      {reqSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden /> : null}
+                      Save requirements
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <Button onClick={handleSave} disabled={saving || !courseTitle.trim()}>

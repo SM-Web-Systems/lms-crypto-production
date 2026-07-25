@@ -4,6 +4,7 @@ import { useAuth } from '../context/useAuth';
 import { Card, CardContent } from '../components/Card';
 import { EmbeddedMaterialViewer } from '../components/EmbeddedMaterialViewer';
 import { courseService } from '../services/courseService';
+import { courseCompletionService } from '../services/courseCompletionService';
 import { getErrorMessage } from '../utils/apiError';
 import { getCourseWeeks, type CourseSection, type CourseItem } from '../types/course';
 import type { Course } from '../types/course';
@@ -19,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  AlignLeft,
 } from 'lucide-react';
 import { shouldOpenVideoInModal } from '../utils/mediaUrl';
 
@@ -312,6 +314,25 @@ const StudentCourse: React.FC = () => {
     setDoneItemIds(readDoneIds(user?.id, selectedCourseId));
   }, [selectedCourseId, user?.id]);
 
+  // Seed lesson completions from server on course change (fire-and-forget, union with local)
+  useEffect(() => {
+    if (!selectedCourseId || !user?.id) return;
+    let cancelled = false;
+    courseCompletionService.getLessonCompletions(selectedCourseId).then((ids) => {
+      if (cancelled || ids.length === 0) return;
+      setDoneItemIds((prev) => {
+        let changed = false;
+        const merged = new Set(prev);
+        for (const id of ids) {
+          if (!merged.has(id)) { merged.add(id); changed = true; }
+        }
+        if (changed) writeDoneIds(user.id, selectedCourseId, merged);
+        return changed ? merged : prev;
+      });
+    }).catch(() => { /* best-effort */ });
+    return () => { cancelled = true; };
+  }, [selectedCourseId, user?.id]);
+
   useEffect(() => {
     if (!selectedCourse || !selectedWeekId) return;
     if (flatPath.length === 0) {
@@ -419,9 +440,14 @@ const StudentCourse: React.FC = () => {
       if (!selectedCourseId) return;
       setDoneItemIds((prev) => {
         const next = new Set(prev);
-        if (next.has(itemId)) next.delete(itemId);
-        else next.add(itemId);
+        const adding = !prev.has(itemId);
+        if (adding) next.add(itemId);
+        else next.delete(itemId);
         writeDoneIds(user?.id, selectedCourseId, next);
+        // Sync to server when marking done (fire-and-forget; no un-complete endpoint)
+        if (adding) {
+          courseCompletionService.markLessonComplete(selectedCourseId, itemId).catch(() => {/* best-effort */});
+        }
         return next;
       });
     },
@@ -436,6 +462,7 @@ const StudentCourse: React.FC = () => {
         const next = new Set(prev);
         next.add(itemId);
         writeDoneIds(user?.id, selectedCourseId, next);
+        courseCompletionService.markLessonComplete(selectedCourseId, itemId).catch(() => {/* best-effort */});
         return next;
       });
     },
@@ -715,6 +742,10 @@ const StudentCourse: React.FC = () => {
                 section={materialViewer.section}
                 item={materialViewer.item}
                 onClose={() => setMaterialViewer(null)}
+                onPrev={goPrevMaterial}
+                onNext={goNextMaterial}
+                prevDisabled={pathIndex <= 0}
+                nextDisabled={pathIndex < 0 || pathIndex >= flatPath.length - 1}
               />
             ) : (
               activeWeek &&
@@ -1028,6 +1059,28 @@ function SectionBlock({
                       )}
                     </div>
                     <span className="text-sm text-accent-teal font-semibold shrink-0">View</span>
+                  </div>
+                );
+              }
+              if (item.type === 'text') {
+                return (
+                  <div
+                    key={item.id}
+                    id={`course-item-${item.id}`}
+                    {...materialRowA11y(item)}
+                    className={materialRowClass(item.id)}
+                  >
+                    <MaterialDoneToggle itemId={item.id} />
+                    <div className={`${ICON_BOX} bg-accent-teal/10 text-accent-teal border border-accent-teal/20 group-hover:bg-accent-teal group-hover:text-white transition-colors`}>
+                      <AlignLeft className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-neutral-800 block leading-snug">{item.title}</span>
+                      {item.description && (
+                        <p className="text-sm text-neutral-500 mt-0.5 leading-snug line-clamp-2">{item.description}</p>
+                      )}
+                    </div>
+                    <span className="text-sm text-accent-teal font-semibold shrink-0">Read</span>
                   </div>
                 );
               }

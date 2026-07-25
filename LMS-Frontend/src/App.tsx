@@ -8,6 +8,8 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import Landing from './pages/Landing';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Messages from './pages/Messages';
 import Profile from './pages/Profile';
 import CourseMembers from './pages/CourseMembers';
@@ -23,8 +25,20 @@ import AdminDocuments from './pages/AdminDocuments';
 import AdminCourse from './pages/AdminCourse';
 import AdminQuizzes from './pages/AdminQuizzes';
 import StudentQuizzes from './pages/StudentQuizzes';
+import SsoCallback from './pages/SsoCallback';
+import AdminCertificates from './pages/AdminCertificates';
+import SponsorDashboard from './pages/SponsorDashboard';
+import LecturerDashboard from './pages/LecturerDashboard';
+import LecturerCourseStudents from './pages/LecturerCourseStudents';
+import StudentProgress from './pages/StudentProgress';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
+
+function roleHome(role: string | undefined): string {
+  if (role === 'admin') return '/admin';
+  if (role === 'lecturer') return '/lecturer';
+  return '/student';
+}
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -35,9 +49,9 @@ const LoadingScreen: React.FC = () => (
   </div>
 );
 
-const ProtectedRoute: React.FC<{ 
-  children: React.ReactNode; 
-  allowedRole?: 'student' | 'admin' 
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  allowedRole?: 'student' | 'admin' | 'lecturer';
 }> = ({ children, allowedRole }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
@@ -50,7 +64,7 @@ const ProtectedRoute: React.FC<{
   }
 
   if (allowedRole && user?.role !== allowedRole) {
-    return <Navigate to={user?.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to={roleHome(user?.role)} replace />;
   }
 
   return <>{children}</>;
@@ -62,7 +76,7 @@ const HomeRoute: React.FC = () => {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
-      navigate(user.role === 'admin' ? '/admin' : '/student', { replace: true });
+      navigate(roleHome(user.role), { replace: true });
     }
   }, [isAuthenticated, user, navigate, isLoading]);
 
@@ -83,7 +97,7 @@ const LoginRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to={roleHome(user.role)} replace />;
   }
 
   return <Login />;
@@ -97,7 +111,7 @@ const SignUpRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to={roleHome(user.role)} replace />;
   }
 
   return <SignUp />;
@@ -113,6 +127,10 @@ function App() {
             <Routes>
             <Route path="/login/*" element={<LoginRoute />} />
             <Route path="/sign-up/*" element={<SignUpRoute />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            {/* AmmaWallet SSO callback — must be outside ProtectedRoute */}
+            <Route path="/sso-callback" element={<SsoCallback />} />
             <Route path="/" element={<HomeRoute />} />
 
             {/* Student Routes */}
@@ -182,6 +200,16 @@ function App() {
                 <ProtectedRoute allowedRole="student">
                   <Layout>
                     <StudentQuizzes />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/progress"
+              element={
+                <ProtectedRoute allowedRole="student">
+                  <Layout>
+                    <StudentProgress />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -324,6 +352,68 @@ function App() {
                 <ProtectedRoute allowedRole="admin">
                   <Layout>
                     <CourseMembers />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/certificates"
+              element={
+                <ProtectedRoute allowedRole="admin">
+                  <Layout>
+                    <AdminCertificates />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/sponsor"
+              element={
+                <ProtectedRoute allowedRole="admin">
+                  <Layout>
+                    <SponsorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Lecturer Routes */}
+            <Route
+              path="/lecturer"
+              element={
+                <ProtectedRoute allowedRole="lecturer">
+                  <Layout>
+                    <LecturerDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lecturer/courses/:courseId"
+              element={
+                <ProtectedRoute allowedRole="lecturer">
+                  <Layout>
+                    <LecturerCourseStudents />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lecturer/messages"
+              element={
+                <ProtectedRoute allowedRole="lecturer">
+                  <Layout>
+                    <Messages />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lecturer/profile"
+              element={
+                <ProtectedRoute allowedRole="lecturer">
+                  <Layout>
+                    <Profile />
                   </Layout>
                 </ProtectedRoute>
               }

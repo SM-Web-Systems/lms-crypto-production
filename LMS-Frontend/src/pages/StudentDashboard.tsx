@@ -5,7 +5,12 @@ import { useData } from '../context/DataContext';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import { quizService } from '../services/quizService';
+import { courseService } from '../services/courseService';
+import { courseCompletionService } from '../services/courseCompletionService';
 import type { QuizCompletion } from '../types/quiz';
+import type { CourseProgress, MyCredential, NftApplication } from '../types/api';
+import type { Course } from '../types/course';
+import { Link } from 'react-router-dom';
 import {
   FileText,
   Upload,
@@ -22,11 +27,16 @@ import {
   Trophy,
   Zap,
   Target,
+  Award,
+  AlertCircle,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { DashboardPageSkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
-import NftCard from '../components/NftCard';  
+import NftCard from '../components/NftCard';
 import { getUserNfts }  from '../services/walletService';
+import StudentWalletStatusCard from '../components/StudentWalletStatusCard';
 import type { NFTResponse } from '../types/api';
 
 function greetingForHour(h: number): string {
@@ -57,6 +67,14 @@ const StudentDashboard: React.FC = () => {
   const { submissions, submissionsLoading, submissionsError, fetchSubmissions } = useData();
   const [quizCompletions, setQuizCompletions] = useState<QuizCompletion[] | null>(null);
   const [nftBadges, setNftBadges] = useState<NFTResponse | null>(null);
+  const [lmsCredentials, setLmsCredentials] = useState<MyCredential[] | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [progressMap, setProgressMap] = useState<Record<string, CourseProgress>>({});
+  const [certState, setCertState] = useState<Record<string, 'idle' | 'loading' | 'applied' | 'error'>>({});
+  const [certErrors, setCertErrors] = useState<Record<string, string>>({});
+  const [appStatusMap, setAppStatusMap] = useState<Record<string, NftApplication | null>>({});
+  // Start true to avoid flash; set correctly once user id is known
+  const [checklistDismissed, setChecklistDismissed] = useState(true);
 
   useEffect(() => {
     fetchSubmissions();
@@ -66,6 +84,10 @@ const StudentDashboard: React.FC = () => {
     let cancelled = false;
     const loadNfts = async () => {
       if (!user) return;
+      if (!user.walletAddress) {
+        setNftBadges(null);
+        return;
+      }
       try {
         const nfts = await getUserNfts(user.walletAddress);
         if (!cancelled) {
@@ -101,6 +123,87 @@ const StudentDashboard: React.FC = () => {
     };
   }, [user?.id]);
 
+  // Load LMS certificates from /credentials/mine
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    courseCompletionService
+      .getMyCredentials()
+      .then((list) => { if (!cancelled) setLmsCredentials(list); })
+      .catch(() => { if (!cancelled) setLmsCredentials([]); });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Load enrolled courses + progress + existing application status for certificate eligibility section
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    courseService.fetchCourses().then(async (list) => {
+      if (cancelled) return;
+      setCourses(list);
+      const results = await Promise.all(
+        list.map(async (c) => {
+          const [prog, apps] = await Promise.all([
+            courseCompletionService.getCourseProgress(c.id).catch(() => null),
+            courseCompletionService.getCourseApplications(c.id).catch(() => [] as NftApplication[]),
+          ]);
+          return { id: c.id, prog, app: apps.length > 0 ? apps[0] : null };
+        })
+      );
+      if (!cancelled) {
+        const newProg: Record<string, CourseProgress> = {};
+        const newApps: Record<string, NftApplication | null> = {};
+        for (const { id, prog, app } of results) {
+          if (prog) newProg[id] = prog;
+          newApps[id] = app;
+        }
+        setProgressMap(newProg);
+        setAppStatusMap(newApps);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const dismissed = localStorage.getItem(`lms_checklist_dismissed_${user.id}`) === 'true';
+    setChecklistDismissed(dismissed);
+  }, [user?.id]);
+
+  const handleDismissChecklist = () => {
+    if (!user?.id) return;
+    localStorage.setItem(`lms_checklist_dismissed_${user.id}`, 'true');
+    setChecklistDismissed(true);
+  };
+
+  const handleApplyCertificate = async (courseId: string) => {
+    setCertState((s) => ({ ...s, [courseId]: 'loading' }));
+    setCertErrors((e) => ({ ...e, [courseId]: '' }));
+    try {
+      const newApp = await courseCompletionService.applyForCertificate(courseId);
+      setAppStatusMap((m) => ({ ...m, [courseId]: newApp }));
+      setCertState((s) => ({ ...s, [courseId]: 'applied' }));
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : 'Could not submit application.';
+      if (typeof e === 'object' && e !== null && 'response' in e) {
+        const status = (e as { response?: { status?: number } }).response?.status;
+        if (status === 409) {
+          // Re-fetch the existing application so UI reflects real server state
+          courseCompletionService.getCourseApplications(courseId)
+            .then((apps) => {
+              if (apps.length > 0) setAppStatusMap((m) => ({ ...m, [courseId]: apps[0] }));
+            })
+            .catch(() => {});
+          setCertState((s) => ({ ...s, [courseId]: 'applied' }));
+          return;
+        }
+      }
+      setCertErrors((err) => ({ ...err, [courseId]: msg }));
+      setCertState((s) => ({ ...s, [courseId]: 'error' }));
+    }
+  };
+
   const pendingCount = submissions.filter((s) => s.status === 'pending').length;
   const approvedCount = submissions.filter((s) => s.status === 'approved').length;
   const rejectedCount = submissions.filter((s) => s.status === 'rejected').length;
@@ -123,6 +226,15 @@ const StudentDashboard: React.FC = () => {
   }, [approvedCount, quizPassed, pendingCount, submissions.length, dailyLine]);
 
   const HintIcon = engagementHint.icon;
+
+  const checklistSteps = [
+    { label: 'Connect your AmmaWallet', done: Boolean(user?.walletAddress) },
+    { label: 'Enrol in a course', done: courses.length > 0 },
+    { label: 'Complete your first lesson', done: Object.values(progressMap).some((p) => p.completedLessonItems > 0) },
+    { label: 'Pass the required quiz', done: quizPassed > 0 },
+    { label: 'Apply for your certificate', done: Object.values(appStatusMap).some((app) => app !== null) },
+  ];
+  const checklistAllDone = checklistSteps.every((s) => s.done);
 
   const stats = [
     {
@@ -228,6 +340,62 @@ const StudentDashboard: React.FC = () => {
 
   return (
     <div className="pb-10 space-y-8">
+      {/* Wallet status */}
+      {user && <StudentWalletStatusCard user={user} />}
+
+      {/* Getting-started checklist (shown until dismissed) */}
+      {!checklistDismissed && (
+        <section
+          className="rounded-xl border border-primary-200/80 bg-gradient-to-br from-primary-50/70 via-white to-accent-teal/5 shadow-sm ring-1 ring-neutral-900/[0.03]"
+          aria-label="Getting started checklist"
+        >
+          <div className="px-5 py-4 flex items-start justify-between gap-3 border-b border-primary-100/80">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-teal/15 text-accent-teal">
+                <Sparkles className="h-4 w-4" aria-hidden />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-neutral-900">Getting started</h2>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {checklistAllDone
+                    ? 'You\'ve completed all the steps — amazing work!'
+                    : 'Complete these steps to earn your NFT certificate.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissChecklist}
+              className="shrink-0 p-1.5 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
+              aria-label="Dismiss getting started checklist"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ul className="px-5 py-3 space-y-2.5">
+            {checklistSteps.map((step) => (
+              <li key={step.label} className="flex items-center gap-3">
+                {step.done ? (
+                  <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" aria-hidden />
+                ) : (
+                  <div className="h-4 w-4 rounded-full border-2 border-neutral-300 shrink-0" aria-hidden />
+                )}
+                <span
+                  className={`text-sm ${
+                    step.done ? 'text-neutral-400 line-through' : 'text-neutral-800'
+                  }`}
+                >
+                  {step.label}
+                </span>
+                {step.done && (
+                  <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Done</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Hero */}
       <section className="relative overflow-hidden rounded-2xl border border-neutral-200/90 bg-gradient-to-br from-accent-teal/[0.12] via-white to-primary-50/90 shadow-updraft ring-1 ring-neutral-900/[0.04]">
         <div
@@ -324,6 +492,238 @@ const StudentDashboard: React.FC = () => {
           </ul>
         </div>
       </section>
+
+      {/* LMS Certificates — sourced from /credentials/mine */}
+      {lmsCredentials !== null && lmsCredentials.length > 0 && (
+        <section>
+          <h2 className="text-lg font-bold text-neutral-900 mb-4">LMS Certificates</h2>
+          <div className="space-y-3">
+            {lmsCredentials.map((cred) => (
+              <div
+                key={cred.credentialId}
+                className="rounded-xl border border-violet-200/80 bg-gradient-to-br from-violet-50/60 via-white to-indigo-50/40 px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02]"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-neutral-900 truncate">
+                        {cred.courseTitle ?? cred.quizTitle ?? 'Certificate'}
+                      </p>
+                      {cred.courseCode && (
+                        <span className="text-xs text-neutral-500 font-mono">{cred.courseCode}</span>
+                      )}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
+                        <Award className="h-3 w-3" aria-hidden />
+                        NFT Issued
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-neutral-500">
+                      {cred.issuedAt && (
+                        <span>Issued {new Date(cred.issuedAt).toLocaleDateString()}</span>
+                      )}
+                      {cred.walletAddress && (
+                        <span className="font-mono">
+                          {cred.walletAddress.slice(0, 4)}…{cred.walletAddress.slice(-4)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {cred.txHash && (
+                    <a
+                      href={`https://stellar.expert/explorer/public/tx/${cred.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
+                    >
+                      View on Stellar
+                      <ExternalLink className="h-3 w-3" aria-hidden />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Certificate eligibility */}
+      {courses.length > 0 && (
+        <section>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900">Certificate eligibility</h2>
+              <p className="text-sm text-neutral-600 mt-0.5">
+                Complete lessons, quizzes, and submission to earn your NFT credential.
+              </p>
+            </div>
+            <Link
+              to="/student/progress"
+              className="shrink-0 text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors"
+            >
+              View full progress →
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {courses.map((course) => {
+              const prog = progressMap[course.id];
+              const state = certState[course.id] ?? 'idle';
+              const certErr = certErrors[course.id];
+              const appStatus = appStatusMap[course.id];
+              const displayState =
+                state === 'loading' ? 'loading'
+                : appStatus?.status === 'minted' ? 'minted'
+                : appStatus?.status === 'approved' ? 'approved'
+                : appStatus?.status === 'pending' ? 'pending'
+                : appStatus?.status === 'rejected' ? 'rejected'
+                : state === 'applied' ? 'pending'
+                : prog?.canApplyForCertificate ? 'eligible'
+                : 'not_eligible';
+              return (
+                <div
+                  key={course.id}
+                  className="rounded-xl border border-neutral-200/90 bg-white px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02]"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-neutral-900 truncate">{course.title}</p>
+                        {course.courseCode && (
+                          <span className="text-xs text-neutral-500 font-mono">{course.courseCode}</span>
+                        )}
+                        {displayState === 'eligible' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-medium">
+                            <CheckCircle className="h-3 w-3" aria-hidden />
+                            Eligible to apply
+                          </span>
+                        )}
+                        {displayState === 'pending' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-medium">
+                            <Clock className="h-3 w-3" aria-hidden />
+                            Application pending
+                          </span>
+                        )}
+                        {displayState === 'approved' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-medium">
+                            <CheckCircle className="h-3 w-3" aria-hidden />
+                            Approved · Awaiting mint
+                          </span>
+                        )}
+                        {displayState === 'minted' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
+                            <Award className="h-3 w-3" aria-hidden />
+                            NFT Issued
+                          </span>
+                        )}
+                        {displayState === 'rejected' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-900 text-xs font-medium">
+                            <XCircle className="h-3 w-3" aria-hidden />
+                            Application rejected
+                          </span>
+                        )}
+                      </div>
+                      {/* Wallet mismatch warning */}
+                      {appStatus?.walletAddress && user?.walletAddress &&
+                        appStatus.walletAddress !== user.walletAddress &&
+                        displayState !== 'minted' && (
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden />
+                          <div className="text-xs text-amber-800">
+                            <p className="font-medium">Wallet address changed</p>
+                            <p className="mt-0.5">
+                              Your application was submitted with a different wallet address. If minting fails,
+                              please contact your instructor.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {/* Mint error chip (shown to student as generic message) */}
+                      {appStatus?.mintError && (
+                        <p className="text-xs text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          Minting error — please contact your instructor for assistance.
+                        </p>
+                      )}
+                      {prog ? (
+                        <div className="flex flex-wrap gap-4 text-xs text-neutral-500">
+                          <span>
+                            Lessons:{' '}
+                            <strong className="text-neutral-800">
+                              {prog.completedLessonItems}/{prog.totalLessonItems}
+                            </strong>
+                          </span>
+                          <span>
+                            Quizzes:{' '}
+                            <strong className={prog.allRequiredQuizzesPassed ? 'text-emerald-700' : 'text-neutral-800'}>
+                              {prog.allRequiredQuizzesPassed
+                                ? 'All passed'
+                                : `${prog.requiredQuizzes.filter((q) => q.passed).length}/${prog.requiredQuizzes.length}`}
+                            </strong>
+                          </span>
+                          {prog.hasApprovedSubmission && (
+                            <span>
+                              Submission: <strong className="text-emerald-700">Approved</strong>
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-neutral-400">Loading progress…</p>
+                      )}
+                      {prog && (
+                        <div className="w-full max-w-xs">
+                          <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                            <div
+                              className="h-1.5 rounded-full bg-gradient-to-r from-accent-teal to-primary-600 transition-all"
+                              style={{ width: `${prog.lessonPercentage}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-neutral-400 mt-0.5 tabular-nums">
+                            {prog.lessonPercentage}% lessons complete
+                          </p>
+                        </div>
+                      )}
+                      {displayState === 'minted' && appStatus?.txHash && (
+                        <a
+                          href={`https://stellar.expert/explorer/public/tx/${appStatus.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-violet-600 font-mono inline-flex items-center gap-1 hover:underline"
+                        >
+                          tx: {appStatus.txHash.slice(0, 8)}…{appStatus.txHash.slice(-4)}
+                          <ExternalLink className="h-3 w-3" aria-hidden />
+                        </a>
+                      )}
+                      {certErr && (
+                        <p className="text-xs text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+                          {certErr}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0">
+                      {(displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
+                        <Button
+                          size="sm"
+                          type="button"
+                          className="text-xs"
+                          onClick={() => handleApplyCertificate(course.id)}
+                        >
+                          <Award className="h-3.5 w-3.5 mr-1" aria-hidden />
+                          {displayState === 'rejected' ? 'Re-apply' : 'Request certificate'}
+                        </Button>
+                      )}
+                      {displayState === 'loading' && (
+                        <Button size="sm" type="button" disabled className="text-xs">
+                          Submitting…
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Stats */}
       <section>

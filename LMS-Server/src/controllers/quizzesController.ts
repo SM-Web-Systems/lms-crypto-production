@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
 
 interface QuizQuestion {
   id: string;
@@ -401,10 +402,69 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
       throw new AppError('Failed to save completion', 500, ErrorCodes.INTERNAL_ERROR);
     }
 
+    // Fire-and-forget NFT credential mint for designated quizzes only (LEGACY path)
+    // Disabled when NFT_AUTO_MINT_ENABLED != 'true' — new flow uses course_nft_applications
+    if (passed === 1 && isTriggerQuiz(quizId) && process.env.NFT_AUTO_MINT_ENABLED === 'true') {
+      const userRow = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
+        'SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?',
+        [userId]
+      );
+      if (userRow?.walletAddress && userRow.wallet_linking_status === 'linked') {
+        mintCredentialForQuiz({ userId, quizId, walletAddress: userRow.walletAddress }).catch((err: unknown) => {
+          console.error('[mint] fire-and-forget error:', err);
+        });
+      }
+    }
+
     res.status(201).json({
       success: true,
       data: rowToCompletion(row),
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** Admin-only: structured answer-key export for all quizzes. */
+export async function getAnswerKeys(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rows = query<QuizRow>('SELECT * FROM quizzes ORDER BY title ASC');
+    const courseIds = [...new Set(rows.map((r) => r.course_id).filter(Boolean))] as string[];
+    const courseTitles: Record<string, string> = {};
+    for (const cid of courseIds) {
+      const c = queryOne<{ id: string; title: string }>('SELECT id, title FROM courses WHERE id = ?', [cid]);
+      if (c) courseTitles[cid] = c.title;
+    }
+
+    const keys = rows.map((r) => {
+      const quiz = rowToQuiz(r);
+      return {
+        quizId: quiz.id,
+        quizTitle: quiz.title,
+        courseId: quiz.courseId ?? null,
+        courseTitle: quiz.courseId ? (courseTitles[quiz.courseId] ?? null) : null,
+        passingScore: quiz.passingScore ?? 70,
+        questions: quiz.questions.map((q) => {
+          let correctAnswer: string | null = null;
+          if (q.type === 'short_answer' && q.correctAnswer != null) {
+            correctAnswer = String(q.correctAnswer).trim();
+          } else if ((q.type === 'multiple_choice' || q.type === 'flashcard') && q.options && typeof q.correctIndex === 'number') {
+            correctAnswer = q.options[q.correctIndex] ?? null;
+          }
+          return {
+            questionId: q.id,
+            order: q.order,
+            type: q.type,
+            question: q.question,
+            options: q.options ?? null,
+            correctIndex: q.correctIndex ?? null,
+            correctAnswer,
+          };
+        }),
+      };
+    });
+
+    res.json({ success: true, generatedAt: new Date().toISOString(), data: { quizzes: keys } });
   } catch (error) {
     next(error);
   }

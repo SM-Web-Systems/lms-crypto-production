@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ArrowLeft, ExternalLink, Info, Music } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music } from 'lucide-react';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
 import {
@@ -15,6 +15,7 @@ import {
 function externalUrlForItem(item: CourseItem): string | null {
   if (item.type === 'video') return item.url.trim();
   if (item.type === 'link') return item.url.trim();
+  if (item.type === 'text') return item.url.trim();
   if (item.type === 'pdf') return item.fileUrl?.trim() || null;
   return null;
 }
@@ -68,13 +69,25 @@ interface EmbeddedMaterialViewerProps {
   section: CourseSection;
   item: CourseItem;
   onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  prevDisabled?: boolean;
+  nextDisabled?: boolean;
 }
 
 /**
  * In-page material view: optional instructor "information" above an embedded resource
  * (video / PDF). Generic web links use a link card instead of an iframe (many sites block embeds).
  */
-export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({ section, item, onClose }) => {
+export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
+  section,
+  item,
+  onClose,
+  onPrev,
+  onNext,
+  prevDisabled = true,
+  nextDisabled = true,
+}) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -99,7 +112,7 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({ 
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-5 pb-8">
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onClose}
@@ -117,6 +130,28 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({ 
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
             Open in new tab
           </button>
+        ) : null}
+        {(onPrev || onNext) ? (
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={prevDisabled}
+              className="inline-flex items-center gap-1 rounded-lg border border-neutral-200/90 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={nextDisabled}
+              className="inline-flex items-center gap-1 rounded-lg border border-accent-teal/40 bg-accent-teal/10 px-3 py-2 text-sm font-semibold text-primary-dark shadow-sm hover:bg-accent-teal/15 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -238,7 +273,7 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({ 
               Powered by Microsoft Office Online · File must be publicly accessible
             </p>
           </div>
-        ) : item.type === 'link' && ext ? (
+        ) : (item.type === 'link' || item.type === 'text') && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : (
           <p className="text-sm text-neutral-600 px-4 py-8 text-center">This material has nothing to display.</p>

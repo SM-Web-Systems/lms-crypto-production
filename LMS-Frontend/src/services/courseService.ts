@@ -7,13 +7,14 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown }): Course {
+function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown; sponsorLabel?: string }): Course {
   return {
     id: c.id,
     title: c.title,
     description: c.description,
     courseCode: c.courseCode,
     sections: Array.isArray(c.sections) ? c.sections as Course['sections'] : [],
+    ...(c.sponsorLabel ? { sponsorLabel: c.sponsorLabel } : {}),
   };
 }
 
@@ -66,6 +67,7 @@ export const courseService = {
       description: course.description ?? null,
       courseCode: course.courseCode || course.id.replace(/\s+/g, '-').toUpperCase().slice(0, 32),
       sections,
+      sponsorLabel: course.sponsorLabel ?? null,
     });
     const data = assertApiSuccess(response, 'Could not create the course.');
     if (data && typeof data === 'object' && 'id' in data) {
@@ -81,6 +83,7 @@ export const courseService = {
       description: course.description ?? null,
       courseCode: course.courseCode,
       sections,
+      sponsorLabel: course.sponsorLabel ?? null,
     });
     const data = assertApiSuccess(response, 'Could not save the course.');
     if (data && typeof data === 'object' && 'id' in data) {

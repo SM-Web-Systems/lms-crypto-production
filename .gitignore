@@ -98,3 +98,31 @@ lib-cov/
 .npm
 .lock-wscript
 bower_components/
+
+# Root-level runtime data (Docker volume mount for SQLite DB)
+data/
+
+# Session notes and handoff docs — operational context, not source code
+notes/
+
+# Backup files left by editors or manual ops
+*.bak
+*.bak.*
+*.orig
+
+# Database and migration dumps
+*.db
+*.db-shm
+*.db-wal
+*.dump
+*.sql.gz
+backups/
+
+# Uploads (user-submitted files — never in git)
+uploads/
+
+# Docker overrides
+docker-compose.override.yml
+
+# Seed scripts with environment-specific data
+seed-courses.js

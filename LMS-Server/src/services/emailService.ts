@@ -1,15 +1,28 @@
 /**
- * Email service — powered by Resend when RESEND_API_KEY is set.
- * If the key is absent the email is logged to stdout so the feature
+ * Email service — powered by Stalwart SMTP (nodemailer) when SMTP_HOST is set.
+ * If SMTP_HOST is absent the email is logged to stdout so the feature
  * degrades gracefully in development / unconfigured environments.
  */
 
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-const apiKey = process.env.RESEND_API_KEY;
-const resend = apiKey ? new Resend(apiKey) : null;
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587', 10);
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
 
-const FROM_ADDRESS = process.env.EMAIL_FROM ?? 'LMS <onboarding@resend.dev>';
+const transporter = SMTP_HOST
+  ? nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: false,       // STARTTLS upgrade on port 587
+      requireTLS: true,    // abort if server doesn't offer STARTTLS
+      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      tls: { rejectUnauthorized: false }, // internal Docker network — cert hostname mismatch is expected
+    })
+  : null;
+
+const FROM_ADDRESS = process.env.EMAIL_FROM ?? 'LMS <onboarding@example.com>';
 const LMS_NAME = process.env.LMS_NAME ?? 'SM Web Systems LMS';
 const FRONTEND_URL = (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/$/, '');
 
@@ -31,11 +44,34 @@ export async function sendEnrollmentEmail(opts: {
     <p>If you have questions, contact your administrator.</p>
   `.trim();
 
-  if (!resend) {
+  if (!transporter) {
     log(subject, to, `Enrolled in: ${courseName}. Login at ${FRONTEND_URL}/login`);
     return;
   }
-  await resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
+  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+}
+
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  name: string;
+  resetUrl: string;
+}): Promise<void> {
+  const { to, name, resetUrl } = opts;
+  const subject = `Reset your ${LMS_NAME} password`;
+  const html = `
+    <p>Hi ${name},</p>
+    <p>We received a request to reset the password for your <strong>${LMS_NAME}</strong> account.</p>
+    <p><a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Reset password</a></p>
+    <p>Or copy this link into your browser:</p>
+    <p><code style="word-break:break-all;">${resetUrl}</code></p>
+    <p>This link expires in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email — your password will not change.</p>
+  `.trim();
+
+  if (!transporter) {
+    log(subject, to, `Password reset URL (stdout fallback — set SMTP_HOST to send real emails):\n  ${resetUrl}`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
 }
 
 export async function sendCourseInviteEmail(opts: {
@@ -55,9 +91,9 @@ export async function sendCourseInviteEmail(opts: {
     <p>This invitation link can be used once.</p>
   `.trim();
 
-  if (!resend) {
+  if (!transporter) {
     log(subject, to, `Invite for: ${courseName}. Signup URL: ${signupUrl}`);
     return;
   }
-  await resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
+  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
 }

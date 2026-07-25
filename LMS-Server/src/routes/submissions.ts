@@ -34,8 +34,8 @@ router.delete('/:id', deleteSubmission);
 // GET /submissions/:id/download - Download submission file
 router.get('/:id/download', downloadSubmission);
 
-// POST /submissions/:id/review - Review submission (admin only)
-router.post('/:id/review', authorize('admin'), reviewSubmission);
+// POST /submissions/:id/review - Review submission (admin or lecturer — scope enforced in controller)
+router.post('/:id/review', authorize('admin', 'lecturer'), reviewSubmission);
 
 export default router;
 

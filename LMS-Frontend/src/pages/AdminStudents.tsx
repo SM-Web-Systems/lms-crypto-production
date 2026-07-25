@@ -8,7 +8,7 @@ import { courseService } from '../services/courseService';
 import { userDirectoryService } from '../services/userDirectoryService';
 import { usersService } from '../services/usersService';
 import { studentsService } from '../services/studentsService';
-import { UserPlus, Edit, Trash2, Mail, BookOpen, Loader2, KeyRound, Search, Upload, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { UserPlus, Edit, Trash2, Mail, BookOpen, Loader2, KeyRound, Search, Upload, Download, CheckCircle, AlertCircle, Wallet, XCircle, Copy } from 'lucide-react';
 import { Student, CreateStudentData, UpdateStudentData } from '../types/api';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -76,19 +76,24 @@ const AdminStudents: React.FC = () => {
   const [courses, setCourses] = useState<Awaited<ReturnType<typeof courseService.fetchCourses>>>([]);
   const [courseCodesMap, setCourseCodesMap] = useState<Record<string, string[]>>({});
 
-  // Search
+  // Search + wallet filter
   const [searchQuery, setSearchQuery] = useState('');
+  const [walletFilter, setWalletFilter] = useState<'all' | 'linked' | 'none' | 'existing_account'>('all');
   const filteredStudents = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return students;
-    return students.filter(
-      (s) =>
+    return students.filter((s) => {
+      if (q && !(
         s.name.toLowerCase().includes(q) ||
         s.email.toLowerCase().includes(q) ||
         s.enrollmentNumber.toLowerCase().includes(q) ||
         s.department.toLowerCase().includes(q)
-    );
-  }, [students, searchQuery]);
+      )) return false;
+      if (walletFilter === 'linked') return s.walletLinkingStatus === 'linked';
+      if (walletFilter === 'none') return !s.walletLinkingStatus || s.walletLinkingStatus === 'none';
+      if (walletFilter === 'existing_account') return s.walletLinkingStatus === 'existing_account';
+      return true;
+    });
+  }, [students, searchQuery, walletFilter]);
 
   // CSV import
   const [importOpen, setImportOpen] = useState(false);
@@ -267,16 +272,28 @@ const AdminStudents: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>All Students ({filteredStudents.length}{searchQuery ? ` of ${students.length}` : ''})</CardTitle>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search by name, email, enrollment…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white"
-              />
+            <CardTitle>All Students ({filteredStudents.length}{(searchQuery || walletFilter !== 'all') ? ` of ${students.length}` : ''})</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, enrollment…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white"
+                />
+              </div>
+              <select
+                value={walletFilter}
+                onChange={(e) => setWalletFilter(e.target.value as typeof walletFilter)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+              >
+                <option value="all">All wallets</option>
+                <option value="linked">Linked</option>
+                <option value="none">No wallet</option>
+                <option value="existing_account">Action needed</option>
+              </select>
             </div>
           </div>
         </CardHeader>
@@ -297,6 +314,8 @@ const AdminStudents: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semester</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course access</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Wallet</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -329,6 +348,37 @@ const AdminStudents: React.FC = () => {
                         {(courseCodesMap[student.userId || student.id] ?? []).length === 0
                           ? '—'
                           : (courseCodesMap[student.userId || student.id] ?? []).join(', ')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {student.walletAddress ? (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(student.walletAddress!).catch(() => {});
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-mono text-neutral-600 hover:text-neutral-900 transition-colors"
+                            title={student.walletAddress}
+                          >
+                            {student.walletAddress.slice(0, 4)}…{student.walletAddress.slice(-4)}
+                            <Copy className="h-3 w-3 shrink-0" />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-neutral-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {student.walletLinkingStatus === 'linked' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-medium">
+                            <Wallet className="h-3 w-3" />Mainnet
+                          </span>
+                        ) : student.walletLinkingStatus === 'existing_account' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-medium">
+                            <AlertCircle className="h-3 w-3" />Action needed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 text-xs font-medium">
+                            <XCircle className="h-3 w-3" />No wallet
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex gap-2">

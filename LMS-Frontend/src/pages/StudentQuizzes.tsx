@@ -26,6 +26,24 @@ function sessionKey(quizId: string) {
   return `lms:quizTake:${quizId}`;
 }
 
+function attemptKey(quizId: string) {
+  return `lms:quizAttempt:${quizId}`;
+}
+
+function getAttemptCount(quizId: string): number {
+  try {
+    return parseInt(sessionStorage.getItem(attemptKey(quizId)) ?? '0', 10) || 0;
+  } catch { return 0; }
+}
+
+function incrementAttemptCount(quizId: string): number {
+  try {
+    const next = getAttemptCount(quizId) + 1;
+    sessionStorage.setItem(attemptKey(quizId), String(next));
+    return next;
+  } catch { return 1; }
+}
+
 type QuizSession = { answers: Record<string, string>; qi: number };
 
 function readSession(quizId: string): QuizSession | null {
@@ -87,6 +105,7 @@ const StudentQuizzes: React.FC = () => {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<QuizCompletion | null>(null);
+  const [attemptCount, setAttemptCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -210,6 +229,8 @@ const StudentQuizzes: React.FC = () => {
     setAnswers({});
     setQuestionIndex(0);
     writeSession(activeQuiz.id, { answers: {}, qi: 0 });
+    const count = incrementAttemptCount(activeQuiz.id);
+    setAttemptCount(count);
     setSearchParams({ quiz: activeQuiz.id, step: 'take', qi: '0' }, { replace: false });
     setQuestionIndex(0);
   };
@@ -283,7 +304,14 @@ const StudentQuizzes: React.FC = () => {
         {result ? (
           <div className="rounded-xl border border-neutral-200/90 bg-white shadow-card ring-1 ring-neutral-900/5 overflow-hidden">
             <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-neutral-200/90 bg-gradient-to-b from-white to-neutral-50/90">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Quiz result</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Quiz result</p>
+                {attemptCount > 0 && (
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+                    Attempt {attemptCount}
+                  </span>
+                )}
+              </div>
               <div className="flex items-start gap-3">
                 {result.passed ? (
                   <CheckCircle className="h-10 w-10 text-green-600 shrink-0" aria-hidden />
@@ -302,26 +330,56 @@ const StudentQuizzes: React.FC = () => {
               <p className="text-sm text-neutral-700 leading-relaxed">
                 {result.passed
                   ? 'Great work. You reached the passing score for this quiz.'
-                  : 'You can retake the quiz from the list when you are ready.'}
+                  : `You need at least ${passingScore}% to pass — you scored ${result.score}%. Review the correct answers below and retake when you are ready.`}
               </p>
 
               <div className="rounded-lg border border-neutral-200/90 bg-neutral-50/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-3">Your answers</p>
                 <ul className="space-y-3">
-                  {questions.map((q, idx) => (
-                    <li key={q.id} className="text-sm border-b border-neutral-200/80 pb-3 last:border-0 last:pb-0">
-                      <span className="font-medium text-neutral-800">
-                        {idx + 1}. {q.question}
-                      </span>
-                      {q.information?.trim() ? (
-                        <p className="text-xs text-neutral-500 mt-1 whitespace-pre-wrap">{q.information}</p>
-                      ) : null}
-                      <p className="text-neutral-700 mt-1">
-                        <span className="text-neutral-500">Your answer: </span>
-                        {(result.answers[q.id] ?? '').trim() || '—'}
-                      </p>
-                    </li>
-                  ))}
+                  {questions.map((q, idx) => {
+                    const submitted = (result.answers[q.id] ?? '').trim();
+                    let correctText: string | null = null;
+                    if (q.type === 'short_answer' && q.correctAnswer != null) {
+                      correctText = String(q.correctAnswer).trim();
+                    } else if ((q.type === 'multiple_choice' || q.type === 'flashcard') && q.options && typeof q.correctIndex === 'number') {
+                      correctText = q.options[q.correctIndex] ?? null;
+                    }
+                    const isCorrect =
+                      correctText != null && submitted !== '' &&
+                      submitted.toLowerCase() === correctText.toLowerCase();
+                    const isWrong = correctText != null && submitted !== '' && !isCorrect;
+                    return (
+                      <li key={q.id} className="text-sm border-b border-neutral-200/80 pb-3 last:border-0 last:pb-0">
+                        <div className="flex items-start gap-2">
+                          {isCorrect ? (
+                            <CheckCircle className="h-4 w-4 text-green-600 shrink-0 mt-0.5" aria-hidden />
+                          ) : isWrong ? (
+                            <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" aria-hidden />
+                          ) : (
+                            <span className="h-4 w-4 shrink-0" aria-hidden />
+                          )}
+                          <div className="min-w-0">
+                            <span className="font-medium text-neutral-800">
+                              {idx + 1}. {q.question}
+                            </span>
+                            {q.information?.trim() ? (
+                              <p className="text-xs text-neutral-500 mt-1 whitespace-pre-wrap">{q.information}</p>
+                            ) : null}
+                            <p className={`mt-1 ${isCorrect ? 'text-green-700' : isWrong ? 'text-red-700' : 'text-neutral-700'}`}>
+                              <span className="text-neutral-500">Your answer: </span>
+                              {submitted || '—'}
+                            </p>
+                            {isWrong && correctText ? (
+                              <p className="text-green-700 mt-0.5">
+                                <span className="text-neutral-500">Correct answer: </span>
+                                {correctText}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
 
@@ -406,7 +464,7 @@ const StudentQuizzes: React.FC = () => {
               {completion ? (
                 <li className="flex gap-2">
                   <span className="text-accent-teal font-semibold">·</span>
-                  You previously scored {completion.score}% ({completion.passed ? 'passed' : 'did not pass'}). You can retake below.
+                  You previously scored {completion.score}% ({completion.passed ? 'passed' : `did not pass — need ${passingScore}%`}). You can retake below.
                 </li>
               ) : null}
             </ul>

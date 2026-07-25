@@ -1,15 +1,23 @@
 import { Request } from "express";
 
 // User Types
-export type UserRole = "student" | "admin";
+export type UserRole = "student" | "lecturer" | "admin";
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  password_hash: string;
+  password_hash: string | null;  // null / sentinel '$sso$' for AmmaWallet SSO users
   role: UserRole;
-  walletAddress: string;
+  walletAddress: string | null;
+  wallet_linking_status: 'none' | 'linked' | 'existing_account';
+  /** 'local' = password-authenticated; 'ammawallet' = SSO via AmmaWallet */
+  auth_provider: 'local' | 'ammawallet';
+  /** AmmaWallet numeric user ID (as string) — null for local-only accounts */
+  ammawallet_user_id: string | null;
+  password_reset_token: string | null;
+  password_reset_expires_at: string | null;
+  password_changed_at: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -46,6 +54,8 @@ export interface StudentResponse {
   semester: number;
   createdAt: string;
   updatedAt?: string;
+  walletAddress?: string | null;
+  walletLinkingStatus?: 'none' | 'linked' | 'existing_account';
 }
 
 // Submission Types
@@ -98,6 +108,8 @@ export interface JWTPayload {
   email: string;
   role: UserRole;
   studentId?: string;
+  // Standard JWT claim set automatically by jsonwebtoken
+  iat?: number;
 }
 
 // Extended Request Type
@@ -239,6 +251,7 @@ export interface Course {
   description?: string;
   courseCode: string;
   sections: CourseSection[];
+  sponsorLabel?: string;
 }
 
 // Messages API Types (BACKEND_UPDATE_REQUIREMENTS)
@@ -285,16 +298,72 @@ export interface DashboardAnalytics {
   }>;
 }
 
+// Phase A — course completion and NFT application types
+
+export interface CourseLecturer {
+  course_id:   string;
+  user_id:     string;
+  assigned_at: string;
+  assigned_by: string | null;
+}
+
+export interface LessonCompletion {
+  id:           string;
+  user_id:      string;
+  course_id:    string;
+  item_id:      string;
+  section_id:   string;
+  completed_at: string;
+  marked_by:    string | null;
+}
+
+export interface CourseCompletionRequirements {
+  id:                  string;
+  course_id:           string;
+  require_all_lessons: number;   // 0/1 boolean
+  lesson_threshold:    number;   // 0 = off; >0 = min items needed
+  required_quiz_ids:   string;   // JSON array string
+  min_quiz_score:      number;
+  require_submissions: number;   // 0/1 boolean
+  created_at:          string;
+  updated_at:          string;
+}
+
+export type NftApplicationStatus = 'pending' | 'approved' | 'rejected' | 'minted';
+export type LecturerRecommendation = 'approved' | 'not_ready';
+
+export interface CourseNftApplication {
+  id:                 string;
+  user_id:            string;
+  course_id:          string;
+  wallet_address:     string;
+  status:             NftApplicationStatus;
+  applied_at:         string;
+  reviewed_at:        string | null;
+  reviewed_by:        string | null;
+  review_notes:       string | null;
+  lecturer_rec:       LecturerRecommendation | null;
+  lecturer_rec_notes: string | null;
+  lecturer_rec_by:    string | null;
+  lecturer_rec_at:    string | null;
+  tx_hash:            string | null;
+  credential_id:      string | null;
+}
+
 // Error Codes
 export const ErrorCodes = {
-  UNAUTHORIZED: "UNAUTHORIZED",
-  FORBIDDEN: "FORBIDDEN",
-  NOT_FOUND: "NOT_FOUND",
-  VALIDATION_ERROR: "VALIDATION_ERROR",
+  UNAUTHORIZED:        "UNAUTHORIZED",
+  FORBIDDEN:           "FORBIDDEN",
+  NOT_FOUND:           "NOT_FOUND",
+  VALIDATION_ERROR:    "VALIDATION_ERROR",
   INVALID_CREDENTIALS: "INVALID_CREDENTIALS",
-  FILE_TOO_LARGE: "FILE_TOO_LARGE",
-  INVALID_FILE_TYPE: "INVALID_FILE_TYPE",
-  SUBMISSION_LOCKED: "SUBMISSION_LOCKED",
-  DUPLICATE_ENTRY: "DUPLICATE_ENTRY",
-  INTERNAL_ERROR: "INTERNAL_ERROR",
+  FILE_TOO_LARGE:      "FILE_TOO_LARGE",
+  INVALID_FILE_TYPE:   "INVALID_FILE_TYPE",
+  SUBMISSION_LOCKED:   "SUBMISSION_LOCKED",
+  DUPLICATE_ENTRY:     "DUPLICATE_ENTRY",
+  INTERNAL_ERROR:      "INTERNAL_ERROR",
+  SSO_REQUIRED:        "SSO_REQUIRED",
+  REQUIREMENTS_NOT_MET: "REQUIREMENTS_NOT_MET",
+  WALLET_NOT_LINKED:   "WALLET_NOT_LINKED",
+  APPLICATION_EXISTS:  "APPLICATION_EXISTS",
 } as const;

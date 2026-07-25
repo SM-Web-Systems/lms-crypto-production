@@ -1,9 +1,17 @@
-const AMMA_WALLET_URL = import.meta.env.VITE_AMMA_WALLET_URL || "http://localhost:3001/";
+const AMMA_WALLET_BASE = import.meta.env.VITE_AMMA_WALLET_URL || "http://localhost:3001/";
+// Safe URL join — prevents template-literal concatenation bug when base lacks trailing slash
+const walletUrl = (path: string) => new URL(path, AMMA_WALLET_BASE).toString();
 
-import type { NFTResponse } from "../types/api.js";
+import type { NFTResponse, WalletStatusResponse } from "../types/api.js";
+import api from "./api.js";
+
+export async function getWalletStatus(): Promise<WalletStatusResponse> {
+  const res = await api.get<{ success: boolean; data: WalletStatusResponse }>('/wallet/status');
+  return res.data.data;
+}
 
 export async function getUserNfts(walletAddress: string): Promise<NFTResponse> {
-  const res = await fetch(`${AMMA_WALLET_URL}api/v1/nfts/owner/${walletAddress}`, {
+  const res = await fetch(walletUrl(`api/v1/nfts/owner/${walletAddress}`), {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });

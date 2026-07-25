@@ -5,7 +5,10 @@ import { AuthRequest, Student, StudentResponse, ErrorCodes } from '../types/inde
 import { AppError } from '../middleware/errorHandler.js';
 
 // Helper to convert DB student to API response
-function toStudentResponse(student: Student): StudentResponse {
+function toStudentResponse(student: Student & {
+  walletAddress?: string | null;
+  wallet_linking_status?: string | null;
+}): StudentResponse {
   return {
     id: student.id,
     userId: student.user_id,
@@ -16,6 +19,8 @@ function toStudentResponse(student: Student): StudentResponse {
     semester: student.semester,
     createdAt: student.created_at as unknown as string,
     updatedAt: student.updated_at as unknown as string,
+    walletAddress: student.walletAddress ?? null,
+    walletLinkingStatus: (student.wallet_linking_status as StudentResponse['walletLinkingStatus']) ?? 'none',
   };
 }
 
@@ -35,17 +40,17 @@ export async function getStudents(req: AuthRequest, res: Response, next: NextFun
 
     if (search) {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-      conditions.push(`(name LIKE ? OR email LIKE ? OR enrollment_number LIKE ?)`);
+      conditions.push(`(s.name LIKE ? OR s.email LIKE ? OR s.enrollment_number LIKE ?)`);
     }
 
     if (department) {
       params.push(department);
-      conditions.push(`department = ?`);
+      conditions.push(`s.department = ?`);
     }
 
     if (semester) {
       params.push(parseInt(semester));
-      conditions.push(`semester = ?`);
+      conditions.push(`s.semester = ?`);
     }
 
     if (conditions.length > 0) {
@@ -54,15 +59,18 @@ export async function getStudents(req: AuthRequest, res: Response, next: NextFun
 
     // Get total count
     const countResult = queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM students ${whereClause}`,
+      `SELECT COUNT(*) as count FROM students s ${whereClause}`,
       params
     );
     const total = countResult?.count || 0;
 
-    // Get students with pagination
-    const students = query<Student>(
-      `SELECT * FROM students ${whereClause} 
-       ORDER BY created_at DESC 
+    // Get students with pagination (LEFT JOIN to pick up wallet fields from users)
+    const students = query<Student & { walletAddress: string | null; wallet_linking_status: string | null }>(
+      `SELECT s.*, u.walletAddress, u.wallet_linking_status
+       FROM students s
+       LEFT JOIN users u ON u.id = s.user_id
+       ${whereClause}
+       ORDER BY s.created_at DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );

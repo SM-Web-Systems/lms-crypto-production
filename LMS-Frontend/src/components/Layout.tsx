@@ -15,7 +15,11 @@ import {
   UserCircle,
   Menu,
   X,
+  Award,
+  BarChart2,
+  Tag,
 } from 'lucide-react';
+import WalletLinkingBanner from './WalletLinkingBanner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -27,6 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [walletBannerDismissed, setWalletBannerDismissed] = useState(false);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -53,7 +58,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   /** Dashboard paths are prefixes of every other app route — only exact match for those. */
   const isActive = (path: string) => {
     if (location.pathname === path) return true;
-    if (path === '/student' || path === '/admin') return false;
+    if (path === '/student' || path === '/admin' || path === '/lecturer') return false;
     return location.pathname.startsWith(path + '/');
   };
 
@@ -66,13 +71,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Course', path: '/admin/course', icon: BookOpen },
           { name: 'Quizzes', path: '/admin/quizzes', icon: ClipboardList },
           { name: 'Resources', path: '/admin/documents', icon: BookOpen },
+          { name: 'Certificates', path: '/admin/certificates', icon: Award },
+          { name: 'Sponsor Portal', path: '/admin/sponsor', icon: Tag },
           { name: 'Forum', path: '/admin/forum', icon: MessageCircle },
           { name: 'Messages', path: '/admin/messages', icon: Mail },
           { name: 'Course members', path: '/admin/course-members', icon: UserCircle },
           { name: 'Profile', path: '/admin/profile', icon: User },
         ]
+      : user?.role === 'lecturer'
+      ? [
+          { name: 'Dashboard', path: '/lecturer', icon: LayoutDashboard },
+          { name: 'Messages', path: '/lecturer/messages', icon: Mail },
+          { name: 'Profile', path: '/lecturer/profile', icon: User },
+        ]
       : [
           { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
+          { name: 'My Progress', path: '/student/progress', icon: BarChart2 },
           { name: 'My Submissions', path: '/student/submissions', icon: FileText },
           { name: 'Course', path: '/student/course', icon: BookOpen },
           { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
@@ -179,7 +193,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+          {user?.role === 'student' &&
+            user?.walletLinkingStatus === 'existing_account' &&
+            !walletBannerDismissed && (
+              <WalletLinkingBanner onDismiss={() => setWalletBannerDismissed(true)} />
+            )}
+          {children}
+        </main>
       </div>
     </div>
   );

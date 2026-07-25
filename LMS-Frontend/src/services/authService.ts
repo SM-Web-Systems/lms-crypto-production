@@ -7,4 +7,12 @@ export const authService = {
     const response = await api.get<ApiResponse<User>>('/auth/me');
     return assertApiSuccess(response, 'Could not load your account.');
   },
+
+  async forgotPassword(email: string): Promise<void> {
+    await api.post<ApiResponse<never>>('/auth/forgot-password', { email });
+  },
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    await api.post<ApiResponse<never>>('/auth/reset-password', { token, password });
+  },
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
@@ -22,9 +22,12 @@ import {
   Inbox,
   ShieldCheck,
   Library,
+  Award,
 } from 'lucide-react';
 import { DashboardPageSkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
+import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
+import { Tag } from 'lucide-react';
 
 function greetingForHour(h: number): string {
   if (h < 12) return 'Good morning';
@@ -64,6 +67,11 @@ const AdminDashboard: React.FC = () => {
     fetchStudents();
     fetchSubmissions();
   }, [fetchStudents, fetchSubmissions]);
+
+  const [courseAnalytics, setCourseAnalytics] = useState<CourseAnalytics[]>([]);
+  useEffect(() => {
+    analyticsService.getCourseAnalytics().then(setCourseAnalytics).catch(() => {});
+  }, []);
 
   const pendingSubmissions = submissions.filter((s) => s.status === 'pending').length;
   const approvedSubmissions = submissions.filter((s) => s.status === 'approved').length;
@@ -201,6 +209,14 @@ const AdminDashboard: React.FC = () => {
       icon: UserCircle,
       gradient: 'from-neutral-100 via-white to-primary-50/40',
       iconBg: 'bg-neutral-600/15 text-neutral-800',
+    },
+    {
+      to: '/admin/certificates',
+      title: 'Certificates',
+      blurb: 'NFT credentials',
+      icon: Award,
+      gradient: 'from-violet-100/80 via-white to-purple-50/50',
+      iconBg: 'bg-violet-500/15 text-violet-700',
     },
   ];
 
@@ -439,6 +455,59 @@ const AdminDashboard: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Course Analytics */}
+      {courseAnalytics.length > 0 && (
+        <Card className="overflow-hidden shadow-card ring-1 ring-neutral-900/[0.04]">
+          <div className="border-b border-neutral-200/90 bg-gradient-to-r from-neutral-50 via-white to-violet-50/30 px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-violet-500" aria-hidden />
+                <CardTitle className="border-0 p-0 text-neutral-900">Course analytics</CardTitle>
+              </div>
+              <Button variant="outline" size="sm" type="button" onClick={() => navigate('/admin/sponsor')}>
+                Sponsor portal
+                <ArrowRight className="h-3.5 w-3.5 ml-1" aria-hidden />
+              </Button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-100 text-left text-xs text-neutral-500 uppercase tracking-wide">
+                  <th className="px-4 py-2.5 font-medium">Course</th>
+                  <th className="px-4 py-2.5 font-medium">Sponsor / Cohort</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Enrolled</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Wallets</th>
+                  <th className="px-4 py-2.5 font-medium text-right">NFTs</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {courseAnalytics.map((c) => (
+                  <tr key={c.courseId} className="hover:bg-neutral-50/60 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-neutral-900">{c.courseName}</p>
+                      <p className="text-xs text-neutral-400 font-mono">{c.courseCode}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.sponsorLabel ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 text-xs font-medium">
+                          {c.sponsorLabel}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{c.enrollmentsCount}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{c.walletsLinkedCount}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{c.nftsIssuedCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

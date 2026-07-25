@@ -53,6 +53,22 @@ const CSV_TEMPLATE_ROWS = [
 ];
 const CSV_TEMPLATE = [CSV_TEMPLATE_HEADER, ...CSV_TEMPLATE_ROWS].join('\n');
 
+async function downloadAnswerKeys() {
+  try {
+    const { default: api } = await import('../services/api');
+    const res = await api.get<unknown>('/quizzes/answer-keys');
+    const json = JSON.stringify(res.data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `quiz-answer-keys-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert('Failed to export answer keys: ' + String(e instanceof Error ? e.message : e));
+  }
+}
+
 function downloadQuizTemplate() {
   const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -447,6 +463,10 @@ const AdminQuizzes: React.FC = () => {
             <Button variant="outline" onClick={downloadQuizTemplate}>
               <Download className="h-4 w-4 mr-2" />
               Download CSV template
+            </Button>
+            <Button variant="outline" onClick={() => void downloadAnswerKeys()}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export answer keys
             </Button>
           </div>
           <div className="space-y-4">

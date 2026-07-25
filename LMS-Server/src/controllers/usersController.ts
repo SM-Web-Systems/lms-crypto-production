@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { query, queryOne, execute } from '../config/database.js';
-import { AuthRequest, UserDirectoryItem, ErrorCodes } from '../types/index.js';
+import { AuthRequest, UserDirectoryItem, ErrorCodes, UserRole } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 function getUserCourseCodes(userId: string): string[] {
@@ -133,6 +133,49 @@ export async function patchUser(req: AuthRequest, res: Response, next: NextFunct
     res.json({
       success: true,
       data: { id: targetUserId, courseCodes: unique },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ── Role management (Phase C) ─────────────────────────────────────────────────
+
+export async function patchUserRole(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { role } = req.body ?? {};
+    const callerId = req.user?.userId;
+
+    const validRoles: UserRole[] = ['student', 'lecturer', 'admin'];
+    if (!role || !validRoles.includes(role as UserRole)) {
+      throw new AppError(
+        `role must be one of: ${validRoles.join(', ')}`,
+        400,
+        ErrorCodes.VALIDATION_ERROR,
+      );
+    }
+
+    if (id === callerId) {
+      throw new AppError('Cannot change your own role', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const user = queryOne<{ id: string; email: string; role: string }>(
+      'SELECT id, email, role FROM users WHERE id = ?',
+      [id],
+    );
+    if (!user) {
+      throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    execute(
+      `UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`,
+      [role, id],
+    );
+
+    res.json({
+      success: true,
+      data: { userId: id, email: user.email, role },
     });
   } catch (error) {
     next(error);

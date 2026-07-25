@@ -2,6 +2,59 @@ import { Response, NextFunction } from 'express';
 import { query, queryOne } from '../config/database.js';
 import { AuthRequest, DashboardAnalytics, SubmissionStatus } from '../types/index.js';
 
+export interface CourseAnalyticsRow {
+  courseId: string;
+  courseName: string;
+  courseCode: string;
+  sponsorLabel: string | null;
+  enrollmentsCount: number;
+  walletsLinkedCount: number;
+  nftsIssuedCount: number;
+}
+
+export async function getCourseAnalytics(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rows = query<{
+      course_id: string;
+      course_title: string;
+      course_code: string;
+      sponsor_label: string | null;
+      enrollments_count: number;
+      wallets_linked_count: number;
+      nfts_issued_count: number;
+    }>(`
+      SELECT
+        c.id                                          AS course_id,
+        c.title                                       AS course_title,
+        c.course_code                                 AS course_code,
+        c.sponsor_label                               AS sponsor_label,
+        COUNT(DISTINCT ucc.user_id)                   AS enrollments_count,
+        COUNT(DISTINCT CASE WHEN u.walletAddress IS NOT NULL THEN u.id END) AS wallets_linked_count,
+        COUNT(DISTINCT nc.id)                         AS nfts_issued_count
+      FROM courses c
+      LEFT JOIN user_course_codes ucc ON ucc.course_code = c.course_code
+      LEFT JOIN users u ON u.id = ucc.user_id
+      LEFT JOIN nft_credentials nc ON nc.course_id = c.id
+      GROUP BY c.id
+      ORDER BY c.title
+    `);
+
+    const data: CourseAnalyticsRow[] = rows.map((r) => ({
+      courseId: r.course_id,
+      courseName: r.course_title,
+      courseCode: r.course_code,
+      sponsorLabel: r.sponsor_label,
+      enrollmentsCount: r.enrollments_count,
+      walletsLinkedCount: r.wallets_linked_count,
+      nftsIssuedCount: r.nfts_issued_count,
+    }));
+
+    res.json({ success: true, data: { courses: data } });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getDashboard(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     // Get total students

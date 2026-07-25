@@ -7,6 +7,21 @@ import { AuthRequest, Submission, SubmissionResponse, Student, User, ErrorCodes,
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
 
+/** Returns true if the lecturer (by userId) is assigned to at least one course
+ *  that the given student (by students.id) is enrolled in. */
+function isLecturerForStudent(lecturerUserId: string, studentId: string): boolean {
+  const row = queryOne<{ cnt: number }>(
+    `SELECT COUNT(*) as cnt
+     FROM students st
+     JOIN user_course_codes ucc ON ucc.user_id = st.user_id
+     JOIN courses c ON c.course_code = ucc.course_code
+     JOIN course_lecturers cl ON cl.course_id = c.id
+     WHERE st.id = ? AND cl.user_id = ?`,
+    [studentId, lecturerUserId],
+  );
+  return (row?.cnt ?? 0) > 0;
+}
+
 // Helper to convert DB submission to API response
 function toSubmissionResponse(submission: Submission & { student_name?: string; reviewer_name?: string }): SubmissionResponse {
   return {
@@ -38,11 +53,14 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     const status = req.query.status as SubmissionStatus;
     const studentId = req.query.studentId as string;
 
-    const isAdmin = req.user?.role === 'admin';
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'admin';
+    const isLecturer = userRole === 'lecturer';
+    const lecturerUserId = req.user?.userId;
     let userStudentId = req.user?.studentId;
 
     // Resolve studentId from DB if missing in JWT (e.g. token from before student record existed)
-    if (!isAdmin && !userStudentId && req.user?.role === 'student' && req.user?.userId) {
+    if (!isAdmin && !isLecturer && !userStudentId && userRole === 'student' && req.user?.userId) {
       const student = queryOne<Student>('SELECT id FROM students WHERE user_id = ?', [req.user.userId]);
       userStudentId = student?.id;
     }
@@ -51,8 +69,24 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    // Students can only see their own submissions. If no student profile is linked yet, return empty list.
-    if (!isAdmin) {
+    if (isAdmin) {
+      // Admin sees all; optional filter by studentId
+      if (studentId) {
+        params.push(studentId);
+        conditions.push(`s.student_id = ?`);
+      }
+    } else if (isLecturer && lecturerUserId) {
+      // Lecturer sees submissions from students in their assigned courses
+      conditions.push(`EXISTS (
+        SELECT 1 FROM students st2
+        JOIN user_course_codes ucc ON ucc.user_id = st2.user_id
+        JOIN courses c ON c.course_code = ucc.course_code
+        JOIN course_lecturers cl ON cl.course_id = c.id
+        WHERE st2.id = s.student_id AND cl.user_id = ?
+      )`);
+      params.push(lecturerUserId);
+    } else {
+      // Student — can only see their own submissions
       if (!userStudentId) {
         res.json({
           success: true,
@@ -64,10 +98,6 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
         return;
       }
       params.push(userStudentId);
-      conditions.push(`s.student_id = ?`);
-    } else if (studentId) {
-      // Admin can filter by student
-      params.push(studentId);
       conditions.push(`s.student_id = ?`);
     }
 
@@ -117,8 +147,11 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
 export async function getSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const isAdmin = req.user?.role === 'admin';
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'admin';
+    const isLecturer = userRole === 'lecturer';
     const userStudentId = req.user?.studentId;
+    const lecturerUserId = req.user?.userId;
 
     const submission = queryOne<Submission & { student_name: string; reviewer_name: string }>(
       `SELECT s.*, st.name as student_name, u.name as reviewer_name
@@ -133,9 +166,14 @@ export async function getSubmission(req: AuthRequest, res: Response, next: NextF
       throw new AppError('Submission not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    // Students can only view their own submissions
-    if (!isAdmin && submission.student_id !== userStudentId) {
-      throw new AppError('You do not have permission to view this submission', 403, ErrorCodes.FORBIDDEN);
+    if (!isAdmin) {
+      if (isLecturer && lecturerUserId) {
+        if (!isLecturerForStudent(lecturerUserId, submission.student_id)) {
+          throw new AppError('You do not have permission to view this submission', 403, ErrorCodes.FORBIDDEN);
+        }
+      } else if (submission.student_id !== userStudentId) {
+        throw new AppError('You do not have permission to view this submission', 403, ErrorCodes.FORBIDDEN);
+      }
     }
 
     res.json({
@@ -361,8 +399,11 @@ export async function deleteSubmission(req: AuthRequest, res: Response, next: Ne
 export async function downloadSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const isAdmin = req.user?.role === 'admin';
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'admin';
+    const isLecturer = userRole === 'lecturer';
     const userStudentId = req.user?.studentId;
+    const lecturerUserId = req.user?.userId;
 
     const submission = queryOne<Submission>(
       'SELECT * FROM submissions WHERE id = ?',
@@ -374,8 +415,14 @@ export async function downloadSubmission(req: AuthRequest, res: Response, next: 
     }
 
     // Check permissions
-    if (!isAdmin && submission.student_id !== userStudentId) {
-      throw new AppError('You do not have permission to download this file', 403, ErrorCodes.FORBIDDEN);
+    if (!isAdmin) {
+      if (isLecturer && lecturerUserId) {
+        if (!isLecturerForStudent(lecturerUserId, submission.student_id)) {
+          throw new AppError('You do not have permission to download this file', 403, ErrorCodes.FORBIDDEN);
+        }
+      } else if (submission.student_id !== userStudentId) {
+        throw new AppError('You do not have permission to download this file', 403, ErrorCodes.FORBIDDEN);
+      }
     }
 
     const safePath = resolveUploadPath(submission.file_path);
@@ -396,7 +443,8 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
   try {
     const { id } = req.params;
     const { status, feedback } = req.body;
-    const adminUserId = req.user?.userId;
+    const reviewerUserId = req.user?.userId;
+    const isLecturer = req.user?.role === 'lecturer';
 
     // Validation
     const errors: Array<{ field: string; message: string }> = [];
@@ -423,18 +471,29 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
       throw new AppError('Submission not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    // Get admin user info
+    // Lecturers can only review submissions from students in their assigned courses
+    if (isLecturer && reviewerUserId) {
+      if (!isLecturerForStudent(reviewerUserId, existing.student_id)) {
+        throw new AppError(
+          'You do not have permission to review this submission',
+          403,
+          ErrorCodes.FORBIDDEN,
+        );
+      }
+    }
+
+    // Get reviewer user info
     const adminUser = queryOne<User>(
       'SELECT id, name FROM users WHERE id = ?',
-      [adminUserId]
+      [reviewerUserId]
     );
 
     // Update submission
     execute(
-      `UPDATE submissions 
+      `UPDATE submissions
        SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now')
        WHERE id = ?`,
-      [status, feedback?.trim() || null, adminUserId, id]
+      [status, feedback?.trim() || null, reviewerUserId, id]
     );
 
     const submission = queryOne<Submission>('SELECT * FROM submissions WHERE id = ?', [id]);

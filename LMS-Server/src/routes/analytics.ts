@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDashboard } from '../controllers/analyticsController.js';
+import { getDashboard, getCourseAnalytics } from '../controllers/analyticsController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = Router();
@@ -10,6 +10,9 @@ router.use(authorize('admin'));
 
 // GET /analytics/dashboard - Get dashboard statistics
 router.get('/dashboard', getDashboard);
+
+// GET /analytics/courses - Per-course enrollment/NFT analytics
+router.get('/courses', getCourseAnalytics);
 
 export default router;
 

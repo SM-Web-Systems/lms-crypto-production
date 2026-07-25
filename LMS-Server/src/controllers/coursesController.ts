@@ -11,6 +11,7 @@ interface CourseRow {
   description: string | null;
   course_code: string;
   sections: string;
+  sponsor_label: string | null;
 }
 
 function getUserCourseCodes(userId: string): string[] {
@@ -50,17 +51,28 @@ function rowToCourse(row: CourseRow): Course {
     description: row.description ?? undefined,
     courseCode: row.course_code,
     sections,
+    ...(row.sponsor_label ? { sponsorLabel: row.sponsor_label } : {}),
   };
 }
 
 export async function getCourses(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const isAdmin = req.user?.role === 'admin';
+    const role = req.user?.role;
+    const userId = req.user?.userId;
     let rows: CourseRow[];
-    if (isAdmin) {
-      rows = query<CourseRow>('SELECT id, title, description, course_code, sections FROM courses ORDER BY title');
+    if (role === 'admin') {
+      rows = query<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses ORDER BY title');
+    } else if (role === 'lecturer' && userId) {
+      // Lecturers see courses they are assigned to via course_lecturers
+      rows = query<CourseRow>(
+        `SELECT c.id, c.title, c.description, c.course_code, c.sections, c.sponsor_label
+         FROM courses c
+         INNER JOIN course_lecturers cl ON cl.course_id = c.id
+         WHERE cl.user_id = ?
+         ORDER BY c.title`,
+        [userId]
+      );
     } else {
-      const userId = req.user?.userId;
       if (!userId) {
         throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
       }
@@ -70,7 +82,7 @@ export async function getCourses(req: AuthRequest, res: Response, next: NextFunc
       } else {
         const placeholders = codes.map(() => '?').join(',');
         rows = query<CourseRow>(
-          `SELECT id, title, description, course_code, sections FROM courses WHERE course_code IN (${placeholders}) ORDER BY title`,
+          `SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE course_code IN (${placeholders}) ORDER BY title`,
           codes
         );
       }
@@ -91,15 +103,24 @@ export async function getCourse(req: AuthRequest, res: Response, next: NextFunct
   try {
     const { id } = req.params;
     const userId = req.user?.userId;
-    const isAdmin = req.user?.role === 'admin';
-    const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections FROM courses WHERE id = ?', [id]);
+    const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [id]);
     if (!row) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
-    if (!isAdmin && userId) {
-      const codes = getUserCourseCodes(userId);
-      if (!codes.includes(row.course_code)) {
-        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+    if (req.user?.role !== 'admin' && userId) {
+      if (req.user?.role === 'lecturer') {
+        const assigned = queryOne<{ course_id: string }>(
+          'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+          [id, userId]
+        );
+        if (!assigned) {
+          throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+        }
+      } else {
+        const codes = getUserCourseCodes(userId);
+        if (!codes.includes(row.course_code)) {
+          throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+        }
       }
     }
     res.json({
@@ -167,12 +188,15 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
       throw new AppError('A course with this courseCode already exists', 400, ErrorCodes.DUPLICATE_ENTRY);
     }
 
+    const sponsorLabel = (req.body as Record<string, unknown>)?.sponsorLabel;
+    const sponsorLabelVal = sponsorLabel != null && String(sponsorLabel).trim() !== '' ? String(sponsorLabel).trim() : null;
+
     execute(
-      'INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, ?, ?, ?, ?)',
-      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections)]
+      'INSERT INTO courses (id, title, description, course_code, sections, sponsor_label) VALUES (?, ?, ?, ?, ?, ?)',
+      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections), sponsorLabelVal]
     );
 
-    const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections FROM courses WHERE id = ?', [course.id]);
+    const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [course.id]);
     if (!row) {
       throw new AppError('Failed to create course', 500, ErrorCodes.INTERNAL_ERROR);
     }
@@ -189,7 +213,7 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
 export async function updateCourse(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const existing = queryOne<CourseRow>('SELECT id, title, description, course_code, sections FROM courses WHERE id = ?', [id]);
+    const existing = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [id]);
     if (!existing) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
@@ -225,16 +249,20 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
       }
     }
     const sections = o.sections !== undefined ? (o.sections as CourseSection[]) : parseSections(existing.sections);
+    const sponsorLabel = o.sponsorLabel !== undefined
+      ? (o.sponsorLabel != null && String(o.sponsorLabel).trim() !== '' ? String(o.sponsorLabel).trim() : null)
+      : existing.sponsor_label;
 
-    execute('UPDATE courses SET title = ?, description = ?, course_code = ?, sections = ? WHERE id = ?', [
+    execute('UPDATE courses SET title = ?, description = ?, course_code = ?, sections = ?, sponsor_label = ? WHERE id = ?', [
       title,
       description ?? null,
       courseCode,
       JSON.stringify(sections),
+      sponsorLabel,
       id,
     ]);
 
-    const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections FROM courses WHERE id = ?', [id]);
+    const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [id]);
     res.json({
       success: true,
       data: rowToCourse(row!),
@@ -393,6 +421,109 @@ export async function removeCourseMember(req: AuthRequest, res: Response, next: 
     );
     if (deleted === 0) {
       throw new AppError('Enrollment not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ── Lecturer assignment (Phase C) ────────────────────────────────────────────
+
+export async function getLecturers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id: courseId } = req.params;
+    const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
+    if (!course) {
+      throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const rows = query<{ user_id: string; name: string; email: string; assigned_at: string }>(
+      `SELECT cl.user_id, u.name, u.email, cl.assigned_at
+       FROM course_lecturers cl
+       INNER JOIN users u ON u.id = cl.user_id
+       WHERE cl.course_id = ?
+       ORDER BY u.name`,
+      [courseId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        lecturers: rows.map((r) => ({
+          userId: r.user_id,
+          name: r.name,
+          email: r.email,
+          assignedAt: r.assigned_at,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function addLecturer(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id: courseId } = req.params;
+    const { userId } = req.body ?? {};
+    const assignedBy = req.user?.userId;
+
+    if (!userId) {
+      throw new AppError('userId is required', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
+    if (!course) {
+      throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const user = queryOne<{ id: string; role: string }>('SELECT id, role FROM users WHERE id = ?', [userId]);
+    if (!user) {
+      throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (user.role !== 'lecturer') {
+      throw new AppError('User is not a lecturer', 422, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const existing = queryOne<{ course_id: string }>(
+      'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+      [courseId, userId]
+    );
+    if (existing) {
+      throw new AppError('Lecturer already assigned to this course', 409, ErrorCodes.DUPLICATE_ENTRY);
+    }
+
+    execute(
+      'INSERT INTO course_lecturers (course_id, user_id, assigned_by) VALUES (?, ?, ?)',
+      [courseId, userId, assignedBy ?? null]
+    );
+
+    const row = queryOne<{ assigned_at: string }>(
+      'SELECT assigned_at FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+      [courseId, userId]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: { courseId, userId, assignedAt: row?.assigned_at },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function removeLecturer(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id: courseId, lecturerUserId } = req.params;
+
+    const deleted = execute(
+      'DELETE FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+      [courseId, lecturerUserId]
+    );
+    if (deleted === 0) {
+      throw new AppError('Lecturer assignment not found', 404, ErrorCodes.NOT_FOUND);
     }
 
     res.json({ success: true });

@@ -1,38 +1,14 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Loader2, Mail, Lock, User as UserIcon, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../context/useAuth';
-import { getErrorMessage } from '../utils/apiError';
+import React from 'react';
+import { Wallet, ArrowRight } from 'lucide-react';
 
+const AMMA_WALLET_URL = 'https://ammawallet.com';
+const AMMA_REGISTER_URL = `${AMMA_WALLET_URL}/register?source=lms`;
+
+/**
+ * LMS Sign Up — accounts are created on AmmaWallet and then used to
+ * access the LMS via SSO.  This page redirects users to AmmaWallet.
+ */
 const SignUp: React.FC = () => {
-  const { register } = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await register(name, email, password);
-      // On success the auth context sets the user and the route redirects automatically.
-    } catch (err) {
-      setError(getErrorMessage(err) || 'Could not create your account.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-dark to-primary-medium flex items-center justify-center px-4 py-10">
       <div className="max-w-md w-full">
@@ -42,103 +18,43 @@ const SignUp: React.FC = () => {
           <p className="text-white/80">Learning Management System</p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-xl p-8 space-y-5"
-        >
-          <div>
+        <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6 text-center">
+          <div className="space-y-2">
+            <div className="flex justify-center">
+              <div className="bg-primary-50 rounded-full p-4">
+                <Wallet className="h-8 w-8 text-primary-600" />
+              </div>
+            </div>
             <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
-            <p className="text-sm text-gray-500 mt-1">Start learning in just a moment.</p>
+            <p className="text-gray-500 text-sm">
+              LMS accounts are linked to AmmaWallet. Create your AmmaWallet account
+              first, then sign in here using AmmaWallet.
+            </p>
           </div>
 
-          {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
-              {error}
-            </div>
-          )}
+          <div className="space-y-3">
+            <a
+              href={AMMA_REGISTER_URL}
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition-colors"
+            >
+              <Wallet className="h-5 w-5" />
+              Create AmmaWallet account
+              <ArrowRight className="h-4 w-4" />
+            </a>
 
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Full name
-            </label>
-            <div className="relative">
-              <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                id="name"
-                type="text"
-                autoComplete="name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                placeholder="Jane Doe"
-              />
-            </div>
+            <a
+              href="/api/v1/auth/amma-login"
+              className="w-full flex items-center justify-center gap-2 border border-gray-300 hover:border-primary-400 hover:bg-primary-50 text-gray-700 font-semibold py-2.5 rounded-lg transition-colors"
+            >
+              Already have AmmaWallet? Sign in
+            </a>
           </div>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                placeholder="you@example.com"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                placeholder="At least 8 characters"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {submitting && <Loader2 className="h-5 w-5 animate-spin" />}
-            {submitting ? 'Creating account…' : 'Create account'}
-          </button>
-
-          <p className="text-center text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="text-primary-600 font-semibold hover:underline">
-              Sign in
-            </Link>
+          <p className="text-xs text-gray-400">
+            After creating your AmmaWallet account, return here and click
+            &ldquo;Sign in with AmmaWallet&rdquo; to access the LMS.
           </p>
-        </form>
+        </div>
       </div>
     </div>
   );

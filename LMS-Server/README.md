@@ -54,9 +54,6 @@ A TypeScript/Express backend server for the KanyaCSI Student Management System. 
    JWT_SECRET=your-super-secret-key-change-this-in-production-min-32-chars
    JWT_EXPIRES_IN=24h
 
-   # Google Sign-In (optional; use same Client ID as frontend)
-   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-
    # File Upload Configuration
    MAX_FILE_SIZE=10485760
    UPLOAD_DIR=./uploads

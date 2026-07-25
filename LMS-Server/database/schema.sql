@@ -7,15 +7,29 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('student', 'admin')),
+  role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'lecturer', 'admin')),
   description TEXT,
   clerk_user_id TEXT,
   walletAddress TEXT UNIQUE,
+  -- Wallet linking state machine (written only in authController.register):
+  --   'none'             — default; wallet not attempted yet, OR transient failure (timeout/5xx/CAPTCHA).
+  --                        walletAddress is NULL. No banner shown.
+  --   'linked'           — wallet provisioned successfully. walletAddress is set.
+  --   'existing_account' — AmmaWallet returned 409 on register; email already on AmmaWallet.
+  --                        walletAddress is NULL. Amber banner shown directing user to ammawallet.com.
+  -- LMS course access is NEVER conditioned on wallet status.
+  wallet_linking_status TEXT DEFAULT 'none' CHECK (wallet_linking_status IN ('none', 'linked', 'existing_account')),
+  -- Password reset columns (added via migration for existing DBs)
+  password_reset_token TEXT,
+  password_reset_expires_at TEXT,
+  password_changed_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user_id ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL;
+-- Partial unique index: only enforces uniqueness when a reset token is set
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_reset_token ON users(password_reset_token) WHERE password_reset_token IS NOT NULL;
 
 -- Students table
 CREATE TABLE IF NOT EXISTS students (
@@ -80,6 +94,7 @@ CREATE TABLE IF NOT EXISTS forum_topics (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id TEXT NULL REFERENCES courses(id) ON DELETE SET NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -94,6 +109,7 @@ CREATE TABLE IF NOT EXISTS forum_posts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_forum_topics_author ON forum_topics(author_id);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_course_id ON forum_topics(course_id);
 CREATE INDEX IF NOT EXISTS idx_forum_posts_topic ON forum_posts(topic_id);
 CREATE INDEX IF NOT EXISTS idx_forum_posts_author ON forum_posts(author_id);
 
@@ -103,7 +119,8 @@ CREATE TABLE IF NOT EXISTS courses (
   title TEXT NOT NULL,
   description TEXT,
   course_code TEXT UNIQUE NOT NULL,
-  sections TEXT NOT NULL DEFAULT '[]'
+  sections TEXT NOT NULL DEFAULT '[]',
+  sponsor_label TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code);
 
@@ -174,3 +191,92 @@ CREATE TABLE IF NOT EXISTS quiz_completions (
 CREATE INDEX IF NOT EXISTS idx_quizzes_course ON quizzes(course_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_completions_user ON quiz_completions(user_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_completions_quiz ON quiz_completions(quiz_id);
+
+-- NFT credential mints (Soroban SEP-50; one credential row per user per quiz OR per course)
+-- quiz_id is nullable: quiz-level mints set it; course-level mints leave it NULL
+CREATE TABLE IF NOT EXISTS nft_credentials (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  quiz_id TEXT REFERENCES quizzes(id) ON DELETE CASCADE,
+  wallet_address TEXT NOT NULL,
+  mint_status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (mint_status IN ('pending', 'minted', 'failed')),
+  tx_hash TEXT,
+  error TEXT,
+  contract_id TEXT NOT NULL,
+  network TEXT NOT NULL DEFAULT 'public',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE (user_id, quiz_id)
+);
+CREATE INDEX IF NOT EXISTS idx_nft_credentials_user ON nft_credentials(user_id);
+CREATE INDEX IF NOT EXISTS idx_nft_credentials_status ON nft_credentials(mint_status);
+
+-- Phase A redesign: nft_credentials gets course_id + application_id for course-level mints
+ALTER TABLE nft_credentials ADD COLUMN course_id TEXT REFERENCES courses(id) ON DELETE SET NULL;
+ALTER TABLE nft_credentials ADD COLUMN application_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_nft_credentials_course ON nft_credentials(course_id);
+-- L-013: is_superseded marks old credential after a re-mint correction (both rows kept for audit)
+ALTER TABLE nft_credentials ADD COLUMN is_superseded INTEGER NOT NULL DEFAULT 0;
+
+-- Phase A: course_lecturers — maps lecturers to courses
+CREATE TABLE IF NOT EXISTS course_lecturers (
+  course_id   TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
+  assigned_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  PRIMARY KEY (course_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_course_lecturers_user   ON course_lecturers(user_id);
+CREATE INDEX IF NOT EXISTS idx_course_lecturers_course ON course_lecturers(course_id);
+
+-- Phase A: lesson_completions — per-user per-item completion tracking
+CREATE TABLE IF NOT EXISTS lesson_completions (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  item_id      TEXT NOT NULL,
+  section_id   TEXT NOT NULL,
+  completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE (user_id, course_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course ON lesson_completions(user_id, course_id);
+
+-- Phase A: course_completion_requirements — per-course NFT eligibility rules
+CREATE TABLE IF NOT EXISTS course_completion_requirements (
+  id                  TEXT PRIMARY KEY,
+  course_id           TEXT NOT NULL UNIQUE REFERENCES courses(id) ON DELETE CASCADE,
+  require_all_lessons INTEGER NOT NULL DEFAULT 0,
+  lesson_threshold    INTEGER NOT NULL DEFAULT 0,
+  required_quiz_ids   TEXT NOT NULL DEFAULT '[]',
+  min_quiz_score      INTEGER NOT NULL DEFAULT 70,
+  require_submissions INTEGER NOT NULL DEFAULT 0,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Phase A: course_nft_applications — student applies; lecturer recommends; admin approves/mints
+CREATE TABLE IF NOT EXISTS course_nft_applications (
+  id                 TEXT PRIMARY KEY,
+  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id          TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  wallet_address     TEXT NOT NULL,
+  status             TEXT NOT NULL DEFAULT 'pending'
+                       CHECK (status IN ('pending', 'approved', 'rejected', 'minted')),
+  applied_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  reviewed_at        TEXT,
+  reviewed_by        TEXT REFERENCES users(id) ON DELETE SET NULL,
+  review_notes       TEXT,
+  lecturer_rec       TEXT CHECK (lecturer_rec IN ('approved', 'not_ready') OR lecturer_rec IS NULL),
+  lecturer_rec_notes TEXT,
+  lecturer_rec_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  lecturer_rec_at    TEXT,
+  tx_hash            TEXT,
+  credential_id      TEXT REFERENCES nft_credentials(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_nft_apps_user_course ON course_nft_applications(user_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_nft_apps_status      ON course_nft_applications(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nft_apps_active
+  ON course_nft_applications(user_id, course_id)
+  WHERE status NOT IN ('rejected', 'minted');
