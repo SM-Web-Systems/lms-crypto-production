@@ -9,6 +9,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   ShieldCheck, LogOut, ArrowLeft, RefreshCw, AlertCircle,
   CheckCircle, XCircle, Loader2, TrendingUp, TrendingDown, Wallet,
+  PlusCircle, Ban, RotateCcw,
 } from "lucide-react";
 
 interface BillingEvent {
@@ -70,6 +71,18 @@ export default function AdminTenantDetail() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // NM-D1: Post Credit form state
+  const [creditType, setCreditType] = useState<"manual_topup" | "bundle_purchase">("manual_topup");
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditNotes, setCreditNotes] = useState("");
+  const [creditSubmitting, setCreditSubmitting] = useState(false);
+  const [creditResult, setCreditResult] = useState<string | null>(null);
+  const [creditError, setCreditError] = useState<string | null>(null);
+
+  // NM-D2: Suspend/Unsuspend state
+  const [suspendBusy, setSuspendBusy] = useState(false);
+  const [suspendError, setSuspendError] = useState<string | null>(null);
+
   const logout = () => {
     sessionStorage.removeItem("aw_admin_token");
     sessionStorage.removeItem("aw_admin_info");
@@ -100,6 +113,73 @@ export default function AdminTenantDetail() {
     if (!sessionStorage.getItem("aw_admin_token")) { navigate("/admin/login"); return; }
     load();
   }, [load, navigate]);
+
+  // NM-D1: Submit credit
+  const handlePostCredit = async () => {
+    const amount = parseFloat(creditAmount);
+    if (!creditAmount || isNaN(amount) || amount <= 0) {
+      setCreditError("Amount must be a positive number.");
+      return;
+    }
+    setCreditSubmitting(true);
+    setCreditResult(null);
+    setCreditError(null);
+    try {
+      const res = await adminFetch(`/api/v1/internal/tenants/${id}/credit`, {
+        method: "POST",
+        body: JSON.stringify({ type: creditType, amount_xlm: amount, notes: creditNotes || undefined }),
+      });
+      if (res.status === 401) { logout(); return; }
+      const d = await res.json();
+      if (!res.ok) { setCreditError(d.error ?? `Error ${res.status}`); return; }
+      setCreditResult(`+${parseFloat(d.amountCredited).toFixed(4)} XLM posted. New balance: ${parseFloat(d.newBalance).toFixed(4)} XLM`);
+      setCreditAmount("");
+      setCreditNotes("");
+      load();
+    } catch {
+      setCreditError("Network error — could not post credit.");
+    } finally {
+      setCreditSubmitting(false);
+    }
+  };
+
+  // NM-D2: Suspend / Unsuspend
+  const handleSuspend = async () => {
+    if (!window.confirm("Hard-suspend this tenant? All operations except SSO reads will be blocked.")) return;
+    setSuspendBusy(true);
+    setSuspendError(null);
+    try {
+      const res = await adminFetch(`/api/v1/internal/tenants/${id}/suspend`, {
+        method: "PATCH",
+        body: JSON.stringify({ type: "hard" }),
+      });
+      if (res.status === 401) { logout(); return; }
+      const d = await res.json();
+      if (!res.ok) { setSuspendError(d.error ?? `Error ${res.status}`); return; }
+      load();
+    } catch {
+      setSuspendError("Network error — could not suspend tenant.");
+    } finally {
+      setSuspendBusy(false);
+    }
+  };
+
+  const handleUnsuspend = async () => {
+    if (!window.confirm("Unsuspend this tenant? This restores full access.")) return;
+    setSuspendBusy(true);
+    setSuspendError(null);
+    try {
+      const res = await adminFetch(`/api/v1/internal/tenants/${id}/unsuspend`, { method: "PATCH" });
+      if (res.status === 401) { logout(); return; }
+      const d = await res.json();
+      if (!res.ok) { setSuspendError(d.error ?? `Error ${res.status}`); return; }
+      load();
+    } catch {
+      setSuspendError("Network error — could not unsuspend tenant.");
+    } finally {
+      setSuspendBusy(false);
+    }
+  };
 
   const balance = data ? parseFloat(data.balance) : 0;
 
@@ -171,22 +251,48 @@ export default function AdminTenantDetail() {
                 <p className="text-xs text-neutral-400 mt-0.5">XLM</p>
               </div>
 
-              {/* Status */}
+              {/* Status — NM-D2: suspend/unsuspend */}
               <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-sm">
                 <p className="text-xs text-neutral-500 font-medium uppercase tracking-wide mb-2">Status</p>
                 <div className="flex items-center gap-2">
-                  {data.isActive
+                  {data.isActive && !data.suspendedAt
                     ? <CheckCircle className="h-5 w-5 text-emerald-500" aria-hidden />
                     : <XCircle className="h-5 w-5 text-red-400" aria-hidden />}
-                  <span className={`text-sm font-semibold ${data.isActive ? "text-emerald-700" : "text-red-600"}`}>
-                    {data.isActive ? "Active" : "Suspended"}
+                  <span className={`text-sm font-semibold ${data.isActive && !data.suspendedAt ? "text-emerald-700" : "text-red-600"}`}>
+                    {data.isActive && !data.suspendedAt ? "Active" : data.isActive ? "Soft-suspended" : "Suspended"}
                   </span>
                 </div>
-                {!data.isActive && data.suspensionReason && (
+                {data.suspensionReason && (
                   <p className="text-xs text-red-500 mt-1 truncate" title={data.suspensionReason}>
                     {data.suspensionReason}
                   </p>
                 )}
+                {suspendError && (
+                  <p className="text-xs text-red-600 mt-1">{suspendError}</p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  {(!data.suspendedAt) ? (
+                    <button
+                      type="button"
+                      onClick={handleSuspend}
+                      disabled={suspendBusy}
+                      className="flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-lg px-3 py-1.5 transition disabled:opacity-50"
+                    >
+                      <Ban className="h-3 w-3" aria-hidden />
+                      {suspendBusy ? "Suspending…" : "Suspend"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleUnsuspend}
+                      disabled={suspendBusy}
+                      className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 border border-emerald-200 hover:bg-emerald-50 rounded-lg px-3 py-1.5 transition disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-3 w-3" aria-hidden />
+                      {suspendBusy ? "Unsuspending…" : "Unsuspend"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Policy */}
@@ -269,6 +375,73 @@ export default function AdminTenantDetail() {
                   })}
                 </div>
               )}
+            </div>
+
+            {/* NM-D1: Post Credit form */}
+            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-neutral-100 flex items-center gap-2">
+                <PlusCircle className="h-4 w-4 text-violet-600" aria-hidden />
+                <h2 className="text-sm font-semibold text-neutral-900">Post Credit</h2>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-medium text-neutral-600">Type</label>
+                    <select
+                      value={creditType}
+                      onChange={(e) => setCreditType(e.target.value as "manual_topup" | "bundle_purchase")}
+                      className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    >
+                      <option value="manual_topup">Manual top-up</option>
+                      <option value="bundle_purchase">Bundle purchase</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-medium text-neutral-600">Amount (XLM)</label>
+                    <input
+                      type="number"
+                      min="0.0001"
+                      step="0.01"
+                      placeholder="e.g. 50"
+                      value={creditAmount}
+                      onChange={(e) => setCreditAmount(e.target.value)}
+                      className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-neutral-600">Notes (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Reference or reason"
+                    value={creditNotes}
+                    onChange={(e) => setCreditNotes(e.target.value)}
+                    className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                </div>
+                {creditError && (
+                  <p className="text-xs text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {creditError}
+                  </p>
+                )}
+                {creditResult && (
+                  <p className="text-xs text-emerald-700 flex items-center gap-1">
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {creditResult}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePostCredit}
+                  disabled={creditSubmitting || !creditAmount}
+                  className="flex items-center gap-2 text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-4 py-2 transition disabled:opacity-50"
+                >
+                  {creditSubmitting
+                    ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Posting…</>
+                    : <><PlusCircle className="h-4 w-4" aria-hidden />Post credit</>}
+                </button>
+              </div>
             </div>
           </>
         ) : null}

@@ -29,6 +29,8 @@ const BuySellPage = lazy(() => import("./pages/BuySell"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLogin"));
 const AdminConsolePage = lazy(() => import("./pages/AdminConsole"));
 const AdminTenantDetailPage = lazy(() => import("./pages/AdminTenantDetail"));
+// NM-D3 — Admin staff list
+const AdminAdminsPage = lazy(() => import("./pages/AdminAdmins"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -104,6 +106,7 @@ export default function App() {
       {/* Internal admin console — sessionStorage JWT auth, no user auth required */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/tenants/:id" element={<AdminTenantDetailPage />} />
+      <Route path="/admin/admins" element={<AdminAdminsPage />} />
       <Route path="/admin" element={<AdminConsolePage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

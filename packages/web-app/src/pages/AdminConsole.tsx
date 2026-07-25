@@ -9,7 +9,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   ShieldCheck, LogOut, RefreshCw, AlertCircle, Building2,
-  CheckCircle, XCircle, ChevronRight, Loader2,
+  CheckCircle, XCircle, ChevronRight, Loader2, Users,
 } from "lucide-react";
 
 interface Tenant {
@@ -124,6 +124,17 @@ export default function AdminConsole() {
             <p className="text-xs text-neutral-500 font-medium uppercase tracking-wide">Total prepaid balance</p>
             <p className="text-3xl font-bold text-violet-700 mt-1">{totalBalance.toFixed(4)} <span className="text-base font-semibold text-neutral-500">XLM</span></p>
           </div>
+        </div>
+
+        {/* Quick links */}
+        <div className="flex gap-3">
+          <Link
+            to="/admin/admins"
+            className="flex items-center gap-2 text-sm font-medium text-violet-600 hover:text-violet-800 border border-violet-200 hover:border-violet-400 bg-white rounded-xl px-4 py-2.5 transition shadow-sm"
+          >
+            <Users className="h-4 w-4" aria-hidden />
+            Staff accounts
+          </Link>
         </div>
 
         {/* Tenant list */}
