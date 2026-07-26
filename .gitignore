@@ -42,3 +42,4 @@ tmp/
 
 # OS
 Thumbs.db
+.worktrees/
