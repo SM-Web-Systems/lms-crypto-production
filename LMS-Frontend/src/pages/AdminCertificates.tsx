@@ -3,6 +3,7 @@ import {
   Award,
   CheckCircle,
   XCircle,
+  X,
   RefreshCw,
   AlertCircle,
   ChevronDown,
@@ -54,7 +55,7 @@ function exportApplicationsCSV(applications: NftApplication[]): void {
   a.download = `cert-applications-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  toastSuccess('Sponsor export downloaded');
+  toastSuccess('Applications CSV exported');
 }
 
 function exportIssuedCSV(credentials: IssuedCredential[]): void {
@@ -79,7 +80,7 @@ function exportIssuedCSV(credentials: IssuedCredential[]): void {
   a.download = `issued-nfts-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  toastSuccess('Sponsor export downloaded');
+  toastSuccess('Issued NFTs CSV exported');
 }
 
 // ─── Status definitions (PHASE 4) ────────────────────────────────────────────
@@ -139,6 +140,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [progressCache, setProgressCache] = useState<Record<string, CourseProgress>>({});
   const [rejectModal, setRejectModal] = useState<NftApplication | null>(null);
+  const [mintModal, setMintModal] = useState<NftApplication | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,8 +194,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
     } finally { setActionLoading(null); }
   }, []);
 
-  const handleMint = useCallback(async (app: NftApplication) => {
-    if (!window.confirm(`Mint NFT for ${app.userName ?? app.userEmail}? This is irreversible.`)) return;
+  const handleMint = useCallback((app: NftApplication) => {
+    setMintModal(app);
+  }, []);
+
+  const submitMint = useCallback(async (app: NftApplication) => {
+    setMintModal(null);
     setActionLoading(app.applicationId);
     setActionError((e) => ({ ...e, [app.applicationId]: '' }));
     try {
@@ -224,6 +230,52 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
         onConfirm={(reason) => rejectModal && submitReject(rejectModal, reason)}
         onCancel={() => setRejectModal(null)}
       />
+
+      {/* Mint confirmation modal */}
+      {mintModal !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mint-confirm-title"
+          onKeyDown={(e) => e.key === 'Escape' && setMintModal(null)}
+        >
+          <div
+            className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm"
+            aria-hidden
+            onClick={() => setMintModal(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-neutral-900/[0.08] flex flex-col">
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-neutral-100">
+              <div>
+                <h2 id="mint-confirm-title" className="text-base font-bold text-neutral-900">Mint certificate NFT?</h2>
+                <p className="text-sm text-neutral-600 mt-0.5 leading-relaxed">
+                  Issue an NFT credential to <strong>{mintModal.userName ?? mintModal.userEmail ?? 'this student'}</strong>
+                  {mintModal.courseName ? <> for <strong>{mintModal.courseName}</strong></> : null}.{' '}
+                  This on-chain transaction cannot be reversed.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMintModal(null)}
+                className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-neutral-100">
+              <Button type="button" variant="outline" size="sm" onClick={() => setMintModal(null)}>
+                Cancel
+              </Button>
+              <Button type="button" size="sm" onClick={() => submitMint(mintModal)}>
+                <Coins className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+                Mint NFT
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status legend (PHASE 4) */}
       <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 flex flex-wrap gap-x-5 gap-y-1.5">
@@ -261,7 +313,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
             }`}
           >
             {label}
-            <span className="tabular-nums font-bold">{count}</span>
+            {statusFilter === 'all' && <span className="tabular-nums font-bold">{count}</span>}
           </button>
         ))}
         <Button variant="outline" size="sm" type="button" onClick={load} className="ml-auto">
@@ -542,7 +594,7 @@ const IssuedCredentialsPanel: React.FC = () => {
               mintStatusFilter === val ? 'ring-2 ring-offset-1 ring-current' : 'opacity-70 hover:opacity-100'
             }`}>
             {label}
-            <span className="tabular-nums font-bold">{count}</span>
+            {mintStatusFilter === 'all' && <span className="tabular-nums font-bold">{count}</span>}
           </button>
         ))}
         {counts.superseded > 0 && (

@@ -32,7 +32,7 @@ import {
   ExternalLink,
   X,
 } from 'lucide-react';
-import { DashboardPageSkeleton } from '../components/PageSkeletons';
+import { DashboardPageSkeleton, CertEligibilitySkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
 import NftCard from '../components/NftCard';
 import { getUserNfts }  from '../services/walletService';
@@ -77,7 +77,7 @@ const CERT_STATE_MSGS: Record<string, { desc: string; next: string }> = {
   },
   approved: {
     desc: 'Your application has been approved.',
-    next: 'Your NFT certificate will be minted to your wallet shortly.',
+    next: 'Your instructor will mint your NFT certificate — you\'ll see it in your wallet once issued.',
   },
   minted: {
     desc: 'Your NFT certificate has been issued to your wallet.',
@@ -96,7 +96,9 @@ const StudentDashboard: React.FC = () => {
   const [quizCompletions, setQuizCompletions] = useState<QuizCompletion[] | null>(null);
   const [nftBadges, setNftBadges] = useState<NFTResponse | null>(null);
   const [lmsCredentials, setLmsCredentials] = useState<MyCredential[] | null>(null);
+  const [lmsCredentialsError, setLmsCredentialsError] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(true);
   const [progressMap, setProgressMap] = useState<Record<string, CourseProgress>>({});
   const [certState, setCertState] = useState<Record<string, 'idle' | 'loading' | 'applied' | 'error'>>({});
   const [certErrors, setCertErrors] = useState<Record<string, string>>({});
@@ -118,10 +120,7 @@ const StudentDashboard: React.FC = () => {
       }
       try {
         const nfts = await getUserNfts(user.walletAddress);
-        if (!cancelled) {
-          setNftBadges(nfts);
-          console.log('NFT Badges:', nfts);
-        }
+        if (!cancelled) setNftBadges(nfts);
       } catch (error) {
         console.error('Failed to load NFT badges:', error);
       }
@@ -157,14 +156,27 @@ const StudentDashboard: React.FC = () => {
     let cancelled = false;
     courseCompletionService
       .getMyCredentials()
-      .then((list) => { if (!cancelled) setLmsCredentials(list); })
-      .catch(() => { if (!cancelled) setLmsCredentials([]); });
+      .then((list) => {
+        if (!cancelled) {
+          setLmsCredentials(list);
+          setLmsCredentialsError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLmsCredentials(null);
+          setLmsCredentialsError(true);
+        }
+      });
     return () => { cancelled = true; };
   }, [user]);
 
   // Load enrolled courses + progress + existing application status for certificate eligibility section
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setCoursesLoading(false);
+      return;
+    }
     let cancelled = false;
     courseService.fetchCourses().then(async (list) => {
       if (cancelled) return;
@@ -188,7 +200,9 @@ const StudentDashboard: React.FC = () => {
         setProgressMap(newProg);
         setAppStatusMap(newApps);
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setCoursesLoading(false);
+    });
     return () => { cancelled = true; };
   }, [user]);
 
@@ -507,75 +521,83 @@ const StudentDashboard: React.FC = () => {
       {/* NFT Badges */}
       <section>
         <h2 className="text-lg font-bold text-neutral-900 mb-4">Your NFT Badges</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <ul className="grid grid-cols-1 m:grid-cols-2 gap-2 mt-2">
-            {nftTokens.length > 0 ? (
-              nftTokens.map((token) => (<li key={token.id}><NftCard token={token} /></li>))
-            ) : (
-              <li className={`group text-left rounded-xl border border-neutral-200/90 bg-gradient-to-br p-4 shadow-card ring-1 ring-neutral-900/[0.03] transition-all hover:shadow-updraft-hover hover:-translate-y-0.5 hover:ring-neutral-900/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal focus-visible:ring-offset-2`}
-              >
-                No NFT badges yet
-              </li>
-            )}
-          </ul>
-        </div>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {nftTokens.length > 0 ? (
+            nftTokens.map((token) => (<li key={token.id}><NftCard token={token} /></li>))
+          ) : (
+            <li className="col-span-full rounded-xl border border-neutral-200/90 bg-gradient-to-br p-4 shadow-card ring-1 ring-neutral-900/[0.03] text-sm text-neutral-500">
+              No NFT badges yet
+            </li>
+          )}
+        </ul>
       </section>
 
       {/* LMS Certificates — sourced from /credentials/mine */}
-      {lmsCredentials !== null && lmsCredentials.length > 0 && (
+      {(lmsCredentialsError || (lmsCredentials !== null && lmsCredentials.length > 0)) && (
         <section>
           <h2 className="text-lg font-bold text-neutral-900 mb-4">LMS Certificates</h2>
-          <div className="space-y-3">
-            {lmsCredentials.map((cred) => (
-              <div
-                key={cred.credentialId}
-                className="rounded-xl border border-violet-200/80 bg-gradient-to-br from-violet-50/60 via-white to-indigo-50/40 px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02]"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-neutral-900 truncate">
-                        {cred.courseTitle ?? cred.quizTitle ?? 'Certificate'}
-                      </p>
-                      {cred.courseCode && (
-                        <span className="text-xs text-neutral-500 font-mono">{cred.courseCode}</span>
-                      )}
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
-                        <Award className="h-3 w-3" aria-hidden />
-                        NFT Issued
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-neutral-500">
-                      {cred.issuedAt && (
-                        <span>Issued {new Date(cred.issuedAt).toLocaleDateString()}</span>
-                      )}
-                      {cred.walletAddress && (
-                        <span className="font-mono">
-                          {cred.walletAddress.slice(0, 4)}…{cred.walletAddress.slice(-4)}
+          {lmsCredentialsError ? (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden />
+              <span>
+                We could not load your certificates right now. Please refresh the page to try again.
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {lmsCredentials!.map((cred) => (
+                <div
+                  key={cred.credentialId}
+                  className="rounded-xl border border-violet-200/80 bg-gradient-to-br from-violet-50/60 via-white to-indigo-50/40 px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02]"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-neutral-900 truncate">
+                          {cred.courseTitle ?? cred.quizTitle ?? 'Certificate'}
+                        </p>
+                        {cred.courseCode && (
+                          <span className="text-xs text-neutral-500 font-mono">{cred.courseCode}</span>
+                        )}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
+                          <Award className="h-3 w-3" aria-hidden />
+                          NFT Issued
                         </span>
-                      )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-neutral-500">
+                        {cred.issuedAt && (
+                          <span>Issued {new Date(cred.issuedAt).toLocaleDateString()}</span>
+                        )}
+                        {cred.walletAddress && (
+                          <span className="font-mono">
+                            {cred.walletAddress.slice(0, 4)}…{cred.walletAddress.slice(-4)}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    {cred.txHash && (
+                      <a
+                        href={`https://stellar.expert/explorer/public/tx/${cred.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
+                      >
+                        View on Stellar
+                        <ExternalLink className="h-3 w-3" aria-hidden />
+                      </a>
+                    )}
                   </div>
-                  {cred.txHash && (
-                    <a
-                      href={`https://stellar.expert/explorer/public/tx/${cred.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
-                    >
-                      View on Stellar
-                      <ExternalLink className="h-3 w-3" aria-hidden />
-                    </a>
-                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       {/* Certificate eligibility */}
-      {courses.length > 0 && (
+      {coursesLoading ? (
+        <CertEligibilitySkeleton />
+      ) : courses.length > 0 ? (
         <section>
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
@@ -775,7 +797,7 @@ const StudentDashboard: React.FC = () => {
             })}
           </div>
         </section>
-      )}
+      ) : null}
 
       {/* Stats */}
       <section>

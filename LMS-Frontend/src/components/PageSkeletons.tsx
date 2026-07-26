@@ -145,3 +145,39 @@ export function CourseMembersPageSkeleton() {
     </div>
   );
 }
+
+/** StudentDashboard: certificate eligibility section while courses are loading. */
+export function CertEligibilitySkeleton() {
+  const pulse = 'animate-pulse rounded-md bg-neutral-200/80';
+  return (
+    <div aria-busy="true">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className={`h-5 w-44 ${pulse}`} />
+          <div className={`h-3 w-72 max-w-full ${pulse}`} />
+        </div>
+        <div className={`h-4 w-24 shrink-0 ${pulse}`} />
+      </div>
+      <div className="space-y-3">
+        <div className="rounded-xl border border-neutral-200/80 bg-white px-4 py-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className={`h-4 w-48 max-w-full ${pulse}`} />
+              <div className={`h-3 w-20 ${pulse}`} />
+            </div>
+            <div className={`h-9 w-28 shrink-0 ${pulse}`} />
+          </div>
+        </div>
+        <div className="rounded-xl border border-neutral-200/80 bg-white px-4 py-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className={`h-4 w-40 max-w-full ${pulse}`} />
+              <div className={`h-3 w-20 ${pulse}`} />
+            </div>
+            <div className={`h-9 w-28 shrink-0 ${pulse}`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
