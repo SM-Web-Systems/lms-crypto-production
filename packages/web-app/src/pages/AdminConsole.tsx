@@ -122,7 +122,7 @@ export default function AdminConsole() {
           </div>
           <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-sm">
             <p className="text-xs text-neutral-500 font-medium uppercase tracking-wide">Total prepaid balance</p>
-            <p className="text-3xl font-bold text-violet-700 mt-1">{totalBalance.toFixed(4)} <span className="text-base font-semibold text-neutral-500">XLM</span></p>
+            <p className={`text-3xl font-bold ${totalBalance < 0 ? 'text-red-600' : 'text-violet-700'} mt-1`}>{totalBalance.toFixed(4)} <span className="text-base font-semibold text-neutral-500">XLM</span></p>
           </div>
         </div>
 

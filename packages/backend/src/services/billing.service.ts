@@ -19,7 +19,7 @@
  */
 
 import { db, schema } from "../db";
-import { eq, and, sql, desc, gt } from "drizzle-orm";
+import { eq, and, sql, desc, gt, lt } from "drizzle-orm";
 import { sendEmail } from "../lib/mailer";
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -43,6 +43,8 @@ export interface BillingPolicy {
 
 export interface TenantBillingState {
   id: number;
+  name: string | null;
+  slug: string;
   prepaidXlmBalance: string;
   isActive: boolean;
   suspendedAt: Date | null;
@@ -83,6 +85,8 @@ export async function getTenantBillingState(tenantId: number): Promise<TenantBil
   const [t] = await db
     .select({
       id: schema.tenants.id,
+      name: schema.tenants.name,
+      slug: schema.tenants.slug,
       prepaidXlmBalance: schema.tenants.prepaidXlmBalance,
       isActive: schema.tenants.isActive,
       suspendedAt: schema.tenants.suspendedAt,
@@ -653,17 +657,25 @@ export async function getTenantBalanceSummary(tenantId: number) {
         billingPeriod: schema.billingEvents.billingPeriod,
         userId: schema.billingEvents.userId,
         createdAt: schema.billingEvents.createdAt,
+        notes: schema.billingEvents.notes,
       })
       .from(schema.billingEvents)
       .where(eq(schema.billingEvents.tenantId, tenantId))
-      .orderBy(desc(schema.billingEvents.createdAt))
-      .limit(20),
+      .orderBy(desc(schema.billingEvents.id))
+      .limit(21),
   ]);
 
   if (!state) return null;
 
+  // AW-ADMIN-005: derive pagination cursor from the +1 sentinel row
+  const eventsHasMore = recentEvents.length > 20;
+  const trimmedEvents = eventsHasMore ? recentEvents.slice(0, 20) : recentEvents;
+  const eventsNextCursor = eventsHasMore ? trimmedEvents[trimmedEvents.length - 1].id : null;
+
   return {
     tenantId,
+    tenantName: state.name,
+    tenantSlug: state.slug,
     balance: state.prepaidXlmBalance,
     isActive: state.isActive,
     suspendedAt: state.suspendedAt,
@@ -671,6 +683,41 @@ export async function getTenantBalanceSummary(tenantId: number) {
     debtLimit: policy?.acquisitionDebtLimitXlm ?? null,
     acquisitionModeEnabled: policy?.acquisitionModeEnabled ?? null,
     gracePeriodDays: policy?.gracePeriodDays ?? null,
-    recentEvents,
+    recentEvents: trimmedEvents,
+    eventsHasMore,
+    eventsNextCursor,
   };
+}
+
+// ── Paginated events page ──────────────────────────────────────────────────────
+
+/** AW-ADMIN-005: Fetch one page of billing events older than `beforeId` for cursor pagination. */
+export async function getTenantBillingEventsPage(
+  tenantId: number,
+  beforeId: number,
+  limit = 20,
+) {
+  const rows = await db
+    .select({
+      id: schema.billingEvents.id,
+      eventType: schema.billingEvents.eventType,
+      amountXlm: schema.billingEvents.amountXlm,
+      billingPeriod: schema.billingEvents.billingPeriod,
+      userId: schema.billingEvents.userId,
+      createdAt: schema.billingEvents.createdAt,
+      notes: schema.billingEvents.notes,
+    })
+    .from(schema.billingEvents)
+    .where(and(
+      eq(schema.billingEvents.tenantId, tenantId),
+      lt(schema.billingEvents.id, beforeId),
+    ))
+    .orderBy(desc(schema.billingEvents.id))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const events = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore ? events[events.length - 1].id : null;
+
+  return { events, hasMore, nextCursor };
 }

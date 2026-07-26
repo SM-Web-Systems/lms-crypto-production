@@ -21,7 +21,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { config } from "../config";
 import { db, schema } from "../db";
 import { verifyInternalAdmin } from "../middleware/admin-auth";
-import { getTenantBalanceSummary, writeBillingCredit } from "../services/billing.service";
+import { getTenantBalanceSummary, writeBillingCredit, getTenantBillingEventsPage } from "../services/billing.service";
 
 // Roles permitted to write credits (super_admin and platform_admin)
 const CREDIT_ROLES = ["super_admin", "platform_admin"] as const;
@@ -252,6 +252,8 @@ export async function adminRoutes(app: FastifyInstance) {
             type: "object",
             properties: {
               tenantId:              { type: "number" },
+              tenantName:            { type: ["string", "null"] },
+              tenantSlug:            { type: "string" },
               balance:               { type: "string" },
               isActive:              { type: "boolean" },
               suspendedAt:           { type: ["string", "null"], format: "date-time" },
@@ -270,9 +272,12 @@ export async function adminRoutes(app: FastifyInstance) {
                     billingPeriod: { type: ["string", "null"] },
                     userId:        { type: ["number", "null"] },
                     createdAt:     { type: "string", format: "date-time" },
+                    notes:         { type: ["string", "null"] },
                   },
                 },
               },
+              eventsHasMore:    { type: "boolean" },
+              eventsNextCursor: { type: ["number", "null"] },
             },
           },
           400: { type: "object", properties: { error: { type: "string" } } },
@@ -293,6 +298,73 @@ export async function adminRoutes(app: FastifyInstance) {
       }
 
       return reply.send(summary);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/v1/internal/tenants/:id/events — AW-ADMIN-005
+  // ──────────────────────────────────────────────────────────────────────────
+  // Cursor-paginated billing events for a tenant. Returns up to 20 events with
+  // id < beforeId, ordered newest-first. Used by the "Load older" UI control.
+  // Any authenticated admin role may call this endpoint.
+  app.get(
+    "/api/v1/internal/tenants/:id/events",
+    {
+      preHandler: verifyInternalAdmin,
+      schema: {
+        tags: ["Internal Admin"],
+        description:
+          "Return one page of billing events older than beforeId for cursor pagination. " +
+          "Any admin role may call this endpoint.",
+        params: {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "string", pattern: "^[0-9]+$" } },
+        },
+        querystring: {
+          type: "object",
+          required: ["beforeId"],
+          properties: { beforeId: { type: "string", pattern: "^[0-9]+$" } },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              events: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id:            { type: "number" },
+                    eventType:     { type: "string" },
+                    amountXlm:     { type: "string" },
+                    billingPeriod: { type: ["string", "null"] },
+                    userId:        { type: ["number", "null"] },
+                    createdAt:     { type: "string", format: "date-time" },
+                    notes:         { type: ["string", "null"] },
+                  },
+                },
+              },
+              hasMore:    { type: "boolean" },
+              nextCursor: { type: ["number", "null"] },
+            },
+          },
+          400: { type: "object", properties: { error: { type: "string" } } },
+          401: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const tenantId = parseInt((request.params as { id: string }).id, 10);
+      if (!Number.isFinite(tenantId) || tenantId <= 0) {
+        return reply.status(400).send({ error: "Invalid tenant ID" });
+      }
+      const beforeId = parseInt((request.query as { beforeId: string }).beforeId, 10);
+      if (!Number.isFinite(beforeId) || beforeId <= 0) {
+        return reply.status(400).send({ error: "Invalid beforeId" });
+      }
+      const page = await getTenantBillingEventsPage(tenantId, beforeId);
+      return reply.send(page);
     },
   );
 

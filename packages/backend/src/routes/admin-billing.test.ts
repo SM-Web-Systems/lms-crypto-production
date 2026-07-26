@@ -61,14 +61,15 @@ vi.mock("../db", () => ({
 }));
 
 vi.mock("../services/billing.service", () => ({
-  getTenantBalanceSummary: vi.fn(),
-  writeBillingCredit:      vi.fn(),
+  getTenantBalanceSummary:       vi.fn(),
+  writeBillingCredit:            vi.fn(),
+  getTenantBillingEventsPage:    vi.fn(),
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
 import { db } from "../db";
-import { getTenantBalanceSummary, writeBillingCredit } from "../services/billing.service";
+import { getTenantBalanceSummary, writeBillingCredit, getTenantBillingEventsPage } from "../services/billing.service";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -103,8 +104,9 @@ function makeRequest(
   admin: AdminContext,
   params: Record<string, string> = {},
   body: Record<string, any> = {},
+  query: Record<string, string> = {},
 ): any {
-  return { admin, params, body };
+  return { admin, params, body, query };
 }
 
 /** Chain builder for db.select(...).from(...).where(...).limit(rows) pattern. */
@@ -164,6 +166,19 @@ async function handleGetTenantBilling(request: any, reply: any) {
     return reply.status(404).send({ error: "Tenant not found" });
   }
   return reply.send(summary);
+}
+
+async function handleGetTenantEvents(request: any, reply: any) {
+  const tenantId = parseInt((request.params as { id: string }).id, 10);
+  if (!Number.isFinite(tenantId) || tenantId <= 0) {
+    return reply.status(400).send({ error: "Invalid tenant ID" });
+  }
+  const beforeId = parseInt((request.query as { beforeId: string }).beforeId, 10);
+  if (!Number.isFinite(beforeId) || beforeId <= 0) {
+    return reply.status(400).send({ error: "Invalid beforeId" });
+  }
+  const page = await getTenantBillingEventsPage(tenantId, beforeId);
+  return reply.send(page);
 }
 
 async function handlePostCredit(request: any, reply: any) {
@@ -654,5 +669,112 @@ describe("POST /api/v1/internal/tenants/:id/credit", () => {
     );
 
     expect(capturedBody.bundlePurchaseId).toBeNull();
+  });
+});
+
+// ── GET /api/v1/internal/tenants/:id/billing — pagination metadata ────────────
+// AW-ADMIN-005: getTenantBalanceSummary now returns eventsHasMore + eventsNextCursor.
+// These tests verify that the /billing handler passes them through unchanged.
+
+describe("GET /api/v1/internal/tenants/:id/billing — pagination fields", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("returns eventsHasMore: true and eventsNextCursor when summary has more events", async () => {
+    const summary = {
+      tenantId: 2,
+      balance: "57.9000000",
+      isActive: true,
+      suspendedAt: null,
+      suspensionReason: null,
+      debtLimit: null,
+      acquisitionModeEnabled: null,
+      gracePeriodDays: null,
+      recentEvents: Array.from({ length: 20 }, (_, i) => ({ id: 20 - i })),
+      eventsHasMore: true,
+      eventsNextCursor: 1,
+    };
+    (getTenantBalanceSummary as ReturnType<typeof vi.fn>).mockResolvedValueOnce(summary);
+
+    const reply = makeReply();
+    await handleGetTenantBilling(makeRequest(SUPER_ADMIN, { id: "2" }), reply);
+
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ eventsHasMore: true, eventsNextCursor: 1 }),
+    );
+  });
+
+  it("returns eventsHasMore: false and eventsNextCursor: null when all events fit on first page", async () => {
+    const summary = {
+      tenantId: 2,
+      balance: "57.9000000",
+      isActive: true,
+      suspendedAt: null,
+      suspensionReason: null,
+      debtLimit: null,
+      acquisitionModeEnabled: null,
+      gracePeriodDays: null,
+      recentEvents: [{ id: 5 }, { id: 4 }, { id: 3 }],
+      eventsHasMore: false,
+      eventsNextCursor: null,
+    };
+    (getTenantBalanceSummary as ReturnType<typeof vi.fn>).mockResolvedValueOnce(summary);
+
+    const reply = makeReply();
+    await handleGetTenantBilling(makeRequest(SUPER_ADMIN, { id: "2" }), reply);
+
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ eventsHasMore: false, eventsNextCursor: null }),
+    );
+  });
+});
+
+// ── GET /api/v1/internal/tenants/:id/events ───────────────────────────────────
+// AW-ADMIN-005: cursor-paginated events endpoint.
+
+describe("GET /api/v1/internal/tenants/:id/events", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("returns older events page with correct shape and no overlap (hasMore: true)", async () => {
+    const olderPage = {
+      events: [{ id: 15 }, { id: 14 }, { id: 13 }],
+      hasMore: true,
+      nextCursor: 13,
+    };
+    (getTenantBillingEventsPage as ReturnType<typeof vi.fn>).mockResolvedValueOnce(olderPage);
+
+    const reply = makeReply();
+    await handleGetTenantEvents(
+      makeRequest(SUPER_ADMIN, { id: "2" }, {}, { beforeId: "16" }),
+      reply,
+    );
+
+    expect(getTenantBillingEventsPage).toHaveBeenCalledWith(2, 16);
+    expect(reply.status).not.toHaveBeenCalled();
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ events: olderPage.events, hasMore: true, nextCursor: 13 }),
+    );
+    // No overlap: all returned ids are < beforeId
+    for (const ev of olderPage.events) {
+      expect(ev.id).toBeLessThan(16);
+    }
+  });
+
+  it("returns hasMore: false and nextCursor: null when past the last event", async () => {
+    const lastPage = {
+      events: [{ id: 2 }, { id: 1 }],
+      hasMore: false,
+      nextCursor: null,
+    };
+    (getTenantBillingEventsPage as ReturnType<typeof vi.fn>).mockResolvedValueOnce(lastPage);
+
+    const reply = makeReply();
+    await handleGetTenantEvents(
+      makeRequest(SUPER_ADMIN, { id: "2" }, {}, { beforeId: "3" }),
+      reply,
+    );
+
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ hasMore: false, nextCursor: null }),
+    );
   });
 });
