@@ -1,0 +1,28 @@
+flowchart TD
+    A([Admin clicks Suspend / Unsuspend button]) --> B{which button?}
+    B -- Suspend --> C[handleSuspend sets statusModal = suspend]
+    B -- Unsuspend --> D[handleUnsuspend sets statusModal = unsuspend]
+
+    C --> M[StatusConfirmModal renders\nwith red Suspend copy]
+    D --> M2[StatusConfirmModal renders\nwith emerald Unsuspend copy]
+
+    M --> E{Admin action}
+    M2 --> E
+
+    E -- Cancel button\nor Escape\nor backdrop click --> F[setStatusModal null\nmodal closes\nno state change]
+
+    E -- confirm Suspend tenant --> G[submitStatusAction suspend]
+    E -- confirm Unsuspend tenant --> H[submitStatusAction unsuspend]
+
+    G --> I[setStatusModal null\nsetSuspendBusy true\nPATCH /suspend type=hard]
+    H --> J[setStatusModal null\nsetSuspendBusy true\nPATCH /unsuspend]
+
+    I --> K{API result}
+    J --> K
+
+    K -- 401 --> L[logout → redirect to /admin/login]
+    K -- error response --> N[setSuspendError inline below buttons]
+    K -- success --> O[load — refreshes billing data\nstatus badge updates]
+
+    N --> P[setSuspendBusy false]
+    O --> P

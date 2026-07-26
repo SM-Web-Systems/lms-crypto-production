@@ -1,0 +1,34 @@
+flowchart TD
+    A([Admin clicks Suspend button]) --> B[handleSuspend sets statusModal\naction=suspend, suspendType=hard]
+    B --> C[Modal opens\nHard suspend preselected\nred radio highlight]
+
+    C --> D{Admin changes type?}
+    D -- switches to Soft --> E[setSuspendType soft\ntitle → Soft suspend tenant?\nbody → activations blocked copy\nbutton → amber Soft suspend tenant]
+    D -- stays Hard --> F[title = Hard suspend tenant?\nbody → deactivate copy\nbutton = red Hard suspend tenant]
+
+    E --> G{Admin action}
+    F --> G
+
+    G -- Cancel / Escape / backdrop --> H[setStatusModal null\nno state change]
+
+    G -- confirms --> I[submitStatusAction suspend\ncaptures suspendType before setStatusModal null]
+
+    I -- type=hard --> J[PATCH /suspend\nbody: type=hard]
+    I -- type=soft --> K[PATCH /suspend\nbody: type=soft]
+
+    J --> L{API result}
+    K --> L
+
+    L -- 401 --> M[logout → /admin/login]
+    L -- error --> N[setSuspendError\ninline below buttons]
+    L -- success --> O[load — refreshes billing data\nisActive badge updates]
+
+    N --> P[setSuspendBusy false]
+    O --> P
+
+    Q([Admin clicks Unsuspend]) --> R[handleUnsuspend sets statusModal\naction=unsuspend\nno suspendType field]
+    R --> S[Modal — Unsuspend tenant?\nno radio group shown]
+    S --> T{Admin action}
+    T -- cancel --> H
+    T -- confirm --> U[submitStatusAction unsuspend\nPATCH /unsuspend no body]
+    U --> L
