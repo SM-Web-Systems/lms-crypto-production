@@ -1,0 +1,16 @@
+stateDiagram-v2
+    [*] --> not_eligible : Enrolled, requirements not met
+    not_eligible --> eligible : All lessons + quizzes + submissions passed
+    eligible --> pending : Student clicks "Request certificate"
+    pending --> approved : Admin approves\n[email notification sent to student]
+    pending --> rejected : Admin rejects\n[review_notes stored + shown to student]
+    rejected --> pending : Student re-applies\n(only if canApplyForCertificate = true)
+    approved --> minted : Admin triggers mint\n(POST .../applications/:id/mint)
+    minted --> [*] : NFT in student wallet\n[Stellar Expert link shown]
+
+    not_eligible : Keep going!\nComplete required lessons and quizzes.
+    eligible : You're ready!\nAll requirements met. Request your certificate.
+    pending : Application submitted.\nWaiting for admin review — usually 2–3 days.
+    approved : Approved!\nYour NFT certificate is being minted.
+    rejected : Not approved this time.\nSee reason below. Re-apply when ready.
+    minted : Certificate minted to your wallet.\nView it in AmmaWallet.

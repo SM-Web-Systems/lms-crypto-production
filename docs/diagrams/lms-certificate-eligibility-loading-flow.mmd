@@ -1,0 +1,16 @@
+flowchart TD
+    A([Component mounts]) --> B{user defined?}
+    B -- no --> C[coursesLoading = false\ncourses = empty]
+    B -- yes --> D[coursesLoading = true\nfetchCourses starts]
+    D --> E{fetch + progress\n+ apps complete?}
+    E -- error --> F[courses = empty\ncoursesLoading = false]
+    E -- success --> G[courses = list\nprogressMap / appStatusMap set\ncoursesLoading = false]
+
+    C --> R
+    F --> R
+    G --> R
+
+    R{Render branch}
+    R -- coursesLoading = true --> S[<CertEligibilitySkeleton />\npulse animation\naria-busy=true]
+    R -- coursesLoading = false\ncourses.length > 0 --> T[<section>\nCertificate eligibility\ncourse cards with status]
+    R -- coursesLoading = false\ncourses.length = 0 --> U[null — section hidden]

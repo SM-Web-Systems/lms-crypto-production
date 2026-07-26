@@ -1,0 +1,23 @@
+%% LMS-UX-001: NFT Badges Layout — Current vs Desired
+%% File: LMS-Frontend/src/pages/StudentDashboard.tsx lines 504–519
+
+graph TD
+    subgraph CURRENT["CURRENT (broken) — badges render in a single narrow column"]
+        S1[section] --> H1["h2: Your NFT Badges"]
+        S1 --> D1["div\ngrid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4\n⚠️ outer grid creates 4 columns"]
+        D1 --> UL1["ul  ← only child; fills col-1 of 4 only\ngrid grid-cols-1 m:grid-cols-2 gap-2 mt-2\n⚠️ m: is NOT a Tailwind breakpoint (typo for sm:)"]
+        UL1 --> LI_TOKEN["li × N   NftCard"]
+        UL1 --> LI_EMPTY["li (empty state)\ncard hover effects but not interactive"]
+    end
+
+    subgraph DESIRED["DESIRED (fixed) — badges fill responsive 1→2→4 column grid"]
+        S2[section] --> H2["h2: Your NFT Badges"]
+        S2 --> UL2["ul\ngrid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4\n✓ single grid container; outer div removed"]
+        UL2 --> LI_TOKEN2["li × N   NftCard"]
+        UL2 --> LI_EMPTY2["li.col-span-full (empty state)\n✓ spans all columns; hover effects removed"]
+    end
+
+    classDef bug fill:#fee2e2,stroke:#ef4444,color:#7f1d1d
+    classDef fix fill:#dcfce7,stroke:#22c55e,color:#14532d
+    class D1,UL1 bug
+    class UL2,LI_EMPTY2 fix

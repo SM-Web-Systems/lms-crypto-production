@@ -1,0 +1,18 @@
+flowchart TD
+    A([Admin clicks Mint NFT on approved row]) --> B[handleMint sets mintModal = app]
+    B --> C[MintConfirmModal renders\ntitle + student + course + irreversible warning]
+
+    C --> D{Admin action}
+    D -- clicks Cancel\nor Escape\nor backdrop --> E[setMintModal null\nmodal closes\nno state change]
+    D -- clicks Mint NFT --> F[submitMint called]
+
+    F --> G[setMintModal null — modal closes]
+    G --> H[setActionLoading applicationId\nrow button shows Minting…]
+    H --> I[adminCertificateService.mintApplication API call]
+
+    I --> J{API result}
+    J -- success --> K[setApplications updates row\nstatus changes to minted\ntxHash populated]
+    J -- error --> L[setActionError per-row\ninline error shown below row]
+
+    K --> M[setActionLoading null\nrow returns to normal]
+    L --> M

@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant S as Student Browser
+    participant LF as LMS Frontend
+    participant LB as LMS Backend
+    participant DB as SQLite DB
+
+    S->>LF: Opens StudentDashboard
+    LF->>LB: GET /students/me/progress
+    LB->>DB: Enrolled courses + getCourseProgress() per course
+    DB-->>LB: completedLessonItems, totalLessonItems, lessonPercentage
+    LB-->>LF: [{courseId, courseName, lessonsCompleted, totalLessons, lessonPercentage, certStatus}]
+    LF-->>S: Course cards with progress bars (N/M lessons, %)
+
+    S->>LF: Opens StudentCourse
+    LF->>LB: GET /courses/:id/progress
+    LB->>DB: getCourseProgress(userId, courseId)
+    DB-->>LB: {completedLessonItems, totalLessonItems, lessonPercentage}
+    LB-->>LF: progress data
+    LF-->>S: Sticky top progress bar
+
+    S->>LF: Checks off a lesson
+    LF->>LB: POST /courses/:courseId/lessons/completions\nbody:{itemId}
+    LB->>DB: INSERT OR IGNORE lesson_completions
+    DB-->>LB: ok
+    LF->>LB: GET /courses/:id/progress (refresh)
+    LB-->>LF: updated progress
+    LF-->>S: Progress bar advances in real time
