@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-27 (post Phase 6A) | Main: `1459eda`
-> Tests: 382/382 passing | Production: deployed and verified
+> Updated: 2026-07-27 (FINAL — post Phase 6B) | Main: `bd21cc3`
+> Tests: 387/387 passing | Production: deployed and verified (3 deploys)
 
 ---
 
@@ -11,16 +11,16 @@
 
 | Category | Count | % |
 |----------|------:|--:|
-| **Resolved** (code fix applied, verified) | 75 | 23.5% |
+| **Resolved** (code fix applied, verified) | 77 | 24.1% |
 | **INFO / No Action** (confirmations, correct behavior) | 67 | 21.0% |
-| **Phase 6 Remaining** (planned, not yet started) | 2 | 0.6% |
 | **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 175 | 54.9% |
 | **Total** | **319** | **100%** |
 
 **All 14 CRITICAL findings are resolved.** Zero CRITICAL items remain.
+**All exploitable HIGH findings are resolved.** Zero exploitable vulnerabilities remain.
 
-**Resolution rate:** 44.5% resolved or confirmed no-action (142 of 319).
-Including deferred items that are acceptable trade-offs, the effective security posture addresses all exploitable vulnerabilities.
+**Resolution rate:** 45.1% resolved or confirmed no-action (144 of 319).
+All exploitable vulnerabilities have been addressed. The 175 deferred items are non-exploitable code quality and feature improvements.
 
 ---
 
@@ -65,22 +65,17 @@ None of the 175 deferred items represent exploitable security vulnerabilities in
 | P4-8-F5 | Database credentials in docker-compose.yml | FIXED |
 | P4-9-F1 | Zero test coverage for critical auth paths | FIXED |
 
-### HIGH (43 total — 23 resolved, 1 Phase 6, 19 deferred)
+### HIGH (43 total — 24 resolved, 19 deferred)
 
-**Resolved (23):** P0-1-F3, P0-1-F4, P0-1-F5, P0-3-F1, P0-3-F3, P0-3-F4, P0-4-F2, P0-4-F3, P0-4-F18, P1-4-F1, P1-4-F2, P2-1-F1, P2-1-F2, P2-7-F1, P3-1-F4, P3-1-F5, P3-7-F3, P3-7-F4, P4-2-F1, P4-2-F2, P4-8-F2, P4-8-F3, P0-3-F5 (reclassified from MEDIUM due to CPU DoS impact)
-
-**Phase 6B (1):**
-- P0-3-F2 — Mnemonic POSTed to server for HD derivation (Track 4: crypto refactor, 3-5 days)
+**Resolved (24):** P0-1-F3, P0-1-F4, P0-1-F5, P0-3-F1, P0-3-F2, P0-3-F3, P0-3-F4, P0-4-F2, P0-4-F3, P0-4-F18, P1-4-F1, P1-4-F2, P2-1-F1, P2-1-F2, P2-7-F1, P3-1-F4, P3-1-F5, P3-7-F3, P3-7-F4, P4-2-F1, P4-2-F2, P4-8-F2, P4-8-F3, P0-3-F5 (reclassified from MEDIUM due to CPU DoS impact)
 
 **Deferred (19):** P3-2-F3/F4/F5, P3-4-F1/F2, P3-5-F3/F4/F5/F6, P3-7-F5, P3-8-F1, P3-9-F1, P3-10-F1, P4-7-F11, P4-9-F2/F3
 Most are in P3 (lower-priority modules: Earn, Fiat, MoneyGram, Push, Curated Tokens) and P4 (test coverage, Docker).
 
-### MEDIUM (94 total — 28 resolved, 1 Phase 6, 65 deferred)
+### MEDIUM (94 total — 29 resolved, 65 deferred)
 
 **Phase 6A resolved (3):** P0-3-F5, P0-3-F9, P0-3-F10
-
-**Phase 6B (1):**
-- P2-4-F2 — PLATFORM_SECRET/SIGNING_SECRET_KEY default empty (partially fixed with startup warning)
+**Phase 6B resolved (1):** P2-4-F2 (production startup crash on empty secrets)
 
 ### LOW (101 total — 10 resolved, 91 deferred)
 
@@ -143,15 +138,18 @@ All 67 INFO findings are confirmations of correct behavior, design observations,
 
 ---
 
-## Phase 6B Remaining (2 findings)
+## Phase 6B (COMPLETE — 2026-07-27)
 
-| ID | Severity | Track | Description | Effort |
-|----|----------|-------|-------------|--------|
-| P0-3-F2 | HIGH | Track 4 (Crypto Refactor) | Mnemonic POSTed to server | 3-5 days |
-| P2-4-F2 | MEDIUM | Track 1 (Quick Win) | Empty secret defaults | 15 min |
+Both Phase 6B findings resolved:
 
-**Total Phase 6B effort: ~3-5 days** (driven by crypto refactor)
-**Earliest start: 2026-08-15**
+| ID | Severity | Description | Resolution |
+|----|----------|-------------|------------|
+| P0-3-F2 | HIGH | Mnemonic POSTed to server | Client-side HD derivation via `hd-wallet.ts`, server endpoints removed |
+| P2-4-F2 | MEDIUM | Empty secret defaults | Production startup crash with FATAL error |
+
+- Merged to main: `bd21cc3`
+- Tagged: `phase6b-complete-2026-07-27`
+- Deployed to production, 4 smoke tests passed
 
 ---
 
@@ -184,14 +182,15 @@ Full list in `TODO_LOW_PRIORITY.md` and `PHASE5_BACKLOG.md`.
 | 2026-07-27 | Phase 5D complete (6 fixes), merge to main, deploy to production |
 | 2026-07-27 | Low-priority pass (10 fixes), Phase 6 planning complete |
 | 2026-07-27 | Phase 6A complete (4 fixes), merge to main, deploy to production |
-| 2026-08-15 | Phase 6B earliest start |
+| 2026-07-27 | Phase 6B complete (2 fixes), merge to main, deploy to production |
+| 2026-07-27 | **Audit complete** — all exploitable vulnerabilities resolved |
 
 ---
 
 ## Verification
 
-- **Git commits:** 81 commits since audit start (51 fix commits)
-- **Test progression:** 218 → 382 tests (164 new tests added)
-- **Production:** deployed and verified twice (Phase 5 + Phase 6A)
-- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`
-- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `1459eda`
+- **Git commits:** 90 commits since audit start (53 fix commits)
+- **Test progression:** 218 → 387 tests (+169 new tests)
+- **Production:** deployed and verified 3 times (Phase 5, 6A, 6B) — zero downtime
+- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`
+- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `bd21cc3`
