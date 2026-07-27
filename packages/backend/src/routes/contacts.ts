@@ -31,7 +31,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
       },
     },
   }, async (request) => {
-    const userId = (request as any).userId;
+    const userId = request.user!.userId;
     return db.select().from(addressBook).where(eq(addressBook.userId, userId)).orderBy(addressBook.name);
   });
 
@@ -59,7 +59,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    const userId = (request as any).userId;
+    const userId = request.user!.userId;
     const { name, address, memo, memoType, notes } = request.body as any;
 
     const existing = await db.select().from(addressBook)
@@ -99,7 +99,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    const userId = (request as any).userId;
+    const userId = request.user!.userId;
     const { id } = request.params as any;
     const updates = request.body as any;
 
@@ -127,7 +127,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
       },
     },
   }, async (request) => {
-    const userId = (request as any).userId;
+    const userId = request.user!.userId;
     const { id } = request.params as any;
 
     await db.delete(addressBook)

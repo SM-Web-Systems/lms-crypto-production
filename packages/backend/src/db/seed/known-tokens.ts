@@ -82,7 +82,7 @@ const KNOWN_TOKENS = [
   {
     assetType: "credit_alphanum4" as const,
     assetCode: "AQUA",
-    assetIssuer: "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67TKA",
+    assetIssuer: "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
     homeDomain: "aqua.network",
     tomlName: "Aquarius",
     tomlOrg: "Aquarius",

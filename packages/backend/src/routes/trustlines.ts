@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { stellarClient } from "../lib/stellar-client";
 import { TokenService } from "../modules/tokens/token.service";
+import { authMiddleware } from "../middleware/auth";
 
 const tokenService = new TokenService();
 
@@ -204,6 +205,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // BUILD "ADD TRUSTLINE" TX (returns unsigned XDR)
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/add", {
+      preHandler: authMiddleware,
       schema: {
         description: "Build an unsigned XDR transaction to add a trustline for an asset.",
         tags: ["Trustlines"],
@@ -295,6 +297,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // BUILD "REMOVE TRUSTLINE" TX
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/remove", {
+      preHandler: authMiddleware,
       schema: {
         description: "Build an unsigned XDR transaction to remove a trustline (balance must be zero).",
         tags: ["Trustlines"],
@@ -375,6 +378,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // BUILD "UPDATE TRUSTLINE LIMIT" TX
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/update-limit", {
+      preHandler: authMiddleware,
       schema: {
         description: "Build an unsigned XDR transaction to update a trustline limit.",
         tags: ["Trustlines"],

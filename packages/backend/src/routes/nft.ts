@@ -1,7 +1,10 @@
 import { FastifyInstance } from "fastify";
+import { and, eq } from "drizzle-orm";
 import { nftService } from "../modules/nft/nft.service";
 import { authMiddleware } from "../middleware/auth";
+import { verifyInternalAdmin } from "../middleware/admin-auth";
 import { auditLog } from "../lib/audit";
+import { db, schema } from "../db";
 
 export async function nftRoutes(app: FastifyInstance) {
 
@@ -81,10 +84,10 @@ export async function nftRoutes(app: FastifyInstance) {
         400: { type: "object" as const, properties: { error: { type: "string" as const } } },
       },
     },
-    preHandler: authMiddleware,
+    preHandler: verifyInternalAdmin,
   }, async (request: any, reply) => {
     const body = request.body as any;
-    const userId = request.user!.userId;
+    const userId = request.admin!.id;
 
     if (body.standard === "sep50" && !body.contractId) {
       return reply.status(400).send({ error: "contractId is required for SEP-50 collections" });
@@ -107,11 +110,11 @@ export async function nftRoutes(app: FastifyInstance) {
       creatorAddress: body.creatorAddress || null,
     });
 
-    await auditLog("nft_collection_registered", userId, {
-      collectionId: collection.id,
-      standard: body.standard,
-      contractId: body.contractId,
-    }, request.ip);
+    await auditLog("nft_collection_registered", {
+      userId,
+      detail: { collectionId: collection.id, standard: body.standard, contractId: body.contractId },
+      ip: request.ip,
+    });
 
     return collection;
   });
@@ -304,12 +307,10 @@ export async function nftRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
 
     // Ownership check
-    const { db: database } = await import("../db");
-    const { userWallets } = await import("../db/schema");
-    const [wallet] = await database.select().from(userWallets)
+    const [wallet] = await db.select().from(schema.userWallets)
       .where(and(
-        eq(userWallets.userId, userId),
-        eq(userWallets.publicKey, fromAddress),
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, fromAddress),
       )).limit(1);
 
     if (!wallet) {
@@ -318,7 +319,11 @@ export async function nftRoutes(app: FastifyInstance) {
 
     try {
       const result = await nftService.buildSep50Transfer(contractId, fromAddress, toAddress, tokenId);
-      await auditLog("nft_transfer", userId, { contractId, tokenId, from: fromAddress, to: toAddress }, request.ip);
+      await auditLog("nft_transfer", {
+        userId,
+        detail: { contractId, tokenId, from: fromAddress, to: toAddress },
+        ip: request.ip,
+      });
       return result;
     } catch (err: any) {
       return reply.status(400).send({ error: err.message || "Failed to build transfer" });
@@ -390,11 +395,11 @@ export async function nftRoutes(app: FastifyInstance) {
         attributes,
       });
 
-      await auditLog("nft_mint_indexed", userId, {
-        collectionId,
-        tokenId,
-        owner,
-      }, request.ip);
+      await auditLog("nft_mint_indexed", {
+        userId,
+        detail: { collectionId, tokenId, owner },
+        ip: request.ip,
+      });
 
       return token;
     } catch (err: any) {
@@ -433,7 +438,11 @@ export async function nftRoutes(app: FastifyInstance) {
 
     try {
       const result = await nftService.syncCollectionTokens(collectionId);
-      await auditLog("nft_collection_synced", userId, { collectionId, ...result }, request.ip);
+      await auditLog("nft_collection_synced", {
+        userId,
+        detail: { collectionId, ...result },
+        ip: request.ip,
+      });
       return result;
     } catch (err: any) {
       if (err.message.includes("not found")) {

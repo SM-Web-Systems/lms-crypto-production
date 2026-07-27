@@ -60,12 +60,13 @@ export async function ssoRoutes(app: FastifyInstance) {
         state: string;
       };
 
-      // Validate callback URL against whitelist
+      // Validate callback URL against whitelist (fail-closed: empty = reject all)
       const whitelist = config.SSO_CALLBACK_WHITELIST;
-      if (
-        whitelist.length > 0 &&
-        !whitelist.some((origin: string) => callbackUrl.startsWith(origin))
-      ) {
+      if (whitelist.length === 0) {
+        app.log.error("[sso/token] SSO_CALLBACK_WHITELIST is empty — rejecting all callbacks (fail-closed)");
+        return reply.status(403).send({ error: "SSO callback whitelist not configured" });
+      }
+      if (!whitelist.some((origin: string) => callbackUrl.startsWith(origin))) {
         app.log.warn(`[sso/token] Rejected callback URL not in whitelist: ${callbackUrl}`);
         return reply.status(403).send({ error: "Callback URL not in SSO whitelist" });
       }

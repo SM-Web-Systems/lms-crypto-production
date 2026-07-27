@@ -18,7 +18,11 @@ export type AuditAction =
   | "wallet_add"
   | "wallet_remove"
   | "api_key_create"
-  | "api_key_revoke";
+  | "api_key_revoke"
+  | "nft_collection_registered"
+  | "nft_transfer"
+  | "nft_mint_indexed"
+  | "nft_collection_synced";
 
 export async function auditLog(
   action: AuditAction,

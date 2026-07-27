@@ -22,6 +22,7 @@ import { sendVerificationEmail } from "../lib/email";
 
 import { validatePhoneNumber } from "../lib/phone-validation";
 import { sendSmsVerification, checkSmsVerification } from "../lib/sms";
+import { decryptTotpSecret } from "../lib/totp-crypto";
 
 export async function authRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
@@ -311,7 +312,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       if (!user) {
         await auditLog("login_failed", {
-          userId: user.id,
+          userId: undefined,
           ip: request.ip,
           detail: { identifier: email || phoneNumber },
         });
@@ -402,7 +403,7 @@ export async function authRoutes(app: FastifyInstance) {
           /^\d+$/.test(cleanToken)
         ) {
           twoFaValid = speakeasy.totp.verify({
-            secret: user.twoFaSecret!,
+            secret: decryptTotpSecret(user.twoFaSecret!),
             encoding: "base32",
             token: cleanToken,
             window: 2,
@@ -1406,7 +1407,7 @@ export async function authRoutes(app: FastifyInstance) {
       const hashedPassword = await bcrypt.hash(newPassword, 12);
       await db
         .update(schema.users)
-        .set({ password: hashedPassword })
+        .set({ passwordHash: hashedPassword })
         .where(eq(schema.users.id, user.id));
       // Revoke all refresh tokens
       await db
@@ -1419,7 +1420,11 @@ export async function authRoutes(app: FastifyInstance) {
           .set({ phoneVerified: true })
           .where(eq(schema.users.id, user.id));
       }
-      await auditLog("password_reset", user.id, { method: "sms" }, request.ip);
+      await auditLog("password_reset", {
+        userId: user.id,
+        ip: request.ip,
+        detail: { method: "sms" },
+      });
       return {
         success: true,
         message:

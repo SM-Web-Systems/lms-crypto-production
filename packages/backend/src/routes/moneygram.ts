@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { config } from "../config";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { authMiddleware } from "../middleware/auth";
 
 const RAMPS_URL = config.MONEYGRAM_RAMPS_URL;
 const RAMPS_DOMAIN = config.MONEYGRAM_RAMPS_DOMAIN;
@@ -152,6 +153,7 @@ export async function moneygramRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/moneygram/deposit",
     {
+      preHandler: authMiddleware,
       schema: {
         tags: ["Fiat Ramp"],
         summary: "Start MoneyGram cash-in (deposit USDC)",
@@ -199,6 +201,7 @@ export async function moneygramRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/moneygram/withdraw",
     {
+      preHandler: authMiddleware,
       schema: {
         tags: ["Fiat Ramp"],
         summary: "Start MoneyGram cash-out (withdraw USDC for cash pickup)",
@@ -246,6 +249,7 @@ export async function moneygramRoutes(app: FastifyInstance) {
   app.get(
     "/api/v1/moneygram/transaction/:id",
     {
+      preHandler: authMiddleware,
       schema: {
         tags: ["Fiat Ramp"],
         summary: "Check MoneyGram transaction status",

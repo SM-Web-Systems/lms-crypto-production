@@ -3,6 +3,7 @@ import { db } from "../../db";
 import * as schema from "../../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { validateExternalUrl } from "../../lib/url-validator";
 
 const horizon = new StellarSdk.Horizon.Server(
   config.network === "testnet"
@@ -443,6 +444,7 @@ export class NftService {
             const httpUri = tokenUri.startsWith("ipfs://")
               ? tokenUri.replace("ipfs://", "https://ipfs.io/ipfs/")
               : tokenUri;
+            validateExternalUrl(httpUri); // throws on private/unsafe URLs
             const resp = await fetch(httpUri, { signal: AbortSignal.timeout(10000) });
             if (resp.ok) {
               const metadata = await resp.json();

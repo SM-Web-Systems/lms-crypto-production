@@ -202,6 +202,21 @@ describe("resolveTenantApiKey", () => {
     expect(result?.tenantId).toBeNull();
   });
 
+  it("rejects a key with same length but different content (timing-safe)", async () => {
+    mockDbSelectResult([]); // DB miss
+    // Same length as "legacy_env_key_abc123def456" (26 chars) but different
+    const sameLength = "legacy_env_key_abc123def45X";
+    expect(sameLength.length).toBe("legacy_env_key_abc123def456".length);
+    const result = await resolveTenantApiKey(sameLength);
+    expect(result).toBeUndefined();
+  });
+
+  it("rejects a key with different length (timing-safe, no leak)", async () => {
+    mockDbSelectResult([]); // DB miss
+    const result = await resolveTenantApiKey("short");
+    expect(result).toBeUndefined();
+  });
+
   it("returns undefined when DB throws and key is not in env var", async () => {
     (db.select as ReturnType<typeof vi.fn>).mockReturnValue({
       from: () => ({

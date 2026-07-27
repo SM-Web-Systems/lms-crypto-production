@@ -22,6 +22,53 @@ import { db, schema } from "../db";
 import { eq, and, sql, desc, gt, lt } from "drizzle-orm";
 import { sendEmail } from "../lib/mailer";
 
+// ── String-based decimal arithmetic (7-decimal Stellar precision) ────────────
+// Avoids IEEE 754 floating-point errors on monetary values.
+// All amounts are represented as strings with 7 decimal places.
+
+const STELLAR_DECIMALS = 7;
+const SCALE = 10_000_000n; // 10^7
+
+/** Parse a decimal string to bigint stroops (1 stroop = 0.0000001 XLM). */
+function toStroops(s: string): bigint {
+  const neg = s.startsWith("-");
+  const abs = neg ? s.slice(1) : s;
+  const [whole = "0", frac = ""] = abs.split(".");
+  const paddedFrac = frac.padEnd(STELLAR_DECIMALS, "0").slice(0, STELLAR_DECIMALS);
+  const stroops = BigInt(whole) * SCALE + BigInt(paddedFrac);
+  return neg ? -stroops : stroops;
+}
+
+/** Format bigint stroops back to a 7-decimal string. */
+function fromStroops(stroops: bigint): string {
+  const neg = stroops < 0n;
+  const abs = neg ? -stroops : stroops;
+  const whole = abs / SCALE;
+  const frac = (abs % SCALE).toString().padStart(STELLAR_DECIMALS, "0");
+  return `${neg ? "-" : ""}${whole}.${frac}`;
+}
+
+/** Add two decimal strings with exact precision. */
+export function addDecimalStrings(a: string, b: string): string {
+  return fromStroops(toStroops(a) + toStroops(b));
+}
+
+/** Multiply a decimal string by an integer count. */
+export function mulDecimalStrings(amount: string, count: number): string {
+  return fromStroops(toStroops(amount) * BigInt(count));
+}
+
+/** Negate a decimal string. */
+export function negateDecimalString(s: string): string {
+  return fromStroops(-toStroops(s));
+}
+
+/** Compare two decimal strings. Returns <0, 0, or >0. */
+export function compareDecimalStrings(a: string, b: string): number {
+  const diff = toStroops(a) - toStroops(b);
+  return diff < 0n ? -1 : diff > 0n ? 1 : 0;
+}
+
 // ── Public types ──────────────────────────────────────────────────────────────
 
 export interface BillingPolicy {
@@ -201,23 +248,22 @@ export async function checkWalletBilling(opts: {
     return { ok: false, httpStatus: 503, message: "No billing policy configured for tenant" };
   }
 
-  const balance = parseFloat(state.prepaidXlmBalance);
+  const balanceStr = state.prepaidXlmBalance;
   const walletCount = await countUserWallets(userId);
 
   if (walletCount === 0) {
     // ── new_wallet_activation ───────────────────────────────────────────────
     if (policy.acquisitionModeEnabled) {
-      const debtLimit = parseFloat(policy.acquisitionDebtLimitXlm);
-      if (balance <= debtLimit) {
+      if (compareDecimalStrings(balanceStr, policy.acquisitionDebtLimitXlm) <= 0) {
         return {
           ok: false,
           httpStatus: 402,
-          message: `Acquisition debt limit reached (${debtLimit} XLM). Top up required before new wallet activations.`,
+          message: `Acquisition debt limit reached (${policy.acquisitionDebtLimitXlm} XLM). Top up required before new wallet activations.`,
         };
       }
       // Balance can be negative here — acquisition mode allows it
     } else {
-      if (balance <= 0) {
+      if (compareDecimalStrings(balanceStr, "0") <= 0) {
         return {
           ok: false,
           httpStatus: 402,
@@ -228,14 +274,14 @@ export async function checkWalletBilling(opts: {
 
     // Total debit = wallet_funding + platform_fee (or platform_fee only if funding disabled)
     const useWalletFunding = policy.walletFundingEnabled && policy.walletFundingMode === "auto";
-    const amount = useWalletFunding
-      ? parseFloat(policy.walletFundingXlm) + parseFloat(policy.newWalletPlatformFeeXlm)
-      : parseFloat(policy.newWalletPlatformFeeXlm);
+    const amountStr = useWalletFunding
+      ? addDecimalStrings(policy.walletFundingXlm, policy.newWalletPlatformFeeXlm)
+      : policy.newWalletPlatformFeeXlm;
 
     return {
       ok: true,
       eventType: "new_wallet_activation",
-      amountXlm: (-amount).toFixed(7),
+      amountXlm: negateDecimalString(amountStr),
       policy,
     };
   } else {
@@ -249,7 +295,7 @@ export async function checkWalletBilling(opts: {
       return { ok: true, eventType: "idempotent_skip" };
     }
 
-    if (balance <= 0) {
+    if (compareDecimalStrings(balanceStr, "0") <= 0) {
       return {
         ok: false,
         httpStatus: 402,
@@ -260,7 +306,7 @@ export async function checkWalletBilling(opts: {
     return {
       ok: true,
       eventType: "existing_user_onboarding",
-      amountXlm: (-parseFloat(policy.onboardingFeeXlm)).toFixed(7),
+      amountXlm: negateDecimalString(policy.onboardingFeeXlm),
       policy,
     };
   }
@@ -461,11 +507,10 @@ export async function runMonthlyMaintenanceForTenant(
   const activeUserCount = await getActiveUserCount(tenantId, policy.activityWindowDays);
   if (activeUserCount === 0) return null;
 
-  const feePerUser = parseFloat(policy.monthlyFeePerActiveUser);
-  const totalCharge = activeUserCount * feePerUser;
-  const amountStr = (-totalCharge).toFixed(7);
-  const totalStr = totalCharge.toFixed(7);
-  const feeStr = feePerUser.toFixed(4);
+  const totalChargeStr = mulDecimalStrings(policy.monthlyFeePerActiveUser, activeUserCount);
+  const amountStr = negateDecimalString(totalChargeStr);
+  const totalStr = totalChargeStr;
+  const feeStr = policy.monthlyFeePerActiveUser;
 
   const result = await db.transaction(async (tx) => {
     const debitResult = await writeBillingDebit(tx, {

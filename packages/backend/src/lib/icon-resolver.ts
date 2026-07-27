@@ -6,6 +6,7 @@ import path from 'path';
 import { db } from '../db';
 import { tokens } from '../db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
+import { validateExternalUrl } from './url-validator';
 
 const ICON_DIR = path.resolve(__dirname, '../../assets/icons');
 
@@ -173,6 +174,12 @@ export async function syncAllIcons(): Promise<void> {
           : `${token.assetCode.toLowerCase()}.png`;
         const localPath = path.join(ICON_DIR, filename);
 
+        try {
+          validateExternalUrl(token.tomlImage);
+        } catch {
+          // Skip unsafe TOML image URLs
+          continue;
+        }
         const resp = await fetch(token.tomlImage, {
           signal: AbortSignal.timeout(5000),
         });
