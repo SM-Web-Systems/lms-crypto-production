@@ -97,6 +97,27 @@ export function _clearRateLimitWindowsForTest(): void {
   rateLimitWindows.clear();
 }
 
+// ── Timing-safe helpers ──────────────────────────────────────────────────────
+
+/**
+ * Timing-safe check: does `list` contain an entry equal to `candidate`?
+ * Uses crypto.timingSafeEqual to prevent timing side-channels on env-var keys.
+ * Length mismatch short-circuits (no timing leak — length is not a secret).
+ */
+function timingSafeIncludes(list: string[], candidate: string): boolean {
+  const candidateBuf = Buffer.from(candidate);
+  for (const entry of list) {
+    const entryBuf = Buffer.from(entry);
+    if (
+      candidateBuf.length === entryBuf.length &&
+      crypto.timingSafeEqual(candidateBuf, entryBuf)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
 /** SHA-256 hex digest of a raw API key. This is what's stored in tenant_api_keys.key_hash. */
@@ -162,7 +183,7 @@ export async function resolveTenantApiKey(
   // ── 2. Env var fallback (legacy bridge) ─────────────────────────────────────
   // Kept to support the LMS API key as a DB-outage guard.
   // Env keys are scope-exempt and have no tenant context (billing skipped).
-  if (config.API_KEYS.includes(rawKey)) {
+  if (timingSafeIncludes(config.API_KEYS, rawKey)) {
     return {
       source: "env",
       tenantId: null,
