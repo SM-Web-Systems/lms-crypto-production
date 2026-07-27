@@ -1,6 +1,7 @@
 import { db } from "../db/index";
 import { tokens } from "../db/schema";
 import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { validateExternalUrl } from "./url-validator";
 
 // Simple TOML parser for stellar.toml [[CURRENCIES]] image field
 function extractCurrencyImage(
@@ -47,6 +48,12 @@ export async function syncTomlImages() {
 
     try {
         const url = `https://${token.homeDomain}/.well-known/stellar.toml`;
+        try {
+          validateExternalUrl(url);
+        } catch (err: any) {
+          console.warn(`[toml-sync] Skipping unsafe URL for ${token.assetCode}: ${err.message}`);
+          continue;
+        }
         const res = await fetch(url, {
         signal: AbortSignal.timeout(10_000),
         headers: { Accept: "text/plain" },
