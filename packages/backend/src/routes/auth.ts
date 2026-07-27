@@ -1026,7 +1026,7 @@ export async function authRoutes(app: FastifyInstance) {
         await revokeAllUserTokens(record.user_id);
 
         await auditLog("password_reset", {
-          userId: record.userId,
+          userId: record.user_id,
           ip: request.ip,
         });
         return {
