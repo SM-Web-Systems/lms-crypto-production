@@ -371,7 +371,7 @@ export async function authRoutes(app: FastifyInstance) {
           // For email method, send a code automatically
           if (method === "email" && user.email) {
             const { send2FACode } = await import("../lib/mailer");
-            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const code = crypto.randomInt(100000, 1000000).toString();
             const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
             await db.insert(schema.emailCodes).values({
               userId: user.id,
