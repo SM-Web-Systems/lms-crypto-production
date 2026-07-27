@@ -962,8 +962,9 @@
 
 ---
 
-### P2-2-F1: SSRF via homeDomain in TOML fetch
+### P2-2-F1: SSRF via homeDomain in TOML fetch — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — added `validateExternalUrl()` before fetch in toml-sync.ts (commit e86e974)
 - **File:** `packages/backend/src/lib/toml-sync.ts:49`
 - **Description:** `homeDomain` from Horizon/StellarExpert data is used to construct `https://${homeDomain}/.well-known/stellar.toml` with no domain validation. A malicious asset issuer can set `home_domain` to internal hostnames (`169.254.169.254`, `localhost`, `10.0.0.1`), causing SSRF against internal network services.
 - **Evidence:**
@@ -1231,7 +1232,7 @@
 | P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet |
 | P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
 | P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
-| P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch |
+| P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
 | P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation |
 | P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty |
 | P2-5-F1 | MEDIUM | `schema/index.ts:295` | addressBook.userId has no FK constraint or index |
@@ -1277,7 +1278,7 @@
 | P3-1-F1 | **HIGH** | `nft.ts:110-114` | Wrong auditLog signature — `nft_collection_registered` uses positional args instead of opts object. userId, detail, ip silently lost. |
 | P3-1-F2 | **HIGH** | `nft.ts:321` | Wrong auditLog signature — `nft_transfer` uses positional args. Transfer audit trail silently incomplete. |
 | P3-1-F3 | **HIGH** | `nft.ts:393-397` | Wrong auditLog signature — `nft_mint_indexed` uses positional args. Mint audit trail silently incomplete. |
-| P3-1-F4 | **HIGH** | `nft.ts:436` | Wrong auditLog signature — `nft_collection_synced` uses positional args. Sync audit trail silently incomplete. |
+| P3-1-F4 | **HIGH** | `nft.ts:436` | Wrong auditLog signature — `nft_collection_synced` uses positional args. Sync audit trail silently incomplete. **FIXED — 3846cc6** (all 4 auditLog calls fixed) |
 | P3-1-F5 | **HIGH** | `nft.ts:307-313` | Missing import — `and` and `eq` from drizzle-orm never imported. Transfer endpoint will throw ReferenceError at runtime. Entire transfer feature is non-functional. |
 | P3-1-F6 | MEDIUM | `nft.ts:59-117` | No role check — any authenticated user can register NFT collections. No creator/admin gate. |
 | P3-1-F7 | MEDIUM | `nft.ts:331-403` | No role/ownership check — any authenticated user can index tokens into any collection with arbitrary owner addresses. On-chain verification falls through on error. |
@@ -1286,7 +1287,7 @@
 | P3-1-F10 | MEDIUM | `nft.service.ts:13-15` | Soroban RPC URL fallback defaults to testnet regardless of `config.network`. Mainnet deployment without `SOROBAN_RPC_URL` silently queries testnet. |
 | P3-1-F11 | LOW | `nft.ts:323-324,401,442` | Raw error.message exposed to client on transfer/mint/sync failures. |
 | P3-1-F12 | LOW | `nft.ts:59,273,331` | No rate limiting on POST /collections, POST /transfer, POST /mint. |
-| P3-1-F13 | LOW | `nft.service.ts:440-461` | SSRF risk via tokenUri — sync fetches arbitrary URLs from on-chain token_uri values. No scheme/host validation. |
+| P3-1-F13 | LOW | `nft.service.ts:440-461` | SSRF risk via tokenUri — sync fetches arbitrary URLs from on-chain token_uri values. No scheme/host validation. **FIXED — e86e974** |
 | P3-1-F14 | INFO | `nft.ts:34,86,149,186,263,303,359` | Pervasive `as any` type casts suppress TypeScript safety. |
 | P3-1-F15 | INFO | `nft.service.ts:107` | attributes field accepts arbitrary unvalidated JSON stored in JSONB. No size/shape validation. |
 
@@ -1397,8 +1398,8 @@
 |----|----------|------|---------|
 | P3-7-F1 | **CRITICAL** | `two-fa.ts:116` | TOTP secret stored in plaintext in `twoFaSecret` column. DB compromise exposes all 2FA secrets — attacker can generate valid TOTP codes for every user. Should use AES-256-GCM envelope encryption. **FIXED — baa690e** |
 | P3-7-F2 | **HIGH** | `two-fa.ts:19` | Backup codes hashed with SHA-256 instead of bcrypt. 32-bit codes are brute-forceable in seconds on a GPU against SHA-256. |
-| P3-7-F3 | **HIGH** | `two-fa.ts:250` | No timing-safe comparison for backup codes, static codes, or email codes. JavaScript `===` and `indexOf` vulnerable to timing attacks. TOTP (speakeasy) is safe. |
-| P3-7-F4 | **HIGH** | `two-fa.ts:184` | No rate limiting on /2fa/verify and /2fa/disable. TOTP is 6 digits with window:2 (5 valid codes). Brute-force feasible without rate limiting. |
+| P3-7-F3 | **HIGH** | `two-fa.ts:250` | No timing-safe comparison for backup codes, static codes, or email codes. JavaScript `===` and `indexOf` vulnerable to timing attacks. TOTP (speakeasy) is safe. **FIXED — 782a1f3** |
+| P3-7-F4 | **HIGH** | `two-fa.ts:184` | No rate limiting on /2fa/verify and /2fa/disable. TOTP is 6 digits with window:2 (5 valid codes). Brute-force feasible without rate limiting. **FIXED — 782a1f3** |
 | P3-7-F5 | **HIGH** | `two-fa.ts:23` | Email 2FA code generated with `Math.random()` — not cryptographically secure. Should use `crypto.randomInt()`. |
 | P3-7-F6 | MEDIUM | `two-fa.ts:297` | /2fa/send-email-code endpoint is unauthenticated with no rate limiting. Enables email flood / SMTP quota abuse. |
 | P3-7-F7 | MEDIUM | `two-fa.ts:334` | Email codes stored as plaintext in database. Should be hashed. |
@@ -1834,8 +1835,9 @@
 - **File:** `packages/backend/src/lib/stellar-client.ts:21-35`
 - **Description:** Correctly branches on `config.STELLAR_NETWORK`. Uses SDK constants for passphrases. Minor note: mainnet RPC falls back to a config default that points to testnet RPC if `SOROBAN_RPC_URL` is unset.
 
-#### P4-7-F5: SSRF via token.tomlImage in icon-resolver — MEDIUM
+#### P4-7-F5: SSRF via token.tomlImage in icon-resolver — MEDIUM — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — added `validateExternalUrl()` before fetch in icon-resolver.ts (commit e86e974)
 - **File:** `packages/backend/src/lib/icon-resolver.ts:176`
 - **Description:** TOML fallback path fetches `token.tomlImage` which was stored from an external `stellar.toml` file. Attacker-controlled URL fetched without any validation. Confirms P2-2 finding. Could target AWS metadata endpoints or internal services.
 
@@ -1844,8 +1846,9 @@
 - **File:** `packages/backend/src/lib/icon-resolver.ts:102,111,176`
 - **Description:** Both fetch calls use `response.arrayBuffer()` with no maximum size limit. 5-second timeout exists but a multi-gigabyte file on a fast network could cause OOM.
 
-#### P4-7-F7: SSRF via token.homeDomain in toml-sync — MEDIUM
+#### P4-7-F7: SSRF via token.homeDomain in toml-sync — MEDIUM — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — added `validateExternalUrl()` before fetch in toml-sync.ts (commit e86e974)
 - **File:** `packages/backend/src/lib/toml-sync.ts:49-50`
 - **Description:** `homeDomain` from Stellar Horizon can be set by any account holder. Code constructs URL as `https://${token.homeDomain}/.well-known/stellar.toml` without validating hostname resolves to a public IP. Confirms P2-2 finding.
 
@@ -1899,8 +1902,9 @@
 - **File:** `packages/backend/Dockerfile:1-17`
 - **Description:** No `USER` directive. The `CMD` process (`npx tsx`) runs as UID 0. If an attacker achieves RCE, they have full root privileges within the container.
 
-#### P4-8-F3: No multi-stage build; devDependencies in final image — HIGH
+#### P4-8-F3: No multi-stage build; devDependencies in final image — HIGH — FIXED
 - **Severity:** HIGH
+- **Status:** FIXED — multi-stage Dockerfile: deps stage with `npm ci --omit=dev`, production stage copies only `src/` and production `node_modules` (commit c448d04)
 - **File:** `packages/backend/Dockerfile:6-10`
 - **Description:** `npm ci` installs all dependencies (including vitest, drizzle-kit, sharp). `COPY . .` copies the entire backend directory (tests, seed scripts, drizzle config) into the runtime image. DevDependencies increase attack surface and image size.
 
@@ -1970,8 +1974,9 @@
 
 ---
 
-#### P4-9-F1: Auth routes have near-zero test coverage — CRITICAL
+#### P4-9-F1: Auth routes have near-zero test coverage — CRITICAL — FIXED
 - **Severity:** CRITICAL
+- **Status:** FIXED — added 22 critical-path auth route tests covering register, login (with 2FA), refresh, logout, /me, change-password, forgot/reset password, verify email (commit 277c535)
 - **File:** `packages/backend/src/routes/auth.ts`
 - **Description:** The auth module handles registration, login, email verification, refresh token rotation, password reset (email and SMS), 2FA setup/verify, change password, and logout. Only 3 regression tests exist (in `auth-critical-fixes.test.ts`), covering specific P0-1 bug fixes. All other auth routes have zero coverage. Auth is the most security-critical module in the system.
 
