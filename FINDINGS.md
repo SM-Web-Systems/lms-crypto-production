@@ -1268,3 +1268,251 @@
 
 ---
 
+## P3 — LOWER: NFT, Earn, Portfolio, Fiat, MoneyGram, Contacts, 2FA, Push, Curated Tokens, Frontend
+
+### P3-1: NFT Collection + Minting
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-1-F1 | **HIGH** | `nft.ts:110-114` | Wrong auditLog signature — `nft_collection_registered` uses positional args instead of opts object. userId, detail, ip silently lost. |
+| P3-1-F2 | **HIGH** | `nft.ts:321` | Wrong auditLog signature — `nft_transfer` uses positional args. Transfer audit trail silently incomplete. |
+| P3-1-F3 | **HIGH** | `nft.ts:393-397` | Wrong auditLog signature — `nft_mint_indexed` uses positional args. Mint audit trail silently incomplete. |
+| P3-1-F4 | **HIGH** | `nft.ts:436` | Wrong auditLog signature — `nft_collection_synced` uses positional args. Sync audit trail silently incomplete. |
+| P3-1-F5 | **HIGH** | `nft.ts:307-313` | Missing import — `and` and `eq` from drizzle-orm never imported. Transfer endpoint will throw ReferenceError at runtime. Entire transfer feature is non-functional. |
+| P3-1-F6 | MEDIUM | `nft.ts:59-117` | No role check — any authenticated user can register NFT collections. No creator/admin gate. |
+| P3-1-F7 | MEDIUM | `nft.ts:331-403` | No role/ownership check — any authenticated user can index tokens into any collection with arbitrary owner addresses. On-chain verification falls through on error. |
+| P3-1-F8 | MEDIUM | `nft.ts:405-444` | No role check — any authenticated user can trigger expensive sync operations (Soroban RPC + IPFS). Rate limit (5/min) partially mitigates. |
+| P3-1-F9 | MEDIUM | `nft.ts:68,282` | No format validation on contractId or publicKey params. Arbitrary strings forwarded to Stellar SDK and DB queries. |
+| P3-1-F10 | MEDIUM | `nft.service.ts:13-15` | Soroban RPC URL fallback defaults to testnet regardless of `config.network`. Mainnet deployment without `SOROBAN_RPC_URL` silently queries testnet. |
+| P3-1-F11 | LOW | `nft.ts:323-324,401,442` | Raw error.message exposed to client on transfer/mint/sync failures. |
+| P3-1-F12 | LOW | `nft.ts:59,273,331` | No rate limiting on POST /collections, POST /transfer, POST /mint. |
+| P3-1-F13 | LOW | `nft.service.ts:440-461` | SSRF risk via tokenUri — sync fetches arbitrary URLs from on-chain token_uri values. No scheme/host validation. |
+| P3-1-F14 | INFO | `nft.ts:34,86,149,186,263,303,359` | Pervasive `as any` type casts suppress TypeScript safety. |
+| P3-1-F15 | INFO | `nft.service.ts:107` | attributes field accepts arbitrary unvalidated JSON stored in JSONB. No size/shape validation. |
+
+**P3-1 Totals: 15 findings — 0 CRITICAL, 5 HIGH, 5 MEDIUM, 3 LOW, 2 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-2: Earn (Staking/Rewards)
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-2-F1 | **CRITICAL** | `earn.ts:147` | POST /earn/deposit missing authMiddleware. Any unauthenticated caller can build deposit transactions for any publicKey. No rate limit on this endpoint. |
+| P3-2-F2 | **CRITICAL** | `earn.ts:216` | POST /earn/withdraw missing authMiddleware. Any unauthenticated caller can build withdrawal transactions for any publicKey. No rate limit on this endpoint. |
+| P3-2-F3 | **HIGH** | `earn.ts:72` | GET /earn/positions/:publicKey missing authMiddleware. Exposes LP share balances, percentage ownership, and per-asset amounts for any Stellar public key without authentication. |
+| P3-2-F4 | **HIGH** | `earn.ts:147,216` | No rate limiting on deposit and withdraw endpoints. Enables DoS amplification via unlimited Horizon API proxy calls. |
+| P3-2-F5 | **HIGH** | `earn.ts:10` | GET /earn/pools unauthenticated (no authMiddleware). Functions as open proxy to Horizon liquidity pool API. Rate limited at 20/min partially mitigates. |
+| P3-2-F6 | MEDIUM | `earn.ts:65-66,140,209,275` | Raw error.message exposed in error responses. Horizon SDK errors may contain internal URLs, account IDs, or stack traces. |
+| P3-2-F7 | MEDIUM | `earn.ts:147,216` | No user isolation on deposit/withdraw — publicKey not verified against authenticated user's wallets. Any user can build transactions targeting another user's account. |
+| P3-2-F8 | MEDIUM | `earn.ts:36` | Input validation uses `as any` casts instead of Zod schemas. No format validation on publicKey. Limit param has no minimum bound. |
+| P3-2-F9 | MEDIUM | `earn.ts:75` | Rate limit on positions endpoint set to 30/min, exceeds 20/min spec. |
+| P3-2-F10 | LOW | `earn.ts:65,140,209,275` | Errors return HTTP 200 with error field instead of proper status codes (400/500). |
+| P3-2-F11 | INFO | `earn.ts:46` | Inefficient pool filtering — fetches up to 200 records and filters client-side instead of using `forAssets()`. |
+
+**P3-2 Totals: 11 findings — 2 CRITICAL, 3 HIGH, 4 MEDIUM, 1 LOW, 1 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-3: Portfolio Tracking
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-3-F1 | MEDIUM | `portfolio.ts:53` | Silent swallow of Horizon API errors. Empty catch block proceeds with empty balances, writes false $0 snapshots to DB. Corrupts portfolio history. |
+| P3-3-F2 | MEDIUM | `portfolio.ts:56-61` | Silent swallow of CoinGecko price API errors. Hardcoded fallback `xlmUsd = 0.09` used without logging. Produces incorrect USD valuations stored permanently. |
+| P3-3-F3 | MEDIUM | `portfolio.ts:11` | No rate limiting on POST /snapshot. Authenticated user can spam unlimited DB rows and hammer Horizon + CoinGecko APIs. |
+| P3-3-F4 | LOW | `portfolio.ts:45` | Horizon URL fallback defaults to testnet. If HORIZON_URL unset, mainnet accounts query testnet and record zero balances. |
+| P3-3-F5 | LOW | `portfolio.ts:48` | No timeout on external HTTP fetches (Horizon, CoinGecko). Bare `fetch()` can block Fastify worker thread indefinitely. |
+| P3-3-F6 | LOW | `portfolio.ts:138` | No upper-bound validation on `days` query parameter. User can pass `days=999999` for expensive DB scan (result capped at 200 rows). |
+| P3-3-F7 | LOW | `portfolio.ts:69` | XLM identification uses `code === "XLM" || asset_type === "native"`. Custom asset with code "XLM" would be mispriced as native. |
+| P3-3-F8 | INFO | `portfolio.ts:231` | Unused `current` parameter in `calcChange` function reads from outer closure instead. Dead code. |
+
+**P3-3 Totals: 8 findings — 0 CRITICAL, 0 HIGH, 3 MEDIUM, 4 LOW, 1 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-4: Fiat Ramps (Stripe + Transak)
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-4-F1 | **HIGH** | `fiat.ts:281-285,357-362` | Wrong auditLog signature — `fiat_stripe_session` and `fiat_transak_url` use positional args. userId, detail, ip silently lost. Action strings also not in AuditAction union. |
+| P3-4-F2 | **HIGH** | `fiat.ts:275` | Stripe API error message forwarded to client. Stripe errors can contain internal details (rate limit info, account config). |
+| P3-4-F3 | MEDIUM | `fiat.ts:10` | /fiat/providers endpoint unauthenticated. Leaks enabled/disabled state of payment providers. Minor info disclosure. |
+| P3-4-F4 | MEDIUM | `fiat.ts:142` | CoinGecko fetch has no timeout. Silent fallback to hardcoded $0.09 price without logging. Users get stale quotes with no indication. |
+| P3-4-F5 | MEDIUM | `fiat.ts:137` | No input validation bounds on fiatAmount (negative/extreme values accepted) or fiatCurrency (arbitrary strings accepted). |
+| P3-4-F6 | LOW | `fiat.ts:251` | No Stellar address format validation on walletAddress before passing to Stripe. |
+| P3-4-F7 | LOW | `fiat.ts:335` | No Stellar address format validation on walletAddress before embedding in Transak URL. |
+| P3-4-F8 | LOW | `fiat.ts:369-407` | Legacy buy/sell endpoints have no rate limiting. |
+| P3-4-F9 | INFO | `fiat.ts:289` | Stripe publishable key returned in response — by design, acceptable. |
+| P3-4-F10 | INFO | `fiat.ts:341` | Transak API key in generated URL — by design, public widget key. |
+
+**P3-4 Totals: 10 findings — 0 CRITICAL, 2 HIGH, 3 MEDIUM, 3 LOW, 2 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-5: MoneyGram Integration
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-5-F1 | **CRITICAL** | `moneygram.ts:152-196` | POST /deposit has NO authMiddleware. Any unauthenticated caller can trigger SEP-10 auth using the server's signing key. No rate limit. |
+| P3-5-F2 | **CRITICAL** | `moneygram.ts:199-243` | POST /withdraw has NO authMiddleware. Same as P3-5-F1 — unauthenticated access to server signing key operations. |
+| P3-5-F3 | **HIGH** | `moneygram.ts:193,240,291` | Raw error.message from SEP-10/SEP-24 flow exposed to client. MoneyGram API errors may contain internal details. |
+| P3-5-F4 | **HIGH** | `moneygram.ts:146` | SIGNING_SECRET_KEY existence leaked via boolean `status` field on unauthenticated /info endpoint. |
+| P3-5-F5 | **HIGH** | `moneygram.ts:9-50` | No timeout on any external SEP-10/SEP-24 fetch calls. Hanging upstream blocks worker thread indefinitely. |
+| P3-5-F6 | **HIGH** | `moneygram.ts:180` | No Stellar public key validation on publicKey param. Arbitrary strings forwarded to MoneyGram SEP-10 endpoint. |
+| P3-5-F7 | MEDIUM | `moneygram.ts:102-295` | Zero audit logging on any MoneyGram operation (deposit, withdraw, transaction status). Financial operations should always be logged. |
+| P3-5-F8 | MEDIUM | `moneygram.ts:152-243` | No rate limiting on deposit/withdraw. Combined with missing auth, enables unlimited SEP-10 request flooding. |
+| P3-5-F9 | MEDIUM | `moneygram.ts:280` | publicKey accepted as query parameter without schema validation. Missing param returns 200 with error instead of 400. |
+| P3-5-F10 | LOW | `moneygram.ts:192-193,240,291` | Error responses return HTTP 200 with error field instead of proper 4xx/5xx status codes. |
+
+**P3-5 Totals: 10 findings — 2 CRITICAL, 4 HIGH, 3 MEDIUM, 1 LOW, 0 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-6: Contacts / Address Book
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-6-F1 | **CRITICAL** | `contacts.ts:34,62,102,130` | userId read from `(request as any).userId` — always undefined. Auth middleware sets `request.user`, not `request.userId`. All 4 CRUD operations broken: GET returns empty, POST inserts orphaned records, PATCH/DELETE silently no-op. |
+| P3-6-F2 | MEDIUM | `contacts.ts:50` | No Stellar address format validation beyond 56-char length. Any 56-char garbage string accepted. |
+| P3-6-F3 | MEDIUM | `contacts.ts:104` | PATCH uses spread `...updates` without `additionalProperties: false`. Caller could inject `userId` or other columns into update payload. |
+| P3-6-F4 | LOW | `contacts.ts:9-138` | No route-level rate limiting on any contacts CRUD operation. |
+| P3-6-F5 | LOW | `contacts.ts:129-137` | DELETE returns 200 even when contact doesn't exist (no rowCount check). |
+| P3-6-F6 | LOW | `schema/index.ts:295` | addressBook.userId has no FK constraint to users.id. Orphaned rows on user deletion. (Cross-ref P2-5-F5) |
+| P3-6-F7 | INFO | `contacts.ts:34` | Unsafe `as any` cast — should use typed `request.user!.userId` for TypeScript safety. |
+
+**P3-6 Totals: 7 findings — 1 CRITICAL, 0 HIGH, 2 MEDIUM, 3 LOW, 1 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-7: 2FA Routes
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-7-F1 | **CRITICAL** | `two-fa.ts:116` | TOTP secret stored in plaintext in `twoFaSecret` column. DB compromise exposes all 2FA secrets — attacker can generate valid TOTP codes for every user. Should use AES-256-GCM envelope encryption. |
+| P3-7-F2 | **HIGH** | `two-fa.ts:19` | Backup codes hashed with SHA-256 instead of bcrypt. 32-bit codes are brute-forceable in seconds on a GPU against SHA-256. |
+| P3-7-F3 | **HIGH** | `two-fa.ts:250` | No timing-safe comparison for backup codes, static codes, or email codes. JavaScript `===` and `indexOf` vulnerable to timing attacks. TOTP (speakeasy) is safe. |
+| P3-7-F4 | **HIGH** | `two-fa.ts:184` | No rate limiting on /2fa/verify and /2fa/disable. TOTP is 6 digits with window:2 (5 valid codes). Brute-force feasible without rate limiting. |
+| P3-7-F5 | **HIGH** | `two-fa.ts:23` | Email 2FA code generated with `Math.random()` — not cryptographically secure. Should use `crypto.randomInt()`. |
+| P3-7-F6 | MEDIUM | `two-fa.ts:297` | /2fa/send-email-code endpoint is unauthenticated with no rate limiting. Enables email flood / SMTP quota abuse. |
+| P3-7-F7 | MEDIUM | `two-fa.ts:334` | Email codes stored as plaintext in database. Should be hashed. |
+| P3-7-F8 | MEDIUM | `two-fa.ts:62` | 2FA setup does not require password confirmation. Stolen session → attacker can set up their own 2FA, locking real user out. Disable correctly requires password. |
+| P3-7-F9 | MEDIUM | `two-fa.ts:10-13` | Backup codes have only 32 bits of entropy (4 bytes = 8 hex chars). Industry standard is 40+ bits with bcrypt hashing. |
+| P3-7-F10 | LOW | `two-fa.ts:237-242` | TOTP window:2 is generous — accepts codes from 150-second window (5 valid codes at any time). Standard is window:1 (90s, 3 codes). |
+| P3-7-F11 | LOW | `two-fa.ts:141-146` | Old email codes not invalidated when new code generated. Multiple valid codes can accumulate. |
+| P3-7-F12 | INFO | `two-fa.ts:434` | SELECT * from users table loads entire row including passwordHash, twoFaSecret into memory. Should select only needed columns. |
+
+**P3-7 Totals: 12 findings — 1 CRITICAL, 4 HIGH, 4 MEDIUM, 2 LOW, 1 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-8: Push Notifications
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-8-F1 | **HIGH** | `push.ts:81-83` | Subscription takeover via `onConflictDoUpdate` — overwrites userId on endpoint conflict. Any user knowing another's push endpoint URL can redirect their notifications. Endpoint URLs are browser-generated (hard to guess) so risk is reduced from CRITICAL to HIGH. |
+| P3-8-F2 | MEDIUM | `push.ts:51` | No validation on endpoint URL format. Arbitrary strings stored as push endpoints. Could cause SSRF-like behavior when web-push POSTs to them. |
+| P3-8-F3 | LOW | `push.ts:127-183` | No route-level rate limit on /push/test. User can trigger 60 push sends/minute via global limit. |
+| P3-8-F4 | LOW | `push.ts:40-88` | No limit on number of subscriptions per user. Unlimited registration → resource exhaustion on send. |
+| P3-8-F5 | INFO | `push.ts:189` | `sendPushToUser` data payload typed as `any`. Risk of accidental sensitive data in push payloads. |
+
+**P3-8 Totals: 5 findings — 0 CRITICAL, 1 HIGH, 1 MEDIUM, 2 LOW, 1 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-9: Curated Tokens
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-9-F1 | **HIGH** | `curated-tokens.ts:72-138` | POST /tokens/curated/seed has no authMiddleware. Any unauthenticated caller can trigger DB writes. Data comes from bundled JSON (limiting injection risk) but should be admin-only. |
+| P3-9-F2 | LOW | `curated-tokens.ts:72-138` | No rate limit on /seed. Each invocation iterates full token list with N DB reads + writes. DoS via database load. |
+| P3-9-F3 | INFO | `curated-tokens.ts:13-69` | GET /tokens/curated is public (no auth) — correct by design for public token directory. |
+| P3-9-F4 | INFO | `curated-tokens.ts:54` | Query param uses `as any` cast. Category param has no enum constraint (low risk, in-memory filter). |
+
+**P3-9 Totals: 4 findings — 0 CRITICAL, 1 HIGH, 1 LOW, 2 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-10: Frontend — Dashboard, Tokens, Send, Receive, Swap, History
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-10-F1 | **HIGH** | `Send.tsx:104-107` | Debug console.log statements leak transaction XDR and network passphrase in production. Reveals transaction structure to anyone with DevTools. |
+| P3-10-F2 | MEDIUM | `Swap.tsx:145` | console.error logs full Stellar error object which can contain account details and operation result codes. |
+| P3-10-F3 | MEDIUM | `Send.tsx:170-177` | Amount input allows negative values via direct typing despite min="0". Server-side validation catches but no pre-submit balance check. |
+| P3-10-F4 | MEDIUM | `Send.tsx:30-48` | No transaction preview/confirmation step before signing. Send goes directly from form to execution without review modal. |
+| P3-10-F5 | LOW | `Send.tsx:128` | Floating-point fee calculation may produce precision artifacts. Uses parseFloat arithmetic instead of decimal library. |
+| P3-10-F6 | LOW | `Swap.tsx:78-83` | useMemo with side effect (setState inside useMemo). React anti-pattern causing unpredictable renders. |
+| P3-10-F7 | LOW | `Swap.tsx:116` | Swap slippage tolerance hardcoded at 1% with no user control. |
+| P3-10-F8 | INFO | `Receive.tsx:188` | Amount input has no upper bound. Only affects payment request QR code generation, not actual transactions. |
+| P3-10-F9 | INFO | `TokenDetail.tsx:144` | Secret key correctly passed to buildTrustlineTx and goes out of scope. Correct pattern — noted for completeness. |
+
+**P3-10 Totals: 9 findings — 0 CRITICAL, 1 HIGH, 3 MEDIUM, 3 LOW, 2 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-11: Frontend — Settings, API Keys, Onboarding
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-11-F1 | LOW | `Settings.tsx:705` | Encrypted mnemonic stored in localStorage. Value is ciphertext (acceptable tradeoff) but persists across sessions. |
+| P3-11-F2 | LOW | `Settings.tsx:48` | Revealed secret key held in React state with no auto-hide timeout. Remains in memory and DOM until user manually hides. |
+| P3-11-F3 | INFO | `Settings.tsx:79-84` | Secret key copied to clipboard without auto-clear. System clipboard retains secret indefinitely. |
+| P3-11-F4 | INFO | `ApiKeys.tsx:302-315` | API key eye-toggle reveals stored preview (partial data). Full raw key only shown in creation banner — correct "shown once" behavior. |
+| P3-11-F5 | INFO | `Onboarding.tsx:417-425` | Mnemonic backup step has "I've saved" button but next step correctly requires typing full phrase. Flow is correct. |
+| P3-11-F6 | MEDIUM | `Onboarding.tsx:561-569` | Mnemonic import textarea uses plaintext (not password type). Shoulder-surfing risk. Secret key import field correctly uses type="password". |
+| P3-11-F7 | INFO | `Settings.tsx:193` | `(active as any).isHD` type assertion bypasses TypeScript checking. |
+
+**P3-11 Totals: 7 findings — 0 CRITICAL, 0 HIGH, 1 MEDIUM, 2 LOW, 4 INFO**
+**Test verdict: No Coverage**
+
+---
+
+### P3-12: Frontend — Admin Console
+
+| ID | Severity | File | Finding |
+|----|----------|------|---------|
+| P3-12-F1 | MEDIUM | `AdminLogin.tsx:38` | Admin info stored in sessionStorage as unvalidated JSON. User could tamper with `aw_admin_info` to change displayed role/unlock UI buttons. Server enforces authorization but UI gating is client-side only. |
+| P3-12-F2 | INFO | `App.tsx:107-110` | Admin routes lack shared route guard wrapper. Each page checks sessionStorage independently — correct but duplicated. |
+| P3-12-F3 | INFO | `AdminConsole.tsx:39` | Empty Authorization header sent when no token (`""` instead of omitting header). Benign. |
+| P3-12-F4 | INFO | `AdminTenantDetail.tsx:588` | Credit amount input allows negative typing but `handlePostCredit` correctly rejects `amount <= 0`. Server-side also validates. |
+| P3-12-F5 | INFO | `AdminAdmins.tsx:141-163` | Invite password minimum is 8 chars but reset password minimum is 12 chars. Inconsistent enforcement. |
+
+**P3-12 Totals: 5 findings — 0 CRITICAL, 0 HIGH, 1 MEDIUM, 0 LOW, 4 INFO**
+**Test verdict: No Coverage**
+
+---
+
+## P3 Tier Summary
+
+| Module | Findings | CRITICALs | HIGHs | MEDIUMs | LOWs | INFOs |
+|--------|----------|-----------|-------|---------|------|-------|
+| P3-1: NFT | 15 | 0 | 5 | 5 | 3 | 2 |
+| P3-2: Earn | 11 | 2 | 3 | 4 | 1 | 1 |
+| P3-3: Portfolio | 8 | 0 | 0 | 3 | 4 | 1 |
+| P3-4: Fiat | 10 | 0 | 2 | 3 | 3 | 2 |
+| P3-5: MoneyGram | 10 | 2 | 4 | 3 | 1 | 0 |
+| P3-6: Contacts | 7 | 1 | 0 | 2 | 3 | 1 |
+| P3-7: 2FA | 12 | 1 | 4 | 4 | 2 | 1 |
+| P3-8: Push | 5 | 0 | 1 | 1 | 2 | 1 |
+| P3-9: Curated | 4 | 0 | 1 | 0 | 1 | 2 |
+| P3-10: FE Core | 9 | 0 | 1 | 3 | 3 | 2 |
+| P3-11: FE Settings | 7 | 0 | 0 | 1 | 2 | 4 |
+| P3-12: FE Admin | 5 | 0 | 0 | 1 | 0 | 4 |
+| **P3 TOTAL** | **103** | **6** | **21** | **30** | **25** | **21** |
+
+**P3 Totals: 103 findings — 6 CRITICAL, 21 HIGH, 30 MEDIUM, 25 LOW, 21 INFO**
+**Test verdicts: All P3 modules — No Coverage**
+
+---
+

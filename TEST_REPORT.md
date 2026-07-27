@@ -236,3 +236,45 @@ No test file exists. The service implements financial calculations (slippage, pr
 | **LOW** | Email/Mailer | Simple templates, error handling verified by code review |
 
 ---
+
+## P3 Test Verdicts
+
+### Summary
+
+| Module | Test File | Tests | Verdict |
+|--------|-----------|-------|---------|
+| P3-1: NFT | *(none)* | 0 | **No Coverage** |
+| P3-2: Earn | *(none)* | 0 | **No Coverage** |
+| P3-3: Portfolio | *(none)* | 0 | **No Coverage** |
+| P3-4: Fiat | *(none)* | 0 | **No Coverage** |
+| P3-5: MoneyGram | *(none)* | 0 | **No Coverage** |
+| P3-6: Contacts | *(none)* | 0 | **No Coverage** |
+| P3-7: 2FA | *(none)* | 0 | **No Coverage** |
+| P3-8: Push | *(none)* | 0 | **No Coverage** |
+| P3-9: Curated Tokens | *(none)* | 0 | **No Coverage** |
+| P3-10: FE Core Pages | *(none)* | 0 | **No Coverage** |
+| P3-11: FE Settings | *(none)* | 0 | **No Coverage** |
+| P3-12: FE Admin | *(none)* | 0 | **No Coverage** |
+
+All 12 P3 modules have **zero dedicated test files**. The only indirect coverage comes through mocks in P0/P1 test suites.
+
+---
+
+### P3 Test Gap Severity Assessment
+
+| Priority | Module | Reason |
+|----------|--------|--------|
+| **CRITICAL** | Earn | 2 CRITICAL findings (missing auth on deposit/withdraw), zero tests |
+| **CRITICAL** | MoneyGram | 2 CRITICAL findings (unauthenticated server signing key usage), zero tests |
+| **CRITICAL** | 2FA | 1 CRITICAL (plaintext TOTP secrets), 4 HIGH (SHA-256 backup codes, no timing-safe comparison, no rate limiting, Math.random), zero tests |
+| **CRITICAL** | Contacts | 1 CRITICAL (wrong property path breaks all operations), zero tests |
+| **HIGH** | NFT | 5 HIGH findings (wrong audit sigs, missing import crashes transfer), zero tests |
+| **HIGH** | Push | 1 HIGH (subscription takeover via onConflictDoUpdate), zero tests |
+| **HIGH** | Curated Tokens | 1 HIGH (unauthenticated seed endpoint), zero tests |
+| **MEDIUM** | Fiat | 2 HIGH (wrong audit sigs, Stripe error exposure), zero tests |
+| **MEDIUM** | Portfolio | 3 MEDIUM (silent error swallowing, hardcoded price, no rate limit), zero tests |
+| **LOW** | FE Core Pages | 1 HIGH (debug console.log), frontend tests typically not unit-tested |
+| **LOW** | FE Settings | Mostly PASS verdicts, minor UX issues |
+| **LOW** | FE Admin | Mostly PASS verdicts, server enforces authorization |
+
+---

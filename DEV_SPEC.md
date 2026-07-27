@@ -341,3 +341,226 @@ type BillingCheckResult = {
 ### Test Coverage: **No direct tests**
 
 ---
+
+## P3-1: NFT Collection + Minting
+
+### Source
+- `packages/backend/src/routes/nft.ts` (480 lines)
+- `packages/backend/src/modules/nft/nft.service.ts` (489 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/nfts/collections` | Auth | List user's collections |
+| GET | `/api/v1/nfts/collections/:id` | Auth | Collection detail |
+| POST | `/api/v1/nfts/collections` | Auth | Register new collection (no role check) |
+| GET | `/api/v1/nfts/:contractId/tokens` | Auth | List tokens in collection |
+| POST | `/api/v1/nfts/transfer` | Auth | Build unsigned transfer XDR |
+| POST | `/api/v1/nfts/mint` | Auth | Index token from chain |
+| POST | `/api/v1/nfts/collections/:id/sync` | Auth (5/min) | Sync all tokens from chain |
+
+### Edge Cases
+1. **Missing imports** — `and`/`eq` from drizzle-orm never imported → transfer crashes at runtime (P3-1-F5)
+2. **Wrong auditLog** — 4 call sites use positional args, silently losing all audit context (P3-1-F1–F4)
+3. **Soroban RPC fallback** — defaults to testnet even on mainnet deployment (P3-1-F10)
+4. **SSRF via tokenUri** — sync fetches arbitrary URLs from on-chain token_uri (P3-1-F13)
+5. **No role checks** — any authenticated user can register collections, mint, sync (P3-1-F6–F8)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-2: Earn (Liquidity Pools)
+
+### Source
+`packages/backend/src/routes/earn.ts` (299 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Rate Limit | Description |
+|--------|------|------|------------|-------------|
+| GET | `/api/v1/earn/pools` | **NONE** | 20/min | List liquidity pools |
+| GET | `/api/v1/earn/positions/:publicKey` | **NONE** | 30/min | User's LP positions |
+| POST | `/api/v1/earn/deposit` | **NONE** | **NONE** | Build LP deposit XDR |
+| POST | `/api/v1/earn/withdraw` | **NONE** | **NONE** | Build LP withdraw XDR |
+
+### Edge Cases
+1. **Zero routes have auth** — all 4 endpoints completely unauthenticated (P3-2-F1–F3)
+2. **No user isolation** — any caller can query/build transactions for any publicKey (P3-2-F7)
+3. **No rate limits on mutations** — deposit/withdraw have no rate limiting (P3-2-F4)
+4. **Raw error exposure** — `err.message` returned to client from Horizon SDK (P3-2-F6)
+5. **`as any` casts** — no Zod/typed validation on inputs (P3-2-F8)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-3: Portfolio Tracking
+
+### Source
+`packages/backend/src/routes/portfolio.ts` (252 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/portfolio/snapshot` | Auth | Create portfolio snapshot |
+| GET | `/api/v1/portfolio/history` | Auth | Historical snapshots |
+| GET | `/api/v1/portfolio/summary` | Auth | Current summary with change % |
+
+### Edge Cases
+1. **Silent error swallowing** — Horizon/CoinGecko failures produce empty/stale data written to DB (P3-3-F1–F2)
+2. **Hardcoded XLM price** — fallback `$0.09` used when CoinGecko fails (P3-3-F2)
+3. **No rate limit on snapshot** — unlimited DB rows + external API calls (P3-3-F3)
+4. **Testnet fallback** — HORIZON_URL defaults to testnet (P3-3-F4)
+5. **No fetch timeout** — external API calls can block worker thread (P3-3-F5)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-4: Fiat Ramps (Stripe + Transak)
+
+### Source
+`packages/backend/src/routes/fiat.ts` (442 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Rate Limit | Description |
+|--------|------|------|------------|-------------|
+| GET | `/api/v1/fiat/providers` | **NONE** | — | List enabled providers |
+| GET | `/api/v1/fiat/currencies` | **NONE** | — | List supported currencies |
+| POST | `/api/v1/fiat/quote/buy` | Auth | — | Get buy quote (XLM price) |
+| POST | `/api/v1/fiat/quote/sell` | Auth | — | Get sell quote |
+| POST | `/api/v1/fiat/stripe/onramp-session` | Auth | 5/min | Create Stripe onramp session |
+| POST | `/api/v1/fiat/transak/url` | Auth | 5/min | Generate Transak widget URL |
+| POST | `/api/v1/fiat/buy` | Auth | — | Legacy buy stub |
+| POST | `/api/v1/fiat/sell` | Auth | — | Legacy sell stub |
+
+### Edge Cases
+1. **Wrong auditLog** — 2 call sites use positional args (P3-4-F1)
+2. **Stripe error forwarded** — internal error details exposed to client (P3-4-F2)
+3. **No amount bounds** — fiatAmount accepts negative/extreme values (P3-4-F5)
+4. **CoinGecko timeout** — no timeout, silent $0.09 fallback (P3-4-F4)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-5: MoneyGram Integration
+
+### Source
+`packages/backend/src/routes/moneygram.ts` (295 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Rate Limit | Description |
+|--------|------|------|------------|-------------|
+| GET | `/api/v1/moneygram/info` | **NONE** | — | Service info + signing key status |
+| POST | `/api/v1/moneygram/deposit` | **NONE** | **NONE** | Initiate SEP-24 deposit |
+| POST | `/api/v1/moneygram/withdraw` | **NONE** | **NONE** | Initiate SEP-24 withdraw |
+| GET | `/api/v1/moneygram/transaction/:id` | **NONE** | — | Check transaction status |
+
+### Edge Cases
+1. **All routes unauthenticated** — deposit/withdraw use server signing key without auth (P3-5-F1–F2 CRITICAL)
+2. **No timeouts** — external SEP-10/SEP-24 calls can block indefinitely (P3-5-F5)
+3. **No audit logging** — zero auditLog calls in entire module (P3-5-F7)
+4. **Signing key existence leaked** — boolean status field on public /info endpoint (P3-5-F4)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-6: Contacts / Address Book
+
+### Source
+`packages/backend/src/routes/contacts.ts` (138 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/contacts` | Auth | List user's contacts |
+| POST | `/api/v1/contacts` | Auth | Create contact |
+| PATCH | `/api/v1/contacts/:id` | Auth | Update contact |
+| DELETE | `/api/v1/contacts/:id` | Auth | Delete contact |
+
+### Edge Cases
+1. **Wrong property path** — `(request as any).userId` is always undefined; should be `request.user!.userId` (P3-6-F1 CRITICAL)
+2. **Module is entirely broken** — all operations silently fail or produce orphaned records
+3. **No address validation** — 56-char length only, no Stellar format check (P3-6-F2)
+4. **PATCH mass assignment** — no `additionalProperties: false`, caller can inject columns (P3-6-F3)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-7: 2FA Routes
+
+### Source
+`packages/backend/src/routes/two-fa.ts` (506 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Rate Limit | Description |
+|--------|------|------|------------|-------------|
+| POST | `/api/v1/auth/2fa/setup` | Auth | **NONE** | Generate TOTP secret + backup codes |
+| POST | `/api/v1/auth/2fa/verify` | Auth | **NONE** | Verify 2FA code (login/enable) |
+| POST | `/api/v1/auth/2fa/disable` | Auth | **NONE** | Disable 2FA (requires password) |
+| GET | `/api/v1/auth/2fa/status` | Auth | — | Check if 2FA is enabled |
+| POST | `/api/v1/auth/2fa/send-email-code` | **NONE** | **NONE** | Send email verification code |
+
+### Edge Cases
+1. **Plaintext TOTP secret** — stored unencrypted in DB (P3-7-F1 CRITICAL)
+2. **SHA-256 backup codes** — 32-bit entropy, brute-forceable against fast hash (P3-7-F2)
+3. **No timing-safe comparison** — backup/static/email codes use `===`/indexOf (P3-7-F3)
+4. **Math.random() for email codes** — not cryptographically secure (P3-7-F5)
+5. **No rate limiting on any 2FA endpoint** — brute-force feasible (P3-7-F4, F6)
+6. **Setup doesn't require password** — stolen session → attacker locks out user (P3-7-F8)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-8: Push Notifications
+
+### Source
+`packages/backend/src/routes/push.ts` (219 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/push/subscribe` | Auth | Register push subscription |
+| DELETE | `/api/v1/push/unsubscribe` | Auth | Remove push subscription |
+| POST | `/api/v1/push/test` | Auth | Send test notification |
+
+### Edge Cases
+1. **Subscription takeover** — onConflictDoUpdate overwrites userId on endpoint collision (P3-8-F1)
+2. **No endpoint URL validation** — arbitrary strings stored as push endpoints (P3-8-F2)
+3. **No per-user subscription cap** — unlimited registrations possible (P3-8-F4)
+
+### Test Coverage: **No Coverage**
+
+---
+
+## P3-9: Curated Tokens
+
+### Source
+`packages/backend/src/routes/curated-tokens.ts` (139 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/tokens/curated` | **NONE** | List curated tokens (public) |
+| POST | `/api/v1/tokens/curated/seed` | **NONE** | Seed tokens from bundled JSON |
+
+### Edge Cases
+1. **Seed endpoint unauthenticated** — any caller can trigger DB writes (P3-9-F1)
+2. **No rate limit on seed** — N DB operations per call, spammable (P3-9-F2)
+
+### Test Coverage: **No Coverage**
+
+---

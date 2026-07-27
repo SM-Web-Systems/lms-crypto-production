@@ -403,3 +403,231 @@ flowchart LR
     style T3 fill:#ff9
     style T4 fill:#ff9
 ```
+
+---
+
+## P3 Module Diagrams
+
+### 9. NFT Mint + Transfer Flow
+
+```mermaid
+sequenceDiagram
+    participant User as Browser
+    participant API as NFT Routes
+    participant Service as NFT Service
+    participant Soroban as Soroban RPC
+    participant IPFS as IPFS/HTTP
+    participant DB as PostgreSQL
+
+    Note over API: POST /collections — register collection
+    User->>API: {contractId, standard, name, creator}
+    Note over API: ⚠ No role check (P3-1-F6)
+    API->>DB: INSERT nft_collections
+    API->>API: auditLog("nft_collection_registered", ...)
+    Note over API: ⚠ Wrong signature (P3-1-F1)
+
+    Note over API: POST /nfts/mint — index token
+    User->>API: {collectionId, tokenId, owner, attributes}
+    Note over API: ⚠ No ownership check (P3-1-F7)
+    API->>Service: indexToken(collectionId, tokenId, owner, attributes)
+    Service->>Soroban: contract.call("owner_of", tokenId)
+    alt On-chain owner matches
+        Service->>DB: INSERT nft_tokens
+    else Verification fails
+        Note over Service: ⚠ Falls through — indexes anyway
+        Service->>DB: INSERT nft_tokens
+    end
+
+    Note over API: POST /collections/:id/sync
+    User->>API: {collectionId}
+    API->>Service: syncCollectionTokens(collectionId)
+    loop For each tokenId in totalSupply
+        Service->>Soroban: contract.call("token_uri", tokenId)
+        Service->>IPFS: fetch(tokenUri)
+        Note over IPFS: ⚠ SSRF risk (P3-1-F13)
+        Service->>DB: UPSERT nft_tokens
+    end
+
+    Note over API: POST /nfts/transfer
+    User->>API: {contractId, tokenId, from, to}
+    API->>DB: SELECT nft_tokens WHERE contractId AND tokenId
+    Note over API: ⚠ Crashes — missing and/eq imports (P3-1-F5)
+```
+
+### 10. Earn / Liquidity Pool Flow
+
+```mermaid
+sequenceDiagram
+    participant User as Browser
+    participant API as Earn Routes
+    participant Horizon as Stellar Horizon
+
+    User->>API: GET /earn/pools?limit=10
+    Note over API: Rate limited 20/min, no auth
+    API->>Horizon: liquidityPools().limit(10)
+    Horizon-->>API: Pool list with reserves, fees
+    API-->>User: Formatted pool data
+
+    User->>API: GET /earn/positions/:publicKey
+    Note over API: ⚠ No authMiddleware (P3-2-F3)
+    API->>Horizon: liquidityPools().forAccount(publicKey)
+    Horizon-->>API: User's LP positions
+    API->>API: Calculate share ratios, per-asset amounts
+    API-->>User: Position details with percentages
+
+    User->>API: POST /earn/deposit {publicKey, poolId, amount}
+    Note over API: ⚠ No authMiddleware (P3-2-F1 CRITICAL)
+    Note over API: ⚠ No rate limiting (P3-2-F4)
+    API->>Horizon: loadAccount(publicKey)
+    API->>Horizon: liquidityPools().liquidityPoolId(poolId)
+    API->>API: Build liquidityPoolDeposit operation (unsigned XDR)
+    API-->>User: {xdr, networkPassphrase}
+
+    User->>API: POST /earn/withdraw {publicKey, poolId, amount}
+    Note over API: ⚠ No authMiddleware (P3-2-F2 CRITICAL)
+    API->>Horizon: loadAccount(publicKey)
+    API->>API: Build liquidityPoolWithdraw operation (unsigned XDR)
+    API-->>User: {xdr, networkPassphrase}
+```
+
+### 11. Fiat Ramp + MoneyGram Flow
+
+```mermaid
+sequenceDiagram
+    participant User as Browser
+    participant API as Fiat/MG Routes
+    participant Stripe as Stripe API
+    participant Transak as Transak
+    participant MG as MoneyGram RAMPS
+    participant CG as CoinGecko
+
+    Note over API: Stripe On-Ramp
+    User->>API: POST /fiat/stripe/onramp-session {walletAddress, fiatAmount}
+    Note over API: Auth required ✅
+    API->>CG: fetch XLM price
+    alt CoinGecko fails
+        Note over API: ⚠ Silent fallback to $0.09 (P3-4-F4)
+    end
+    API->>Stripe: POST /crypto/onramp_sessions
+    Stripe-->>API: {clientSecret}
+    API->>API: auditLog("fiat_stripe_session", ...)
+    Note over API: ⚠ Wrong signature (P3-4-F1)
+    API-->>User: {clientSecret, publishableKey}
+
+    Note over API: Transak Widget
+    User->>API: POST /fiat/transak/url {walletAddress}
+    Note over API: Auth required ✅
+    API->>API: Build Transak widget URL with API key
+    API-->>User: {url}
+
+    Note over API: MoneyGram Deposit
+    User->>API: POST /moneygram/deposit {publicKey}
+    Note over API: ⚠ No authMiddleware (P3-5-F1 CRITICAL)
+    API->>MG: SEP-10 auth (challenge + signed response)
+    Note over MG: Uses server SIGNING_SECRET_KEY
+    MG-->>API: SEP-10 token
+    API->>MG: SEP-24 deposit initiation
+    MG-->>API: {url, id}
+    API-->>User: {interactiveUrl, transactionId}
+```
+
+### 12. 2FA Flows (TOTP + Email + Backup)
+
+```mermaid
+flowchart TD
+    subgraph "2FA Setup (TOTP)"
+        A[POST /2fa/setup] --> B{User has 2FA?}
+        B -- Yes --> C[Return 400]
+        B -- No --> D[speakeasy.generateSecret]
+        D --> E["Store secret as PLAINTEXT ⚠ P3-7-F1"]
+        E --> F[Generate 10 backup codes]
+        F --> G["Hash with SHA-256 ⚠ P3-7-F2"]
+        G --> H[Return QR URI + backup codes]
+        Note: "⚠ No password confirmation required (P3-7-F8)"
+    end
+
+    subgraph "2FA Verify (Login)"
+        I[POST /2fa/verify] --> J{Method?}
+        Note: "⚠ No rate limiting (P3-7-F4)"
+        J -- TOTP --> K[speakeasy.totp.verify window:2]
+        K --> L{Valid?}
+        J -- Backup Code --> M["SHA-256 hash input"]
+        M --> N["indexOf comparison ⚠ P3-7-F3"]
+        N --> O{Match?}
+        O -- Yes --> P[Splice code from array — single-use]
+        J -- Email Code --> Q["DB lookup ⚠ plaintext P3-7-F7"]
+        J -- Static Code --> R["=== comparison ⚠ P3-7-F3"]
+        L -- Yes --> S[Issue JWT tokens]
+        O -- Yes --> S
+        Q -- Valid --> S
+        R -- Valid --> S
+    end
+
+    subgraph "Email Code Generation"
+        T[POST /2fa/send-email-code] --> U["Math.random() ⚠ P3-7-F5"]
+        Note: "⚠ No rate limiting (P3-7-F6)"
+        U --> V[Store plaintext in email_codes]
+        V --> W[Send via email]
+    end
+
+    style E fill:#f66
+    style G fill:#ff9
+    style N fill:#ff9
+    style R fill:#ff9
+    style U fill:#f66
+```
+
+### 13. Push Notification Subscription + Delivery
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant SW as Service Worker
+    participant API as Push Routes
+    participant DB as PostgreSQL
+    participant WP as Web Push Service
+
+    Browser->>SW: Register service worker
+    SW->>Browser: PushSubscription {endpoint, keys}
+
+    Browser->>API: POST /push/subscribe {endpoint, keys}
+    Note over API: Auth required ✅
+    API->>DB: INSERT push_subscriptions
+    Note over DB: ⚠ onConflictDoUpdate overwrites userId (P3-8-F1)
+    API-->>Browser: {ok: true}
+
+    Note over API: Push delivery
+    API->>DB: SELECT subscriptions WHERE userId = target
+    loop For each subscription
+        API->>WP: webpush.sendNotification(sub, payload)
+        alt Subscription expired (410)
+            API->>DB: DELETE subscription
+        end
+    end
+    WP->>SW: Push event
+    SW->>Browser: Show notification
+```
+
+### 14. Contacts Module Data Flow
+
+```mermaid
+flowchart TD
+    subgraph "All 4 CRUD Operations"
+        A[Request arrives] --> B[authMiddleware ✅]
+        B --> C["userId = (request as any).userId"]
+        C --> D["⚠ ALWAYS undefined (P3-6-F1)"]
+        D --> E{Operation}
+        E -- GET --> F["WHERE userId = undefined → 0 results"]
+        E -- POST --> G["INSERT userId = undefined → orphaned row"]
+        E -- PATCH --> H["WHERE userId = undefined AND id = :id → 0 rows"]
+        E -- DELETE --> I["WHERE userId = undefined AND id = :id → 0 rows"]
+    end
+
+    subgraph "Correct Pattern (other routes)"
+        J["userId = request.user!.userId"] --> K[Valid scoping]
+    end
+
+    style D fill:#f66
+    style F fill:#ff9
+    style G fill:#ff9
+```

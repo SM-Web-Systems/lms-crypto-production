@@ -229,99 +229,123 @@
 
 ## P3 — LOWER: NFT, Earn, Portfolio, Fiat, Contacts
 
-### Task P3-1: NFT collection + minting
+### Task P3-1: NFT collection + minting ✅ DONE (2026-07-27)
 - **Files:** `src/routes/nft.ts` (480 lines), `src/modules/nft/nft.service.ts` (489 lines)
+- **Findings:** 15 (0 CRITICAL, 5 HIGH, 5 MEDIUM, 3 LOW, 2 INFO) — see FINDINGS.md P3-1
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Collection creation: auth required, valid contract ID
-  - [ ] Minting: auth + ownership check, Soroban RPC call error handling
-  - [ ] Transfer: ownership verification before transfer
-  - [ ] Metadata: JSONB validation, no injection
-  - [ ] Network-aware: testnet/mainnet segregation
+  - [x] Collection creation: auth required, valid contract ID — **FAIL** (auth yes, but no role check + no contractId format validation)
+  - [x] Minting: auth + ownership check, Soroban RPC call error handling — **FAIL** (no role/ownership check, on-chain verification falls through on error)
+  - [x] Transfer: ownership verification before transfer — **FAIL** (ownership check exists but crashes: missing `and`/`eq` imports)
+  - [x] Metadata: JSONB validation, no injection — PASS (Drizzle parameterizes; no size/shape validation noted INFO)
+  - [x] Network-aware: testnet/mainnet segregation — **FAIL** (Soroban RPC fallback defaults to testnet regardless of config.network)
 
-### Task P3-2: Earn (staking/rewards)
+### Task P3-2: Earn (staking/rewards) ✅ DONE (2026-07-27)
 - **Files:** `src/routes/earn.ts` (299 lines)
+- **Findings:** 11 (2 CRITICAL, 3 HIGH, 4 MEDIUM, 1 LOW, 1 INFO) — see FINDINGS.md P3-2
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] APY calculations: no division by zero, reasonable bounds
-  - [ ] Program enrollment: auth required, no double-enrollment
-  - [ ] Rate limiting: 20/min per endpoint
+  - [x] APY calculations: no division by zero, reasonable bounds — PASS (no APY calc; shareRatio guards zero)
+  - [x] Program enrollment: auth required, no double-enrollment — **FAIL** (zero routes use authMiddleware)
+  - [x] Rate limiting: 20/min per endpoint — **FAIL** (only GET /pools has 20/min; /positions has 30/min; POST deposit/withdraw have none)
 
-### Task P3-3: Portfolio tracking
+### Task P3-3: Portfolio tracking ✅ DONE (2026-07-27)
 - **Files:** `src/routes/portfolio.ts` (252 lines)
+- **Findings:** 8 (0 CRITICAL, 0 HIGH, 3 MEDIUM, 4 LOW, 1 INFO) — see FINDINGS.md P3-3
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Snapshot creation: auth required, correct user isolation
-  - [ ] USD valuation: external API error handling
-  - [ ] History: no data leakage between users
+  - [x] Snapshot creation: auth required, correct user isolation — PASS
+  - [x] USD valuation: external API error handling — **FAIL** (silent swallow, hardcoded $0.09 fallback)
+  - [x] History: no data leakage between users — PASS (all queries scoped to user.id)
 
-### Task P3-4: Fiat ramps (Stripe + Transak)
+### Task P3-4: Fiat ramps (Stripe + Transak) ✅ DONE (2026-07-27)
 - **Files:** `src/routes/fiat.ts` (442 lines)
+- **Findings:** 10 (0 CRITICAL, 2 HIGH, 3 MEDIUM, 3 LOW, 2 INFO) — see FINDINGS.md P3-4
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] API key handling: Stripe/Transak keys from env, never exposed to frontend
-  - [ ] Session creation: auth required, correct user context
-  - [ ] Provider toggle: config-driven enable/disable
+  - [x] API key handling: Stripe/Transak keys from env, never exposed to frontend — PASS
+  - [x] Session creation: auth required, correct user context — PASS
+  - [x] Provider toggle: config-driven enable/disable — PASS
 
-### Task P3-5: MoneyGram integration
+### Task P3-5: MoneyGram integration ✅ DONE (2026-07-27)
 - **Files:** `src/routes/moneygram.ts` (295 lines)
+- **Findings:** 10 (2 CRITICAL, 4 HIGH, 3 MEDIUM, 1 LOW, 0 INFO) — see FINDINGS.md P3-5
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] External API calls: timeout handling, error mapping
-  - [ ] Signing key: SIGNING_SECRET_KEY used, not exposed
+  - [x] External API calls: timeout handling, error mapping — **FAIL** (no timeouts, raw error.message exposed)
+  - [x] Signing key: SIGNING_SECRET_KEY used, not exposed — PARTIAL (value not returned, but existence leaked via boolean status field)
 
-### Task P3-6: Contacts / address book
+### Task P3-6: Contacts / address book ✅ DONE (2026-07-27)
 - **Files:** `src/routes/contacts.ts` (138 lines)
+- **Findings:** 7 (1 CRITICAL, 0 HIGH, 2 MEDIUM, 3 LOW, 1 INFO) — see FINDINGS.md P3-6
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] User isolation: contacts scoped to authenticated user
-  - [ ] Input validation: Stellar address format, memo length
-  - [ ] CRUD: auth required on all operations
+  - [x] User isolation: contacts scoped to authenticated user — **FAIL** (reads `request.userId` instead of `request.user.userId`, always undefined)
+  - [x] Input validation: Stellar address format, memo length — **FAIL** (56-char length only, no G-prefix/base32 pattern)
+  - [x] CRUD: auth required on all operations — PASS (authMiddleware on all 4 routes)
 
-### Task P3-7: 2FA routes
+### Task P3-7: 2FA routes ✅ DONE (2026-07-27)
 - **Files:** `src/routes/two-fa.ts` (506 lines)
+- **Findings:** 12 (1 CRITICAL, 4 HIGH, 4 MEDIUM, 2 LOW, 1 INFO) — see FINDINGS.md P3-7
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] TOTP secret generation: crypto-random, base32 encoded
-  - [ ] Secret storage: hashed or encrypted (not plaintext)
-  - [ ] Backup codes: hashed with bcrypt
-  - [ ] Code verification: timing-safe comparison
-  - [ ] Rate limiting on verification attempts
+  - [x] TOTP secret generation: crypto-random, base32 encoded — PASS (speakeasy.generateSecret)
+  - [x] Secret storage: hashed or encrypted (not plaintext) — **FAIL** (stored plaintext in twoFaSecret column)
+  - [x] Backup codes: hashed with bcrypt — **FAIL** (SHA-256 not bcrypt; 32-bit codes brute-forceable)
+  - [x] Code verification: timing-safe comparison — **FAIL** (TOTP safe via speakeasy; backup/static/email use `===`/indexOf)
+  - [x] Rate limiting on verification attempts — **FAIL** (no rate limiting on /2fa/verify, /2fa/disable, /2fa/send-email-code)
 
-### Task P3-8: Push notifications
+### Task P3-8: Push notifications ✅ DONE (2026-07-27)
 - **Files:** `src/routes/push.ts` (219 lines)
+- **Findings:** 5 (0 CRITICAL, 1 HIGH, 1 MEDIUM, 2 LOW, 1 INFO) — see FINDINGS.md P3-8
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] VAPID keys from env (not hardcoded)
-  - [ ] Subscription scoped to user
-  - [ ] No sensitive data in push payload
+  - [x] VAPID keys from env (not hardcoded) — PASS
+  - [x] Subscription scoped to user — **FAIL** (onConflictDoUpdate overwrites userId, enabling subscription takeover)
+  - [x] No sensitive data in push payload — PASS
 
-### Task P3-9: Curated tokens
+### Task P3-9: Curated tokens ✅ DONE (2026-07-27)
 - **Files:** `src/routes/curated-tokens.ts` (139 lines)
+- **Findings:** 4 (0 CRITICAL, 1 HIGH, 1 LOW, 2 INFO) — see FINDINGS.md P3-9
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Public endpoint: no auth required (correct?)
-  - [ ] Search: no SQL injection (Drizzle parameterized)
-  - [ ] Rate limiting in place
+  - [x] Public endpoint: no auth required (correct?) — PASS (GET) / **FAIL** (POST /seed has no auth — should be admin-only)
+  - [x] Search: no SQL injection (Drizzle parameterized) — PASS (N/A — in-memory filtering + Drizzle)
+  - [x] Rate limiting in place — **FAIL** (no route-level rate limits)
 
-### Task P3-10: Frontend — Dashboard, Tokens, Send, Receive, Swap, History
+### Task P3-10: Frontend — Dashboard, Tokens, Send, Receive, Swap, History ✅ DONE (2026-07-27)
 - **Files:** `web-app/src/pages/Dashboard.tsx` (118), `Tokens.tsx` (466), `TokenDetail.tsx` (628), `Send.tsx` (225), `Receive.tsx` (239), `Swap.tsx` (290), `History.tsx` (115)
+- **Findings:** 9 (0 CRITICAL, 1 HIGH, 3 MEDIUM, 3 LOW, 2 INFO) — see FINDINGS.md P3-10
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] No secret keys rendered in UI
-  - [ ] Copy-to-clipboard: only public keys, never secrets
-  - [ ] Amount inputs: validation (no negative, no overflow)
-  - [ ] QR codes: contain only public addresses
-  - [ ] Transaction preview: shows all details before signing
-  - [ ] Error boundaries: Horizon errors handled gracefully
+  - [x] No secret keys rendered in UI — PASS
+  - [x] Copy-to-clipboard: only public keys, never secrets — PASS
+  - [x] Amount inputs: validation (no negative, no overflow) — PARTIAL (submit-time check, no pre-submit guard)
+  - [x] QR codes: contain only public addresses — PASS
+  - [x] Transaction preview: shows all details before signing — **FAIL** (no confirmation modal/review step)
+  - [x] Error boundaries: Horizon errors handled gracefully — PASS
 
-### Task P3-11: Frontend — Settings, API Keys, Onboarding
+### Task P3-11: Frontend — Settings, API Keys, Onboarding ✅ DONE (2026-07-27)
 - **Files:** `web-app/src/pages/Settings.tsx` (765), `ApiKeys.tsx` (366), `Onboarding.tsx` (603)
+- **Findings:** 7 (0 CRITICAL, 0 HIGH, 1 MEDIUM, 2 LOW, 4 INFO) — see FINDINGS.md P3-11
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Password change: requires current password
-  - [ ] API key display: shown once, then masked
-  - [ ] Onboarding: mnemonic confirmed before proceeding
-  - [ ] PIN setup: minimum length enforced
-  - [ ] Profile updates: auth required
+  - [x] Password change: requires current password — PASS
+  - [x] API key display: shown once, then masked — PASS
+  - [x] Onboarding: mnemonic confirmed before proceeding — PASS
+  - [x] PIN setup: minimum length enforced — PASS (6 chars minimum)
+  - [x] Profile updates: auth required — PASS
 
-### Task P3-12: Frontend — Admin Console pages
+### Task P3-12: Frontend — Admin Console pages ✅ DONE (2026-07-27)
 - **Files:** `web-app/src/pages/AdminLogin.tsx` (131), `AdminConsole.tsx` (228), `AdminTenantDetail.tsx` (638), `AdminAdmins.tsx` (563)
+- **Findings:** 5 (0 CRITICAL, 0 HIGH, 1 MEDIUM, 0 LOW, 4 INFO) — see FINDINGS.md P3-12
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Admin JWT in sessionStorage (cleared on tab close) — verify
-  - [ ] No user JWT accepted at /admin routes
-  - [ ] Confirm modal before destructive actions (suspend, deactivate)
-  - [ ] Credit posting: amount validation (positive only)
-  - [ ] No sensitive data in console.log
+  - [x] Admin JWT in sessionStorage (cleared on tab close) — PASS
+  - [x] No user JWT accepted at /admin routes — PASS
+  - [x] Confirm modal before destructive actions (suspend, deactivate) — PASS
+  - [x] Credit posting: amount validation (positive only) — PASS
+  - [x] No sensitive data in console.log — PASS
 
 ---
 
