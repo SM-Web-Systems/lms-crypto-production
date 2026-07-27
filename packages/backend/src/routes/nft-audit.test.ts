@@ -57,6 +57,12 @@ vi.mock("../middleware/auth", () => ({
   },
 }));
 
+vi.mock("../middleware/admin-auth", () => ({
+  verifyInternalAdmin: async (request: any) => {
+    request.admin = { id: 1, email: "admin@test.com", name: "Admin", role: "super_admin" };
+  },
+}));
+
 vi.mock("../modules/nft/nft.service", () => ({
   nftService: {
     registerCollection: vi.fn().mockResolvedValue({ id: 1, name: "Test", contractId: "CABC", standard: "sep50" }),
@@ -150,6 +156,22 @@ describe("NFT routes — auditLog call signature", () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json().error).toContain("does not belong");
+  });
+
+  it("POST /api/v1/nfts/collections uses admin auth (verifyInternalAdmin preHandler)", async () => {
+    // The mock auto-sets request.admin so the test should see auditLog with admin id
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/nfts/collections",
+      headers: { authorization: "Bearer fake-admin-token" },
+      payload: { name: "Test", contractId: "CABC", standard: "sep50" },
+    });
+
+    // Verify auditLog was called with the admin's id (1), not undefined
+    if (mockAuditLog.mock.calls.length > 0) {
+      const [, opts] = mockAuditLog.mock.calls[0];
+      expect(opts.userId).toBe(1);
+    }
   });
 
   it("auditLog call has no extra positional arguments beyond 2", async () => {

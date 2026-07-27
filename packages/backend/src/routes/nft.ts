@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import { nftService } from "../modules/nft/nft.service";
 import { authMiddleware } from "../middleware/auth";
+import { verifyInternalAdmin } from "../middleware/admin-auth";
 import { auditLog } from "../lib/audit";
 import { db, schema } from "../db";
 
@@ -83,10 +84,10 @@ export async function nftRoutes(app: FastifyInstance) {
         400: { type: "object" as const, properties: { error: { type: "string" as const } } },
       },
     },
-    preHandler: authMiddleware,
+    preHandler: verifyInternalAdmin,
   }, async (request: any, reply) => {
     const body = request.body as any;
-    const userId = request.user!.userId;
+    const userId = request.admin!.id;
 
     if (body.standard === "sep50" && !body.contractId) {
       return reply.status(400).send({ error: "contractId is required for SEP-50 collections" });
