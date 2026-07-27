@@ -601,6 +601,9 @@ export async function authRoutes(app: FastifyInstance) {
       const { refreshToken } = request.body as { refreshToken: string };
       if (refreshToken) {
         await revokeRefreshToken(refreshToken);
+      } else {
+        // No specific token provided — revoke all user sessions (P0-1-F10)
+        await revokeAllUserTokens(userId);
       }
       await auditLog("logout", { userId, ip: request.ip });
 
