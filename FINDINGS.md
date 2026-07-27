@@ -129,7 +129,7 @@
 - **Description:** Admin JWTs carry `type: "admin"` and admin middleware checks it. User JWTs have no `type` claim and user middleware does no type check. If `JWT_SECRET` and `ADMIN_JWT_SECRET` are misconfigured to the same value, an admin token would pass user auth.
 - **Recommendation:** Add `type: "user"` to user JWT payload and check in `authMiddleware`.
 
-### P0-1-F10: Logout does not revoke tokens if refreshToken omitted from body
+### P0-1-F10: Logout does not revoke tokens if refreshToken omitted from body — FIXED (216dfb0)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/auth.ts:586-605`
 - **Description:** The `refreshToken` field is optional in the logout schema. If omitted, the endpoint returns `{ ok: true }` without revoking anything.
@@ -344,7 +344,7 @@
 - **Description:** Unlike the frontend `crypto.ts` which validates minimum blob length, the backend `decryptSecret` does no length validation. If `encrypted` is empty or too short, `subarray` calls produce zero-length buffers and `createDecipheriv` throws a generic error.
 - **Recommendation:** Add `if (combined.length < SALT_LENGTH + IV_LENGTH + 17) throw new Error("Encrypted data too short or corrupted")`.
 
-### P0-3-F6: Client networkPassphrase accepted by sign-and-submit
+### P0-3-F6: Client networkPassphrase accepted by sign-and-submit — FIXED (2bb77d1)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/server.ts:1358,1407`
 - **Description:** The sign-and-submit handler accepts `networkPassphrase` from the client body and uses it as fallback. Wallet creation correctly enforces `effectiveNetwork` from server config, but the signing flow allows client override.
@@ -356,7 +356,7 @@
 - **Description:** The DELETE handler performs three sequential queries (delete, select remaining, activate first remaining) without a transaction. A concurrent request between steps could cause two wallets to be simultaneously active.
 - **Recommendation:** Wrap in `db.transaction()`.
 
-### P0-3-F8: Activate-wallet deactivates all before verifying target exists
+### P0-3-F8: Activate-wallet deactivates all before verifying target exists — FIXED (47e86bc)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/wallets.ts:272-294`
 - **Description:** `PATCH /:id/activate` first deactivates ALL user wallets, then attempts to activate the target. If the target ID doesn't exist, all wallets remain deactivated.
@@ -472,7 +472,7 @@
 - **Description:** Frontend `Swap.tsx` injects a platform fee operation into the transaction XDR before sending to the backend. The backend's `sign-and-submit` also injects a fee operation when processing path payments. If both paths execute, the user pays 2x the intended fee.
 - **Recommendation:** Centralize fee injection to one location only (preferably backend). Remove frontend fee injection or add deduplication logic.
 
-### P0-4-F4: Send.tsx destination validation uses only prefix+length check
+### P0-4-F4: Send.tsx destination validation uses only prefix+length check — FIXED (72d279e)
 - **Severity:** MEDIUM
 - **File:** `packages/web-app/src/pages/Send.tsx`
 - **Description:** Destination address validation checks only that the string starts with 'G' and has length 56, not that it's a valid Ed25519 public key. Invalid checksums would be caught by Horizon but the error message would be confusing.
@@ -609,12 +609,12 @@
 | P0-1-F7 | MEDIUM | `schema/index.ts:202` | TOTP secret stored in plaintext |
 | P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes | **FIXED** (c2aac2c) |
 | P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim | **FIXED** (d112230) |
-| P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken |
+| P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken | **FIXED** (216dfb0) |
 | P0-1-F11 | MEDIUM | `turnstile.ts:21-23` | Turnstile bypass via twoFaToken on any route | **FIXED** (057b157) |
 | P0-3-F5 | MEDIUM | `decrypt-secret.ts:7-29` | No length validation on encrypted data |
-| P0-3-F6 | MEDIUM | `server.ts:1358` | Client can override networkPassphrase |
+| P0-3-F6 | MEDIUM | `server.ts:1358` | Client can override networkPassphrase | **FIXED** (2bb77d1) |
 | P0-3-F7 | MEDIUM | `wallets.ts:383-408` | Wallet deletion not transactional | **FIXED** (a22e61c) |
-| P0-3-F8 | MEDIUM | `wallets.ts:272-294` | Activate deactivates all before verify |
+| P0-3-F8 | MEDIUM | `wallets.ts:272-294` | Activate deactivates all before verify | **FIXED** (47e86bc) |
 | P0-3-F9 | MEDIUM | `wallet.ts:455` | encryptedSecret in localStorage |
 | P0-3-F10 | MEDIUM | `wallet.ts:254` | Mnemonic in predictable localStorage key |
 | P0-4-F4–F11 | MEDIUM | various | 8 additional medium findings |
@@ -935,7 +935,7 @@
 - **Description:** Even with authMiddleware, handlers don't verify that `publicKey` belongs to the authenticated user. The `/add` route calls `tokenService.ensureToken()` (line 281) which writes to DB. Also leaks account state through error responses.
 - **Recommendation:** Query `user_wallets` table to confirm `request.user.id` owns the given `publicKey`. Reject with 403 if not.
 
-### P2-1-F3: POST mutation routes lack rate limiting
+### P2-1-F3: POST mutation routes lack rate limiting — FIXED (c2dbb67)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/trustlines.ts:206-440`
 - **Description:** GET routes have `rateLimit: { max: 30, timeWindow: "1 minute" }` but all three POST routes (`/add`, `/remove`, `/update-limit`) have none.
@@ -1245,7 +1245,7 @@
 | P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware — **FIXED 62c323b** |
 | P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet | **FIXED** (7a5016f) |
 | P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost | **FIXED** (b388f6a + Phase 4) |
-| P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
+| P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting | **FIXED** (c2dbb67) |
 | P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
 | P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation | **FIXED** (af098e9) |
 | P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty | **PARTIALLY FIXED** (af098e9) |
@@ -1933,12 +1933,12 @@
 - **File:** `/home/webadmin/amma-wallet-docker/docker-compose.testnet.yml:51-52`
 - **Description:** Same pattern as F4. Testnet compose file exposes password in plaintext.
 
-#### P4-8-F6: .dockerignore missing — MEDIUM
+#### P4-8-F6: .dockerignore missing — MEDIUM — FIXED (c76a11b)
 - **Severity:** MEDIUM
 - **File:** (absent — expected at `packages/backend/.dockerignore`)
 - **Description:** Without `.dockerignore`, the build context includes `node_modules/`, `.env`, test fixtures, `.git/`. The `RUN rm -f .env` mitigation happens inside the image layer — the `.env` contents remain in the layer cache even after deletion.
 
-#### P4-8-F7: Deleted .env remains in Docker layer history — MEDIUM
+#### P4-8-F7: Deleted .env remains in Docker layer history — MEDIUM — FIXED (c76a11b)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/Dockerfile:13`
 - **Description:** `COPY . .` captures `.env` in a layer. `RUN rm -f .env` creates a new layer that deletes the file, but the previous layer still contains its contents. Anyone with image access can extract layers to recover it.
