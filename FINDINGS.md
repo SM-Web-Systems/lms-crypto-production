@@ -147,13 +147,13 @@
   ```
 - **Recommendation:** Restrict bypass to login route only.
 
-### P0-1-F12: No rate limit on resend-verification endpoint
+### P0-1-F12: No rate limit on resend-verification endpoint — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/auth.ts:1118-1180`
 - **Description:** `POST /api/v1/auth/resend-verification` has `authMiddleware` but no rate limit. An authenticated user can spam email sends.
 - **Recommendation:** Add `config: { rateLimit: { max: 3, timeWindow: "15 minutes" } }`.
 
-### P0-1-F13: No rate limit on refresh token endpoint
+### P0-1-F13: No rate limit on refresh token endpoint — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/auth.ts:506-572`
 - **Description:** `POST /api/v1/auth/refresh` has no rate limiting.
@@ -226,7 +226,7 @@
 - **File:** `packages/backend/src/routes/admin.ts:588-604`
 - **Description:** Uses UPDATE...RETURNING then checks `if (!updated)` for 404. This is the preferred atomic pattern. No action needed.
 
-### P0-2-F3: CREDIT_ROLES constant name is misleading
+### P0-2-F3: CREDIT_ROLES constant name is misleading — DEFERRED (cosmetic)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/admin.ts:27`
 - **Description:** Used at 7 different authorization checkpoints, not just credits. Consider renaming to `WRITE_ROLES` or `PRIVILEGED_ROLES`.
@@ -237,7 +237,7 @@
 - **Description:** Both secrets are required but never compared. If accidentally identical, defense-in-depth is weakened. The `type:"admin"` check provides a second layer, but a future code path omitting that check would be exploitable.
 - **Recommendation:** Add `if (ADMIN_JWT_SECRET === JWT_SECRET) process.exit(1)` at startup.
 
-### P0-2-F5: Admin login rate limit generous (10/15min)
+### P0-2-F5: Admin login rate limit generous (10/15min) — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/admin.ts:38`
 - **Description:** Allows 960 attempts/day. Consider 5/15min for an internal admin console.
@@ -252,7 +252,7 @@
 - **File:** `packages/backend/src/routes/admin.ts:743-751`
 - **Description:** SELECT-then-INSERT pattern. Verify DB UNIQUE constraint exists on `internal_admins.email`; wrap INSERT in try/catch for graceful 409 on constraint violation.
 
-### P0-2-F8: Password minimum length inconsistency (create=8, reset=12)
+### P0-2-F8: Password minimum length inconsistency (create=8, reset=12) — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/admin.ts:697` vs `:1220`
 - **Description:** Admin creation accepts 8-char passwords but reset requires 12. Align both to minLength 12 for admin accounts protecting financial operations.
@@ -374,19 +374,19 @@
 - **Description:** Encrypted mnemonic stored at `mnemonic_{publicKey}` in localStorage. Key is predictable; XSS attacker can harvest both encrypted secret and mnemonic for offline cracking.
 - **Recommendation:** Store inside the zustand persisted state rather than a separate discoverable key.
 
-### P0-3-F11: No wallet name length or content validation
+### P0-3-F11: No wallet name length or content validation — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/wallets.ts:69-70`
 - **Description:** No `maxLength`, `minLength`, or `pattern` on wallet `name`. A user could store megabytes in the name field.
 - **Recommendation:** Add `minLength: 1, maxLength: 64`.
 
-### P0-3-F12: publicKey format not validated server-side
+### P0-3-F12: publicKey format not validated server-side — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/wallets.ts:71`
 - **Description:** `publicKey` accepts any string with no Stellar key format validation.
 - **Recommendation:** Add `pattern: "^G[A-Z2-7]{55}$"` or validate with `StrKey.isValidEd25519PublicKey()`.
 
-### P0-3-F13: parseInt(id) without validation could produce NaN
+### P0-3-F13: parseInt(id) without validation could produce NaN — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/wallets.ts:284,343,385`
 - **Description:** Non-numeric `id` values produce `NaN` from `parseInt`, causing unhelpful 404s instead of 400.
@@ -478,7 +478,7 @@
 - **Description:** Destination address validation checks only that the string starts with 'G' and has length 56, not that it's a valid Ed25519 public key. Invalid checksums would be caught by Horizon but the error message would be confusing.
 - **Recommendation:** Use `StrKey.isValidEd25519PublicKey()` for client-side validation.
 
-### P0-4-F5: Debug console.log in Send.tsx leaks XDR fragments in production
+### P0-4-F5: Debug console.log in Send.tsx leaks XDR fragments in production — FIXED (a9da015)
 - **Severity:** MEDIUM
 - **File:** `packages/web-app/src/pages/Send.tsx`
 - **Description:** `console.log` statements output transaction XDR fragments in the browser console in production builds. While no secrets are logged, this leaks operational details.
@@ -634,7 +634,7 @@
 
 ---
 
-### P1-1-F1: Fixed window mislabeled as "sliding window"
+### P1-1-F1: Fixed window mislabeled as "sliding window" — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/middleware/tenant-api-key.ts:67-90`
 - **Description:** Comment says "sliding window" but the implementation is a fixed window — full counter reset after 60s. A burst of requests at the window boundary can allow up to 2x the configured rate limit within ~60s.
@@ -888,7 +888,7 @@
 | P1-3-F1 | MEDIUM | `auto-suspension.ts:149-182` | `acquisitionModeEnabled` not checked before enforcing debt limit |
 | P1-4-F3 | MEDIUM | `sso.ts:64-71` | Empty whitelist = fail-open (any callback URL accepted) — **FIXED f8ef771** |
 | P1-4-F6 | MEDIUM | N/A | Zero test coverage for SSO routes |
-| P1-1-F1 | LOW | `tenant-api-key.ts:67-90` | Fixed window mislabeled as sliding window |
+| P1-1-F1 | LOW | `tenant-api-key.ts:67-90` | Fixed window mislabeled as sliding window | **FIXED** (a9da015) |
 | P1-1-F4 | LOW | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update |
 | P1-1-F7 | LOW | `tenant-api-key.ts:250` | Env-var keys bypass scope + per-key rate limiting |
 | P1-2-F3 | LOW | `billing.service.ts:446-456` | Maintenance idempotency error logging |
@@ -1082,7 +1082,7 @@
 - **Description:** Both Stellar signing keys default to `""`. If accidentally unset, transaction signing fails at runtime rather than startup. Secret key material should never default silently.
 - **Recommendation:** Add to `requiredEnvVars` or add startup guard.
 
-### P2-4-F3: STELLAR_NETWORK defaults to testnet silently
+### P2-4-F3: STELLAR_NETWORK defaults to testnet silently — FIXED (a9da015)
 - **Severity:** LOW
 - **File:** `packages/backend/src/config/index.ts:21`
 - **Description:** If accidentally unset in production, silently falls back to testnet. Safe-fail direction but could cause silent outage.
@@ -1263,7 +1263,7 @@
 | P2-3-F2 | LOW | `swap.service.ts:260-274` | Division by zero in calcPriceImpact |
 | P2-3-F3 | LOW | `swap.service.ts:220,238` | Hardcoded BASE_FEE may cause tx failures |
 | P2-3-F4 | LOW | `swap.service.ts:18-23` | Quote amount not validated for negative/zero |
-| P2-4-F3 | LOW | `config/index.ts:21` | STELLAR_NETWORK defaults to testnet silently |
+| P2-4-F3 | LOW | `config/index.ts:21` | STELLAR_NETWORK defaults to testnet silently | **FIXED** (a9da015) |
 | P2-4-F4 | LOW | `config/index.ts:34` | TURNSTILE_SECRET_KEY defaults empty |
 | P2-5-F2 | LOW | `schema/index.ts` (various) | 30 FK columns missing indexes |
 | P2-5-F3 | LOW | `schema/index.ts:401` | auditLogs.userId is integer, should be bigint |
