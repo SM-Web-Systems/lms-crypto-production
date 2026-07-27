@@ -6,6 +6,7 @@ const requiredEnvVars = [
   "JWT_REFRESH_SECRET",
   "ADMIN_JWT_SECRET",
   "TOTP_ENCRYPTION_KEY",
+  "SSO_SECRET",
 ] as const;
 
 for (const envVar of requiredEnvVars) {
@@ -17,6 +18,26 @@ for (const envVar of requiredEnvVars) {
 
 if (!/^[0-9a-fA-F]{64}$/.test(process.env.TOTP_ENCRYPTION_KEY!)) {
   console.error("FATAL: TOTP_ENCRYPTION_KEY must be a 64-character hex string (openssl rand -hex 32)");
+  process.exit(1);
+}
+
+// Minimum length validation for critical secrets
+const secretMinLength = 16;
+const secretVars = ["JWT_SECRET", "JWT_REFRESH_SECRET", "ADMIN_JWT_SECRET", "SSO_SECRET"] as const;
+for (const s of secretVars) {
+  if (process.env[s]!.length < secretMinLength) {
+    console.error(`FATAL: ${s} must be at least ${secretMinLength} characters`);
+    process.exit(1);
+  }
+}
+
+// Key confusion guards — secrets MUST be unique
+if (process.env.ADMIN_JWT_SECRET === process.env.JWT_SECRET) {
+  console.error("FATAL: ADMIN_JWT_SECRET must differ from JWT_SECRET");
+  process.exit(1);
+}
+if (process.env.SSO_SECRET === process.env.JWT_SECRET) {
+  console.error("FATAL: SSO_SECRET must differ from JWT_SECRET");
   process.exit(1);
 }
 
@@ -50,7 +71,7 @@ export const config = {
   TOTP_ENCRYPTION_KEY: process.env.TOTP_ENCRYPTION_KEY!,
 
   // SSO — delegated authentication for relying parties (e.g. LMS)
-  SSO_SECRET: process.env.SSO_SECRET || "",
+  SSO_SECRET: process.env.SSO_SECRET!,
   // Comma-separated list of allowed callback URL prefixes
   SSO_CALLBACK_WHITELIST: (process.env.SSO_CALLBACK_WHITELIST || "").split(",").filter(Boolean),
 
