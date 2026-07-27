@@ -1,5 +1,18 @@
 # Phase 5 Backlog — Tier 3 (Nice-to-Have / Future Consideration)
 
+> **Phase 6 planning is complete.** See:
+> - `PHASE6_PLAN.md` — 4 tracks, 7 remaining CRITICAL/HIGH/MEDIUM findings
+> - `PHASE6_RISK_ASSESSMENT.md` — exploit scenarios and risk matrix
+> - `PHASE6_READY.md` — readiness checklist (complete before starting Phase 6)
+> - `TODO_LOW_PRIORITY.md` — comprehensive LOW/INFO deferred items list
+>
+> Items from this backlog that were elevated to Phase 6 scope:
+> - P0-3-F9, P0-3-F10 → Phase 6C (Client Storage Hardening)
+> - P0-3-F2 → Phase 6D (Crypto Refactor)
+> - P0-3-F5 → Phase 6B (Input Validation)
+>
+> Already fixed in Phase 5: P0-3-F4, P0-4-F2, P4-8-F6, P2-7-F2 (moved to Tier 2 and completed)
+
 These findings are LOW priority — either low exploitability, low impact,
 code quality improvements, or require significant architectural changes.
 
