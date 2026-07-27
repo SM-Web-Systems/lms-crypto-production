@@ -19,4 +19,17 @@ describe("Dockerfile hardening", () => {
     expect(userLine).toBeDefined();
     expect(userLine).not.toMatch(/USER\s+root/);
   });
+
+  it("uses multi-stage build (has FROM ... AS stage)", () => {
+    const fromLines = dockerfile.split("\n").filter((l) => l.startsWith("FROM "));
+    expect(fromLines.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("final stage does not run npm ci (deps come from build stage)", () => {
+    // Split by FROM to get stages, check last stage
+    const stages = dockerfile.split(/^FROM /m);
+    const finalStage = stages[stages.length - 1];
+    expect(finalStage).not.toContain("npm ci");
+    expect(finalStage).not.toContain("npm install");
+  });
 });
