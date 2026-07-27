@@ -85,7 +85,7 @@
 - **Description:** `auditLog` accepts `(action, opts?)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Line 1422 passes positional args: `auditLog("password_reset", user.id, { method: "sms" }, request.ip)`. The audit record will be malformed or silently lost.
 - **Recommendation:** `await auditLog("password_reset", { userId: user.id, detail: { method: "sms" }, ip: request.ip })`.
 
-### P0-1-F4: Turnstile verification fails open when Cloudflare is unreachable
+### P0-1-F4: Turnstile verification fails open when Cloudflare is unreachable — FIXED (057b157)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/middleware/turnstile.ts:52-56`
 - **Description:** When the `fetch()` to Cloudflare Turnstile throws (network error, DNS failure, timeout), the `catch` block logs a warning but allows the request to proceed. An attacker who can disrupt connectivity to `challenges.cloudflare.com` bypasses CAPTCHA entirely on register and login.
@@ -116,7 +116,7 @@
 - **Description:** The `twoFaSecret` (base32 TOTP seed) is stored as plaintext. If the database is compromised, an attacker can generate valid TOTP codes for all 2FA-enabled users, defeating the second factor entirely.
 - **Recommendation:** Encrypt with AES-256-GCM using a dedicated encryption key before storage.
 
-### P0-1-F8: 2FA email codes generated with Math.random() (not CSPRNG)
+### P0-1-F8: 2FA email codes generated with Math.random() (not CSPRNG) — FIXED (c2aac2c)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/auth.ts:373` / `packages/backend/src/routes/two-fa.ts:23`
 - **Description:** `Math.random()` is not cryptographically secure. 6-digit 2FA codes generated this way are theoretically predictable.
@@ -135,7 +135,7 @@
 - **Description:** The `refreshToken` field is optional in the logout schema. If omitted, the endpoint returns `{ ok: true }` without revoking anything.
 - **Recommendation:** Make `refreshToken` required.
 
-### P0-1-F11: Turnstile bypass when `twoFaToken` is present in body
+### P0-1-F11: Turnstile bypass when `twoFaToken` is present in body — FIXED (057b157)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/middleware/turnstile.ts:21-23`
 - **Description:** The Turnstile middleware skips CAPTCHA if `body.twoFaToken` is present, regardless of the route. An attacker can bypass CAPTCHA on **register** by including a dummy `twoFaToken` field.
@@ -594,7 +594,7 @@
 | P0-1-F2 | **CRITICAL** | `auth.ts:1409` | SMS password reset writes to wrong column |
 | P0-4-F1 | **CRITICAL** | `server.ts:1291` | /transactions/sign uses encrypted blob as raw secret |
 | P0-1-F3 | HIGH | `auth.ts:1422` | auditLog wrong signature in SMS reset |
-| P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error |
+| P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error | **FIXED** (057b157) |
 | P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change |
 | P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret | **FIXED** (31d3d37) |
 | P0-3-F2 | HIGH | `wallet.ts:243` / `server.ts:1974` | Mnemonic sent to server for HD derivation |
@@ -607,10 +607,10 @@
 | P0-2-F4 | MEDIUM | `config/index.ts:1-16` | No guard: ADMIN_JWT_SECRET == JWT_SECRET |
 | P0-1-F6 | MEDIUM | `auth.ts:345,470` | Missing audit for login success/failure |
 | P0-1-F7 | MEDIUM | `schema/index.ts:202` | TOTP secret stored in plaintext |
-| P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes |
+| P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes | **FIXED** (c2aac2c) |
 | P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim |
 | P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken |
-| P0-1-F11 | MEDIUM | `turnstile.ts:21-23` | Turnstile bypass via twoFaToken on any route |
+| P0-1-F11 | MEDIUM | `turnstile.ts:21-23` | Turnstile bypass via twoFaToken on any route | **FIXED** (057b157) |
 | P0-3-F5 | MEDIUM | `decrypt-secret.ts:7-29` | No length validation on encrypted data |
 | P0-3-F6 | MEDIUM | `server.ts:1358` | Client can override networkPassphrase |
 | P0-3-F7 | MEDIUM | `wallets.ts:383-408` | Wallet deletion not transactional |
@@ -828,7 +828,7 @@
   ```
 - **Recommendation:** Parse both whitelist entries and `callbackUrl` as `URL` objects, then compare `url.origin` strictly (scheme + host + port).
 
-### P1-4-F2: SSO_SECRET not validated at startup; no key-confusion guard
+### P1-4-F2: SSO_SECRET not validated at startup; no key-confusion guard — FIXED (af098e9)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/config/index.ts:45`
 - **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime), there's no startup check that `SSO_SECRET !== JWT_SECRET`. If they match, a crafted session JWT with `iss=ammawallet` and `aud=lms-amma-sso` could pass SSO verification, enabling assertion forgery.
@@ -880,7 +880,7 @@
 | ID | Severity | File | Description |
 |----|----------|------|-------------|
 | P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack | **FIXED** (ad15043) |
-| P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET |
+| P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET | **FIXED** (af098e9) |
 | P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison — **FIXED ecbe6f5** |
 | P1-1-F6 | MEDIUM | `tenant-api-key.ts:243-257` | `requireScope()` silent no-op without prior key middleware |
 | P1-2-F1 | MEDIUM | `billing.service.ts:204,231,464` | Floating-point arithmetic on monetary values — **FIXED eda4a35** |
@@ -1070,13 +1070,13 @@
 
 ---
 
-### P2-4-F1: SSO_SECRET defaults to empty string, no startup validation
+### P2-4-F1: SSO_SECRET defaults to empty string, no startup validation — FIXED (af098e9)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/config/index.ts:45`
 - **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime via `sso.ts:53`), there's no startup warning. If JWT library accepts empty key, tokens could be forged. Cross-reference: also flagged as P1-4-F2.
 - **Recommendation:** Add to `requiredEnvVars` or add startup warning.
 
-### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string
+### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string — PARTIALLY FIXED (af098e9)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/config/index.ts:52,78`
 - **Description:** Both Stellar signing keys default to `""`. If accidentally unset, transaction signing fails at runtime rather than startup. Secret key material should never default silently.
@@ -1247,8 +1247,8 @@
 | P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
 | P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
 | P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
-| P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation |
-| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty |
+| P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation | **FIXED** (af098e9) |
+| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty | **PARTIALLY FIXED** (af098e9) |
 | P2-5-F1 | MEDIUM | `schema/index.ts:295` | addressBook.userId has no FK constraint or index |
 | P2-7-F2 | MEDIUM | `auth.ts` (login handler) | Successful login never audit-logged |
 | P2-7-F3 | MEDIUM | `audit.ts` | 9 of 17 AuditAction types never emitted (53%) |
