@@ -249,10 +249,6 @@ export const useWalletStore = create<WalletState>()(
 
         const encrypted = await encryptSecret(secretKey, pin);
 
-        // Store mnemonic encrypted with same PIN
-        const encryptedMnemonic = await encryptSecret(mnemonic, pin);
-        localStorage.setItem(`mnemonic_${publicKey}`, encryptedMnemonic);
-
         let serverId: number | undefined;
         try {
           const serverWallet = await userWalletApi.add({
@@ -312,10 +308,6 @@ export const useWalletStore = create<WalletState>()(
         }
 
         const encrypted = await encryptSecret(secretKey, pin);
-
-        // Store mnemonic encrypted
-        const encryptedMnemonic = await encryptSecret(mnemonic, pin);
-        localStorage.setItem(`mnemonic_${publicKey}`, encryptedMnemonic);
 
         let serverId: number | undefined;
         try {

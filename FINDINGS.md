@@ -338,8 +338,9 @@
   ```
 - **Recommendation:** Remove the backward-compatibility path. Force all delegated-mode wallets to have encrypted secrets. Add a migration to re-encrypt any unencrypted secrets.
 
-### P0-3-F5: decrypt-secret.ts has no error handling for corrupted/truncated data
+### P0-3-F5: decrypt-secret.ts has no error handling for corrupted/truncated data — FIXED (ff973af)
 - **Severity:** MEDIUM
+- **Status:** FIXED — added base64 length check (< 60 chars) and decoded buffer length check (< salt + iv + 17 bytes) before PBKDF2. Prevents CPU DoS via trivially short inputs.
 - **File:** `packages/backend/src/lib/decrypt-secret.ts:7-29`
 - **Description:** Unlike the frontend `crypto.ts` which validates minimum blob length, the backend `decryptSecret` does no length validation. If `encrypted` is empty or too short, `subarray` calls produce zero-length buffers and `createDecipheriv` throws a generic error.
 - **Recommendation:** Add `if (combined.length < SALT_LENGTH + IV_LENGTH + 17) throw new Error("Encrypted data too short or corrupted")`.
@@ -369,8 +370,9 @@
 - **Description:** The `partialize` function persists `accounts` (including `encryptedSecret`) to localStorage. Any XSS gives the attacker the encrypted blob for offline PIN brute-forcing.
 - **Recommendation:** Consider IndexedDB with non-exportable CryptoKey, or require longer/alphanumeric PINs.
 
-### P0-3-F10: Mnemonic stored in localStorage under predictable key
+### P0-3-F10: Mnemonic stored in localStorage under predictable key — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — removed both localStorage.setItem calls that wrote encrypted mnemonic. Existing users' stale data cleaned up by existing removeItem calls.
 - **File:** `packages/web-app/src/store/wallet.ts:254,318`
 - **Description:** Encrypted mnemonic stored at `mnemonic_{publicKey}` in localStorage. Key is predictable; XSS attacker can harvest both encrypted secret and mnemonic for offline cracking.
 - **Recommendation:** Store inside the zustand persisted state rather than a separate discoverable key.
