@@ -113,4 +113,60 @@ describe("SSO routes — callback whitelist", () => {
     expect(res.statusCode).toBe(403);
     expect(res.json().error).toContain("whitelist");
   });
+
+  it("rejects subdomain hijack: lms.smwebsystems.com.evil.com (P1-4-F1)", async () => {
+    mockConfig.SSO_CALLBACK_WHITELIST = ["https://lms.smwebsystems.com"];
+    const app = Fastify();
+    app.register(ssoRoutes);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/sso/token",
+      headers: { authorization: "Bearer mock-token" },
+      payload: {
+        callbackUrl: "https://lms.smwebsystems.com.evil.com/steal",
+        state: "abc123",
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toContain("whitelist");
+  });
+
+  it("rejects callback with matching prefix but different port", async () => {
+    mockConfig.SSO_CALLBACK_WHITELIST = ["https://lms.smwebsystems.com"];
+    const app = Fastify();
+    app.register(ssoRoutes);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/sso/token",
+      headers: { authorization: "Bearer mock-token" },
+      payload: {
+        callbackUrl: "https://lms.smwebsystems.com:8443/steal",
+        state: "abc123",
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("rejects malformed callback URL with 400", async () => {
+    mockConfig.SSO_CALLBACK_WHITELIST = ["https://lms.smwebsystems.com"];
+    const app = Fastify();
+    app.register(ssoRoutes);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/sso/token",
+      headers: { authorization: "Bearer mock-token" },
+      payload: {
+        callbackUrl: "not-a-url",
+        state: "abc123",
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("Invalid callback URL");
+  });
 });
