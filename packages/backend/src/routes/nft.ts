@@ -107,11 +107,11 @@ export async function nftRoutes(app: FastifyInstance) {
       creatorAddress: body.creatorAddress || null,
     });
 
-    await auditLog("nft_collection_registered", userId, {
-      collectionId: collection.id,
-      standard: body.standard,
-      contractId: body.contractId,
-    }, request.ip);
+    await auditLog("nft_collection_registered", {
+      userId,
+      detail: { collectionId: collection.id, standard: body.standard, contractId: body.contractId },
+      ip: request.ip,
+    });
 
     return collection;
   });
@@ -318,7 +318,11 @@ export async function nftRoutes(app: FastifyInstance) {
 
     try {
       const result = await nftService.buildSep50Transfer(contractId, fromAddress, toAddress, tokenId);
-      await auditLog("nft_transfer", userId, { contractId, tokenId, from: fromAddress, to: toAddress }, request.ip);
+      await auditLog("nft_transfer", {
+        userId,
+        detail: { contractId, tokenId, from: fromAddress, to: toAddress },
+        ip: request.ip,
+      });
       return result;
     } catch (err: any) {
       return reply.status(400).send({ error: err.message || "Failed to build transfer" });
@@ -390,11 +394,11 @@ export async function nftRoutes(app: FastifyInstance) {
         attributes,
       });
 
-      await auditLog("nft_mint_indexed", userId, {
-        collectionId,
-        tokenId,
-        owner,
-      }, request.ip);
+      await auditLog("nft_mint_indexed", {
+        userId,
+        detail: { collectionId, tokenId, owner },
+        ip: request.ip,
+      });
 
       return token;
     } catch (err: any) {
@@ -433,7 +437,11 @@ export async function nftRoutes(app: FastifyInstance) {
 
     try {
       const result = await nftService.syncCollectionTokens(collectionId);
-      await auditLog("nft_collection_synced", userId, { collectionId, ...result }, request.ip);
+      await auditLog("nft_collection_synced", {
+        userId,
+        detail: { collectionId, ...result },
+        ip: request.ip,
+      });
       return result;
     } catch (err: any) {
       if (err.message.includes("not found")) {
