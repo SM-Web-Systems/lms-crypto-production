@@ -303,8 +303,9 @@
   ```
 - **Recommendation:** Remove `encryptedSecret` from GET response schema. Add `.select()` clause that omits it. Remove `sw.encryptedSecret` fallback in frontend `syncFromServer`.
 
-### P0-3-F2: Mnemonic sent to server via /api/v1/keypair/from-mnemonic
+### P0-3-F2: Mnemonic sent to server via /api/v1/keypair/from-mnemonic — FIXED (b1fca9f, 5db8eb7)
 - **Severity:** HIGH
+- **Status:** FIXED — HD derivation moved entirely to client-side using stellar-hd-wallet + bip39 in browser. Server endpoints /keypair/from-mnemonic and /validate-mnemonic removed. Mnemonic never leaves the browser.
 - **File:** `packages/web-app/src/store/wallet.ts:243,307` / `packages/backend/src/server.ts:1974-2035`
 - **Description:** Both `createWalletFromMnemonic` and `importFromMnemonic` send the raw BIP-39 mnemonic to the server. The server derives the keypair and returns both `publicKey` and `secretKey` in the HTTP response. The mnemonic and derived secret key traverse the network, contradicting "self mode = secret never sent to server."
 - **Evidence:**
@@ -600,7 +601,7 @@
 | P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error | **FIXED** (057b157) |
 | P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change | **FIXED** (1eca391) |
 | P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret | **FIXED** (31d3d37) |
-| P0-3-F2 | HIGH | `wallet.ts:243` / `server.ts:1974` | Mnemonic sent to server for HD derivation |
+| P0-3-F2 | HIGH | `wallet.ts:243` / `server.ts:1974` | Mnemonic sent to server for HD derivation | **FIXED** (b1fca9f, 5db8eb7) |
 | P0-3-F3 | HIGH | `server.ts:1308` | No rate limit on sign-and-submit (PIN brute-force) | **FIXED** (e37855e) |
 | P0-3-F4 | HIGH | `server.ts:1549` | Raw secret fallback when PIN omitted | **FIXED** (88acd64) |
 | P0-4-F2 | HIGH | `server.ts:1549` | PIN not required in sign-and-submit schema | **FIXED** (88acd64) |
@@ -1079,8 +1080,9 @@
 - **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime via `sso.ts:53`), there's no startup warning. If JWT library accepts empty key, tokens could be forged. Cross-reference: also flagged as P1-4-F2.
 - **Recommendation:** Add to `requiredEnvVars` or add startup warning.
 
-### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string — PARTIALLY FIXED (af098e9)
+### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string — FIXED (37fcfd1)
 - **Severity:** MEDIUM
+- **Status:** FIXED — added production startup guard that crashes with clear error if either secret is empty. Defaults remain for development/testing.
 - **File:** `packages/backend/src/config/index.ts:52,78`
 - **Description:** Both Stellar signing keys default to `""`. If accidentally unset, transaction signing fails at runtime rather than startup. Secret key material should never default silently.
 - **Recommendation:** Add to `requiredEnvVars` or add startup guard.
@@ -1251,7 +1253,7 @@
 | P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting | **FIXED** (c2dbb67) |
 | P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
 | P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation | **FIXED** (af098e9) |
-| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty | **PARTIALLY FIXED** (af098e9) |
+| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty | **FIXED** (37fcfd1) |
 | P2-5-F1 | MEDIUM | `schema/index.ts:295` | addressBook.userId has no FK constraint or index |
 | P2-7-F2 | MEDIUM | `auth.ts` (login handler) | Successful login never audit-logged |
 | P2-7-F3 | MEDIUM | `audit.ts` | 9 of 17 AuditAction types never emitted (53%) |
