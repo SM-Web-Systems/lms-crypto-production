@@ -94,6 +94,10 @@ import {
   runMonthlyMaintenanceForTenant,
   getTenantBalanceSummary,
   maybeNotifyDeficit,
+  addDecimalStrings,
+  mulDecimalStrings,
+  negateDecimalString,
+  compareDecimalStrings,
 } from "./billing.service";
 
 // ── Mock helpers ─────────────────────────────────────────────────────────────
@@ -858,5 +862,69 @@ describe("writeBillingCredit", () => {
     expect(returnedFromSecondInsert.values).toHaveBeenCalledWith(
       expect.objectContaining({ bundleNameSnapshot: "starter-100" }),
     );
+  });
+});
+
+// ── Decimal arithmetic utilities (P1-2-F1) ──────────────────────────────────
+
+describe("Billing — floating-point safety (P1-2-F1)", () => {
+  describe("addDecimalStrings", () => {
+    it("adds exact results for Stellar amounts", () => {
+      expect(addDecimalStrings("0.1", "0.2")).toBe("0.3000000");
+      expect(addDecimalStrings("1.0000000", "2.0000000")).toBe("3.0000000");
+      expect(addDecimalStrings("0.0000001", "0.0000002")).toBe("0.0000003");
+    });
+
+    it("handles whole numbers", () => {
+      expect(addDecimalStrings("100", "50")).toBe("150.0000000");
+    });
+
+    it("handles negative numbers", () => {
+      expect(addDecimalStrings("-3.0000000", "1.0000000")).toBe("-2.0000000");
+    });
+  });
+
+  describe("mulDecimalStrings", () => {
+    it("multiplies amount by integer count", () => {
+      expect(mulDecimalStrings("0.1000", 10)).toBe("1.0000000");
+      expect(mulDecimalStrings("0.0000001", 3)).toBe("0.0000003");
+    });
+
+    it("produces exact results avoiding IEEE 754 errors", () => {
+      // 0.1 * 3 = 0.3 (not 0.30000000000000004)
+      expect(mulDecimalStrings("0.1", 3)).toBe("0.3000000");
+    });
+  });
+
+  describe("negateDecimalString", () => {
+    it("negates positive values", () => {
+      expect(negateDecimalString("3.0000000")).toBe("-3.0000000");
+      expect(negateDecimalString("0.0000001")).toBe("-0.0000001");
+    });
+
+    it("negates negative values (makes positive)", () => {
+      expect(negateDecimalString("-5.0000000")).toBe("5.0000000");
+    });
+  });
+
+  describe("compareDecimalStrings", () => {
+    it("orders correctly", () => {
+      expect(compareDecimalStrings("1.0", "2.0")).toBeLessThan(0);
+      expect(compareDecimalStrings("2.0", "1.0")).toBeGreaterThan(0);
+      expect(compareDecimalStrings("1.0", "1.0")).toBe(0);
+    });
+
+    it("handles negative values", () => {
+      expect(compareDecimalStrings("-5.0", "0.0")).toBeLessThan(0);
+      expect(compareDecimalStrings("-100.0", "-50.0")).toBeLessThan(0);
+      expect(compareDecimalStrings("-300.0000000", "-300.0000000")).toBe(0);
+    });
+
+    it("handles debt limit comparison", () => {
+      // balance <= debtLimit  →  compare should be <= 0
+      expect(compareDecimalStrings("-300.0000000", "-300.0000000")).toBe(0);
+      expect(compareDecimalStrings("-301.0000000", "-300.0000000")).toBeLessThan(0);
+      expect(compareDecimalStrings("-299.0000000", "-300.0000000")).toBeGreaterThan(0);
+    });
   });
 });
