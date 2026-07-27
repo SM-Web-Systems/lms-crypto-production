@@ -1208,7 +1208,7 @@ async function bootstrap() {
               description: "PIN to decrypt wallet secret",
             },
           },
-          required: ["xdr"],
+          required: ["xdr", "pin"],
         },
         response: {
           200: {
@@ -1297,15 +1297,10 @@ async function bootstrap() {
           });
         }
 
-        // Decrypt the wallet secret using PIN
+        // Decrypt the wallet secret using PIN (required — no raw fallback)
         let secretKey: string;
         try {
-          if (pin) {
-            secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
-          } else {
-            // Try as raw secret (backward compat)
-            secretKey = wallet.encryptedSecret!;
-          }
+          secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
         } catch (decryptErr: any) {
           return reply.status(403).send({
             error:
@@ -1347,7 +1342,7 @@ async function bootstrap() {
               description: "PIN to decrypt wallet secret",
             },
           },
-          required: ["xdr"],
+          required: ["xdr", "pin"],
         },
         response: {
           200: {
@@ -1564,16 +1559,10 @@ async function bootstrap() {
           }
         }
 
-        // Sign with user's key
-        // Decrypt the wallet secret using PIN
+        // Sign with user's key — PIN required, no raw fallback
         let secretKey: string;
         try {
-          if (pin) {
-            secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
-          } else {
-            // Try as raw secret (backward compat)
-            secretKey = wallet.encryptedSecret!;
-          }
+          secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
         } catch (decryptErr: any) {
           console.error(
             "[sign-and-submit] DECRYPT ERROR:",
