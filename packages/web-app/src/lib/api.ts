@@ -269,15 +269,15 @@ export const trustlineApi = {
     request<any>(`/api/v1/trustlines/${publicKey}`),
   check: (publicKey: string, code: string, issuer: string) =>
     request<any>(`/api/v1/trustlines/check/${publicKey}/${code}/${issuer}`),
-  add: (publicKey: string, code: string, issuer: string, secretKey: string) =>
+  add: (publicKey: string, code: string, issuer: string) =>
     request<any>("/api/v1/trustlines/add", {
       method: "POST",
-      body: JSON.stringify({ publicKey, assetCode: code, assetIssuer: issuer, secretKey }),
+      body: JSON.stringify({ publicKey, assetCode: code, assetIssuer: issuer }),
     }),
-  remove: (publicKey: string, code: string, issuer: string, secretKey: string) =>
+  remove: (publicKey: string, code: string, issuer: string) =>
     request<any>("/api/v1/trustlines/remove", {
       method: "POST",
-      body: JSON.stringify({ publicKey, assetCode: code, assetIssuer: issuer, secretKey }),
+      body: JSON.stringify({ publicKey, assetCode: code, assetIssuer: issuer }),
     }),
 };
 
