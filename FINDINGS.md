@@ -110,7 +110,7 @@
 - **Description:** When password verification fails, `failedLoginAttempts` is incremented but no `auditLog("login_failed")` is called. On successful login, no `auditLog("login")` call exists either. The audit trail has no record of login activity.
 - **Recommendation:** Add `auditLog("login_failed", ...)` on password failure and `auditLog("login", ...)` on success.
 
-### P0-1-F7: TOTP secret stored in plaintext in database
+### P0-1-F7: TOTP secret stored in plaintext in database — FIXED (baa690e)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/db/schema/index.ts:202` / `packages/backend/src/routes/two-fa.ts:116`
 - **Description:** The `twoFaSecret` (base32 TOTP seed) is stored as plaintext. If the database is compromised, an attacker can generate valid TOTP codes for all 2FA-enabled users, defeating the second factor entirely.
@@ -231,7 +231,7 @@
 - **File:** `packages/backend/src/routes/admin.ts:27`
 - **Description:** Used at 7 different authorization checkpoints, not just credits. Consider renaming to `WRITE_ROLES` or `PRIVILEGED_ROLES`.
 
-### P0-2-F4: No startup guard ensuring ADMIN_JWT_SECRET differs from JWT_SECRET
+### P0-2-F4: No startup guard ensuring ADMIN_JWT_SECRET differs from JWT_SECRET — FIXED (af098e9)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/config/index.ts:1-16`
 - **Description:** Both secrets are required but never compared. If accidentally identical, defense-in-depth is weakened. The `type:"admin"` check provides a second layer, but a future code path omitting that check would be exploitable.
@@ -514,7 +514,7 @@
 - **Description:** Frontend trustline API functions include `secretKey` in the request body sent to the backend. Even though these functions appear unused (dead code), if ever called they would transmit the secret key over the network.
 - **Recommendation:** Remove `secretKey` from the request body. Use PIN-based decryption on the server side, consistent with sign-and-submit.
 
-### P0-4-F11: Trustline add/remove/update endpoints have no authMiddleware
+### P0-4-F11: Trustline add/remove/update endpoints have no authMiddleware — FIXED (62c323b, via P2-1-F1)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/wallets.ts` (trustline section)
 - **Description:** The trustline mutation endpoints lack `authMiddleware` in their route options. Any unauthenticated request with a valid wallet ID can add or remove trustlines.
@@ -604,9 +604,9 @@
 | P0-4-F3 | HIGH | `server.ts:1240,1280,1308` | No rate limits on any transaction endpoint | **FIXED** (e37855e) |
 | P0-4-F18 | HIGH | `Swap.tsx` / `server.ts:1450` | Double platform fee injection risk | **FIXED** (72a703d) |
 | P0-2-F1 | MEDIUM | `admin.ts:530+` | No audit logging on admin mutations | **FIXED** (7c9b9ae) |
-| P0-2-F4 | MEDIUM | `config/index.ts:1-16` | No guard: ADMIN_JWT_SECRET == JWT_SECRET |
+| P0-2-F4 | MEDIUM | `config/index.ts:1-16` | No guard: ADMIN_JWT_SECRET == JWT_SECRET | **FIXED** (af098e9) |
 | P0-1-F6 | MEDIUM | `auth.ts:345,470` | Missing audit for login success/failure | **FIXED** (1eca391) |
-| P0-1-F7 | MEDIUM | `schema/index.ts:202` | TOTP secret stored in plaintext |
+| P0-1-F7 | MEDIUM | `schema/index.ts:202` | TOTP secret stored in plaintext | **FIXED** (baa690e) |
 | P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes | **FIXED** (c2aac2c) |
 | P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim | **FIXED** (d112230) |
 | P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken | **FIXED** (216dfb0) |
