@@ -1,6 +1,18 @@
 // packages/backend/src/routes/moneygram.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("../db", () => ({
+  db: {
+    insert: vi.fn(),
+    delete: vi.fn(),
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue([]),
+  },
+  schema: {},
+}));
+
 vi.mock("../config", () => ({
   config: {
     MONEYGRAM_RAMPS_URL: "https://extstellar.moneygram.com/ramps",
@@ -10,6 +22,8 @@ vi.mock("../config", () => ({
     STELLAR_NETWORK: "testnet",
     FIAT_RAMP_FEE_PERCENT: 1.5,
     HORIZON_URL: "https://horizon-testnet.stellar.org",
+    JWT_SECRET: "test-secret",
+    JWT_REFRESH_SECRET: "test-refresh-secret",
   },
 }));
 

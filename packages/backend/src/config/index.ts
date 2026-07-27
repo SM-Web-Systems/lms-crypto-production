@@ -4,7 +4,6 @@
 const requiredEnvVars = [
   "JWT_SECRET",
   "JWT_REFRESH_SECRET",
-  "DATABASE_URL",
   "ADMIN_JWT_SECRET",
   "TOTP_ENCRYPTION_KEY",
 ] as const;

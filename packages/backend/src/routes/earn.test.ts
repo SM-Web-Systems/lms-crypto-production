@@ -1,10 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock dependencies before importing the module under test
+vi.mock("../db", () => ({
+  db: {
+    insert: vi.fn(),
+    delete: vi.fn(),
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue([]),
+  },
+  schema: {},
+}));
+
 vi.mock("../config", () => ({
   config: {
     HORIZON_URL: "https://horizon-testnet.stellar.org",
     STELLAR_NETWORK: "testnet",
+    JWT_SECRET: "test-secret",
+    JWT_REFRESH_SECRET: "test-refresh-secret",
   },
 }));
 
