@@ -9,6 +9,7 @@ import { eq, and, gt } from "drizzle-orm";
 export interface JwtPayload {
   userId: number;
   email: string | null;
+  type?: string;
 }
 
 const SALT_ROUNDS = 12;
@@ -25,7 +26,7 @@ export async function verifyPassword(
 }
 
 export function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.JWT_SECRET, {
+  return jwt.sign({ ...payload, type: "user" }, config.JWT_SECRET, {
     expiresIn: config.JWT_EXPIRES_IN, // number (seconds) — no type error
   });
 }
