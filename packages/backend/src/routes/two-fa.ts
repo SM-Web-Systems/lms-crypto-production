@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import crypto from "crypto";
 import { send2FACode } from "../lib/mailer";
 import { encryptTotpSecret, decryptTotpSecret } from "../lib/totp-crypto";
+import { timingSafeCompare } from "../lib/timing-safe";
 
 function generateBackupCodes(): string[] {
   const codes: string[] = [];
@@ -184,6 +185,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
   // ── VERIFY (confirm TOTP or email setup) ──
   app.post("/api/v1/auth/2fa/verify", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         description: "Verify the 2FA setup by providing a valid code. Enables 2FA and returns backup codes.",
         tags: ["2FA"],
@@ -248,7 +250,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
         .from(schema.users)
         .where(eq(schema.users.id, userId))
         .limit(1);
-      if (userData?.twoFaStaticCode === hashedInput) {
+      if (userData?.twoFaStaticCode && timingSafeCompare(userData.twoFaStaticCode, hashedInput)) {
         verified = true;
       }
     } else if (user?.twoFaMethod === "email") {
@@ -400,6 +402,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
   // ── DISABLE 2FA ──
   app.post("/api/v1/auth/2fa/disable", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         description: "Disable 2FA. Requires password and a valid 2FA code (TOTP/email/static) or backup code.",
         tags: ["2FA"],
@@ -459,7 +462,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
     } else if (user.twoFaMethod === "static") {
       if (cleanToken.length === 6 && /^\d+$/.test(cleanToken)) {
         const hashedInput = hashCode(cleanToken);
-        if (user.twoFaStaticCode === hashedInput) {
+        if (user.twoFaStaticCode && timingSafeCompare(user.twoFaStaticCode, hashedInput)) {
           verified = true;
         }
       }
@@ -481,7 +484,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
     if (!verified && cleanToken.length === 8) {
       const hashedInput = hashCode(cleanToken);
       const storedCodes: string[] = JSON.parse(user.twoFaBackupCodes || "[]");
-      const idx = storedCodes.indexOf(hashedInput);
+      const idx = storedCodes.findIndex((c: string) => timingSafeCompare(c, hashedInput));
       if (idx !== -1) {
         verified = true;
         storedCodes.splice(idx, 1);
