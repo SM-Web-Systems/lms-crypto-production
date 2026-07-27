@@ -290,7 +290,7 @@
 
 ---
 
-### P0-3-F1: GET /api/v1/wallets returns encryptedSecret in response body
+### P0-3-F1: GET /api/v1/wallets returns encryptedSecret in response body — FIXED (7a5016f)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/wallets.ts:34`
 - **Description:** The GET response schema includes `encryptedSecret` and the handler returns all columns from `user_wallets` including `encrypted_secret`. Any XSS or token theft gives the attacker the ciphertext for offline PIN brute-force.
@@ -318,13 +318,13 @@
   ```
 - **Recommendation:** Move HD wallet derivation to the client side using `stellar-hd-wallet` in the browser bundle.
 
-### P0-3-F3: No rate limit on sign-and-submit enables PIN brute-force
+### P0-3-F3: No rate limit on sign-and-submit enables PIN brute-force — FIXED (e37855e)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1308-1311`
 - **Description:** `POST /api/v1/transactions/sign-and-submit` has `authMiddleware` but no `rateLimit`. An attacker with a stolen JWT can submit repeated PIN guesses. A 4-6 digit numeric PIN has only 10^4–10^6 possibilities; PBKDF2 600k iterations slows each attempt but the keyspace is exhaustible without rate limiting.
 - **Recommendation:** Add `config: { rateLimit: { max: 5, timeWindow: "15 minutes" } }`. Consider account lockout after N consecutive PIN failures.
 
-### P0-3-F4: Backward-compatibility fallback uses raw secret key without PIN
+### P0-3-F4: Backward-compatibility fallback uses raw secret key without PIN — FIXED (88acd64)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1549-1552`
 - **Description:** When `pin` is not provided, the code falls back to using `wallet.encryptedSecret` as a raw (unencrypted) secret key directly. This implies some wallets may have their secret stored unencrypted in the database. Any DB breach exposes these keys and all associated funds.
@@ -454,13 +454,13 @@
 - **Description:** The `/transactions/sign` endpoint uses `wallet.encryptedSecret` directly as a Stellar secret key without calling `decryptSecret()`. This breaks the endpoint for all encrypted wallets (decryption never happens) and contradicts the security model. The ciphertext is passed to `Keypair.fromSecret()` which will throw for encrypted values.
 - **Recommendation:** Add PIN to the request schema and call `decryptSecret(wallet.encryptedSecret, pin)` before signing, consistent with sign-and-submit.
 
-### P0-4-F2: /sign-and-submit falls back to raw secret when PIN omitted
+### P0-4-F2: /sign-and-submit falls back to raw secret when PIN omitted — FIXED (88acd64)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1549-1551`
 - **Description:** PIN is not required in the request schema. When omitted, the code uses `wallet.encryptedSecret` as a raw (unencrypted) secret key. Combined with P0-3-F4, this means any delegated wallet without encryption can be drained by an attacker with a stolen JWT.
 - **Recommendation:** Make `pin` required in the schema for delegated mode. Remove raw fallback.
 
-### P0-4-F3: No rate limits on /transactions/submit, /sign, /sign-and-submit
+### P0-4-F3: No rate limits on /transactions/submit, /sign, /sign-and-submit — FIXED (e37855e)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1240,1280,1308`
 - **Description:** All three transaction endpoints have `authMiddleware` but no rate limiting. Enables PIN brute-force (sign-and-submit) and platform wallet budget drain (submit). Combined with P0-3-F3.
@@ -596,12 +596,12 @@
 | P0-1-F3 | HIGH | `auth.ts:1422` | auditLog wrong signature in SMS reset |
 | P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error |
 | P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change |
-| P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret |
+| P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret | **FIXED** (31d3d37) |
 | P0-3-F2 | HIGH | `wallet.ts:243` / `server.ts:1974` | Mnemonic sent to server for HD derivation |
-| P0-3-F3 | HIGH | `server.ts:1308` | No rate limit on sign-and-submit (PIN brute-force) |
-| P0-3-F4 | HIGH | `server.ts:1549` | Raw secret fallback when PIN omitted |
-| P0-4-F2 | HIGH | `server.ts:1549` | PIN not required in sign-and-submit schema |
-| P0-4-F3 | HIGH | `server.ts:1240,1280,1308` | No rate limits on any transaction endpoint |
+| P0-3-F3 | HIGH | `server.ts:1308` | No rate limit on sign-and-submit (PIN brute-force) | **FIXED** (e37855e) |
+| P0-3-F4 | HIGH | `server.ts:1549` | Raw secret fallback when PIN omitted | **FIXED** (88acd64) |
+| P0-4-F2 | HIGH | `server.ts:1549` | PIN not required in sign-and-submit schema | **FIXED** (88acd64) |
+| P0-4-F3 | HIGH | `server.ts:1240,1280,1308` | No rate limits on any transaction endpoint | **FIXED** (e37855e) |
 | P0-4-F18 | HIGH | `Swap.tsx` / `server.ts:1450` | Double platform fee injection risk |
 | P0-2-F1 | MEDIUM | `admin.ts:530+` | No audit logging on admin mutations |
 | P0-2-F4 | MEDIUM | `config/index.ts:1-16` | No guard: ADMIN_JWT_SECRET == JWT_SECRET |
@@ -818,7 +818,7 @@
 
 ---
 
-### P1-4-F1: Callback whitelist prefix matching allows subdomain/path hijack
+### P1-4-F1: Callback whitelist prefix matching allows subdomain/path hijack — FIXED (ad15043)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/sso.ts:67`
 - **Description:** The callback URL whitelist uses `callbackUrl.startsWith(origin)`, which is a string prefix match. An attacker could register `https://lms.smwebsystems.com.evil.com` or use `https://lms.smwebsystems.com@evil.com` (authority confusion), and it would pass the prefix check. The SSO assertion JWT (containing user identity + wallet address) would be sent to the attacker-controlled URL.
@@ -879,7 +879,7 @@
 
 | ID | Severity | File | Description |
 |----|----------|------|-------------|
-| P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack |
+| P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack | **FIXED** (ad15043) |
 | P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET |
 | P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison — **FIXED ecbe6f5** |
 | P1-1-F6 | MEDIUM | `tenant-api-key.ts:243-257` | `requireScope()` silent no-op without prior key middleware |
@@ -929,7 +929,7 @@
 - **Description:** None of the 5 trustline routes (`GET /trustlines/:publicKey`, `GET /trustlines/check/...`, `POST /trustlines/add`, `POST /trustlines/remove`, `POST /trustlines/update-limit`) include `preHandler: authMiddleware`. Any unauthenticated caller can build unsigned trustline transactions for any public key, enumerate account balances, and trigger DB writes via `ensureToken()`. Confirms P0-4-F11 is still unfixed.
 - **Recommendation:** Add `preHandler: authMiddleware` to all POST mutation routes. Verify `request.user.id` owns the wallet.
 
-### P2-1-F2: No ownership verification — any user can build transactions for another user's wallet
+### P2-1-F2: No ownership verification — any user can build transactions for another user's wallet — FIXED (7a5016f)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/trustlines.ts:234-292,323-372,402-440`
 - **Description:** Even with authMiddleware, handlers don't verify that `publicKey` belongs to the authenticated user. The `/add` route calls `tokenService.ensureToken()` (line 281) which writes to DB. Also leaks account state through error responses.
@@ -1243,7 +1243,7 @@
 | ID | Severity | File | Description |
 |----|----------|------|-------------|
 | P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware — **FIXED 62c323b** |
-| P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet |
+| P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet | **FIXED** (7a5016f) |
 | P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
 | P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
 | P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
