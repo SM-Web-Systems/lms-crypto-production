@@ -66,9 +66,9 @@ vi.mock("@stellar/stellar-sdk", () => ({
 }));
 
 vi.mock("../modules/tokens/token.service", () => ({
-  TokenService: vi.fn().mockImplementation(() => ({
-    ensureToken: vi.fn().mockResolvedValue(undefined),
-  })),
+  TokenService: vi.fn().mockImplementation(function (this: any) {
+    this.ensureToken = vi.fn().mockResolvedValue(undefined);
+  }),
 }));
 
 import Fastify from "fastify";
