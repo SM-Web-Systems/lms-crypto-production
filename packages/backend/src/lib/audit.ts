@@ -22,7 +22,17 @@ export type AuditAction =
   | "nft_collection_registered"
   | "nft_transfer"
   | "nft_mint_indexed"
-  | "nft_collection_synced";
+  | "nft_collection_synced"
+  | "fiat_stripe_session"
+  | "fiat_transak_url"
+  | "admin_credit"
+  | "admin_suspend"
+  | "admin_unsuspend"
+  | "admin_create"
+  | "admin_deactivate"
+  | "admin_reactivate"
+  | "admin_billing_policy"
+  | "admin_reset_password";
 
 export async function auditLog(
   action: AuditAction,

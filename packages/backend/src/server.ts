@@ -1194,6 +1194,7 @@ async function bootstrap() {
     "/api/v1/transactions/sign",
     {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags: ["Signing"],
         summary: "Server-side transaction signing (delegated mode)",
@@ -1202,13 +1203,12 @@ async function bootstrap() {
           type: "object",
           properties: {
             xdr: { type: "string", description: "Unsigned transaction XDR" },
-            networkPassphrase: { type: "string" },
             pin: {
               type: "string",
               description: "PIN to decrypt wallet secret",
             },
           },
-          required: ["xdr"],
+          required: ["xdr", "pin"],
         },
         response: {
           200: {
@@ -1234,11 +1234,9 @@ async function bootstrap() {
       console.log("[sign-and-submit] userId:", userId);
       const {
         xdr,
-        networkPassphrase: clientPassphrase,
         pin,
       } = request.body as {
         xdr: string;
-        networkPassphrase?: string;
         pin?: string;
       };
 
@@ -1283,7 +1281,7 @@ async function bootstrap() {
         }
 
         const { stellarClient } = await import("./lib/stellar-client");
-        const passphrase = clientPassphrase || stellarClient.networkPassphrase;
+        const passphrase = stellarClient.networkPassphrase;
 
         const tx = StellarSdk.TransactionBuilder.fromXDR(xdr, passphrase);
 
@@ -1297,15 +1295,10 @@ async function bootstrap() {
           });
         }
 
-        // Decrypt the wallet secret using PIN
+        // Decrypt the wallet secret using PIN (required — no raw fallback)
         let secretKey: string;
         try {
-          if (pin) {
-            secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
-          } else {
-            // Try as raw secret (backward compat)
-            secretKey = wallet.encryptedSecret!;
-          }
+          secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
         } catch (decryptErr: any) {
           return reply.status(403).send({
             error:
@@ -1333,6 +1326,7 @@ async function bootstrap() {
     "/api/v1/transactions/sign-and-submit",
     {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags: ["Signing"],
         summary: "Server-side sign and submit (delegated mode)",
@@ -1341,13 +1335,12 @@ async function bootstrap() {
           type: "object",
           properties: {
             xdr: { type: "string" },
-            networkPassphrase: { type: "string" },
             pin: {
               type: "string",
               description: "PIN to decrypt wallet secret",
             },
           },
-          required: ["xdr"],
+          required: ["xdr", "pin"],
         },
         response: {
           200: {
@@ -1379,11 +1372,9 @@ async function bootstrap() {
       console.log("[sign-and-submit] userId:", userId);
       const {
         xdr,
-        networkPassphrase: clientPassphrase,
         pin,
       } = request.body as {
         xdr: string;
-        networkPassphrase?: string;
         pin?: string;
       };
 
@@ -1428,7 +1419,7 @@ async function bootstrap() {
         }
 
         const { stellarClient } = await import("./lib/stellar-client");
-        const passphrase = clientPassphrase || stellarClient.networkPassphrase;
+        const passphrase = stellarClient.networkPassphrase;
 
         const tx = StellarSdk.TransactionBuilder.fromXDR(xdr, passphrase);
 
@@ -1564,16 +1555,10 @@ async function bootstrap() {
           }
         }
 
-        // Sign with user's key
-        // Decrypt the wallet secret using PIN
+        // Sign with user's key — PIN required, no raw fallback
         let secretKey: string;
         try {
-          if (pin) {
-            secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
-          } else {
-            // Try as raw secret (backward compat)
-            secretKey = wallet.encryptedSecret!;
-          }
+          secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
         } catch (decryptErr: any) {
           console.error(
             "[sign-and-submit] DECRYPT ERROR:",

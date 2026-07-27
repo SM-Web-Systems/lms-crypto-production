@@ -66,7 +66,19 @@ export async function ssoRoutes(app: FastifyInstance) {
         app.log.error("[sso/token] SSO_CALLBACK_WHITELIST is empty — rejecting all callbacks (fail-closed)");
         return reply.status(403).send({ error: "SSO callback whitelist not configured" });
       }
-      if (!whitelist.some((origin: string) => callbackUrl.startsWith(origin))) {
+      let parsedCallback: URL;
+      try {
+        parsedCallback = new URL(callbackUrl);
+      } catch {
+        return reply.status(400).send({ error: "Invalid callback URL" });
+      }
+      if (!whitelist.some((origin: string) => {
+        try {
+          return parsedCallback.origin === new URL(origin).origin;
+        } catch {
+          return false;
+        }
+      })) {
         app.log.warn(`[sso/token] Rejected callback URL not in whitelist: ${callbackUrl}`);
         return reply.status(403).send({ error: "Callback URL not in SSO whitelist" });
       }

@@ -85,7 +85,7 @@
 - **Description:** `auditLog` accepts `(action, opts?)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Line 1422 passes positional args: `auditLog("password_reset", user.id, { method: "sms" }, request.ip)`. The audit record will be malformed or silently lost.
 - **Recommendation:** `await auditLog("password_reset", { userId: user.id, detail: { method: "sms" }, ip: request.ip })`.
 
-### P0-1-F4: Turnstile verification fails open when Cloudflare is unreachable
+### P0-1-F4: Turnstile verification fails open when Cloudflare is unreachable — FIXED (057b157)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/middleware/turnstile.ts:52-56`
 - **Description:** When the `fetch()` to Cloudflare Turnstile throws (network error, DNS failure, timeout), the `catch` block logs a warning but allows the request to proceed. An attacker who can disrupt connectivity to `challenges.cloudflare.com` bypasses CAPTCHA entirely on register and login.
@@ -98,13 +98,13 @@
   ```
 - **Recommendation:** Fail closed: `return reply.status(503).send({ error: "Verification service unavailable" })`.
 
-### P0-1-F5: Missing audit log for password change
+### P0-1-F5: Missing audit log for password change — FIXED (1eca391)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/auth.ts:830-865`
 - **Description:** The `change-password` endpoint updates the password hash and revokes all refresh tokens, but never calls `auditLog("password_change", ...)`. The `password_change` action type is defined but never emitted.
 - **Recommendation:** Add `await auditLog("password_change", { userId, ip: request.ip });` after the password update.
 
-### P0-1-F6: Missing audit log for login success and login failure (wrong password)
+### P0-1-F6: Missing audit log for login success and login failure (wrong password) — FIXED (1eca391)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/auth.ts:345-354` (failed) and `470-498` (success)
 - **Description:** When password verification fails, `failedLoginAttempts` is incremented but no `auditLog("login_failed")` is called. On successful login, no `auditLog("login")` call exists either. The audit trail has no record of login activity.
@@ -116,26 +116,26 @@
 - **Description:** The `twoFaSecret` (base32 TOTP seed) is stored as plaintext. If the database is compromised, an attacker can generate valid TOTP codes for all 2FA-enabled users, defeating the second factor entirely.
 - **Recommendation:** Encrypt with AES-256-GCM using a dedicated encryption key before storage.
 
-### P0-1-F8: 2FA email codes generated with Math.random() (not CSPRNG)
+### P0-1-F8: 2FA email codes generated with Math.random() (not CSPRNG) — FIXED (c2aac2c)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/auth.ts:373` / `packages/backend/src/routes/two-fa.ts:23`
 - **Description:** `Math.random()` is not cryptographically secure. 6-digit 2FA codes generated this way are theoretically predictable.
 - **Evidence:** `const code = Math.floor(100000 + Math.random() * 900000).toString();`
 - **Recommendation:** Replace with `crypto.randomInt(100000, 1000000).toString()`.
 
-### P0-1-F9: User JWT tokens lack a `type` claim for token-confusion defence
+### P0-1-F9: User JWT tokens lack a `type` claim for token-confusion defence — FIXED (d112230)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/lib/auth.ts:27-36`
 - **Description:** Admin JWTs carry `type: "admin"` and admin middleware checks it. User JWTs have no `type` claim and user middleware does no type check. If `JWT_SECRET` and `ADMIN_JWT_SECRET` are misconfigured to the same value, an admin token would pass user auth.
 - **Recommendation:** Add `type: "user"` to user JWT payload and check in `authMiddleware`.
 
-### P0-1-F10: Logout does not revoke tokens if refreshToken omitted from body
+### P0-1-F10: Logout does not revoke tokens if refreshToken omitted from body — FIXED (216dfb0)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/auth.ts:586-605`
 - **Description:** The `refreshToken` field is optional in the logout schema. If omitted, the endpoint returns `{ ok: true }` without revoking anything.
 - **Recommendation:** Make `refreshToken` required.
 
-### P0-1-F11: Turnstile bypass when `twoFaToken` is present in body
+### P0-1-F11: Turnstile bypass when `twoFaToken` is present in body — FIXED (057b157)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/middleware/turnstile.ts:21-23`
 - **Description:** The Turnstile middleware skips CAPTCHA if `body.twoFaToken` is present, regardless of the route. An attacker can bypass CAPTCHA on **register** by including a dummy `twoFaToken` field.
@@ -215,10 +215,10 @@
 
 ---
 
-### P0-2-F1: No audit logging on admin mutations
+### P0-2-F1: No audit logging on admin mutations — FIXED (7c9b9ae)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/admin.ts:530-614, 795-879, 888-978, 986-1054, 1062-1202, 1210-1271`
-- **Description:** Six mutation endpoints (suspend, unsuspend, deactivate, reactivate, password reset, billing-policy update) produce no audit log entries. Only the credit endpoint writes to `billing_events`. A compromised admin could perform destructive actions with no structured forensic record.
+- **Description:** Eight mutation endpoints (credit, suspend, unsuspend, create, deactivate, reactivate, billing-policy, password reset) produce no audit log entries. A compromised admin could perform destructive actions with no structured forensic record.
 - **Recommendation:** Create an `admin_audit_log` table and insert a row for each mutation.
 
 ### P0-2-F2: Suspend atomic update pattern
@@ -290,7 +290,7 @@
 
 ---
 
-### P0-3-F1: GET /api/v1/wallets returns encryptedSecret in response body
+### P0-3-F1: GET /api/v1/wallets returns encryptedSecret in response body — FIXED (7a5016f)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/wallets.ts:34`
 - **Description:** The GET response schema includes `encryptedSecret` and the handler returns all columns from `user_wallets` including `encrypted_secret`. Any XSS or token theft gives the attacker the ciphertext for offline PIN brute-force.
@@ -318,13 +318,13 @@
   ```
 - **Recommendation:** Move HD wallet derivation to the client side using `stellar-hd-wallet` in the browser bundle.
 
-### P0-3-F3: No rate limit on sign-and-submit enables PIN brute-force
+### P0-3-F3: No rate limit on sign-and-submit enables PIN brute-force — FIXED (e37855e)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1308-1311`
 - **Description:** `POST /api/v1/transactions/sign-and-submit` has `authMiddleware` but no `rateLimit`. An attacker with a stolen JWT can submit repeated PIN guesses. A 4-6 digit numeric PIN has only 10^4–10^6 possibilities; PBKDF2 600k iterations slows each attempt but the keyspace is exhaustible without rate limiting.
 - **Recommendation:** Add `config: { rateLimit: { max: 5, timeWindow: "15 minutes" } }`. Consider account lockout after N consecutive PIN failures.
 
-### P0-3-F4: Backward-compatibility fallback uses raw secret key without PIN
+### P0-3-F4: Backward-compatibility fallback uses raw secret key without PIN — FIXED (88acd64)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1549-1552`
 - **Description:** When `pin` is not provided, the code falls back to using `wallet.encryptedSecret` as a raw (unencrypted) secret key directly. This implies some wallets may have their secret stored unencrypted in the database. Any DB breach exposes these keys and all associated funds.
@@ -344,19 +344,19 @@
 - **Description:** Unlike the frontend `crypto.ts` which validates minimum blob length, the backend `decryptSecret` does no length validation. If `encrypted` is empty or too short, `subarray` calls produce zero-length buffers and `createDecipheriv` throws a generic error.
 - **Recommendation:** Add `if (combined.length < SALT_LENGTH + IV_LENGTH + 17) throw new Error("Encrypted data too short or corrupted")`.
 
-### P0-3-F6: Client networkPassphrase accepted by sign-and-submit
+### P0-3-F6: Client networkPassphrase accepted by sign-and-submit — FIXED (2bb77d1)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/server.ts:1358,1407`
 - **Description:** The sign-and-submit handler accepts `networkPassphrase` from the client body and uses it as fallback. Wallet creation correctly enforces `effectiveNetwork` from server config, but the signing flow allows client override.
 - **Recommendation:** Always use the server's configured passphrase. Remove `networkPassphrase` from the request body schema.
 
-### P0-3-F7: Wallet deletion is not transactional
+### P0-3-F7: Wallet deletion is not transactional — FIXED (a22e61c)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/wallets.ts:383-408`
 - **Description:** The DELETE handler performs three sequential queries (delete, select remaining, activate first remaining) without a transaction. A concurrent request between steps could cause two wallets to be simultaneously active.
 - **Recommendation:** Wrap in `db.transaction()`.
 
-### P0-3-F8: Activate-wallet deactivates all before verifying target exists
+### P0-3-F8: Activate-wallet deactivates all before verifying target exists — FIXED (47e86bc)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/wallets.ts:272-294`
 - **Description:** `PATCH /:id/activate` first deactivates ALL user wallets, then attempts to activate the target. If the target ID doesn't exist, all wallets remain deactivated.
@@ -454,25 +454,25 @@
 - **Description:** The `/transactions/sign` endpoint uses `wallet.encryptedSecret` directly as a Stellar secret key without calling `decryptSecret()`. This breaks the endpoint for all encrypted wallets (decryption never happens) and contradicts the security model. The ciphertext is passed to `Keypair.fromSecret()` which will throw for encrypted values.
 - **Recommendation:** Add PIN to the request schema and call `decryptSecret(wallet.encryptedSecret, pin)` before signing, consistent with sign-and-submit.
 
-### P0-4-F2: /sign-and-submit falls back to raw secret when PIN omitted
+### P0-4-F2: /sign-and-submit falls back to raw secret when PIN omitted — FIXED (88acd64)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1549-1551`
 - **Description:** PIN is not required in the request schema. When omitted, the code uses `wallet.encryptedSecret` as a raw (unencrypted) secret key. Combined with P0-3-F4, this means any delegated wallet without encryption can be drained by an attacker with a stolen JWT.
 - **Recommendation:** Make `pin` required in the schema for delegated mode. Remove raw fallback.
 
-### P0-4-F3: No rate limits on /transactions/submit, /sign, /sign-and-submit
+### P0-4-F3: No rate limits on /transactions/submit, /sign, /sign-and-submit — FIXED (e37855e)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/server.ts:1240,1280,1308`
 - **Description:** All three transaction endpoints have `authMiddleware` but no rate limiting. Enables PIN brute-force (sign-and-submit) and platform wallet budget drain (submit). Combined with P0-3-F3.
 - **Recommendation:** Add aggressive rate limits: `max: 10, timeWindow: "1 minute"` minimum.
 
-### P0-4-F18: Double platform fee risk — frontend and backend both inject fees
+### P0-4-F18: Double platform fee risk — frontend and backend both inject fees — FIXED (72a703d)
 - **Severity:** HIGH
 - **File:** `packages/web-app/src/pages/Swap.tsx` / `packages/backend/src/server.ts:1450-1500`
 - **Description:** Frontend `Swap.tsx` injects a platform fee operation into the transaction XDR before sending to the backend. The backend's `sign-and-submit` also injects a fee operation when processing path payments. If both paths execute, the user pays 2x the intended fee.
 - **Recommendation:** Centralize fee injection to one location only (preferably backend). Remove frontend fee injection or add deduplication logic.
 
-### P0-4-F4: Send.tsx destination validation uses only prefix+length check
+### P0-4-F4: Send.tsx destination validation uses only prefix+length check — FIXED (72d279e)
 - **Severity:** MEDIUM
 - **File:** `packages/web-app/src/pages/Send.tsx`
 - **Description:** Destination address validation checks only that the string starts with 'G' and has length 56, not that it's a valid Ed25519 public key. Invalid checksums would be caught by Horizon but the error message would be confusing.
@@ -594,27 +594,27 @@
 | P0-1-F2 | **CRITICAL** | `auth.ts:1409` | SMS password reset writes to wrong column |
 | P0-4-F1 | **CRITICAL** | `server.ts:1291` | /transactions/sign uses encrypted blob as raw secret |
 | P0-1-F3 | HIGH | `auth.ts:1422` | auditLog wrong signature in SMS reset |
-| P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error |
-| P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change |
-| P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret |
+| P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error | **FIXED** (057b157) |
+| P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change | **FIXED** (1eca391) |
+| P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret | **FIXED** (31d3d37) |
 | P0-3-F2 | HIGH | `wallet.ts:243` / `server.ts:1974` | Mnemonic sent to server for HD derivation |
-| P0-3-F3 | HIGH | `server.ts:1308` | No rate limit on sign-and-submit (PIN brute-force) |
-| P0-3-F4 | HIGH | `server.ts:1549` | Raw secret fallback when PIN omitted |
-| P0-4-F2 | HIGH | `server.ts:1549` | PIN not required in sign-and-submit schema |
-| P0-4-F3 | HIGH | `server.ts:1240,1280,1308` | No rate limits on any transaction endpoint |
-| P0-4-F18 | HIGH | `Swap.tsx` / `server.ts:1450` | Double platform fee injection risk |
-| P0-2-F1 | MEDIUM | `admin.ts:530+` | No audit logging on admin mutations |
+| P0-3-F3 | HIGH | `server.ts:1308` | No rate limit on sign-and-submit (PIN brute-force) | **FIXED** (e37855e) |
+| P0-3-F4 | HIGH | `server.ts:1549` | Raw secret fallback when PIN omitted | **FIXED** (88acd64) |
+| P0-4-F2 | HIGH | `server.ts:1549` | PIN not required in sign-and-submit schema | **FIXED** (88acd64) |
+| P0-4-F3 | HIGH | `server.ts:1240,1280,1308` | No rate limits on any transaction endpoint | **FIXED** (e37855e) |
+| P0-4-F18 | HIGH | `Swap.tsx` / `server.ts:1450` | Double platform fee injection risk | **FIXED** (72a703d) |
+| P0-2-F1 | MEDIUM | `admin.ts:530+` | No audit logging on admin mutations | **FIXED** (7c9b9ae) |
 | P0-2-F4 | MEDIUM | `config/index.ts:1-16` | No guard: ADMIN_JWT_SECRET == JWT_SECRET |
-| P0-1-F6 | MEDIUM | `auth.ts:345,470` | Missing audit for login success/failure |
+| P0-1-F6 | MEDIUM | `auth.ts:345,470` | Missing audit for login success/failure | **FIXED** (1eca391) |
 | P0-1-F7 | MEDIUM | `schema/index.ts:202` | TOTP secret stored in plaintext |
-| P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes |
-| P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim |
-| P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken |
-| P0-1-F11 | MEDIUM | `turnstile.ts:21-23` | Turnstile bypass via twoFaToken on any route |
+| P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes | **FIXED** (c2aac2c) |
+| P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim | **FIXED** (d112230) |
+| P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken | **FIXED** (216dfb0) |
+| P0-1-F11 | MEDIUM | `turnstile.ts:21-23` | Turnstile bypass via twoFaToken on any route | **FIXED** (057b157) |
 | P0-3-F5 | MEDIUM | `decrypt-secret.ts:7-29` | No length validation on encrypted data |
-| P0-3-F6 | MEDIUM | `server.ts:1358` | Client can override networkPassphrase |
-| P0-3-F7 | MEDIUM | `wallets.ts:383-408` | Wallet deletion not transactional |
-| P0-3-F8 | MEDIUM | `wallets.ts:272-294` | Activate deactivates all before verify |
+| P0-3-F6 | MEDIUM | `server.ts:1358` | Client can override networkPassphrase | **FIXED** (2bb77d1) |
+| P0-3-F7 | MEDIUM | `wallets.ts:383-408` | Wallet deletion not transactional | **FIXED** (a22e61c) |
+| P0-3-F8 | MEDIUM | `wallets.ts:272-294` | Activate deactivates all before verify | **FIXED** (47e86bc) |
 | P0-3-F9 | MEDIUM | `wallet.ts:455` | encryptedSecret in localStorage |
 | P0-3-F10 | MEDIUM | `wallet.ts:254` | Mnemonic in predictable localStorage key |
 | P0-4-F4–F11 | MEDIUM | various | 8 additional medium findings |
@@ -818,7 +818,7 @@
 
 ---
 
-### P1-4-F1: Callback whitelist prefix matching allows subdomain/path hijack
+### P1-4-F1: Callback whitelist prefix matching allows subdomain/path hijack — FIXED (ad15043)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/sso.ts:67`
 - **Description:** The callback URL whitelist uses `callbackUrl.startsWith(origin)`, which is a string prefix match. An attacker could register `https://lms.smwebsystems.com.evil.com` or use `https://lms.smwebsystems.com@evil.com` (authority confusion), and it would pass the prefix check. The SSO assertion JWT (containing user identity + wallet address) would be sent to the attacker-controlled URL.
@@ -828,7 +828,7 @@
   ```
 - **Recommendation:** Parse both whitelist entries and `callbackUrl` as `URL` objects, then compare `url.origin` strictly (scheme + host + port).
 
-### P1-4-F2: SSO_SECRET not validated at startup; no key-confusion guard
+### P1-4-F2: SSO_SECRET not validated at startup; no key-confusion guard — FIXED (af098e9)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/config/index.ts:45`
 - **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime), there's no startup check that `SSO_SECRET !== JWT_SECRET`. If they match, a crafted session JWT with `iss=ammawallet` and `aud=lms-amma-sso` could pass SSO verification, enabling assertion forgery.
@@ -879,8 +879,8 @@
 
 | ID | Severity | File | Description |
 |----|----------|------|-------------|
-| P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack |
-| P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET |
+| P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack | **FIXED** (ad15043) |
+| P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET | **FIXED** (af098e9) |
 | P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison — **FIXED ecbe6f5** |
 | P1-1-F6 | MEDIUM | `tenant-api-key.ts:243-257` | `requireScope()` silent no-op without prior key middleware |
 | P1-2-F1 | MEDIUM | `billing.service.ts:204,231,464` | Floating-point arithmetic on monetary values — **FIXED eda4a35** |
@@ -929,13 +929,13 @@
 - **Description:** None of the 5 trustline routes (`GET /trustlines/:publicKey`, `GET /trustlines/check/...`, `POST /trustlines/add`, `POST /trustlines/remove`, `POST /trustlines/update-limit`) include `preHandler: authMiddleware`. Any unauthenticated caller can build unsigned trustline transactions for any public key, enumerate account balances, and trigger DB writes via `ensureToken()`. Confirms P0-4-F11 is still unfixed.
 - **Recommendation:** Add `preHandler: authMiddleware` to all POST mutation routes. Verify `request.user.id` owns the wallet.
 
-### P2-1-F2: No ownership verification — any user can build transactions for another user's wallet
+### P2-1-F2: No ownership verification — any user can build transactions for another user's wallet — FIXED (7a5016f)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/trustlines.ts:234-292,323-372,402-440`
 - **Description:** Even with authMiddleware, handlers don't verify that `publicKey` belongs to the authenticated user. The `/add` route calls `tokenService.ensureToken()` (line 281) which writes to DB. Also leaks account state through error responses.
 - **Recommendation:** Query `user_wallets` table to confirm `request.user.id` owns the given `publicKey`. Reject with 403 if not.
 
-### P2-1-F3: POST mutation routes lack rate limiting
+### P2-1-F3: POST mutation routes lack rate limiting — FIXED (c2dbb67)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/trustlines.ts:206-440`
 - **Description:** GET routes have `rateLimit: { max: 30, timeWindow: "1 minute" }` but all three POST routes (`/add`, `/remove`, `/update-limit`) have none.
@@ -1070,13 +1070,13 @@
 
 ---
 
-### P2-4-F1: SSO_SECRET defaults to empty string, no startup validation
+### P2-4-F1: SSO_SECRET defaults to empty string, no startup validation — FIXED (af098e9)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/config/index.ts:45`
 - **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime via `sso.ts:53`), there's no startup warning. If JWT library accepts empty key, tokens could be forged. Cross-reference: also flagged as P1-4-F2.
 - **Recommendation:** Add to `requiredEnvVars` or add startup warning.
 
-### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string
+### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string — PARTIALLY FIXED (af098e9)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/config/index.ts:52,78`
 - **Description:** Both Stellar signing keys default to `""`. If accidentally unset, transaction signing fails at runtime rather than startup. Secret key material should never default silently.
@@ -1199,7 +1199,7 @@
 
 ---
 
-### P2-7-F1: 6 NFT/Fiat audit calls use wrong function signature — all context silently lost
+### P2-7-F1: 6 NFT/Fiat audit calls use wrong function signature — all context silently lost — FIXED (b388f6a, Phase 4 for NFT calls)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/nft.ts:110,321,393,436` and `packages/backend/src/routes/fiat.ts:281,357`
 - **Description:** These 6 call sites invoke `auditLog(action, userId, detailObj, ip)` with 4 positional arguments. The actual signature is `auditLog(action, opts)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Because `tsx` skips type checking, JavaScript accepts the numeric `userId` as the `opts` parameter — all properties resolve to `undefined`. Result: every NFT/Fiat audit entry is inserted with `userId=null`, `detail={}`, `ipAddress=null`, `userAgent=null`.
@@ -1243,12 +1243,12 @@
 | ID | Severity | File | Description |
 |----|----------|------|-------------|
 | P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware — **FIXED 62c323b** |
-| P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet |
-| P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
-| P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
+| P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet | **FIXED** (7a5016f) |
+| P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost | **FIXED** (b388f6a + Phase 4) |
+| P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting | **FIXED** (c2dbb67) |
 | P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
-| P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation |
-| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty |
+| P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation | **FIXED** (af098e9) |
+| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty | **PARTIALLY FIXED** (af098e9) |
 | P2-5-F1 | MEDIUM | `schema/index.ts:295` | addressBook.userId has no FK constraint or index |
 | P2-7-F2 | MEDIUM | `auth.ts` (login handler) | Successful login never audit-logged |
 | P2-7-F3 | MEDIUM | `audit.ts` | 9 of 17 AuditAction types never emitted (53%) |
@@ -1933,12 +1933,12 @@
 - **File:** `/home/webadmin/amma-wallet-docker/docker-compose.testnet.yml:51-52`
 - **Description:** Same pattern as F4. Testnet compose file exposes password in plaintext.
 
-#### P4-8-F6: .dockerignore missing — MEDIUM
+#### P4-8-F6: .dockerignore missing — MEDIUM — FIXED (c76a11b)
 - **Severity:** MEDIUM
 - **File:** (absent — expected at `packages/backend/.dockerignore`)
 - **Description:** Without `.dockerignore`, the build context includes `node_modules/`, `.env`, test fixtures, `.git/`. The `RUN rm -f .env` mitigation happens inside the image layer — the `.env` contents remain in the layer cache even after deletion.
 
-#### P4-8-F7: Deleted .env remains in Docker layer history — MEDIUM
+#### P4-8-F7: Deleted .env remains in Docker layer history — MEDIUM — FIXED (c76a11b)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/Dockerfile:13`
 - **Description:** `COPY . .` captures `.env` in a layer. `RUN rm -f .env` creates a new layer that deletes the file, but the previous layer still contains its contents. Anyone with image access can extract layers to recover it.

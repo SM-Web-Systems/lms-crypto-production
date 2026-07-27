@@ -278,11 +278,15 @@ export async function fiatRampRoutes(app: FastifyInstance) {
 
       const session = await res.json() as any;
 
-      await auditLog("fiat_stripe_session", userId, {
-        sessionId: session.id,
-        walletAddress,
-        destinationCurrency: destinationCurrency || "usdc",
-      }, request.ip);
+      await auditLog("fiat_stripe_session", {
+        userId,
+        detail: {
+          sessionId: session.id,
+          walletAddress,
+          destinationCurrency: destinationCurrency || "usdc",
+        },
+        ip: request.ip,
+      });
 
       return {
         clientSecret: session.client_secret,
@@ -354,12 +358,16 @@ export async function fiatRampRoutes(app: FastifyInstance) {
 
     const url = `${baseUrl}?${params.toString()}`;
 
-    await auditLog("fiat_transak_url", userId, {
-      type: type || "buy",
-      walletAddress,
-      fiatCurrency: fiatCurrency || "USD",
-      cryptoCurrency: cryptoCurrency || "XLM",
-    }, request.ip);
+    await auditLog("fiat_transak_url", {
+      userId,
+      detail: {
+        type: type || "buy",
+        walletAddress,
+        fiatCurrency: fiatCurrency || "USD",
+        cryptoCurrency: cryptoCurrency || "XLM",
+      },
+      ip: request.ip,
+    });
 
     return { url, provider: "transak" };
   });

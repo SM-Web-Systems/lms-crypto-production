@@ -3,6 +3,8 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { stellarClient } from "../lib/stellar-client";
 import { TokenService } from "../modules/tokens/token.service";
 import { authMiddleware } from "../middleware/auth";
+import { db, schema } from "../db";
+import { eq, and } from "drizzle-orm";
 
 const tokenService = new TokenService();
 
@@ -206,6 +208,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/add", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         description: "Build an unsigned XDR transaction to add a trustline for an asset.",
         tags: ["Trustlines"],
@@ -250,6 +253,17 @@ export async function trustlineRoutes(app: FastifyInstance) {
       return reply
         .status(400)
         .send({ error: "publicKey, assetCode, and assetIssuer are required" });
+    }
+
+    // Verify wallet ownership
+    const userId = request.user!.userId;
+    const [wallet] = await db.select().from(schema.userWallets)
+      .where(and(
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, publicKey),
+      )).limit(1);
+    if (!wallet) {
+      return reply.status(403).send({ error: "Wallet does not belong to authenticated user" });
     }
 
     try {
@@ -298,6 +312,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/remove", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         description: "Build an unsigned XDR transaction to remove a trustline (balance must be zero).",
         tags: ["Trustlines"],
@@ -334,6 +349,17 @@ export async function trustlineRoutes(app: FastifyInstance) {
       return reply
         .status(400)
         .send({ error: "publicKey, assetCode, and assetIssuer are required" });
+    }
+
+    // Verify wallet ownership
+    const userId = request.user!.userId;
+    const [wallet] = await db.select().from(schema.userWallets)
+      .where(and(
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, publicKey),
+      )).limit(1);
+    if (!wallet) {
+      return reply.status(403).send({ error: "Wallet does not belong to authenticated user" });
     }
 
     try {
@@ -379,6 +405,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/update-limit", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         description: "Build an unsigned XDR transaction to update a trustline limit.",
         tags: ["Trustlines"],
@@ -418,6 +445,17 @@ export async function trustlineRoutes(app: FastifyInstance) {
 
     if (!publicKey || !assetCode || !assetIssuer || !newLimit) {
       return reply.status(400).send({ error: "All fields are required" });
+    }
+
+    // Verify wallet ownership
+    const userId = request.user!.userId;
+    const [wallet] = await db.select().from(schema.userWallets)
+      .where(and(
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, publicKey),
+      )).limit(1);
+    if (!wallet) {
+      return reply.status(403).send({ error: "Wallet does not belong to authenticated user" });
     }
 
     try {

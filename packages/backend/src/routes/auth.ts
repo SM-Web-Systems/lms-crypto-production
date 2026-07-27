@@ -371,7 +371,7 @@ export async function authRoutes(app: FastifyInstance) {
           // For email method, send a code automatically
           if (method === "email" && user.email) {
             const { send2FACode } = await import("../lib/mailer");
-            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const code = crypto.randomInt(100000, 1000000).toString();
             const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
             await db.insert(schema.emailCodes).values({
               userId: user.id,
@@ -483,6 +483,8 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
       });
       await storeRefreshToken(user.id, refreshToken);
+
+      await auditLog("login", { userId: user.id, ip: request.ip });
 
       return {
         user: {
@@ -599,6 +601,9 @@ export async function authRoutes(app: FastifyInstance) {
       const { refreshToken } = request.body as { refreshToken: string };
       if (refreshToken) {
         await revokeRefreshToken(refreshToken);
+      } else {
+        // No specific token provided — revoke all user sessions (P0-1-F10)
+        await revokeAllUserTokens(userId);
       }
       await auditLog("logout", { userId, ip: request.ip });
 
@@ -860,6 +865,8 @@ export async function authRoutes(app: FastifyInstance) {
 
       // Revoke all refresh tokens (force re-login everywhere)
       await revokeAllUserTokens(userId);
+
+      await auditLog("password_change", { userId, ip: request.ip });
 
       return { ok: true };
     },

@@ -31,7 +31,6 @@ export async function walletRoutes(app: FastifyInstance) {
                   userId: { type: "number" },
                   name: { type: "string" },
                   publicKey: { type: "string" },
-                  encryptedSecret: { type: "string", nullable: true },
                   network: { type: "string" },
                   isActive: { type: "boolean" },
                   createdAt: { type: "string", format: "date-time" },
@@ -44,7 +43,15 @@ export async function walletRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
 
     const wallets = await db
-      .select()
+      .select({
+        id: schema.userWallets.id,
+        userId: schema.userWallets.userId,
+        name: schema.userWallets.name,
+        publicKey: schema.userWallets.publicKey,
+        network: schema.userWallets.network,
+        isActive: schema.userWallets.isActive,
+        createdAt: schema.userWallets.createdAt,
+      })
       .from(schema.userWallets)
       .where(eq(schema.userWallets.userId, userId));
 
@@ -269,27 +276,37 @@ export async function walletRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
     const { id } = request.params as { id: string };
 
-    // Deactivate all
-    await db
-      .update(schema.userWallets)
-      .set({ isActive: false })
-      .where(eq(schema.userWallets.userId, userId));
-
-    // Activate selected
-    const [wallet] = await db
-      .update(schema.userWallets)
-      .set({ isActive: true })
+    // Verify target exists and belongs to user BEFORE deactivating (P0-3-F8)
+    const [target] = await db
+      .select({ id: schema.userWallets.id })
+      .from(schema.userWallets)
       .where(
         and(
           eq(schema.userWallets.id, parseInt(id)),
           eq(schema.userWallets.userId, userId)
         )
       )
-      .returning();
+      .limit(1);
 
-    if (!wallet) {
+    if (!target) {
       return reply.status(404).send({ error: "Wallet not found" });
     }
+
+    // Atomic swap: deactivate all, then activate target
+    const wallet = await db.transaction(async (tx) => {
+      await tx
+        .update(schema.userWallets)
+        .set({ isActive: false })
+        .where(eq(schema.userWallets.userId, userId));
+
+      const [activated] = await tx
+        .update(schema.userWallets)
+        .set({ isActive: true })
+        .where(eq(schema.userWallets.id, target.id))
+        .returning();
+
+      return activated;
+    });
 
     return wallet;
   });
@@ -379,32 +396,38 @@ export async function walletRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
     const { id } = request.params as { id: string };
 
-    const [deleted] = await db
-      .delete(schema.userWallets)
-      .where(
-        and(
-          eq(schema.userWallets.id, parseInt(id)),
-          eq(schema.userWallets.userId, userId)
+    const result = await db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .delete(schema.userWallets)
+        .where(
+          and(
+            eq(schema.userWallets.id, parseInt(id)),
+            eq(schema.userWallets.userId, userId)
+          )
         )
-      )
-      .returning();
+        .returning();
 
-    if (!deleted) {
+      if (!deleted) return null;
+
+      // If we deleted the active wallet, activate another one
+      const remaining = await tx
+        .select()
+        .from(schema.userWallets)
+        .where(eq(schema.userWallets.userId, userId))
+        .limit(1);
+
+      if (remaining.length > 0) {
+        await tx
+          .update(schema.userWallets)
+          .set({ isActive: true })
+          .where(eq(schema.userWallets.id, remaining[0].id));
+      }
+
+      return deleted;
+    });
+
+    if (!result) {
       return reply.status(404).send({ error: "Wallet not found" });
-    }
-
-    // If we deleted the active wallet, activate another one
-    const remaining = await db
-      .select()
-      .from(schema.userWallets)
-      .where(eq(schema.userWallets.userId, userId))
-      .limit(1);
-
-    if (remaining.length > 0) {
-      await db
-        .update(schema.userWallets)
-        .set({ isActive: true })
-        .where(eq(schema.userWallets.id, remaining[0].id));
     }
 
     return { ok: true };

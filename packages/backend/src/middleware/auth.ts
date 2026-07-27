@@ -18,6 +18,10 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
 
   try {
     const payload = verifyAccessToken(token);
+    // Reject admin tokens used on user endpoints (token confusion guard)
+    if (payload.type === "admin") {
+      return reply.status(401).send({ error: "Invalid or expired token" });
+    }
     request.user = payload;
   } catch {
     return reply.status(401).send({ error: "Invalid or expired token" });
