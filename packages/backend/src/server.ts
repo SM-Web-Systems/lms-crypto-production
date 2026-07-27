@@ -1203,6 +1203,10 @@ async function bootstrap() {
           properties: {
             xdr: { type: "string", description: "Unsigned transaction XDR" },
             networkPassphrase: { type: "string" },
+            pin: {
+              type: "string",
+              description: "PIN to decrypt wallet secret",
+            },
           },
           required: ["xdr"],
         },
@@ -1228,9 +1232,14 @@ async function bootstrap() {
     async (request, reply) => {
       const userId = request.user!.userId;
       console.log("[sign-and-submit] userId:", userId);
-      const { xdr, networkPassphrase: clientPassphrase } = request.body as {
+      const {
+        xdr,
+        networkPassphrase: clientPassphrase,
+        pin,
+      } = request.body as {
         xdr: string;
         networkPassphrase?: string;
+        pin?: string;
       };
 
       if (!xdr) {
@@ -1288,7 +1297,22 @@ async function bootstrap() {
           });
         }
 
-        const keypair = StellarSdk.Keypair.fromSecret(wallet.encryptedSecret);
+        // Decrypt the wallet secret using PIN
+        let secretKey: string;
+        try {
+          if (pin) {
+            secretKey = await decryptSecret(wallet.encryptedSecret!, pin);
+          } else {
+            // Try as raw secret (backward compat)
+            secretKey = wallet.encryptedSecret!;
+          }
+        } catch (decryptErr: any) {
+          return reply.status(403).send({
+            error:
+              "Invalid PIN — could not decrypt wallet: " + decryptErr.message,
+          });
+        }
+        const keypair = StellarSdk.Keypair.fromSecret(secretKey);
         tx.sign(keypair);
 
         const signedXdr = tx.toXDR();
