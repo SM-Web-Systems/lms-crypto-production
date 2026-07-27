@@ -9,7 +9,7 @@ import TokenIcon from "../components/TokenIcon";
 import PinModal from "../components/PinModal";
 import { toast } from "sonner";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { calculatePlatformFee, extractStellarError } from "../lib/stellar";
+import { extractStellarError } from "../lib/stellar";
 
 interface TokenOption {
   code: string;
@@ -114,27 +114,12 @@ export default function SwapPage() {
       const fromAsset = fromToken!.isNative ? StellarSdk.Asset.native() : new StellarSdk.Asset(fromToken!.code, fromToken!.issuer!);
       const toAsset = toToken!.isNative ? StellarSdk.Asset.native() : new StellarSdk.Asset(toToken!.code, toToken!.issuer!);
       const destMin = quote?.estimatedReceive ? (parseFloat(quote.estimatedReceive) * 0.99).toFixed(7) : "0.0000001";
-      // Calculate fee WITHIN the send amount
       const totalSend = parseFloat(amount).toFixed(7);
-      const swapFeeAmount = calculatePlatformFee(totalSend);
-      const netSendAmount = swapFeeAmount !== "0"
-        ? (parseFloat(totalSend) - parseFloat(swapFeeAmount)).toFixed(7)
-        : totalSend;
 
+      // Platform fee is handled server-side only (via /swap/build or sign-and-submit).
+      // Do NOT add fee operations here to avoid double-charging (P0-4-F18).
       const txBuilder = new StellarSdk.TransactionBuilder(account, { fee: "100000", networkPassphrase })
-        .addOperation(StellarSdk.Operation.pathPaymentStrictSend({ sendAsset: fromAsset, sendAmount: netSendAmount, destination: publicKey!, destAsset: toAsset, destMin }));
-
-      // Platform fee from the same total
-      const platformWallet: string = import.meta.env.VITE_PLATFORM_WALLET || "";
-      if (swapFeeAmount !== "0" && platformWallet) {
-        txBuilder.addOperation(
-          StellarSdk.Operation.payment({
-            destination: platformWallet,
-            asset: fromAsset,
-            amount: swapFeeAmount,
-          })
-        );
-      }
+        .addOperation(StellarSdk.Operation.pathPaymentStrictSend({ sendAsset: fromAsset, sendAmount: totalSend, destination: publicKey!, destAsset: toAsset, destMin }));
 
       const tx = txBuilder.setTimeout(60).build();
       tx.sign(keypair);
