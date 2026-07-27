@@ -78,9 +78,9 @@
   ```
 - **Recommendation:** Change to `.set({ passwordHash: hashedPassword, updatedAt: new Date() })`. Use the imported `hashPassword()` function instead of inline `require("bcryptjs")`.
 
-### P0-1-F3: `auditLog` called with wrong signature in SMS reset handler — FIXED
+### P0-1-F3: `auditLog` called with wrong signature in SMS reset handler — FIXED (3eeb7f8)
 - **Severity:** HIGH
-- **Status:** FIXED — replaced positional args with `{ userId: user.id, ip: request.ip, detail: { method: "sms" } }`
+- **Status:** FIXED — SMS path: replaced positional args with `{ userId: user.id, ip: request.ip, detail: { method: "sms" } }`. Email path residual: changed `record.userId` → `record.user_id` (raw SQL snake_case) in 3eeb7f8.
 - **File:** `packages/backend/src/routes/auth.ts:1422`
 - **Description:** `auditLog` accepts `(action, opts?)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Line 1422 passes positional args: `auditLog("password_reset", user.id, { method: "sms" }, request.ip)`. The audit record will be malformed or silently lost.
 - **Recommendation:** `await auditLog("password_reset", { userId: user.id, detail: { method: "sms" }, ip: request.ip })`.
@@ -338,8 +338,9 @@
   ```
 - **Recommendation:** Remove the backward-compatibility path. Force all delegated-mode wallets to have encrypted secrets. Add a migration to re-encrypt any unencrypted secrets.
 
-### P0-3-F5: decrypt-secret.ts has no error handling for corrupted/truncated data
+### P0-3-F5: decrypt-secret.ts has no error handling for corrupted/truncated data — FIXED (ff973af)
 - **Severity:** MEDIUM
+- **Status:** FIXED — added base64 length check (< 60 chars) and decoded buffer length check (< salt + iv + 17 bytes) before PBKDF2. Prevents CPU DoS via trivially short inputs.
 - **File:** `packages/backend/src/lib/decrypt-secret.ts:7-29`
 - **Description:** Unlike the frontend `crypto.ts` which validates minimum blob length, the backend `decryptSecret` does no length validation. If `encrypted` is empty or too short, `subarray` calls produce zero-length buffers and `createDecipheriv` throws a generic error.
 - **Recommendation:** Add `if (combined.length < SALT_LENGTH + IV_LENGTH + 17) throw new Error("Encrypted data too short or corrupted")`.
@@ -362,14 +363,16 @@
 - **Description:** `PATCH /:id/activate` first deactivates ALL user wallets, then attempts to activate the target. If the target ID doesn't exist, all wallets remain deactivated.
 - **Recommendation:** Verify target exists before deactivating, or wrap in a transaction with rollback.
 
-### P0-3-F9: encryptedSecret persisted to localStorage via zustand persist
+### P0-3-F9: encryptedSecret persisted to localStorage via zustand persist — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — partialize now strips encryptedSecret from each account before persisting to localStorage.
 - **File:** `packages/web-app/src/store/wallet.ts:455-460`
 - **Description:** The `partialize` function persists `accounts` (including `encryptedSecret`) to localStorage. Any XSS gives the attacker the encrypted blob for offline PIN brute-forcing.
 - **Recommendation:** Consider IndexedDB with non-exportable CryptoKey, or require longer/alphanumeric PINs.
 
-### P0-3-F10: Mnemonic stored in localStorage under predictable key
+### P0-3-F10: Mnemonic stored in localStorage under predictable key — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — removed both localStorage.setItem calls that wrote encrypted mnemonic. Existing users' stale data cleaned up by existing removeItem calls.
 - **File:** `packages/web-app/src/store/wallet.ts:254,318`
 - **Description:** Encrypted mnemonic stored at `mnemonic_{publicKey}` in localStorage. Key is predictable; XSS attacker can harvest both encrypted secret and mnemonic for offline cracking.
 - **Recommendation:** Store inside the zustand persisted state rather than a separate discoverable key.

@@ -249,10 +249,6 @@ export const useWalletStore = create<WalletState>()(
 
         const encrypted = await encryptSecret(secretKey, pin);
 
-        // Store mnemonic encrypted with same PIN
-        const encryptedMnemonic = await encryptSecret(mnemonic, pin);
-        localStorage.setItem(`mnemonic_${publicKey}`, encryptedMnemonic);
-
         let serverId: number | undefined;
         try {
           const serverWallet = await userWalletApi.add({
@@ -312,10 +308,6 @@ export const useWalletStore = create<WalletState>()(
         }
 
         const encrypted = await encryptSecret(secretKey, pin);
-
-        // Store mnemonic encrypted
-        const encryptedMnemonic = await encryptSecret(mnemonic, pin);
-        localStorage.setItem(`mnemonic_${publicKey}`, encryptedMnemonic);
 
         let serverId: number | undefined;
         try {
@@ -453,7 +445,7 @@ export const useWalletStore = create<WalletState>()(
     {
       name: "amma-wallet",
       partialize: (state) => ({
-        accounts: state.accounts,
+        accounts: state.accounts.map(({ encryptedSecret, ...rest }) => rest),
         activeAccountId: state.activeAccountId,
         // network is intentionally NOT persisted — always starts from default ("public")
         // to prevent stale testnet values from localStorage affecting mainnet wallet creation
