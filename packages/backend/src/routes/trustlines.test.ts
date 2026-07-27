@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 
+vi.mock("../config", () => ({
+  config: {
+    JWT_SECRET: "test-jwt-secret",
+    JWT_REFRESH_SECRET: "test-refresh-secret",
+  },
+}));
+
 vi.mock("../lib/stellar-client", () => ({
   stellarClient: {
     horizon: {
@@ -40,10 +47,87 @@ vi.mock("@stellar/stellar-sdk", () => {
   };
 });
 
+vi.mock("../middleware/auth", () => ({
+  authMiddleware: async (request: any, reply: any) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return reply.status(401).send({ error: "No token provided" });
+    }
+    request.user = { userId: 1 };
+  },
+}));
+
 import Fastify from "fastify";
 import { trustlineRoutes } from "./trustlines";
 
-describe("Trustline routes — secret key exclusion", () => {
+describe("Trustline routes — auth enforcement (P2-1-F1)", () => {
+  it("POST /api/v1/trustlines/add returns 401 without auth token", async () => {
+    const app = Fastify();
+    app.register(trustlineRoutes);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/trustlines/add",
+      payload: {
+        publicKey: "GABC123",
+        assetCode: "USDC",
+        assetIssuer: "GDEF456",
+      },
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("POST /api/v1/trustlines/remove returns 401 without auth token", async () => {
+    const app = Fastify();
+    app.register(trustlineRoutes);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/trustlines/remove",
+      payload: {
+        publicKey: "GABC123",
+        assetCode: "USDC",
+        assetIssuer: "GDEF456",
+      },
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("POST /api/v1/trustlines/update-limit returns 401 without auth token", async () => {
+    const app = Fastify();
+    app.register(trustlineRoutes);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/trustlines/update-limit",
+      payload: {
+        publicKey: "GABC123",
+        assetCode: "USDC",
+        assetIssuer: "GDEF456",
+        limit: "1000",
+      },
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/v1/trustlines/:publicKey does NOT require auth (public read)", async () => {
+    const app = Fastify();
+    app.register(trustlineRoutes);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/trustlines/GABC123",
+    });
+
+    // Should not be 401 — GET routes remain public
+    expect(res.statusCode).not.toBe(401);
+  });
+});
+
+describe("Trustline routes — secret key exclusion (P4-2-F2)", () => {
   it("POST /api/v1/trustlines/add response does NOT echo back any secret key", async () => {
     const app = Fastify();
     app.register(trustlineRoutes);
@@ -51,6 +135,7 @@ describe("Trustline routes — secret key exclusion", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/trustlines/add",
+      headers: { authorization: "Bearer mock-token" },
       payload: {
         publicKey: "GABC123",
         assetCode: "USDC",
@@ -71,6 +156,7 @@ describe("Trustline routes — secret key exclusion", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/trustlines/add",
+      headers: { authorization: "Bearer mock-token" },
       payload: {
         publicKey: "GABC123",
         assetCode: "USDC",
