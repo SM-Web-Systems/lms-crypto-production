@@ -7,6 +7,20 @@
 
 ---
 
+## Phase 4 Fixes (2026-07-27)
+
+| Finding | Severity | Description | Commit |
+|---------|----------|-------------|--------|
+| P1-1-F2 | MEDIUM | Timing-safe env-var API key comparison | ecbe6f5 |
+| P1-4-F3 | MEDIUM | SSO callback whitelist fail-closed | f8ef771 |
+| P4-2-F2 | HIGH | Remove secret key from trustline API helpers | d77dd7d |
+| P3-1-F5 | HIGH | Fix missing drizzle-orm imports in NFT transfer | 965d2fa |
+| P3-1-F6 | MEDIUM | Admin gate on NFT collection registration | f2dda0a |
+| P1-2-F1 | MEDIUM | Replace floating-point with bigint string arithmetic | eda4a35 |
+| P2-1-F1 | HIGH | authMiddleware on POST trustline routes | 62c323b |
+
+---
+
 ## Severity Legend
 
 | Tag | Meaning |
@@ -867,12 +881,12 @@
 |----|----------|------|-------------|
 | P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack |
 | P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET |
-| P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison |
+| P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison — **FIXED ecbe6f5** |
 | P1-1-F6 | MEDIUM | `tenant-api-key.ts:243-257` | `requireScope()` silent no-op without prior key middleware |
-| P1-2-F1 | MEDIUM | `billing.service.ts:204,231,464` | Floating-point arithmetic on monetary values |
+| P1-2-F1 | MEDIUM | `billing.service.ts:204,231,464` | Floating-point arithmetic on monetary values — **FIXED eda4a35** |
 | P1-2-F2 | MEDIUM | `billing.service.ts:175-267` | TOCTOU race between balance check and debit transaction |
 | P1-3-F1 | MEDIUM | `auto-suspension.ts:149-182` | `acquisitionModeEnabled` not checked before enforcing debt limit |
-| P1-4-F3 | MEDIUM | `sso.ts:64-71` | Empty whitelist = fail-open (any callback URL accepted) |
+| P1-4-F3 | MEDIUM | `sso.ts:64-71` | Empty whitelist = fail-open (any callback URL accepted) — **FIXED f8ef771** |
 | P1-4-F6 | MEDIUM | N/A | Zero test coverage for SSO routes |
 | P1-1-F1 | LOW | `tenant-api-key.ts:67-90` | Fixed window mislabeled as sliding window |
 | P1-1-F4 | LOW | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update |
@@ -1228,7 +1242,7 @@
 
 | ID | Severity | File | Description |
 |----|----------|------|-------------|
-| P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware (P0-4-F11 STILL OPEN) |
+| P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware — **FIXED 62c323b** |
 | P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet |
 | P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
 | P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
@@ -1279,8 +1293,8 @@
 | P3-1-F2 | **HIGH** | `nft.ts:321` | Wrong auditLog signature — `nft_transfer` uses positional args. Transfer audit trail silently incomplete. |
 | P3-1-F3 | **HIGH** | `nft.ts:393-397` | Wrong auditLog signature — `nft_mint_indexed` uses positional args. Mint audit trail silently incomplete. |
 | P3-1-F4 | **HIGH** | `nft.ts:436` | Wrong auditLog signature — `nft_collection_synced` uses positional args. Sync audit trail silently incomplete. **FIXED — 3846cc6** (all 4 auditLog calls fixed) |
-| P3-1-F5 | **HIGH** | `nft.ts:307-313` | Missing import — `and` and `eq` from drizzle-orm never imported. Transfer endpoint will throw ReferenceError at runtime. Entire transfer feature is non-functional. |
-| P3-1-F6 | MEDIUM | `nft.ts:59-117` | No role check — any authenticated user can register NFT collections. No creator/admin gate. |
+| P3-1-F5 | **HIGH** | `nft.ts:307-313` | Missing import — `and` and `eq` from drizzle-orm never imported — **FIXED 965d2fa** |
+| P3-1-F6 | MEDIUM | `nft.ts:59-117` | No role check on NFT collection registration — **FIXED f2dda0a** |
 | P3-1-F7 | MEDIUM | `nft.ts:331-403` | No role/ownership check — any authenticated user can index tokens into any collection with arbitrary owner addresses. On-chain verification falls through on error. |
 | P3-1-F8 | MEDIUM | `nft.ts:405-444` | No role check — any authenticated user can trigger expensive sync operations (Soroban RPC + IPFS). Rate limit (5/min) partially mitigates. |
 | P3-1-F9 | MEDIUM | `nft.ts:68,282` | No format validation on contractId or publicKey params. Arbitrary strings forwarded to Stellar SDK and DB queries. |
@@ -1570,7 +1584,7 @@
 - **File:** `packages/web-app/src/lib/api.ts:4-5`
 - **Description:** Both access and refresh tokens are written to localStorage. Any XSS vulnerability (including third-party scripts, browser extensions) can read localStorage and exfiltrate both tokens. The refresh token is long-lived and grants persistent session takeover. The codebase already has in-memory variables (`_accessToken`/`_refreshToken`) — the localStorage persistence should be removed.
 
-#### P4-2-F2: Secret key sent in request body for trustline add/remove — HIGH
+#### P4-2-F2: Secret key sent in request body for trustline add/remove — HIGH — **FIXED d77dd7d**
 - **Severity:** HIGH
 - **File:** `packages/web-app/src/lib/api.ts:274-283`
 - **Description:** `trustlineApi.add()` and `trustlineApi.remove()` transmit the Stellar private key in the JSON body. If the backend logs request bodies, or a proxy/CDN inspects them, the key is exposed. Should use delegated signing or client-side XDR signing instead.
