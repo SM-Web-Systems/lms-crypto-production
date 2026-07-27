@@ -610,3 +610,293 @@
 
 ---
 
+## P1 — HIGH: Tenant API Keys, Billing, Auto-Suspension, SSO
+
+### P1-1: Tenant API Key Resolution + Rate Limiting
+
+**Files audited:**
+- `packages/backend/src/middleware/tenant-api-key.ts` (257 lines)
+- `packages/backend/src/middleware/tenant-api-key.test.ts` (558 lines)
+
+---
+
+### P1-1-F1: Fixed window mislabeled as "sliding window"
+- **Severity:** LOW
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:67-90`
+- **Description:** Comment says "sliding window" but the implementation is a fixed window — full counter reset after 60s. A burst of requests at the window boundary can allow up to 2x the configured rate limit within ~60s.
+- **Recommendation:** Rename comment to "fixed window" or implement a true sliding window. Low severity since global Fastify rate limiter also applies.
+
+### P1-1-F2: Timing side-channel in env-var key comparison
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:165`
+- **Description:** The env-var fallback uses `Array.prototype.includes()` for key comparison, which performs early-return string equality. An attacker can iteratively guess characters by measuring response times. The DB path is not affected (uses SHA-256 hash comparison via SQL).
+- **Evidence:**
+  ```typescript
+  if (config.API_KEYS.includes(rawKey)) {
+  ```
+- **Recommendation:** Use `crypto.timingSafeEqual()` for env-var key comparison.
+
+### P1-1-F3: Window expiry test is a no-op
+- **Severity:** INFO
+- **File:** `packages/backend/src/middleware/tenant-api-key.test.ts:357-367`
+- **Description:** Test "starts a fresh window after 60 seconds" creates a new keyId with no prior window, trivially passing. Does not actually test time-based expiry.
+- **Recommendation:** Use `vi.useFakeTimers()` to advance `Date.now()` by 60,001ms.
+
+### P1-1-F4: Silent `.catch(() => {})` on lastUsedAt update
+- **Severity:** LOW
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:143-147`
+- **Description:** Fire-and-forget `lastUsedAt` update swallows errors silently. Persistent DB write failures go unnoticed.
+- **Recommendation:** Add `console.warn` inside the catch.
+
+### P1-1-F5: Rate limit Map grows unboundedly
+- **Severity:** INFO
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:60`
+- **Description:** In-memory `rateLimitWindows` Map entries are never evicted. Not a practical concern with few API keys but worth noting for future scale.
+- **Recommendation:** Add periodic cleanup or use an LRU cache.
+
+### P1-1-F6: `requireScope()` is a silent no-op without prior key-resolution middleware
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:243-257`
+- **Description:** `requireScope()` passes through when `tenantApiKeyContext` is undefined (line 249). If a developer chains `requireScope()` without a preceding `requireTenantApiKey` or `attachTenantApiKey`, the scope check becomes a no-op. All current usages are correct, but this is a footgun.
+- **Recommendation:** Have `requireScope` throw 401 when context is undefined, and use a separate `optionalScope()` for the `attachTenantApiKey` pattern.
+
+### P1-1-F7: Env-var keys bypass scope enforcement and per-key rate limiting
+- **Severity:** LOW
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:250`
+- **Description:** Keys from `API_KEYS` env-var skip all scope checks (`source === "env"` returns early) and per-key rate limiting. Effectively a "superkey". This is intentional for DB-outage resilience but makes the env-var key a high-value target.
+- **Recommendation:** Document as superkey in operations runbook. Long-term, migrate LMS to DB-backed key with explicit scopes.
+
+### P1-1 Summary
+- **Total findings: 7**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 2 | LOW: 3 | INFO: 2**
+- **Test verdict: Needs Improvement** — core paths covered, but window expiry untested, no test for `lastUsedAt` failure path, no integration test for `requireScope` without prior middleware.
+
+---
+
+### P1-2: Billing Engine
+
+**Files audited:**
+- `packages/backend/src/services/billing.service.ts` (723 lines)
+- `packages/backend/src/services/billing.service.test.ts` (863 lines)
+- `packages/backend/src/db/schema/index.ts` (billing tables)
+
+---
+
+### P1-2-F1: Floating-point arithmetic on monetary values in pre-flight check
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/services/billing.service.ts:204,210,231-233,464-466`
+- **Description:** `checkWalletBilling` and `runMonthlyMaintenanceForTenant` use `parseFloat()` and JS `+`/`*` operators for billing amounts. The final DB update uses PG `numeric` arithmetic (line 327), but the amounts themselves are computed in IEEE 754. For current locked defaults (1.0 + 2.0 = 3.0), results are exact. But the pattern is fragile — configurable fee values like `0.0000001` could produce off-by-one stroops.
+- **Recommendation:** Use a string-based decimal library or push computation into SQL.
+
+### P1-2-F2: TOCTOU race between checkWalletBilling and writeBillingDebit
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/services/billing.service.ts:175-267` / `packages/backend/src/routes/wallets.ts:153,163-195`
+- **Description:** Balance/debt-limit check (`checkWalletBilling`) runs outside the transaction. Two concurrent requests could both pass the pre-flight check when only 1 XLM headroom remains, pushing balance below the debt limit. PostgreSQL prevents lost updates but the business rule (debt limit = hard cap) is violated.
+- **Recommendation:** Move balance check inside the transaction using `SELECT ... FOR UPDATE` on the tenant row.
+
+### P1-2-F3: Monthly maintenance idempotency error logging
+- **Severity:** LOW
+- **File:** `packages/backend/src/services/billing.service.ts:446-456,470-495`
+- **Description:** Idempotency read runs before the transaction. Concurrent runs could both enter the transaction; the unique index `uq_maintenance_snapshot` correctly prevents double-charge, but the constraint violation is logged as `FAILED` — creating false alarms in monitoring.
+- **Recommendation:** Catch unique constraint violation specifically and return `null` (already-processed).
+
+### P1-2-F4: writeBillingCredit does not validate amountXlm is positive
+- **Severity:** LOW
+- **File:** `packages/backend/src/services/billing.service.ts:343-418`
+- **Description:** No input validation on `amountXlm`. A negative value would decrement the balance. The DB constraint `chk_billing_amount_nonzero` only prevents zero. Current callers validate externally, but the function boundary is unguarded.
+- **Recommendation:** Add `if (parseFloat(amountXlm) <= 0) throw new Error(...)` at top of function.
+
+### P1-2-F5: Transaction object typed as `any`
+- **Severity:** INFO
+- **File:** `packages/backend/src/services/billing.service.ts:277,345,425`
+- **Description:** The `tx` parameter in `writeBillingDebit`, `writeBillingCredit`, `upsertTenantUser` is typed as `any`, disabling TypeScript checking inside transactions.
+- **Recommendation:** Use Drizzle's exported transaction type.
+
+### P1-2-F6: Pagination cursor correctness verified
+- **Severity:** INFO (PASS)
+- **File:** `packages/backend/src/services/billing.service.ts:665-673,700-721`
+- **Description:** N+1 sentinel pattern correctly implemented. No off-by-one issues. Cursor is stable across insertions (monotonic IDs + `lt(id, beforeId)` with `desc(id)` ordering).
+
+### P1-2-F7: Boundary conditions correct
+- **Severity:** INFO (PASS)
+- **File:** `packages/backend/src/services/billing.service.ts:211,220,252`
+- **Description:** `balance <= debtLimit` blocks at exact limit. `balance <= 0` blocks at zero. All boundary conditions are correctly exclusive.
+
+### P1-2 Summary
+- **Total findings: 7**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 2 | LOW: 2 | INFO: 3**
+- **Test verdict: Robust** — covers all `checkWalletBilling` branches, debit/credit atomicity, upsertTenantUser idempotency, monthly maintenance, deficit notification. Minor gaps: no test for `getTenantBillingEventsPage`, no TOCTOU race test, no negative-amount-credit test.
+
+---
+
+### P1-3: Auto-Suspension Background Job
+
+**Files audited:**
+- `packages/backend/src/jobs/auto-suspension.ts` (325 lines)
+- `packages/backend/src/jobs/auto-suspension.test.ts` (473 lines)
+- `packages/backend/src/db/schema/index.ts` (tenants, system_config)
+
+---
+
+### P1-3-F1: `acquisitionModeEnabled` not checked before enforcing debt limit
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/jobs/auto-suspension.ts:149-182`
+- **Description:** `enforceDebtLimit` joins on `tenantBillingPolicy` and reads `acquisitionDebtLimitXlm`, but does not check `acquisitionModeEnabled`. If acquisition mode is disabled but the policy row still has a debt limit default (`-300.0000000`), the job enforces the limit anyway — causing unexpected suspensions.
+- **Evidence:**
+  ```typescript
+  // No filter: eq(schema.tenantBillingPolicy.acquisitionModeEnabled, true)
+  ```
+- **Recommendation:** Add `eq(schema.tenantBillingPolicy.acquisitionModeEnabled, true)` to the WHERE clause. Apply same filter to `recoverDebtLimit`.
+
+### P1-3-F2: `unsuspend()` helper has no defensive guard
+- **Severity:** LOW
+- **File:** `packages/backend/src/jobs/auto-suspension.ts:45-51`
+- **Description:** `unsuspend()` clears `suspendedAt` and `suspensionReason` for any `tenantId` without verifying the current suspension reason or `isActive` status. Safety relies entirely on callers filtering correctly. Future misuse could override a manual or hard suspension.
+- **Recommendation:** Add `AND suspensionReason IN ('debt_limit','maintenance_grace_expired') AND isActive = true` to the WHERE clause.
+
+### P1-3-F3: No concurrency guard on overlapping runs
+- **Severity:** LOW
+- **File:** `packages/backend/src/jobs/auto-suspension.ts:313-325`
+- **Description:** No mutex or `running` flag prevents overlapping executions. If a run takes longer than the interval, concurrent runs could send duplicate notification emails. No data corruption due to `softSuspend` idempotency guard.
+- **Recommendation:** Add in-process `let running = false` guard.
+
+### P1-3-F4: `recoverDebtLimit` does not clear maintenance grace key
+- **Severity:** INFO
+- **File:** `packages/backend/src/jobs/auto-suspension.ts:294-305`
+- **Description:** When recovering from debt-limit suspension, the `maintenance_grace_started_at` system_config key is not cleared. A stale grace timestamp could cause premature maintenance-grace suspension if balance dips negative again.
+- **Recommendation:** Consider clearing grace key in `recoverDebtLimit`.
+
+### P1-3-F5: Grace period boundary comparison correct
+- **Severity:** INFO (PASS)
+- **File:** `packages/backend/src/jobs/auto-suspension.ts:226`
+- **Description:** `Date.now() - graceStartMs <= graceMs` correctly protects within-grace tenants. Suspension fires only after grace period is exceeded.
+
+### P1-3-F6: Suspension reason enum values consistent
+- **Severity:** INFO (PASS)
+- **File:** `packages/backend/src/db/schema/index.ts:497`, `auto-suspension.ts:30`
+- **Description:** DB CHECK constraint, TypeScript union, and admin routes all use consistent values: `'debt_limit'`, `'maintenance_grace_expired'`, `'manual'`.
+
+### P1-3-F7: No test for concurrent pass interaction
+- **Severity:** LOW
+- **File:** `packages/backend/src/jobs/auto-suspension.test.ts`
+- **Description:** No test covers a tenant appearing in both Pass 1 (suspend) and Pass 4 (recover) within the same run. Code analysis shows it's safe but an explicit test would guard regressions.
+- **Recommendation:** Add cross-pass interaction test.
+
+### P1-3-F8: No test for corrupt grace timestamp
+- **Severity:** INFO
+- **File:** `packages/backend/src/jobs/auto-suspension.test.ts`
+- **Description:** Code handles corrupt timestamps defensively (`Number.isFinite` check at line 223) but no test covers this path.
+- **Recommendation:** Add test with invalid `system_config` value.
+
+### P1-3 Summary
+- **Total findings: 8**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 1 | LOW: 3 | INFO: 4**
+- **Test verdict: Robust** — all four passes have positive/negative tests, boundary conditions, manual suspension exclusion, error propagation, notification routing. Minor gaps: no corrupt-data test, no cross-pass test.
+
+---
+
+### P1-4: SSO Flow (AmmaWallet as Identity Provider)
+
+**Files audited:**
+- `packages/backend/src/routes/sso.ts` (204 lines)
+- `packages/web-app/src/pages/SsoLogin.tsx` (305 lines)
+- `packages/backend/src/config/index.ts` (SSO-related config)
+
+---
+
+### P1-4-F1: Callback whitelist prefix matching allows subdomain/path hijack
+- **Severity:** HIGH
+- **File:** `packages/backend/src/routes/sso.ts:67`
+- **Description:** The callback URL whitelist uses `callbackUrl.startsWith(origin)`, which is a string prefix match. An attacker could register `https://lms.smwebsystems.com.evil.com` or use `https://lms.smwebsystems.com@evil.com` (authority confusion), and it would pass the prefix check. The SSO assertion JWT (containing user identity + wallet address) would be sent to the attacker-controlled URL.
+- **Evidence:**
+  ```typescript
+  !whitelist.some((origin: string) => callbackUrl.startsWith(origin))
+  ```
+- **Recommendation:** Parse both whitelist entries and `callbackUrl` as `URL` objects, then compare `url.origin` strictly (scheme + host + port).
+
+### P1-4-F2: SSO_SECRET not validated at startup; no key-confusion guard
+- **Severity:** HIGH
+- **File:** `packages/backend/src/config/index.ts:45`
+- **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime), there's no startup check that `SSO_SECRET !== JWT_SECRET`. If they match, a crafted session JWT with `iss=ammawallet` and `aud=lms-amma-sso` could pass SSO verification, enabling assertion forgery.
+- **Recommendation:** Add `SSO_SECRET` to `requiredEnvVars`. Add startup assertion: `if (SSO_SECRET === JWT_SECRET) process.exit(1)`.
+
+### P1-4-F3: Empty SSO_CALLBACK_WHITELIST disables origin checks (open redirect)
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/routes/sso.ts:64-71`
+- **Description:** When `SSO_CALLBACK_WHITELIST` is empty (default), the whitelist check is skipped entirely — any callback URL is accepted. This is a fail-open design: a misconfiguration silently disables the primary open-redirect defense.
+- **Evidence:**
+  ```typescript
+  if (whitelist.length > 0 && !whitelist.some(...))
+  ```
+- **Recommendation:** Fail closed: if `whitelist.length === 0`, reject with 503 ("SSO callback whitelist not configured").
+
+### P1-4-F4: Frontend rpOrigin fallback renders raw callbackUrl
+- **Severity:** LOW
+- **File:** `packages/web-app/src/pages/SsoLogin.tsx:44-47`
+- **Description:** If `new URL(callbackUrl)` throws, the catch branch returns the raw `callbackUrl` string, rendered in the DOM. React escapes it (no XSS), but an attacker can display arbitrary text in the trusted SSO context (e.g., a phishing message).
+- **Recommendation:** Display "Unknown service" on parse failure instead of raw parameter.
+
+### P1-4-F5: JTI replay protection has periodic-clear window
+- **Severity:** LOW
+- **File:** `packages/backend/src/routes/sso.ts:24-26`
+- **Description:** `setInterval(() => usedJtis.clear(), 60_000)` clears ALL JTIs every 60s. A JTI added at second 59 is cleared at second 60 — creating a ~59s replay window. Also, in-memory only — no cross-instance protection.
+- **Recommendation:** Track insertion timestamps, evict individually after 60s. For multi-instance, migrate to Redis.
+
+### P1-4-F6: No test coverage for SSO routes
+- **Severity:** MEDIUM
+- **File:** N/A (no `sso.test.ts` exists)
+- **Description:** Zero test coverage for SSO route logic: token generation, callback validation, JTI replay, JWT verification, user data shape. The `sso:verify` scope string appears in tenant-api-key tests but only tests the middleware, not SSO handlers.
+- **Recommendation:** Create `src/routes/sso.test.ts` covering: whitelist enforcement, JTI replay rejection, expired token rejection, missing SSO_SECRET 503, correct user data shape.
+
+### P1-4-F7: Env-var API keys bypass scope enforcement on /sso/verify
+- **Severity:** LOW
+- **File:** `packages/backend/src/middleware/tenant-api-key.ts:250`
+- **Description:** Env-var keys skip all scope checks (`source === "env"` returns early). Any integration with access to `API_KEYS` env var can verify SSO assertions without the `sso:verify` scope.
+- **Recommendation:** Document trust model. Long-term, migrate LMS to DB-backed key with explicit scopes.
+
+### P1-4 Summary
+- **Total findings: 7**
+- **CRITICAL: 0 | HIGH: 2 | MEDIUM: 2 | LOW: 3 | INFO: 0**
+- **Test verdict: No Coverage** — no SSO route tests exist. This is a significant gap given the security-critical nature of SSO.
+
+---
+
+## P1 Tier Summary
+
+| ID | Severity | File | Description |
+|----|----------|------|-------------|
+| P1-4-F1 | **HIGH** | `sso.ts:67` | Callback whitelist prefix matching allows subdomain/path hijack |
+| P1-4-F2 | **HIGH** | `config/index.ts:45` | SSO_SECRET not validated; no key-confusion guard vs JWT_SECRET |
+| P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison |
+| P1-1-F6 | MEDIUM | `tenant-api-key.ts:243-257` | `requireScope()` silent no-op without prior key middleware |
+| P1-2-F1 | MEDIUM | `billing.service.ts:204,231,464` | Floating-point arithmetic on monetary values |
+| P1-2-F2 | MEDIUM | `billing.service.ts:175-267` | TOCTOU race between balance check and debit transaction |
+| P1-3-F1 | MEDIUM | `auto-suspension.ts:149-182` | `acquisitionModeEnabled` not checked before enforcing debt limit |
+| P1-4-F3 | MEDIUM | `sso.ts:64-71` | Empty whitelist = fail-open (any callback URL accepted) |
+| P1-4-F6 | MEDIUM | N/A | Zero test coverage for SSO routes |
+| P1-1-F1 | LOW | `tenant-api-key.ts:67-90` | Fixed window mislabeled as sliding window |
+| P1-1-F4 | LOW | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update |
+| P1-1-F7 | LOW | `tenant-api-key.ts:250` | Env-var keys bypass scope + per-key rate limiting |
+| P1-2-F3 | LOW | `billing.service.ts:446-456` | Maintenance idempotency error logging |
+| P1-2-F4 | LOW | `billing.service.ts:343-418` | writeBillingCredit missing positive-amount validation |
+| P1-3-F2 | LOW | `auto-suspension.ts:45-51` | unsuspend() helper no defensive guard |
+| P1-3-F3 | LOW | `auto-suspension.ts:313-325` | No concurrency guard, duplicate emails possible |
+| P1-3-F7 | LOW | `auto-suspension.test.ts` | No cross-pass interaction test |
+| P1-4-F4 | LOW | `SsoLogin.tsx:44-47` | Raw callbackUrl rendered on parse failure |
+| P1-4-F5 | LOW | `sso.ts:24-26` | JTI replay window from periodic clear |
+| P1-4-F7 | LOW | `tenant-api-key.ts:250` | Env keys bypass SSO scope |
+| P1-1-F3 | INFO | `tenant-api-key.test.ts:357` | Window expiry test is no-op |
+| P1-1-F5 | INFO | `tenant-api-key.ts:60` | Rate limit Map unbounded growth |
+| P1-2-F5 | INFO | `billing.service.ts:277,345` | Transaction typed as `any` |
+| P1-2-F6 | INFO | `billing.service.ts:665-721` | Pagination cursor verified correct |
+| P1-2-F7 | INFO | `billing.service.ts:211,220,252` | Boundary conditions verified correct |
+| P1-3-F4 | INFO | `auto-suspension.ts:294-305` | Grace key not cleared on debt recovery |
+| P1-3-F5 | INFO | `auto-suspension.ts:226` | Grace boundary comparison correct |
+| P1-3-F6 | INFO | `auto-suspension.ts:30` + schema | Suspension reason enum consistent |
+| P1-3-F8 | INFO | `auto-suspension.test.ts` | No corrupt grace timestamp test |
+
+**P1 Totals: 29 findings — 0 CRITICAL, 2 HIGH, 7 MEDIUM, 10 LOW, 10 INFO**
+**Test verdicts: Tenant API keys (Needs Improvement), Billing (Robust), Auto-suspension (Robust), SSO (No Coverage)**
+
+---
+
