@@ -6,6 +6,7 @@ const requiredEnvVars = [
   "JWT_REFRESH_SECRET",
   "DATABASE_URL",
   "ADMIN_JWT_SECRET",
+  "TOTP_ENCRYPTION_KEY",
 ] as const;
 
 for (const envVar of requiredEnvVars) {
@@ -40,6 +41,9 @@ export const config = {
   // Admin tokens use type:"admin" claim and are verified by verifyInternalAdmin middleware.
   ADMIN_JWT_SECRET: process.env.ADMIN_JWT_SECRET!,
   ADMIN_JWT_EXPIRES_IN: parseInt(process.env.ADMIN_JWT_EXPIRES_IN || "3600", 10),
+
+  // TOTP secret encryption — 32-byte hex string (64 hex chars) for AES-256-GCM
+  TOTP_ENCRYPTION_KEY: process.env.TOTP_ENCRYPTION_KEY!,
 
   // SSO — delegated authentication for relying parties (e.g. LMS)
   SSO_SECRET: process.env.SSO_SECRET || "",

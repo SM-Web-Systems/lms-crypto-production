@@ -6,6 +6,7 @@ import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import crypto from "crypto";
 import { send2FACode } from "../lib/mailer";
+import { encryptTotpSecret, decryptTotpSecret } from "../lib/totp-crypto";
 
 function generateBackupCodes(): string[] {
   const codes: string[] = [];
@@ -113,7 +114,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
       });
 
       await db.update(schema.users).set({
-        twoFaSecret: secret.base32,
+        twoFaSecret: encryptTotpSecret(secret.base32),
         twoFaMethod: "totp",
         twoFaEnabled: false,
       }).where(eq(schema.users.id, userId));
@@ -235,7 +236,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "TOTP setup not initiated." });
       }
       verified = speakeasy.totp.verify({
-        secret: user.twoFaSecret,
+        secret: decryptTotpSecret(user.twoFaSecret),
         encoding: "base32",
         token: token.replace(/\s/g, ""),
         window: 2,
@@ -449,7 +450,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
     if (user.twoFaMethod === "totp") {
       if (cleanToken.length === 6 && /^\d+$/.test(cleanToken)) {
         verified = speakeasy.totp.verify({
-          secret: user.twoFaSecret!,
+          secret: decryptTotpSecret(user.twoFaSecret!),
           encoding: "base32",
           token: cleanToken,
           window: 2,

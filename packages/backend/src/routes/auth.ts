@@ -22,6 +22,7 @@ import { sendVerificationEmail } from "../lib/email";
 
 import { validatePhoneNumber } from "../lib/phone-validation";
 import { sendSmsVerification, checkSmsVerification } from "../lib/sms";
+import { decryptTotpSecret } from "../lib/totp-crypto";
 
 export async function authRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
@@ -402,7 +403,7 @@ export async function authRoutes(app: FastifyInstance) {
           /^\d+$/.test(cleanToken)
         ) {
           twoFaValid = speakeasy.totp.verify({
-            secret: user.twoFaSecret!,
+            secret: decryptTotpSecret(user.twoFaSecret!),
             encoding: "base32",
             token: cleanToken,
             window: 2,

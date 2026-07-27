@@ -79,6 +79,10 @@ vi.mock("../lib/sms", () => ({
   checkSmsVerification: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+vi.mock("../lib/totp-crypto", () => ({
+  decryptTotpSecret: vi.fn().mockImplementation((s: string) => s),
+}));
+
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { auditLog } from "../lib/audit";
