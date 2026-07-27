@@ -9,22 +9,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock all dependencies
-const mockAuditLog = vi.fn();
+const mockAuditLog = vi.hoisted(() => vi.fn());
 vi.mock("../lib/audit", () => ({
   auditLog: (...args: any[]) => mockAuditLog(...args),
 }));
 
+const mockDbLimit = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock("../db", () => ({
   db: {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: mockDbLimit,
+        }),
+      }),
+    }),
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([{ id: 1 }]),
   },
-  schema: { userWallets: {}, auditLogs: {} },
+  schema: {
+    userWallets: { userId: "user_id", publicKey: "public_key" },
+    auditLogs: {},
+  },
 }));
 
 vi.mock("../db/schema", () => ({
@@ -123,6 +130,26 @@ describe("NFT routes — auditLog call signature", () => {
     // userId should be the number 1, not a secondary positional arg
     expect(opts.userId).toBe(1);
     expect(typeof opts.detail).toBe("object");
+  });
+
+  it("POST /api/v1/nfts/transfer returns 403 when wallet not found (ownership check uses imports)", async () => {
+    // db mock returns empty array = no wallet found for this user
+    mockDbLimit.mockResolvedValueOnce([]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/nfts/transfer",
+      headers: { authorization: "Bearer fake" },
+      payload: {
+        contractId: "CXXX",
+        fromAddress: "GABC123",
+        toAddress: "GDEF456",
+        tokenId: 1,
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toContain("does not belong");
   });
 
   it("auditLog call has no extra positional arguments beyond 2", async () => {

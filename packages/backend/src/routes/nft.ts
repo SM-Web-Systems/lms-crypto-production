@@ -1,7 +1,9 @@
 import { FastifyInstance } from "fastify";
+import { and, eq } from "drizzle-orm";
 import { nftService } from "../modules/nft/nft.service";
 import { authMiddleware } from "../middleware/auth";
 import { auditLog } from "../lib/audit";
+import { db, schema } from "../db";
 
 export async function nftRoutes(app: FastifyInstance) {
 
@@ -304,12 +306,10 @@ export async function nftRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
 
     // Ownership check
-    const { db: database } = await import("../db");
-    const { userWallets } = await import("../db/schema");
-    const [wallet] = await database.select().from(userWallets)
+    const [wallet] = await db.select().from(schema.userWallets)
       .where(and(
-        eq(userWallets.userId, userId),
-        eq(userWallets.publicKey, fromAddress),
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, fromAddress),
       )).limit(1);
 
     if (!wallet) {
