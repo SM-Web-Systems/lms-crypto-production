@@ -1299,8 +1299,8 @@
 
 | ID | Severity | File | Finding |
 |----|----------|------|---------|
-| P3-2-F1 | **CRITICAL** | `earn.ts:147` | POST /earn/deposit missing authMiddleware. Any unauthenticated caller can build deposit transactions for any publicKey. No rate limit on this endpoint. |
-| P3-2-F2 | **CRITICAL** | `earn.ts:216` | POST /earn/withdraw missing authMiddleware. Any unauthenticated caller can build withdrawal transactions for any publicKey. No rate limit on this endpoint. |
+| P3-2-F1 | **CRITICAL** | `earn.ts:147` | POST /earn/deposit missing authMiddleware. Any unauthenticated caller can build deposit transactions for any publicKey. No rate limit on this endpoint. **FIXED — 9ec642c** |
+| P3-2-F2 | **CRITICAL** | `earn.ts:216` | POST /earn/withdraw missing authMiddleware. Any unauthenticated caller can build withdrawal transactions for any publicKey. No rate limit on this endpoint. **FIXED — 9ec642c** |
 | P3-2-F3 | **HIGH** | `earn.ts:72` | GET /earn/positions/:publicKey missing authMiddleware. Exposes LP share balances, percentage ownership, and per-asset amounts for any Stellar public key without authentication. |
 | P3-2-F4 | **HIGH** | `earn.ts:147,216` | No rate limiting on deposit and withdraw endpoints. Enables DoS amplification via unlimited Horizon API proxy calls. |
 | P3-2-F5 | **HIGH** | `earn.ts:10` | GET /earn/pools unauthenticated (no authMiddleware). Functions as open proxy to Horizon liquidity pool API. Rate limited at 20/min partially mitigates. |
@@ -1358,8 +1358,8 @@
 
 | ID | Severity | File | Finding |
 |----|----------|------|---------|
-| P3-5-F1 | **CRITICAL** | `moneygram.ts:152-196` | POST /deposit has NO authMiddleware. Any unauthenticated caller can trigger SEP-10 auth using the server's signing key. No rate limit. |
-| P3-5-F2 | **CRITICAL** | `moneygram.ts:199-243` | POST /withdraw has NO authMiddleware. Same as P3-5-F1 — unauthenticated access to server signing key operations. |
+| P3-5-F1 | **CRITICAL** | `moneygram.ts:152-196` | POST /deposit has NO authMiddleware. Any unauthenticated caller can trigger SEP-10 auth using the server's signing key. No rate limit. **FIXED — 746286d** |
+| P3-5-F2 | **CRITICAL** | `moneygram.ts:199-243` | POST /withdraw has NO authMiddleware. Same as P3-5-F1 — unauthenticated access to server signing key operations. **FIXED — 746286d** |
 | P3-5-F3 | **HIGH** | `moneygram.ts:193,240,291` | Raw error.message from SEP-10/SEP-24 flow exposed to client. MoneyGram API errors may contain internal details. |
 | P3-5-F4 | **HIGH** | `moneygram.ts:146` | SIGNING_SECRET_KEY existence leaked via boolean `status` field on unauthenticated /info endpoint. |
 | P3-5-F5 | **HIGH** | `moneygram.ts:9-50` | No timeout on any external SEP-10/SEP-24 fetch calls. Hanging upstream blocks worker thread indefinitely. |
@@ -1378,7 +1378,7 @@
 
 | ID | Severity | File | Finding |
 |----|----------|------|---------|
-| P3-6-F1 | **CRITICAL** | `contacts.ts:34,62,102,130` | userId read from `(request as any).userId` — always undefined. Auth middleware sets `request.user`, not `request.userId`. All 4 CRUD operations broken: GET returns empty, POST inserts orphaned records, PATCH/DELETE silently no-op. |
+| P3-6-F1 | **CRITICAL** | `contacts.ts:34,62,102,130` | userId read from `(request as any).userId` — always undefined. Auth middleware sets `request.user`, not `request.userId`. All 4 CRUD operations broken: GET returns empty, POST inserts orphaned records, PATCH/DELETE silently no-op. **FIXED — ea29d54** |
 | P3-6-F2 | MEDIUM | `contacts.ts:50` | No Stellar address format validation beyond 56-char length. Any 56-char garbage string accepted. |
 | P3-6-F3 | MEDIUM | `contacts.ts:104` | PATCH uses spread `...updates` without `additionalProperties: false`. Caller could inject `userId` or other columns into update payload. |
 | P3-6-F4 | LOW | `contacts.ts:9-138` | No route-level rate limiting on any contacts CRUD operation. |
@@ -1779,7 +1779,7 @@
 
 ---
 
-#### P4-6-F1: Wrong AQUA issuer address in known-tokens.ts — CRITICAL
+#### P4-6-F1: Wrong AQUA issuer address in known-tokens.ts — CRITICAL — FIXED (db0344b)
 - **Severity:** CRITICAL
 - **File:** `packages/backend/src/db/seed/known-tokens.ts:85`
 - **Description:** AQUA token issuer is `GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67TKA` (55 chars). The correct mainnet Aquarius issuer is `GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA` (56 chars). The project's own `token-list.json:81` has the correct address. This mismatch means the seed inserts a token row pointing to a non-existent or wrong Stellar asset. Users trusting this entry could create trustlines to the wrong issuer.
