@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { generateKeypair, keypairFromSecret, fundTestnet } from "../lib/stellar";
 import { encryptSecret, decryptSecret } from "../lib/crypto";
-import { userWalletApi, keypairApi } from "../lib/api";
+import { userWalletApi } from "../lib/api";
+import { deriveHDKeypair, isValidMnemonic } from "../lib/hd-wallet";
 
 export interface WalletAccount {
   id: string;
@@ -239,8 +240,8 @@ export const useWalletStore = create<WalletState>()(
           throw new Error("A wallet with this name already exists");
         }
 
-        // Derive keypair from mnemonic via backend
-        const derived = await keypairApi.fromMnemonic(mnemonic, accountIndex);
+        // Derive keypair client-side — mnemonic never leaves the browser
+        const derived = deriveHDKeypair(mnemonic, accountIndex);
         const { publicKey, secretKey } = derived;
 
         if (get().accounts.some((a) => a.publicKey === publicKey)) {
@@ -294,13 +295,12 @@ export const useWalletStore = create<WalletState>()(
 
       // ─── Import from mnemonic ─────────────────
       importFromMnemonic: async (name, mnemonic, pin, accountIndex = 0) => {
-        // Validate mnemonic via backend
-        const validation = await keypairApi.validateMnemonic(mnemonic);
-        if (!validation.valid) {
+        // Validate mnemonic client-side — no server call needed
+        if (!isValidMnemonic(mnemonic)) {
           throw new Error("Invalid recovery phrase");
         }
 
-        const derived = await keypairApi.fromMnemonic(mnemonic, accountIndex);
+        const derived = deriveHDKeypair(mnemonic, accountIndex);
         const { publicKey, secretKey } = derived;
 
         if (get().accounts.some((a) => a.publicKey === publicKey)) {

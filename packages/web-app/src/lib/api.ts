@@ -248,19 +248,8 @@ export const keypairApi = {
       method: "POST",
       body: JSON.stringify({ secret }),
     }),
-  validateMnemonic: (mnemonic: string) =>
-    request<{ valid: boolean }>("/api/v1/keypair/validate-mnemonic", {
-      method: "POST",
-      body: JSON.stringify({ mnemonic }),
-    }),
-  fromMnemonic: (mnemonic: string, accountIndex = 0) =>
-    request<{ publicKey: string; secretKey: string; accountIndex: number }>(
-      "/api/v1/keypair/from-mnemonic",
-      {
-        method: "POST",
-        body: JSON.stringify({ mnemonic, accountIndex }),
-      }
-    ),
+  // validateMnemonic and fromMnemonic removed (P0-3-F2)
+  // HD derivation now happens client-side in lib/hd-wallet.ts
 };
 
 // ——— Trustlines ———

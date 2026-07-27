@@ -41,6 +41,18 @@ if (process.env.SSO_SECRET === process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+// Crash on empty critical secrets in production (P2-4-F2)
+if (process.env.NODE_ENV === "production") {
+  if (!process.env.PLATFORM_SECRET) {
+    console.error("FATAL: PLATFORM_SECRET must be set in production");
+    process.exit(1);
+  }
+  if (!process.env.SIGNING_SECRET_KEY) {
+    console.error("FATAL: SIGNING_SECRET_KEY must be set in production");
+    process.exit(1);
+  }
+}
+
 // Warn if STELLAR_NETWORK not explicitly set in production
 if (!process.env.STELLAR_NETWORK && process.env.NODE_ENV === "production") {
   console.warn("WARNING: STELLAR_NETWORK not set — defaulting to testnet. Set STELLAR_NETWORK=public for mainnet.");

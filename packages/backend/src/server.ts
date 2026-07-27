@@ -31,7 +31,7 @@ import { earnRoutes } from "./routes/earn";
 import { nftRoutes } from "./routes/nft";
 import { moneygramRoutes } from "./routes/moneygram";
 import { curatedTokenRoutes } from "./routes/curated-tokens";
-import StellarHDWallet from "stellar-hd-wallet";
+// HD wallet derivation import removed — moved to client-side (P0-3-F2)
 import { db, schema } from "./db";
 import { eq, and, sql } from "drizzle-orm";
 import { authMiddleware } from "./middleware/auth";
@@ -1934,114 +1934,7 @@ async function bootstrap() {
     },
   );
 
-  app.post(
-    "/api/v1/keypair/validate-mnemonic",
-    {
-      preHandler: authMiddleware,
-      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
-      schema: {
-        security: [{ bearerAuth: [] }],
-        tags: ["Keypair"],
-        summary: "Validate a BIP-39 mnemonic phrase",
-        body: {
-          type: "object",
-          properties: {
-            mnemonic: { type: "string" },
-          },
-          required: ["mnemonic"],
-        },
-        response: {
-          200: {
-            description: "Validation result",
-            type: "object",
-            properties: { valid: { type: "boolean" } },
-          },
-          400: { type: "object", properties: { error: { type: "string" } } },
-          401: { type: "object", properties: { error: { type: "string" } } },
-          429: {
-            description: "Rate limit exceeded",
-            type: "object",
-            properties: { error: { type: "string" } },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { mnemonic } = request.body as { mnemonic: string };
-      if (!mnemonic || typeof mnemonic !== "string") {
-        return reply.status(400).send({ error: "Mnemonic is required" });
-      }
-      try {
-        const isValid = StellarHDWallet.validateMnemonic(mnemonic.trim());
-        return { valid: isValid };
-      } catch {
-        return { valid: false };
-      }
-    },
-  );
-
-  app.post(
-    "/api/v1/keypair/from-mnemonic",
-    {
-      preHandler: authMiddleware,
-      config: { rateLimit: { max: 3, timeWindow: "1 minute" } },
-      schema: {
-        security: [{ bearerAuth: [] }],
-        tags: ["Keypair"],
-        summary: "Derive keypair from mnemonic (SEP-0005)",
-        body: {
-          type: "object",
-          properties: {
-            mnemonic: { type: "string" },
-            accountIndex: { type: "integer", default: 0 },
-          },
-          required: ["mnemonic"],
-        },
-        response: {
-          200: {
-            description: "Derived keypair from mnemonic",
-            type: "object",
-            properties: {
-              publicKey: { type: "string" },
-              secretKey: { type: "string" },
-              accountIndex: { type: "number" },
-            },
-          },
-          400: { type: "object", properties: { error: { type: "string" } } },
-          401: { type: "object", properties: { error: { type: "string" } } },
-          429: {
-            description: "Rate limit exceeded",
-            type: "object",
-            properties: { error: { type: "string" } },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { mnemonic, accountIndex = 0 } = request.body as {
-        mnemonic: string;
-        accountIndex?: number;
-      };
-      if (!mnemonic || typeof mnemonic !== "string") {
-        return reply.status(400).send({ error: "Mnemonic is required" });
-      }
-      try {
-        if (!StellarHDWallet.validateMnemonic(mnemonic.trim())) {
-          return reply.status(400).send({ error: "Invalid mnemonic phrase" });
-        }
-        const wallet = StellarHDWallet.fromMnemonic(mnemonic.trim());
-        return {
-          publicKey: wallet.getPublicKey(accountIndex),
-          secretKey: wallet.getSecret(accountIndex),
-          accountIndex,
-        };
-      } catch (e: any) {
-        return reply
-          .status(400)
-          .send({ error: e.message || "Invalid mnemonic" });
-      }
-    },
-  );
+  // Mnemonic endpoints removed (P0-3-F2) — HD derivation moved to client-side.
 
   // ═══════════════════════════════════════
   // API Key Management
