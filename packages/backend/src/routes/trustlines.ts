@@ -208,6 +208,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/add", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         description: "Build an unsigned XDR transaction to add a trustline for an asset.",
         tags: ["Trustlines"],
@@ -311,6 +312,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/remove", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         description: "Build an unsigned XDR transaction to remove a trustline (balance must be zero).",
         tags: ["Trustlines"],
@@ -403,6 +405,7 @@ export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
   app.post("/api/v1/trustlines/update-limit", {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         description: "Build an unsigned XDR transaction to update a trustline limit.",
         tags: ["Trustlines"],
