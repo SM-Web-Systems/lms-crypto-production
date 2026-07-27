@@ -16,6 +16,11 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
+if (!/^[0-9a-fA-F]{64}$/.test(process.env.TOTP_ENCRYPTION_KEY!)) {
+  console.error("FATAL: TOTP_ENCRYPTION_KEY must be a 64-character hex string (openssl rand -hex 32)");
+  process.exit(1);
+}
+
 export const config = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "3001", 10),
