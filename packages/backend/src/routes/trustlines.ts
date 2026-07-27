@@ -3,6 +3,8 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { stellarClient } from "../lib/stellar-client";
 import { TokenService } from "../modules/tokens/token.service";
 import { authMiddleware } from "../middleware/auth";
+import { db, schema } from "../db";
+import { eq, and } from "drizzle-orm";
 
 const tokenService = new TokenService();
 
@@ -252,6 +254,17 @@ export async function trustlineRoutes(app: FastifyInstance) {
         .send({ error: "publicKey, assetCode, and assetIssuer are required" });
     }
 
+    // Verify wallet ownership
+    const userId = request.user!.userId;
+    const [wallet] = await db.select().from(schema.userWallets)
+      .where(and(
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, publicKey),
+      )).limit(1);
+    if (!wallet) {
+      return reply.status(403).send({ error: "Wallet does not belong to authenticated user" });
+    }
+
     try {
       const account = await stellarClient.horizon.loadAccount(publicKey);
       const asset = new StellarSdk.Asset(assetCode, assetIssuer);
@@ -336,6 +349,17 @@ export async function trustlineRoutes(app: FastifyInstance) {
         .send({ error: "publicKey, assetCode, and assetIssuer are required" });
     }
 
+    // Verify wallet ownership
+    const userId = request.user!.userId;
+    const [wallet] = await db.select().from(schema.userWallets)
+      .where(and(
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, publicKey),
+      )).limit(1);
+    if (!wallet) {
+      return reply.status(403).send({ error: "Wallet does not belong to authenticated user" });
+    }
+
     try {
       const account = await stellarClient.horizon.loadAccount(publicKey);
 
@@ -418,6 +442,17 @@ export async function trustlineRoutes(app: FastifyInstance) {
 
     if (!publicKey || !assetCode || !assetIssuer || !newLimit) {
       return reply.status(400).send({ error: "All fields are required" });
+    }
+
+    // Verify wallet ownership
+    const userId = request.user!.userId;
+    const [wallet] = await db.select().from(schema.userWallets)
+      .where(and(
+        eq(schema.userWallets.userId, userId),
+        eq(schema.userWallets.publicKey, publicKey),
+      )).limit(1);
+    if (!wallet) {
+      return reply.status(403).send({ error: "Wallet does not belong to authenticated user" });
     }
 
     try {

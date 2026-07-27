@@ -47,6 +47,26 @@ vi.mock("@stellar/stellar-sdk", () => {
   };
 });
 
+vi.mock("../db", () => ({
+  db: {
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{ id: 1, userId: 1, publicKey: "GABC123" }]),
+        }),
+      }),
+    }),
+  },
+  schema: {
+    userWallets: { userId: "userId", publicKey: "publicKey" },
+  },
+}));
+
+vi.mock("drizzle-orm", () => ({
+  eq: vi.fn((...args: any[]) => args),
+  and: vi.fn((...args: any[]) => args),
+}));
+
 vi.mock("../middleware/auth", () => ({
   authMiddleware: async (request: any, reply: any) => {
     const authHeader = request.headers.authorization;
