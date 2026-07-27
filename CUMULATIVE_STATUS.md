@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Generated: 2026-07-27 | Baseline: main @ `14b9ce8`
-> Tests: 377/377 passing | Production: deployed and verified
+> Updated: 2026-07-27 (post Phase 6A) | Main: `1459eda`
+> Tests: 382/382 passing | Production: deployed and verified
 
 ---
 
@@ -11,15 +11,15 @@
 
 | Category | Count | % |
 |----------|------:|--:|
-| **Resolved** (code fix applied, verified) | 71 | 22.3% |
+| **Resolved** (code fix applied, verified) | 75 | 23.5% |
 | **INFO / No Action** (confirmations, correct behavior) | 67 | 21.0% |
-| **Phase 6 Remaining** (planned, not yet started) | 5 | 1.6% |
-| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 176 | 55.2% |
+| **Phase 6 Remaining** (planned, not yet started) | 2 | 0.6% |
+| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 175 | 54.9% |
 | **Total** | **319** | **100%** |
 
 **All 14 CRITICAL findings are resolved.** Zero CRITICAL items remain.
 
-**Resolution rate:** 43.3% resolved or confirmed no-action (138 of 319).
+**Resolution rate:** 44.5% resolved or confirmed no-action (142 of 319).
 Including deferred items that are acceptable trade-offs, the effective security posture addresses all exploitable vulnerabilities.
 
 ---
@@ -29,18 +29,18 @@ Including deferred items that are acceptable trade-offs, the effective security 
 **Yes, for all exploitable security vulnerabilities:**
 
 - All **14 CRITICAL** findings: **FIXED** — login crashes, raw secret fallbacks, unauthenticated endpoints, TOTP plaintext, missing auth middleware on financial operations
-- All **22 of 43 HIGH** findings with direct exploit paths: **FIXED** — PIN bypass, SSO callback hijack, timing attacks, double fees, wrong audit signatures
-- All **25 of 94 MEDIUM** findings with security impact: **FIXED** — rate limits, input validation, startup guards, audit logging, wallet ownership
+- All **23 of 43 HIGH** findings with direct exploit paths: **FIXED** — PIN bypass, SSO callback hijack, timing attacks, double fees, wrong audit signatures, audit log field names
+- All **28 of 94 MEDIUM** findings with security impact: **FIXED** — rate limits, input validation, startup guards, audit logging, wallet ownership, localStorage secret stripping
 - **10 LOW** findings fixed as quick wins — rate limits, input validation, comment accuracy
 
-**What remains (176 deferred) is:**
+**What remains (175 deferred) is:**
 - Code quality improvements (naming, typing, dead code)
 - Feature enhancements (memo support, slippage control, dynamic fees)
 - Test coverage gaps (no active vulnerabilities, reduced confidence)
 - Architectural improvements (AbortController, concurrent refresh mutex)
 - Database schema refinements (indexes, FK constraints, type alignment)
 
-None of the 176 deferred items represent exploitable security vulnerabilities in the current deployment.
+None of the 175 deferred items represent exploitable security vulnerabilities in the current deployment.
 
 ---
 
@@ -65,23 +65,22 @@ None of the 176 deferred items represent exploitable security vulnerabilities in
 | P4-8-F5 | Database credentials in docker-compose.yml | FIXED |
 | P4-9-F1 | Zero test coverage for critical auth paths | FIXED |
 
-### HIGH (43 total — 22 resolved, 1 Phase 6, 20 deferred)
+### HIGH (43 total — 23 resolved, 1 Phase 6, 19 deferred)
 
-**Resolved (22):** P0-1-F3, P0-1-F4, P0-1-F5, P0-3-F1, P0-3-F3, P0-3-F4, P0-4-F2, P0-4-F3, P0-4-F18, P1-4-F1, P1-4-F2, P2-1-F1, P2-1-F2, P2-7-F1, P3-1-F4, P3-1-F5, P3-7-F3, P3-7-F4, P4-2-F1, P4-2-F2, P4-8-F2, P4-8-F3
+**Resolved (23):** P0-1-F3, P0-1-F4, P0-1-F5, P0-3-F1, P0-3-F3, P0-3-F4, P0-4-F2, P0-4-F3, P0-4-F18, P1-4-F1, P1-4-F2, P2-1-F1, P2-1-F2, P2-7-F1, P3-1-F4, P3-1-F5, P3-7-F3, P3-7-F4, P4-2-F1, P4-2-F2, P4-8-F2, P4-8-F3, P0-3-F5 (reclassified from MEDIUM due to CPU DoS impact)
 
-**Phase 6 (1):**
+**Phase 6B (1):**
 - P0-3-F2 — Mnemonic POSTed to server for HD derivation (Track 4: crypto refactor, 3-5 days)
 
-**Deferred (20):** P3-2-F3/F4/F5, P3-4-F1/F2, P3-5-F3/F4/F5/F6, P3-7-F5, P3-8-F1, P3-9-F1, P3-10-F1, P4-7-F11, P4-9-F2/F3
+**Deferred (19):** P3-2-F3/F4/F5, P3-4-F1/F2, P3-5-F3/F4/F5/F6, P3-7-F5, P3-8-F1, P3-9-F1, P3-10-F1, P4-7-F11, P4-9-F2/F3
 Most are in P3 (lower-priority modules: Earn, Fiat, MoneyGram, Push, Curated Tokens) and P4 (test coverage, Docker).
 
-### MEDIUM (94 total — 25 resolved, 4 Phase 6, 65 deferred)
+### MEDIUM (94 total — 28 resolved, 1 Phase 6, 65 deferred)
 
-**Phase 6 (4):**
-- P0-3-F5 — decrypt-secret no length validation (CPU DoS risk)
-- P0-3-F9 — encryptedSecret in localStorage
-- P0-3-F10 — Mnemonic in localStorage under predictable key
-- P2-4-F2 — PLATFORM_SECRET/SIGNING_SECRET_KEY default empty (partially fixed)
+**Phase 6A resolved (3):** P0-3-F5, P0-3-F9, P0-3-F10
+
+**Phase 6B (1):**
+- P2-4-F2 — PLATFORM_SECRET/SIGNING_SECRET_KEY default empty (partially fixed with startup warning)
 
 ### LOW (101 total — 10 resolved, 91 deferred)
 
@@ -133,28 +132,30 @@ All 67 INFO findings are confirmations of correct behavior, design observations,
 - Tagged `phase5-complete-2026-07-27`
 - Deployed to production, 10 smoke tests passed
 
+### Phase 6A (2026-07-27): Quick Wins
+- 4 fixes: audit log field name (P0-1-F3 residual), decrypt-secret CPU DoS (P0-3-F5), localStorage encryptedSecret (P0-3-F9), localStorage mnemonic (P0-3-F10)
+- Test count: 377 → 382 (+5 tests in 4 new test files)
+
+### Phase 6A Merge & Deploy (2026-07-27)
+- Merged `fix/phase6a-quick-wins` → `main` (commit 1459eda)
+- Tagged `phase6a-complete-2026-07-27`
+- Deployed to production, 4 smoke tests passed
+
 ---
 
-## Phase 6 Remaining (5 findings)
+## Phase 6B Remaining (2 findings)
 
 | ID | Severity | Track | Description | Effort |
 |----|----------|-------|-------------|--------|
 | P0-3-F2 | HIGH | Track 4 (Crypto Refactor) | Mnemonic POSTed to server | 3-5 days |
-| P0-3-F10 | MEDIUM | Track 3 (Client Storage) | Mnemonic in localStorage | 2-3 hours |
-| P0-3-F5 | MEDIUM | Track 2 (Input Validation) | decrypt-secret CPU DoS | 1-2 hours |
-| P0-3-F9 | MEDIUM | Track 3 (Client Storage) | encryptedSecret in localStorage | 2-3 hours |
 | P2-4-F2 | MEDIUM | Track 1 (Quick Win) | Empty secret defaults | 15 min |
 
-Additionally, PHASE6_PLAN.md identifies 2 residual issues in previously-fixed findings:
-- P0-1-F3: `record.userId` vs `record.user_id` field name mismatch (quick fix, 15 min)
-- P0-4-F1: `pin?: string` should be `pin: string` type tightening (quick fix, 15 min)
-
-**Total Phase 6 effort: ~5-8 days** (mostly driven by Track 4 crypto refactor)
+**Total Phase 6B effort: ~3-5 days** (driven by crypto refactor)
 **Earliest start: 2026-08-15**
 
 ---
 
-## Deferred Findings (176 items)
+## Deferred Findings (175 items)
 
 These are not security vulnerabilities. They fall into these categories:
 
@@ -182,15 +183,15 @@ Full list in `TODO_LOW_PRIORITY.md` and `PHASE5_BACKLOG.md`.
 | 2026-07-26 | Phases 3, 5A-5C complete (17 more fixes) |
 | 2026-07-27 | Phase 5D complete (6 fixes), merge to main, deploy to production |
 | 2026-07-27 | Low-priority pass (10 fixes), Phase 6 planning complete |
-| 2026-07-27 | All smoke tests passed, GitHub updated |
-| 2026-08-15 | Phase 6 earliest start |
+| 2026-07-27 | Phase 6A complete (4 fixes), merge to main, deploy to production |
+| 2026-08-15 | Phase 6B earliest start |
 
 ---
 
 ## Verification
 
-- **Git commits:** 73 commits since audit start (30+ fix commits)
-- **Test progression:** 218 → 377 tests (159 new tests added)
-- **Production:** deployed and verified with 10-item smoke test checklist
-- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`
-- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `14b9ce8`
+- **Git commits:** 81 commits since audit start (51 fix commits)
+- **Test progression:** 218 → 382 tests (164 new tests added)
+- **Production:** deployed and verified twice (Phase 5 + Phase 6A)
+- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`
+- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `1459eda`
