@@ -17,8 +17,9 @@ export async function verifyTurnstile(request: FastifyRequest, reply: FastifyRep
 
   const body = request.body as any;
 
-  // Skip turnstile on 2FA step — user already passed verification on the first login attempt
-  if (body?.twoFaToken) {
+  // Skip turnstile on 2FA step — user already passed verification on the first login attempt.
+  // Only allow this bypass on login route (not register or other routes).
+  if (body?.twoFaToken && request.routeOptions?.url === "/api/v1/auth/login") {
     return;
   }
 
@@ -51,7 +52,8 @@ export async function verifyTurnstile(request: FastifyRequest, reply: FastifyRep
     }
   } catch (err) {
     console.error("Turnstile verification error:", err);
-    // Fail open in case Cloudflare is down — log but allow
-    console.warn("Turnstile service unavailable — allowing request");
+    return reply.status(503).send({
+      error: "Verification service unavailable. Please try again shortly.",
+    });
   }
 }
