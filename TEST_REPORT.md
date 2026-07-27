@@ -1,4 +1,4 @@
-# AmmaWallet P1 Test Report
+# AmmaWallet Test Report (P1 + P2)
 
 > Generated during full-codebase audit (2026-07-27)
 > Branch: `audit/full-codebase-2026-07-26`
@@ -147,5 +147,92 @@ describe("POST /api/v1/sso/verify", () => {
 - Mock DB uses builder pattern (`select().from().where().limit()`) — matches Drizzle API
 - No shared test fixtures or factories across modules — each file is self-contained
 - No integration tests with real database — all unit tests with mocked DB
+
+---
+
+## P2 Test Verdicts
+
+### Summary
+
+| Module | Test File | Tests | Verdict |
+|--------|-----------|-------|---------|
+| P2-1: Trustlines | *(none)* | 0 | **No Coverage** |
+| P2-2: Token Indexer | *(none)* | 0 | **No Coverage** |
+| P2-3: Swap Service | *(none)* | 0 | **No Coverage** |
+| P2-4: Config | *(none)* | 0 | **N/A** (config module) |
+| P2-5: DB Schema | *(none)* | 0 | **N/A** (schema definition) |
+| P2-6: Email/Mailer | *(none)* | 0 | **No Coverage** |
+| P2-7: Audit Logging | *(none)* | 0 | **No Coverage** |
+
+All 7 P2 modules have **zero dedicated test files**. The only indirect coverage comes through mocks in P0/P1 test suites.
+
+---
+
+### P2-1: Trustlines — No Coverage
+
+No test file exists. Given the 2 HIGH findings (missing auth, missing ownership check), this is the highest-priority test gap in P2.
+
+**Recommended test suite:**
+```
+- "POST /add requires authMiddleware"
+- "POST /add rejects publicKey not owned by authenticated user"
+- "POST /add returns unsigned XDR for valid request"
+- "POST /remove returns unsigned XDR"
+- "GET /trustlines/:publicKey returns trustline list"
+- "500 errors return generic message, not raw error.message"
+```
+
+---
+
+### P2-2: Token Indexer — No Coverage
+
+No test file exists for `token.service.ts`, `toml-sync.ts`, or `icon-resolver.ts`. These interact with external APIs (Horizon, StellarExpert, TOML endpoints) and would benefit from mocked tests.
+
+**Recommended test suite:**
+```
+- "discoverFromHorizon filters assets with num_accounts < 3"
+- "syncTomlMetadata rejects internal/private hostnames (SSRF guard)"
+- "icon download aborts on response > 1MB"
+- "search escapes ILIKE special characters"
+```
+
+---
+
+### P2-3: Swap Service — No Coverage
+
+No test file exists. The service implements financial calculations (slippage, price impact, AMM constant-product) that should be tested with known inputs/outputs.
+
+**Recommended test suite:**
+```
+- "getBestQuote returns best of 3 routing strategies"
+- "calcPriceImpact handles zero amount without division by zero"
+- "calcPriceImpact handles zero spotPrice without division by zero"
+- "slippage correctly reduces minimum destination amount"
+- "buildSwapTx produces valid unsigned XDR"
+```
+
+---
+
+### P2-6: Email/Mailer — No Coverage
+
+`sendEmail`, `send2FACode`, `sendPasswordResetEmail`, `sendVerificationEmail` only tested indirectly through mocks. Template rendering and error paths are untested.
+
+---
+
+### P2-7: Audit Logging — No Coverage
+
+`auditLog` only referenced as a mock assertion in `auth-critical-fixes.test.ts`. Core behavior (error swallowing, field mapping) untested. The wrong-signature issue (P2-7-F1) would have been caught by `tsc --noEmit` in CI.
+
+---
+
+### Test Gap Severity Assessment
+
+| Priority | Module | Reason |
+|----------|--------|--------|
+| **HIGH** | Trustlines | 2 HIGH findings, financial operations, zero tests |
+| **HIGH** | Audit Logging | Wrong-signature bug silently losing all audit context |
+| **MEDIUM** | Token Indexer | SSRF risk via homeDomain, external API interactions |
+| **MEDIUM** | Swap Service | Financial calculations without validation |
+| **LOW** | Email/Mailer | Simple templates, error handling verified by code review |
 
 ---

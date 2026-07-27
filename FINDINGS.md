@@ -900,3 +900,371 @@
 
 ---
 
+## P2 — MEDIUM: Trustlines, Tokens, Swap, Config, Schema, Email, Audit
+
+### P2-1: Trustline Management
+
+**Files audited:**
+- `packages/backend/src/routes/trustlines.ts` (441 lines)
+
+---
+
+### P2-1-F1: All trustline routes lack authMiddleware (P0-4-F11 STILL OPEN)
+- **Severity:** HIGH
+- **File:** `packages/backend/src/routes/trustlines.ts:8-441`
+- **Description:** None of the 5 trustline routes (`GET /trustlines/:publicKey`, `GET /trustlines/check/...`, `POST /trustlines/add`, `POST /trustlines/remove`, `POST /trustlines/update-limit`) include `preHandler: authMiddleware`. Any unauthenticated caller can build unsigned trustline transactions for any public key, enumerate account balances, and trigger DB writes via `ensureToken()`. Confirms P0-4-F11 is still unfixed.
+- **Recommendation:** Add `preHandler: authMiddleware` to all POST mutation routes. Verify `request.user.id` owns the wallet.
+
+### P2-1-F2: No ownership verification — any user can build transactions for another user's wallet
+- **Severity:** HIGH
+- **File:** `packages/backend/src/routes/trustlines.ts:234-292,323-372,402-440`
+- **Description:** Even with authMiddleware, handlers don't verify that `publicKey` belongs to the authenticated user. The `/add` route calls `tokenService.ensureToken()` (line 281) which writes to DB. Also leaks account state through error responses.
+- **Recommendation:** Query `user_wallets` table to confirm `request.user.id` owns the given `publicKey`. Reject with 403 if not.
+
+### P2-1-F3: POST mutation routes lack rate limiting
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/routes/trustlines.ts:206-440`
+- **Description:** GET routes have `rateLimit: { max: 30, timeWindow: "1 minute" }` but all three POST routes (`/add`, `/remove`, `/update-limit`) have none.
+- **Recommendation:** Add rate limiting to all POST endpoints.
+
+### P2-1-F4: No input format validation on publicKey, assetCode, assetIssuer
+- **Severity:** LOW
+- **File:** `packages/backend/src/routes/trustlines.ts:210-217,301-308,381-389`
+- **Description:** JSON schemas declare `type: "string"` with no `pattern`, `minLength`, or `maxLength`. Malformed input reaches Horizon API before validation. Stellar asset codes must be 1-12 alphanumeric; public keys must match `^G[A-Z2-7]{55}$`.
+- **Recommendation:** Add schema constraints.
+
+### P2-1-F5: Raw error.message exposed in 500 responses
+- **Severity:** LOW
+- **File:** `packages/backend/src/routes/trustlines.ts:96,198,290,370,438`
+- **Description:** All catch blocks return `error.message` directly to the client, potentially leaking Horizon URLs, DB connection details, or stack traces.
+- **Recommendation:** Return generic error message; log full error server-side.
+
+### P2-1-F6: No check for account lock flags before building transactions
+- **Severity:** LOW
+- **File:** `packages/backend/src/routes/trustlines.ts:336-372,419-440`
+- **Description:** Remove/update handlers don't check Stellar account flags (`AUTH_IMMUTABLE`, etc.) before building unsigned XDR. Transactions guaranteed to fail at submission waste user effort.
+- **Recommendation:** Check flags from `loadAccount` response; return informative 400 if operation would be rejected.
+
+### P2-1 Summary
+- **Total findings: 6**
+- **CRITICAL: 0 | HIGH: 2 | MEDIUM: 1 | LOW: 3 | INFO: 0**
+- **Test verdict: No Coverage** — zero trustline tests exist.
+
+---
+
+### P2-2: Token Indexer + Enrichment
+
+**Files audited:**
+- `packages/backend/src/modules/tokens/token.service.ts` (574 lines)
+- `packages/backend/src/jobs/token-indexer.ts` (28 lines)
+- `packages/backend/src/lib/toml-sync.ts` (87 lines)
+- `packages/backend/src/lib/icon-resolver.ts` (205 lines)
+
+---
+
+### P2-2-F1: SSRF via homeDomain in TOML fetch
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/lib/toml-sync.ts:49`
+- **Description:** `homeDomain` from Horizon/StellarExpert data is used to construct `https://${homeDomain}/.well-known/stellar.toml` with no domain validation. A malicious asset issuer can set `home_domain` to internal hostnames (`169.254.169.254`, `localhost`, `10.0.0.1`), causing SSRF against internal network services.
+- **Evidence:**
+  ```typescript
+  const url = `https://${token.homeDomain}/.well-known/stellar.toml`;
+  const res = await fetch(url, { ... });
+  ```
+- **Recommendation:** Validate `homeDomain` against a blocklist of private/reserved IP ranges after DNS resolution.
+
+### P2-2-F2: Stored image URL from TOML not validated
+- **Severity:** LOW
+- **File:** `packages/backend/src/lib/toml-sync.ts:63-68`
+- **Description:** Image URL extracted from TOML is stored directly in DB with no URL validation. Could contain `javascript:`, `data:`, or non-HTTPS schemes.
+- **Recommendation:** Validate URL starts with `https://`, enforce max length 2048, reject non-HTTPS schemes.
+
+### P2-2-F3: No maximum file size limit on icon downloads
+- **Severity:** LOW
+- **File:** `packages/backend/src/lib/icon-resolver.ts:102-116`
+- **Description:** Icon download reads entire response body into memory (`response.arrayBuffer()`) with no max size check. Only a minimum check (>100 bytes). A compromised icon source could serve multi-GB response causing OOM. 5-second timeout provides partial mitigation.
+- **Recommendation:** Check `Content-Length` and reject responses > 1 MB. Use streaming with byte counter.
+
+### P2-2-F4: Horizon discovery cursor not persisted
+- **Severity:** LOW
+- **File:** `packages/backend/src/modules/tokens/token.service.ts:58`, `packages/backend/src/jobs/token-indexer.ts:12`
+- **Description:** Unlike `enrichFromStellarExpert()` which properly persists its cursor, `discoverFromHorizon()` never reads or writes a cursor. Every run re-fetches the same 200 most recent assets.
+- **Recommendation:** Add cursor persistence via `getSyncCursor`/`setSyncCursor`.
+
+### P2-2-F5: ILIKE search query not escaped
+- **Severity:** LOW
+- **File:** `packages/backend/src/modules/tokens/token.service.ts:200-203`
+- **Description:** `%` and `_` characters in user search query are not escaped before ILIKE interpolation. Drizzle prevents SQL injection, but wildcard characters affect search semantics.
+- **Recommendation:** Escape `%` and `_` in query before interpolation.
+
+### P2-2-F6: SearchParams interface missing `network` property
+- **Severity:** INFO
+- **File:** `packages/backend/src/modules/tokens/token.service.ts:16-22,183`
+- **Description:** `params.network` is accessed at line 183 but not declared in `SearchParams` interface. TypeScript would catch this but `tsx` skips type checking.
+- **Recommendation:** Add `network?: string` to interface.
+
+### P2-2 Summary
+- **Total findings: 6**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 1 | LOW: 4 | INFO: 1**
+- **Test verdict: No Coverage** — zero tests for token service, indexer, TOML sync, or icon resolver.
+
+---
+
+### P2-3: Swap Service
+
+**Files audited:**
+- `packages/backend/src/modules/swap/swap.service.ts` (277 lines)
+
+---
+
+### P2-3-F1: Orderbook walk variable naming misleading
+- **Severity:** LOW
+- **File:** `packages/backend/src/modules/swap/swap.service.ts:109-118`
+- **Description:** Variable names `availableSource` and price multiplication logic work correctly for the current call pattern (`orderbook(source, dest)`) but would silently break if the orderbook call order changed.
+- **Recommendation:** Add comment documenting assumed orderbook orientation.
+
+### P2-3-F2: Division by zero in calcPriceImpact
+- **Severity:** LOW
+- **File:** `packages/backend/src/modules/swap/swap.service.ts:260-274`
+- **Description:** `parseFloat(amount)` could be 0 or NaN, causing division by zero. `spotPrice` could also be 0. `.toFixed(2)` on `Infinity`/`NaN` returns string representations.
+- **Recommendation:** Add zero-value guards for both `amount` and `spotPrice`.
+
+### P2-3-F3: Hardcoded BASE_FEE may cause transaction failures
+- **Severity:** LOW
+- **File:** `packages/backend/src/modules/swap/swap.service.ts:220,238`
+- **Description:** Uses `StellarSdk.BASE_FEE` (100 stroops, protocol minimum). During network congestion, transactions will be deprioritized and may fail.
+- **Recommendation:** Use `feeStats()` for dynamic fee estimation.
+
+### P2-3-F4: Quote amount not validated for negative or zero
+- **Severity:** LOW
+- **File:** `packages/backend/src/modules/swap/swap.service.ts:18-23`
+- **Description:** `amount` parameter is a raw string with no validation. Negative or zero amounts produce nonsensical quotes.
+- **Recommendation:** Add `if (parseFloat(amount) <= 0) throw new Error(...)`.
+
+### P2-3 Summary
+- **Total findings: 4**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 0 | LOW: 4 | INFO: 0**
+- **Test verdict: No Coverage** — zero swap service tests.
+
+---
+
+### P2-4: Config Validation
+
+**Files audited:**
+- `packages/backend/src/config/index.ts` (82 lines)
+
+---
+
+### P2-4-F1: SSO_SECRET defaults to empty string, no startup validation
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/config/index.ts:45`
+- **Description:** `SSO_SECRET` defaults to `""` and is NOT in `requiredEnvVars`. While empty string is falsy (SSO blocked at runtime via `sso.ts:53`), there's no startup warning. If JWT library accepts empty key, tokens could be forged. Cross-reference: also flagged as P1-4-F2.
+- **Recommendation:** Add to `requiredEnvVars` or add startup warning.
+
+### P2-4-F2: PLATFORM_SECRET and SIGNING_SECRET_KEY default to empty string
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/config/index.ts:52,78`
+- **Description:** Both Stellar signing keys default to `""`. If accidentally unset, transaction signing fails at runtime rather than startup. Secret key material should never default silently.
+- **Recommendation:** Add to `requiredEnvVars` or add startup guard.
+
+### P2-4-F3: STELLAR_NETWORK defaults to testnet silently
+- **Severity:** LOW
+- **File:** `packages/backend/src/config/index.ts:21`
+- **Description:** If accidentally unset in production, silently falls back to testnet. Safe-fail direction but could cause silent outage.
+- **Recommendation:** Add startup warning when `NODE_ENV === "production"` and network not set.
+
+### P2-4-F4: TURNSTILE_SECRET_KEY defaults to empty string
+- **Severity:** LOW
+- **File:** `packages/backend/src/config/index.ts:34`
+- **Description:** Turnstile verification with empty key fails at Cloudflare (fail-closed). Startup warning would prevent deployment confusion.
+
+### P2-4-F5: Two statements on one line (code style)
+- **Severity:** INFO
+- **File:** `packages/backend/src/config/index.ts:77`
+- **Description:** Closing brace of `transak` object and `SIGNING_PUBLIC_KEY` on same line. Readability issue.
+
+### P2-4 Summary
+- **Total findings: 5**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 2 | LOW: 2 | INFO: 1**
+
+---
+
+### P2-5: Database Schema Integrity
+
+**Files audited:**
+- `packages/backend/src/db/schema/index.ts` (1108 lines)
+- `packages/backend/src/db/index.ts` (15 lines)
+
+---
+
+### P2-5-F1: addressBook.userId has no FK constraint or index
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/db/schema/index.ts:295`
+- **Description:** `addressBook.userId` is a plain `bigint` with no `.references()`. No referential integrity enforced — orphaned rows possible. No index makes user-scoped lookups sequential scans.
+- **Recommendation:** Add `.references(() => users.id, { onDelete: "cascade" })` and index.
+
+### P2-5-F2: 30 FK columns missing indexes
+- **Severity:** LOW
+- **File:** `packages/backend/src/db/schema/index.ts` (various)
+- **Description:** 30 FK columns lack dedicated indexes. PostgreSQL does not auto-create FK indexes. This causes slow cascading deletes and joins. Priority columns: `passwordResetTokens(userId)`, `portfolioSnapshots(userId)`, `pushSubscriptions(userId)`, `auditLogs(userId)`, `billingEvents(policyVersionId, fundingEventId)`.
+- **Recommendation:** Add indexes to high-write and frequently-joined FK columns.
+
+### P2-5-F3: auditLogs.userId is integer, should be bigint; missing onDelete
+- **Severity:** LOW
+- **File:** `packages/backend/src/db/schema/index.ts:401`
+- **Description:** `users.id` is `bigserial` (8 bytes) but `auditLogs.userId` is `integer` (4 bytes). FK has no `onDelete` — deleting a user with audit logs would fail. Should use `set null` to preserve audit trail.
+
+### P2-5-F4: 5 FKs use implicit NO ACTION instead of explicit onDelete
+- **Severity:** LOW
+- **File:** `packages/backend/src/db/schema/index.ts:87,102-103,436,401`
+- **Description:** `contractTokens.tokenId`, `userTokens.tokenId`, `userTokens.contractId`, `nftTokens.collectionId`, `auditLogs.userId` — all default to `NO ACTION`. For `auditLogs.userId`, this is problematic (prevents user deletion).
+- **Recommendation:** Add explicit `onDelete` to all FKs.
+
+### P2-5-F5: users.email is nullable; redundant uniqueIndex
+- **Severity:** LOW
+- **File:** `packages/backend/src/db/schema/index.ts:190,213`
+- **Description:** Email column not `.notNull()`. PostgreSQL unique allows multiple NULLs. Also has redundant `uniqueIndex` duplicating the inline `.unique()`.
+- **Recommendation:** Add `.notNull()` if email is required. Remove redundant index.
+
+### P2-5-F6: walletRoles role_slug has no CHECK constraint
+- **Severity:** LOW
+- **File:** `packages/backend/src/db/schema/index.ts:578-596`
+- **Description:** 4 system roles (`ops_hot`, `treasury`, `issuing`, `distribution`) documented but no CHECK constraint prevents invalid values.
+- **Recommendation:** Add CHECK constraint on system role values.
+
+### P2-5-F7: passwordResetTokens timestamps lack withTimezone
+- **Severity:** INFO
+- **File:** `packages/backend/src/db/schema/index.ts:264-266`
+- **Description:** Unlike most schema timestamps using `{ withTimezone: true }`, `passwordResetTokens` omits this. Creates `timestamp without time zone` columns — timezone drift risk.
+- **Recommendation:** Add `{ withTimezone: true }` for consistency.
+
+### P2-5 Summary
+- **Total findings: 7**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 1 | LOW: 5 | INFO: 1**
+- **Connection pool: PASS** (max=10, idle=20s, connect=10s — appropriate for single-instance Docker)
+- **Drizzle onDelete syntax: PASS** (all use correct string format)
+- **Check constraints: PASS** (well-formed, covering documented enums)
+
+---
+
+### P2-6: Email / Mailer
+
+**Files audited:**
+- `packages/backend/src/lib/mailer.ts` (50 lines)
+- `packages/backend/src/lib/email.ts` (66 lines)
+
+---
+
+### P2-6-F1: sendPasswordResetEmail silently swallows failure
+- **Severity:** LOW
+- **File:** `packages/backend/src/lib/email.ts:31-34`
+- **Description:** Returns `void` not `boolean`. Caller has no way to know email failed. User sees "reset link sent" even if delivery failed. Intentional for anti-enumeration but inconsistent with `sendVerificationEmail` which returns `boolean`.
+- **Recommendation:** Align return types for consistency.
+
+### P2-6-F2: No dedicated test files for mailer or email
+- **Severity:** LOW
+- **File:** N/A
+- **Description:** `sendEmail`, `send2FACode`, `sendPasswordResetEmail`, `sendVerificationEmail` have zero direct test coverage. Only indirectly exercised through mocks.
+- **Recommendation:** Add unit tests for template generation and error handling.
+
+### P2-6 Summary
+- **Total findings: 2**
+- **CRITICAL: 0 | HIGH: 0 | MEDIUM: 0 | LOW: 2 | INFO: 0**
+- **TLS: PASS** (rejectUnauthorized=false acceptable for internal Stalwart)
+- **Templates: PASS** (no user-controlled content in subjects/bodies)
+- **Rate limiting: PASS** (enforced at route layer, not mailer layer)
+- **Error handling: PASS** (try/catch, returns false, doesn't crash)
+
+---
+
+### P2-7: Audit Logging
+
+**Files audited:**
+- `packages/backend/src/lib/audit.ts` (44 lines)
+
+---
+
+### P2-7-F1: 6 NFT/Fiat audit calls use wrong function signature — all context silently lost
+- **Severity:** HIGH
+- **File:** `packages/backend/src/routes/nft.ts:110,321,393,436` and `packages/backend/src/routes/fiat.ts:281,357`
+- **Description:** These 6 call sites invoke `auditLog(action, userId, detailObj, ip)` with 4 positional arguments. The actual signature is `auditLog(action, opts)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Because `tsx` skips type checking, JavaScript accepts the numeric `userId` as the `opts` parameter — all properties resolve to `undefined`. Result: every NFT/Fiat audit entry is inserted with `userId=null`, `detail={}`, `ipAddress=null`, `userAgent=null`.
+- **Additionally:** The action strings (`nft_collection_registered`, `nft_transfer`, `nft_mint_indexed`, `nft_collection_synced`, `fiat_stripe_session`, `fiat_transak_url`) are not in the `AuditAction` type union.
+- **Recommendation:** Fix all 6 call sites to use opts object. Add action strings to `AuditAction` type. Add `tsc --noEmit` to CI.
+
+### P2-7-F2: Successful login is never audit-logged
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/routes/auth.ts` (login handler)
+- **Description:** `"login"` is defined in `AuditAction` but never emitted. Failed login and locked login are logged, but successful login generates no audit record. Critical gap for security monitoring — login patterns, new IP detection, breach forensics.
+- **Recommendation:** Add `auditLog("login", { userId, ip, userAgent })` after successful authentication.
+
+### P2-7-F3: 9 of 17 AuditAction types never emitted
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/lib/audit.ts`
+- **Description:** Never emitted: `login`, `password_change`, `profile_update`, `2fa_enable`, `2fa_disable`, `signing_mode_change`, `wallet_add`, `wallet_remove`, `api_key_create`, `api_key_revoke`. This is 53% of defined actions. Critical security events (2FA changes, wallet operations, API key management) leave no audit trail.
+- **Recommendation:** Instrument all corresponding handlers. Priority: `login`, `wallet_add`/`remove`, `2fa_enable`/`disable`, `api_key_create`/`revoke`.
+
+### P2-7-F4: userAgent never captured in any audit call
+- **Severity:** LOW
+- **File:** All `auditLog` call sites
+- **Description:** The `userAgent` field exists in the schema and function signature but no call site passes it. Every audit record has `user_agent = null`.
+- **Recommendation:** Create helper: `auditContext(request) => { ip, userAgent }` and use at every call site.
+
+### P2-7-F5: No dedicated test file for audit.ts
+- **Severity:** LOW
+- **File:** N/A
+- **Description:** No test file for `audit.ts`. Only referenced as a mock in `auth-critical-fixes.test.ts`.
+- **Recommendation:** Add unit tests for insert success, DB failure resilience, field mapping.
+
+### P2-7 Summary
+- **Total findings: 5**
+- **CRITICAL: 0 | HIGH: 1 | MEDIUM: 2 | LOW: 2 | INFO: 0**
+- **AuditAction coverage:** 8 of 17 defined types emitted (47%). 6 additional undeclared types used with wrong signature.
+- **Error handling: PASS** — try/catch wraps insert, never crashes app.
+
+---
+
+## P2 Tier Summary
+
+| ID | Severity | File | Description |
+|----|----------|------|-------------|
+| P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware (P0-4-F11 STILL OPEN) |
+| P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet |
+| P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
+| P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
+| P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch |
+| P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation |
+| P2-4-F2 | MEDIUM | `config/index.ts:52,78` | PLATFORM_SECRET and SIGNING_SECRET_KEY default empty |
+| P2-5-F1 | MEDIUM | `schema/index.ts:295` | addressBook.userId has no FK constraint or index |
+| P2-7-F2 | MEDIUM | `auth.ts` (login handler) | Successful login never audit-logged |
+| P2-7-F3 | MEDIUM | `audit.ts` | 9 of 17 AuditAction types never emitted (53%) |
+| P2-1-F4 | LOW | `trustlines.ts:210-389` | No input format validation on publicKey/assetCode/assetIssuer |
+| P2-1-F5 | LOW | `trustlines.ts:96+` | Raw error.message exposed in 500 responses |
+| P2-1-F6 | LOW | `trustlines.ts:336-440` | No account flag check before building transactions |
+| P2-2-F2 | LOW | `toml-sync.ts:63-68` | Stored TOML image URL not validated |
+| P2-2-F3 | LOW | `icon-resolver.ts:102-116` | No max file size on icon downloads |
+| P2-2-F4 | LOW | `token.service.ts:58` | Horizon cursor not persisted — re-fetches page 1 each run |
+| P2-2-F5 | LOW | `token.service.ts:200-203` | ILIKE search query not escaped |
+| P2-3-F1 | LOW | `swap.service.ts:109-118` | Orderbook walk variable naming misleading |
+| P2-3-F2 | LOW | `swap.service.ts:260-274` | Division by zero in calcPriceImpact |
+| P2-3-F3 | LOW | `swap.service.ts:220,238` | Hardcoded BASE_FEE may cause tx failures |
+| P2-3-F4 | LOW | `swap.service.ts:18-23` | Quote amount not validated for negative/zero |
+| P2-4-F3 | LOW | `config/index.ts:21` | STELLAR_NETWORK defaults to testnet silently |
+| P2-4-F4 | LOW | `config/index.ts:34` | TURNSTILE_SECRET_KEY defaults empty |
+| P2-5-F2 | LOW | `schema/index.ts` (various) | 30 FK columns missing indexes |
+| P2-5-F3 | LOW | `schema/index.ts:401` | auditLogs.userId is integer, should be bigint |
+| P2-5-F4 | LOW | `schema/index.ts:87,102,436,401` | 5 FKs use implicit NO ACTION |
+| P2-5-F5 | LOW | `schema/index.ts:190,213` | users.email nullable; redundant uniqueIndex |
+| P2-5-F6 | LOW | `schema/index.ts:578-596` | walletRoles role_slug no CHECK constraint |
+| P2-6-F1 | LOW | `email.ts:31-34` | sendPasswordResetEmail silently swallows failure |
+| P2-6-F2 | LOW | mailer.ts, email.ts | No dedicated test files |
+| P2-7-F4 | LOW | all auditLog call sites | userAgent never captured |
+| P2-7-F5 | LOW | audit.ts | No dedicated test file |
+| P2-2-F6 | INFO | `token.service.ts:16-22` | SearchParams missing network property |
+| P2-4-F5 | INFO | `config/index.ts:77` | Two statements on one line |
+| P2-5-F7 | INFO | `schema/index.ts:264-266` | passwordResetTokens timestamps lack withTimezone |
+
+**P2 Totals: 35 findings — 0 CRITICAL, 3 HIGH, 7 MEDIUM, 22 LOW, 3 INFO**
+**Test verdicts: Trustlines (No Coverage), Tokens (No Coverage), Swap (No Coverage), Config/Schema (N/A), Email (No Coverage), Audit (No Coverage)**
+
+---
+

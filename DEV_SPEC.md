@@ -1,4 +1,4 @@
-# AmmaWallet P1 Module Specifications
+# AmmaWallet Module Specifications (P1 + P2)
 
 > Generated during full-codebase audit (2026-07-27)
 > Branch: `audit/full-codebase-2026-07-26`
@@ -189,5 +189,155 @@ type BillingCheckResult = {
 
 ### Current Test Coverage
 - **NONE** — no `sso.test.ts` exists. Critical gap.
+
+---
+
+## P2-1: Trustline Management
+
+### Source
+`packages/backend/src/routes/trustlines.ts` (441 lines)
+
+### Endpoints
+
+| Method | Path | Auth | Rate Limit | Description |
+|--------|------|------|------------|-------------|
+| GET | `/api/v1/trustlines/:publicKey` | **NONE** | 30/min | List account trustlines |
+| GET | `/api/v1/trustlines/check/:publicKey/:code/:issuer` | **NONE** | 30/min | Check if trustline exists |
+| POST | `/api/v1/trustlines/add` | **NONE** | **NONE** | Build unsigned ChangeTrust XDR |
+| POST | `/api/v1/trustlines/remove` | **NONE** | **NONE** | Build unsigned RemoveTrust XDR |
+| POST | `/api/v1/trustlines/update-limit` | **NONE** | **NONE** | Build unsigned ChangeTrust limit XDR |
+
+### Edge Cases
+1. **No auth** — all routes are completely unauthenticated (P2-1-F1)
+2. **No ownership check** — any publicKey accepted, even if not owned by caller (P2-1-F2)
+3. **ensureToken DB write** — POST /add writes to DB with no auth gate
+4. **Raw error exposure** — catch blocks return `error.message` to client
+
+### Test Coverage: **NONE**
+
+---
+
+## P2-2: Token Indexer + Enrichment
+
+### Source
+- `packages/backend/src/modules/tokens/token.service.ts` (574 lines)
+- `packages/backend/src/jobs/token-indexer.ts` (28 lines)
+- `packages/backend/src/lib/toml-sync.ts` (87 lines)
+- `packages/backend/src/lib/icon-resolver.ts` (205 lines)
+
+### Pipeline
+1. **discoverFromHorizon()** — Fetch 200 newest assets, filter by `num_accounts >= 3`, upsert to `tokens` table
+2. **enrichFromStellarExpert()** — Fetch rating, volume, rank data from StellarExpert API, cursor-paginated
+3. **syncTomlMetadata()** — Fetch `.well-known/stellar.toml` for each token with `homeDomain`, extract image URL
+4. **resolveIcons()** — Download icon images to local filesystem, 200ms delay between downloads
+
+### Edge Cases
+1. **SSRF** — `homeDomain` not validated, attacker-controlled via Stellar account config (P2-2-F1)
+2. **No max download size** — icon and TOML image downloads have no size cap (P2-2-F3)
+3. **No Horizon cursor persistence** — always re-fetches page 1 (P2-2-F4)
+4. **Image URL injection** — TOML image URL stored without scheme validation (P2-2-F2)
+
+### Test Coverage: **NONE**
+
+---
+
+## P2-3: Swap Service
+
+### Source
+`packages/backend/src/modules/swap/swap.service.ts` (277 lines)
+
+### Key Methods
+
+| Method | Description |
+|--------|-------------|
+| `getBestQuote(source, dest, amount, direction, slippageBps?)` | Compare 3 routing strategies, return best quote |
+| `buildSwapTx(source, dest, amount, direction, account, slippageBps?)` | Build unsigned path payment XDR |
+
+### Routing Strategies
+1. **Path payment** — `strictSendPaths` / `strictReceivePaths` via Horizon
+2. **Orderbook walk** — Simulate fill across orderbook asks
+3. **AMM constant-product** — Calculate output from liquidity pool reserves
+
+### Edge Cases
+1. **Division by zero** in `calcPriceImpact` (P2-3-F2)
+2. **Hardcoded BASE_FEE** — 100 stroops, fails under congestion (P2-3-F3)
+3. **No amount validation** — negative/zero amounts produce nonsensical quotes (P2-3-F4)
+
+### Test Coverage: **NONE**
+
+---
+
+## P2-4: Config Validation
+
+### Source
+`packages/backend/src/config/index.ts` (82 lines)
+
+### Validated at Startup (exit on missing)
+`JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`, `ADMIN_JWT_SECRET`
+
+### Defaults with Security Implications
+
+| Var | Default | Risk |
+|-----|---------|------|
+| `SSO_SECRET` | `""` | SSO signing fails at runtime, not startup |
+| `PLATFORM_SECRET` | `""` | Stellar signing fails at runtime |
+| `SIGNING_SECRET_KEY` | `""` | Stellar signing fails at runtime |
+| `STELLAR_NETWORK` | `"testnet"` | Silent fallback to testnet in prod |
+| `TURNSTILE_SECRET_KEY` | `""` | Fail-closed (Cloudflare rejects) |
+
+### Test Coverage: **N/A** (config module, not directly testable)
+
+---
+
+## P2-5: Database Schema
+
+### Source
+- `packages/backend/src/db/schema/index.ts` (1108 lines)
+- `packages/backend/src/db/index.ts` (15 lines)
+
+### Key Statistics
+- **41 tables** defined in Drizzle schema
+- **~60 FK relationships** across tables
+- **30 FKs missing indexes** (performance risk on cascading deletes)
+- **5 FKs with implicit NO ACTION** (blocks parent deletion)
+- Connection pool: max=10, idle=20s, connect=10s
+
+### Test Coverage: **N/A** (schema definition, not directly testable)
+
+---
+
+## P2-6: Email / Mailer
+
+### Source
+- `packages/backend/src/lib/mailer.ts` (50 lines)
+- `packages/backend/src/lib/email.ts` (66 lines)
+
+### Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `sendEmail(to, subject, html)` | `boolean` | Send via nodemailer. Try/catch, never crashes |
+| `send2FACode(email, code)` | `boolean` | Format + send 2FA verification code |
+| `sendPasswordResetEmail(email, token)` | `void` | Format + send password reset link |
+| `sendVerificationEmail(email, userId, code)` | `boolean` | Format + send email verification link |
+
+### Test Coverage: **No direct tests** — only mocked in other test files
+
+---
+
+## P2-7: Audit Logging
+
+### Source
+`packages/backend/src/lib/audit.ts` (44 lines)
+
+### Function
+`auditLog(action: AuditAction, opts?: { userId?, detail?, ip?, userAgent? })`
+
+### Coverage Gap
+- 17 AuditAction types defined, only 8 emitted (47%)
+- 6 additional undeclared types used with wrong signature (P2-7-F1)
+- `userAgent` never passed by any call site
+
+### Test Coverage: **No direct tests**
 
 ---

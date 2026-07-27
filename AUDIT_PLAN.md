@@ -149,67 +149,81 @@
 
 ## P2 — MEDIUM: Transactions, Tokens, Config
 
-### Task P2-1: Trustline management
+### Task P2-1: Trustline management ✅ DONE (2026-07-27)
 - **Files:** `src/routes/trustlines.ts` (441 lines)
+- **Findings:** 6 (0 CRITICAL, 2 HIGH, 1 MEDIUM, 3 LOW) — see FINDINGS.md P2-1
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Ownership verification before trustline add/remove
-  - [ ] Asset validation: code + issuer format checks
-  - [ ] Rate limiting: 30/min per endpoint
-  - [ ] Error handling: Horizon error codes mapped properly
-  - [ ] No unauthorized trustline removal (e.g., locked accounts)
+  - [x] Ownership verification before trustline add/remove — **FAIL** (no auth, no ownership check)
+  - [x] Asset validation: code + issuer format checks — PARTIAL (relies on StellarSdk)
+  - [x] Rate limiting: 30/min per endpoint — **FAIL** (POST routes have none)
+  - [x] Error handling: Horizon error codes mapped properly — PARTIAL (raw error.message exposed)
+  - [x] No unauthorized trustline removal (e.g., locked accounts) — **FAIL** (no flag check)
 
-### Task P2-2: Token indexer + enrichment
-- **Files:** `src/modules/tokens/token.service.ts` (574 lines), `src/jobs/token-indexer.ts` (28 lines)
+### Task P2-2: Token indexer + enrichment ✅ DONE (2026-07-27)
+- **Files:** `src/modules/tokens/token.service.ts` (574 lines), `src/jobs/token-indexer.ts` (28 lines), `src/lib/toml-sync.ts`, `src/lib/icon-resolver.ts`
+- **Findings:** 6 (0 CRITICAL, 0 HIGH, 1 MEDIUM, 4 LOW, 1 INFO) — see FINDINGS.md P2-2
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Horizon API pagination: cursor management, no infinite loops
-  - [ ] Token filtering: trustline count ≥3 threshold
-  - [ ] TOML fetch: timeout handling, no SSRF (validate URL domain)
-  - [ ] Icon download: rate limiting, size limits
-  - [ ] Rating calculation: no division by zero
-  - [ ] Sync cursor persistence: correct read/write to syncState table
-  - [ ] Network-aware: testnet tokens not mixed with mainnet
+  - [x] Horizon API pagination: cursor management — **FAIL** (cursor not persisted)
+  - [x] Token filtering: trustline count ≥3 threshold — PASS
+  - [x] TOML fetch: timeout handling — PASS (10s timeout)
+  - [x] TOML fetch: no SSRF — **FAIL** (homeDomain not validated)
+  - [x] Icon download: rate limiting — PASS (200ms delay)
+  - [x] Icon download: size limits — **FAIL** (no max size)
+  - [x] Rating calculation: no division by zero — PASS
+  - [x] Sync cursor persistence — PARTIAL (StellarExpert yes, Horizon no)
+  - [x] Network-aware: testnet tokens not mixed — PASS
 
-### Task P2-3: Swap service
+### Task P2-3: Swap service ✅ DONE (2026-07-27)
 - **Files:** `src/modules/swap/swap.service.ts` (277 lines)
+- **Findings:** 4 (0 CRITICAL, 0 HIGH, 0 MEDIUM, 4 LOW) — see FINDINGS.md P2-3
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] Path finding: Horizon API call correctness
-  - [ ] Slippage: configurable tolerance, applied to output
-  - [ ] Fee estimation: current ledger state, not stale
-  - [ ] Transaction submission: signed XDR validated
+  - [x] Path finding: Horizon API call correctness — PASS
+  - [x] Slippage: configurable tolerance, applied to output — PASS (100bps default)
+  - [x] Fee estimation: current ledger state — PARTIAL (hardcoded BASE_FEE)
+  - [x] Transaction submission: signed XDR validated — PASS
 
-### Task P2-4: Config validation
+### Task P2-4: Config validation ✅ DONE (2026-07-27)
 - **Files:** `src/config/index.ts` (82 lines)
+- **Findings:** 5 (0 CRITICAL, 0 HIGH, 2 MEDIUM, 2 LOW, 1 INFO) — see FINDINGS.md P2-4
 - **Audit scope:**
-  - [ ] Required env vars: all critical vars throw on missing (JWT_SECRET, DATABASE_URL, etc.)
-  - [ ] Optional env vars: defaults are safe (no default secrets)
-  - [ ] API_KEYS parsing: no empty string entries after split
-  - [ ] No secrets in default values or error messages
+  - [x] Required env vars throw on missing — PASS (JWT_SECRET, DATABASE_URL, etc.)
+  - [x] Optional env vars: defaults are safe — **PARTIAL** (SSO_SECRET, PLATFORM_SECRET default empty)
+  - [x] API_KEYS parsing: no empty strings — PASS (`.filter(Boolean)`)
+  - [x] No secrets in default values or error messages — PASS
 
-### Task P2-5: Database schema integrity
+### Task P2-5: Database schema integrity ✅ DONE (2026-07-27)
 - **Files:** `src/db/schema/index.ts` (1,108 lines), `src/db/index.ts` (15 lines)
+- **Findings:** 7 (0 CRITICAL, 0 HIGH, 1 MEDIUM, 5 LOW, 1 INFO) — see FINDINGS.md P2-5
 - **Audit scope:**
-  - [ ] Connection pool: max=10, idle_timeout=20, connect_timeout=10 — appropriate?
-  - [ ] Table indexes: verify all foreign keys have indexes
-  - [ ] Unique constraints: email, publicKey, token, slug — all correct?
-  - [ ] Nullable fields: intentional vs accidental nullability
-  - [ ] onDelete behavior: cascade vs set null vs restrict — correct for each FK?
-  - [ ] Drizzle 0.45 gotcha: `onDelete: "set null"` (with space) not "setNull"
-  - [ ] Check constraints: suspensionReason enum, wallet role names
+  - [x] Connection pool — PASS (max=10, idle=20s, connect=10s)
+  - [x] Table indexes: all FK indexed — **FAIL** (30 FKs missing indexes)
+  - [x] Unique constraints — PASS (all correct)
+  - [x] Nullable fields — PASS (intentional, except users.email)
+  - [x] onDelete behavior — **PARTIAL** (5 FKs use implicit NO ACTION)
+  - [x] Drizzle 0.45 gotcha — PASS (correct string format throughout)
+  - [x] Check constraints — PASS (well-formed, correct enums)
 
-### Task P2-6: Email + mailer
+### Task P2-6: Email + mailer ✅ DONE (2026-07-27)
 - **Files:** `src/lib/mailer.ts` (50 lines), `src/lib/email.ts` (66 lines)
+- **Findings:** 2 (0 CRITICAL, 0 HIGH, 0 MEDIUM, 2 LOW) — see FINDINGS.md P2-6
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] TLS: rejectUnauthorized=false — acceptable for internal Stalwart?
-  - [ ] Email templates: no user-controlled content in subject/body (XSS in email clients)
-  - [ ] Rate limiting on email sends (no email bombing)
-  - [ ] Error handling: mailer errors don't crash server
+  - [x] TLS: rejectUnauthorized=false — PASS (acceptable for internal Stalwart)
+  - [x] Email templates: no user-controlled content — PASS
+  - [x] Rate limiting on email sends — PASS (enforced at route layer)
+  - [x] Error handling: mailer errors don't crash server — PASS
 
-### Task P2-7: Audit logging
+### Task P2-7: Audit logging ✅ DONE (2026-07-27)
 - **Files:** `src/lib/audit.ts` (44 lines)
+- **Findings:** 5 (0 CRITICAL, 1 HIGH, 2 MEDIUM, 2 LOW) — see FINDINGS.md P2-7
+- **Test verdict:** No Coverage
 - **Audit scope:**
-  - [ ] All critical actions logged (login, register, logout, password_change, wallet_add, etc.)
-  - [ ] No sensitive data in audit log detail field (no passwords, secrets)
-  - [ ] Error handling: audit log insert failure doesn't crash app
+  - [x] All critical actions logged — **FAIL** (9/17 types never emitted; 6 NFT/Fiat calls use wrong signature)
+  - [x] No sensitive data in audit log detail — PASS
+  - [x] Error handling: audit log insert failure doesn't crash — PASS
 
 ---
 
