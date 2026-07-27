@@ -453,7 +453,7 @@ export const useWalletStore = create<WalletState>()(
     {
       name: "amma-wallet",
       partialize: (state) => ({
-        accounts: state.accounts,
+        accounts: state.accounts.map(({ encryptedSecret, ...rest }) => rest),
         activeAccountId: state.activeAccountId,
         // network is intentionally NOT persisted — always starts from default ("public")
         // to prevent stale testnet values from localStorage affecting mainnet wallet creation

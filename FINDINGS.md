@@ -362,8 +362,9 @@
 - **Description:** `PATCH /:id/activate` first deactivates ALL user wallets, then attempts to activate the target. If the target ID doesn't exist, all wallets remain deactivated.
 - **Recommendation:** Verify target exists before deactivating, or wrap in a transaction with rollback.
 
-### P0-3-F9: encryptedSecret persisted to localStorage via zustand persist
+### P0-3-F9: encryptedSecret persisted to localStorage via zustand persist — FIXED
 - **Severity:** MEDIUM
+- **Status:** FIXED — partialize now strips encryptedSecret from each account before persisting to localStorage.
 - **File:** `packages/web-app/src/store/wallet.ts:455-460`
 - **Description:** The `partialize` function persists `accounts` (including `encryptedSecret`) to localStorage. Any XSS gives the attacker the encrypted blob for offline PIN brute-forcing.
 - **Recommendation:** Consider IndexedDB with non-exportable CryptoKey, or require longer/alphanumeric PINs.
