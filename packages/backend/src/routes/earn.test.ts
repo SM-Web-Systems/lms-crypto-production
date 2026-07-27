@@ -28,9 +28,20 @@ vi.mock("@stellar/stellar-sdk", () => {
     limit: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     call: vi.fn().mockResolvedValue({ records: [] }),
+    loadAccount: vi.fn().mockResolvedValue({
+      balances: [],
+      subentry_count: 0,
+    }),
   };
   return {
-    Horizon: { Server: vi.fn(() => mockServer) },
+    Horizon: {
+      Server: vi.fn().mockImplementation(function () { return mockServer; }),
+    },
+    Asset: { native: vi.fn() },
+    TransactionBuilder: vi.fn(),
+    Operation: { liquidityPoolDeposit: vi.fn(), liquidityPoolWithdraw: vi.fn() },
+    BASE_FEE: "100",
+    Networks: { TESTNET: "Test SDF Network ; September 2015", PUBLIC: "Public Global Stellar Network ; September 2015" },
   };
 });
 
