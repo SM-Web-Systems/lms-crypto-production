@@ -19,6 +19,9 @@ COPY --from=deps --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --chown=appuser:appgroup package*.json ./
 COPY --chown=appuser:appgroup src/ ./src/
 
+# Create assets directory for token icon cache (writable by appuser)
+RUN mkdir -p /app/assets/icons && chown -R appuser:appgroup /app/assets
+
 # Remove any local .env — Docker will inject via env_file
 RUN rm -f .env .env.bak
 
