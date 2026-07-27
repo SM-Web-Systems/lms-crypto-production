@@ -484,6 +484,8 @@ export async function authRoutes(app: FastifyInstance) {
       });
       await storeRefreshToken(user.id, refreshToken);
 
+      await auditLog("login", { userId: user.id, ip: request.ip });
+
       return {
         user: {
           id: user.id,
@@ -860,6 +862,8 @@ export async function authRoutes(app: FastifyInstance) {
 
       // Revoke all refresh tokens (force re-login everywhere)
       await revokeAllUserTokens(userId);
+
+      await auditLog("password_change", { userId, ip: request.ip });
 
       return { ok: true };
     },
