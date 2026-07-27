@@ -22,6 +22,7 @@ import { config } from "../config";
 import { db, schema } from "../db";
 import { verifyInternalAdmin } from "../middleware/admin-auth";
 import { getTenantBalanceSummary, writeBillingCredit, getTenantBillingEventsPage } from "../services/billing.service";
+import { auditLog } from "../lib/audit";
 
 // Roles permitted to write credits (super_admin and platform_admin)
 const CREDIT_ROLES = ["super_admin", "platform_admin"] as const;
@@ -506,6 +507,8 @@ export async function adminRoutes(app: FastifyInstance) {
         });
       });
 
+      await auditLog("admin_credit", { userId: request.admin!.id, detail: { tenantId, amountXlm: amountStr, type }, ip: request.ip });
+
       return reply.send({
         tenantId,
         billingEventId:   result.billingEventId,
@@ -603,6 +606,8 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!updated) {
         return reply.status(404).send({ error: "Tenant not found" });
       }
+
+      await auditLog("admin_suspend", { userId: request.admin!.id, detail: { tenantId, type }, ip: request.ip });
 
       return reply.send({
         tenantId:         updated.id,
@@ -774,6 +779,8 @@ export async function adminRoutes(app: FastifyInstance) {
           createdAt: schema.internalAdmins.createdAt,
         });
 
+      await auditLog("admin_create", { userId: request.admin!.id, detail: { newAdminId: created.id, email, role }, ip: request.ip });
+
       return reply.status(201).send({
         adminId:   created.id,
         email:     created.email,
@@ -868,6 +875,8 @@ export async function adminRoutes(app: FastifyInstance) {
         .update(schema.internalAdmins)
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(schema.internalAdmins.id, adminId));
+
+      await auditLog("admin_deactivate", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip });
 
       return reply.send({
         adminId:  target.id,
@@ -968,6 +977,8 @@ export async function adminRoutes(app: FastifyInstance) {
         .set({ isActive: true, updatedAt: new Date() })
         .where(eq(schema.internalAdmins.id, adminId));
 
+      await auditLog("admin_reactivate", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip });
+
       return reply.send({
         adminId:  target.id,
         email:    target.email,
@@ -1043,6 +1054,8 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!updated) {
         return reply.status(404).send({ error: "Tenant not found" });
       }
+
+      await auditLog("admin_unsuspend", { userId: request.admin!.id, detail: { tenantId }, ip: request.ip });
 
       return reply.send({
         tenantId:         updated.id,
@@ -1185,6 +1198,8 @@ export async function adminRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Tenant billing policy not found" });
       }
 
+      await auditLog("admin_billing_policy", { userId: request.admin!.id, detail: { tenantId, fields: Object.keys(updates) }, ip: request.ip });
+
       return reply.send({
         policyId:                  updated.id,
         tenantId:                  updated.tenantId,
@@ -1261,6 +1276,8 @@ export async function adminRoutes(app: FastifyInstance) {
         .update(schema.internalAdmins)
         .set({ passwordHash, updatedAt: new Date() })
         .where(eq(schema.internalAdmins.id, adminId));
+
+      await auditLog("admin_reset_password", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip });
 
       return reply.send({
         adminId: target.id,
