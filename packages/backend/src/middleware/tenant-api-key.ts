@@ -63,7 +63,7 @@ const rateLimitWindows = new Map<number, RateLimitWindow>();
  * Check and increment the rate limit counter for a given DB key.
  * Returns true if the request is allowed, false if the rate limit is exceeded.
  *
- * Uses a 60-second sliding window. Window resets on the first request after
+ * Uses a 60-second fixed window. Window resets on the first request after
  * 60 seconds have elapsed since window start.
  *
  * Exported for unit testing only — do not call from application code.

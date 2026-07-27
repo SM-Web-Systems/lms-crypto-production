@@ -36,7 +36,7 @@ export async function adminRoutes(app: FastifyInstance) {
     {
       config: {
         // Strict rate limit: admin console is low-volume; brute force must be blocked.
-        rateLimit: { max: 10, timeWindow: "15 minutes" },
+        rateLimit: { max: 5, timeWindow: "15 minutes" },
       },
       schema: {
         tags: ["Internal Admin"],
@@ -699,7 +699,7 @@ export async function adminRoutes(app: FastifyInstance) {
               type: "string",
               enum: ["super_admin", "platform_admin", "account_manager", "support_agent"],
             },
-            password: { type: "string", minLength: 8, maxLength: 200 },
+            password: { type: "string", minLength: 12, maxLength: 200 },
           },
           additionalProperties: false,
         },

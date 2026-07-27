@@ -509,6 +509,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/auth/refresh",
     {
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
       schema: {
         description:
           "Exchange a refresh token for a new access/refresh token pair. Old refresh token is revoked.",
@@ -1127,6 +1128,7 @@ export async function authRoutes(app: FastifyInstance) {
     "/api/v1/auth/resend-verification",
     {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 3, timeWindow: "15 minutes" } },
       schema: {
         description:
           "Resend email verification link to the authenticated user.",

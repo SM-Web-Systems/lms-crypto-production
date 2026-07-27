@@ -101,10 +101,7 @@ export default function SendPage() {
 
       // Send unsigned XDR to backend — it signs, adds fee, fee bumps, and submits
       const xdrBase64 = tx.toEnvelope().toXDR('base64');
-      console.log('[delegated-send] XDR type:', typeof xdrBase64);
-      console.log('[delegated-send] XDR first 40:', String(xdrBase64).slice(0, 40));
-      console.log('[delegated-send] XDR length:', String(xdrBase64).length);
-      console.log('[delegated-send] passphrase:', passphrase);
+
       const result = await signingApi.signAndSubmit(xdrBase64, passphrase, pin);
 
       if (result.success) {

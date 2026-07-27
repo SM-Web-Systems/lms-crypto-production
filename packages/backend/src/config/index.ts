@@ -41,6 +41,11 @@ if (process.env.SSO_SECRET === process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+// Warn if STELLAR_NETWORK not explicitly set in production
+if (!process.env.STELLAR_NETWORK && process.env.NODE_ENV === "production") {
+  console.warn("WARNING: STELLAR_NETWORK not set — defaulting to testnet. Set STELLAR_NETWORK=public for mainnet.");
+}
+
 export const config = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "3001", 10),

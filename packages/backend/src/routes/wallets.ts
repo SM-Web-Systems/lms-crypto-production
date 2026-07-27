@@ -74,8 +74,8 @@ export async function walletRoutes(app: FastifyInstance) {
           type: "object",
           required: ["name", "publicKey"],
           properties: {
-            name: { type: "string", description: "Display name for the wallet" },
-            publicKey: { type: "string", description: "Stellar public key (G...)" },
+            name: { type: "string", minLength: 1, maxLength: 64, description: "Display name for the wallet" },
+            publicKey: { type: "string", pattern: "^G[A-Z2-7]{55}$", description: "Stellar public key (G...)" },
             encryptedSecret: { type: "string", description: "AES-GCM encrypted secret key (for delegated mode)" },
             network: { type: "string", enum: ["testnet", "mainnet", "public"], default: "public" },
           },
@@ -253,7 +253,7 @@ export async function walletRoutes(app: FastifyInstance) {
         params: {
           type: "object",
           properties: {
-            id: { type: "string", description: "Wallet ID" },
+            id: { type: "string", pattern: "^\\d+$", description: "Wallet ID" },
           },
         },
         response: {
@@ -323,7 +323,7 @@ export async function walletRoutes(app: FastifyInstance) {
         params: {
           type: "object",
           properties: {
-            id: { type: "string", description: "Wallet ID" },
+            id: { type: "string", pattern: "^\\d+$", description: "Wallet ID" },
           },
         },
         body: {
@@ -384,7 +384,7 @@ export async function walletRoutes(app: FastifyInstance) {
         params: {
           type: "object",
           properties: {
-            id: { type: "string", description: "Wallet ID" },
+            id: { type: "string", pattern: "^\\d+$", description: "Wallet ID" },
           },
         },
         response: {
