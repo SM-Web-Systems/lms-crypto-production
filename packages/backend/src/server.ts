@@ -1194,6 +1194,7 @@ async function bootstrap() {
     "/api/v1/transactions/sign",
     {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags: ["Signing"],
         summary: "Server-side transaction signing (delegated mode)",
@@ -1328,6 +1329,7 @@ async function bootstrap() {
     "/api/v1/transactions/sign-and-submit",
     {
       preHandler: authMiddleware,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags: ["Signing"],
         summary: "Server-side sign and submit (delegated mode)",

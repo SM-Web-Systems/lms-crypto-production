@@ -55,6 +55,8 @@ vi.mock("@stellar/stellar-sdk", () => ({
 }));
 
 import Fastify from "fastify";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 describe("Signing endpoints — PIN required (P0-3-F4 + P0-4-F2)", () => {
   it("POST /api/v1/transactions/sign returns 400 when pin is missing", async () => {
@@ -135,5 +137,32 @@ describe("Signing endpoints — PIN required (P0-3-F4 + P0-4-F2)", () => {
     });
 
     expect(res.statusCode).toBe(200);
+  });
+});
+
+describe("Signing endpoints — rate limiting (P0-3-F3 + P0-4-F3)", () => {
+  const serverSrc = readFileSync(
+    join(__dirname, "..", "server.ts"),
+    "utf-8",
+  );
+
+  it("sign endpoint has rate limit config", () => {
+    // Find the sign route registration and verify rateLimit config precedes its schema
+    const signIdx = serverSrc.indexOf('"/api/v1/transactions/sign"');
+    const signAndSubmitIdx = serverSrc.indexOf('"/api/v1/transactions/sign-and-submit"');
+    // Get the config block between sign route and sign-and-submit route
+    const signBlock = serverSrc.slice(signIdx, signAndSubmitIdx);
+    expect(signBlock).toContain("rateLimit");
+    expect(signBlock).toMatch(/max:\s*5/);
+    expect(signBlock).toMatch(/timeWindow:\s*"15 minutes"/);
+  });
+
+  it("sign-and-submit endpoint has rate limit config", () => {
+    const idx = serverSrc.indexOf('"/api/v1/transactions/sign-and-submit"');
+    // Get a reasonable block after the route declaration
+    const block = serverSrc.slice(idx, idx + 500);
+    expect(block).toContain("rateLimit");
+    expect(block).toMatch(/max:\s*5/);
+    expect(block).toMatch(/timeWindow:\s*"15 minutes"/);
   });
 });
