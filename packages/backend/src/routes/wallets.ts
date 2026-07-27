@@ -276,27 +276,37 @@ export async function walletRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
     const { id } = request.params as { id: string };
 
-    // Deactivate all
-    await db
-      .update(schema.userWallets)
-      .set({ isActive: false })
-      .where(eq(schema.userWallets.userId, userId));
-
-    // Activate selected
-    const [wallet] = await db
-      .update(schema.userWallets)
-      .set({ isActive: true })
+    // Verify target exists and belongs to user BEFORE deactivating (P0-3-F8)
+    const [target] = await db
+      .select({ id: schema.userWallets.id })
+      .from(schema.userWallets)
       .where(
         and(
           eq(schema.userWallets.id, parseInt(id)),
           eq(schema.userWallets.userId, userId)
         )
       )
-      .returning();
+      .limit(1);
 
-    if (!wallet) {
+    if (!target) {
       return reply.status(404).send({ error: "Wallet not found" });
     }
+
+    // Atomic swap: deactivate all, then activate target
+    const wallet = await db.transaction(async (tx) => {
+      await tx
+        .update(schema.userWallets)
+        .set({ isActive: false })
+        .where(eq(schema.userWallets.userId, userId));
+
+      const [activated] = await tx
+        .update(schema.userWallets)
+        .set({ isActive: true })
+        .where(eq(schema.userWallets.id, target.id))
+        .returning();
+
+      return activated;
+    });
 
     return wallet;
   });
