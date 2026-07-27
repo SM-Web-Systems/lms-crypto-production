@@ -1,21 +1,19 @@
 import { API_BASE } from "./constants";
 
-// ——— Token store for auth ———
-let _accessToken: string | null = localStorage.getItem("stellar_access_token");
-let _refreshToken: string | null = localStorage.getItem("stellar_refresh_token");
+// ——— Token store for auth (memory-only, never persisted) ———
+// Tokens are NOT persisted to browser storage to prevent XSS exfiltration.
+// Trade-off: page refresh = logout (user must re-authenticate).
+let _accessToken: string | null = null;
+let _refreshToken: string | null = null;
 
 export function setTokens(access: string, refresh: string) {
   _accessToken = access;
   _refreshToken = refresh;
-  localStorage.setItem("stellar_access_token", access);
-  localStorage.setItem("stellar_refresh_token", refresh);
 }
 
 export function clearTokens() {
   _accessToken = null;
   _refreshToken = null;
-  localStorage.removeItem("stellar_access_token");
-  localStorage.removeItem("stellar_refresh_token");
 }
 
 export function getAccessToken() {
