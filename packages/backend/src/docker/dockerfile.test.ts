@@ -13,4 +13,10 @@ describe("Dockerfile hardening", () => {
     expect(fromLine).toBeDefined();
     expect(fromLine).toMatch(/@sha256:[a-f0-9]{64}/);
   });
+
+  it("contains a USER directive (non-root)", () => {
+    const userLine = dockerfile.split("\n").find((l) => l.startsWith("USER "));
+    expect(userLine).toBeDefined();
+    expect(userLine).not.toMatch(/USER\s+root/);
+  });
 });
