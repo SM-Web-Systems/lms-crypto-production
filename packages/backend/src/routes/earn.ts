@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { config } from "../config";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { authMiddleware } from "../middleware/auth";
 
 const horizon = new StellarSdk.Horizon.Server(config.HORIZON_URL);
 
@@ -10,6 +11,7 @@ export async function earnRoutes(app: FastifyInstance) {
   app.get(
     "/api/v1/earn/pools",
     {
+      preHandler: authMiddleware,
       config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
       schema: {
         tags: ["Earn"],
@@ -72,6 +74,7 @@ export async function earnRoutes(app: FastifyInstance) {
   app.get(
     "/api/v1/earn/positions/:publicKey",
     {
+      preHandler: authMiddleware,
       config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
       schema: {
         tags: ["Earn"],
@@ -147,6 +150,7 @@ export async function earnRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/earn/deposit",
     {
+      preHandler: authMiddleware,
       schema: {
         tags: ["Earn"],
         summary: "Build a liquidity pool deposit transaction (returns unsigned XDR)",
@@ -216,6 +220,7 @@ export async function earnRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/earn/withdraw",
     {
+      preHandler: authMiddleware,
       schema: {
         tags: ["Earn"],
         summary: "Build a liquidity pool withdraw transaction (returns unsigned XDR)",
