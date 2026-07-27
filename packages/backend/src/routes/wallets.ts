@@ -31,7 +31,6 @@ export async function walletRoutes(app: FastifyInstance) {
                   userId: { type: "number" },
                   name: { type: "string" },
                   publicKey: { type: "string" },
-                  encryptedSecret: { type: "string", nullable: true },
                   network: { type: "string" },
                   isActive: { type: "boolean" },
                   createdAt: { type: "string", format: "date-time" },
@@ -44,7 +43,15 @@ export async function walletRoutes(app: FastifyInstance) {
     const userId = request.user!.userId;
 
     const wallets = await db
-      .select()
+      .select({
+        id: schema.userWallets.id,
+        userId: schema.userWallets.userId,
+        name: schema.userWallets.name,
+        publicKey: schema.userWallets.publicKey,
+        network: schema.userWallets.network,
+        isActive: schema.userWallets.isActive,
+        createdAt: schema.userWallets.createdAt,
+      })
       .from(schema.userWallets)
       .where(eq(schema.userWallets.userId, userId));
 
