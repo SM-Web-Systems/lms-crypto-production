@@ -98,13 +98,13 @@
   ```
 - **Recommendation:** Fail closed: `return reply.status(503).send({ error: "Verification service unavailable" })`.
 
-### P0-1-F5: Missing audit log for password change
+### P0-1-F5: Missing audit log for password change — FIXED (1eca391)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/auth.ts:830-865`
 - **Description:** The `change-password` endpoint updates the password hash and revokes all refresh tokens, but never calls `auditLog("password_change", ...)`. The `password_change` action type is defined but never emitted.
 - **Recommendation:** Add `await auditLog("password_change", { userId, ip: request.ip });` after the password update.
 
-### P0-1-F6: Missing audit log for login success and login failure (wrong password)
+### P0-1-F6: Missing audit log for login success and login failure (wrong password) — FIXED (1eca391)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/auth.ts:345-354` (failed) and `470-498` (success)
 - **Description:** When password verification fails, `failedLoginAttempts` is incremented but no `auditLog("login_failed")` is called. On successful login, no `auditLog("login")` call exists either. The audit trail has no record of login activity.
@@ -123,7 +123,7 @@
 - **Evidence:** `const code = Math.floor(100000 + Math.random() * 900000).toString();`
 - **Recommendation:** Replace with `crypto.randomInt(100000, 1000000).toString()`.
 
-### P0-1-F9: User JWT tokens lack a `type` claim for token-confusion defence
+### P0-1-F9: User JWT tokens lack a `type` claim for token-confusion defence — FIXED (d112230)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/lib/auth.ts:27-36`
 - **Description:** Admin JWTs carry `type: "admin"` and admin middleware checks it. User JWTs have no `type` claim and user middleware does no type check. If `JWT_SECRET` and `ADMIN_JWT_SECRET` are misconfigured to the same value, an admin token would pass user auth.
@@ -215,10 +215,10 @@
 
 ---
 
-### P0-2-F1: No audit logging on admin mutations
+### P0-2-F1: No audit logging on admin mutations — FIXED (7c9b9ae)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/admin.ts:530-614, 795-879, 888-978, 986-1054, 1062-1202, 1210-1271`
-- **Description:** Six mutation endpoints (suspend, unsuspend, deactivate, reactivate, password reset, billing-policy update) produce no audit log entries. Only the credit endpoint writes to `billing_events`. A compromised admin could perform destructive actions with no structured forensic record.
+- **Description:** Eight mutation endpoints (credit, suspend, unsuspend, create, deactivate, reactivate, billing-policy, password reset) produce no audit log entries. A compromised admin could perform destructive actions with no structured forensic record.
 - **Recommendation:** Create an `admin_audit_log` table and insert a row for each mutation.
 
 ### P0-2-F2: Suspend atomic update pattern
@@ -350,7 +350,7 @@
 - **Description:** The sign-and-submit handler accepts `networkPassphrase` from the client body and uses it as fallback. Wallet creation correctly enforces `effectiveNetwork` from server config, but the signing flow allows client override.
 - **Recommendation:** Always use the server's configured passphrase. Remove `networkPassphrase` from the request body schema.
 
-### P0-3-F7: Wallet deletion is not transactional
+### P0-3-F7: Wallet deletion is not transactional — FIXED (a22e61c)
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/routes/wallets.ts:383-408`
 - **Description:** The DELETE handler performs three sequential queries (delete, select remaining, activate first remaining) without a transaction. A concurrent request between steps could cause two wallets to be simultaneously active.
@@ -466,7 +466,7 @@
 - **Description:** All three transaction endpoints have `authMiddleware` but no rate limiting. Enables PIN brute-force (sign-and-submit) and platform wallet budget drain (submit). Combined with P0-3-F3.
 - **Recommendation:** Add aggressive rate limits: `max: 10, timeWindow: "1 minute"` minimum.
 
-### P0-4-F18: Double platform fee risk — frontend and backend both inject fees
+### P0-4-F18: Double platform fee risk — frontend and backend both inject fees — FIXED (72a703d)
 - **Severity:** HIGH
 - **File:** `packages/web-app/src/pages/Swap.tsx` / `packages/backend/src/server.ts:1450-1500`
 - **Description:** Frontend `Swap.tsx` injects a platform fee operation into the transaction XDR before sending to the backend. The backend's `sign-and-submit` also injects a fee operation when processing path payments. If both paths execute, the user pays 2x the intended fee.
@@ -595,25 +595,25 @@
 | P0-4-F1 | **CRITICAL** | `server.ts:1291` | /transactions/sign uses encrypted blob as raw secret |
 | P0-1-F3 | HIGH | `auth.ts:1422` | auditLog wrong signature in SMS reset |
 | P0-1-F4 | HIGH | `turnstile.ts:52-56` | Turnstile fails open on network error | **FIXED** (057b157) |
-| P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change |
+| P0-1-F5 | HIGH | `auth.ts:830-865` | Missing audit log for password change | **FIXED** (1eca391) |
 | P0-3-F1 | HIGH | `wallets.ts:34` | GET /wallets returns encryptedSecret | **FIXED** (31d3d37) |
 | P0-3-F2 | HIGH | `wallet.ts:243` / `server.ts:1974` | Mnemonic sent to server for HD derivation |
 | P0-3-F3 | HIGH | `server.ts:1308` | No rate limit on sign-and-submit (PIN brute-force) | **FIXED** (e37855e) |
 | P0-3-F4 | HIGH | `server.ts:1549` | Raw secret fallback when PIN omitted | **FIXED** (88acd64) |
 | P0-4-F2 | HIGH | `server.ts:1549` | PIN not required in sign-and-submit schema | **FIXED** (88acd64) |
 | P0-4-F3 | HIGH | `server.ts:1240,1280,1308` | No rate limits on any transaction endpoint | **FIXED** (e37855e) |
-| P0-4-F18 | HIGH | `Swap.tsx` / `server.ts:1450` | Double platform fee injection risk |
-| P0-2-F1 | MEDIUM | `admin.ts:530+` | No audit logging on admin mutations |
+| P0-4-F18 | HIGH | `Swap.tsx` / `server.ts:1450` | Double platform fee injection risk | **FIXED** (72a703d) |
+| P0-2-F1 | MEDIUM | `admin.ts:530+` | No audit logging on admin mutations | **FIXED** (7c9b9ae) |
 | P0-2-F4 | MEDIUM | `config/index.ts:1-16` | No guard: ADMIN_JWT_SECRET == JWT_SECRET |
-| P0-1-F6 | MEDIUM | `auth.ts:345,470` | Missing audit for login success/failure |
+| P0-1-F6 | MEDIUM | `auth.ts:345,470` | Missing audit for login success/failure | **FIXED** (1eca391) |
 | P0-1-F7 | MEDIUM | `schema/index.ts:202` | TOTP secret stored in plaintext |
 | P0-1-F8 | MEDIUM | `auth.ts:373` / `two-fa.ts:23` | Math.random() for 2FA codes | **FIXED** (c2aac2c) |
-| P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim |
+| P0-1-F9 | MEDIUM | `lib/auth.ts:27-36` | User JWT lacks `type` claim | **FIXED** (d112230) |
 | P0-1-F10 | MEDIUM | `auth.ts:586-605` | Logout no-op without refreshToken |
 | P0-1-F11 | MEDIUM | `turnstile.ts:21-23` | Turnstile bypass via twoFaToken on any route | **FIXED** (057b157) |
 | P0-3-F5 | MEDIUM | `decrypt-secret.ts:7-29` | No length validation on encrypted data |
 | P0-3-F6 | MEDIUM | `server.ts:1358` | Client can override networkPassphrase |
-| P0-3-F7 | MEDIUM | `wallets.ts:383-408` | Wallet deletion not transactional |
+| P0-3-F7 | MEDIUM | `wallets.ts:383-408` | Wallet deletion not transactional | **FIXED** (a22e61c) |
 | P0-3-F8 | MEDIUM | `wallets.ts:272-294` | Activate deactivates all before verify |
 | P0-3-F9 | MEDIUM | `wallet.ts:455` | encryptedSecret in localStorage |
 | P0-3-F10 | MEDIUM | `wallet.ts:254` | Mnemonic in predictable localStorage key |
@@ -1199,7 +1199,7 @@
 
 ---
 
-### P2-7-F1: 6 NFT/Fiat audit calls use wrong function signature — all context silently lost
+### P2-7-F1: 6 NFT/Fiat audit calls use wrong function signature — all context silently lost — FIXED (b388f6a, Phase 4 for NFT calls)
 - **Severity:** HIGH
 - **File:** `packages/backend/src/routes/nft.ts:110,321,393,436` and `packages/backend/src/routes/fiat.ts:281,357`
 - **Description:** These 6 call sites invoke `auditLog(action, userId, detailObj, ip)` with 4 positional arguments. The actual signature is `auditLog(action, opts)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Because `tsx` skips type checking, JavaScript accepts the numeric `userId` as the `opts` parameter — all properties resolve to `undefined`. Result: every NFT/Fiat audit entry is inserted with `userId=null`, `detail={}`, `ipAddress=null`, `userAgent=null`.
@@ -1244,7 +1244,7 @@
 |----|----------|------|-------------|
 | P2-1-F1 | **HIGH** | `trustlines.ts:8-441` | All trustline routes lack authMiddleware — **FIXED 62c323b** |
 | P2-1-F2 | **HIGH** | `trustlines.ts:234-440` | No ownership verification — any user can build transactions for any wallet | **FIXED** (7a5016f) |
-| P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost |
+| P2-7-F1 | **HIGH** | `nft.ts:110+`, `fiat.ts:281+` | 6 audit calls use wrong signature — all context silently lost | **FIXED** (b388f6a + Phase 4) |
 | P2-1-F3 | MEDIUM | `trustlines.ts:206-440` | POST mutation routes lack rate limiting |
 | P2-2-F1 | MEDIUM | `toml-sync.ts:49` | SSRF via homeDomain in TOML fetch **FIXED — e86e974** |
 | P2-4-F1 | MEDIUM | `config/index.ts:45` | SSO_SECRET defaults empty, no startup validation | **FIXED** (af098e9) |
