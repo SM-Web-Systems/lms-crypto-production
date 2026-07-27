@@ -278,3 +278,86 @@ All 12 P3 modules have **zero dedicated test files**. The only indirect coverage
 | **LOW** | FE Admin | Mostly PASS verdicts, server enforces authorization |
 
 ---
+
+## P4 Test Verdicts
+
+### P4-9: Test Suite Quality Review — Per-File Verdicts
+
+| Test File | Tests | Verdict |
+|-----------|-------|---------|
+| `billing.service.test.ts` | 38 | **Robust** |
+| `auto-suspension.test.ts` | 21 | **Robust** |
+| `tenant-api-key.test.ts` | 35 | **Robust** |
+| `admin-auth.test.ts` | 17 | **Robust** |
+| `admin-billing.test.ts` | 30 | **Robust** |
+| `admin-suspension.test.ts` | 24 | **Robust** |
+| `admin-management.test.ts` | 31 | **Robust** |
+| `admin-policy.test.ts` | 12 | **Robust** |
+| `admin-reset.test.ts` | 10 | **Robust** |
+| `auth-critical-fixes.test.ts` | 3 | **Needs Improvement** |
+| **TOTAL** | **221** | |
+
+### Test Quality Assessment
+
+**Strengths:**
+- All 10 test files properly reset mocks (`vi.clearAllMocks()` or `vi.resetAllMocks()` in every `beforeEach`)
+- Mock patterns are consistent with queue-based sequencing for complex multi-query operations
+- Error paths, boundary values, and security properties (anti-enumeration, no password leaks) consistently tested
+- Test naming is descriptive and follows consistent conventions
+- The billing service test suite is particularly thorough (38 tests covering 8 exported functions)
+
+**Weaknesses:**
+- Overall file coverage: only 6 of 38 source files (16%) have any test coverage
+- **CRITICAL gap:** `routes/auth.ts` has only 3 regression tests for the entire authentication module
+- 6 admin test files use inlined handler reimplementations instead of actual production handlers (divergence risk)
+- 13 of 15 route files, all 12 lib files, and all 3 module services have zero coverage
+- No integration-level tests (all pure unit tests with fully mocked DB)
+
+### Route Coverage Map
+
+| Route File | Tested? | Test File |
+|-----------|---------|-----------|
+| `admin.ts` | PARTIAL | 5 test files (inlined handlers) |
+| `auth.ts` | MINIMAL | 3 regression tests only |
+| `wallets.ts` | NO | — |
+| `sso.ts` | NO | — |
+| `nft.ts` | NO | — |
+| `contacts.ts` | NO | — |
+| `curated-tokens.ts` | NO | — |
+| `earn.ts` | NO | — |
+| `fiat.ts` | NO | — |
+| `moneygram.ts` | NO | — |
+| `portfolio.ts` | NO | — |
+| `trustlines.ts` | NO | — |
+| `two-fa.ts` | NO | — |
+| `push.ts` | NO | — |
+| `tenant.ts` | NO | — |
+
+**Routes tested: 2 of 15 (13%)**
+
+### P4 Module Test Coverage
+
+| P4 Module | Test Verdict |
+|-----------|-------------|
+| P4-1: Stores | **No Coverage** (no frontend store tests) |
+| P4-2: API/Hooks | **No Coverage** (no frontend tests) |
+| P4-3: Components | **No Coverage** (no component tests) |
+| P4-4: Pages | **No Coverage** (no page tests) |
+| P4-5: i18n/Utils | **No Coverage** (no utility tests) |
+| P4-6: Seeds/Scripts | **No Coverage** (no seed/script tests) |
+| P4-7: Backend Libs | **No Coverage** (0 of 12 lib files have tests) |
+| P4-8: Docker/CI | **N/A** (config, not code) |
+
+### Priority Recommendations (Test Suite)
+
+| Priority | Action | Reason |
+|----------|--------|--------|
+| **CRITICAL** | Write comprehensive `auth.ts` tests | Most security-critical module, near-zero coverage |
+| **HIGH** | Write `wallets.ts` tests | Billing integration, keypair generation, authorization |
+| **HIGH** | Write `sso.ts` tests | Cross-system trust boundary, replay prevention |
+| **HIGH** | Refactor admin tests to use actual handlers | 6 files test inlined copies, divergence risk |
+| **MEDIUM** | Write `middleware/auth.ts` + `turnstile.ts` tests | Security gates used by most routes |
+| **MEDIUM** | Add expired/inactive DB key tests to `tenant-api-key.test.ts` | Security path untested |
+| **LOW** | Write tests for remaining routes and lib modules | Coverage breadth |
+
+---

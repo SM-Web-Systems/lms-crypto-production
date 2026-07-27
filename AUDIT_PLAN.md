@@ -351,91 +351,91 @@
 
 ## P4 — MINIMAL: i18n, Utilities, Docs, Remaining Components
 
-### Task P4-1: Frontend — store files
+### Task P4-1: Frontend — store files ✅ DONE (6 findings: 0C, 0H, 2M, 2L, 2I)
 - **Files:** `web-app/src/store/auth.ts` (190), `wallet.ts` (463), `notifications.ts` (59), `theme.ts` (42)
 - **Audit scope:**
-  - [ ] auth.ts: tokens cleared on logout, no stale JWT in memory
-  - [ ] wallet.ts: encrypted secrets never persisted to localStorage unencrypted
-  - [ ] wallet.ts: network field NOT persisted (localStorage testnet leak fix)
-  - [ ] notifications.ts: keep-last-50 cleanup works
-  - [ ] theme.ts: no injection via theme value
+  - [x] auth.ts: tokens cleared on logout, no stale JWT in memory — **PASS**
+  - [x] wallet.ts: encrypted secrets never persisted to localStorage unencrypted — **PASS**
+  - [x] wallet.ts: network field NOT persisted (localStorage testnet leak fix) — **PASS**
+  - [x] notifications.ts: keep-last-50 cleanup works — **PASS**
+  - [x] theme.ts: no injection via theme value — **PASS**
 
-### Task P4-2: Frontend — API layer + hooks
+### Task P4-2: Frontend — API layer + hooks ✅ DONE (13 findings: 0C, 2H, 5M, 4L, 2I)
 - **Files:** `web-app/src/lib/api.ts` (417), `hooks/useBalances.ts` (103), `hooks/usePushNotifications.ts` (97), `hooks/useTransactionHistory.ts` (16)
 - **Audit scope:**
-  - [ ] Auto-refresh: 401 triggers token refresh, not infinite loop
-  - [ ] Error handling: network errors caught, no unhandled rejections
-  - [ ] Credential storage: tokens in memory/store, not in URL params
-  - [ ] Hooks: cleanup on unmount (abort controllers, intervals)
+  - [x] Auto-refresh: 401 triggers token refresh, not infinite loop — **PASS** (but thundering-herd race: P4-2-F4)
+  - [x] Error handling: network errors caught, no unhandled rejections — **PARTIAL PASS**
+  - [x] Credential storage: tokens in memory/store, not in URL params — **FAIL** (localStorage: P4-2-F1)
+  - [x] Hooks: cleanup on unmount (abort controllers, intervals) — **PARTIAL PASS** (P4-2-F5)
 
-### Task P4-3: Frontend — Layout + components
+### Task P4-3: Frontend — Layout + components ✅ DONE (12 findings: 0C, 0H, 3M, 4L, 5I)
 - **Files:** `web-app/src/components/Layout.tsx` (223), `AccountSwitcher.tsx` (218), `PinModal.tsx` (66), `Turnstile.tsx` (63), `TokenIcon.tsx` (56), `PriceChart.tsx` (157), `OrderbookDepth.tsx` (188), `LiquidityPools.tsx` (110), `NotificationBell.tsx` (160), `LanguageSwitcher.tsx` (61), `NetworkSwitcher.tsx` (89), `EmailVerificationBanner.tsx` (61), `TwoFaSettings.tsx` (372), `ThemeToggle.tsx` (17)
 - **Audit scope:**
-  - [ ] Layout: nav items match routes, no dead links
-  - [ ] AccountSwitcher: account deletion confirmation
-  - [ ] PinModal: no PIN echoed in error messages
-  - [ ] Turnstile: widget loaded from correct CDN
-  - [ ] NetworkSwitcher: server-enforced (not just client toggle)
+  - [x] Layout: nav items match routes, no dead links — **PASS**
+  - [x] AccountSwitcher: account deletion confirmation — **PASS** (with note: no key-loss warning)
+  - [x] PinModal: no PIN echoed in error messages — **PASS**
+  - [x] Turnstile: widget loaded from correct CDN — **PASS**
+  - [x] NetworkSwitcher: server-enforced (not just client toggle) — **PARTIAL FAIL** (P4-3-F3)
 
-### Task P4-4: Frontend — remaining pages
+### Task P4-4: Frontend — remaining pages ✅ DONE (8 findings: 0C, 0H, 3M, 3L, 2I)
 - **Files:** `web-app/src/pages/Login.tsx` (149), `Register.tsx` (189), `VerifyEmail.tsx` (78), `ForgotPassword.tsx` (105), `ResetPassword.tsx` (145), `SsoLogin.tsx` (305), `Nfts.tsx` (222), `Portfolio.tsx` (184), `Earn.tsx` (210), `BuySell.tsx` (266), `Contacts.tsx` (249), `Help.tsx` (260)
 - **Audit scope:**
-  - [ ] Login/Register: Turnstile rendered, token submitted with form
-  - [ ] ResetPassword: body field is `newPassword` (not `password`)
-  - [ ] SsoLogin: state parameter validated
-  - [ ] All pages: no console.log with sensitive data
-  - [ ] All pages: proper error boundaries
+  - [x] Login/Register: Turnstile rendered, token submitted with form — **PASS**
+  - [x] ResetPassword: body field is `newPassword` (not `password`) — **PASS**
+  - [x] SsoLogin: state parameter validated — **PARTIAL** (P4-4-F5)
+  - [x] All pages: no console.log with sensitive data — **PASS** (in scope; Send.tsx out-of-scope has debug logs)
+  - [x] All pages: proper error boundaries — **FAIL** (P4-4-F6)
 
-### Task P4-5: i18n + remaining utilities
+### Task P4-5: i18n + remaining utilities ✅ DONE (2 findings: 0C, 0H, 0M, 1L, 1I)
 - **Files:** `web-app/src/i18n/index.ts` (97), `web-app/src/lib/constants.ts` (22), `web-app/src/lib/horizon.ts` (49)
 - **Audit scope:**
-  - [ ] i18n: no HTML injection via translation strings
-  - [ ] constants: network config factory returns correct URLs
-  - [ ] horizon: error handling for 404 (unfunded accounts)
+  - [x] i18n: no HTML injection via translation strings — **PASS**
+  - [x] constants: network config factory returns correct URLs — **PASS**
+  - [x] horizon: error handling for 404 (unfunded accounts) — **PASS**
 
-### Task P4-6: Backend — seeds + scripts + migrations
+### Task P4-6: Backend — seeds + scripts + migrations ✅ DONE (5 findings: 1C, 0H, 2M, 1L, 1I)
 - **Files:** `src/db/seed/multi-tenant-seed.ts` (168), `src/db/seed/known-tokens.ts` (159), `src/db/seed/admin-bootstrap.ts` (81), `src/db/migrations/add-phone-number.ts` (25), `src/db/scripts/fix-xlm-dupes.ts` (64)
 - **Audit scope:**
-  - [ ] Seed idempotency: no duplicate inserts on re-run
-  - [ ] Admin bootstrap: no hardcoded password (reads from env)
-  - [ ] Known tokens: correct issuer addresses for mainnet
-  - [ ] fix-xlm-dupes: safe to run on production (no data loss)
+  - [x] Seed idempotency: no duplicate inserts on re-run — **PASS** (with caveat: migration constraint)
+  - [x] Admin bootstrap: no hardcoded password (reads from env) — **PASS**
+  - [x] Known tokens: correct issuer addresses for mainnet — **FAIL** (AQUA wrong: P4-6-F1)
+  - [x] fix-xlm-dupes: safe to run on production (no data loss) — **CONDITIONAL PASS** (no DRY_RUN: P4-6-F3)
 
-### Task P4-7: Backend — remaining lib files
+### Task P4-7: Backend — remaining lib files ✅ DONE (13 findings: 0C, 1H, 3M, 4L, 5I)
 - **Files:** `src/lib/cache.ts` (66), `src/lib/stellar-client.ts` (54), `src/lib/icon-resolver.ts` (205), `src/lib/liquifier.ts` (171), `src/lib/toml-sync.ts` (87), `src/lib/sms.ts` (63), `src/lib/phone-validation.ts` (25)
 - **Audit scope:**
-  - [ ] cache: TTL cleanup prevents memory leak
-  - [ ] stellar-client: correct network passphrase for public/testnet
-  - [ ] icon-resolver: URL validation (no SSRF), download size limits
-  - [ ] toml-sync: TOML URL validation (no SSRF), timeout
-  - [ ] sms: Twilio credentials from env only
-  - [ ] phone-validation: E.164 format enforced
+  - [x] cache: TTL cleanup prevents memory leak — **PARTIAL** (no max entries: P4-7-F2)
+  - [x] stellar-client: correct network passphrase for public/testnet — **PASS**
+  - [x] icon-resolver: URL validation (no SSRF), download size limits — **FAIL** (P4-7-F5, P4-7-F6)
+  - [x] toml-sync: TOML URL validation (no SSRF), timeout — **PARTIAL** (timeout yes, IP validation no: P4-7-F7)
+  - [x] sms: Twilio credentials from env only — **PASS** (dead code)
+  - [x] phone-validation: E.164 format enforced — **PASS**
 
-### Task P4-8: Build + Docker + CI config
+### Task P4-8: Build + Docker + CI config ✅ DONE (14 findings: 3C, 2H, 3M, 2L, 4I)
 - **Files:** `Dockerfile`, `docker/app.env.example`, `packages/backend/.env.example`, `packages/web-app/.env.production.example`, `.gitignore`, `package.json`
 - **Audit scope:**
-  - [ ] Dockerfile: no secrets baked into image (verify ENV vs ARG)
-  - [ ] .env.example: all values are placeholders (no real secrets)
-  - [ ] .gitignore: app.env, .env, *.db, *.dump all excluded
-  - [ ] package.json: no postinstall scripts running arbitrary code
-  - [ ] No secrets in git history (spot check with git log -p)
+  - [x] Dockerfile: no secrets baked into image (verify ENV vs ARG) — **PASS** (but layer leak: P4-8-F7)
+  - [x] .env.example: all values are placeholders (no real secrets) — **PASS**
+  - [x] .gitignore: app.env, .env, *.db, *.dump all excluded — **PASS**
+  - [x] package.json: no postinstall scripts running arbitrary code — **PASS**
+  - [x] No secrets in git history (spot check with git log -p) — **UNABLE TO VERIFY** (.gitignore patterns correct)
 
-### Task P4-9: Test suite quality review
-- **Files:** All 9 test files (billing.service.test.ts, auto-suspension.test.ts, tenant-api-key.test.ts, admin-auth.test.ts, admin-billing.test.ts, admin-management.test.ts, admin-suspension.test.ts, admin-reset.test.ts, admin-policy.test.ts)
+### Task P4-9: Test suite quality review ✅ DONE (12 findings: 1C, 2H, 6M, 3L, 0I)
+- **Files:** All 10 test files (221 tests total)
 - **Audit scope:**
-  - [ ] Each test: robust / needs improvement / obsolete verdict
-  - [ ] Coverage gaps: which routes/functions lack tests entirely?
-  - [ ] Mock quality: vi.resetAllMocks() in beforeEach everywhere?
-  - [ ] Edge cases: boundary values, concurrent operations, error paths
-  - [ ] Missing test suites: auth routes, wallet routes, SSO, token service, nft
+  - [x] Each test: robust / needs improvement / obsolete verdict — **7 Robust, 1 Needs Improvement, 0 Obsolete**
+  - [x] Coverage gaps: which routes/functions lack tests entirely? — **13/15 routes, 12/12 libs, 3/3 modules untested**
+  - [x] Mock quality: vi.resetAllMocks() in beforeEach everywhere? — **PASS** (all 10 files)
+  - [x] Edge cases: boundary values, concurrent operations, error paths — **Good where tested, large untested surface**
+  - [x] Missing test suites: auth routes, wallet routes, SSO, token service, nft — **All confirmed missing**
 
 ---
 
 ## Deliverables Checklist
 
-- [ ] AUDIT_PLAN.md — this file, checked off as completed
-- [ ] ARCHITECTURE.md — Mermaid diagrams: auth, tenant, billing, admin lifecycle, suspend flow
-- [ ] DEV_SPEC.md — per-module spec with inputs/outputs/edge cases/coverage gaps
-- [ ] TEST_REPORT.md — verdict per existing test + new tests for gaps
+- [x] AUDIT_PLAN.md — this file, checked off as completed
+- [x] ARCHITECTURE.md — Mermaid diagrams: auth, tenant, billing, admin lifecycle, suspend flow + P3/P4 flows
+- [x] DEV_SPEC.md — per-module spec with inputs/outputs/edge cases/coverage gaps
+- [x] TEST_REPORT.md — verdict per existing test + new tests for gaps
 - [ ] MANUAL_QA_CHECKLIST.md — step-by-step manual actions for ammawallet.com verification
 - [ ] No secrets in any generated file (verified before completion)

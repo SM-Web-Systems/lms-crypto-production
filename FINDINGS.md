@@ -1516,3 +1516,540 @@
 
 ---
 
+## P4 — MINIMAL: i18n, Utilities, Stores, Hooks, Components, Seeds, Docker, Test Quality
+
+### P4-1: Frontend Stores
+
+**Files audited:** `packages/web-app/src/store/{auth,wallet,notifications,theme}.ts`
+
+---
+
+#### P4-1-F1: Mnemonic stored in localStorage outside Zustand persist scope — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/store/wallet.ts:254,318`
+- **Description:** `createWalletFromMnemonic` and `importFromMnemonic` store encrypted mnemonics via `localStorage.setItem(`mnemonic_${publicKey}`, encryptedMnemonic)`. This data lives outside the Zustand persist partition and outside the auth logout cleanup scope. The `wallet.ts:logout()` (line 426-438) DOES clean these up, but only if `useWalletStore.getState().logout()` is called. If a user clears cookies without logging out, or if `auth.ts:logout()` fails before reaching `useWalletStore.getState().logout()`, the encrypted mnemonic entries persist. Mnemonics are encrypted with a PIN (typically 4-6 digits, brute-forceable offline).
+
+#### P4-1-F2: Plaintext secret key held in state with no auto-lock timeout — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/store/wallet.ts:287-288,348-349`
+- **Description:** After wallet creation/import, plaintext `secretKey` and `mnemonic` are stored in Zustand state (`_secretKey`, `_mnemonic`). These remain in memory indefinitely until the user explicitly calls `lock()`, `switchAccount()`, `removeAccount()`, or `logout()`. No auto-lock timeout exists. If the user leaves the browser tab open, secrets persist in the JS heap.
+
+#### P4-1-F3: No deduplication guard on concurrent token refresh — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/store/auth.ts` (references `api.ts:41-46`)
+- **Description:** Multiple concurrent 401 responses independently trigger `tryRefresh()`. If the backend rotates refresh tokens on use, the second concurrent refresh will fail, causing `clearTokens()` and an unexpected logout.
+
+#### P4-1-F4: Auth store persists isAuthenticated without token validation — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/store/auth.ts:182-187`
+- **Description:** `isAuthenticated: true` is rehydrated from localStorage before any token validation. There is a brief window where UI renders an authenticated view with a stale/expired token, until `loadProfile()` corrects it.
+
+#### P4-1-F5: console.error calls may leak server error details — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/store/wallet.ts:131,159,213,269,330`
+- **Description:** Five `console.error` calls log full error objects from server API responses. No secrets or keys are logged directly, but server-side error details could be exposed via DevTools.
+
+#### P4-1-F6: Notification cap is 50 with no age-based expiry — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/store/notifications.ts:38`
+- **Description:** `.slice(0, 50)` caps notifications but no TTL-based cleanup exists. Old notifications persist in localStorage indefinitely.
+
+**Checklist:** All 5 items PASS. Tokens cleared on logout, encrypted secrets never persisted unencrypted, network field NOT persisted, notification cap works, theme injection-safe.
+
+---
+
+### P4-2: Frontend API Layer + Hooks
+
+**Files audited:** `packages/web-app/src/lib/api.ts`, `hooks/useBalances.ts`, `hooks/usePushNotifications.ts`, `hooks/useTransactionHistory.ts`
+
+---
+
+#### P4-2-F1: Tokens persisted in localStorage — XSS exfiltration risk — HIGH
+- **Severity:** HIGH
+- **File:** `packages/web-app/src/lib/api.ts:4-5`
+- **Description:** Both access and refresh tokens are written to localStorage. Any XSS vulnerability (including third-party scripts, browser extensions) can read localStorage and exfiltrate both tokens. The refresh token is long-lived and grants persistent session takeover. The codebase already has in-memory variables (`_accessToken`/`_refreshToken`) — the localStorage persistence should be removed.
+
+#### P4-2-F2: Secret key sent in request body for trustline add/remove — HIGH
+- **Severity:** HIGH
+- **File:** `packages/web-app/src/lib/api.ts:274-283`
+- **Description:** `trustlineApi.add()` and `trustlineApi.remove()` transmit the Stellar private key in the JSON body. If the backend logs request bodies, or a proxy/CDN inspects them, the key is exposed. Should use delegated signing or client-side XDR signing instead.
+
+#### P4-2-F3: No AbortController support — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/lib/api.ts:26-54`
+- **Description:** The `request()` function does not accept or forward an AbortSignal. No API call can be cancelled on unmount or navigation. React-query hooks partially mitigate, but direct API calls from event handlers have no cancellation path.
+
+#### P4-2-F4: Race condition in concurrent 401 refresh — thundering herd — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/lib/api.ts:41-47`
+- **Description:** Multiple in-flight requests receiving 401 simultaneously each independently invoke `tryRefresh()`. If the backend rotates refresh tokens, subsequent refreshes fail, causing unexpected logout. Needs a singleton refresh promise.
+
+#### P4-2-F5: useEffect promise chain no cleanup — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/hooks/usePushNotifications.ts:11-21`
+- **Description:** The useEffect chains `.then()` calls on service worker promises. If the component unmounts before resolution, `setIsSubscribed` is called on an unmounted component.
+
+#### P4-2-F6: subscribe() bypasses centralized request() — no auto-refresh — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/hooks/usePushNotifications.ts:34-63`
+- **Description:** Push notification subscribe/unsubscribe/sendTest use raw `fetch()` with `getAccessToken()` instead of the centralized `request()` wrapper. No auto-refresh on 401, no error checking on responses.
+
+#### P4-2-F7: Push subscription response not validated — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/hooks/usePushNotifications.ts:50-54`
+- **Description:** After POSTing the push subscription, `res.ok` is never checked. If the server returns 4xx/5xx, the code sets `setIsSubscribed(true)`, giving a false impression notifications are active.
+
+#### P4-2-F8: Swap quote parameters not URL-encoded — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/lib/api.ts:162`
+- **Description:** `swapApi.quote()` interpolates parameters directly into the URL without `encodeURIComponent()`.
+
+#### P4-2-F9: Successful response with non-JSON body causes unhandled rejection — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/lib/api.ts:53`
+- **Description:** If the server returns 2xx with empty/non-JSON body (e.g., 204), `res.json()` throws with no fallback on the success path.
+
+#### P4-2-F10: Logout error propagation — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/lib/api.ts:109`
+- **Description:** If the server is unreachable during logout, the Error propagates after `clearTokens()` runs. Callers must handle this or the rejection goes unhandled.
+
+#### P4-2-F11: console.error may log sensitive subscription data — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/hooks/usePushNotifications.ts:59,82`
+- **Description:** Logs full error objects on push subscription failure, which could include endpoint URLs, tokens, or subscription keys.
+
+#### P4-2-F12: Backend metadata enrichment failure silently swallowed — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/hooks/useBalances.ts:85-86`
+- **Description:** Error from `tokenApi.userTokens()` caught and falls back to raw Horizon balances. Reasonable but invisible to monitoring.
+
+#### P4-2-F13: No error handling customization in transaction history hook — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/hooks/useTransactionHistory.ts:1-16`
+- **Description:** Relies entirely on react-query default error handling (3 retries). Acceptable but should be documented.
+
+**Checklist:** 401 refresh no-infinite-loop: PASS. Network errors caught: PARTIAL PASS. Tokens in URL params: PASS (but in localStorage: FAIL). Hooks cleanup: PARTIAL PASS.
+
+---
+
+### P4-3: Frontend Components
+
+**Files audited:** 14 `.tsx` files in `packages/web-app/src/components/`
+
+---
+
+#### P4-3-F1: TOTP secret not cleared on component unmount — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/components/TwoFaSettings.tsx:192-194`
+- **Description:** TOTP secret rendered in cleartext `<code>` element remains in React state if user navigates away without clicking "Cancel" or completing verification. Inspectable via React DevTools.
+
+#### P4-3-F2: Turnstile stale closure — missing dependency array entries — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/components/Turnstile.tsx:60`
+- **Description:** useEffect depends only on `[siteKey]` but captures `onVerify`, `onExpire`, `onError`, `theme` at mount time. If parent passes new callback refs, the widget invokes stale originals.
+
+#### P4-3-F3: NetworkSwitcher is client-only — no server enforcement — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/components/NetworkSwitcher.tsx:20-23`
+- **Description:** `setNetwork()` updates Zustand store only. No evidence the backend validates which network the user should be on. Server config `STELLAR_NETWORK=public` is fixed to mainnet, so the frontend toggle could cause confusing mismatches.
+
+#### P4-3-F4: PinModal server error pass-through to UI — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/components/PinModal.tsx:24-25`
+- **Description:** Catch block displays `err.message || "Incorrect PIN"`. If backend returns verbose errors, they render to the user. PIN itself is NOT echoed.
+
+#### P4-3-F5: Turnstile global window.onTurnstileLoad overwritten by each mount — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/components/Turnstile.tsx:47`
+- **Description:** If multiple Turnstile components mount simultaneously, the last one wins and earlier instances never render.
+
+#### P4-3-F6: Account deletion allows removing last account without key-loss warning — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/components/AccountSwitcher.tsx:41-46`
+- **Description:** No warning that encrypted secret key is permanently lost when deleting the last wallet. No PIN/password verification for deletion — only Yes/No confirmation.
+
+#### P4-3-F7: sendEmailCode called with empty string argument — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/components/TwoFaSettings.tsx:124`
+- **Description:** `twoFaApi.sendEmailCode("")` passes empty string. Server uses authenticated user's email, so it works, but it's a code smell.
+
+#### P4-3-F8: All nav items match defined routes — no dead links — INFO (PASS)
+- **Severity:** INFO
+- **File:** `packages/web-app/src/components/Layout.tsx:44-83`
+- **Description:** All 14 routes verified. External LMS link uses `target="_blank"` with `rel="noopener noreferrer"`.
+
+#### P4-3-F9: Turnstile CDN URL is correct — INFO (PASS)
+- **Severity:** INFO
+- **File:** `packages/web-app/src/components/Turnstile.tsx:45`
+- **Description:** Official Cloudflare Turnstile CDN confirmed.
+
+#### P4-3-F10: No dangerouslySetInnerHTML, no console.log, no hardcoded secrets — INFO (PASS)
+- **Severity:** INFO
+- **File:** All 14 component files
+- **Description:** Zero uses of dangerous patterns across all components.
+
+#### P4-3-F11: Proper useEffect cleanup for outside-click listener — INFO (PASS)
+- **Severity:** INFO
+- **File:** `packages/web-app/src/components/NotificationBell.tsx:38-46`
+- **Description:** Mousedown event listener correctly cleaned up.
+
+#### P4-3-F12: TokenIcon image src from props — mitigated by CSP — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/components/TokenIcon.tsx:25`
+- **Description:** `<img>` tag with arbitrary src from props. Safe as img tags cannot execute scripts. onError fallback gracefully degrades.
+
+**Checklist:** Layout routes: PASS. Account deletion confirm: PASS (with note). PinModal no PIN echo: PASS. Turnstile CDN: PASS. NetworkSwitcher server-enforced: PARTIAL FAIL.
+
+---
+
+### P4-4: Frontend Remaining Pages
+
+**Files audited:** 12 page files in `packages/web-app/src/pages/`
+
+---
+
+#### P4-4-F1: Hardcoded Transak API key in source code — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/pages/BuySell.tsx:233`
+- **Description:** Production API key `52a6703b-cb9b-4f77-83bc-3682394288fd` hardcoded. While Transak keys used in browser redirects are inherently public, this should be in `VITE_TRANSAK_API_KEY` for environment separation.
+
+#### P4-4-F2: Hardcoded LMS API base URL — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/pages/Nfts.tsx:7`
+- **Description:** `const LMS_API_BASE = "https://lms.smwebsystems.com"` hardcoded. Should be sourced from `import.meta.env.VITE_LMS_URL`.
+
+#### P4-4-F3: ForgotPassword page missing Turnstile protection — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/web-app/src/pages/ForgotPassword.tsx`
+- **Description:** No Turnstile widget rendered, no token sent. Backend has rate limiting (3/15min) but adding Turnstile provides defense-in-depth against email enumeration. Login and Register both enforce Turnstile; this should be consistent.
+
+#### P4-4-F4: SsoLogin does not validate callback URL origin on client — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/pages/SsoLogin.tsx:74-77`
+- **Description:** `callbackUrl` from query string used directly for redirect. An attacker could craft a URL showing "evil.example is requesting access." Server-side `POST /api/v1/sso/token` presumably validates the callback, so not a direct exploit, but enables social engineering.
+
+#### P4-4-F5: SsoLogin state parameter not cryptographically validated on frontend — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/pages/SsoLogin.tsx:27`
+- **Description:** `state` is read from URL and passed through verbatim. Frontend only checks non-empty. Backend presumably does JWT validation.
+
+#### P4-4-F6: No error boundaries on any page — LOW
+- **Severity:** LOW
+- **File:** All 12 audited page files
+- **Description:** No React error boundaries found. An unhandled render exception crashes the entire application. A single error boundary at layout level would prevent full UI blanking.
+
+#### P4-4-F7: console.log statements in Send.tsx (adjacent scope) — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/pages/Send.tsx:104-107`
+- **Description:** Four `console.log` statements log XDR data and network passphrase during delegated sends. Debug artifacts that should be removed. No passwords/secret keys logged.
+
+#### P4-4-F8: VerifyEmail token passed as URL query parameter — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/pages/VerifyEmail.tsx:21`
+- **Description:** Verification token sent as GET query parameter. Standard for email verification links. Token is single-use and short-lived, so risk is low.
+
+**Checklist:** Login/Register Turnstile: PASS. ResetPassword field name: PASS. SsoLogin state: PARTIAL. No console.log in scope: PASS. Error boundaries: FAIL.
+
+---
+
+### P4-5: i18n + Utilities
+
+**Files audited:** `packages/web-app/src/i18n/index.ts`, `lib/constants.ts`, `lib/horizon.ts`
+
+---
+
+#### P4-5-F1: i18n `escapeValue: false` relies entirely on React's JSX escaping — LOW
+- **Severity:** LOW
+- **File:** `packages/web-app/src/i18n/index.ts:83`
+- **Description:** Standard React setup. Safe as long as no translation strings are ever rendered via `dangerouslySetInnerHTML`. Confirmed: `dangerouslySetInnerHTML` not used anywhere. No HTML tags in locale JSON files.
+
+#### P4-5-F2: Constants FRIENDBOT_URL default points to testnet — INFO
+- **Severity:** INFO
+- **File:** `packages/web-app/src/lib/constants.ts:22-23`
+- **Description:** Legacy default `FRIENDBOT_URL` points to `https://friendbot.stellar.org` (testnet) alongside mainnet `HORIZON_URL`. The `getNetworkConfig()` factory correctly returns empty string for friendbot on public network. Legacy constants appear unused.
+
+**Checklist:** i18n HTML injection: PASS. Constants network config: PASS. Horizon 404 handling: PASS.
+
+---
+
+### P4-6: Backend Seeds, Scripts, Migrations
+
+**Files audited:** `src/db/seed/multi-tenant-seed.ts`, `seed/known-tokens.ts`, `seed/admin-bootstrap.ts`, `db/migrations/add-phone-number.ts`, `db/scripts/fix-xlm-dupes.ts`
+
+---
+
+#### P4-6-F1: Wrong AQUA issuer address in known-tokens.ts — CRITICAL
+- **Severity:** CRITICAL
+- **File:** `packages/backend/src/db/seed/known-tokens.ts:85`
+- **Description:** AQUA token issuer is `GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67TKA` (55 chars). The correct mainnet Aquarius issuer is `GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA` (56 chars). The project's own `token-list.json:81` has the correct address. This mismatch means the seed inserts a token row pointing to a non-existent or wrong Stellar asset. Users trusting this entry could create trustlines to the wrong issuer.
+
+#### P4-6-F2: Irreversible migration drops NOT NULL on email — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/db/migrations/add-phone-number.ts:12-13`
+- **Description:** `ALTER TABLE users ALTER COLUMN email DROP NOT NULL` is destructive with no "down" migration. The `ADD CONSTRAINT` statement on lines 17-20 is not idempotent — re-running will fail with "constraint already exists."
+
+#### P4-6-F3: fix-xlm-dupes has no DRY_RUN mode, no transaction wrapper — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/db/scripts/fix-xlm-dupes.ts:6-63`
+- **Description:** Script always mutates data (no dry-run). Deletes and updates not wrapped in a transaction. If the script crashes mid-way, the keeper row could have stale metadata.
+
+#### P4-6-F4: process.exit(0) in success path prevents cleanup — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/src/db/seed/known-tokens.ts:153`
+- **Description:** Calls `process.exit(0)` without draining the connection pool. Unlike `multi-tenant-seed.ts` which calls `await client.end()` first.
+
+#### P4-6-F5: Non-null assertion on DATABASE_URL — INFO
+- **Severity:** INFO
+- **File:** `packages/backend/src/db/seed/multi-tenant-seed.ts:17`
+- **Description:** Uses `process.env.DATABASE_URL!` but line 18 immediately checks for falsy and throws. Functionally harmless.
+
+**Checklist:** Seed idempotency: PASS (with caveat). Admin bootstrap no hardcoded password: PASS. Known tokens correct issuers: FAIL (AQUA wrong). fix-xlm-dupes safe: CONDITIONAL PASS.
+
+---
+
+### P4-7: Backend Remaining Libs
+
+**Files audited:** `src/lib/{cache,stellar-client,icon-resolver,liquifier,toml-sync,sms,phone-validation}.ts`
+
+---
+
+#### P4-7-F1: Latent ReDoS via invalidatePattern — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/src/lib/cache.ts:43`
+- **Description:** `invalidatePattern` converts glob to regex using naive `pattern.replace(/\*/g, ".*")` without escaping metacharacters. Currently unused anywhere in codebase (latent risk only).
+
+#### P4-7-F2: Unbounded cache map size — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/lib/cache.ts:13-18`
+- **Description:** `MemoryCache` has TTL eviction but no upper bound on entries. If unique cache keys are created per request, the map grows unbounded. Current usage has few deterministic keys, so risk is low today.
+
+#### P4-7-F3: Cache timer not unrefed — prevents graceful shutdown — INFO
+- **Severity:** INFO
+- **File:** `packages/backend/src/lib/cache.ts:18`
+- **Description:** `setInterval` not `.unref()`-ed, preventing natural event loop exit. Process relies on `process.exit()` or SIGTERM.
+
+#### P4-7-F4: Network passphrase and URLs correctly derived — INFO (PASS)
+- **Severity:** INFO
+- **File:** `packages/backend/src/lib/stellar-client.ts:21-35`
+- **Description:** Correctly branches on `config.STELLAR_NETWORK`. Uses SDK constants for passphrases. Minor note: mainnet RPC falls back to a config default that points to testnet RPC if `SOROBAN_RPC_URL` is unset.
+
+#### P4-7-F5: SSRF via token.tomlImage in icon-resolver — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/lib/icon-resolver.ts:176`
+- **Description:** TOML fallback path fetches `token.tomlImage` which was stored from an external `stellar.toml` file. Attacker-controlled URL fetched without any validation. Confirms P2-2 finding. Could target AWS metadata endpoints or internal services.
+
+#### P4-7-F6: No download size limit on icon fetch — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/lib/icon-resolver.ts:102,111,176`
+- **Description:** Both fetch calls use `response.arrayBuffer()` with no maximum size limit. 5-second timeout exists but a multi-gigabyte file on a fast network could cause OOM.
+
+#### P4-7-F7: SSRF via token.homeDomain in toml-sync — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/lib/toml-sync.ts:49-50`
+- **Description:** `homeDomain` from Stellar Horizon can be set by any account holder. Code constructs URL as `https://${token.homeDomain}/.well-known/stellar.toml` without validating hostname resolves to a public IP. Confirms P2-2 finding.
+
+#### P4-7-F8: No response body size limit on TOML fetch — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/src/lib/toml-sync.ts:60`
+- **Description:** `res.text()` reads entire response with no size cap. 10-second timeout provides some natural limit.
+
+#### P4-7-F9: Twilio credentials referenced from config but not defined — INFO
+- **Severity:** INFO
+- **File:** `packages/backend/src/lib/sms.ts:1-8`
+- **Description:** `config.twilio` properties are not defined in `config/index.ts`. SMS is effectively dead code — disabled with no runtime path to enable. No hardcoded credentials found.
+
+#### P4-7-F10: Phone validation correct — INFO (PASS)
+- **Severity:** INFO
+- **File:** `packages/backend/src/lib/phone-validation.ts`
+- **Description:** Uses `phone` npm library for E.164 normalization. Returns `isValid: false` for unparseable input. No security concerns.
+
+#### P4-7-F11: Liquifier — weak admin auth, no circuit breaker — HIGH
+- **Severity:** HIGH
+- **File:** `packages/backend/src/lib/liquifier.ts:25-26,102` + `server.ts:2417,2636-2651`
+- **Description:** Platform secret key used to sign transactions. Authorization is only `userId===1` check — fragile model with no 2FA or re-authentication. Automated execution every 6 hours has no circuit breaker. If DEX is illiquid or manipulated, repeated automated conversions could result in unfavorable rates. 2% slippage tolerance provides some protection.
+
+#### P4-7-F12: Hardcoded 2% slippage tolerance — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/src/lib/liquifier.ts:77`
+- **Description:** `* 0.98` slippage not configurable via environment. In volatile conditions may be too tight or too loose.
+
+#### P4-7-F13: Console logging of transaction details — INFO
+- **Severity:** INFO
+- **File:** `packages/backend/src/lib/liquifier.ts:115,163`
+- **Description:** Transaction hashes and asset amounts logged. Not a secret leak (public blockchain data) but operational intelligence.
+
+**Checklist:** Cache TTL: PARTIAL (no max entries). Stellar-client passphrase: PASS. Icon-resolver SSRF: FAIL. Toml-sync SSRF: PARTIAL (timeout yes, IP validation no). SMS from env: PASS. Phone E.164: PASS.
+
+---
+
+### P4-8: Build, Docker, CI Configuration
+
+**Files audited:** `packages/backend/Dockerfile`, docker-compose files, `.env.example` files, `.gitignore`, `package.json` files, CI workflow
+
+---
+
+#### P4-8-F1: Docker image base tag unpinned — CRITICAL
+- **Severity:** CRITICAL
+- **File:** `packages/backend/Dockerfile:1`
+- **Description:** `FROM node:22-alpine` tracks a floating tag. A rebuild could pull a different patch version or a compromised image without detection. Pin to a full semver tag with digest (e.g., `node:22.16.0-alpine3.22`).
+
+#### P4-8-F2: Container runs as root — HIGH
+- **Severity:** HIGH
+- **File:** `packages/backend/Dockerfile:1-17`
+- **Description:** No `USER` directive. The `CMD` process (`npx tsx`) runs as UID 0. If an attacker achieves RCE, they have full root privileges within the container.
+
+#### P4-8-F3: No multi-stage build; devDependencies in final image — HIGH
+- **Severity:** HIGH
+- **File:** `packages/backend/Dockerfile:6-10`
+- **Description:** `npm ci` installs all dependencies (including vitest, drizzle-kit, sharp). `COPY . .` copies the entire backend directory (tests, seed scripts, drizzle config) into the runtime image. DevDependencies increase attack surface and image size.
+
+#### P4-8-F4: Plaintext database password in docker-compose.yml (production) — CRITICAL
+- **Severity:** CRITICAL
+- **File:** `/home/webadmin/amma-wallet-docker/docker-compose.yml:57-58`
+- **Description:** The `environment:` block for `amma-api` hardcodes the Postgres password in plain text in the compose file. This file is readable by anyone with filesystem access. The password should be injected via Docker secrets or an external env_file.
+- **Note:** This file is outside the git repo (deployment config), but is a critical operational security finding.
+
+#### P4-8-F5: Plaintext database password in docker-compose.testnet.yml — CRITICAL
+- **Severity:** CRITICAL
+- **File:** `/home/webadmin/amma-wallet-docker/docker-compose.testnet.yml:51-52`
+- **Description:** Same pattern as F4. Testnet compose file exposes password in plaintext.
+
+#### P4-8-F6: .dockerignore missing — MEDIUM
+- **Severity:** MEDIUM
+- **File:** (absent — expected at `packages/backend/.dockerignore`)
+- **Description:** Without `.dockerignore`, the build context includes `node_modules/`, `.env`, test fixtures, `.git/`. The `RUN rm -f .env` mitigation happens inside the image layer — the `.env` contents remain in the layer cache even after deletion.
+
+#### P4-8-F7: Deleted .env remains in Docker layer history — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/Dockerfile:13`
+- **Description:** `COPY . .` captures `.env` in a layer. `RUN rm -f .env` creates a new layer that deletes the file, but the previous layer still contains its contents. Anyone with image access can extract layers to recover it.
+
+#### P4-8-F8: .env.example contains realistic-looking DATABASE_URL — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/.env.example:11`
+- **Description:** Uses `changeme` password — reasonable placeholder. All secret fields properly left blank.
+
+#### P4-8-F9: No postinstall scripts in any package.json — INFO (PASS)
+- **Severity:** INFO
+- **File:** Root, `packages/backend/`, `packages/web-app/` `package.json`
+- **Description:** No lifecycle hooks detected.
+
+#### P4-8-F10: .gitignore coverage — INFO (PASS)
+- **Severity:** INFO
+- **File:** `.gitignore`
+- **Description:** Correctly excludes `.env`, `app.env`, `*.db`, `*.dump`, `*.sql.gz`, build artifacts, logs.
+
+#### P4-8-F11: CI workflow uses GitHub secrets properly — INFO (PASS)
+- **Severity:** INFO
+- **File:** `packages/backend/.github/workflows/preview.yml`
+- **Description:** References `${{ secrets.NEON_PROJECT_ID }}` and `${{ secrets.NEON_API_KEY }}` — proper secrets mechanism, not hardcoded.
+
+#### P4-8-F12: Lockfile present, node_modules excluded — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/package-lock.json`
+- **Description:** `package-lock.json` exists for all packages. `node_modules` excluded by `.gitignore`.
+
+#### P4-8-F13: Port exposure correctly limited — INFO (PASS)
+- **Severity:** INFO
+- **File:** `Dockerfile:16`, `docker-compose.yml:59`
+- **Description:** EXPOSE 3001 (documentation) + compose uses `expose:` (container-to-container, not host-bound). Nginx reverse-proxies correctly.
+
+#### P4-8-F14: No --omit=dev flag on npm ci — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/Dockerfile:7`
+- **Description:** `npm ci` without `--omit=dev` installs all devDependencies in the production image. Related to F3.
+
+**Checklist:** No secrets in Dockerfile: PASS. .env.example placeholders: PASS. .gitignore: PASS. No postinstall scripts: PASS. Base pinned: FAIL. Multi-stage: FAIL. Non-root USER: FAIL.
+
+---
+
+### P4-9: Test Suite Quality Review
+
+**Files audited:** All 10 test files (221 tests total)
+
+---
+
+#### P4-9-F1: Auth routes have near-zero test coverage — CRITICAL
+- **Severity:** CRITICAL
+- **File:** `packages/backend/src/routes/auth.ts`
+- **Description:** The auth module handles registration, login, email verification, refresh token rotation, password reset (email and SMS), 2FA setup/verify, change password, and logout. Only 3 regression tests exist (in `auth-critical-fixes.test.ts`), covering specific P0-1 bug fixes. All other auth routes have zero coverage. Auth is the most security-critical module in the system.
+
+#### P4-9-F2: Wallet routes have zero test coverage — HIGH
+- **Severity:** HIGH
+- **File:** `packages/backend/src/routes/wallets.ts`
+- **Description:** Handles wallet creation (billing integration), wallet listing, wallet details, wallet operations. Integrates with billing (`checkWalletBilling`, `writeBillingDebit`), Stellar keypair generation, and tenant API key scoping. Zero tests.
+
+#### P4-9-F3: SSO routes have zero test coverage — HIGH
+- **Severity:** HIGH
+- **File:** `packages/backend/src/routes/sso.ts`
+- **Description:** Implements IdP functionality (token assertion and verification) with JTI replay prevention. SSO is a cross-system trust boundary (AmmaWallet→LMS). Untested assertion generation, JTI blacklisting, and scope validation could lead to auth bypass or replay attacks.
+
+#### P4-9-F4: NFT routes have zero test coverage — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/routes/nft.ts`
+- **Description:** Handles collection listing, NFT minting, NFT querying. While minting is admin-triggered only, authorization checks and input validation are unverified.
+
+#### P4-9-F5: User auth middleware has zero test coverage — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/middleware/auth.ts`
+- **Description:** The `authMiddleware` function (user JWT verification, 25 lines) is untested. It is a critical security gate used by most routes. No test verifies 401 on missing/invalid/expired tokens.
+
+#### P4-9-F6: Turnstile middleware has zero test coverage — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `packages/backend/src/middleware/turnstile.ts`
+- **Description:** Has bypass logic for API keys, 2FA tokens, and development mode. No test verifies bypass paths work correctly or that Cloudflare verification integrates properly.
+
+#### P4-9-F7: All module services have zero test coverage — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `modules/nft/nft.service.ts`, `modules/swap/swap.service.ts`, `modules/tokens/token.service.ts`
+- **Description:** Three service modules interacting with Stellar network and database have no test files.
+
+#### P4-9-F8: Two of three job files have zero test coverage — MEDIUM
+- **Severity:** MEDIUM
+- **File:** `jobs/monthly-maintenance.ts`, `jobs/token-indexer.ts`
+- **Description:** `monthly-maintenance.ts` is a thin orchestrator (lower risk). `token-indexer.ts` calls multiple untested services.
+
+#### P4-9-F9: Inlined handler reimplementations risk divergence — MEDIUM
+- **Severity:** MEDIUM
+- **File:** 6 admin route test files
+- **Description:** Six test files test via inlined handler reimplementations rather than importing actual handlers from `admin.ts`. If production handlers change, tests pass against stale inline copies, creating false sense of coverage.
+
+#### P4-9-F10: Rate limit window expiry test is effectively a no-op — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/src/middleware/tenant-api-key.test.ts:357-367`
+- **Description:** The "starts a fresh window after 60 seconds" test cannot manipulate the internal Map timer. It effectively tests the same thing as the "first request" test. Actual 60-second window expiry is untested.
+
+#### P4-9-F11: Missing tests for expired and inactive DB API keys — LOW
+- **Severity:** LOW
+- **File:** `packages/backend/src/middleware/tenant-api-key.test.ts`
+- **Description:** No test for DB key with `expiresAt` in the past or `isActive=false`. These are critical security paths that should reject the key even if the hash matches.
+
+#### P4-9-F12: All lib modules have zero direct test coverage — LOW
+- **Severity:** LOW
+- **File:** `lib/{auth,audit,cache,decrypt-secret,email,icon-resolver,liquifier,mailer,phone-validation,sms,stellar-client,toml-sync}.ts`
+- **Description:** 12 library modules with no test files. Some exercised indirectly via mocks. `lib/auth.ts` (JWT, password hashing) and `lib/stellar-client.ts` are highest-priority gaps.
+
+**Test suite overall: 221/221 passing. File coverage: 6 of 37 source files (16%). Route coverage: 2 of 15 (13%). Existing tests are well-written but coverage is narrow.**
+
+---
+
+### P4 Tier Summary
+
+| Module | Findings | CRITICAL | HIGH | MEDIUM | LOW | INFO |
+|--------|----------|----------|------|--------|-----|------|
+| P4-1: Stores | 6 | 0 | 0 | 2 | 2 | 2 |
+| P4-2: API/Hooks | 13 | 0 | 2 | 5 | 4 | 2 |
+| P4-3: Components | 12 | 0 | 0 | 3 | 4 | 5 |
+| P4-4: Pages | 8 | 0 | 0 | 3 | 3 | 2 |
+| P4-5: i18n/Utils | 2 | 0 | 0 | 0 | 1 | 1 |
+| P4-6: Seeds/Scripts | 5 | 1 | 0 | 2 | 1 | 1 |
+| P4-7: Backend Libs | 13 | 0 | 1 | 3 | 4 | 5 |
+| P4-8: Docker/CI | 14 | 3 | 2 | 3 | 2 | 4 |
+| P4-9: Test Quality | 12 | 1 | 2 | 6 | 3 | 0 |
+| **P4 TOTAL** | **85** | **5** | **7** | **27** | **24** | **22** |
+
+**P4 Totals: 85 findings — 5 CRITICAL, 7 HIGH, 27 MEDIUM, 24 LOW, 22 INFO**
+
+---
+

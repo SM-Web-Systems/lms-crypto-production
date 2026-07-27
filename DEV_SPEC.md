@@ -564,3 +564,83 @@ type BillingCheckResult = {
 ### Test Coverage: **No Coverage**
 
 ---
+
+## P4 Module Specifications
+
+### P4-1: Frontend Stores (`web-app/src/store/`)
+
+| Store | Persist Key | What's Persisted | What's In-Memory Only |
+|-------|------------|------------------|-----------------------|
+| auth.ts | `amma-wallet-auth` | `user`, `isAuthenticated`, `serverWallets`, `signingMode` | `_accessToken`, `_refreshToken` (also in localStorage separately!) |
+| wallet.ts | `amma-wallet-store` | `accounts[]`, `activeAccountId` | `_secretKey`, `_mnemonic`, `isUnlocked`, `_syncing`, `network` |
+| notifications.ts | `amma-notifications` | `items[]` (max 50) | — |
+| theme.ts | — (uses `data-theme` attribute) | Theme validated against `"light"\|"dark"` | — |
+
+**Key Security Properties:**
+- `_secretKey` and `_mnemonic` excluded from persist via `partialize` — correct
+- `network` excluded from persist to prevent testnet leak — correct
+- Encrypted mnemonics stored as loose `mnemonic_{pubkey}` localStorage entries (outside Zustand scope) — **gap**
+- No auto-lock timeout for in-memory secrets — **gap**
+
+### P4-2: Frontend API Layer (`web-app/src/lib/api.ts`)
+
+| Function | Method | Auth | Notes |
+|----------|--------|------|-------|
+| `request()` | * | Bearer token | Central wrapper. Handles 401→refresh retry. No AbortController. |
+| `authApi.login()` | POST | None | Sends credentials + turnstileToken |
+| `authApi.register()` | POST | None | Sends credentials + turnstileToken |
+| `authApi.refresh()` | POST | Refresh token | Token rotation |
+| `trustlineApi.add()` | POST | Bearer | **Sends secretKey in body!** |
+| `trustlineApi.remove()` | POST | Bearer | **Sends secretKey in body!** |
+| `swapApi.quote()` | GET | Bearer | Query params not URL-encoded |
+
+**Token Storage:** Both `_accessToken`/`_refreshToken` in JS variables AND `localStorage` — **XSS risk**
+
+### P4-6: Backend Seeds & Scripts
+
+| Script | Idempotent? | Destructive? | Notes |
+|--------|-------------|-------------|-------|
+| `multi-tenant-seed.ts` | Yes (ON CONFLICT DO NOTHING/UPDATE) | No | Validates all env vars before writes |
+| `known-tokens.ts` | Yes (onConflictDoUpdate) | No | **AQUA issuer wrong (P4-6-F1 CRITICAL)** |
+| `admin-bootstrap.ts` | Yes (checks existing) | No | Password from env, bcrypt 12 rounds |
+| `add-phone-number.ts` | Partial | Yes (DROP NOT NULL) | Constraint addition not idempotent |
+| `fix-xlm-dupes.ts` | N/A (one-time) | Yes (DELETE) | No DRY_RUN, no transaction wrapper |
+
+### P4-7: Backend Library Files
+
+| File | Risk Level | Key Finding |
+|------|-----------|-------------|
+| `cache.ts` | Low | TTL works, no max-entries cap. `invalidatePattern` unused (latent ReDoS). |
+| `stellar-client.ts` | Low | Network passphrase correct. RPC default config concern (minor). |
+| `icon-resolver.ts` | **Medium** | SSRF via `tomlImage` (confirms P2-2). No download size limit. |
+| `toml-sync.ts` | **Medium** | SSRF via `homeDomain` (confirms P2-2). No body size limit. |
+| `liquifier.ts` | **High** | Platform secret key. Weak admin auth (userId===1). No circuit breaker for 6-hour automation. |
+| `sms.ts` | None | Dead code — config properties undefined. No hardcoded creds. |
+| `phone-validation.ts` | None | Correct E.164 validation via `phone` library. |
+
+### P4-8: Docker Configuration
+
+| Component | Current State | Issue |
+|-----------|--------------|-------|
+| Base image | `node:22-alpine` | Unpinned floating tag (CRITICAL) |
+| Build stages | Single stage | devDeps + tests in runtime image (HIGH) |
+| User | root (UID 0) | No `USER` directive (HIGH) |
+| .dockerignore | Missing | Everything sent to build context (MEDIUM) |
+| Compose (prod) | Plaintext DATABASE_URL | Credential in file (CRITICAL) |
+| Compose (testnet) | Plaintext DATABASE_URL | Same pattern (CRITICAL) |
+
+### P4-9: Test Suite Coverage Map
+
+| Category | Files Tested | Files Total | Coverage |
+|----------|-------------|-------------|----------|
+| Routes | 2 (admin, auth partial) | 15 | 13% |
+| Services | 1 (billing) | 1 | 100% |
+| Middleware | 2 (tenant-api-key, admin-auth) | 4 | 50% |
+| Jobs | 1 (auto-suspension) | 3 | 33% |
+| Modules | 0 | 3 | 0% |
+| Libraries | 0 | 12 | 0% |
+| **Total** | **6** | **38** | **16%** |
+
+**Test quality:** Existing tests are well-written (proper mocks, good assertion quality, consistent patterns). Coverage is the gap, not quality.
+
+---

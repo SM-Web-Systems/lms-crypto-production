@@ -631,3 +631,104 @@ flowchart TD
     style F fill:#ff9
     style G fill:#ff9
 ```
+
+---
+
+## Diagram 15: Frontend State Management (P4-1/P4-2)
+
+```mermaid
+graph TB
+    subgraph "Zustand Stores"
+        AUTH["auth.ts<br/>user, isAuthenticated<br/>tokens (clearTokens on logout)"]
+        WALLET["wallet.ts<br/>accounts[], activeAccountId<br/>_secretKey, _mnemonic (excluded from persist)"]
+        NOTIF["notifications.ts<br/>items[] (max 50, persisted)"]
+        THEME["theme.ts<br/>theme: light|dark"]
+    end
+
+    subgraph "localStorage"
+        LS_AUTH["amma-wallet-auth<br/>{user, isAuthenticated}"]
+        LS_WALLET["amma-wallet-store<br/>{accounts, activeAccountId}"]
+        LS_MNEMONIC["mnemonic_{pubkey}<br/>AES-GCM encrypted<br/>(outside Zustand scope!)"]
+        LS_TOKENS["stellar_access_token<br/>stellar_refresh_token<br/>(XSS risk!)"]
+        LS_NOTIF["amma-notifications"]
+    end
+
+    AUTH -->|"persist: partialize"| LS_AUTH
+    WALLET -->|"persist: partialize"| LS_WALLET
+    WALLET -->|"direct setItem"| LS_MNEMONIC
+    AUTH -->|"setTokens()"| LS_TOKENS
+    NOTIF -->|persist| LS_NOTIF
+
+    style LS_TOKENS fill:#f66
+    style LS_MNEMONIC fill:#ff9
+```
+
+## Diagram 16: API Request Flow + Token Refresh (P4-2)
+
+```mermaid
+sequenceDiagram
+    participant C as Component
+    participant API as api.ts request()
+    participant LS as localStorage
+    participant Server as Backend API
+
+    C->>API: request(method, path, data)
+    API->>LS: getAccessToken()
+    API->>Server: fetch() with Authorization: Bearer
+
+    alt 401 Unauthorized
+        API->>LS: getRefreshToken()
+        API->>Server: POST /auth/refresh
+        alt Refresh OK
+            Server-->>API: new access + refresh tokens
+            API->>LS: setTokens(new)
+            API->>Server: Retry original request
+            Server-->>API: Response
+        else Refresh fails
+            API->>LS: clearTokens()
+            API-->>C: throw Error
+        end
+    else 2xx Success
+        Server-->>API: Response JSON
+        API-->>C: parsed data
+    end
+
+    Note over API: No mutex on refresh!<br/>Concurrent 401s = thundering herd
+```
+
+## Diagram 17: Docker Build + Deploy Architecture (P4-8)
+
+```mermaid
+graph TB
+    subgraph "Build Context (no .dockerignore!)"
+        SRC[Source code + tests]
+        NODEMOD[node_modules/]
+        ENVFILE[.env (if exists)]
+    end
+
+    subgraph "Dockerfile (single-stage)"
+        BASE["FROM node:22-alpine<br/>(unpinned!)"]
+        COPY1["COPY package*.json"]
+        NPMCI["npm ci<br/>(includes devDeps!)"]
+        COPY2["COPY . .<br/>(everything)"]
+        RMENV["rm -f .env<br/>(still in prior layer!)"]
+        CMD["CMD npx tsx<br/>(runs as root!)"]
+    end
+
+    subgraph "docker-compose.yml"
+        DB["amma-db<br/>postgres:16-alpine"]
+        API["amma-api<br/>env: DATABASE_URL with<br/>plaintext password!"]
+        DB -.->|network| API
+    end
+
+    SRC --> COPY2
+    NODEMOD -.->|"without .dockerignore"| COPY2
+    ENVFILE -.->|"leaks into layer"| COPY2
+
+    BASE --> COPY1 --> NPMCI --> COPY2 --> RMENV --> CMD
+
+    style BASE fill:#f66
+    style API fill:#f66
+    style RMENV fill:#ff9
+    style NPMCI fill:#ff9
+```
