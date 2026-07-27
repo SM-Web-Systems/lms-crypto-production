@@ -1395,7 +1395,7 @@
 
 | ID | Severity | File | Finding |
 |----|----------|------|---------|
-| P3-7-F1 | **CRITICAL** | `two-fa.ts:116` | TOTP secret stored in plaintext in `twoFaSecret` column. DB compromise exposes all 2FA secrets — attacker can generate valid TOTP codes for every user. Should use AES-256-GCM envelope encryption. |
+| P3-7-F1 | **CRITICAL** | `two-fa.ts:116` | TOTP secret stored in plaintext in `twoFaSecret` column. DB compromise exposes all 2FA secrets — attacker can generate valid TOTP codes for every user. Should use AES-256-GCM envelope encryption. **FIXED — baa690e** |
 | P3-7-F2 | **HIGH** | `two-fa.ts:19` | Backup codes hashed with SHA-256 instead of bcrypt. 32-bit codes are brute-forceable in seconds on a GPU against SHA-256. |
 | P3-7-F3 | **HIGH** | `two-fa.ts:250` | No timing-safe comparison for backup codes, static codes, or email codes. JavaScript `===` and `indexOf` vulnerable to timing attacks. TOTP (speakeasy) is safe. |
 | P3-7-F4 | **HIGH** | `two-fa.ts:184` | No rate limiting on /2fa/verify and /2fa/disable. TOTP is 6 digits with window:2 (5 valid codes). Brute-force feasible without rate limiting. |
@@ -1564,7 +1564,7 @@
 
 ---
 
-#### P4-2-F1: Tokens persisted in localStorage — XSS exfiltration risk — HIGH
+#### P4-2-F1: Tokens persisted in localStorage — XSS exfiltration risk — HIGH — FIXED (a84468d)
 - **Severity:** HIGH
 - **File:** `packages/web-app/src/lib/api.ts:4-5`
 - **Description:** Both access and refresh tokens are written to localStorage. Any XSS vulnerability (including third-party scripts, browser extensions) can read localStorage and exfiltrate both tokens. The refresh token is long-lived and grants persistent session takeover. The codebase already has in-memory variables (`_accessToken`/`_refreshToken`) — the localStorage persistence should be removed.
@@ -1889,12 +1889,12 @@
 
 ---
 
-#### P4-8-F1: Docker image base tag unpinned — CRITICAL
+#### P4-8-F1: Docker image base tag unpinned — CRITICAL — FIXED (0e39157)
 - **Severity:** CRITICAL
 - **File:** `packages/backend/Dockerfile:1`
 - **Description:** `FROM node:22-alpine` tracks a floating tag. A rebuild could pull a different patch version or a compromised image without detection. Pin to a full semver tag with digest (e.g., `node:22.16.0-alpine3.22`).
 
-#### P4-8-F2: Container runs as root — HIGH
+#### P4-8-F2: Container runs as root — HIGH — FIXED (132cdb5)
 - **Severity:** HIGH
 - **File:** `packages/backend/Dockerfile:1-17`
 - **Description:** No `USER` directive. The `CMD` process (`npx tsx`) runs as UID 0. If an attacker achieves RCE, they have full root privileges within the container.
@@ -1904,13 +1904,13 @@
 - **File:** `packages/backend/Dockerfile:6-10`
 - **Description:** `npm ci` installs all dependencies (including vitest, drizzle-kit, sharp). `COPY . .` copies the entire backend directory (tests, seed scripts, drizzle config) into the runtime image. DevDependencies increase attack surface and image size.
 
-#### P4-8-F4: Plaintext database password in docker-compose.yml (production) — CRITICAL
+#### P4-8-F4: Plaintext database password in docker-compose.yml (production) — CRITICAL — FIXED (45106ca)
 - **Severity:** CRITICAL
 - **File:** `/home/webadmin/amma-wallet-docker/docker-compose.yml:57-58`
 - **Description:** The `environment:` block for `amma-api` hardcodes the Postgres password in plain text in the compose file. This file is readable by anyone with filesystem access. The password should be injected via Docker secrets or an external env_file.
 - **Note:** This file is outside the git repo (deployment config), but is a critical operational security finding.
 
-#### P4-8-F5: Plaintext database password in docker-compose.testnet.yml — CRITICAL
+#### P4-8-F5: Plaintext database password in docker-compose.testnet.yml — CRITICAL — FIXED (operational)
 - **Severity:** CRITICAL
 - **File:** `/home/webadmin/amma-wallet-docker/docker-compose.testnet.yml:51-52`
 - **Description:** Same pattern as F4. Testnet compose file exposes password in plaintext.
