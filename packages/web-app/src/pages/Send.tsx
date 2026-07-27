@@ -30,7 +30,7 @@ export default function SendPage() {
   const handleSend = async () => {
     if (!destination || !amount) return toast.error(t("common.fillAllFields"));
     if (parseFloat(amount) <= 0) return toast.error(t("common.invalidAmount"));
-    if (!destination.startsWith("G") || destination.length !== 56)
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(destination))
       return toast.error(t("send.invalidAddress"));
 
     if (signingMode === "delegated") {
