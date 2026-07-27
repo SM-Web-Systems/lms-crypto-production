@@ -1203,7 +1203,6 @@ async function bootstrap() {
           type: "object",
           properties: {
             xdr: { type: "string", description: "Unsigned transaction XDR" },
-            networkPassphrase: { type: "string" },
             pin: {
               type: "string",
               description: "PIN to decrypt wallet secret",
@@ -1235,11 +1234,9 @@ async function bootstrap() {
       console.log("[sign-and-submit] userId:", userId);
       const {
         xdr,
-        networkPassphrase: clientPassphrase,
         pin,
       } = request.body as {
         xdr: string;
-        networkPassphrase?: string;
         pin?: string;
       };
 
@@ -1284,7 +1281,7 @@ async function bootstrap() {
         }
 
         const { stellarClient } = await import("./lib/stellar-client");
-        const passphrase = clientPassphrase || stellarClient.networkPassphrase;
+        const passphrase = stellarClient.networkPassphrase;
 
         const tx = StellarSdk.TransactionBuilder.fromXDR(xdr, passphrase);
 
@@ -1338,7 +1335,6 @@ async function bootstrap() {
           type: "object",
           properties: {
             xdr: { type: "string" },
-            networkPassphrase: { type: "string" },
             pin: {
               type: "string",
               description: "PIN to decrypt wallet secret",
@@ -1376,11 +1372,9 @@ async function bootstrap() {
       console.log("[sign-and-submit] userId:", userId);
       const {
         xdr,
-        networkPassphrase: clientPassphrase,
         pin,
       } = request.body as {
         xdr: string;
-        networkPassphrase?: string;
         pin?: string;
       };
 
@@ -1425,7 +1419,7 @@ async function bootstrap() {
         }
 
         const { stellarClient } = await import("./lib/stellar-client");
-        const passphrase = clientPassphrase || stellarClient.networkPassphrase;
+        const passphrase = stellarClient.networkPassphrase;
 
         const tx = StellarSdk.TransactionBuilder.fromXDR(xdr, passphrase);
 
