@@ -5,7 +5,15 @@ const IV_LENGTH = 12;
 const ITERATIONS = 600_000;
 
 export async function decryptSecret(encrypted: string, pin: string): Promise<string> {
+  if (!encrypted || encrypted.length < 60) {
+    throw new Error("Encrypted data too short or missing");
+  }
+
   const combined = Buffer.from(encrypted, "base64");
+  if (combined.length < SALT_LENGTH + IV_LENGTH + 17) {
+    throw new Error("Encrypted data too short or corrupted");
+  }
+
   const salt = combined.subarray(0, SALT_LENGTH);
   const iv = combined.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
   const ciphertext = combined.subarray(SALT_LENGTH + IV_LENGTH);

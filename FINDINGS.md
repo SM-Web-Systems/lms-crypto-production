@@ -78,9 +78,9 @@
   ```
 - **Recommendation:** Change to `.set({ passwordHash: hashedPassword, updatedAt: new Date() })`. Use the imported `hashPassword()` function instead of inline `require("bcryptjs")`.
 
-### P0-1-F3: `auditLog` called with wrong signature in SMS reset handler — FIXED
+### P0-1-F3: `auditLog` called with wrong signature in SMS reset handler — FIXED (3eeb7f8)
 - **Severity:** HIGH
-- **Status:** FIXED — replaced positional args with `{ userId: user.id, ip: request.ip, detail: { method: "sms" } }`
+- **Status:** FIXED — SMS path: replaced positional args with `{ userId: user.id, ip: request.ip, detail: { method: "sms" } }`. Email path residual: changed `record.userId` → `record.user_id` (raw SQL snake_case) in 3eeb7f8.
 - **File:** `packages/backend/src/routes/auth.ts:1422`
 - **Description:** `auditLog` accepts `(action, opts?)` where `opts` is `{ userId?, detail?, ip?, userAgent? }`. Line 1422 passes positional args: `auditLog("password_reset", user.id, { method: "sms" }, request.ip)`. The audit record will be malformed or silently lost.
 - **Recommendation:** `await auditLog("password_reset", { userId: user.id, detail: { method: "sms" }, ip: request.ip })`.
