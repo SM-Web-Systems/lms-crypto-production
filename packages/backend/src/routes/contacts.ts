@@ -89,6 +89,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
       params: { type: "object", properties: { id: { type: "number" } } },
       body: {
         type: "object",
+        additionalProperties: false,
         properties: {
           name: { type: "string", minLength: 1, maxLength: 100 },
           memo: { type: "string", maxLength: 200 },
