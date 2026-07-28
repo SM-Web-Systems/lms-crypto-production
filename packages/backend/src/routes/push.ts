@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import webpush from "web-push";
 import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
 import { config } from "../config";
 
@@ -65,9 +65,17 @@ export async function pushRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const user = (request as any).user;
       const { endpoint, keys } = request.body as any;
+
+      // Limit subscriptions per user to prevent abuse
+      const [{ count }] = await db.select({ count: sql<number>`COUNT(*)::int` })
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, user.id));
+      if (count >= 10) {
+        return reply.status(429).send({ error: "Maximum push subscriptions reached" });
+      }
 
       await db
         .insert(pushSubscriptions)
