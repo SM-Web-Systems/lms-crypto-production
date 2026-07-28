@@ -865,6 +865,45 @@ describe("writeBillingCredit", () => {
   });
 });
 
+// ── writeBillingCredit — amountXlm validation (P1-2-F4) ─────────────────────
+
+describe("writeBillingCredit — amountXlm validation (P1-2-F4)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("throws for zero amountXlm", async () => {
+    const { tx } = makeCreditTx(1, "500.0000000");
+    await expect(
+      writeBillingCredit(tx, {
+        tenantId: 2,
+        eventType: "manual_topup",
+        amountXlm: "0.0000000",
+      }),
+    ).rejects.toThrow("amountXlm must be a positive value");
+  });
+
+  it("throws for negative amountXlm", async () => {
+    const { tx } = makeCreditTx(1, "500.0000000");
+    await expect(
+      writeBillingCredit(tx, {
+        tenantId: 2,
+        eventType: "manual_topup",
+        amountXlm: "-100.0000000",
+      }),
+    ).rejects.toThrow("amountXlm must be a positive value");
+  });
+
+  it("throws for non-numeric amountXlm", async () => {
+    const { tx } = makeCreditTx(1, "500.0000000");
+    await expect(
+      writeBillingCredit(tx, {
+        tenantId: 2,
+        eventType: "manual_topup",
+        amountXlm: "abc",
+      }),
+    ).rejects.toThrow();
+  });
+});
+
 // ── Decimal arithmetic utilities (P1-2-F1) ──────────────────────────────────
 
 describe("Billing — floating-point safety (P1-2-F1)", () => {

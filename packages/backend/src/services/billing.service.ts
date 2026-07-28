@@ -411,6 +411,12 @@ export async function writeBillingCredit(
     approxUsersSnapshot = null, paymentReference = null, recordedBy = null,
   } = opts;
 
+  // Validate amountXlm is a positive value (P1-2-F4)
+  const amountStroops = toStroops(amountXlm); // throws on non-numeric
+  if (amountStroops <= 0n) {
+    throw new Error("amountXlm must be a positive value");
+  }
+
   // 1. Insert billing_events with positive amount (credit)
   const [event] = await tx
     .insert(schema.billingEvents)
