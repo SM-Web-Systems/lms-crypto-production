@@ -10,6 +10,9 @@ import { validateExternalUrl } from './url-validator';
 
 const ICON_DIR = path.resolve(__dirname, '../../assets/icons');
 
+/** Maximum icon file size: 512KB. Larger images are silently skipped. */
+const MAX_ICON_SIZE = 512 * 1024;
+
 // Map of asset codes to their CryptoLogos.cc slugs
 const CRYPTOLOGOS_SLUGS: Record<string, string> = {
   XLM: 'stellar-xlm',
@@ -109,10 +112,17 @@ export async function resolveIcon(
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('image')) continue;
 
+      // Pre-flight size check via content-length header
+      const contentLength = Number(response.headers.get('content-length') || 0);
+      if (contentLength > MAX_ICON_SIZE) continue;
+
       const buffer = Buffer.from(await response.arrayBuffer());
 
       // Sanity check: at least 100 bytes (not an error page)
       if (buffer.length < 100) continue;
+
+      // Post-download size check (content-length may be missing or wrong)
+      if (buffer.length > MAX_ICON_SIZE) continue;
 
       await fs.writeFile(localPath, buffer);
       console.log(
@@ -184,11 +194,16 @@ export async function syncAllIcons(): Promise<void> {
           signal: AbortSignal.timeout(5000),
         });
         if (resp.ok) {
+          // Pre-flight size check via content-length header
+          const contentLength = Number(resp.headers.get('content-length') || 0);
+          if (contentLength > MAX_ICON_SIZE) continue;
+
           const buf = Buffer.from(await resp.arrayBuffer());
-          if (buf.length >= 100) {
-            await fs.writeFile(localPath, buf);
-            iconPath = `/assets/icons/${filename}`;
-          }
+          if (buf.length < 100) continue;
+          // Post-download size check
+          if (buf.length > MAX_ICON_SIZE) continue;
+          await fs.writeFile(localPath, buf);
+          iconPath = `/assets/icons/${filename}`;
         }
       } catch {}
     }

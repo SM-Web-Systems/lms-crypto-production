@@ -128,6 +128,7 @@ export async function pushRoutes(app: FastifyInstance) {
     "/api/v1/push/test",
     {
       preHandler: [authMiddleware],
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
       schema: {
         tags: ["Push Notifications"],
         summary: "Send a test push notification to all your devices",

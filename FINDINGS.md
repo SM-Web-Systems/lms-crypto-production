@@ -770,7 +770,7 @@
   ```
 - **Recommendation:** Add `eq(schema.tenantBillingPolicy.acquisitionModeEnabled, true)` to the WHERE clause. Apply same filter to `recoverDebtLimit`.
 
-### P1-3-F2: `unsuspend()` helper has no defensive guard
+### P1-3-F2: `unsuspend()` helper has no defensive guard — **FIXED (Batch 2, f8e8782)**
 - **Severity:** LOW
 - **File:** `packages/backend/src/jobs/auto-suspension.ts:45-51`
 - **Description:** `unsuspend()` clears `suspendedAt` and `suspensionReason` for any `tenantId` without verifying the current suspension reason or `isActive` status. Safety relies entirely on callers filtering correctly. Future misuse could override a manual or hard suspension.
@@ -949,13 +949,13 @@
 - **Description:** GET routes have `rateLimit: { max: 30, timeWindow: "1 minute" }` but all three POST routes (`/add`, `/remove`, `/update-limit`) have none.
 - **Recommendation:** Add rate limiting to all POST endpoints.
 
-### P2-1-F4: No input format validation on publicKey, assetCode, assetIssuer
+### P2-1-F4: No input format validation on publicKey, assetCode, assetIssuer — **FIXED (Batch 2, b229a82)**
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/trustlines.ts:210-217,301-308,381-389`
 - **Description:** JSON schemas declare `type: "string"` with no `pattern`, `minLength`, or `maxLength`. Malformed input reaches Horizon API before validation. Stellar asset codes must be 1-12 alphanumeric; public keys must match `^G[A-Z2-7]{55}$`.
 - **Recommendation:** Add schema constraints.
 
-### P2-1-F5: Raw error.message exposed in 500 responses
+### P2-1-F5: Raw error.message exposed in 500 responses — **FIXED (Batch 2, ede27e1)**
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/trustlines.ts:96,198,290,370,438`
 - **Description:** All catch blocks return `error.message` directly to the client, potentially leaking Horizon URLs, DB connection details, or stack traces.
@@ -996,13 +996,13 @@
   ```
 - **Recommendation:** Validate `homeDomain` against a blocklist of private/reserved IP ranges after DNS resolution.
 
-### P2-2-F2: Stored image URL from TOML not validated
+### P2-2-F2: Stored image URL from TOML not validated — **FIXED (Batch 2, e5cc5e6)**
 - **Severity:** LOW
 - **File:** `packages/backend/src/lib/toml-sync.ts:63-68`
 - **Description:** Image URL extracted from TOML is stored directly in DB with no URL validation. Could contain `javascript:`, `data:`, or non-HTTPS schemes.
 - **Recommendation:** Validate URL starts with `https://`, enforce max length 2048, reject non-HTTPS schemes.
 
-### P2-2-F3: No maximum file size limit on icon downloads
+### P2-2-F3: No maximum file size limit on icon downloads — **FIXED (Batch 2, 4f52196)**
 - **Severity:** LOW
 - **File:** `packages/backend/src/lib/icon-resolver.ts:102-116`
 - **Description:** Icon download reads entire response body into memory (`response.arrayBuffer()`) with no max size check. Only a minimum check (>100 bytes). A compromised icon source could serve multi-GB response causing OOM. 5-second timeout provides partial mitigation.
@@ -1231,7 +1231,7 @@
 - **Description:** Never emitted: `login`, `password_change`, `profile_update`, `2fa_enable`, `2fa_disable`, `signing_mode_change`, `wallet_add`, `wallet_remove`, `api_key_create`, `api_key_revoke`. This is 53% of defined actions. Critical security events (2FA changes, wallet operations, API key management) leave no audit trail.
 - **Recommendation:** Instrument all corresponding handlers. Priority: `login`, `wallet_add`/`remove`, `2fa_enable`/`disable`, `api_key_create`/`revoke`.
 
-### P2-7-F4: userAgent never captured in any audit call
+### P2-7-F4: userAgent never captured in any audit call — **FIXED (Batch 2, 9bc68a8)**
 - **Severity:** LOW
 - **File:** All `auditLog` call sites
 - **Description:** The `userAgent` field exists in the schema and function signature but no call site passes it. Every audit record has `user_agent = null`.
@@ -1409,7 +1409,7 @@
 | P3-6-F1 | **CRITICAL** | `contacts.ts:34,62,102,130` | userId read from `(request as any).userId` — always undefined. Auth middleware sets `request.user`, not `request.userId`. All 4 CRUD operations broken: GET returns empty, POST inserts orphaned records, PATCH/DELETE silently no-op. **FIXED — ea29d54** |
 | P3-6-F2 | MEDIUM | `contacts.ts:50` | No Stellar address format validation beyond 56-char length. Any 56-char garbage string accepted. |
 | P3-6-F3 | MEDIUM | `contacts.ts:104` | PATCH uses spread `...updates` without `additionalProperties: false`. Caller could inject `userId` or other columns into update payload. |
-| P3-6-F4 | LOW | `contacts.ts:9-138` | No route-level rate limiting on any contacts CRUD operation. |
+| P3-6-F4 | LOW | `contacts.ts:9-138` | No route-level rate limiting on any contacts CRUD operation. | **FIXED — 8486967 (Batch 2)** |
 | P3-6-F5 | LOW | `contacts.ts:129-137` | DELETE returns 200 even when contact doesn't exist (no rowCount check). | **FIXED — d24e1a6 (Batch 1)** |
 | P3-6-F6 | LOW | `schema/index.ts:295` | addressBook.userId has no FK constraint to users.id. Orphaned rows on user deletion. (Cross-ref P2-5-F5) |
 | P3-6-F7 | INFO | `contacts.ts:34` | Unsafe `as any` cast — should use typed `request.user!.userId` for TypeScript safety. |
@@ -1447,7 +1447,7 @@
 |----|----------|------|---------|
 | P3-8-F1 | **HIGH** | `push.ts:81-83` | Subscription takeover via `onConflictDoUpdate` — overwrites userId on endpoint conflict. Any user knowing another's push endpoint URL can redirect their notifications. Endpoint URLs are browser-generated (hard to guess) so risk is reduced from CRITICAL to HIGH. |
 | P3-8-F2 | MEDIUM | `push.ts:51` | No validation on endpoint URL format. Arbitrary strings stored as push endpoints. Could cause SSRF-like behavior when web-push POSTs to them. |
-| P3-8-F3 | LOW | `push.ts:127-183` | No route-level rate limit on /push/test. User can trigger 60 push sends/minute via global limit. |
+| P3-8-F3 | LOW | `push.ts:127-183` | No route-level rate limit on /push/test. User can trigger 60 push sends/minute via global limit. | **FIXED — 9399368 (Batch 2)** |
 | P3-8-F4 | LOW | `push.ts:40-88` | No limit on number of subscriptions per user. Unlimited registration → resource exhaustion on send. |
 | P3-8-F5 | INFO | `push.ts:189` | `sendPushToUser` data payload typed as `any`. Risk of accidental sensitive data in push payloads. |
 
@@ -1461,7 +1461,7 @@
 | ID | Severity | File | Finding |
 |----|----------|------|---------|
 | P3-9-F1 | **HIGH** | `curated-tokens.ts:72-138` | POST /tokens/curated/seed has no authMiddleware. Any unauthenticated caller can trigger DB writes. Data comes from bundled JSON (limiting injection risk) but should be admin-only. |
-| P3-9-F2 | LOW | `curated-tokens.ts:72-138` | No rate limit on /seed. Each invocation iterates full token list with N DB reads + writes. DoS via database load. |
+| P3-9-F2 | LOW | `curated-tokens.ts:72-138` | No rate limit on /seed. Each invocation iterates full token list with N DB reads + writes. DoS via database load. | **FIXED — 70bb41d (Batch 2)** |
 | P3-9-F3 | INFO | `curated-tokens.ts:13-69` | GET /tokens/curated is public (no auth) — correct by design for public token directory. |
 | P3-9-F4 | INFO | `curated-tokens.ts:54` | Query param uses `as any` cast. Category param has no enum constraint (low risk, in-memory filter). |
 
@@ -1847,7 +1847,7 @@
 - **File:** `packages/backend/src/lib/cache.ts:43`
 - **Description:** `invalidatePattern` converts glob to regex using naive `pattern.replace(/\*/g, ".*")` without escaping metacharacters. Currently unused anywhere in codebase (latent risk only).
 
-#### P4-7-F2: Unbounded cache map size — MEDIUM
+#### P4-7-F2: Unbounded cache map size — MEDIUM — **FIXED (Batch 2, afb682e)**
 - **Severity:** MEDIUM
 - **File:** `packages/backend/src/lib/cache.ts:13-18`
 - **Description:** `MemoryCache` has TTL eviction but no upper bound on entries. If unique cache keys are created per request, the map grows unbounded. Current usage has few deterministic keys, so risk is low today.

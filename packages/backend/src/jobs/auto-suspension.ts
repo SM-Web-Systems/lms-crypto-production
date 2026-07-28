@@ -41,13 +41,21 @@ async function softSuspend(
     );
 }
 
-/** Unsuspend a tenant: clear suspended_at + suspension_reason. */
+/** Unsuspend a tenant: clear suspended_at + suspension_reason.
+ *  Only clears auto-imposed suspensions (debt_limit / maintenance_grace_expired).
+ *  Manually-imposed suspensions are never touched. */
 async function unsuspend(tenantId: number): Promise<void> {
   const now = new Date();
   await db
     .update(schema.tenants)
     .set({ suspendedAt: null, suspensionReason: null, updatedAt: now })
-    .where(eq(schema.tenants.id, tenantId));
+    .where(
+      and(
+        eq(schema.tenants.id, tenantId),
+        isNotNull(schema.tenants.suspendedAt),
+        inArray(schema.tenants.suspensionReason, ["debt_limit", "maintenance_grace_expired"]),
+      ),
+    );
 }
 
 /** Delete the maintenance_grace_started_at key for a tenant from system_config. */

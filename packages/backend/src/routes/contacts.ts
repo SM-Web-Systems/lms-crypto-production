@@ -8,6 +8,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
   // List contacts
   app.get("/api/v1/contacts", {
     preHandler: authMiddleware,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     schema: {
       tags: ["Contacts"],
       summary: "List all contacts in address book",
@@ -38,6 +39,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
   // Add contact
   app.post("/api/v1/contacts", {
     preHandler: authMiddleware,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     schema: {
       tags: ["Contacts"],
       summary: "Add a contact to address book",
@@ -79,6 +81,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
   // Update contact
   app.patch("/api/v1/contacts/:id", {
     preHandler: authMiddleware,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     schema: {
       tags: ["Contacts"],
       summary: "Update a contact",
@@ -117,6 +120,7 @@ export async function addressBookRoutes(app: FastifyInstance) {
   // Delete contact
   app.delete("/api/v1/contacts/:id", {
     preHandler: authMiddleware,
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     schema: {
       tags: ["Contacts"],
       summary: "Delete a contact",

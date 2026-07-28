@@ -3,6 +3,15 @@ import { tokens } from "../db/schema";
 import { eq, and, isNull, isNotNull } from "drizzle-orm";
 import { validateExternalUrl } from "./url-validator";
 
+function isValidImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 // Simple TOML parser for stellar.toml [[CURRENCIES]] image field
 function extractCurrencyImage(
   tomlText: string,
@@ -67,7 +76,7 @@ export async function syncTomlImages() {
         const tomlText = await res.text();
         const imageUrl = extractCurrencyImage(tomlText, code, issuer);
 
-        if (imageUrl) {
+        if (imageUrl && isValidImageUrl(imageUrl)) {
         await db
             .update(tokens)
             .set({ tomlImage: imageUrl, updatedAt: new Date() })
@@ -75,12 +84,13 @@ export async function syncTomlImages() {
         console.log(`[toml-sync] ✓ ${code} → ${imageUrl}`);
         } else {
         const orgLogoMatch = tomlText.match(/^ORG_LOGO\s*=\s*"([^"]+)"/m);
-        if (orgLogoMatch?.[1]) {
+        const orgLogo = orgLogoMatch?.[1];
+        if (orgLogo && isValidImageUrl(orgLogo)) {
             await db
             .update(tokens)
-            .set({ tomlImage: orgLogoMatch[1], updatedAt: new Date() })
+            .set({ tomlImage: orgLogo, updatedAt: new Date() })
             .where(eq(tokens.id, token.id));
-            console.log(`[toml-sync] ✓ ${code} (org logo) → ${orgLogoMatch[1]}`);
+            console.log(`[toml-sync] ✓ ${code} (org logo) → ${orgLogo}`);
         } else {
             console.log(`[toml-sync] ✗ ${code}: no image found in toml`);
         }

@@ -2,7 +2,7 @@
 
 > Updated: 2026-07-28
 > Branch: `fix/backlog-batch2`
-> Tests baseline: 410/410
+> Tests: 410 → 453 (+43 new)
 
 ## Legend
 
@@ -15,146 +15,146 @@
 
 ## Setup
 
-- [ ] Create branch `fix/backlog-batch2` from `main`
-- [ ] Verify 410/410 tests pass on branch
+- [x] Create branch `fix/backlog-batch2` from `main`
+- [x] Verify 410/410 tests pass on branch
 
 ---
 
 ## Fix 10: P2-7-F4 — Capture userAgent in audit log calls (zero risk)
 
-- [ ] Write source-assertion test (`audit-useragent.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add `userAgent: request.headers["user-agent"]` to auth.ts call sites (10)
-- [ ] Add to server.ts call sites (2)
-- [ ] Add to admin.ts call sites (9)
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`audit-useragent.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add `userAgent: request.headers["user-agent"]` to auth.ts call sites (9)
+- [x] Add to server.ts call sites (2)
+- [x] Add to admin.ts call sites (8)
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 416/416
+- [x] Commit — `9bc68a8`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 9: P4-7-F2 — MemoryCache max size bound (zero risk)
 
-- [ ] Write unit test (`cache.test.ts`) — insert 501 entries, verify size capped
-- [ ] Confirm test FAILS
-- [ ] Add maxSize=500, evict-expired-first, then oldest
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write unit test (`cache.test.ts`) — insert 501 entries, verify size capped
+- [x] Confirm test FAILS
+- [x] Add maxSize=500, evict-expired-first, then oldest
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 419/419
+- [x] Commit — `afb682e`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 5: P1-3-F2 — unsuspend() defensive guard (very low risk)
 
-- [ ] Write source-assertion test (`auto-suspension-guard.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add WHERE clause with suspensionReason guard
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`auto-suspension-guard.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add WHERE clause with suspensionReason guard
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 424/424
+- [x] Commit — `f8e8782`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 3: P2-2-F2 — TOML image URL scheme validation (very low risk)
 
-- [ ] Write source-assertion test (`toml-sync-url.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add `isValidImageUrl()` helper
-- [ ] Apply to both DB write paths
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`toml-sync-url.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add `isValidImageUrl()` helper
+- [x] Apply to both DB write paths
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 428/428
+- [x] Commit — `e5cc5e6`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 4: P2-2-F3 — Icon download max file size (very low risk)
 
-- [ ] Write source-assertion test (`icon-resolver-size.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add MAX_ICON_SIZE=512KB constant and size check
-- [ ] Apply to both download paths
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`icon-resolver-size.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add MAX_ICON_SIZE=512KB constant and size check
+- [x] Apply to both download paths
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 433/433
+- [x] Commit — `4f52196`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 6: P3-6-F4 — Rate limit contacts CRUD (low risk)
 
-- [ ] Write source-assertion test (`contacts-ratelimit.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add `config.rateLimit` to all 4 contact endpoints
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`contacts-ratelimit.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add `config.rateLimit` to all 4 contact endpoints
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 436/436
+- [x] Commit — `8486967`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 7: P3-8-F3 — Rate limit /push/test (low risk)
 
-- [ ] Write source-assertion test (`push-ratelimit.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add `config.rateLimit` to /push/test endpoint
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`push-ratelimit.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add `config.rateLimit` to /push/test endpoint
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 439/439
+- [x] Commit — `9399368`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 8: P3-9-F2 — Rate limit + auth on /curated/seed (low risk)
 
-- [ ] Write source-assertion test (`curated-tokens-auth.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Add `preHandler: [authMiddleware]` and `config.rateLimit`
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`curated-tokens-auth.test.ts`)
+- [x] Confirm test FAILS
+- [x] Add `preHandler: [authMiddleware]` and `config.rateLimit`
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 442/442
+- [x] Commit — `70bb41d`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 1: P2-1-F4 — Trustline input format validation (low risk)
 
-- [ ] Write unit tests (`trustlines-validation.test.ts`) — invalid publicKey → 400
-- [ ] Confirm test FAILS
-- [ ] Add `validateStellarPublicKey()` and `validateAssetCode()` helpers
-- [ ] Apply to all 5 trustline endpoints
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write unit tests (`trustlines-validation.test.ts`) — invalid publicKey → 400
+- [x] Confirm test FAILS
+- [x] Add `validateStellarPublicKey()` and `validateAssetCode()` helpers
+- [x] Apply to all 5 trustline endpoints
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 449/449
+- [x] Commit — `b229a82`
+- [x] Code review checkpoint
 
 ---
 
 ## Fix 2: P2-1-F5 — Error message sanitization (low risk)
 
-- [ ] Write source-assertion test (`trustlines-errors.test.ts`)
-- [ ] Confirm test FAILS
-- [ ] Replace `error.message` with "Internal server error" in 5 catch blocks
-- [ ] Add `console.warn` for logging
-- [ ] Confirm test PASSES
-- [ ] Run full backend suite
-- [ ] Commit
-- [ ] Code review checkpoint
+- [x] Write source-assertion test (`trustlines-errors.test.ts`)
+- [x] Confirm test FAILS
+- [x] Replace `error.message` with "Internal server error" in 5 catch blocks
+- [x] Add `console.warn` for logging
+- [x] Confirm test PASSES
+- [x] Run full backend suite — 453/453
+- [x] Commit — `ede27e1`
+- [x] Code review checkpoint
 
 ---
 
 ## Post-Batch
 
-- [ ] Run full backend test suite
-- [ ] Run full web-app test suite
-- [ ] Verify no secrets in diff
-- [ ] Update FINDINGS.md (10 items → FIXED)
-- [ ] Update CUMULATIVE_STATUS.md (86 → 96 fixed)
-- [ ] Update TODO_LOW_PRIORITY.md (items marked ✅)
-- [ ] Write checkpoint report
+- [x] Run full backend test suite — 453/453
+- [x] Run full web-app test suite — 23/23
+- [x] Verify no secrets in diff
+- [x] Update FINDINGS.md (10 items → FIXED)
+- [x] Update CUMULATIVE_STATUS.md (86 → 96 fixed)
+- [x] Update TODO_LOW_PRIORITY.md (items marked ✅)
+- [x] Write checkpoint report
 - [ ] Recommend Batch 3 scope
 
 ---
@@ -168,3 +168,5 @@ The loop MUST stop and ask for input if:
 4. Regression detected in full suite
 5. Spec/plan becomes invalid
 6. Fix 8 curated-seed auth gate affects production automation
+
+**No pause conditions were triggered during execution.**
