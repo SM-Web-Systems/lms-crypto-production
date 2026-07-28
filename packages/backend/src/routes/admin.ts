@@ -24,8 +24,8 @@ import { verifyInternalAdmin } from "../middleware/admin-auth";
 import { getTenantBalanceSummary, writeBillingCredit, getTenantBillingEventsPage } from "../services/billing.service";
 import { auditLog } from "../lib/audit";
 
-// Roles permitted to write credits (super_admin and platform_admin)
-const CREDIT_ROLES = ["super_admin", "platform_admin"] as const;
+// Roles permitted to perform privileged operations (super_admin and platform_admin)
+const PRIVILEGED_ROLES = ["super_admin", "platform_admin"] as const;
 
 export async function adminRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────────────────────────────────────
@@ -422,7 +422,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });
@@ -574,7 +574,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });
@@ -724,7 +724,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });
@@ -833,7 +833,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });
@@ -928,7 +928,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });
@@ -1029,7 +1029,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });
@@ -1130,7 +1130,7 @@ export async function adminRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       // ── Role guard ────────────────────────────────────────────────────────
-      if (!(CREDIT_ROLES as readonly string[]).includes(request.admin!.role)) {
+      if (!(PRIVILEGED_ROLES as readonly string[]).includes(request.admin!.role)) {
         return reply.status(403).send({
           error: "Forbidden: requires super_admin or platform_admin role",
         });

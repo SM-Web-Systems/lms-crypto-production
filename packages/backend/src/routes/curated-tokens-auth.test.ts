@@ -10,8 +10,8 @@ describe("curated-tokens /seed endpoint security", () => {
   const seedIdx = source.indexOf('"/api/v1/tokens/curated/seed"');
   const seedBlock = source.slice(seedIdx, seedIdx + 400);
 
-  it("should have authMiddleware on the /seed endpoint", () => {
-    expect(seedBlock).toContain("authMiddleware");
+  it("should have verifyInternalAdmin on the /seed endpoint", () => {
+    expect(seedBlock).toContain("verifyInternalAdmin");
   });
 
   it("should have rate limiting on the /seed endpoint", () => {
