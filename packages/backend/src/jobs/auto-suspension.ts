@@ -177,6 +177,7 @@ async function enforceDebtLimit(): Promise<void> {
       and(
         eq(schema.tenants.isActive, true),
         isNull(schema.tenants.suspendedAt),
+        eq(schema.tenantBillingPolicy.acquisitionModeEnabled, true),
       ),
     );
 
