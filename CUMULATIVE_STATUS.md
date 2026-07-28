@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-28 (post Backlog Batch 2) | Branch: `fix/backlog-batch2`
-> Tests: 453/453 passing (387 baseline + 23 Batch 1 + 43 Batch 2) | Production: deployed through Batch 1 (4 deploys)
+> Updated: 2026-07-28 (post Backlog Batch 2) | Main: `f53231c`
+> Tests: 453/453 passing (387 baseline + 23 Batch 1 + 43 Batch 2) | Production: deployed and verified (5 deploys)
 
 ---
 
@@ -201,7 +201,7 @@ Merged to main: `461bada` | Tagged: `batch1-complete-2026-07-28` | Deployed to p
 | 2 | P2-1-F5 | Sanitize error messages in trustline catch blocks | ede27e1 |
 
 Test count: 410 → 453 (+43 new tests)
-Branch: `fix/backlog-batch2` — not yet merged
+Merged to main: `f53231c` | Tagged: `batch2-complete-2026-07-28` | Deployed to production
 
 ---
 
@@ -245,6 +245,6 @@ Full list in `TODO_LOW_PRIORITY.md` and `PHASE5_BACKLOG.md`.
 
 - **Git commits:** 100 commits since audit start (63 fix commits)
 - **Test progression:** 218 → 453 tests (+235 new tests, including Batches 1-2)
-- **Production:** deployed and verified 4 times (Phase 5, 6A, 6B, Batch 1) — zero downtime
-- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`, `batch1-complete-2026-07-28`
-- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `461bada` (Batch 2 on branch, not yet merged)
+- **Production:** deployed and verified 5 times (Phase 5, 6A, 6B, Batch 1, Batch 2) — zero downtime
+- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`, `batch1-complete-2026-07-28`, `batch2-complete-2026-07-28`
+- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `f53231c`
