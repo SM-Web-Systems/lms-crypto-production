@@ -165,7 +165,7 @@ export async function resolveTenantApiKey(
       db.update(schema.tenantApiKeys)
         .set({ lastUsedAt: now })
         .where(eq(schema.tenantApiKeys.id, row.id))
-        .catch(() => {});
+        .catch((err: any) => console.warn("[tenant-api-key] lastUsedAt update failed:", err.message));
 
       return {
         source: "db",

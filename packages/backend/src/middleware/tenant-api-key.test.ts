@@ -571,3 +571,17 @@ describe("attachTenantApiKey — rate limit enforcement", () => {
     expect(rep.status).not.toHaveBeenCalled();
   });
 });
+
+// ── Observability (P1-1-F4) ───────────────────────────────────────────────────
+
+describe("tenant-api-key — observability (P1-1-F4)", () => {
+  it("lastUsedAt catch should include a warning log, not be silently swallowed", async () => {
+    const { readFileSync } = await import("fs");
+    const { join } = await import("path");
+    const src = readFileSync(join(__dirname, "tenant-api-key.ts"), "utf-8");
+    // The .catch() block should not be empty
+    expect(src).not.toMatch(/\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/);
+    // It should contain console.warn
+    expect(src).toMatch(/\.catch\(.*console\.warn/s);
+  });
+});
