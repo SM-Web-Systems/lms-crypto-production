@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { StrKey } from "@stellar/stellar-sdk";
 import { stellarClient } from "../lib/stellar-client";
 import { TokenService } from "../modules/tokens/token.service";
 import { authMiddleware } from "../middleware/auth";
@@ -7,6 +8,14 @@ import { db, schema } from "../db";
 import { eq, and } from "drizzle-orm";
 
 const tokenService = new TokenService();
+
+function validateStellarPublicKey(key: string): boolean {
+  return StrKey.isValidEd25519PublicKey(key);
+}
+
+function validateAssetCode(code: string): boolean {
+  return /^[a-zA-Z0-9]{1,12}$/.test(code);
+}
 
 export async function trustlineRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────
@@ -55,6 +64,10 @@ export async function trustlineRoutes(app: FastifyInstance) {
       },
     }, async (request, reply) => {
     const { publicKey } = request.params as { publicKey: string };
+
+    if (!validateStellarPublicKey(publicKey)) {
+      return reply.status(400).send({ error: "Invalid Stellar public key format" });
+    }
 
     try {
       const account = await stellarClient.horizon.loadAccount(publicKey);
@@ -143,6 +156,16 @@ export async function trustlineRoutes(app: FastifyInstance) {
         code: string;
         issuer: string;
       };
+
+      if (!validateStellarPublicKey(publicKey)) {
+        return reply.status(400).send({ error: "Invalid Stellar public key format" });
+      }
+      if (!validateAssetCode(code)) {
+        return reply.status(400).send({ error: "Invalid asset code format (must be 1-12 alphanumeric characters)" });
+      }
+      if (!validateStellarPublicKey(issuer)) {
+        return reply.status(400).send({ error: "Invalid asset issuer public key format" });
+      }
 
       try {
         const account = await stellarClient.horizon.loadAccount(publicKey);
@@ -254,6 +277,15 @@ export async function trustlineRoutes(app: FastifyInstance) {
         .status(400)
         .send({ error: "publicKey, assetCode, and assetIssuer are required" });
     }
+    if (!validateStellarPublicKey(publicKey)) {
+      return reply.status(400).send({ error: "Invalid Stellar public key format" });
+    }
+    if (!validateAssetCode(assetCode)) {
+      return reply.status(400).send({ error: "Invalid asset code format (must be 1-12 alphanumeric characters)" });
+    }
+    if (!validateStellarPublicKey(assetIssuer)) {
+      return reply.status(400).send({ error: "Invalid asset issuer public key format" });
+    }
 
     // Verify wallet ownership
     const userId = request.user!.userId;
@@ -350,6 +382,15 @@ export async function trustlineRoutes(app: FastifyInstance) {
         .status(400)
         .send({ error: "publicKey, assetCode, and assetIssuer are required" });
     }
+    if (!validateStellarPublicKey(publicKey)) {
+      return reply.status(400).send({ error: "Invalid Stellar public key format" });
+    }
+    if (!validateAssetCode(assetCode)) {
+      return reply.status(400).send({ error: "Invalid asset code format (must be 1-12 alphanumeric characters)" });
+    }
+    if (!validateStellarPublicKey(assetIssuer)) {
+      return reply.status(400).send({ error: "Invalid asset issuer public key format" });
+    }
 
     // Verify wallet ownership
     const userId = request.user!.userId;
@@ -445,6 +486,15 @@ export async function trustlineRoutes(app: FastifyInstance) {
 
     if (!publicKey || !assetCode || !assetIssuer || !newLimit) {
       return reply.status(400).send({ error: "All fields are required" });
+    }
+    if (!validateStellarPublicKey(publicKey)) {
+      return reply.status(400).send({ error: "Invalid Stellar public key format" });
+    }
+    if (!validateAssetCode(assetCode)) {
+      return reply.status(400).send({ error: "Invalid asset code format (must be 1-12 alphanumeric characters)" });
+    }
+    if (!validateStellarPublicKey(assetIssuer)) {
+      return reply.status(400).send({ error: "Invalid asset issuer public key format" });
     }
 
     // Verify wallet ownership

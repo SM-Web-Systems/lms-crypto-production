@@ -44,6 +44,9 @@ vi.mock("@stellar/stellar-sdk", () => {
       changeTrust: vi.fn().mockReturnValue({}),
     },
     BASE_FEE: "100",
+    StrKey: {
+      isValidEd25519PublicKey: vi.fn().mockReturnValue(true),
+    },
   };
 });
 
