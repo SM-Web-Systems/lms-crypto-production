@@ -21,6 +21,11 @@ export class SwapService {
     amount: string,
     direction: "send" | "receive" = "send"
   ): Promise<SwapQuote[]> {
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0) {
+      throw new Error("amount must be a positive number");
+    }
+
     const sourceAsset = fromIssuer
       ? new StellarSdk.Asset(fromCode, fromIssuer)
       : StellarSdk.Asset.native();
