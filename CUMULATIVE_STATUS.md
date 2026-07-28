@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-28 (post Backlog Batch 1) | Branch: `fix/backlog-batch1` from `bd21cc3`
-> Tests: 410/410 passing (387 baseline + 23 new) | Production: not yet deployed
+> Updated: 2026-07-28 (post Backlog Batch 1) | Main: `461bada`
+> Tests: 410/410 passing (387 baseline + 23 new) | Production: deployed and verified (4 deploys)
 
 ---
 
@@ -33,14 +33,14 @@ All exploitable vulnerabilities have been addressed. The 166 deferred items are 
 - All **28 of 94 MEDIUM** findings with security impact: **FIXED** — rate limits, input validation, startup guards, audit logging, wallet ownership, localStorage secret stripping
 - **10 LOW** findings fixed as quick wins — rate limits, input validation, comment accuracy
 
-**What remains (175 deferred) is:**
+**What remains (166 deferred) is:**
 - Code quality improvements (naming, typing, dead code)
 - Feature enhancements (memo support, slippage control, dynamic fees)
 - Test coverage gaps (no active vulnerabilities, reduced confidence)
 - Architectural improvements (AbortController, concurrent refresh mutex)
 - Database schema refinements (indexes, FK constraints, type alignment)
 
-None of the 175 deferred items represent exploitable security vulnerabilities in the current deployment.
+None of the 166 deferred items represent exploitable security vulnerabilities in the current deployment.
 
 ---
 
@@ -173,7 +173,7 @@ Both Phase 6B findings resolved:
 | 9 | P3-6-F5 | DELETE 404 for nonexistent contact | d24e1a6 |
 
 Test count: 387 → 410 (+23 new tests)
-Branch: `fix/backlog-batch1` (not yet merged to main)
+Merged to main: `461bada` | Tagged: `batch1-complete-2026-07-28` | Deployed to production
 
 **Note:** Fix 4 was planned as P4-7-F2 (MemoryCache in cache.ts) but actually addresses P1-1-F5 (rateLimitWindows in tenant-api-key.ts). P4-7-F2 remains unfixed.
 
@@ -218,6 +218,6 @@ Full list in `TODO_LOW_PRIORITY.md` and `PHASE5_BACKLOG.md`.
 
 - **Git commits:** 90 commits since audit start (53 fix commits)
 - **Test progression:** 218 → 410 tests (+192 new tests, including Batch 1)
-- **Production:** deployed and verified 3 times (Phase 5, 6A, 6B) — zero downtime
-- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`
-- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `bd21cc3`
+- **Production:** deployed and verified 4 times (Phase 5, 6A, 6B, Batch 1) — zero downtime
+- **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`, `batch1-complete-2026-07-28`
+- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `461bada`
