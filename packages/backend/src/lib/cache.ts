@@ -11,6 +11,7 @@ interface CacheEntry<T> {
 
 class MemoryCache {
   private store = new Map<string, CacheEntry<unknown>>();
+  private maxSize: number = 500;
   private cleanupInterval: ReturnType<typeof setInterval>;
 
   constructor() {
@@ -33,6 +34,26 @@ class MemoryCache {
       value,
       expiresAt: Date.now() + ttlSeconds * 1000,
     });
+
+    if (this.store.size > this.maxSize) {
+      // First pass: evict expired entries
+      const now = Date.now();
+      for (const [k, entry] of this.store) {
+        if (now > entry.expiresAt) {
+          this.store.delete(k);
+        }
+      }
+      // Second pass: if still over limit, evict oldest by insertion order
+      if (this.store.size > this.maxSize) {
+        const excess = this.store.size - this.maxSize;
+        let removed = 0;
+        for (const k of this.store.keys()) {
+          if (removed >= excess) break;
+          this.store.delete(k);
+          removed++;
+        }
+      }
+    }
   }
 
   async del(key: string): Promise<void> {
