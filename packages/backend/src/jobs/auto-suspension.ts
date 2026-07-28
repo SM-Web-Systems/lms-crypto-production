@@ -22,6 +22,9 @@ import { db, schema } from "../db";
 import { eq, and, isNull, isNotNull, inArray } from "drizzle-orm";
 import { sendEmail } from "../lib/mailer";
 
+/** Concurrency guard — prevents overlapping runs when cron fires while a previous run is still in progress. */
+let isRunning = false;
+
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /** Soft-suspend a tenant: set suspended_at + suspension_reason; keep is_active=true. */
@@ -319,8 +322,13 @@ async function recoverDebtLimit(): Promise<void> {
  * Run all auto-suspension passes. Safe to call as often as needed — idempotent.
  */
 export async function checkAndRunAutoSuspension(): Promise<void> {
-  console.log("[auto-suspension] Running auto-suspension checks...");
+  if (isRunning) {
+    console.log("[auto-suspension] Already running — skipping overlapping invocation.");
+    return;
+  }
+  isRunning = true;
   try {
+    console.log("[auto-suspension] Running auto-suspension checks...");
     await enforceDebtLimit();
     await enforceMaintGrace();
     await recoverMaintenanceGrace();
@@ -329,5 +337,7 @@ export async function checkAndRunAutoSuspension(): Promise<void> {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[auto-suspension] Unexpected error: ${msg}`);
+  } finally {
+    isRunning = false;
   }
 }
