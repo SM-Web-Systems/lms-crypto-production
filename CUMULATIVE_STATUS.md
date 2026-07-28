@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-28 (post Backlog Batch 1) | Main: `461bada`
-> Tests: 410/410 passing (387 baseline + 23 new) | Production: deployed and verified (4 deploys)
+> Updated: 2026-07-28 (post Backlog Batch 2) | Branch: `fix/backlog-batch2`
+> Tests: 453/453 passing (387 baseline + 23 Batch 1 + 43 Batch 2) | Production: deployed through Batch 1 (4 deploys)
 
 ---
 
@@ -11,16 +11,16 @@
 
 | Category | Count | % |
 |----------|------:|--:|
-| **Resolved** (code fix applied, verified) | 86 | 27.0% |
+| **Resolved** (code fix applied, verified) | 96 | 30.1% |
 | **INFO / No Action** (confirmations, correct behavior) | 67 | 21.0% |
-| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 166 | 52.0% |
+| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 156 | 48.9% |
 | **Total** | **319** | **100%** |
 
 **All 14 CRITICAL findings are resolved.** Zero CRITICAL items remain.
 **All exploitable HIGH findings are resolved.** Zero exploitable vulnerabilities remain.
 
-**Resolution rate:** 48.0% resolved or confirmed no-action (153 of 319).
-All exploitable vulnerabilities have been addressed. The 166 deferred items are non-exploitable code quality and feature improvements.
+**Resolution rate:** 51.1% resolved or confirmed no-action (163 of 319).
+All exploitable vulnerabilities have been addressed. The 156 deferred items are non-exploitable code quality and feature improvements.
 
 ---
 
@@ -32,15 +32,16 @@ All exploitable vulnerabilities have been addressed. The 166 deferred items are 
 - All **23 of 43 HIGH** findings with direct exploit paths: **FIXED** — PIN bypass, SSO callback hijack, timing attacks, double fees, wrong audit signatures, audit log field names
 - All **28 of 94 MEDIUM** findings with security impact: **FIXED** — rate limits, input validation, startup guards, audit logging, wallet ownership, localStorage secret stripping
 - **10 LOW** findings fixed as quick wins — rate limits, input validation, comment accuracy
+- **10 more** fixed in Backlog Batches 1-2 — input validation, error sanitization, rate limits, audit logging, cache bounds, suspension guard
 
-**What remains (166 deferred) is:**
+**What remains (156 deferred) is:**
 - Code quality improvements (naming, typing, dead code)
 - Feature enhancements (memo support, slippage control, dynamic fees)
 - Test coverage gaps (no active vulnerabilities, reduced confidence)
 - Architectural improvements (AbortController, concurrent refresh mutex)
 - Database schema refinements (indexes, FK constraints, type alignment)
 
-None of the 166 deferred items represent exploitable security vulnerabilities in the current deployment.
+None of the 156 deferred items represent exploitable security vulnerabilities in the current deployment.
 
 ---
 
@@ -72,16 +73,19 @@ None of the 166 deferred items represent exploitable security vulnerabilities in
 **Deferred (19):** P3-2-F3/F4/F5, P3-4-F1/F2, P3-5-F3/F4/F5/F6, P3-7-F5, P3-8-F1, P3-9-F1, P3-10-F1, P4-7-F11, P4-9-F2/F3
 Most are in P3 (lower-priority modules: Earn, Fiat, MoneyGram, Push, Curated Tokens) and P4 (test coverage, Docker).
 
-### MEDIUM (94 total — 29 resolved, 65 deferred)
+### MEDIUM (94 total — 30 resolved, 64 deferred)
 
 **Phase 6A resolved (3):** P0-3-F5, P0-3-F9, P0-3-F10
 **Phase 6B resolved (1):** P2-4-F2 (production startup crash on empty secrets)
+**Batch 2 resolved (1):** P4-7-F2 (MemoryCache unbounded size)
 
-### LOW (101 total — 19 resolved, 82 deferred)
+### LOW (101 total — 28 resolved, 73 deferred)
 
 10 fixed as quick wins in the low-priority pass: rate limits (P0-1-F12, P0-1-F13, P0-2-F5), input validation (P0-3-F11, P0-3-F12, P0-3-F13), password alignment (P0-2-F8), debug logging (P0-4-F5), config warnings (P2-4-F3, P1-1-F1).
 
 9 fixed in Backlog Batch 1: P0-1-F16 (stale tokens), P0-3-F14 (PII logging), P1-1-F4 (silent catch), P1-2-F4 (billing validation), P2-2-F5 (ILIKE escape), P2-3-F2 (division by zero), P2-3-F4 (quote validation), P2-4-F4 (config warning), P3-6-F5 (DELETE 404).
+
+9 fixed in Backlog Batch 2: P2-7-F4 (userAgent audit), P1-3-F2 (unsuspend guard), P2-2-F2 (TOML URL validation), P2-2-F3 (icon max size), P3-6-F4 (contacts rate limit), P3-8-F3 (push rate limit), P3-9-F2 (curated seed auth+rate limit), P2-1-F4 (trustline validation), P2-1-F5 (error sanitization).
 
 ### INFO (67 total — 67 no-action required)
 
@@ -175,11 +179,33 @@ Both Phase 6B findings resolved:
 Test count: 387 → 410 (+23 new tests)
 Merged to main: `461bada` | Tagged: `batch1-complete-2026-07-28` | Deployed to production
 
-**Note:** Fix 4 was planned as P4-7-F2 (MemoryCache in cache.ts) but actually addresses P1-1-F5 (rateLimitWindows in tenant-api-key.ts). P4-7-F2 remains unfixed.
+**Note:** Fix 4 was planned as P4-7-F2 (MemoryCache in cache.ts) but actually addresses P1-1-F5 (rateLimitWindows in tenant-api-key.ts). P4-7-F2 fixed in Batch 2.
 
 ---
 
-## Deferred Findings (166 items)
+## Backlog Batch 2 (2026-07-28)
+
+9 deferred LOW findings fixed + 1 MEDIUM (P4-7-F2 MemoryCache unbounded size):
+
+| Fix | Finding | Description | Commit |
+|-----|---------|-------------|--------|
+| 10 | P2-7-F4 | Capture userAgent in all auditLog calls | 9bc68a8 |
+| 9 | P4-7-F2 | Bound MemoryCache size to 500 entries | afb682e |
+| 5 | P1-3-F2 | Add suspensionReason guard to unsuspend() | f8e8782 |
+| 3 | P2-2-F2 | Validate TOML image URL scheme (https only) | e5cc5e6 |
+| 4 | P2-2-F3 | Enforce 512KB max file size on icon downloads | 4f52196 |
+| 6 | P3-6-F4 | Rate limit contacts CRUD (30/min) | 8486967 |
+| 7 | P3-8-F3 | Rate limit /push/test (5/15min) | 9399368 |
+| 8 | P3-9-F2 | Auth + rate limit on /curated/seed (3/hour) | 70bb41d |
+| 1 | P2-1-F4 | Trustline input format validation (StrKey + regex) | b229a82 |
+| 2 | P2-1-F5 | Sanitize error messages in trustline catch blocks | ede27e1 |
+
+Test count: 410 → 453 (+43 new tests)
+Branch: `fix/backlog-batch2` — not yet merged
+
+---
+
+## Deferred Findings (156 items)
 
 These are not security vulnerabilities. They fall into these categories:
 
@@ -188,10 +214,10 @@ These are not security vulnerabilities. They fall into these categories:
 | Feature enhancements | ~25 | Memo support, slippage control, dynamic fees |
 | Code quality / naming | ~20 | CREDIT_ROLES rename, `as any` casts, comment fixes |
 | Test coverage gaps | ~30 | Zero-coverage modules (NFT, Earn, Fiat, Push) |
-| Input validation (non-exploitable) | ~25 | Asset code format, amount bounds, URL scheme checks |
-| Error handling improvements | ~20 | Generic error messages, silent catch blocks |
+| Input validation (non-exploitable) | ~20 | Amount bounds, account flags |
+| Error handling improvements | ~18 | Silent catch blocks, error typing |
 | Database schema refinements | ~15 | Missing indexes, FK constraints, type alignment |
-| Rate limiting (low-risk endpoints) | ~15 | Contacts CRUD, push test, curated seed |
+| Rate limiting (low-risk endpoints) | ~12 | Subscription limits, per-user caps |
 | Architectural improvements | ~15 | AbortController, concurrent refresh, auto-lock |
 | Frontend UX improvements | ~11 | Transaction preview, reserve-aware max, XLM identification |
 
@@ -211,13 +237,14 @@ Full list in `TODO_LOW_PRIORITY.md` and `PHASE5_BACKLOG.md`.
 | 2026-07-27 | Phase 6B complete (2 fixes), merge to main, deploy to production |
 | 2026-07-27 | **Audit complete** — all exploitable vulnerabilities resolved |
 | 2026-07-28 | Backlog Batch 1 (9 LOW fixes + 1 INFO improvement, 23 new tests) |
+| 2026-07-28 | Backlog Batch 2 (9 LOW fixes + 1 MEDIUM fix, 43 new tests) |
 
 ---
 
 ## Verification
 
-- **Git commits:** 90 commits since audit start (53 fix commits)
-- **Test progression:** 218 → 410 tests (+192 new tests, including Batch 1)
+- **Git commits:** 100 commits since audit start (63 fix commits)
+- **Test progression:** 218 → 453 tests (+235 new tests, including Batches 1-2)
 - **Production:** deployed and verified 4 times (Phase 5, 6A, 6B, Batch 1) — zero downtime
 - **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`, `batch1-complete-2026-07-28`
-- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `461bada`
+- **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `461bada` (Batch 2 on branch, not yet merged)

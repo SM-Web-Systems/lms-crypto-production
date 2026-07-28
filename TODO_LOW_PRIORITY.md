@@ -26,27 +26,27 @@
 | P1-1-F4 | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update — add console.warn | ✅ Batch 1 (98fe639) | |
 | P1-2-F3 | `billing.service.ts:446-456` | Maintenance idempotency catch doesn't distinguish constraint violation | |
 | P1-2-F4 | `billing.service.ts:343-418` | writeBillingCredit missing positive-amount validation | ✅ Batch 1 (61b4487) | |
-| P1-3-F2 | `auto-suspension.ts:45-51` | unsuspend() helper no defensive guard | |
+| P1-3-F2 | `auto-suspension.ts:45-51` | unsuspend() helper no defensive guard | ✅ Batch 2 (f8e8782) |
 | P1-3-F3 | `auto-suspension.ts:313-325` | No concurrency guard on overlapping runs | |
 | P1-4-F4 | `SsoLogin.tsx:44-47` | Raw callbackUrl rendered on parse failure — show "Unknown service" | |
-| P2-1-F4 | `trustlines.ts:210-389` | No format validation on publicKey/assetCode/assetIssuer | |
-| P2-1-F5 | `trustlines.ts:96+` | Raw error.message exposed in 500 responses | |
+| P2-1-F4 | `trustlines.ts:210-389` | No format validation on publicKey/assetCode/assetIssuer | ✅ Batch 2 (b229a82) |
+| P2-1-F5 | `trustlines.ts:96+` | Raw error.message exposed in 500 responses | ✅ Batch 2 (ede27e1) |
 | P2-1-F6 | `trustlines.ts:336-440` | No account flag check before building transactions | |
-| P2-2-F2 | `toml-sync.ts:63-68` | Stored TOML image URL not validated (scheme check) | |
-| P2-2-F3 | `icon-resolver.ts:102-116` | No max file size on icon downloads | |
+| P2-2-F2 | `toml-sync.ts:63-68` | Stored TOML image URL not validated (scheme check) | ✅ Batch 2 (e5cc5e6) |
+| P2-2-F3 | `icon-resolver.ts:102-116` | No max file size on icon downloads | ✅ Batch 2 (4f52196) |
 | P2-2-F5 | `token.service.ts:200-203` | ILIKE wildcards not escaped in search | ✅ Batch 1 (1133210) | |
 | P2-3-F2 | `swap.service.ts:260-274` | Division by zero in calcPriceImpact | ✅ Batch 1 (716de24) | |
 | P2-3-F4 | `swap.service.ts:18-23` | Quote amount not validated for negative/zero | ✅ Batch 1 (6a37b3d) | |
 | P2-5-F3 | `schema/index.ts:401` | auditLogs.userId is integer, should be bigint | |
 | P2-6-F1 | `email.ts:31-34` | sendPasswordResetEmail return type inconsistent | |
-| P2-7-F4 | all auditLog sites | userAgent never captured in any audit call | |
-| P3-6-F4 | `contacts.ts:9-138` | No rate limiting on contacts CRUD | |
+| P2-7-F4 | all auditLog sites | userAgent never captured in any audit call | ✅ Batch 2 (9bc68a8) |
+| P3-6-F4 | `contacts.ts:9-138` | No rate limiting on contacts CRUD | ✅ Batch 2 (8486967) |
 | P3-6-F5 | `contacts.ts:129-137` | DELETE returns 200 for nonexistent contact | ✅ Batch 1 (d24e1a6) | |
 | P3-7-F10 | `two-fa.ts:237-242` | TOTP window:2 generous — consider window:1 | |
 | P3-7-F11 | `two-fa.ts:141-146` | Old email codes not invalidated on new send | |
-| P3-8-F3 | `push.ts:127-183` | No rate limit on /push/test | |
+| P3-8-F3 | `push.ts:127-183` | No rate limit on /push/test | ✅ Batch 2 (9399368) |
 | P3-8-F4 | `push.ts:40-88` | No limit on subscriptions per user | |
-| P3-9-F2 | `curated-tokens.ts:72-138` | No rate limit on /seed | |
+| P3-9-F2 | `curated-tokens.ts:72-138` | No rate limit on /seed | ✅ Batch 2 (70bb41d) |
 | P3-10-F5 | `Send.tsx:128` | Floating-point fee arithmetic | |
 | P3-10-F6 | `Swap.tsx:78-83` | useMemo with side effect (setState) | |
 | P3-11-F2 | `Settings.tsx:48` | Revealed secret key no auto-hide timeout | |
