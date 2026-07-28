@@ -250,7 +250,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
         secret: decryptTotpSecret(user.twoFaSecret),
         encoding: "base32",
         token: token.replace(/\s/g, ""),
-        window: 2,
+        window: 1,
       });
     } else if (user?.twoFaMethod === "static") {
       const hashedInput = hashCode(token.replace(/\s/g, ""));
@@ -483,7 +483,7 @@ export async function twoFaRoutes(app: FastifyInstance) {
           secret: decryptTotpSecret(user.twoFaSecret!),
           encoding: "base32",
           token: cleanToken,
-          window: 2,
+          window: 1,
         });
       }
     } else if (user.twoFaMethod === "static") {
