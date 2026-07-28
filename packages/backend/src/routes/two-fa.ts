@@ -140,6 +140,15 @@ export async function twoFaRoutes(app: FastifyInstance) {
       const code = generateEmailCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+      // Invalidate any previous unused codes for this user+type
+      await db.update(schema.emailCodes)
+        .set({ used: true })
+        .where(and(
+          eq(schema.emailCodes.userId, userId),
+          eq(schema.emailCodes.type, "2fa-setup"),
+          eq(schema.emailCodes.used, false),
+        ));
+
       await db.insert(schema.emailCodes).values({
         userId,
         code,
@@ -337,6 +346,15 @@ export async function twoFaRoutes(app: FastifyInstance) {
     const code = generateEmailCode();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+    // Invalidate any previous unused codes for this user+type
+    await db.update(schema.emailCodes)
+      .set({ used: true })
+      .where(and(
+        eq(schema.emailCodes.userId, user.id),
+        eq(schema.emailCodes.type, "login"),
+        eq(schema.emailCodes.used, false),
+      ));
+
     await db.insert(schema.emailCodes).values({
       userId: user.id,
       code,
@@ -383,6 +401,15 @@ export async function twoFaRoutes(app: FastifyInstance) {
 
     const code = generateEmailCode();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Invalidate any previous unused codes for this user+type
+    await db.update(schema.emailCodes)
+      .set({ used: true })
+      .where(and(
+        eq(schema.emailCodes.userId, userId),
+        eq(schema.emailCodes.type, "login"),
+        eq(schema.emailCodes.used, false),
+      ));
 
     await db.insert(schema.emailCodes).values({
       userId,
