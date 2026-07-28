@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "../db";
 import { addressBook } from "../db/schema";
 import { eq, and } from "drizzle-orm";
@@ -57,12 +58,17 @@ export async function addressBookRoutes(app: FastifyInstance) {
       },
       response: {
         201: { type: "object", properties: { id: { type: "number" }, name: { type: "string" }, address: { type: "string" } } },
+        400: { type: "object", properties: { error: { type: "string" } } },
         409: { type: "object", properties: { error: { type: "string" } } },
       },
     },
   }, async (request, reply) => {
     const userId = request.user!.userId;
     const { name, address, memo, memoType, notes } = request.body as any;
+
+    if (!StrKey.isValidEd25519PublicKey(address)) {
+      return reply.status(400).send({ error: "Invalid Stellar address" });
+    }
 
     const existing = await db.select().from(addressBook)
       .where(and(eq(addressBook.userId, userId), eq(addressBook.address, address)))
