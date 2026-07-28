@@ -1231,7 +1231,6 @@ async function bootstrap() {
     },
     async (request, reply) => {
       const userId = request.user!.userId;
-      console.log("[sign-and-submit] userId:", userId);
       const {
         xdr,
         pin,
@@ -1369,7 +1368,6 @@ async function bootstrap() {
     },
     async (request, reply) => {
       const userId = request.user!.userId;
-      console.log("[sign-and-submit] userId:", userId);
       const {
         xdr,
         pin,
@@ -1406,12 +1404,6 @@ async function bootstrap() {
           )
           .limit(1);
 
-        console.log(
-          "[sign-and-submit] wallet:",
-          wallet?.publicKey,
-          "hasSecret:",
-          !!wallet?.encryptedSecret,
-        );
         if (!wallet || !wallet.encryptedSecret) {
           return reply
             .status(400)
