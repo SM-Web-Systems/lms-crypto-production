@@ -171,11 +171,12 @@
 - **Description:** Returns "Email already registered" or "Phone number already registered" allowing account enumeration.
 - **Recommendation:** Accept as UX trade-off, or return generic error with notification to existing user.
 
-### P0-1-F16: Email verification tokens not invalidated on re-send
+### P0-1-F16: Email verification tokens not invalidated on re-send — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/routes/auth.ts:174-188`
 - **Description:** New verification tokens are created without invalidating previous ones. Multiple valid tokens accumulate.
 - **Recommendation:** Delete or mark-as-used existing tokens before inserting new ones.
+- **Resolution:** DELETE old tokens before INSERT in resend-verification handler. **FIXED — 13c9d41 (Batch 1)**
 
 ### P0-1-F17: Console.log grep — no secrets leaked
 - **Severity:** INFO
@@ -396,11 +397,12 @@
 - **Description:** Non-numeric `id` values produce `NaN` from `parseInt`, causing unhelpful 404s instead of 400.
 - **Recommendation:** Add `pattern: "^\\d+$"` to params schema.
 
-### P0-3-F14: Console.log in sign-and-submit leaks operational context
+### P0-3-F14: Console.log in sign-and-submit leaks operational context — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/server.ts:1355,1394-1398`
 - **Description:** Logs `userId` and `wallet.publicKey` to stdout on every request, creating user-to-address correlation log. No secret values logged.
 - **Recommendation:** Use structured logging at `debug` level.
+- **Resolution:** Removed 3 PII console.log statements from sign-and-submit handlers. **FIXED — 7be3ae9 (Batch 1)**
 
 ### P0-3-F15: Console.log grep — no secret values leaked
 - **Severity:** INFO
@@ -660,11 +662,12 @@
 - **Description:** Test "starts a fresh window after 60 seconds" creates a new keyId with no prior window, trivially passing. Does not actually test time-based expiry.
 - **Recommendation:** Use `vi.useFakeTimers()` to advance `Date.now()` by 60,001ms.
 
-### P1-1-F4: Silent `.catch(() => {})` on lastUsedAt update
+### P1-1-F4: Silent `.catch(() => {})` on lastUsedAt update — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/middleware/tenant-api-key.ts:143-147`
 - **Description:** Fire-and-forget `lastUsedAt` update swallows errors silently. Persistent DB write failures go unnoticed.
 - **Recommendation:** Add `console.warn` inside the catch.
+- **Resolution:** Replaced silent catch with `console.warn` logging `err.message`. **FIXED — 98fe639 (Batch 1)**
 
 ### P1-1-F5: Rate limit Map grows unboundedly
 - **Severity:** INFO
@@ -718,11 +721,12 @@
 - **Description:** Idempotency read runs before the transaction. Concurrent runs could both enter the transaction; the unique index `uq_maintenance_snapshot` correctly prevents double-charge, but the constraint violation is logged as `FAILED` — creating false alarms in monitoring.
 - **Recommendation:** Catch unique constraint violation specifically and return `null` (already-processed).
 
-### P1-2-F4: writeBillingCredit does not validate amountXlm is positive
+### P1-2-F4: writeBillingCredit does not validate amountXlm is positive — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/services/billing.service.ts:343-418`
 - **Description:** No input validation on `amountXlm`. A negative value would decrement the balance. The DB constraint `chk_billing_amount_nonzero` only prevents zero. Current callers validate externally, but the function boundary is unguarded.
 - **Recommendation:** Add `if (parseFloat(amountXlm) <= 0) throw new Error(...)` at top of function.
+- **Resolution:** Added `toStroops()` + `<= 0n` guard at function entry. **FIXED — 61b4487 (Batch 1)**
 
 ### P1-2-F5: Transaction object typed as `any`
 - **Severity:** INFO
@@ -893,10 +897,10 @@
 | P1-4-F3 | MEDIUM | `sso.ts:64-71` | Empty whitelist = fail-open (any callback URL accepted) — **FIXED f8ef771** |
 | P1-4-F6 | MEDIUM | N/A | Zero test coverage for SSO routes |
 | P1-1-F1 | LOW | `tenant-api-key.ts:67-90` | Fixed window mislabeled as sliding window | **FIXED** (a9da015) |
-| P1-1-F4 | LOW | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update |
+| P1-1-F4 | LOW | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update | **FIXED — 98fe639 (Batch 1)** |
 | P1-1-F7 | LOW | `tenant-api-key.ts:250` | Env-var keys bypass scope + per-key rate limiting |
 | P1-2-F3 | LOW | `billing.service.ts:446-456` | Maintenance idempotency error logging |
-| P1-2-F4 | LOW | `billing.service.ts:343-418` | writeBillingCredit missing positive-amount validation |
+| P1-2-F4 | LOW | `billing.service.ts:343-418` | writeBillingCredit missing positive-amount validation | **FIXED — 61b4487 (Batch 1)** |
 | P1-3-F2 | LOW | `auto-suspension.ts:45-51` | unsuspend() helper no defensive guard |
 | P1-3-F3 | LOW | `auto-suspension.ts:313-325` | No concurrency guard, duplicate emails possible |
 | P1-3-F7 | LOW | `auto-suspension.test.ts` | No cross-pass interaction test |
@@ -904,7 +908,7 @@
 | P1-4-F5 | LOW | `sso.ts:24-26` | JTI replay window from periodic clear |
 | P1-4-F7 | LOW | `tenant-api-key.ts:250` | Env keys bypass SSO scope |
 | P1-1-F3 | INFO | `tenant-api-key.test.ts:357` | Window expiry test is no-op |
-| P1-1-F5 | INFO | `tenant-api-key.ts:60` | Rate limit Map unbounded growth |
+| P1-1-F5 | INFO | `tenant-api-key.ts:60` | Rate limit Map unbounded growth | **IMPROVED — 83ce3d4 (Batch 1, eviction at 100 entries)** |
 | P1-2-F5 | INFO | `billing.service.ts:277,345` | Transaction typed as `any` |
 | P1-2-F6 | INFO | `billing.service.ts:665-721` | Pagination cursor verified correct |
 | P1-2-F7 | INFO | `billing.service.ts:211,220,252` | Boundary conditions verified correct |
@@ -1010,11 +1014,12 @@
 - **Description:** Unlike `enrichFromStellarExpert()` which properly persists its cursor, `discoverFromHorizon()` never reads or writes a cursor. Every run re-fetches the same 200 most recent assets.
 - **Recommendation:** Add cursor persistence via `getSyncCursor`/`setSyncCursor`.
 
-### P2-2-F5: ILIKE search query not escaped
+### P2-2-F5: ILIKE search query not escaped — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/modules/tokens/token.service.ts:200-203`
 - **Description:** `%` and `_` characters in user search query are not escaped before ILIKE interpolation. Drizzle prevents SQL injection, but wildcard characters affect search semantics.
 - **Recommendation:** Escape `%` and `_` in query before interpolation.
+- **Resolution:** Added `escapeIlike()` helper + `query.slice(0, 100)` cap. **FIXED — 1133210 (Batch 1)**
 
 ### P2-2-F6: SearchParams interface missing `network` property
 - **Severity:** INFO
@@ -1042,11 +1047,12 @@
 - **Description:** Variable names `availableSource` and price multiplication logic work correctly for the current call pattern (`orderbook(source, dest)`) but would silently break if the orderbook call order changed.
 - **Recommendation:** Add comment documenting assumed orderbook orientation.
 
-### P2-3-F2: Division by zero in calcPriceImpact
+### P2-3-F2: Division by zero in calcPriceImpact — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/modules/swap/swap.service.ts:260-274`
 - **Description:** `parseFloat(amount)` could be 0 or NaN, causing division by zero. `spotPrice` could also be 0. `.toFixed(2)` on `Infinity`/`NaN` returns string representations.
 - **Recommendation:** Add zero-value guards for both `amount` and `spotPrice`.
+- **Resolution:** Added early-return guards for zero/negative/NaN amount and spotPrice. **FIXED — 716de24 (Batch 1)**
 
 ### P2-3-F3: Hardcoded BASE_FEE may cause transaction failures
 - **Severity:** LOW
@@ -1054,11 +1060,12 @@
 - **Description:** Uses `StellarSdk.BASE_FEE` (100 stroops, protocol minimum). During network congestion, transactions will be deprioritized and may fail.
 - **Recommendation:** Use `feeStats()` for dynamic fee estimation.
 
-### P2-3-F4: Quote amount not validated for negative or zero
+### P2-3-F4: Quote amount not validated for negative or zero — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/modules/swap/swap.service.ts:18-23`
 - **Description:** `amount` parameter is a raw string with no validation. Negative or zero amounts produce nonsensical quotes.
 - **Recommendation:** Add `if (parseFloat(amount) <= 0) throw new Error(...)`.
+- **Resolution:** Added guard at `getBestQuote` entry throwing for invalid amounts. **FIXED — 6a37b3d (Batch 1)**
 
 ### P2-3 Summary
 - **Total findings: 4**
@@ -1093,10 +1100,11 @@
 - **Description:** If accidentally unset in production, silently falls back to testnet. Safe-fail direction but could cause silent outage.
 - **Recommendation:** Add startup warning when `NODE_ENV === "production"` and network not set.
 
-### P2-4-F4: TURNSTILE_SECRET_KEY defaults to empty string
+### P2-4-F4: TURNSTILE_SECRET_KEY defaults to empty string — FIXED
 - **Severity:** LOW
 - **File:** `packages/backend/src/config/index.ts:34`
 - **Description:** Turnstile verification with empty key fails at Cloudflare (fail-closed). Startup warning would prevent deployment confusion.
+- **Resolution:** Added `console.warn` for empty TURNSTILE_SECRET_KEY in production. **FIXED — e019a93 (Batch 1)**
 
 ### P2-4-F5: Two statements on one line (code style)
 - **Severity:** INFO
@@ -1263,13 +1271,13 @@
 | P2-2-F2 | LOW | `toml-sync.ts:63-68` | Stored TOML image URL not validated |
 | P2-2-F3 | LOW | `icon-resolver.ts:102-116` | No max file size on icon downloads |
 | P2-2-F4 | LOW | `token.service.ts:58` | Horizon cursor not persisted — re-fetches page 1 each run |
-| P2-2-F5 | LOW | `token.service.ts:200-203` | ILIKE search query not escaped |
+| P2-2-F5 | LOW | `token.service.ts:200-203` | ILIKE search query not escaped | **FIXED — 1133210 (Batch 1)** |
 | P2-3-F1 | LOW | `swap.service.ts:109-118` | Orderbook walk variable naming misleading |
-| P2-3-F2 | LOW | `swap.service.ts:260-274` | Division by zero in calcPriceImpact |
+| P2-3-F2 | LOW | `swap.service.ts:260-274` | Division by zero in calcPriceImpact | **FIXED — 716de24 (Batch 1)** |
 | P2-3-F3 | LOW | `swap.service.ts:220,238` | Hardcoded BASE_FEE may cause tx failures |
-| P2-3-F4 | LOW | `swap.service.ts:18-23` | Quote amount not validated for negative/zero |
+| P2-3-F4 | LOW | `swap.service.ts:18-23` | Quote amount not validated for negative/zero | **FIXED — 6a37b3d (Batch 1)** |
 | P2-4-F3 | LOW | `config/index.ts:21` | STELLAR_NETWORK defaults to testnet silently | **FIXED** (a9da015) |
-| P2-4-F4 | LOW | `config/index.ts:34` | TURNSTILE_SECRET_KEY defaults empty |
+| P2-4-F4 | LOW | `config/index.ts:34` | TURNSTILE_SECRET_KEY defaults empty | **FIXED — e019a93 (Batch 1)** |
 | P2-5-F2 | LOW | `schema/index.ts` (various) | 30 FK columns missing indexes |
 | P2-5-F3 | LOW | `schema/index.ts:401` | auditLogs.userId is integer, should be bigint |
 | P2-5-F4 | LOW | `schema/index.ts:87,102,436,401` | 5 FKs use implicit NO ACTION |
@@ -1402,7 +1410,7 @@
 | P3-6-F2 | MEDIUM | `contacts.ts:50` | No Stellar address format validation beyond 56-char length. Any 56-char garbage string accepted. |
 | P3-6-F3 | MEDIUM | `contacts.ts:104` | PATCH uses spread `...updates` without `additionalProperties: false`. Caller could inject `userId` or other columns into update payload. |
 | P3-6-F4 | LOW | `contacts.ts:9-138` | No route-level rate limiting on any contacts CRUD operation. |
-| P3-6-F5 | LOW | `contacts.ts:129-137` | DELETE returns 200 even when contact doesn't exist (no rowCount check). |
+| P3-6-F5 | LOW | `contacts.ts:129-137` | DELETE returns 200 even when contact doesn't exist (no rowCount check). | **FIXED — d24e1a6 (Batch 1)** |
 | P3-6-F6 | LOW | `schema/index.ts:295` | addressBook.userId has no FK constraint to users.id. Orphaned rows on user deletion. (Cross-ref P2-5-F5) |
 | P3-6-F7 | INFO | `contacts.ts:34` | Unsafe `as any` cast — should use typed `request.user!.userId` for TypeScript safety. |
 

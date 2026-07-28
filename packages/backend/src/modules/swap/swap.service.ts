@@ -21,6 +21,11 @@ export class SwapService {
     amount: string,
     direction: "send" | "receive" = "send"
   ): Promise<SwapQuote[]> {
+    const parsed = parseFloat(amount);
+    if (isNaN(parsed) || parsed <= 0) {
+      throw new Error("amount must be a positive number");
+    }
+
     const sourceAsset = fromIssuer
       ? new StellarSdk.Asset(fromCode, fromIssuer)
       : StellarSdk.Asset.native();
@@ -259,8 +264,11 @@ export class SwapService {
 
   private calcPriceImpact(asks: any[], amount: string): string {
     if (asks.length === 0) return "0";
+    const parsedAmount = parseFloat(amount);
+    if (parsedAmount <= 0 || isNaN(parsedAmount)) return "0";
     const spotPrice = parseFloat(asks[0].price);
-    let remaining = parseFloat(amount);
+    if (spotPrice <= 0 || isNaN(spotPrice)) return "0";
+    let remaining = parsedAmount;
     let totalCost = 0;
 
     for (const ask of asks) {
@@ -270,7 +278,7 @@ export class SwapService {
       if (remaining <= 0) break;
     }
 
-    const avgPrice = totalCost / parseFloat(amount);
+    const avgPrice = totalCost / parsedAmount;
     return (((avgPrice - spotPrice) / spotPrice) * 100).toFixed(2);
   }
 }

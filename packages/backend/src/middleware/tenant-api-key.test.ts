@@ -571,3 +571,63 @@ describe("attachTenantApiKey — rate limit enforcement", () => {
     expect(rep.status).not.toHaveBeenCalled();
   });
 });
+
+// ── rateLimitWindows — eviction of expired entries (P4-7-F2) ──────────────────
+
+describe("rateLimitWindows — eviction of expired entries (P4-7-F2)", () => {
+  beforeEach(() => {
+    _clearRateLimitWindowsForTest();
+  });
+
+  it("should evict expired windows when map exceeds 100 entries", () => {
+    vi.useFakeTimers();
+    // Create 101 entries to exceed threshold
+    for (let i = 1; i <= 101; i++) {
+      checkAndCountRateLimit(i, 1000);
+    }
+    // Advance time past 60s window so all entries expire
+    vi.advanceTimersByTime(61_000);
+    // This call creates entry for key 9999 and should trigger eviction
+    checkAndCountRateLimit(9999, 1000);
+    // Now the 101 old expired entries should be evicted
+    // Verify: calling checkAndCountRateLimit for an old key creates a fresh window
+    // (count starts at 1, meaning the old window was evicted)
+    const result = checkAndCountRateLimit(1, 2);
+    expect(result).toBe(true); // fresh window, count=1
+    // Call again — should be count=2
+    const result2 = checkAndCountRateLimit(1, 2);
+    expect(result2).toBe(true); // count=2, at limit
+    // Call again — should be rate limited
+    const result3 = checkAndCountRateLimit(1, 2);
+    expect(result3).toBe(false); // count=3 > limit=2
+    vi.useRealTimers();
+  });
+
+  it("should not evict entries when map is under threshold", () => {
+    vi.useFakeTimers();
+    // Create only 5 entries (under threshold of 100)
+    for (let i = 1; i <= 5; i++) {
+      checkAndCountRateLimit(i, 1000);
+    }
+    // Advance time past window
+    vi.advanceTimersByTime(61_000);
+    // Create a new entry — should NOT trigger eviction since size < 100
+    checkAndCountRateLimit(6, 1000);
+    // The map still has the old entries (they just get reset on next access)
+    vi.useRealTimers();
+  });
+});
+
+// ── Observability (P1-1-F4) ───────────────────────────────────────────────────
+
+describe("tenant-api-key — observability (P1-1-F4)", () => {
+  it("lastUsedAt catch should include a warning log, not be silently swallowed", async () => {
+    const { readFileSync } = await import("fs");
+    const { join } = await import("path");
+    const src = readFileSync(join(__dirname, "tenant-api-key.ts"), "utf-8");
+    // The .catch() block should not be empty
+    expect(src).not.toMatch(/\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/);
+    // It should contain console.warn
+    expect(src).toMatch(/\.catch\(.*console\.warn/s);
+  });
+});

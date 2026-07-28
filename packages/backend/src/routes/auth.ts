@@ -1175,6 +1175,10 @@ export async function authRoutes(app: FastifyInstance) {
       try {
         const verifyToken = randomBytes(32).toString("hex");
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        // Invalidate any existing verification tokens for this user (P0-1-F16)
+        await db.execute(
+          sql`DELETE FROM email_verification_tokens WHERE user_id = ${userId}`,
+        );
         await db.execute(
           sql`INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (${userId}, ${verifyToken}, ${expiresAt})`,
         );

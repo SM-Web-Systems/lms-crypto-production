@@ -79,3 +79,30 @@ describe("Contacts routes — userId extraction", () => {
     }
   });
 });
+
+describe("Contacts — DELETE nonexistent returns 404 (P3-6-F5)", () => {
+  it("DELETE /api/v1/contacts/:id returns 404 when contact does not exist", async () => {
+    // Patch the mock so delete returns rowCount: 0
+    const { db } = await import("../db");
+    const origDelete = db.delete;
+    (db as any).delete = () => ({
+      where: () => Promise.resolve({ rowCount: 0 }),
+    });
+
+    const app = Fastify();
+    await app.register(addressBookRoutes);
+    await app.ready();
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/v1/contacts/99999",
+      headers: { authorization: "Bearer fake-token" },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body)).toHaveProperty("error");
+
+    // Restore original mock
+    (db as any).delete = origDelete;
+  });
+});
