@@ -3,7 +3,7 @@ import { db } from "../db";
 import { tokens } from "../db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { config } from "../config";
-import { authMiddleware } from "../middleware/auth";
+import { verifyInternalAdmin } from "../middleware/admin-auth";
 import tokenListJson from "../data/token-list.json";
 
 const tokenList = tokenListJson as any;
@@ -73,7 +73,7 @@ export async function curatedTokenRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/tokens/curated/seed",
     {
-      preHandler: [authMiddleware],
+      preHandler: [verifyInternalAdmin],
       config: { rateLimit: { max: 3, timeWindow: "1 hour" } },
       schema: {
         tags: ["Tokens"],
@@ -86,7 +86,13 @@ export async function curatedTokenRoutes(app: FastifyInstance) {
         },
       },
     },
-    async () => {
+    async (request, reply) => {
+      // Role guard: only super_admin and platform_admin may seed tokens
+      const SEED_ROLES = ["super_admin", "platform_admin"] as const;
+      if (!request.admin || !(SEED_ROLES as readonly string[]).includes(request.admin.role)) {
+        return reply.status(403).send({ error: "Forbidden: requires super_admin or platform_admin role" });
+      }
+
       const net = config.STELLAR_NETWORK === "testnet" ? "testnet" : "mainnet";
       const list = tokenList[net] || [];
       let seeded = 0;
