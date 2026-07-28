@@ -17,15 +17,15 @@
 | P0-2-F8 | `admin.ts:697,1220` | Password min-length inconsistency (create=8, reset=12) — align to 12 | |
 | P0-1-F12 | `auth.ts:1118-1180` | No rate limit on resend-verification — add 3/15min | |
 | P0-1-F13 | `auth.ts:506-572` | No rate limit on refresh token — add 30/1min | |
-| P0-1-F16 | `auth.ts:174-188` | Stale verification tokens not invalidated on re-send | |
-| P0-3-F14 | `server.ts:1355,1394` | Console.log leaks userId+publicKey correlation — use debug level | |
+| P0-1-F16 | `auth.ts:174-188` | Stale verification tokens not invalidated on re-send | ✅ Batch 1 (13c9d41) | |
+| P0-3-F14 | `server.ts:1355,1394` | Console.log leaks userId+publicKey correlation — use debug level | ✅ Batch 1 (7be3ae9) | |
 | P2-4-F3 | `config/index.ts:21` | STELLAR_NETWORK defaults to testnet silently — add startup warning | |
-| P2-4-F4 | `config/index.ts:34` | TURNSTILE_SECRET_KEY defaults empty — add startup warning | |
+| P2-4-F4 | `config/index.ts:34` | TURNSTILE_SECRET_KEY defaults empty — add startup warning | ✅ Batch 1 (e019a93) | |
 | P2-4-F5 | `config/index.ts:77` | Two statements on one line (style) | |
 | P1-1-F1 | `tenant-api-key.ts:67-90` | Comment says "sliding window" but is fixed window | |
-| P1-1-F4 | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update — add console.warn | |
+| P1-1-F4 | `tenant-api-key.ts:143-147` | Silent catch on lastUsedAt update — add console.warn | ✅ Batch 1 (98fe639) | |
 | P1-2-F3 | `billing.service.ts:446-456` | Maintenance idempotency catch doesn't distinguish constraint violation | |
-| P1-2-F4 | `billing.service.ts:343-418` | writeBillingCredit missing positive-amount validation | |
+| P1-2-F4 | `billing.service.ts:343-418` | writeBillingCredit missing positive-amount validation | ✅ Batch 1 (61b4487) | |
 | P1-3-F2 | `auto-suspension.ts:45-51` | unsuspend() helper no defensive guard | |
 | P1-3-F3 | `auto-suspension.ts:313-325` | No concurrency guard on overlapping runs | |
 | P1-4-F4 | `SsoLogin.tsx:44-47` | Raw callbackUrl rendered on parse failure — show "Unknown service" | |
@@ -34,14 +34,14 @@
 | P2-1-F6 | `trustlines.ts:336-440` | No account flag check before building transactions | |
 | P2-2-F2 | `toml-sync.ts:63-68` | Stored TOML image URL not validated (scheme check) | |
 | P2-2-F3 | `icon-resolver.ts:102-116` | No max file size on icon downloads | |
-| P2-2-F5 | `token.service.ts:200-203` | ILIKE wildcards not escaped in search | |
-| P2-3-F2 | `swap.service.ts:260-274` | Division by zero in calcPriceImpact | |
-| P2-3-F4 | `swap.service.ts:18-23` | Quote amount not validated for negative/zero | |
+| P2-2-F5 | `token.service.ts:200-203` | ILIKE wildcards not escaped in search | ✅ Batch 1 (1133210) | |
+| P2-3-F2 | `swap.service.ts:260-274` | Division by zero in calcPriceImpact | ✅ Batch 1 (716de24) | |
+| P2-3-F4 | `swap.service.ts:18-23` | Quote amount not validated for negative/zero | ✅ Batch 1 (6a37b3d) | |
 | P2-5-F3 | `schema/index.ts:401` | auditLogs.userId is integer, should be bigint | |
 | P2-6-F1 | `email.ts:31-34` | sendPasswordResetEmail return type inconsistent | |
 | P2-7-F4 | all auditLog sites | userAgent never captured in any audit call | |
 | P3-6-F4 | `contacts.ts:9-138` | No rate limiting on contacts CRUD | |
-| P3-6-F5 | `contacts.ts:129-137` | DELETE returns 200 for nonexistent contact | |
+| P3-6-F5 | `contacts.ts:129-137` | DELETE returns 200 for nonexistent contact | ✅ Batch 1 (d24e1a6) | |
 | P3-7-F10 | `two-fa.ts:237-242` | TOTP window:2 generous — consider window:1 | |
 | P3-7-F11 | `two-fa.ts:141-146` | Old email codes not invalidated on new send | |
 | P3-8-F3 | `push.ts:127-183` | No rate limit on /push/test | |

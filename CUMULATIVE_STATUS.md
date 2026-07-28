@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-27 (FINAL — post Phase 6B) | Main: `bd21cc3`
-> Tests: 387/387 passing | Production: deployed and verified (3 deploys)
+> Updated: 2026-07-28 (post Backlog Batch 1) | Branch: `fix/backlog-batch1` from `bd21cc3`
+> Tests: 410/410 passing (387 baseline + 23 new) | Production: not yet deployed
 
 ---
 
@@ -11,16 +11,16 @@
 
 | Category | Count | % |
 |----------|------:|--:|
-| **Resolved** (code fix applied, verified) | 77 | 24.1% |
+| **Resolved** (code fix applied, verified) | 86 | 27.0% |
 | **INFO / No Action** (confirmations, correct behavior) | 67 | 21.0% |
-| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 175 | 54.9% |
+| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 166 | 52.0% |
 | **Total** | **319** | **100%** |
 
 **All 14 CRITICAL findings are resolved.** Zero CRITICAL items remain.
 **All exploitable HIGH findings are resolved.** Zero exploitable vulnerabilities remain.
 
-**Resolution rate:** 45.1% resolved or confirmed no-action (144 of 319).
-All exploitable vulnerabilities have been addressed. The 175 deferred items are non-exploitable code quality and feature improvements.
+**Resolution rate:** 48.0% resolved or confirmed no-action (153 of 319).
+All exploitable vulnerabilities have been addressed. The 166 deferred items are non-exploitable code quality and feature improvements.
 
 ---
 
@@ -77,9 +77,11 @@ Most are in P3 (lower-priority modules: Earn, Fiat, MoneyGram, Push, Curated Tok
 **Phase 6A resolved (3):** P0-3-F5, P0-3-F9, P0-3-F10
 **Phase 6B resolved (1):** P2-4-F2 (production startup crash on empty secrets)
 
-### LOW (101 total — 10 resolved, 91 deferred)
+### LOW (101 total — 19 resolved, 82 deferred)
 
 10 fixed as quick wins in the low-priority pass: rate limits (P0-1-F12, P0-1-F13, P0-2-F5), input validation (P0-3-F11, P0-3-F12, P0-3-F13), password alignment (P0-2-F8), debug logging (P0-4-F5), config warnings (P2-4-F3, P1-1-F1).
+
+9 fixed in Backlog Batch 1: P0-1-F16 (stale tokens), P0-3-F14 (PII logging), P1-1-F4 (silent catch), P1-2-F4 (billing validation), P2-2-F5 (ILIKE escape), P2-3-F2 (division by zero), P2-3-F4 (quote validation), P2-4-F4 (config warning), P3-6-F5 (DELETE 404).
 
 ### INFO (67 total — 67 no-action required)
 
@@ -153,7 +155,31 @@ Both Phase 6B findings resolved:
 
 ---
 
-## Deferred Findings (175 items)
+## Backlog Batch 1 (2026-07-28)
+
+9 deferred LOW findings fixed + 1 INFO improved (P1-1-F5 rateLimitWindows eviction):
+
+| Fix | Finding | Description | Commit |
+|-----|---------|-------------|--------|
+| 7 | P0-3-F14 | Remove PII console.log from sign-and-submit | 7be3ae9 |
+| 8 | P2-4-F4 | TURNSTILE_SECRET_KEY startup warning | e019a93 |
+| 10 | P1-1-F4 | Log warning on lastUsedAt catch | 98fe639 |
+| 1 | P2-3-F2 | Division by zero guard in calcPriceImpact | 716de24 |
+| 2 | P2-3-F4 | Quote amount validation | 6a37b3d |
+| 3 | P1-2-F4 | writeBillingCredit positive-amount validation | 61b4487 |
+| 6 | P2-2-F5 | ILIKE wildcard escape + query cap | 1133210 |
+| 4 | P1-1-F5 | Evict expired rate-limit windows (>100) | 83ce3d4 |
+| 5 | P0-1-F16 | Invalidate stale verification tokens on re-send | 13c9d41 |
+| 9 | P3-6-F5 | DELETE 404 for nonexistent contact | d24e1a6 |
+
+Test count: 387 → 410 (+23 new tests)
+Branch: `fix/backlog-batch1` (not yet merged to main)
+
+**Note:** Fix 4 was planned as P4-7-F2 (MemoryCache in cache.ts) but actually addresses P1-1-F5 (rateLimitWindows in tenant-api-key.ts). P4-7-F2 remains unfixed.
+
+---
+
+## Deferred Findings (166 items)
 
 These are not security vulnerabilities. They fall into these categories:
 
@@ -184,13 +210,14 @@ Full list in `TODO_LOW_PRIORITY.md` and `PHASE5_BACKLOG.md`.
 | 2026-07-27 | Phase 6A complete (4 fixes), merge to main, deploy to production |
 | 2026-07-27 | Phase 6B complete (2 fixes), merge to main, deploy to production |
 | 2026-07-27 | **Audit complete** — all exploitable vulnerabilities resolved |
+| 2026-07-28 | Backlog Batch 1 (9 LOW fixes + 1 INFO improvement, 23 new tests) |
 
 ---
 
 ## Verification
 
 - **Git commits:** 90 commits since audit start (53 fix commits)
-- **Test progression:** 218 → 387 tests (+169 new tests)
+- **Test progression:** 218 → 410 tests (+192 new tests, including Batch 1)
 - **Production:** deployed and verified 3 times (Phase 5, 6A, 6B) — zero downtime
 - **Tags:** `audit-complete-2026-07-27`, `phase5-complete-2026-07-27`, `phase6a-complete-2026-07-27`, `phase6b-complete-2026-07-27`
 - **GitHub:** `SM-Web-Systems/amma-wallet-production` updated to `bd21cc3`
