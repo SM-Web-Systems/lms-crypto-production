@@ -209,6 +209,7 @@ describe("P0-1-F2: SMS password reset must use passwordHash column", () => {
         newPassword: "newSecurePassword123!",
       },
       ip: "127.0.0.1",
+      headers: { "user-agent": "test-agent" },
     };
     const mockReply = {
       status: vi.fn().mockReturnThis(),
@@ -276,6 +277,7 @@ describe("P0-1-F3: SMS reset auditLog must use object signature", () => {
         newPassword: "newSecurePassword123!",
       },
       ip: "127.0.0.1",
+      headers: { "user-agent": "test-agent" },
     };
     const mockReply = {
       status: vi.fn().mockReturnThis(),

@@ -164,6 +164,7 @@ export async function authRoutes(app: FastifyInstance) {
       await auditLog("register", {
         userId: newUser.id,
         ip: request.ip,
+        userAgent: request.headers["user-agent"],
         detail: {
           email: newUser.email || null,
           phone: newUser.phoneNumber || null,
@@ -314,6 +315,7 @@ export async function authRoutes(app: FastifyInstance) {
         await auditLog("login_failed", {
           userId: undefined,
           ip: request.ip,
+          userAgent: request.headers["user-agent"],
           detail: { identifier: email || phoneNumber },
         });
         return reply.status(401).send({ error: "Invalid credentials" });
@@ -331,7 +333,7 @@ export async function authRoutes(app: FastifyInstance) {
             LOCKOUT_MINUTES * 60 * 1000,
         );
         if (new Date() < lockoutUntil) {
-          await auditLog("login_locked", { userId: user.id, ip: request.ip });
+          await auditLog("login_locked", { userId: user.id, ip: request.ip, userAgent: request.headers["user-agent"] });
           return reply
             .status(423)
             .send({ error: "Account temporarily locked. Try again later." });
@@ -484,7 +486,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
       await storeRefreshToken(user.id, refreshToken);
 
-      await auditLog("login", { userId: user.id, ip: request.ip });
+      await auditLog("login", { userId: user.id, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return {
         user: {
@@ -606,7 +608,7 @@ export async function authRoutes(app: FastifyInstance) {
         // No specific token provided — revoke all user sessions (P0-1-F10)
         await revokeAllUserTokens(userId);
       }
-      await auditLog("logout", { userId, ip: request.ip });
+      await auditLog("logout", { userId, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return { ok: true };
     },
@@ -867,7 +869,7 @@ export async function authRoutes(app: FastifyInstance) {
       // Revoke all refresh tokens (force re-login everywhere)
       await revokeAllUserTokens(userId);
 
-      await auditLog("password_change", { userId, ip: request.ip });
+      await auditLog("password_change", { userId, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return { ok: true };
     },
@@ -916,6 +918,7 @@ export async function authRoutes(app: FastifyInstance) {
       };
       await auditLog("password_reset_request", {
         ip: request.ip,
+        userAgent: request.headers["user-agent"],
         detail: { email: email || null },
       });
 
@@ -1028,6 +1031,7 @@ export async function authRoutes(app: FastifyInstance) {
         await auditLog("password_reset", {
           userId: record.user_id,
           ip: request.ip,
+          userAgent: request.headers["user-agent"],
         });
         return {
           success: true,
@@ -1436,6 +1440,7 @@ export async function authRoutes(app: FastifyInstance) {
       await auditLog("password_reset", {
         userId: user.id,
         ip: request.ip,
+        userAgent: request.headers["user-agent"],
         detail: { method: "sms" },
       });
       return {

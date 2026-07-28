@@ -1174,6 +1174,7 @@ async function bootstrap() {
         await auditLog("transaction_submit", {
           userId: request.user?.userId,
           ip: request.ip,
+          userAgent: request.headers["user-agent"],
         });
         return { success: true, result };
       } catch (error: any) {
@@ -1612,6 +1613,7 @@ async function bootstrap() {
         await auditLog("transaction_sign", {
           userId: request.user?.userId,
           ip: request.ip,
+          userAgent: request.headers["user-agent"],
         });
 
         return {

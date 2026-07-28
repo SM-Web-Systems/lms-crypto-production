@@ -507,7 +507,7 @@ export async function adminRoutes(app: FastifyInstance) {
         });
       });
 
-      await auditLog("admin_credit", { userId: request.admin!.id, detail: { tenantId, amountXlm: amountStr, type }, ip: request.ip });
+      await auditLog("admin_credit", { userId: request.admin!.id, detail: { tenantId, amountXlm: amountStr, type }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         tenantId,
@@ -607,7 +607,7 @@ export async function adminRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Tenant not found" });
       }
 
-      await auditLog("admin_suspend", { userId: request.admin!.id, detail: { tenantId, type }, ip: request.ip });
+      await auditLog("admin_suspend", { userId: request.admin!.id, detail: { tenantId, type }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         tenantId:         updated.id,
@@ -779,7 +779,7 @@ export async function adminRoutes(app: FastifyInstance) {
           createdAt: schema.internalAdmins.createdAt,
         });
 
-      await auditLog("admin_create", { userId: request.admin!.id, detail: { newAdminId: created.id, email, role }, ip: request.ip });
+      await auditLog("admin_create", { userId: request.admin!.id, detail: { newAdminId: created.id, email, role }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.status(201).send({
         adminId:   created.id,
@@ -876,7 +876,7 @@ export async function adminRoutes(app: FastifyInstance) {
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(schema.internalAdmins.id, adminId));
 
-      await auditLog("admin_deactivate", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip });
+      await auditLog("admin_deactivate", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         adminId:  target.id,
@@ -977,7 +977,7 @@ export async function adminRoutes(app: FastifyInstance) {
         .set({ isActive: true, updatedAt: new Date() })
         .where(eq(schema.internalAdmins.id, adminId));
 
-      await auditLog("admin_reactivate", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip });
+      await auditLog("admin_reactivate", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         adminId:  target.id,
@@ -1055,7 +1055,7 @@ export async function adminRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Tenant not found" });
       }
 
-      await auditLog("admin_unsuspend", { userId: request.admin!.id, detail: { tenantId }, ip: request.ip });
+      await auditLog("admin_unsuspend", { userId: request.admin!.id, detail: { tenantId }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         tenantId:         updated.id,
@@ -1198,7 +1198,7 @@ export async function adminRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Tenant billing policy not found" });
       }
 
-      await auditLog("admin_billing_policy", { userId: request.admin!.id, detail: { tenantId, fields: Object.keys(updates) }, ip: request.ip });
+      await auditLog("admin_billing_policy", { userId: request.admin!.id, detail: { tenantId, fields: Object.keys(updates) }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         policyId:                  updated.id,
@@ -1277,7 +1277,7 @@ export async function adminRoutes(app: FastifyInstance) {
         .set({ passwordHash, updatedAt: new Date() })
         .where(eq(schema.internalAdmins.id, adminId));
 
-      await auditLog("admin_reset_password", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip });
+      await auditLog("admin_reset_password", { userId: request.admin!.id, detail: { targetAdminId: adminId, email: target.email }, ip: request.ip, userAgent: request.headers["user-agent"] });
 
       return reply.send({
         adminId: target.id,
