@@ -11,6 +11,11 @@ import { stellarClient } from "../../lib/stellar-client";
 import { config } from "../../config";
 import * as StellarSdk from "@stellar/stellar-sdk";
 
+/** Escape ILIKE metacharacters to prevent wildcard injection (P2-2-F5). */
+function escapeIlike(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 type TokenSort = "rating" | "volume" | "trustlines" | "name" | "recent";
 
 interface SearchParams {
@@ -195,12 +200,13 @@ export class TokenService {
     }
 
     if (query) {
+      const safeQuery = escapeIlike(query.slice(0, 100));
       conditions.push(
         or(
-          ilike(tokens.assetCode, `%${query}%`),
-          ilike(tokens.tomlName, `%${query}%`),
-          ilike(tokens.homeDomain, `%${query}%`),
-          ilike(tokens.tomlOrg, `%${query}%`)
+          ilike(tokens.assetCode, `%${safeQuery}%`),
+          ilike(tokens.tomlName, `%${safeQuery}%`),
+          ilike(tokens.homeDomain, `%${safeQuery}%`),
+          ilike(tokens.tomlOrg, `%${safeQuery}%`)
         )!
       );
     }
