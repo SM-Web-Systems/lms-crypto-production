@@ -78,6 +78,16 @@ export function checkAndCountRateLimit(
   if (!window || now - window.windowStart >= 60_000) {
     // Start a new window
     rateLimitWindows.set(keyId, { count: 1, windowStart: now });
+
+    // Evict expired entries to prevent unbounded growth (P4-7-F2)
+    if (rateLimitWindows.size > 100) {
+      for (const [id, w] of rateLimitWindows) {
+        if (now - w.windowStart >= 60_000) {
+          rateLimitWindows.delete(id);
+        }
+      }
+    }
+
     return true;
   }
 
