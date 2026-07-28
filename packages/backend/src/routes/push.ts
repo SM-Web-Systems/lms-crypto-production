@@ -80,7 +80,8 @@ export async function pushRoutes(app: FastifyInstance) {
         })
         .onConflictDoUpdate({
           target: pushSubscriptions.endpoint,
-          set: { p256dh: keys.p256dh, auth: keys.auth, userId: user.id },
+          set: { p256dh: keys.p256dh, auth: keys.auth },
+          where: eq(pushSubscriptions.userId, user.id),
         });
 
       return { success: true };
