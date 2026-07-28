@@ -21,6 +21,7 @@ import { verifyTurnstile } from "../middleware/turnstile";
 import { sendVerificationEmail } from "../lib/email";
 
 import { validatePhoneNumber } from "../lib/phone-validation";
+import { validatePasswordStrength } from "../lib/password-validation";
 import { sendSmsVerification, checkSmsVerification } from "../lib/sms";
 import { decryptTotpSecret } from "../lib/totp-crypto";
 
@@ -134,6 +135,12 @@ export async function authRoutes(app: FastifyInstance) {
             .status(409)
             .send({ error: "Phone number already registered" });
         }
+      }
+
+      // ── Validate password strength ──
+      const pwCheck = validatePasswordStrength(password);
+      if (!pwCheck.valid) {
+        return reply.status(400).send({ error: pwCheck.error });
       }
 
       // ── Create user ──
@@ -843,8 +850,12 @@ export async function authRoutes(app: FastifyInstance) {
         newPassword: string;
       };
 
-      if (!currentPassword || !newPassword || newPassword.length < 8) {
+      if (!currentPassword || !newPassword) {
         return reply.status(400).send({ error: "Invalid passwords" });
+      }
+      const pwCheck = validatePasswordStrength(newPassword);
+      if (!pwCheck.valid) {
+        return reply.status(400).send({ error: pwCheck.error });
       }
 
       const [user] = await db
@@ -988,10 +999,14 @@ export async function authRoutes(app: FastifyInstance) {
         newPassword: string;
       };
 
-      if (!token || !newPassword || newPassword.length < 8) {
+      if (!token || !newPassword) {
         return reply
           .status(400)
-          .send({ error: "Valid token and password (min 8 chars) required" });
+          .send({ error: "Valid token and password required" });
+      }
+      const pwCheck = validatePasswordStrength(newPassword);
+      if (!pwCheck.valid) {
+        return reply.status(400).send({ error: pwCheck.error });
       }
 
       try {
@@ -1399,6 +1414,10 @@ export async function authRoutes(app: FastifyInstance) {
         code: string;
         newPassword: string;
       };
+      const pwCheck = validatePasswordStrength(newPassword);
+      if (!pwCheck.valid) {
+        return reply.status(400).send({ error: pwCheck.error });
+      }
       const pv = validatePhoneNumber(phoneNumber);
       if (!pv.isValid) {
         return reply.status(400).send({ error: "Invalid phone number" });
