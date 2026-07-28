@@ -3,6 +3,7 @@ import { db } from "../db";
 import { tokens } from "../db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { config } from "../config";
+import { authMiddleware } from "../middleware/auth";
 import tokenListJson from "../data/token-list.json";
 
 const tokenList = tokenListJson as any;
@@ -72,6 +73,8 @@ export async function curatedTokenRoutes(app: FastifyInstance) {
   app.post(
     "/api/v1/tokens/curated/seed",
     {
+      preHandler: [authMiddleware],
+      config: { rateLimit: { max: 3, timeWindow: "1 hour" } },
       schema: {
         tags: ["Tokens"],
         summary: "Seed curated tokens into the database (creates entries if missing)",
