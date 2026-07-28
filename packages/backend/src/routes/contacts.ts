@@ -124,14 +124,20 @@ export async function addressBookRoutes(app: FastifyInstance) {
       params: { type: "object", properties: { id: { type: "number" } } },
       response: {
         200: { type: "object", properties: { ok: { type: "boolean" } } },
+        404: { type: "object", properties: { error: { type: "string" } } },
       },
     },
-  }, async (request) => {
+  }, async (request, reply) => {
     const userId = request.user!.userId;
     const { id } = request.params as any;
 
-    await db.delete(addressBook)
+    const result = await db.delete(addressBook)
       .where(and(eq(addressBook.id, id), eq(addressBook.userId, userId)));
+
+    const count = (result as any).rowCount || 0;
+    if (count === 0) {
+      return reply.status(404).send({ error: "Contact not found" });
+    }
 
     return { ok: true };
   });
