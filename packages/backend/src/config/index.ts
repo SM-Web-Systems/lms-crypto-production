@@ -58,6 +58,11 @@ if (!process.env.STELLAR_NETWORK && process.env.NODE_ENV === "production") {
   console.warn("WARNING: STELLAR_NETWORK not set — defaulting to testnet. Set STELLAR_NETWORK=public for mainnet.");
 }
 
+// Warn if TURNSTILE_SECRET_KEY is empty in production (P2-4-F4)
+if (!process.env.TURNSTILE_SECRET_KEY && process.env.NODE_ENV === "production") {
+  console.warn("WARNING: TURNSTILE_SECRET_KEY is empty — Turnstile verification will be non-functional.");
+}
+
 export const config = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "3001", 10),
