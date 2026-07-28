@@ -109,7 +109,8 @@ export async function trustlineRoutes(app: FastifyInstance) {
           .status(404)
           .send({ error: "Account not found or not funded" });
       }
-      return reply.status(500).send({ error: error.message });
+      console.warn("[trustlines] error:", error);
+      return reply.status(500).send({ error: "Internal server error" });
     }
   });
 
@@ -221,7 +222,8 @@ export async function trustlineRoutes(app: FastifyInstance) {
             hasEnoughXlm: false,
           };
         }
-        return reply.status(500).send({ error: error.message });
+        console.warn("[trustlines] error:", error);
+        return reply.status(500).send({ error: "Internal server error" });
       }
     }
   );
@@ -335,7 +337,8 @@ export async function trustlineRoutes(app: FastifyInstance) {
         reserveCost: "0.5",
       };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      console.warn("[trustlines] error:", error);
+      return reply.status(500).send({ error: "Internal server error" });
     }
   });
 
@@ -437,7 +440,8 @@ export async function trustlineRoutes(app: FastifyInstance) {
         freedReserve: "0.5",
       };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      console.warn("[trustlines] error:", error);
+      return reply.status(500).send({ error: "Internal server error" });
     }
   });
 
@@ -527,7 +531,8 @@ export async function trustlineRoutes(app: FastifyInstance) {
         networkPassphrase: stellarClient.networkPassphrase,
       };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
+      console.warn("[trustlines] error:", error);
+      return reply.status(500).send({ error: "Internal server error" });
     }
   });
 }
