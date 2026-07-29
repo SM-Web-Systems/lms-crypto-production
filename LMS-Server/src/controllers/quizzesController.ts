@@ -338,6 +338,12 @@ export async function getCompletionsForUser(req: AuthRequest, res: Response, nex
       throw new AppError('userId query parameter is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
+    // Students can only query their own completions
+    const role = req.user?.role;
+    if (role === 'student' && userId.trim() !== req.user?.userId) {
+      throw new AppError('You can only view your own quiz completions', 403, ErrorCodes.FORBIDDEN);
+    }
+
     const rows = query<QuizCompletionRow>(
       'SELECT * FROM quiz_completions WHERE user_id = ? ORDER BY completed_at DESC',
       [userId.trim()]
@@ -358,6 +364,12 @@ export async function getCompletion(req: AuthRequest, res: Response, next: NextF
     const userId = req.query.userId as string | undefined;
     if (!userId || typeof userId !== 'string' || userId.trim() === '') {
       throw new AppError('userId query parameter is required', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    // Students can only query their own completions
+    const role = req.user?.role;
+    if (role === 'student' && userId.trim() !== req.user?.userId) {
+      throw new AppError('You can only view your own quiz completions', 403, ErrorCodes.FORBIDDEN);
     }
 
     const row = queryOne<QuizCompletionRow>(

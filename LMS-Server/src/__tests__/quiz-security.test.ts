@@ -121,3 +121,87 @@ describe('LMS-QUIZ-001 — student must not see answer keys', () => {
     expect(saQ?.correctAnswer).toBe('Paris');
   });
 });
+
+// ─── LMS-QUIZ-002: Completion IDOR (list) ──────────────────────────────────────
+
+describe('LMS-QUIZ-002 — student cannot query another student completions', () => {
+  function seedWithCompletion() {
+    const data = seedQuizData();
+    const completionId = uuidv4();
+    // Student B has a quiz completion
+    db.exec(`
+      INSERT INTO quiz_completions (id, quiz_id, user_id, score, total, passed, answers, completed_at)
+      VALUES ('${completionId}', '${data.quizId}', '${data.studentBId}', 50, 100, 0, '{}', datetime('now'));
+    `);
+    return { ...data, completionId };
+  }
+
+  it('student A cannot fetch student B completions — returns 403', async () => {
+    const { studentAId, studentBId } = seedWithCompletion();
+    const token = makeToken({ userId: studentAId, email: `qsec-a-${studentAId}@test.com`, role: 'student' });
+
+    const res = await request(app)
+      .get(`/api/v1/quizzes/completions?userId=${studentBId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('student A can fetch own completions', async () => {
+    const { studentAId } = seedWithCompletion();
+    const token = makeToken({ userId: studentAId, email: `qsec-a-${studentAId}@test.com`, role: 'student' });
+
+    const res = await request(app)
+      .get(`/api/v1/quizzes/completions?userId=${studentAId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('admin can fetch any student completions', async () => {
+    const { adminId, studentBId } = seedWithCompletion();
+    const token = makeToken({ userId: adminId, email: `qsec-admin-${adminId}@test.com`, role: 'admin' });
+
+    const res = await request(app)
+      .get(`/api/v1/quizzes/completions?userId=${studentBId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+});
+
+// ─── LMS-QUIZ-003: Completion IDOR (single) ────────────────────────────────────
+
+describe('LMS-QUIZ-003 — student cannot query another student single completion', () => {
+  function seedWithCompletion() {
+    const data = seedQuizData();
+    const completionId = uuidv4();
+    db.exec(`
+      INSERT INTO quiz_completions (id, quiz_id, user_id, score, total, passed, answers, completed_at)
+      VALUES ('${completionId}', '${data.quizId}', '${data.studentBId}', 50, 100, 0, '{}', datetime('now'));
+    `);
+    return { ...data, completionId };
+  }
+
+  it('student A cannot fetch student B single completion — returns 403', async () => {
+    const { studentAId, studentBId, quizId } = seedWithCompletion();
+    const token = makeToken({ userId: studentAId, email: `qsec-a-${studentAId}@test.com`, role: 'student' });
+
+    const res = await request(app)
+      .get(`/api/v1/quizzes/${quizId}/completion?userId=${studentBId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('student A can fetch own single completion', async () => {
+    const { studentAId, quizId } = seedWithCompletion();
+    const token = makeToken({ userId: studentAId, email: `qsec-a-${studentAId}@test.com`, role: 'student' });
+
+    const res = await request(app)
+      .get(`/api/v1/quizzes/${quizId}/completion?userId=${studentAId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+});
