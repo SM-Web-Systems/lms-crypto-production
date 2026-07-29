@@ -357,8 +357,11 @@ export async function updateSubmission(req: AuthRequest, res: Response, next: Ne
 export async function deleteSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const isAdmin = req.user?.role === 'admin';
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'admin';
+    const isLecturer = userRole === 'lecturer';
     const userStudentId = req.user?.studentId;
+    const lecturerUserId = req.user?.userId;
 
     // Get existing submission
     const existing = queryOne<Submission>(
@@ -372,11 +375,15 @@ export async function deleteSubmission(req: AuthRequest, res: Response, next: Ne
 
     // Check permissions
     if (!isAdmin) {
-      if (existing.student_id !== userStudentId) {
+      if (isLecturer && lecturerUserId) {
+        if (!isLecturerForStudent(lecturerUserId, existing.student_id)) {
+          throw new AppError('You do not have permission to delete this submission', 403, ErrorCodes.FORBIDDEN);
+        }
+      } else if (existing.student_id !== userStudentId) {
         throw new AppError('You do not have permission to delete this submission', 403, ErrorCodes.FORBIDDEN);
       }
       // Students can only delete pending submissions
-      if (existing.status !== 'pending') {
+      if (!isLecturer && existing.status !== 'pending') {
         throw new AppError('Cannot delete a submission that has already been reviewed', 403, ErrorCodes.SUBMISSION_LOCKED);
       }
     }
