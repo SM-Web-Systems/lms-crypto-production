@@ -81,6 +81,14 @@ function rowToQuiz(row: QuizRow) {
   };
 }
 
+/** Strip correctIndex and correctAnswer from questions for student-facing responses. */
+function stripAnswerKeys(quiz: ReturnType<typeof rowToQuiz>) {
+  return {
+    ...quiz,
+    questions: quiz.questions.map(({ correctIndex, correctAnswer, ...rest }) => rest),
+  };
+}
+
 function rowToCompletion(row: QuizCompletionRow) {
   let answers: Record<string, string> = {};
   try {
@@ -157,9 +165,11 @@ function validateQuestions(questions: unknown): QuizQuestion[] {
 export async function listQuizzes(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const rows = query<QuizRow>('SELECT * FROM quizzes ORDER BY updated_at DESC');
+    const role = (_req as AuthRequest).user?.role;
+    const quizzes = rows.map(rowToQuiz);
     res.json({
       success: true,
-      data: { quizzes: rows.map(rowToQuiz) },
+      data: { quizzes: role === 'admin' || role === 'lecturer' ? quizzes : quizzes.map(stripAnswerKeys) },
     });
   } catch (error) {
     next(error);
@@ -173,9 +183,11 @@ export async function getQuiz(req: AuthRequest, res: Response, next: NextFunctio
     if (!row) {
       throw new AppError('Quiz not found', 404, ErrorCodes.NOT_FOUND);
     }
+    const role = req.user?.role;
+    const quiz = rowToQuiz(row);
     res.json({
       success: true,
-      data: rowToQuiz(row),
+      data: role === 'admin' || role === 'lecturer' ? quiz : stripAnswerKeys(quiz),
     });
   } catch (error) {
     next(error);
