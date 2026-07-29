@@ -11,6 +11,16 @@ import {
 } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
+/** Escape HTML special characters to prevent stored XSS. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function toISO(ts: string | null | undefined): string | null | undefined {
   if (ts == null) return ts;
   const d = new Date(ts);
@@ -243,9 +253,11 @@ export async function createTopic(req: AuthRequest, res: Response, next: NextFun
     }
 
     const id = uuidv4();
+    const safeTitle = escapeHtml(String(title).trim());
+    const safeBody = escapeHtml(String(body).trim());
     execute(
       `INSERT INTO forum_topics (id, title, body, author_id, course_id) VALUES (?, ?, ?, ?, ?)`,
-      [id, String(title).trim(), String(body).trim(), userId, resolvedCourseId]
+      [id, safeTitle, safeBody, userId, resolvedCourseId]
     );
 
     const row = queryOne<{
@@ -311,9 +323,10 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
     }
 
     const id = uuidv4();
+    const safeBody = escapeHtml(String(body).trim());
     execute(
       `INSERT INTO forum_posts (id, topic_id, body, author_id) VALUES (?, ?, ?, ?)`,
-      [id, topicId, String(body).trim(), userId]
+      [id, topicId, safeBody, userId]
     );
 
     const row = queryOne<{

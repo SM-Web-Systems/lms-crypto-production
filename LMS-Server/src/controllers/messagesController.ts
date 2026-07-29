@@ -4,6 +4,16 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ConversationResponse, MessageResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
+/** Escape HTML special characters to prevent stored XSS. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function toISO(ts: string | null | undefined): string {
   if (ts == null) return new Date().toISOString();
   const d = new Date(ts);
@@ -280,7 +290,7 @@ export async function postMessage(req: AuthRequest, res: Response, next: NextFun
     }
 
     const messageId = uuidv4();
-    const bodyText = typeof body === 'string' ? body.trim() : String(body);
+    const bodyText = escapeHtml(typeof body === 'string' ? body.trim() : String(body));
     const now = new Date().toISOString();
 
     execute(
