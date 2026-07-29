@@ -892,7 +892,7 @@
 | P1-1-F2 | MEDIUM | `tenant-api-key.ts:165` | Timing side-channel in env-var key comparison — **FIXED ecbe6f5** |
 | P1-1-F6 | MEDIUM | `tenant-api-key.ts:243-257` | `requireScope()` silent no-op without prior key middleware |
 | P1-2-F1 | MEDIUM | `billing.service.ts:204,231,464` | Floating-point arithmetic on monetary values — **FIXED eda4a35** |
-| P1-2-F2 | MEDIUM | `billing.service.ts:175-267` | TOCTOU race between balance check and debit transaction |
+| P1-2-F2 | MEDIUM | `billing.service.ts:175-267` | TOCTOU race between balance check and debit transaction | **FIXED — d2e9000 (Batch 4)** |
 | P1-3-F1 | MEDIUM | `auto-suspension.ts:149-182` | `acquisitionModeEnabled` not checked before enforcing debt limit |
 | P1-4-F3 | MEDIUM | `sso.ts:64-71` | Empty whitelist = fail-open (any callback URL accepted) — **FIXED f8ef771** |
 | P1-4-F6 | MEDIUM | N/A | Zero test coverage for SSO routes |

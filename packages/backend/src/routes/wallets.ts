@@ -6,6 +6,7 @@ import { attachTenantApiKey, requireScope } from "../middleware/tenant-api-key";
 import { config } from "../config";
 import {
   checkWalletBilling,
+  checkWalletBillingTx,
   writeBillingDebit,
   upsertTenantUser,
   maybeNotifyDeficit,
@@ -167,71 +168,95 @@ export async function walletRoutes(app: FastifyInstance) {
     // ── Wallet creation + billing debit in one transaction ─────────────────
     let debitNewBalance: string | null = null;
 
-    const wallet = await db.transaction(async (tx) => {
-      // Deactivate other wallets
-      await tx
-        .update(schema.userWallets)
-        .set({ isActive: false })
-        .where(eq(schema.userWallets.userId, userId));
+    let wallet;
+    try {
+      wallet = await db.transaction(async (tx) => {
+        // Re-validate billing with FOR UPDATE lock (P1-2-F2 TOCTOU guard)
+        if (tenantCtx?.tenantId) {
+          const txBilling = await checkWalletBillingTx(tx, {
+            tenantId: tenantCtx.tenantId,
+            userId,
+          });
+          if (!txBilling.ok) {
+            throw Object.assign(new Error(txBilling.message), {
+              httpStatus: txBilling.httpStatus,
+            });
+          }
+          billingResult = txBilling;
+        }
 
-      // Insert new wallet
-      const [created] = await tx
-        .insert(schema.userWallets)
-        .values({
-          userId,
-          name,
-          publicKey,
-          encryptedSecret: encryptedSecret || null,
-          network: effectiveNetwork,
-          isActive: true,
-        })
-        .returning();
+        // Deactivate other wallets
+        await tx
+          .update(schema.userWallets)
+          .set({ isActive: false })
+          .where(eq(schema.userWallets.userId, userId));
 
-      // Billing writes (only when a billing action is needed)
-      if (
-        billingResult?.ok &&
-        billingResult.eventType !== "no_billing" &&
-        billingResult.eventType !== "idempotent_skip" &&
-        tenantCtx?.tenantId
-      ) {
-        const { eventType, amountXlm, policy } = billingResult as Extract<
-          typeof billingResult,
-          { eventType: "new_wallet_activation" | "existing_user_onboarding" }
-        >;
+        // Insert new wallet
+        const [created] = await tx
+          .insert(schema.userWallets)
+          .values({
+            userId,
+            name,
+            publicKey,
+            encryptedSecret: encryptedSecret || null,
+            network: effectiveNetwork,
+            isActive: true,
+          })
+          .returning();
 
-        const debitResult = await writeBillingDebit(tx, {
-          tenantId: tenantCtx.tenantId,
-          eventType,
-          amountXlm,
-          policyVersionId: policy.id,
-          userId,
-          apiKeyId: tenantCtx.keyId,
-          // Snapshot fields for new_wallet_activation
-          walletFundingSnapshot:
-            eventType === "new_wallet_activation" && policy.walletFundingEnabled
-              ? policy.walletFundingXlm
-              : null,
-          platformFeeSnapshot:
-            eventType === "new_wallet_activation" ? policy.newWalletPlatformFeeXlm : null,
-          // Snapshot field for existing_user_onboarding
-          onboardingFeeSnapshot:
-            eventType === "existing_user_onboarding" ? policy.onboardingFeeXlm : null,
-        });
-        debitNewBalance = debitResult.newBalance;
+        // Billing writes (only when a billing action is needed)
+        if (
+          billingResult?.ok &&
+          billingResult.eventType !== "no_billing" &&
+          billingResult.eventType !== "idempotent_skip" &&
+          tenantCtx?.tenantId
+        ) {
+          const { eventType, amountXlm, policy } = billingResult as Extract<
+            typeof billingResult,
+            { eventType: "new_wallet_activation" | "existing_user_onboarding" }
+          >;
 
-        // Link user to tenant (idempotent — ignores conflicts)
-        await upsertTenantUser(tx, tenantCtx.tenantId, userId);
-      } else if (
-        billingResult?.ok &&
-        billingResult.eventType === "idempotent_skip" &&
-        tenantCtx?.tenantId
-      ) {
-        // Already onboarded and active — just ensure tenant_users row exists
-        await upsertTenantUser(tx, tenantCtx.tenantId, userId);
+          const debitResult = await writeBillingDebit(tx, {
+            tenantId: tenantCtx.tenantId,
+            eventType,
+            amountXlm,
+            policyVersionId: policy.id,
+            userId,
+            apiKeyId: tenantCtx.keyId,
+            // Snapshot fields for new_wallet_activation
+            walletFundingSnapshot:
+              eventType === "new_wallet_activation" && policy.walletFundingEnabled
+                ? policy.walletFundingXlm
+                : null,
+            platformFeeSnapshot:
+              eventType === "new_wallet_activation" ? policy.newWalletPlatformFeeXlm : null,
+            // Snapshot field for existing_user_onboarding
+            onboardingFeeSnapshot:
+              eventType === "existing_user_onboarding" ? policy.onboardingFeeXlm : null,
+          });
+          debitNewBalance = debitResult.newBalance;
+
+          // Link user to tenant (idempotent — ignores conflicts)
+          await upsertTenantUser(tx, tenantCtx.tenantId, userId);
+        } else if (
+          billingResult?.ok &&
+          billingResult.eventType === "idempotent_skip" &&
+          tenantCtx?.tenantId
+        ) {
+          // Already onboarded and active — just ensure tenant_users row exists
+          await upsertTenantUser(tx, tenantCtx.tenantId, userId);
+        }
+
+        return created;
+      });
+    } catch (err: unknown) {
+      // Handle billing failures thrown from within the transaction
+      if (err && typeof err === "object" && "httpStatus" in err) {
+        const billingErr = err as Error & { httpStatus: number };
+        return reply.status(billingErr.httpStatus).send({ error: billingErr.message });
       }
-
-      return created;
-    });
+      throw err;
+    }
 
     // Fire-and-forget deficit notification after transaction commits
     if (debitNewBalance !== null && tenantCtx?.tenantId) {
