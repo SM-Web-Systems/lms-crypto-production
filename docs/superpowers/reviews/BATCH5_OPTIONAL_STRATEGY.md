@@ -83,7 +83,7 @@ Pick 5–10 Tier 1 and Tier 2 items. Avoid Tier 3 unless there's a specific need
 1. Create `fix/backlog-batch5` from `main`
 2. Follow the established TDD + code review + checkpoint pattern
 3. Use `docs/superpowers/` directory for planning/review artifacts
-4. Target: 488→500+ backend tests (add tests for each fix)
+4. Target: 492→500+ backend tests (add tests for each fix)
 
 ### What NOT to Include
 - P3 stub module fixes (defer until module activation)
