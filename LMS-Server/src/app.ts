@@ -184,7 +184,7 @@ app.use('/api/v1/users', apiLimiter, usersRoutes);
 app.use('/api/v1/quizzes', apiLimiter, quizzesRoutes);
 app.use('/api/v1', apiLimiter, invitesRoutes);
 app.use('/api/v1/announcements', apiLimiter, announcementsRoutes);
-app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/admin', apiLimiter, adminRoutes);
 app.use('/api/v1/courses', apiLimiter, courseRequirementsRoutes);
 app.use('/api/v1', apiLimiter, nftApplicationsRoutes);
 app.use('/api/v1', apiLimiter, lessonCompletionsRoutes);
