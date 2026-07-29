@@ -160,7 +160,8 @@ export async function getInviteByToken(req: AuthRequest, res: Response, next: Ne
     const invite = queryOne<InviteRow & { course_title: string }>(
       `SELECT i.*, c.title AS course_title
        FROM course_invites i JOIN courses c ON i.course_id = c.id
-       WHERE i.token = ? AND i.status = 'pending'`,
+       WHERE i.token = ? AND i.status = 'pending'
+         AND (i.expires_at IS NULL OR i.expires_at > datetime('now'))`,
       [token]
     );
     if (!invite) throw new AppError('Invite not found or already used', 404, ErrorCodes.NOT_FOUND);
@@ -193,7 +194,8 @@ export async function acceptInvite(req: AuthRequest, res: Response, next: NextFu
     if (!token) throw new AppError('Token required', 400, ErrorCodes.VALIDATION_ERROR);
 
     const invite = queryOne<InviteRow>(
-      `SELECT * FROM course_invites WHERE token = ? AND status = 'pending'`,
+      `SELECT * FROM course_invites WHERE token = ? AND status = 'pending'
+         AND (expires_at IS NULL OR expires_at > datetime('now'))`,
       [token]
     );
     if (!invite) throw new AppError('Invite not found or already used', 404, ErrorCodes.NOT_FOUND);
