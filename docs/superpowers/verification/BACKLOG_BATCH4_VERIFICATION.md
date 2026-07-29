@@ -1,86 +1,89 @@
-# Backlog Batch 4 — Verification Plan
+# Backlog Batch 4 — Verification Results
 
-> Date: 2026-07-28
+> Date: 2026-07-29
 > Branch: `fix/backlog-batch4`
 > Baseline: 488/488
 
 ---
 
-## Per-Fix Verification Commands
+## Per-Fix Verification
 
 ### Fix 1: P1-2-F2 — Billing TOCTOU guard
 
-```bash
-cd /home/webadmin/web-stack/html/amma-wallet/packages/backend
+#### Source-Assertion Test
+```
 npx vitest run src/services/billing-toctou.test.ts
 ```
-**Expected:** PASS — checkWalletBillingTx exported, FOR UPDATE present, called inside transaction
+- **TDD RED:** 3/4 FAIL (expected — checkWalletBillingTx not yet implemented)
+- **TDD GREEN:** 4/4 PASS (after implementation)
 
-```bash
+#### Billing Unit Tests
+```
 npx vitest run src/services/billing.service.test.ts
 ```
-**Expected:** PASS — all existing billing tests still pass (no regressions)
+- **Result:** 99/99 PASS — no regressions in existing billing tests
 
 ---
 
 ## Broader Suite Verification
 
-### After fix (backend only):
-```bash
-cd /home/webadmin/web-stack/html/amma-wallet/packages/backend
+### Backend (post-fix):
+```
 npx vitest run
+→ 71 test files, 492/492 PASS (488 baseline + 4 new)
+→ Duration: 12.63s
 ```
-**Expected:** 488 + N tests pass
 
-### After full batch (both suites):
-```bash
-cd /home/webadmin/web-stack/html/amma-wallet/packages/backend && npx vitest run
-cd /home/webadmin/web-stack/html/amma-wallet/packages/web-app && npx vitest run
+### Web-App:
 ```
-**Expected:** All tests pass in both suites
+cd packages/web-app && npx vitest run
+→ 7 test files, 23/23 PASS
+→ Duration: 887ms
+```
 
 ---
 
 ## Secret Scan
 
-```bash
-cd /home/webadmin/web-stack/html/amma-wallet
-git diff main -- packages/backend/src/ | grep -iE "(password|secret|key|token|credential)" | grep -v "test\|mock\|StrKey\|publicKey\|apiKeyId\|policyVersionId\|apiKey\|user-agent\|userAgent\|rateLimit\|authMiddleware\|console\.\|\.catch\|import\|describe\|expect\|it("
 ```
-**Expected:** No real secrets in diff
+git diff main -- packages/backend/src/ | grep -iE "(password|secret|key|token|credential)" | grep -v "test|mock|..."
+```
+**Result:** Only `encryptedSecret` (existing field name, not a real secret). **CLEAN.**
 
 ---
 
 ## Manual Spot Checks
 
-### Verify FOR UPDATE in billing.service.ts:
-```bash
-grep -n "for.*update\|FOR UPDATE" /home/webadmin/web-stack/html/amma-wallet/packages/backend/src/services/billing.service.ts
+### FOR UPDATE in billing.service.ts:
 ```
-**Expected:** `.for("update")` present in `checkWalletBillingTx`
+Line 318: * Transactional billing check with FOR UPDATE lock.
+Line 338:     .for("update");
+```
+**CONFIRMED** — `.for("update")` present in `checkWalletBillingTx`
 
-### Verify transaction call in wallets.ts:
-```bash
-grep -n "checkWalletBillingTx" /home/webadmin/web-stack/html/amma-wallet/packages/backend/src/routes/wallets.ts
+### checkWalletBillingTx called inside transaction (wallets.ts):
 ```
-**Expected:** Called inside the transaction block
+Line 9:   checkWalletBillingTx,
+Line 176:           const txBilling = await checkWalletBillingTx(tx, {
+```
+**CONFIRMED** — called inside `db.transaction()` block
 
-### Verify pre-flight check preserved:
-```bash
-grep -n "checkWalletBilling\b" /home/webadmin/web-stack/html/amma-wallet/packages/backend/src/routes/wallets.ts
+### Pre-flight check preserved (wallets.ts):
 ```
-**Expected:** Both `checkWalletBilling` (pre-flight) and `checkWalletBillingTx` (in-transaction) present
+Line 8:   checkWalletBilling,
+Line 158:     let billingResult: Awaited<ReturnType<typeof checkWalletBilling>> | null = null;
+Line 161:       billingResult = await checkWalletBilling({ tenantId: tenantCtx.tenantId, userId });
+```
+**CONFIRMED** — pre-flight `checkWalletBilling` still called outside transaction
 
 ---
 
 ## Done Criteria
 
-The batch is COMPLETE when ALL of the following are true:
-
-1. [ ] Fix committed on `fix/backlog-batch4`
-2. [ ] Full backend suite passes: 488 + N tests (no failures)
-3. [ ] Full web-app suite passes (no regressions)
-4. [ ] No secrets in diff
-5. [ ] Commit follows the format with Finding ID + Co-Authored-By
-6. [ ] Code review checklist passed
-7. [ ] Checkpoint report written
+1. [x] Fix committed on `fix/backlog-batch4` — `d2e9000`
+2. [x] Full backend suite passes: 492/492 (no failures)
+3. [x] Full web-app suite passes: 23/23 (no regressions)
+4. [x] No secrets in diff
+5. [x] Commit follows the format with Finding ID + Co-Authored-By
+6. [x] Code review checklist passed (0 critical, 1 important deferred)
+7. [x] Checkpoint report written (BACKLOG_BATCH4_CHECKPOINT.md)

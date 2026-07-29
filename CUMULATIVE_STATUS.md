@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-28 (post Backlog Batch 2) | Main: `f53231c`
-> Tests: 453/453 passing (387 baseline + 23 Batch 1 + 43 Batch 2) | Production: deployed and verified (5 deploys)
+> Updated: 2026-07-29 (post Backlog Batch 4) | Branch: `fix/backlog-batch4` at `d2e9000`
+> Tests: 492/492 backend + 23/23 web-app | Production: Batches 1-3 deployed, Batch 4 pending merge
 
 ---
 
@@ -11,16 +11,18 @@
 
 | Category | Count | % |
 |----------|------:|--:|
-| **Resolved** (code fix applied, verified) | 96 | 30.1% |
+| **Resolved** (code fix applied, verified) | 97 | 30.4% |
 | **INFO / No Action** (confirmations, correct behavior) | 67 | 21.0% |
-| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 156 | 48.9% |
+| **Deferred** (LOW/MEDIUM backlog, fix opportunistically) | 155 | 48.6% |
 | **Total** | **319** | **100%** |
 
 **All 14 CRITICAL findings are resolved.** Zero CRITICAL items remain.
 **All exploitable HIGH findings are resolved.** Zero exploitable vulnerabilities remain.
 
-**Resolution rate:** 51.1% resolved or confirmed no-action (163 of 319).
-All exploitable vulnerabilities have been addressed. The 156 deferred items are non-exploitable code quality and feature improvements.
+**Resolution rate:** 51.4% resolved or confirmed no-action (164 of 319).
+All exploitable vulnerabilities have been addressed. The 155 deferred items are non-exploitable code quality and feature improvements.
+
+**Batch 4 (2026-07-29):** P1-2-F2 Billing TOCTOU race condition fixed with FOR UPDATE locking (d2e9000).
 
 ---
 
