@@ -192,10 +192,10 @@ app.use('/api/v1', apiLimiter, progressRoutes);
 app.use('/api/v1', apiLimiter, walletStatusRoutes);
 app.use('/api/v1', publicCredentialsRoutes);
 
-// Serve uploaded avatars (and other uploads) as static files
+// Serve uploaded avatars only — submissions/documents served via authenticated endpoints
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-app.use('/uploads', express.static(UPLOAD_DIR));
+app.use('/uploads/avatars', express.static(path.join(UPLOAD_DIR, 'avatars')));
 
 // Error handling
 app.use(notFoundHandler);
