@@ -1,7 +1,7 @@
 # AmmaWallet Security Audit — Cumulative Status Report
 
-> Updated: 2026-07-29 (post Backlog Batch 4) | Branch: `fix/backlog-batch4` at `d2e9000`
-> Tests: 492/492 backend + 23/23 web-app | Production: Batches 1-3 deployed, Batch 4 pending merge
+> Updated: 2026-07-29 (post Backlog Batch 4) | Main: `01d17bd` | Tag: `batch4-complete-2026-07-29`
+> Tests: 492/492 backend + 23/23 web-app | Production: Batches 1-4 deployed
 
 ---
 
