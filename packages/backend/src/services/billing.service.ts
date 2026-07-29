@@ -312,6 +312,122 @@ export async function checkWalletBilling(opts: {
   }
 }
 
+// ── Transactional billing check (TOCTOU guard) ───────────────────────────────
+
+/**
+ * Transactional billing check with FOR UPDATE lock.
+ * MUST be called inside db.transaction().
+ * Prevents TOCTOU race in concurrent wallet creation (P1-2-F2).
+ */
+export async function checkWalletBillingTx(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: any,
+  opts: { tenantId: number; userId: number },
+): Promise<BillingCheckResult> {
+  const { tenantId, userId } = opts;
+
+  // Lock tenant row — prevents concurrent billing checks
+  const [lockedTenant] = await tx
+    .select({
+      prepaidXlmBalance: schema.tenants.prepaidXlmBalance,
+      isActive: schema.tenants.isActive,
+      suspendedAt: schema.tenants.suspendedAt,
+    })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenantId))
+    .for("update");
+
+  if (!lockedTenant) {
+    return { ok: false, httpStatus: 503, message: "Tenant not found" };
+  }
+  if (!lockedTenant.isActive) {
+    return { ok: false, httpStatus: 403, message: "Tenant account is inactive" };
+  }
+  if (lockedTenant.suspendedAt) {
+    return {
+      ok: false,
+      httpStatus: 402,
+      message:
+        "Tenant account is suspended; please contact support to restore service",
+    };
+  }
+
+  const policy = await getBillingPolicy(tenantId);
+  if (!policy) {
+    return {
+      ok: false,
+      httpStatus: 503,
+      message: "No billing policy configured for tenant",
+    };
+  }
+
+  const balanceStr = lockedTenant.prepaidXlmBalance;
+  const walletCount = await countUserWallets(userId);
+
+  if (walletCount === 0) {
+    if (policy.acquisitionModeEnabled) {
+      if (
+        compareDecimalStrings(balanceStr, policy.acquisitionDebtLimitXlm) <= 0
+      ) {
+        return {
+          ok: false,
+          httpStatus: 402,
+          message: `Acquisition debt limit reached (${policy.acquisitionDebtLimitXlm} XLM). Top up required before new wallet activations.`,
+        };
+      }
+    } else {
+      if (compareDecimalStrings(balanceStr, "0") <= 0) {
+        return {
+          ok: false,
+          httpStatus: 402,
+          message: "Insufficient tenant balance for new wallet activation",
+        };
+      }
+    }
+
+    const useWalletFunding =
+      policy.walletFundingEnabled && policy.walletFundingMode === "auto";
+    const amountStr = useWalletFunding
+      ? addDecimalStrings(policy.walletFundingXlm, policy.newWalletPlatformFeeXlm)
+      : policy.newWalletPlatformFeeXlm;
+
+    return {
+      ok: true,
+      eventType: "new_wallet_activation",
+      amountXlm: negateDecimalString(amountStr),
+      policy,
+    };
+  } else {
+    if (!policy.onboardingEnabled) {
+      return { ok: true, eventType: "no_billing" };
+    }
+
+    const alreadyActive = await isActiveTenantUser(
+      tenantId,
+      userId,
+      policy.activityWindowDays,
+    );
+    if (alreadyActive) {
+      return { ok: true, eventType: "idempotent_skip" };
+    }
+
+    if (compareDecimalStrings(balanceStr, "0") <= 0) {
+      return {
+        ok: false,
+        httpStatus: 402,
+        message: "Insufficient tenant balance for user onboarding",
+      };
+    }
+
+    return {
+      ok: true,
+      eventType: "existing_user_onboarding",
+      amountXlm: negateDecimalString(policy.onboardingFeeXlm),
+      policy,
+    };
+  }
+}
+
 // ── Write helpers (caller wraps in db.transaction()) ─────────────────────────
 
 /**
