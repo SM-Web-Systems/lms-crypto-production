@@ -61,8 +61,8 @@
 | P0-4-F9 | `Swap.tsx` | Swap quote staleness (no re-quote at submit) | Medium |
 | P0-4-F12 | `Send.tsx` | No memo support in payments | Medium |
 | P0-4-F16 | `Swap.tsx` | Max button ignores XLM reserves | Small-Medium |
-| P1-2-F2 | `billing.service.ts` | TOCTOU race in balance check | Medium |
-| P1-3-F1 | `auto-suspension.ts` | acquisitionModeEnabled not checked | Small |
+| P1-2-F2 | `billing.service.ts` | TOCTOU race in balance check | ✅ Batch 4 (d2e9000) |
+| P1-3-F1 | `auto-suspension.ts` | acquisitionModeEnabled not checked | ✅ Batch 3 (3450bba) |
 | P2-5-F1 | `schema/index.ts:295` | addressBook.userId no FK or index | Migration |
 | P2-5-F2 | `schema/index.ts` | 30 FK columns missing indexes | Migration |
 | P2-7-F3 | `audit.ts` | 9 of 17 AuditAction types never emitted | Large |

@@ -36,14 +36,14 @@ All exploitable vulnerabilities have been addressed. The 155 deferred items are 
 - **10 LOW** findings fixed as quick wins — rate limits, input validation, comment accuracy
 - **10 more** fixed in Backlog Batches 1-2 — input validation, error sanitization, rate limits, audit logging, cache bounds, suspension guard
 
-**What remains (156 deferred) is:**
+**What remains (155 deferred) is:**
 - Code quality improvements (naming, typing, dead code)
 - Feature enhancements (memo support, slippage control, dynamic fees)
 - Test coverage gaps (no active vulnerabilities, reduced confidence)
 - Architectural improvements (AbortController, concurrent refresh mutex)
 - Database schema refinements (indexes, FK constraints, type alignment)
 
-None of the 156 deferred items represent exploitable security vulnerabilities in the current deployment.
+None of the 155 deferred items represent exploitable security vulnerabilities in the current deployment.
 
 ---
 
@@ -207,7 +207,7 @@ Merged to main: `f53231c` | Tagged: `batch2-complete-2026-07-28` | Deployed to p
 
 ---
 
-## Deferred Findings (156 items)
+## Deferred Findings (155 items)
 
 These are not security vulnerabilities. They fall into these categories:
 
