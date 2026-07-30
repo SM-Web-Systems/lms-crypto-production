@@ -425,39 +425,49 @@ export async function remintCredential(
       return;
     }
 
-    // Insert new credential
+    // LMS-MINT-002: wrap in transaction to prevent TOCTOU race
     const newCredId = uuidv4();
-    execute(
-      `INSERT INTO nft_credentials
-         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network,
-          course_id, application_id, is_superseded)
-       VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?, 0)`,
-      [
-        newCredId,
-        existing.user_id,
-        targetWallet,
-        txHash,
-        sorobanTokenId,
-        contractId,
-        existing.network ?? 'public',
-        existing.course_id,
-        existing.application_id,
-      ],
-    );
-
-    // Mark old credential as superseded
-    execute(
-      `UPDATE nft_credentials SET is_superseded = 1, updated_at = datetime('now') WHERE id = ?`,
-      [credentialId],
-    );
-
-    // Update the application to point to the new credential (if there is one)
-    if (existing.application_id) {
-      execute(
-        `UPDATE course_nft_applications SET credential_id = ?, tx_hash = ? WHERE id = ?`,
-        [newCredId, txHash, existing.application_id],
+    const doRemint = db.transaction(() => {
+      // Re-check superseded inside transaction (TOCTOU guard)
+      const still = queryOne<{ is_superseded: number }>(
+        'SELECT is_superseded FROM nft_credentials WHERE id = ?',
+        [credentialId],
       );
-    }
+      if (still?.is_superseded) {
+        throw new AppError('Credential was superseded by a concurrent request', 409, 'CONFLICT');
+      }
+
+      execute(
+        `INSERT INTO nft_credentials
+           (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network,
+            course_id, application_id, is_superseded)
+         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?, 0)`,
+        [
+          newCredId,
+          existing.user_id,
+          targetWallet,
+          txHash,
+          sorobanTokenId,
+          contractId,
+          existing.network ?? 'public',
+          existing.course_id,
+          existing.application_id,
+        ],
+      );
+
+      execute(
+        `UPDATE nft_credentials SET is_superseded = 1, updated_at = datetime('now') WHERE id = ?`,
+        [credentialId],
+      );
+
+      if (existing.application_id) {
+        execute(
+          `UPDATE course_nft_applications SET credential_id = ?, tx_hash = ? WHERE id = ?`,
+          [newCredId, txHash, existing.application_id],
+        );
+      }
+    });
+    doRemint();
 
     res.json({
       success: true,
