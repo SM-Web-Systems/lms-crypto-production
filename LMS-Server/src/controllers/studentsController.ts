@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, execute } from '../config/database.js';
+import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Student, StudentResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -306,39 +306,43 @@ export async function importStudents(req: AuthRequest, res: Response, next: Next
 
     const results: Array<{ row: number; status: 'created' | 'skipped'; name: string; email: string; reason?: string }> = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      const { name, email, enrollmentNumber, department, semester } = rows[i];
-      const rowNum = i + 1;
+    // LMS-RATE-005: Wrap bulk import in a transaction for atomicity
+    const runImport = db.transaction(() => {
+      for (let i = 0; i < rows.length; i++) {
+        const { name, email, enrollmentNumber, department, semester } = rows[i];
+        const rowNum = i + 1;
 
-      // Basic validation
-      if (!name?.trim() || !EMAIL_RE.test(email?.trim?.() ?? '') || !enrollmentNumber?.trim() || !department?.trim() || !semester) {
-        results.push({ row: rowNum, status: 'skipped', name: name ?? '', email: email ?? '', reason: 'Missing or invalid field(s)' });
-        continue;
-      }
-      if (semester < 1 || semester > 8) {
-        results.push({ row: rowNum, status: 'skipped', name, email, reason: 'Semester must be 1–8' });
-        continue;
-      }
+        // Basic validation
+        if (!name?.trim() || !EMAIL_RE.test(email?.trim?.() ?? '') || !enrollmentNumber?.trim() || !department?.trim() || !semester) {
+          results.push({ row: rowNum, status: 'skipped', name: name ?? '', email: email ?? '', reason: 'Missing or invalid field(s)' });
+          continue;
+        }
+        if (semester < 1 || semester > 8) {
+          results.push({ row: rowNum, status: 'skipped', name, email, reason: 'Semester must be 1–8' });
+          continue;
+        }
 
-      const emailLower = email.toLowerCase().trim();
-      if (queryOne<Student>('SELECT id FROM students WHERE email = ?', [emailLower])) {
-        results.push({ row: rowNum, status: 'skipped', name, email, reason: 'Email already exists' });
-        continue;
-      }
-      if (queryOne<Student>('SELECT id FROM students WHERE enrollment_number = ?', [enrollmentNumber.trim()])) {
-        results.push({ row: rowNum, status: 'skipped', name, email, reason: 'Enrollment number already exists' });
-        continue;
-      }
+        const emailLower = email.toLowerCase().trim();
+        if (queryOne<Student>('SELECT id FROM students WHERE email = ?', [emailLower])) {
+          results.push({ row: rowNum, status: 'skipped', name, email, reason: 'Email already exists' });
+          continue;
+        }
+        if (queryOne<Student>('SELECT id FROM students WHERE enrollment_number = ?', [enrollmentNumber.trim()])) {
+          results.push({ row: rowNum, status: 'skipped', name, email, reason: 'Enrollment number already exists' });
+          continue;
+        }
 
-      const id = uuidv4();
-      const existingUser = queryOne<{ id: string }>('SELECT id FROM users WHERE email = ?', [emailLower]);
-      execute(
-        `INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, existingUser?.id ?? null, name.trim(), emailLower, enrollmentNumber.trim(), department.trim(), Number(semester)]
-      );
-      results.push({ row: rowNum, status: 'created', name, email });
-    }
+        const id = uuidv4();
+        const existingUser = queryOne<{ id: string }>('SELECT id FROM users WHERE email = ?', [emailLower]);
+        execute(
+          `INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [id, existingUser?.id ?? null, name.trim(), emailLower, enrollmentNumber.trim(), department.trim(), Number(semester)]
+        );
+        results.push({ row: rowNum, status: 'created', name, email });
+      }
+    });
+    runImport();
 
     const created = results.filter((r) => r.status === 'created').length;
     res.status(207).json({
