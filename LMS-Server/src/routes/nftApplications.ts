@@ -14,7 +14,7 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, authorize, requireCourseAccess } from '../middleware/auth.js';
-import { queryOne, query, execute } from '../config/database.js';
+import { db, queryOne, query, execute } from '../config/database.js';
 import { mintCredential } from '../services/mintService.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
@@ -569,21 +569,46 @@ router.post(
       return;
     }
 
-    // Persist mint result
+    // LMS-MINT-J2-004: wrap credential insert + application update in transaction
     const credId = uuidv4();
-    execute(
-      `INSERT INTO nft_credentials
-         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
-       VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, 'public', ?, ?)`,
-      [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, courseId, appId]
-    );
+    const persistMint = db.transaction(() => {
+      // Re-check idempotency inside transaction (TOCTOU guard)
+      const dup = queryOne<{ id: string }>(
+        "SELECT id FROM nft_credentials WHERE user_id = ? AND course_id = ? AND mint_status = 'minted'",
+        [app.user_id, courseId]
+      );
+      if (dup) {
+        throw new Error('ALREADY_MINTED');
+      }
 
-    execute(
-      `UPDATE course_nft_applications
-       SET status = 'minted', tx_hash = ?, credential_id = ?, reviewed_at = datetime('now')
-       WHERE id = ?`,
-      [txHash, credId, appId]
-    );
+      execute(
+        `INSERT INTO nft_credentials
+           (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
+         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, 'public', ?, ?)`,
+        [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, courseId, appId]
+      );
+
+      execute(
+        `UPDATE course_nft_applications
+         SET status = 'minted', tx_hash = ?, credential_id = ?, reviewed_at = datetime('now')
+         WHERE id = ?`,
+        [txHash, credId, appId]
+      );
+    });
+
+    try {
+      persistMint();
+    } catch (txErr: unknown) {
+      const txMsg = txErr instanceof Error ? txErr.message : String(txErr);
+      if (txMsg === 'ALREADY_MINTED') {
+        res.status(409).json({
+          success: false,
+          error: { code: 'ALREADY_MINTED', message: 'NFT already minted for this user and course' },
+        });
+        return;
+      }
+      throw txErr;
+    }
 
     const courseRow = queryOne<{ title: string }>('SELECT title FROM courses WHERE id = ?', [courseId]);
 
