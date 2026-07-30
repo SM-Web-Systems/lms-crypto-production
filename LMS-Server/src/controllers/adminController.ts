@@ -5,6 +5,14 @@ import { AppError } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mintCredential } from '../services/mintService.js';
 
+/** LMS-MINT-005: expire stale pending mints (>30 min) to 'failed'. */
+function expireStalePendingMints(): void {
+  execute(
+    `UPDATE nft_credentials SET mint_status = 'failed', error = 'Mint timed out (>30 min)', updated_at = datetime('now')
+     WHERE mint_status = 'pending' AND created_at < datetime('now', '-30 minutes')`,
+  );
+}
+
 /**
  * GET /api/v1/admin/demo-sponsor-transfers
  *
@@ -52,6 +60,8 @@ export async function listCertificates(
   const { status, courseId } = req.query as { status?: string; courseId?: string };
 
   try {
+    expireStalePendingMints();
+
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -132,6 +142,7 @@ export async function listIssuedCredentials(
   const requestingUserId = req.user?.userId;
 
   try {
+    expireStalePendingMints();
     const conditions: string[] = [];
     const params: unknown[] = [];
 
