@@ -4,6 +4,16 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
+/** Escape HTML special characters to prevent stored XSS. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 interface AnnouncementRow {
   id: string;
   title: string;
@@ -112,7 +122,7 @@ export async function createAnnouncement(req: AuthRequest, res: Response, next: 
     execute(
       `INSERT INTO announcements (id, title, body, scope, course_id, author_id, pinned)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, String(title).trim(), String(body).trim(), resolvedScope, resolvedCourseId, userId, pinned ? 1 : 0]
+      [id, escapeHtml(String(title).trim()), escapeHtml(String(body).trim()), resolvedScope, resolvedCourseId, userId, pinned ? 1 : 0]
     );
 
     const row = queryOne<AnnouncementRow>(`${SELECT} WHERE a.id = ?`, [id]);
@@ -133,8 +143,8 @@ export async function updateAnnouncement(req: AuthRequest, res: Response, next: 
     const updates: string[] = ["updated_at = datetime('now')"];
     const params: unknown[] = [];
 
-    if (title !== undefined) { updates.push('title = ?'); params.push(String(title).trim()); }
-    if (body  !== undefined) { updates.push('body = ?');  params.push(String(body).trim()); }
+    if (title !== undefined) { updates.push('title = ?'); params.push(escapeHtml(String(title).trim())); }
+    if (body  !== undefined) { updates.push('body = ?');  params.push(escapeHtml(String(body).trim())); }
     if (pinned !== undefined) { updates.push('pinned = ?'); params.push(pinned ? 1 : 0); }
 
     if (scope !== undefined) {
