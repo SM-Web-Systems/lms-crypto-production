@@ -131,6 +131,15 @@ const writeLimiter = rateLimit({
 // Keep this name so any future code referencing apiLimiter still compiles.
 const apiLimiter = writeLimiter;
 
+/** Read rate limiter — all methods including GET. Prevents abuse of expensive queries. */
+const readLimiter = rateLimit({
+  windowMs: RATE_WINDOW_MS,
+  max: isDev ? 2000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
+});
+
 if (process.env.NODE_ENV !== 'test') {
   const mins = RATE_WINDOW_MS / 60_000;
   console.log(
@@ -180,7 +189,7 @@ app.use('/api/v1/forum', apiLimiter, forumRoutes);
 app.use('/api/v1/courses', apiLimiter, coursesRoutes);
 app.use('/api/v1/messages', apiLimiter, messagesRoutes);
 app.use('/api/v1/profile', apiLimiter, profileRoutes);
-app.use('/api/v1/users', apiLimiter, usersRoutes);
+app.use('/api/v1/users', readLimiter, usersRoutes);
 app.use('/api/v1/quizzes', apiLimiter, quizzesRoutes);
 app.use('/api/v1', apiLimiter, invitesRoutes);
 app.use('/api/v1/announcements', apiLimiter, announcementsRoutes);
