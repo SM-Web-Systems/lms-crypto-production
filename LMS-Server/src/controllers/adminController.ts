@@ -62,6 +62,10 @@ export async function listCertificates(
   try {
     expireStalePendingMints();
 
+    // LMS-MINT-006: enforce max page size
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -90,8 +94,9 @@ export async function listCertificates(
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
        ${where}
-       ORDER BY a.applied_at DESC`,
-      params,
+       ORDER BY a.applied_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
     );
 
     const certificates = rows.map((r) => ({
@@ -143,6 +148,11 @@ export async function listIssuedCredentials(
 
   try {
     expireStalePendingMints();
+
+    // LMS-MINT-006: enforce max page size
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -201,8 +211,9 @@ export async function listIssuedCredentials(
        LEFT JOIN quizzes q ON q.id = nc.quiz_id
        LEFT JOIN course_nft_applications a ON a.id = nc.application_id
        ${where}
-       ORDER BY nc.updated_at DESC`,
-      params,
+       ORDER BY nc.updated_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
     );
 
     const credentials = rows.map((r) => ({
