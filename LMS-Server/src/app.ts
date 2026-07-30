@@ -202,7 +202,7 @@ app.use('/api/v1', apiLimiter, nftApplicationsRoutes);
 app.use('/api/v1', apiLimiter, lessonCompletionsRoutes);
 app.use('/api/v1', apiLimiter, progressRoutes);
 app.use('/api/v1', apiLimiter, walletStatusRoutes);
-app.use('/api/v1', publicCredentialsRoutes);
+app.use('/api/v1', readLimiter, publicCredentialsRoutes);
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
