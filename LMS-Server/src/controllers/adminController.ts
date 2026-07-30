@@ -4,6 +4,7 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mintCredential } from '../services/mintService.js';
+import { auditLog } from '../services/auditService.js';
 
 /** LMS-MINT-005: expire stale pending mints (>30 min) to 'failed'. */
 function expireStalePendingMints(): void {
@@ -490,6 +491,14 @@ export async function remintCredential(
       }
     });
     doRemint();
+
+    // LMS-ADM-006: audit log for remint
+    auditLog({
+      action: 'REMINT_CREDENTIAL',
+      actorId: req.user?.userId ?? 'unknown',
+      targetId: credentialId,
+      details: `newCredId=${newCredId} oldCredId=${credentialId} wallet=${targetWallet}`,
+    });
 
     res.json({
       success: true,

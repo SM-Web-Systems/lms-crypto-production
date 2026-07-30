@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, UserDirectoryItem, ErrorCodes, UserRole } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { auditLog } from '../services/auditService.js';
 
 function getUserCourseCodes(userId: string): string[] {
   const rows = query<{ course_code: string }>(
@@ -187,6 +188,14 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
       `UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`,
       [role, id],
     );
+
+    // LMS-ADM-006: audit log for role change
+    auditLog({
+      action: 'CHANGE_ROLE',
+      actorId: callerId ?? 'unknown',
+      targetId: id,
+      details: `oldRole=${user.role} newRole=${role} email=${user.email}`,
+    });
 
     res.json({
       success: true,

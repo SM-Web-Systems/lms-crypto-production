@@ -614,6 +614,24 @@ function ensureNftCredentialsSorobanTokenId(): void {
 }
 ensureNftCredentialsSorobanTokenId();
 
+/** LMS-ADM-001 — audit_log table for admin mutation tracking. */
+function ensureAuditLogTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      target_id TEXT,
+      details TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+  `);
+}
+ensureAuditLogTable();
+
 /** LMS-DB-001 — Add FK quizzes.course_id → courses(id) ON DELETE SET NULL.
  *  Existing databases created before this change have no FK on course_id.
  *  This function detects the missing FK and rebuilds the table.
