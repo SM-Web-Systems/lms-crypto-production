@@ -159,10 +159,10 @@ function ensureClerkUserIdColumn(): void {
   const cols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'clerk_user_id')) {
     db.exec('ALTER TABLE users ADD COLUMN clerk_user_id TEXT');
+    db.exec(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user_id ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL'
+    );
   }
-  db.exec(
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user_id ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL'
-  );
 }
 ensureClerkUserIdColumn();
 
