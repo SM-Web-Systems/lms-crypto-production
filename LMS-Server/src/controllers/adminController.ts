@@ -371,6 +371,22 @@ export async function remintCredential(
       );
     }
 
+    // LMS-AUTH-009: 1-hour cooldown between remints for same user+course
+    const recentRemint = queryOne<{ id: string }>(
+      `SELECT id FROM nft_credentials
+       WHERE user_id = ? AND course_id = ? AND is_superseded = 0
+         AND created_at > datetime('now', '-1 hour')
+       LIMIT 1`,
+      [existing.user_id, existing.course_id],
+    );
+    if (recentRemint && recentRemint.id !== credentialId) {
+      throw new AppError(
+        'A credential was recently minted for this user and course. Please wait before re-minting.',
+        429,
+        'REMINT_COOLDOWN',
+      );
+    }
+
     const targetWallet = walletOverride || existing.wallet_address;
     const contractId = process.env.NFT_CONTRACT_ID;
     if (!contractId) {
