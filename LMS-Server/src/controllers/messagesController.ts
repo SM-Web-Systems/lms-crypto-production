@@ -169,9 +169,13 @@ export async function getMessages(req: AuthRequest, res: Response, next: NextFun
       throw new AppError('Conversation not found', 404, ErrorCodes.NOT_FOUND);
     }
 
+    // LMS-PAGINATION-001: paginate messages
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const rows = query<{ id: string; conversation_id: string; sender_id: string; body: string; created_at: string }>(
-      'SELECT id, conversation_id, sender_id, body, created_at FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC',
-      [conversationId]
+      'SELECT id, conversation_id, sender_id, body, created_at FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
+      [conversationId, limit, offset]
     );
 
     const messages: MessageResponse[] = rows.map((r) => ({

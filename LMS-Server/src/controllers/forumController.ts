@@ -100,6 +100,10 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
     const rawCourseId = req.query.courseId as string | undefined;
     const filterGeneral = !rawCourseId || rawCourseId === 'general';
 
+    // LMS-PAGINATION-001: paginate topics
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const rows = query<{
       id: string;
       title: string;
@@ -121,8 +125,9 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
        FROM forum_topics t
        JOIN users u ON t.author_id = u.id
        WHERE ${filterGeneral ? 't.course_id IS NULL' : 't.course_id = ?'}
-       ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id), t.updated_at) DESC`,
-      filterGeneral ? [] : [rawCourseId]
+       ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id), t.updated_at) DESC
+       LIMIT ? OFFSET ?`,
+      filterGeneral ? [limit, offset] : [rawCourseId, limit, offset]
     );
 
     const topics = rows.map(rowToTopic);
@@ -185,6 +190,10 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
     }
 
+    // LMS-PAGINATION-001: paginate posts
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const rows = query<{
       id: string;
       topic_id: string;
@@ -201,8 +210,9 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
        FROM forum_posts p
        JOIN users u ON p.author_id = u.id
        WHERE p.topic_id = ?
-       ORDER BY p.created_at ASC`,
-      [topicId]
+       ORDER BY p.created_at ASC
+       LIMIT ? OFFSET ?`,
+      [topicId, limit, offset]
     );
 
     res.json({

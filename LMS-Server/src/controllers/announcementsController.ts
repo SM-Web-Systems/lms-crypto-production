@@ -69,11 +69,16 @@ export async function getAnnouncements(req: AuthRequest, res: Response, next: Ne
     const role   = req.user?.role;
     if (!userId) throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
 
+    // LMS-PAGINATION-001: paginate announcements
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     let rows: AnnouncementRow[];
 
     if (role === 'admin') {
       rows = query<AnnouncementRow>(
-        `${SELECT} ORDER BY a.pinned DESC, a.created_at DESC`
+        `${SELECT} ORDER BY a.pinned DESC, a.created_at DESC LIMIT ? OFFSET ?`,
+        [limit, offset]
       );
     } else {
       // student: general + courses they are enrolled in (via user_course_codes)
@@ -88,8 +93,9 @@ export async function getAnnouncements(req: AuthRequest, res: Response, next: Ne
                 WHERE ucc.user_id = ?
               )
             )
-         ORDER BY a.pinned DESC, a.created_at DESC`,
-        [userId]
+         ORDER BY a.pinned DESC, a.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [userId, limit, offset]
       );
     }
 
