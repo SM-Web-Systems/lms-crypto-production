@@ -251,7 +251,7 @@ export async function register(
         );
       }
       walletLinkingStatus = 'none';
-      console.warn('[register] wallet creation:', e?.message ?? String(err));
+      console.warn('[register] wallet creation: code=' + (e?.code ?? 'UNKNOWN'));
     }
     const maskedEmail = email.replace(/^(.).*@/, '$1***@');
     console.log(`[authController:register] userId=${userId} email=${maskedEmail} transition=none→${walletLinkingStatus}`);

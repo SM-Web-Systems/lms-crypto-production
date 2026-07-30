@@ -307,7 +307,7 @@ export async function integrationStatus(
       recentProvisioning,
     });
   } catch (error) {
-    console.error(`[adminDiag] userId=${userId} ip=${ip} error:`, error);
+    console.error(`[adminDiag] userId=${userId} ip=${ip} error: ${error instanceof Error ? error.message : 'unknown'}`);
     next(error);
   }
 }
