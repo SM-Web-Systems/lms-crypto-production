@@ -45,8 +45,12 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (!row) {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
-    // Only expose email to the user themselves or admins
+    // LMS-USER-001: Students may only look up their own profile
     const caller = req.user;
+    if (caller?.role === 'student' && caller.userId !== id) {
+      throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
+    }
+    // Only expose email to the user themselves or admins
     const exposedEmail = caller?.userId === id || caller?.role === 'admin' ? row.email : undefined;
     res.json({
       success: true,
