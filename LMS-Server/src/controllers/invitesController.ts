@@ -200,6 +200,12 @@ export async function acceptInvite(req: AuthRequest, res: Response, next: NextFu
     );
     if (!invite) throw new AppError('Invite not found or already used', 404, ErrorCodes.NOT_FOUND);
 
+    // LMS-INVITE-002/J1-003: Verify accepting user's email matches invite
+    const userEmail = req.user?.email;
+    if (userEmail && invite.email && userEmail.toLowerCase() !== invite.email.toLowerCase()) {
+      throw new AppError('This invite was sent to a different email address', 403, ErrorCodes.FORBIDDEN);
+    }
+
     const course = queryOne<CourseRow>('SELECT id, title, course_code FROM courses WHERE id = ?', [invite.course_id]);
     if (!course) throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
 

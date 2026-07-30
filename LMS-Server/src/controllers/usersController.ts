@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, UserDirectoryItem, ErrorCodes, UserRole } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { auditLog } from '../services/auditService.js';
 
 function getUserCourseCodes(userId: string): string[] {
   const rows = query<{ course_code: string }>(
@@ -45,8 +46,12 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (!row) {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
-    // Only expose email to the user themselves or admins
+    // LMS-USER-001: Students may only look up their own profile
     const caller = req.user;
+    if (caller?.role === 'student' && caller.userId !== id) {
+      throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
+    }
+    // Only expose email to the user themselves or admins
     const exposedEmail = caller?.userId === id || caller?.role === 'admin' ? row.email : undefined;
     res.json({
       success: true,
@@ -67,12 +72,23 @@ export async function getUsers(req: AuthRequest, res: Response, next: NextFuncti
     const rows = query<{ id: string; name: string; email: string; role: string }>(
       'SELECT id, name, email, role FROM users ORDER BY name'
     );
+
+    // LMS-ADM-007: batch course code lookup to eliminate N+1
+    const allCodes = query<{ user_id: string; course_code: string }>(
+      'SELECT user_id, course_code FROM user_course_codes ORDER BY course_code'
+    );
+    const codeMap = new Map<string, string[]>();
+    for (const { user_id, course_code } of allCodes) {
+      if (!codeMap.has(user_id)) codeMap.set(user_id, []);
+      codeMap.get(user_id)!.push(course_code);
+    }
+
     const users: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
       role: r.role as UserDirectoryItem['role'],
-      courseCodes: getUserCourseCodes(r.id),
+      courseCodes: codeMap.get(r.id) || [],
     }));
 
     res.json({
@@ -172,6 +188,14 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
       `UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`,
       [role, id],
     );
+
+    // LMS-ADM-006: audit log for role change
+    auditLog({
+      action: 'CHANGE_ROLE',
+      actorId: callerId ?? 'unknown',
+      targetId: id,
+      details: `oldRole=${user.role} newRole=${role} email=${user.email}`,
+    });
 
     res.json({
       success: true,

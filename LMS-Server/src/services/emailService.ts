@@ -22,6 +22,16 @@ const transporter = SMTP_HOST
     })
   : null;
 
+/** Escape HTML special characters to prevent injection in email templates. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const FROM_ADDRESS = process.env.EMAIL_FROM ?? 'LMS <onboarding@example.com>';
 const LMS_NAME = process.env.LMS_NAME ?? 'SM Web Systems LMS';
 const FRONTEND_URL = (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/$/, '');
@@ -38,8 +48,8 @@ export async function sendEnrollmentEmail(opts: {
   const { to, name, courseName } = opts;
   const subject = `You've been enrolled in ${courseName}`;
   const html = `
-    <p>Hi ${name},</p>
-    <p>You have been enrolled in <strong>${courseName}</strong> on <strong>${LMS_NAME}</strong>.</p>
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>You have been enrolled in <strong>${escapeHtml(courseName)}</strong> on <strong>${escapeHtml(LMS_NAME)}</strong>.</p>
     <p><a href="${FRONTEND_URL}/login" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to access your course</a></p>
     <p>If you have questions, contact your administrator.</p>
   `.trim();
@@ -59,8 +69,8 @@ export async function sendPasswordResetEmail(opts: {
   const { to, name, resetUrl } = opts;
   const subject = `Reset your ${LMS_NAME} password`;
   const html = `
-    <p>Hi ${name},</p>
-    <p>We received a request to reset the password for your <strong>${LMS_NAME}</strong> account.</p>
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>We received a request to reset the password for your <strong>${escapeHtml(LMS_NAME)}</strong> account.</p>
     <p><a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Reset password</a></p>
     <p>Or copy this link into your browser:</p>
     <p><code style="word-break:break-all;">${resetUrl}</code></p>
@@ -84,7 +94,7 @@ export async function sendCourseInviteEmail(opts: {
   const subject = `You've been invited to ${courseName}`;
   const html = `
     <p>Hi,</p>
-    <p>You have been invited to join <strong>${courseName}</strong> on <strong>${LMS_NAME}</strong>.</p>
+    <p>You have been invited to join <strong>${escapeHtml(courseName)}</strong> on <strong>${escapeHtml(LMS_NAME)}</strong>.</p>
     <p>Click the button below to create your account and access the course immediately:</p>
     <p><a href="${signupUrl}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Accept invitation &amp; sign up</a></p>
     <p>Or copy this link: <code>${signupUrl}</code></p>

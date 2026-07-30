@@ -76,18 +76,18 @@ function insertAppCredential(userId: string, courseId: string) {
   const credId = uuidv4();
   const appId  = uuidv4();
   const wallet = `GAPPCRED${uuidv4().replace(/-/g, '').slice(0, 48)}`;
-  execute(
-    `INSERT INTO nft_credentials
-       (id, user_id, quiz_id, course_id, application_id, wallet_address, mint_status, contract_id, network)
-     VALUES (?, ?, NULL, ?, ?, ?, 'minted', 'CDUMMYCONTRACT', 'public')`,
-    [credId, userId, courseId, appId, wallet]
-  );
-  // Seed a minimal application row; reviewed_by intentionally NULL to avoid FK check on a temp user
+  // LMS-DB-002: insert application BEFORE credential (FK on application_id now enforced)
   execute(
     `INSERT INTO course_nft_applications
        (id, user_id, course_id, wallet_address, status, applied_at)
      VALUES (?, ?, ?, ?, 'minted', datetime('now'))`,
     [appId, userId, courseId, wallet]
+  );
+  execute(
+    `INSERT INTO nft_credentials
+       (id, user_id, quiz_id, course_id, application_id, wallet_address, mint_status, contract_id, network)
+     VALUES (?, ?, NULL, ?, ?, ?, 'minted', 'CDUMMYCONTRACT', 'public')`,
+    [credId, userId, courseId, appId, wallet]
   );
   return { credId, appId, wallet };
 }

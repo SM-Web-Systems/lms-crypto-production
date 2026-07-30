@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
   title TEXT NOT NULL,
   description TEXT,
   information TEXT,
-  course_id TEXT,
+  course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
   passing_score INTEGER NOT NULL DEFAULT 70,
   questions TEXT NOT NULL DEFAULT '[]',
   created_at TEXT DEFAULT (datetime('now')),
@@ -214,7 +214,7 @@ CREATE INDEX IF NOT EXISTS idx_nft_credentials_status ON nft_credentials(mint_st
 
 -- Phase A redesign: nft_credentials gets course_id + application_id for course-level mints
 ALTER TABLE nft_credentials ADD COLUMN course_id TEXT REFERENCES courses(id) ON DELETE SET NULL;
-ALTER TABLE nft_credentials ADD COLUMN application_id TEXT;
+ALTER TABLE nft_credentials ADD COLUMN application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_nft_credentials_course ON nft_credentials(course_id);
 -- L-013: is_superseded marks old credential after a re-mint correction (both rows kept for audit)
 ALTER TABLE nft_credentials ADD COLUMN is_superseded INTEGER NOT NULL DEFAULT 0;
@@ -282,3 +282,16 @@ CREATE INDEX IF NOT EXISTS idx_nft_apps_status      ON course_nft_applications(s
 CREATE UNIQUE INDEX IF NOT EXISTS idx_nft_apps_active
   ON course_nft_applications(user_id, course_id)
   WHERE status NOT IN ('rejected', 'minted');
+
+-- Audit log for admin mutations (LMS-ADM-001/006)
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  target_id TEXT,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);

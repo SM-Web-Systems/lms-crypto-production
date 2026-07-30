@@ -55,6 +55,12 @@ export async function mintCredentialForQuiz(params: {
     return;
   }
 
+  // LMS-MINT-J2-003: validate Stellar address before RPC call
+  if (!StellarSdk.StrKey.isValidEd25519PublicKey(walletAddress)) {
+    console.error(`[mint] Invalid Stellar wallet address: ${walletAddress}`);
+    return;
+  }
+
   try {
     // Idempotency check
     const existing = queryOne<NftCredentialRow>(
@@ -183,6 +189,11 @@ export async function mintCredential(params: {
   const contractId = process.env.NFT_CONTRACT_ID;
   if (!minterSecret || !contractId) {
     throw new Error('NFT_MINTER_SECRET or NFT_CONTRACT_ID not configured');
+  }
+
+  // LMS-MINT-J2-003: validate Stellar address before RPC call
+  if (!StellarSdk.StrKey.isValidEd25519PublicKey(walletAddress)) {
+    throw new Error(`Invalid Stellar wallet address: ${walletAddress}`);
   }
 
   console.log(`[mint-course] Attempting: user=${userId} course=${courseId} app=${applicationId} wallet=${walletAddress}`);

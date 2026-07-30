@@ -4,6 +4,15 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mintCredential } from '../services/mintService.js';
+import { auditLog } from '../services/auditService.js';
+
+/** LMS-MINT-005: expire stale pending mints (>30 min) to 'failed'. */
+function expireStalePendingMints(): void {
+  execute(
+    `UPDATE nft_credentials SET mint_status = 'failed', error = 'Mint timed out (>30 min)', updated_at = datetime('now')
+     WHERE mint_status = 'pending' AND created_at < datetime('now', '-30 minutes')`,
+  );
+}
 
 /**
  * GET /api/v1/admin/demo-sponsor-transfers
@@ -52,6 +61,12 @@ export async function listCertificates(
   const { status, courseId } = req.query as { status?: string; courseId?: string };
 
   try {
+    expireStalePendingMints();
+
+    // LMS-MINT-006: enforce max page size
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -80,8 +95,9 @@ export async function listCertificates(
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
        ${where}
-       ORDER BY a.applied_at DESC`,
-      params,
+       ORDER BY a.applied_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
     );
 
     const certificates = rows.map((r) => ({
@@ -132,6 +148,12 @@ export async function listIssuedCredentials(
   const requestingUserId = req.user?.userId;
 
   try {
+    expireStalePendingMints();
+
+    // LMS-MINT-006: enforce max page size
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -190,8 +212,9 @@ export async function listIssuedCredentials(
        LEFT JOIN quizzes q ON q.id = nc.quiz_id
        LEFT JOIN course_nft_applications a ON a.id = nc.application_id
        ${where}
-       ORDER BY nc.updated_at DESC`,
-      params,
+       ORDER BY nc.updated_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
     );
 
     const credentials = rows.map((r) => ({
@@ -307,7 +330,7 @@ export async function integrationStatus(
       recentProvisioning,
     });
   } catch (error) {
-    console.error(`[adminDiag] userId=${userId} ip=${ip} error:`, error);
+    console.error(`[adminDiag] userId=${userId} ip=${ip} error: ${error instanceof Error ? error.message : 'unknown'}`);
     next(error);
   }
 }
@@ -371,6 +394,22 @@ export async function remintCredential(
       );
     }
 
+    // LMS-AUTH-009: 1-hour cooldown between remints for same user+course
+    const recentRemint = queryOne<{ id: string }>(
+      `SELECT id FROM nft_credentials
+       WHERE user_id = ? AND course_id = ? AND is_superseded = 0
+         AND created_at > datetime('now', '-1 hour')
+       LIMIT 1`,
+      [existing.user_id, existing.course_id],
+    );
+    if (recentRemint && recentRemint.id !== credentialId) {
+      throw new AppError(
+        'A credential was recently minted for this user and course. Please wait before re-minting.',
+        429,
+        'REMINT_COOLDOWN',
+      );
+    }
+
     const targetWallet = walletOverride || existing.wallet_address;
     const contractId = process.env.NFT_CONTRACT_ID;
     if (!contractId) {
@@ -379,7 +418,7 @@ export async function remintCredential(
 
     // Call mint service (throws on failure)
     let txHash: string;
-    let sorobanTokenId: number | null = null;
+    let sorobanTokenId: string | null = null;
     try {
       const result = await mintCredential({
         userId: existing.user_id,
@@ -388,49 +427,78 @@ export async function remintCredential(
         applicationId: existing.application_id ?? existing.id,
       });
       txHash = result.txHash;
-      sorobanTokenId = result.sorobanTokenId;
+      sorobanTokenId = result.sorobanTokenId != null ? String(result.sorobanTokenId) : null;
     } catch (mintErr: unknown) {
       const msg = mintErr instanceof Error ? mintErr.message : String(mintErr);
-      res.status(502).json({
+      let code = 'REMINT_FAILED';
+      let status = 502;
+      if (/insufficient|balance|fund/i.test(msg)) {
+        code = 'INSUFFICIENT_FUNDS';
+      } else if (/contract|invoke|wasm/i.test(msg)) {
+        code = 'CONTRACT_ERROR';
+      } else if (/timeout|ECONNREFUSED|fetch|network/i.test(msg)) {
+        code = 'NETWORK_ERROR';
+        status = 503;
+      }
+      console.error(`[remint] credentialId=${credentialId} code=${code} msg=${msg}`);
+      res.status(status).json({
         success: false,
-        error: { code: 'REMINT_FAILED', message: `Soroban transaction failed: ${msg}`, credentialId },
+        error: { code, message: `Mint failed: ${code}`, credentialId },
       });
       return;
     }
 
-    // Insert new credential
+    // LMS-MINT-002: wrap in transaction to prevent TOCTOU race
     const newCredId = uuidv4();
-    execute(
-      `INSERT INTO nft_credentials
-         (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network,
-          course_id, application_id, is_superseded)
-       VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?, 0)`,
-      [
-        newCredId,
-        existing.user_id,
-        targetWallet,
-        txHash,
-        sorobanTokenId,
-        contractId,
-        existing.network ?? 'public',
-        existing.course_id,
-        existing.application_id,
-      ],
-    );
-
-    // Mark old credential as superseded
-    execute(
-      `UPDATE nft_credentials SET is_superseded = 1, updated_at = datetime('now') WHERE id = ?`,
-      [credentialId],
-    );
-
-    // Update the application to point to the new credential (if there is one)
-    if (existing.application_id) {
-      execute(
-        `UPDATE course_nft_applications SET credential_id = ?, tx_hash = ? WHERE id = ?`,
-        [newCredId, txHash, existing.application_id],
+    const doRemint = db.transaction(() => {
+      // Re-check superseded inside transaction (TOCTOU guard)
+      const still = queryOne<{ is_superseded: number }>(
+        'SELECT is_superseded FROM nft_credentials WHERE id = ?',
+        [credentialId],
       );
-    }
+      if (still?.is_superseded) {
+        throw new AppError('Credential was superseded by a concurrent request', 409, 'CONFLICT');
+      }
+
+      execute(
+        `INSERT INTO nft_credentials
+           (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network,
+            course_id, application_id, is_superseded)
+         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?, 0)`,
+        [
+          newCredId,
+          existing.user_id,
+          targetWallet,
+          txHash,
+          sorobanTokenId,
+          contractId,
+          existing.network ?? 'public',
+          existing.course_id,
+          existing.application_id,
+        ],
+      );
+
+      execute(
+        `UPDATE nft_credentials SET is_superseded = 1, updated_at = datetime('now') WHERE id = ?`,
+        [credentialId],
+      );
+
+      if (existing.application_id) {
+        execute(
+          `UPDATE course_nft_applications SET credential_id = ?, tx_hash = ? WHERE id = ?`,
+          [newCredId, txHash, existing.application_id],
+        );
+      }
+    });
+    doRemint();
+
+    // LMS-ADM-006: audit log for remint
+    auditLog({
+      action: 'REMINT_CREDENTIAL',
+      actorId: req.user?.userId ?? 'unknown',
+      targetId: credentialId,
+      details: `newCredId=${newCredId} oldCredId=${credentialId} wallet=${targetWallet}`,
+    });
 
     res.json({
       success: true,

@@ -41,6 +41,24 @@ router.get(
       return;
     }
 
+    // LMS-J1-001: Students must be enrolled to view their own progress
+    const role = req.user!.role;
+    if (role === 'student') {
+      const enrolled = queryOne<{ user_id: string }>(
+        `SELECT ucc.user_id FROM user_course_codes ucc
+         JOIN courses c ON c.course_code = ucc.course_code
+         WHERE ucc.user_id = ? AND c.id = ?`,
+        [userId, courseId]
+      );
+      if (!enrolled) {
+        res.status(403).json({
+          success: false,
+          error: { code: ErrorCodes.FORBIDDEN, message: 'You are not enrolled in this course' },
+        });
+        return;
+      }
+    }
+
     const progress = getCourseProgress(userId, courseId);
     res.json({ success: true, data: progress });
   }

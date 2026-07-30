@@ -42,6 +42,9 @@ const app = express();
 if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
+if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
+  console.warn('⚠️  WARNING: NODE_ENV=production but TRUST_PROXY is not set. Rate limiting may not work correctly behind a reverse proxy.');
+}
 
 // Security headers
 app.use(helmet());
@@ -73,7 +76,7 @@ const corsOrigin: cors.CorsOptions['origin'] = (origin, callback) => {
 
 app.use(cors({
   origin: corsOrigin,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
@@ -131,6 +134,15 @@ const writeLimiter = rateLimit({
 // Keep this name so any future code referencing apiLimiter still compiles.
 const apiLimiter = writeLimiter;
 
+/** Read rate limiter — all methods including GET. Prevents abuse of expensive queries. */
+const readLimiter = rateLimit({
+  windowMs: RATE_WINDOW_MS,
+  max: isDev ? 2000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
+});
+
 if (process.env.NODE_ENV !== 'test') {
   const mins = RATE_WINDOW_MS / 60_000;
   console.log(
@@ -140,7 +152,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Body parsing middleware
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 function sendHealthJson(res: Response): void {
@@ -180,7 +192,7 @@ app.use('/api/v1/forum', apiLimiter, forumRoutes);
 app.use('/api/v1/courses', apiLimiter, coursesRoutes);
 app.use('/api/v1/messages', apiLimiter, messagesRoutes);
 app.use('/api/v1/profile', apiLimiter, profileRoutes);
-app.use('/api/v1/users', apiLimiter, usersRoutes);
+app.use('/api/v1/users', readLimiter, usersRoutes);
 app.use('/api/v1/quizzes', apiLimiter, quizzesRoutes);
 app.use('/api/v1', apiLimiter, invitesRoutes);
 app.use('/api/v1/announcements', apiLimiter, announcementsRoutes);
@@ -190,7 +202,7 @@ app.use('/api/v1', apiLimiter, nftApplicationsRoutes);
 app.use('/api/v1', apiLimiter, lessonCompletionsRoutes);
 app.use('/api/v1', apiLimiter, progressRoutes);
 app.use('/api/v1', apiLimiter, walletStatusRoutes);
-app.use('/api/v1', publicCredentialsRoutes);
+app.use('/api/v1', readLimiter, publicCredentialsRoutes);
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');

@@ -196,6 +196,13 @@ export async function register(
         ErrorCodes.VALIDATION_ERROR,
       );
     }
+    if (name.length > 200) {
+      throw new AppError(
+        "Name must be 200 characters or fewer",
+        400,
+        ErrorCodes.VALIDATION_ERROR,
+      );
+    }
     if (!EMAIL_RE.test(email)) {
       throw new AppError(
         "Please enter a valid email address",
@@ -244,7 +251,7 @@ export async function register(
         );
       }
       walletLinkingStatus = 'none';
-      console.warn('[register] wallet creation:', e?.message ?? String(err));
+      console.warn('[register] wallet creation: code=' + (e?.code ?? 'UNKNOWN'));
     }
     const maskedEmail = email.replace(/^(.).*@/, '$1***@');
     console.log(`[authController:register] userId=${userId} email=${maskedEmail} transition=none→${walletLinkingStatus}`);
