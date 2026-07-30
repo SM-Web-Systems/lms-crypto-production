@@ -483,6 +483,17 @@ router.post(
       return;
     }
 
+    // LMS-MINT-J2-001: Re-check eligibility at mint time
+    const progress = getCourseProgress(app.user_id, courseId);
+    if (!progress.meetsAllRequirements) {
+      res.status(422).json({
+        success: false,
+        error: { code: ErrorCodes.REQUIREMENTS_NOT_MET, message: 'Student no longer meets course requirements' },
+        data: { progress },
+      });
+      return;
+    }
+
     // Re-verify wallet at mint time
     const userRow = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
       'SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?',
