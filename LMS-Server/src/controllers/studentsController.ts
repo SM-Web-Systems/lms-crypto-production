@@ -4,6 +4,8 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Student, StudentResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Helper to convert DB student to API response
 function toStudentResponse(student: Student & {
   walletAddress?: string | null;
@@ -124,7 +126,7 @@ export async function createStudent(req: AuthRequest, res: Response, next: NextF
     if (!name || name.trim().length === 0) {
       errors.push({ field: 'name', message: 'Name is required' });
     }
-    if (!email || !email.includes('@')) {
+    if (!email || !EMAIL_RE.test(email.trim())) {
       errors.push({ field: 'email', message: 'Valid email is required' });
     }
     if (!enrollmentNumber || enrollmentNumber.trim().length === 0) {
@@ -309,7 +311,7 @@ export async function importStudents(req: AuthRequest, res: Response, next: Next
       const rowNum = i + 1;
 
       // Basic validation
-      if (!name?.trim() || !email?.includes('@') || !enrollmentNumber?.trim() || !department?.trim() || !semester) {
+      if (!name?.trim() || !EMAIL_RE.test(email?.trim?.() ?? '') || !enrollmentNumber?.trim() || !department?.trim() || !semester) {
         results.push({ row: rowNum, status: 'skipped', name: name ?? '', email: email ?? '', reason: 'Missing or invalid field(s)' });
         continue;
       }
