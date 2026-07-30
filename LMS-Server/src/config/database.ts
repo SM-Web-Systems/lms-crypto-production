@@ -614,6 +614,50 @@ function ensureNftCredentialsSorobanTokenId(): void {
 }
 ensureNftCredentialsSorobanTokenId();
 
+/** LMS-DB-001 — Add FK quizzes.course_id → courses(id) ON DELETE SET NULL.
+ *  Existing databases created before this change have no FK on course_id.
+ *  This function detects the missing FK and rebuilds the table.
+ *  NOTE: Production DB migration is a SEPARATE deployment task — this only
+ *  affects in-memory test DBs and any NEW databases created from schema.sql. */
+function ensureQuizzesCourseIdFK(): void {
+  const has = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quizzes'")
+    .get();
+  if (!has) return;
+
+  const { sql } = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='quizzes'")
+    .get() as { sql: string };
+  if (sql.includes('REFERENCES')) return; // already has FK
+
+  db.pragma('foreign_keys = OFF');
+  db.pragma('legacy_alter_table = ON');
+  db.exec(`
+    BEGIN;
+    ALTER TABLE quizzes RENAME TO _quizzes_db001_old;
+    CREATE TABLE quizzes (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      information TEXT,
+      course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
+      passing_score INTEGER NOT NULL DEFAULT 70,
+      questions TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    INSERT INTO quizzes (id, title, description, information, course_id, passing_score, questions, created_at, updated_at)
+      SELECT id, title, description, information, course_id, passing_score, questions, created_at, updated_at
+      FROM _quizzes_db001_old;
+    DROP TABLE _quizzes_db001_old;
+    CREATE INDEX IF NOT EXISTS idx_quizzes_course ON quizzes(course_id);
+    COMMIT;
+  `);
+  db.pragma('legacy_alter_table = OFF');
+  db.pragma('foreign_keys = ON');
+}
+ensureQuizzesCourseIdFK();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];
