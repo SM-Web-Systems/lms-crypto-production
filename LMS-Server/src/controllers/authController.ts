@@ -196,6 +196,13 @@ export async function register(
         ErrorCodes.VALIDATION_ERROR,
       );
     }
+    if (name.length > 200) {
+      throw new AppError(
+        "Name must be 200 characters or fewer",
+        400,
+        ErrorCodes.VALIDATION_ERROR,
+      );
+    }
     if (!EMAIL_RE.test(email)) {
       throw new AppError(
         "Please enter a valid email address",
