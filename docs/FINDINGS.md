@@ -48,6 +48,7 @@
 **Deployed:** Commit `19f97c3` — added `apiLimiter` to admin route mount. Container restart confirmed.
 
 ### LMS-ERR-001 — HIGH
+**Status:** FIXED (Batch A, commit `dc01fbe`)
 **File:** `LMS-Server/src/middleware/errorHandler.ts:29`
 **Description:** `console.error('Error:', err)` logs full stack trace for every error including routine 400/404 `AppError` instances, creating noisy logs and leaking internal paths.
 **Root cause:** No distinction between operational errors (`AppError`) and unexpected errors.
@@ -59,6 +60,7 @@
 ## MEDIUM Findings
 
 ### LMS-AUTH-001 — MEDIUM
+**Status:** FIXED (Batch A, commit `dcd8e11`)
 **File:** `LMS-Server/src/config/jwt.ts:11`
 **Description:** Hardcoded JWT fallback secret `'dev-only-insecure-secret'` used when `JWT_SECRET` env var is missing and `NODE_ENV !== 'production'`.
 **Root cause:** Fallback designed for dev convenience but risky if staging runs without env vars.
@@ -66,6 +68,7 @@
 **Test needed:** No — config change.
 
 ### LMS-AUTH-009 — MEDIUM
+**Status:** FIXED (Batch B, commit `2bd9700`)
 **File:** `LMS-Server/src/controllers/adminController.ts` (remint handler)
 **Description:** Admin remint endpoint has no rate limit and no cooldown — allows unlimited re-minting of NFT credentials.
 **Root cause:** Overlaps with LMS-RATE-001; no per-action throttle on blockchain-affecting operations.
@@ -73,6 +76,7 @@
 **Test needed:** Yes — `remint-cooldown.test.ts`.
 
 ### LMS-MINT-001 — MEDIUM
+**Status:** FIXED (Batch A, commit `981ef31`)
 **File:** `LMS-Server/src/controllers/adminController.ts` (mint handler)
 **Description:** `sorobanTokenId` stored as TEXT but Soroban token IDs can exceed JavaScript's `Number.MAX_SAFE_INTEGER` — potential precision loss if parsed as number anywhere.
 **Root cause:** No explicit bigint handling for blockchain token IDs.
@@ -80,7 +84,7 @@
 **Test needed:** Yes — verify no `parseInt`/`Number()` calls on `sorobanTokenId`.
 
 ### LMS-MINT-002 — MEDIUM
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `4f192be`)
 **File:** `LMS-Server/src/controllers/adminController.ts` (remint handler)
 **Description:** TOCTOU race in certificate minting — eligibility checked, then mint executed without lock. Concurrent requests could double-mint.
 **Root cause:** No mutex or DB-level lock between eligibility check and credential insertion.
@@ -88,7 +92,8 @@
 **Test:** `mint-idempotent.test.ts`.
 
 ### LMS-MINT-003 — MEDIUM
-**Status:** ACCEPTED RISK — ARCHITECTURAL LIMITATION
+**Status:** ACCEPTED RISK — POLICY DECISION
+**Rationale:** Mint retry with no backoff — admin-only, low-frequency; exponential backoff deferred.
 **File:** `LMS-Server/src/services/walletService.ts`
 **Description:** Wallet provisioning 3-step flow has no retry and no compensation — if step 2 fails after step 1 succeeds, user is registered in AmmaWallet but has no keypair/wallet.
 **Root cause:** Multi-step external API call without saga/compensation pattern.
@@ -96,6 +101,7 @@
 **Test needed:** No — architectural limitation.
 
 ### LMS-MINT-004 — MEDIUM
+**Status:** FIXED (Batch A, commit `9701134`)
 **File:** `LMS-Server/src/controllers/adminController.ts` (mint handler)
 **Description:** NFT minting catches all errors with generic message — blockchain-specific failures (insufficient funds, contract error) not distinguished from transient network issues.
 **Root cause:** Single catch block for all mint errors.
@@ -103,6 +109,7 @@
 **Test needed:** Yes — `mint-error-handling.test.ts`.
 
 ### LMS-INPUT-001 — MEDIUM
+**Status:** FIXED (Batch A, commit `da6c5f4`)
 **File:** `LMS-Server/src/controllers/studentsController.ts:127-128`
 **Description:** Email validation uses `!email.includes('@')` — accepts `@`, `x@`, `@.com`. Auth controller uses proper regex.
 **Root cause:** Inconsistent validation across controllers.
@@ -110,6 +117,7 @@
 **Test needed:** Yes — `student-email-validation.test.ts`.
 
 ### LMS-RATE-002 — MEDIUM
+**Status:** FIXED (Batch B, commit `59a87d5`)
 **File:** `LMS-Server/src/app.ts:81-132`
 **Description:** All GET endpoints skip rate limiting (`skip: (req) => req.method === 'GET'`). Expensive endpoints like `GET /users` (N+1 queries) are unthrottled.
 **Root cause:** Write limiter intentionally skips reads; no separate read limiter exists.
@@ -117,6 +125,7 @@
 **Test needed:** Yes — `read-rate-limit.test.ts`.
 
 ### LMS-RATE-003 — MEDIUM
+**Status:** FIXED (Batch B, commit `4e8d573`)
 **File:** `LMS-Server/src/app.ts:42-44`
 **Description:** `trust proxy` only set when `TRUST_PROXY=1` env var present. If unset behind Nginx, all clients share one rate-limit bucket (Nginx IP).
 **Root cause:** Opt-in configuration for a mandatory production requirement.
@@ -124,6 +133,7 @@
 **Test needed:** No — config/ops verification.
 
 ### LMS-ERR-002 — MEDIUM
+**Status:** FIXED (Batch A, commit `dc01fbe`)
 **File:** `LMS-Server/src/middleware/errorHandler.ts:44-52`
 **Description:** Multer error message hardcodes "10MB" — inaccurate if `MAX_FILE_SIZE` env var is changed.
 **Root cause:** Error message string literal doesn't reference actual configured limit.
@@ -131,6 +141,7 @@
 **Test needed:** No — message fix only.
 
 ### LMS-ERR-003 — MEDIUM
+**Status:** FIXED (Batch A, commit `dc01fbe`)
 **File:** `LMS-Server/src/middleware/errorHandler.ts:56-64`
 **Description:** Raw SQLite error messages (table names, constraint names) exposed to client when `NODE_ENV !== 'production'`.
 **Root cause:** Development convenience leaks schema info if NODE_ENV misconfigured.
@@ -160,6 +171,7 @@
 **Rationale:** Password-change invalidation (password_changed_at check) already mitigates stolen-token risk. 24h is acceptable for this educational platform's threat model.
 
 ### LMS-AUTH-005 — LOW
+**Status:** FIXED (Batch A, commit `765fe1a`)
 **File:** `LMS-Server/src/controllers/authController.ts` (password reset)
 **Description:** Password reset token stored as plaintext in DB rather than hashed.
 **Root cause:** Simplified implementation.
@@ -173,6 +185,7 @@
 **Rationale:** Both services run on the same host, communicating via Docker internal network. AmmaWallet register endpoint requires password. Traffic never leaves the host. Acceptable coupling for current deployment model.
 
 ### LMS-SSO-002 — LOW
+**Status:** FIXED (Batch B, commit `8e1f0f1`)
 **File:** `LMS-Server/src/services/ammaWalletSSOService.ts:16`
 **Description:** `STATE_SECRET` falls back to `JWT_SECRET` — state signing and auth tokens share same key.
 **Root cause:** Convenience fallback.
@@ -180,6 +193,7 @@
 **Test needed:** No — config change.
 
 ### LMS-SQLI-002 — LOW
+**Status:** FIXED (Batch A, commit `1700d6f`)
 **File:** `LMS-Server/src/controllers/profileController.ts:155-163`
 **Description:** Dynamic `SET` clause built from `Object.keys(profileFields)` — currently safe (hardcoded keys) but structurally risky if extended.
 **Root cause:** Pattern allows future developer to add user-controlled keys without noticing injection risk.
@@ -187,6 +201,7 @@
 **Test needed:** No — code hardening.
 
 ### LMS-INPUT-002 — LOW
+**Status:** FIXED (Batch A, commit `da6c5f4`)
 **File:** `LMS-Server/src/controllers/studentsController.ts:136`
 **Description:** Semester validation inconsistent between create (`!semester`) and import (`Number(semester)`) paths.
 **Root cause:** Two code paths evolved independently.
@@ -194,6 +209,7 @@
 **Test needed:** Yes — `student-semester-validation.test.ts`.
 
 ### LMS-INPUT-003 — LOW
+**Status:** FIXED (Batch A, commit `eda2a98`)
 **File:** `LMS-Server/src/app.ts:143`
 **Description:** `express.json()` uses implicit 100kb default — not explicitly configured.
 **Root cause:** Reliance on Express default.
@@ -201,6 +217,7 @@
 **Test needed:** No.
 
 ### LMS-INPUT-005 — LOW
+**Status:** FIXED (Batch A, commit `5de16b9`)
 **File:** `LMS-Server/src/controllers/submissionsController.ts:435` and `documentsController.ts:411`
 **Description:** `Content-Disposition` header uses raw `file_name` from DB — filename with quotes or special chars could cause header injection.
 **Root cause:** No filename sanitization on download.
@@ -208,6 +225,7 @@
 **Test needed:** Yes — `content-disposition-sanitize.test.ts`.
 
 ### LMS-RATE-004 — LOW
+**Status:** FIXED (Batch B, commit `cab172b`)
 **File:** `LMS-Server/src/app.ts:76`
 **Description:** `PATCH` missing from CORS `methods` array — breaks all PATCH requests from browser (profile updates, announcements, user role changes).
 **Root cause:** Oversight in CORS configuration.
@@ -215,6 +233,7 @@
 **Test needed:** Yes — verify PATCH preflight succeeds.
 
 ### LMS-RATE-005 — LOW
+**Status:** FIXED (Batch B, commit `a7888c7`)
 **File:** `LMS-Server/src/controllers/studentsController.ts:294-348`
 **Description:** Bulk import (500 rows × ~4 queries each) not separately rate-limited; could trigger ~2000 DB operations per request.
 **Root cause:** No per-endpoint rate limit for expensive bulk operations.
@@ -222,7 +241,7 @@
 **Test needed:** No — ops tuning.
 
 ### LMS-DB-001 — LOW
-**Status:** FIXED (Batch C) — **NOTE:** Production DB migration (table rebuild) is a SEPARATE deployment task. Code fix applies to new databases and test DBs only.
+**Status:** FIXED (Batch C, commit `7b22e3a`) — **NOTE:** Production DB migration (table rebuild) is a SEPARATE deployment task. Code fix applies to new databases and test DBs only.
 **File:** `LMS-Server/database/schema.sql:171` and `src/config/database.ts` (`ensureQuizzesCourseIdFK`)
 **Description:** `quizzes.course_id` has no FK constraint — quiz can reference non-existent course.
 **Root cause:** FK omitted in both schema.sql and ensure*() migration.
@@ -230,7 +249,7 @@
 **Test:** `quizzes-fk.test.ts`.
 
 ### LMS-DB-002 — LOW
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `7b22e3a`)
 **File:** `LMS-Server/database/schema.sql:217`
 **Description:** `nft_credentials.application_id` missing FK in schema.sql (present in ensure*() migration) — fresh deploys have weaker integrity.
 **Root cause:** Schema file not updated when migration added the FK.
@@ -238,7 +257,7 @@
 **Test:** `nft-cred-app-fk.test.ts`.
 
 ### LMS-DB-007 — LOW
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `e3ab364`)
 **File:** `LMS-Server/src/config/database.ts:163-164`
 **Description:** `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user_id` runs on every startup outside the column-missing branch.
 **Root cause:** Index creation not gated by same condition as column creation.
@@ -246,6 +265,7 @@
 **Test:** `db-index-gating.test.ts`.
 
 ### LMS-ERR-004 — LOW
+**Status:** FIXED (Batch A, commit `35c6c61`)
 **File:** `LMS-Server/src/controllers/authController.ts:247`
 **Description:** Wallet service raw error message logged — may contain PII if AmmaWallet returns email in error strings.
 **Root cause:** Logging `e.message` without sanitization.
@@ -253,6 +273,7 @@
 **Test needed:** No — logging fix.
 
 ### LMS-ERR-005 — LOW
+**Status:** FIXED (Batch A, commit `35c6c61`)
 **File:** `LMS-Server/src/controllers/adminController.ts:310`
 **Description:** Full error object with stack trace logged in admin diagnostics error branch.
 **Root cause:** `console.error('...', error)` logs full object.
@@ -260,7 +281,7 @@
 **Test needed:** No — logging fix.
 
 ### LMS-MINT-005 — LOW
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `2d81100`)
 **File:** `LMS-Server/src/controllers/adminController.ts`
 **Description:** Mint status polling has no timeout — pending mints could remain indefinitely.
 **Root cause:** No max-poll-duration or expiry on pending mints.
@@ -268,7 +289,7 @@
 **Test:** `mint-timeout.test.ts`.
 
 ### LMS-MINT-006 — LOW
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `1fe5b3f`)
 **File:** `LMS-Server/src/controllers/adminController.ts` (list certificates/credentials)
 **Description:** Certificate listing returns all records without upper bound.
 **Root cause:** No max page size enforcement.
@@ -404,6 +425,7 @@
 **Deployed:** Commit `e0928ea` — same commit as LMS-QUIZ-002. Container restart confirmed.
 
 ### LMS-J1-001 — LOW
+**Status:** FIXED (Batch B, commit `57d5b8d`)
 **File:** `LMS-Server/src/routes/progress.ts:25-47`
 **Description:** `GET /courses/:courseId/progress` returns progress for authenticated user against any courseId without enrollment check — leaks course structure (lesson count, required quizzes) to unenrolled students.
 **Root cause:** Missing enrollment guard on own-progress endpoint.
@@ -411,6 +433,7 @@
 **Test needed:** Yes — `progress-enrollment.test.ts`.
 
 ### LMS-J1-003 — LOW
+**Status:** FIXED (Batch B, commit `736ebe6`)
 **File:** `LMS-Server/src/controllers/invitesController.ts:187-217`
 **Description:** Invite token acceptance not bound to invited email — any authenticated user with the token can enroll in the course intended for another user.
 **Root cause:** No email match check at acceptance time.
@@ -418,6 +441,7 @@
 **Test needed:** Yes — `invite-email-binding.test.ts`.
 
 ### LMS-J1-005 — LOW
+**Status:** FIXED (Batch A, commit `54d5cd7`)
 **File:** `LMS-Server/src/controllers/authController.ts:183`
 **Description:** No max-length validation on registration name field — up to 100KB string stored.
 **Root cause:** Missing length cap.
@@ -498,6 +522,7 @@
 **Deployed:** Commit `a3b6db1` — added expires_at check to WHERE clause. Container restart confirmed.
 
 ### LMS-INVITE-002 — MEDIUM
+**Status:** FIXED (Batch B, commit `736ebe6`)
 **File:** `LMS-Server/src/controllers/invitesController.ts:187-211`
 **Description:** No identity check on invite acceptance — any authenticated user can use any invite token (duplicate of LMS-J1-003, confirmed in sweep).
 **Root cause:** No email match verification.
@@ -512,6 +537,7 @@
 **Test needed:** Yes.
 
 ### LMS-EMAIL-001 — LOW
+**Status:** FIXED (Batch A, commit `3ec6d3a`)
 **File:** `LMS-Server/src/services/emailService.ts:40-45`
 **Description:** User-controlled values (`name`, `courseName`) interpolated into HTML email templates without escaping — HTML injection in emails.
 **Root cause:** No HTML entity escaping.
@@ -519,6 +545,7 @@
 **Test needed:** Yes — `email-html-escape.test.ts`.
 
 ### LMS-XSS-003 — LOW
+**Status:** FIXED (Batch A, commit `0c9a82b`)
 **File:** `LMS-Server/src/controllers/announcementsController.ts:115`
 **Description:** Announcement body/title stored without sanitization — lower risk (admin-authored) but still exploitable via compromised admin.
 **Root cause:** Same as LMS-XSS-001.
@@ -526,7 +553,7 @@
 **Test needed:** No — admin-only input.
 
 ### LMS-PAGINATION-001 — LOW
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `2ebcaf6`)
 **File:** `forumController.ts`, `messagesController.ts`, `announcementsController.ts`
 **Description:** Multiple list endpoints lack pagination: forum topics/posts, messages, announcements.
 **Root cause:** Pagination not implemented on older endpoints.
@@ -534,6 +561,7 @@
 **Test:** `pagination-defaults.test.ts`.
 
 ### LMS-INPUT-007 — LOW
+**Status:** FIXED (Batch A, commit `2da3239`)
 **File:** `LMS-Server/src/controllers/forumController.ts:217-248`
 **Description:** No max-length on forum title/body or message body — users can submit megabytes of text.
 **Root cause:** Missing length validation.
@@ -541,7 +569,7 @@
 **Test needed:** No.
 
 ### LMS-ADM-001 — LOW
-**Status:** FIXED (Batch D)
+**Status:** FIXED (Batch D, commit `119f8b5`)
 **File:** Multiple admin controllers
 **Description:** No audit logging for admin write operations (student CRUD, course CRUD, role changes, remints).
 **Root cause:** No audit trail implementation.
@@ -549,7 +577,7 @@
 **Test:** `audit-log.test.ts` (4 tests).
 
 ### LMS-ADM-006 — LOW
-**Status:** FIXED (Batch D)
+**Status:** FIXED (Batch D, commit `119f8b5`)
 **File:** `LMS-Server/src/controllers/adminController.ts`, `usersController.ts`
 **Description:** Critical admin mutations (remint, role change) not audit-logged — compromised admin leaves no trace.
 **Root cause:** Subset of LMS-ADM-001; highest-impact operations.
@@ -557,7 +585,7 @@
 **Test:** `audit-log.test.ts`.
 
 ### LMS-ADM-007 — LOW
-**Status:** FIXED (Batch C)
+**Status:** FIXED (Batch C, commit `b81a40d`)
 **File:** `LMS-Server/src/controllers/usersController.ts`
 **Description:** N+1 query pattern in `GET /users` — `getUserCourseCodes()` called per user in `.map()` loop.
 **Root cause:** No batch query for course codes.
@@ -565,6 +593,7 @@
 **Test:** `users-batch-query.test.ts`.
 
 ### LMS-USER-001 — LOW
+**Status:** FIXED (Batch B, commit `e656c5c`)
 **File:** `LMS-Server/src/controllers/usersController.ts:38-63`
 **Description:** `GET /users/:id` allows any authenticated user to look up name and role of arbitrary users by UUID.
 **Root cause:** No role check on single-user endpoint.

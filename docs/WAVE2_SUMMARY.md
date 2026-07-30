@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-30
 **Branch:** `fix/wave2-2026-07-29`
-**Commits:** 36 (on top of 35 Wave 1 commits)
+**Commits:** 37 (on top of 34 Wave 1 commits, 71 total on branch)
 
 ## Findings Addressed
 
@@ -29,12 +29,20 @@
 | LMS-WALLET-002 | AmmaWallet API key in env var — standard secret management; no code fix needed |
 | LMS-MINT-003 | Mint retry with no backoff — admin-only, low-frequency; exponential backoff deferred |
 
-## Test Suite
-| Metric | Before | After |
-|--------|--------|-------|
-| Tests | 312 | 389 |
-| Test files | 28 | 63 |
-| tsc --noEmit | Clean | Clean |
+## Test Suite Progression
+
+| Milestone | Tests | Test Files |
+|-----------|-------|------------|
+| Wave 1 baseline | 312 | 28 |
+| Post Batch A (14 commits) | 341 | 42 |
+| Post Batch B (10 commits) | 370 | 51 |
+| Post Batch C (11 commits) | 385 | 62 |
+| Post Batch D (2 commits) | 389 | 63 |
+| **Final (verified)** | **389** | **63** |
+
+- `tsc --noEmit`: Clean (zero errors)
+- Wave 1 regression tests: 10/10 passing
+- Secret scan (grep for hardcoded API_KEY/SECRET/PASSWORD/TOKEN): Zero matches
 
 ## Production Migration Follow-up
 
@@ -76,4 +84,17 @@ PRAGMA foreign_keys = ON;
 - No breaking API changes
 - Git worktree is clean (no uncommitted changes)
 
-**Ready for merge** pending manual review. Do NOT force-push or merge without explicit approval.
+**Ready for merge** pending manual review.
+
+**This branch has NOT been pushed to `main` and has NOT been deployed.** Awaiting explicit go-ahead per standing instruction from Wave 1, since this branch includes a schema migration (LMS-DB-001) that requires a coordinated production deployment plan — not just a code push.
+
+## Deliverable Documents
+
+| Document | Status |
+|----------|--------|
+| `docs/FINDINGS.md` | All 40 findings marked FIXED or ACCEPTED RISK with commit hashes |
+| `docs/ARCHITECTURE.md` | Mermaid diagrams: mint flow, DB schema (with new FK edges), security layers |
+| `docs/DEV_SPEC.md` | New modules, FK constraints, validation rules, pagination defaults |
+| `docs/TEST_REPORT.md` | Per-batch test breakdown, 312 → 389 progression |
+| `docs/MANUAL_QA_CHECKLIST.md` | Pre-deploy checks for all batches + production migration |
+| `docs/WAVE2_SUMMARY.md` | This file |
