@@ -4,11 +4,11 @@ import { JWTPayload } from '../types/index.js';
 
 dotenv.config();
 
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-  throw new Error('JWT_SECRET environment variable is required in production');
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 export function generateToken(payload: JWTPayload): string {
