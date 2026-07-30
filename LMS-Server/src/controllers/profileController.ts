@@ -7,6 +7,11 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
+const ALLOWED_PROFILE_COLUMNS = new Set([
+  'whatsapp', 'telegram', 'linkedin_url', 'github_url',
+  'twitter_url', 'website_url', 'custom_links',
+]);
+
 // ── Avatar upload config ────────────────────────────────────────────────────
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
@@ -147,6 +152,12 @@ export async function patchProfile(req: AuthRequest, res: Response, next: NextFu
       profileFields['custom_links'] = JSON.stringify(
         Array.isArray(customLinks) ? customLinks : []
       );
+    }
+
+    for (const k of Object.keys(profileFields)) {
+      if (!ALLOWED_PROFILE_COLUMNS.has(k)) {
+        throw new AppError(`Invalid profile field: ${k}`, 400, ErrorCodes.VALIDATION_ERROR);
+      }
     }
 
     if (Object.keys(profileFields).length > 0) {
