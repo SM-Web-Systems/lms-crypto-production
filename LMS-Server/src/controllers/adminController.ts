@@ -379,7 +379,7 @@ export async function remintCredential(
 
     // Call mint service (throws on failure)
     let txHash: string;
-    let sorobanTokenId: number | null = null;
+    let sorobanTokenId: string | null = null;
     try {
       const result = await mintCredential({
         userId: existing.user_id,
@@ -388,7 +388,7 @@ export async function remintCredential(
         applicationId: existing.application_id ?? existing.id,
       });
       txHash = result.txHash;
-      sorobanTokenId = result.sorobanTokenId;
+      sorobanTokenId = result.sorobanTokenId != null ? String(result.sorobanTokenId) : null;
     } catch (mintErr: unknown) {
       const msg = mintErr instanceof Error ? mintErr.message : String(mintErr);
       res.status(502).json({
