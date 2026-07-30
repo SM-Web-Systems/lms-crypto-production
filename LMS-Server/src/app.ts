@@ -42,6 +42,9 @@ const app = express();
 if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
+if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
+  console.warn('⚠️  WARNING: NODE_ENV=production but TRUST_PROXY is not set. Rate limiting may not work correctly behind a reverse proxy.');
+}
 
 // Security headers
 app.use(helmet());
