@@ -7,6 +7,10 @@ import { AuthRequest, Submission, SubmissionResponse, Student, User, ErrorCodes,
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
 
+function safeName(raw: string): string {
+  return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
+}
+
 /** Returns true if the lecturer (by userId) is assigned to at least one course
  *  that the given student (by students.id) is enrolled in. */
 function isLecturerForStudent(lecturerUserId: string, studentId: string): boolean {
@@ -439,7 +443,7 @@ export async function downloadSubmission(req: AuthRequest, res: Response, next: 
     }
 
     res.setHeader('Content-Type', submission.file_mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${submission.file_name}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName(submission.file_name)}"`);
     res.sendFile(safePath);
   } catch (error) {
     next(error);
