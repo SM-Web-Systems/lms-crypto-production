@@ -140,7 +140,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Body parsing middleware
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 function sendHealthJson(res: Response): void {
