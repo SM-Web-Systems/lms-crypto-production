@@ -230,6 +230,13 @@ export async function createTopic(req: AuthRequest, res: Response, next: NextFun
     if (body === undefined || body === null || String(body).trim() === '') {
       errors.push({ field: 'body', message: 'Body is required' });
     }
+    if (String(title).trim().length > 200) {
+      throw new AppError('Title must be 200 characters or fewer', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (String(body).trim().length > 10000) {
+      throw new AppError('Body must be 10,000 characters or fewer', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
     if (errors.length > 0) {
       throw new AppError('Validation failed', 400, ErrorCodes.VALIDATION_ERROR, errors);
     }
@@ -312,6 +319,9 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
     const errors: Array<{ field: string; message: string }> = [];
     if (body === undefined || body === null || String(body).trim() === '') {
       errors.push({ field: 'body', message: 'Body is required' });
+    }
+    if (String(body).trim().length > 10000) {
+      throw new AppError('Body must be 10,000 characters or fewer', 400, ErrorCodes.VALIDATION_ERROR);
     }
     if (errors.length > 0) {
       throw new AppError('Validation failed', 400, ErrorCodes.VALIDATION_ERROR, errors);
