@@ -391,9 +391,20 @@ export async function remintCredential(
       sorobanTokenId = result.sorobanTokenId != null ? String(result.sorobanTokenId) : null;
     } catch (mintErr: unknown) {
       const msg = mintErr instanceof Error ? mintErr.message : String(mintErr);
-      res.status(502).json({
+      let code = 'REMINT_FAILED';
+      let status = 502;
+      if (/insufficient|balance|fund/i.test(msg)) {
+        code = 'INSUFFICIENT_FUNDS';
+      } else if (/contract|invoke|wasm/i.test(msg)) {
+        code = 'CONTRACT_ERROR';
+      } else if (/timeout|ECONNREFUSED|fetch|network/i.test(msg)) {
+        code = 'NETWORK_ERROR';
+        status = 503;
+      }
+      console.error(`[remint] credentialId=${credentialId} code=${code} msg=${msg}`);
+      res.status(status).json({
         success: false,
-        error: { code: 'REMINT_FAILED', message: `Soroban transaction failed: ${msg}`, credentialId },
+        error: { code, message: `Mint failed: ${code}`, credentialId },
       });
       return;
     }
