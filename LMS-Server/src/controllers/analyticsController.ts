@@ -131,3 +131,114 @@ export async function getDashboard(_req: AuthRequest, res: Response, next: NextF
     next(error);
   }
 }
+
+export interface SponsorStudent {
+  userId: string;
+  name: string;
+  email: string;
+  walletAddress: string | null;
+  enrolledAt: string;
+  nftStatus: 'none' | 'minted';
+}
+
+export async function getSponsorStudents(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { courseId } = req.params;
+
+    const course = queryOne<{ id: string; course_code: string }>(
+      'SELECT id, course_code FROM courses WHERE id = ?',
+      [courseId],
+    );
+    if (!course) {
+      res.status(404).json({ success: false, message: 'Course not found' });
+      return;
+    }
+
+    const rows = query<{
+      user_id: string;
+      name: string;
+      email: string;
+      walletAddress: string | null;
+      created_at: string;
+      has_nft: number;
+    }>(`
+      SELECT
+        u.id           AS user_id,
+        u.name,
+        u.email,
+        u.walletAddress,
+        u.created_at,
+        CASE WHEN nc.id IS NOT NULL THEN 1 ELSE 0 END AS has_nft
+      FROM user_course_codes ucc
+      JOIN users u ON u.id = ucc.user_id
+      LEFT JOIN nft_credentials nc ON nc.user_id = u.id AND nc.course_id = ?
+      WHERE ucc.course_code = ?
+      ORDER BY u.name
+    `, [courseId, course.course_code]);
+
+    const students: SponsorStudent[] = rows.map((r) => ({
+      userId: r.user_id,
+      name: r.name,
+      email: r.email,
+      walletAddress: r.walletAddress,
+      enrolledAt: r.created_at,
+      nftStatus: r.has_nft ? 'minted' : 'none',
+    }));
+
+    res.json({ success: true, data: { students } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function exportCoursesCsv(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rows = query<{
+      sponsor_label: string | null;
+      course_title: string;
+      course_code: string;
+      student_name: string | null;
+      student_email: string | null;
+      wallet_address: string | null;
+      has_nft: number;
+    }>(`
+      SELECT
+        c.sponsor_label,
+        c.title       AS course_title,
+        c.course_code,
+        u.name        AS student_name,
+        u.email       AS student_email,
+        u.walletAddress AS wallet_address,
+        CASE WHEN nc.id IS NOT NULL THEN 1 ELSE 0 END AS has_nft
+      FROM courses c
+      LEFT JOIN user_course_codes ucc ON ucc.course_code = c.course_code
+      LEFT JOIN users u ON u.id = ucc.user_id
+      LEFT JOIN nft_credentials nc ON nc.user_id = u.id AND nc.course_id = c.id
+      ORDER BY c.sponsor_label, c.title, u.name
+    `);
+
+    const dataRows = rows.filter((r) => r.student_name !== null);
+
+    const header = 'Sponsor,Course,Course Code,Student Name,Student Email,Wallet Address,NFT Status';
+    const csvLines = [header];
+    for (const r of dataRows) {
+      const fields = [
+        r.sponsor_label ?? '',
+        r.course_title,
+        r.course_code,
+        r.student_name ?? '',
+        r.student_email ?? '',
+        r.wallet_address ?? '',
+        r.has_nft ? 'minted' : 'none',
+      ].map((f) => `"${String(f).replace(/"/g, '""')}"`);
+      csvLines.push(fields.join(','));
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="sponsor-analytics-${today}.csv"`);
+    res.send(csvLines.join('\n'));
+  } catch (error) {
+    next(error);
+  }
+}
