@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
 import {
@@ -17,6 +17,11 @@ function externalUrlForItem(item: CourseItem): string | null {
   if (item.type === 'link') return item.url.trim();
   if (item.type === 'text') return item.url.trim();
   if (item.type === 'pdf') return item.fileUrl?.trim() || null;
+  if (item.type === 'audio') return item.url.trim();
+  if (item.type === 'download') {
+    const dl = item as { fileUrl?: string };
+    return dl.fileUrl?.trim() || null;
+  }
   return null;
 }
 
@@ -275,6 +280,117 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
           </div>
         ) : (item.type === 'link' || item.type === 'text') && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
+        ) : item.type === 'audio' ? (
+          <div className="flex flex-col items-center gap-5 py-8 px-4">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+              <Music className="h-8 w-8" aria-hidden />
+            </span>
+            <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+            {item.url?.trim() ? (
+              <>
+                <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}>
+                  Your browser does not support the audio element.
+                </audio>
+                <a href={item.url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-accent-teal font-medium hover:underline flex items-center gap-1">
+                  <ExternalLink className="h-3 w-3" aria-hidden />
+                  Download audio file
+                </a>
+              </>
+            ) : (
+              <p className="text-sm text-neutral-500">No audio file is attached to this item.</p>
+            )}
+          </div>
+        ) : item.type === 'quiz' ? (
+          (() => {
+            const quizId = (item as { quizId?: string }).quizId?.trim();
+            return quizId ? (
+              <div className="flex flex-col items-center gap-5 py-8 px-4">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                  <ClipboardCheck className="h-8 w-8" aria-hidden />
+                </span>
+                <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                {item.description?.trim() && (
+                  <p className="text-sm text-neutral-600 max-w-prose text-center leading-relaxed">{item.description}</p>
+                )}
+                <a
+                  href={`/student/quizzes?quiz=${quizId}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors min-w-[200px]"
+                >
+                  <ClipboardCheck className="h-4 w-4 shrink-0" aria-hidden />
+                  Start quiz
+                </a>
+                <p className="text-xs text-neutral-500">
+                  The quiz opens on the Quizzes page. Your progress is tracked there.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-5 py-8 px-4">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                  <ClipboardCheck className="h-8 w-8" aria-hidden />
+                </span>
+                <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                <p className="text-sm text-neutral-500">This quiz has not been configured yet.</p>
+              </div>
+            );
+          })()
+        ) : item.type === 'assignment' ? (
+          <div className="flex flex-col items-center gap-5 py-8 px-4">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <Upload className="h-8 w-8" aria-hidden />
+            </span>
+            <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+            {item.description?.trim() && (
+              <div className="text-sm text-neutral-700 max-w-prose text-center leading-relaxed whitespace-pre-wrap">
+                {item.description}
+              </div>
+            )}
+            {(item as { maxFileSize?: number }).maxFileSize ? (
+              <p className="text-xs text-neutral-500">
+                Max file size: {Math.round(((item as { maxFileSize: number }).maxFileSize) / 1048576)} MB
+              </p>
+            ) : null}
+            <a
+              href="/student/submissions"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors min-w-[200px]"
+            >
+              <Upload className="h-4 w-4 shrink-0" aria-hidden />
+              Go to submissions
+            </a>
+            <p className="text-xs text-neutral-500">
+              Submit your work on the Submissions page.
+            </p>
+          </div>
+        ) : item.type === 'download' ? (
+          (() => {
+            const dlItem = item as { documentId?: string; fileUrl?: string; fileName?: string };
+            const downloadUrl = dlItem.documentId
+              ? `/api/v1/documents/${dlItem.documentId}/download`
+              : dlItem.fileUrl?.trim() || null;
+            const displayName = dlItem.fileName || item.title;
+            return (
+              <div className="flex flex-col items-center gap-5 py-8 px-4">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-600">
+                  <DownloadIcon className="h-8 w-8" aria-hidden />
+                </span>
+                <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                {item.description?.trim() && (
+                  <p className="text-sm text-neutral-600 max-w-prose text-center leading-relaxed">{item.description}</p>
+                )}
+                <p className="text-sm text-neutral-500 font-mono">{displayName}</p>
+                {downloadUrl ? (
+                  <a href={downloadUrl} download={displayName}
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors min-w-[200px]">
+                    <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
+                    Download file
+                  </a>
+                ) : (
+                  <p className="text-sm text-neutral-500">No file is attached to this download item.</p>
+                )}
+              </div>
+            );
+          })()
         ) : (
           <p className="text-sm text-neutral-600 px-4 py-8 text-center">This material has nothing to display.</p>
         )}
