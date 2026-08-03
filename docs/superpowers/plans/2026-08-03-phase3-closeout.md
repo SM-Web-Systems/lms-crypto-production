@@ -340,6 +340,21 @@ Browser QA checklist (31 items) is ready for manual execution when a tester is a
 
 No release blockers found. No rollback required.
 
+### QA Test Data Created
+
+| Item | Value |
+|------|-------|
+| Course ID | `qa-phase3-76261708` |
+| Course code | `QA-P3-2026` |
+| Course title | Phase 3 QA Test Course |
+| Total items | 12 (4 old types + 8 new types including empty-state variants) |
+| Enrolled students | `firdaws.bawa@smwebsystems.com`, `lms-student-e2e-*` |
+
+**Section A (regression):** video, pdf, link, text
+**Section B (Phase 3):** audio, audio-empty, quiz, quiz-empty, assignment, assignment-no-size, download-url, download-empty
+
+**Old courses verified clean:** LMS Pilot (video+link), BVC (text+link), SVC (text) — no new types leaking.
+
 ### Follow-Up Items
-1. Execute 31-item browser QA checklist manually
+1. Execute 31-item browser QA checklist manually using the QA test course
 2. Begin Phase 4 planning after release stability is confirmed
