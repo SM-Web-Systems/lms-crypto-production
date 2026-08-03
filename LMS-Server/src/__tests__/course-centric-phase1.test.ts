@@ -290,3 +290,160 @@ describe('CourseItem extended types — roundtrip via sections JSON', () => {
     expect(items[4].fileName).toBe('cheat.pdf');
   });
 });
+
+// ─── Phase 2 backend roundtrip: new item types ──────────────────
+
+describe('Phase 2 — new item types backend roundtrip', () => {
+  it('audio item roundtrips through PUT + GET', async () => {
+    const { adminId } = seedCourseCtx();
+    const cId = uuidv4();
+    const code = `AUD-${uuidv4().slice(0, 6)}`;
+    const sections = JSON.stringify([{
+      id: uuidv4(),
+      title: 'Audio Section',
+      items: [
+        { id: uuidv4(), type: 'audio', title: 'Podcast Ep 1', url: 'https://cdn.com/ep1.mp3' },
+      ],
+    }]);
+    db.prepare(`INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'Audio Course', ?, ?)`).run(cId, code, sections);
+
+    const token = makeToken({ userId: adminId, email: `cc-admin-${adminId}@t.com`, role: 'admin' });
+    const res = await request(app).get(`/api/v1/courses/${cId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const item = res.body.data.sections[0].items[0];
+    expect(item.type).toBe('audio');
+    expect(item.url).toBe('https://cdn.com/ep1.mp3');
+    expect(item.documentId).toBeUndefined();
+  });
+
+  it('quiz item roundtrips through PUT + GET', async () => {
+    const { adminId } = seedCourseCtx();
+    const cId = uuidv4();
+    const code = `QZ-${uuidv4().slice(0, 6)}`;
+    const sections = JSON.stringify([{
+      id: uuidv4(),
+      title: 'Quiz Section',
+      items: [
+        { id: uuidv4(), type: 'quiz', title: 'Midterm', quizId: 'q-abc-123' },
+      ],
+    }]);
+    db.prepare(`INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'Quiz Course', ?, ?)`).run(cId, code, sections);
+
+    const token = makeToken({ userId: adminId, email: `cc-admin-${adminId}@t.com`, role: 'admin' });
+    const res = await request(app).get(`/api/v1/courses/${cId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const item = res.body.data.sections[0].items[0];
+    expect(item.type).toBe('quiz');
+    expect(item.quizId).toBe('q-abc-123');
+  });
+
+  it('assignment item roundtrips through PUT + GET', async () => {
+    const { adminId } = seedCourseCtx();
+    const cId = uuidv4();
+    const code = `ASN-${uuidv4().slice(0, 6)}`;
+    const sections = JSON.stringify([{
+      id: uuidv4(),
+      title: 'Assignment Section',
+      items: [
+        { id: uuidv4(), type: 'assignment', title: 'Homework 1', description: 'Submit a PDF report', maxFileSize: 5242880 },
+      ],
+    }]);
+    db.prepare(`INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'Assign Course', ?, ?)`).run(cId, code, sections);
+
+    const token = makeToken({ userId: adminId, email: `cc-admin-${adminId}@t.com`, role: 'admin' });
+    const res = await request(app).get(`/api/v1/courses/${cId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const item = res.body.data.sections[0].items[0];
+    expect(item.type).toBe('assignment');
+    expect(item.description).toBe('Submit a PDF report');
+    expect(item.maxFileSize).toBe(5242880);
+  });
+
+  it('download item roundtrips through PUT + GET', async () => {
+    const { adminId } = seedCourseCtx();
+    const cId = uuidv4();
+    const code = `DL-${uuidv4().slice(0, 6)}`;
+    const sections = JSON.stringify([{
+      id: uuidv4(),
+      title: 'Download Section',
+      items: [
+        { id: uuidv4(), type: 'download', title: 'Cheatsheet', fileName: 'cheat.pdf', fileUrl: 'https://cdn.com/cheat.pdf' },
+      ],
+    }]);
+    db.prepare(`INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'DL Course', ?, ?)`).run(cId, code, sections);
+
+    const token = makeToken({ userId: adminId, email: `cc-admin-${adminId}@t.com`, role: 'admin' });
+    const res = await request(app).get(`/api/v1/courses/${cId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const item = res.body.data.sections[0].items[0];
+    expect(item.type).toBe('download');
+    expect(item.fileName).toBe('cheat.pdf');
+    expect(item.fileUrl).toBe('https://cdn.com/cheat.pdf');
+  });
+
+  it('all 8 item types in one section roundtrip correctly', async () => {
+    const { adminId } = seedCourseCtx();
+    const cId = uuidv4();
+    const code = `ALL-${uuidv4().slice(0, 6)}`;
+    const sections = JSON.stringify([{
+      id: uuidv4(),
+      title: 'All Types',
+      items: [
+        { id: uuidv4(), type: 'video', title: 'Vid', url: 'https://yt.com/1' },
+        { id: uuidv4(), type: 'link', title: 'Lnk', url: 'https://example.com' },
+        { id: uuidv4(), type: 'pdf', title: 'Doc', documentId: 'doc-1' },
+        { id: uuidv4(), type: 'text', title: 'Art', url: 'https://blog.com/1' },
+        { id: uuidv4(), type: 'audio', title: 'Pod', url: 'https://cdn.com/ep.mp3' },
+        { id: uuidv4(), type: 'quiz', title: 'Quiz', quizId: 'q-1' },
+        { id: uuidv4(), type: 'assignment', title: 'HW', description: 'Do it', maxFileSize: 1048576 },
+        { id: uuidv4(), type: 'download', title: 'DL', fileName: 'notes.pdf', fileUrl: 'https://cdn.com/notes.pdf' },
+      ],
+    }]);
+    db.prepare(`INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'All Types Course', ?, ?)`).run(cId, code, sections);
+
+    const token = makeToken({ userId: adminId, email: `cc-admin-${adminId}@t.com`, role: 'admin' });
+    const res = await request(app).get(`/api/v1/courses/${cId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const items = res.body.data.sections[0].items;
+    expect(items).toHaveLength(8);
+    expect(items.map((i: any) => i.type)).toEqual([
+      'video', 'link', 'pdf', 'text', 'audio', 'quiz', 'assignment', 'download',
+    ]);
+    expect(items[4].url).toBe('https://cdn.com/ep.mp3');
+    expect(items[5].quizId).toBe('q-1');
+    expect(items[6].description).toBe('Do it');
+    expect(items[7].fileName).toBe('notes.pdf');
+  });
+
+  it('old-only course (video+pdf) roundtrips without new fields', async () => {
+    const { adminId } = seedCourseCtx();
+    const cId = uuidv4();
+    const code = `OLD-${uuidv4().slice(0, 6)}`;
+    const sections = JSON.stringify([{
+      id: uuidv4(),
+      title: 'Old Section',
+      items: [
+        { id: uuidv4(), type: 'video', title: 'Intro', url: 'https://yt.com/old' },
+        { id: uuidv4(), type: 'pdf', title: 'Syllabus', documentId: 'doc-old' },
+      ],
+    }]);
+    db.prepare(`INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'Old Course', ?, ?)`).run(cId, code, sections);
+
+    const token = makeToken({ userId: adminId, email: `cc-admin-${adminId}@t.com`, role: 'admin' });
+    const res = await request(app).get(`/api/v1/courses/${cId}`).set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const items = res.body.data.sections[0].items;
+    expect(items).toHaveLength(2);
+    expect(items[0].type).toBe('video');
+    expect(items[0].quizId).toBeUndefined();
+    expect(items[0].fileName).toBeUndefined();
+    expect(items[1].type).toBe('pdf');
+    expect(items[1].quizId).toBeUndefined();
+  });
+});
