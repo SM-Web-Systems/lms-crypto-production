@@ -151,6 +151,9 @@ function parseImportCSV(raw: string): ParsedCSVResult {
   const titleIdx = header.indexOf('title');
   const urlIdx = header.indexOf('url');
   const infoIdx = header.indexOf('information');
+  const quizIdIdx = header.indexOf('quizid');
+  const descIdx = header.indexOf('description');
+  const fileNameIdx = header.indexOf('filename');
 
   if (weekIdx < 0 || secIdx < 0) {
     return { weeks: [], errors: ['CSV must have "week" and "section" columns.'] };
@@ -192,15 +195,29 @@ function parseImportCSV(raw: string): ParsedCSVResult {
     const itemUrl = urlIdx >= 0 ? (cols[urlIdx] ?? '').trim() : '';
     const itemInfo = infoIdx >= 0 ? (cols[infoIdx] ?? '').trim() : '';
 
-    if (itemTitle && (itemType === 'video' || itemType === 'link' || itemType === 'pdf')) {
+    const URL_TYPES = ['video', 'link', 'text', 'audio'];
+    const VALID_TYPES = ['video', 'link', 'pdf', 'text', 'audio', 'quiz', 'assignment', 'download'];
+
+    if (itemTitle && VALID_TYPES.includes(itemType)) {
       const order = secDraft.items.length + 1;
-      if (itemType === 'pdf') {
-        secDraft.items.push({ tempId: newTempId(), type: 'pdf', title: itemTitle, order, fileUrl: itemUrl || undefined, information: itemInfo });
-      } else {
-        secDraft.items.push({ tempId: newTempId(), type: itemType as 'video' | 'link', title: itemTitle, url: itemUrl, order, information: itemInfo });
+      const base: Partial<ItemDraft> = { tempId: newTempId(), title: itemTitle, order, information: itemInfo };
+
+      if (URL_TYPES.includes(itemType)) {
+        secDraft.items.push({ ...base, type: itemType as 'video' | 'link' | 'text' | 'audio', url: itemUrl } as ItemDraft);
+      } else if (itemType === 'pdf') {
+        secDraft.items.push({ ...base, type: 'pdf', fileUrl: itemUrl || undefined } as ItemDraft);
+      } else if (itemType === 'quiz') {
+        const quizId = quizIdIdx >= 0 ? (cols[quizIdIdx] ?? '').trim() : '';
+        secDraft.items.push({ ...base, type: 'quiz', quizId } as ItemDraft);
+      } else if (itemType === 'assignment') {
+        const desc = descIdx >= 0 ? (cols[descIdx] ?? '').trim() : '';
+        secDraft.items.push({ ...base, type: 'assignment', description: desc } as ItemDraft);
+      } else if (itemType === 'download') {
+        const fn = fileNameIdx >= 0 ? (cols[fileNameIdx] ?? '').trim() : itemTitle;
+        secDraft.items.push({ ...base, type: 'download', fileUrl: itemUrl || undefined, fileName: fn } as ItemDraft);
       }
     } else if (itemTitle && itemType) {
-      errors.push(`Row ${i + 1}: unknown type "${itemType}" — use video, link, or pdf.`);
+      errors.push(`Row ${i + 1}: unknown type "${itemType}" — use video, link, pdf, text, audio, quiz, assignment, or download.`);
     }
   }
 
