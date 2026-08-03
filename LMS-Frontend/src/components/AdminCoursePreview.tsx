@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, BookOpen, Play, ExternalLink, FileText, ChevronDown, Target, CheckCircle, Eye } from 'lucide-react';
+import { X, BookOpen, Play, ExternalLink, FileText, ChevronDown, Target, CheckCircle, Eye, Headphones, ClipboardCheck, Upload, Download } from 'lucide-react';
 import { getCourseWeeks, type Course, type CourseItem, type CourseSection } from '../types/course';
 import { EmbeddedMaterialViewer } from './EmbeddedMaterialViewer';
 import { shouldOpenVideoInModal, isDirectAudioFileUrl, isOfficePresentationUrl } from '../utils/mediaUrl';
@@ -13,7 +13,11 @@ const ICON_BOX = 'w-10 h-10 rounded-xl flex items-center justify-center shrink-0
 
 function itemActionLabel(item: CourseItem): string {
   if (item.type === 'video') return 'Play';
+  if (item.type === 'audio') return 'Listen';
   if (item.type === 'pdf') return 'View';
+  if (item.type === 'quiz') return 'Quiz';
+  if (item.type === 'assignment') return 'Submit';
+  if (item.type === 'download') return 'Download';
   if (item.type === 'link') {
     const url = item.url ?? '';
     if (shouldOpenVideoInModal(url)) return 'Play';
@@ -78,12 +82,28 @@ function SectionPreview({
                     ? 'bg-primary-dark text-white'
                     : item.type === 'pdf'
                     ? 'bg-red-50 text-red-600 border border-red-100'
+                    : item.type === 'audio'
+                    ? 'bg-purple-50 text-purple-600 border border-purple-100'
+                    : item.type === 'quiz'
+                    ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                    : item.type === 'assignment'
+                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                    : item.type === 'download'
+                    ? 'bg-green-50 text-green-600 border border-green-100'
                     : 'bg-neutral-100 text-neutral-600 group-hover:bg-accent-teal group-hover:text-white transition-colors'
                 }`}>
                   {item.type === 'video' ? (
                     <Play className="h-5 w-5 ml-0.5" />
                   ) : item.type === 'pdf' ? (
                     <FileText className="h-5 w-5" />
+                  ) : item.type === 'audio' ? (
+                    <Headphones className="h-5 w-5" />
+                  ) : item.type === 'quiz' ? (
+                    <ClipboardCheck className="h-5 w-5" />
+                  ) : item.type === 'assignment' ? (
+                    <Upload className="h-5 w-5" />
+                  ) : item.type === 'download' ? (
+                    <Download className="h-5 w-5" />
                   ) : shouldOpenVideoInModal((item as { url?: string }).url ?? '') ? (
                     <Play className="h-5 w-5 ml-0.5" />
                   ) : (
