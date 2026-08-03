@@ -1,9 +1,10 @@
 # Phase 3 Closeout: Student Viewer — New Item Type Rendering
 
 **Date:** 2026-08-03
-**Status:** VERIFIED — Awaiting deploy + browser QA + merge
-**Branch:** `feat/student-viewer-new-item-types` (2 commits, 2 files, +211/-1 lines)
+**Status:** RELEASED — Merged, deployed, bundle-verified
+**Branch:** `feat/student-viewer-new-item-types` → merged to main (`c817192`)
 **Baseline:** 421 tests → 421 tests (no backend changes)
+**Deploy:** `docker compose build web && docker compose up -d --no-deps web` — 2026-08-03
 
 ---
 
@@ -285,3 +286,60 @@ LMS-Frontend/src/pages/StudentCourse.tsx               |  94 ++
 ```
 
 No backend files. No new files. No test files (frontend-only, manual QA).
+
+---
+
+## 10. Release Verification Evidence
+
+### Pre-Deploy (automated)
+
+| Gate | Result |
+|------|--------|
+| Backend tests | 421/421 PASS |
+| TypeScript | exit 0 |
+| Frontend build | 5.66s success |
+| Working tree | clean |
+| Backward compat | 0 lines removed from StudentCourse.tsx |
+
+### Post-Deploy (bundle verification)
+
+| Check | Result |
+|-------|--------|
+| Site loads (HTTP 200) | PASS |
+| API health (HTTP 200) | PASS |
+| New icons in bundle (Headphones, ClipboardCheck, Upload, DownloadIcon) | PASS |
+| "Start quiz" string in bundle | PASS |
+| "Go to submissions" string in bundle | PASS |
+| "Download audio file" string in bundle | PASS |
+| Quiz empty state string in bundle | PASS |
+| Audio empty state string in bundle | PASS |
+| Download empty state string in bundle | PASS |
+| `/student/quizzes` route in bundle | PASS |
+| `/student/submissions` route in bundle | PASS |
+| `/api/v1/documents/` download path in bundle | PASS |
+| "Open resource" (old link card) still in bundle | PASS |
+| "nothing to display" fallback still in bundle | PASS |
+| Action labels (Listen, Submit) in bundle | PASS |
+
+### Browser QA (requires manual execution)
+
+The 31-item checklist in Section 3 requires a human tester with:
+- An admin account to create test courses with all 8 item types
+- A student account to verify rendering
+
+These checks cannot be automated in the current project (no frontend test infrastructure).
+
+---
+
+## 11. Release Decision
+
+**RELEASE PASSED WITH FOLLOW-UP**
+
+All automated gates passed. Bundle verification confirms all new code is deployed.
+Browser QA checklist (31 items) is ready for manual execution when a tester is available.
+
+No release blockers found. No rollback required.
+
+### Follow-Up Items
+1. Execute 31-item browser QA checklist manually
+2. Begin Phase 4 planning after release stability is confirmed
