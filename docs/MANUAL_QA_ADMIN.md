@@ -61,8 +61,10 @@
 
 ## Section 3: Course Builder (A4)
 
+> **Note:** The Course Builder persists editing state in `localStorage`. If an admin was previously editing a course and navigates to `/admin/course` without URL parameters, the editor auto-restores the last-edited course and sets `?course=<id>` in the URL (`AdminCourse.tsx:528-533`). This is designed behavior — click the **Cancel** button (arrow-left icon, `AdminCourse.tsx:826-828`) to return to the course list view. Clearing `localStorage` or navigating to `/admin/course?new=1` also resets to a fresh state.
+
 - [ ] **Step 9:** Click "Course" in the sidebar navigation
-  - **Expected:** Navigates to `/admin/course`
+  - **Expected:** Navigates to `/admin/course`. May auto-restore a previously-edited course (see note above).
   - **Source:** `Layout.tsx:71`
 
 - [ ] **Step 10:** Click the button to create a new course — heading reads "New course"

@@ -26,7 +26,17 @@ All checklist items were verified against source code as of commit `4e7f905`. Bu
 
 **Impact:** This is a server startup configuration check, not a browser-clickable behavior. Covered by automated test (`jwt-secret.test.ts`). Not tagged in manual QA checklists because a manual reviewer cannot verify environment variable behavior from the browser.
 
-### 3. Admin Dashboard — `ADMIN_LINES` vs `DAY_LINES`
+### 3. Course Builder — localStorage Auto-Restore on `/admin/course`
+
+**Finding:** Navigating to `/admin/course` without URL parameters may auto-redirect to `/admin/course?course=<id>` if the admin was previously editing a course. This is intentional UX persistence, not a navigation bug.
+
+**Code reference:** `AdminCourse.tsx:528-533` — checks `!qNew && !qCourse` and localStorage `mode: 'edit'` with a valid `courseId`, then calls `startEdit(c)` and `setSearchParams({ course: c.id })`.
+
+**Workaround:** Click the Cancel button (`AdminCourse.tsx:826-828`, calls `resetToCourseList()`) to return to the course list. Clearing localStorage or navigating to `/admin/course?new=1` also resets to a fresh state.
+
+**Impact:** QA testers expecting a blank course list on first navigation may be confused. Documented in `MANUAL_QA_ADMIN.md` Section 3. No code change needed.
+
+### 4. Admin Dashboard — `ADMIN_LINES` vs `DAY_LINES`
 
 **Note:** Admin daily tips use `ADMIN_LINES` (5 messages, `AdminDashboard.tsx:38-44`), while Student daily nudges use `DAY_LINES` (7 messages, `StudentDashboard.tsx:48-56`). Both rotate by `dayOfYear % count`. The checklists correctly reference the appropriate constant for each role.
 
