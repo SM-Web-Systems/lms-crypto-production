@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
-import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
+import { analyticsService, type CourseAnalytics, type SponsorStudent } from '../services/analyticsService';
 import { getErrorMessage } from '../utils/apiError';
 import {
   RefreshCw,
@@ -11,6 +11,10 @@ import {
   Wallet,
   BookOpen,
   Tag,
+  Download,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 
 interface SponsorGroup {
@@ -37,21 +41,31 @@ function groupBySponsor(courses: CourseAnalytics[]): SponsorGroup[] {
       totalNfts: items.reduce((n, c) => n + c.nftsIssuedCount, 0),
     }))
     .sort((a, b) => {
-      // Put "(No sponsor)" last
       if (a.label === '(No sponsor)') return 1;
       if (b.label === '(No sponsor)') return -1;
       return a.label.localeCompare(b.label);
     });
 }
 
+function truncateWallet(address: string | null): string {
+  if (!address) return '—';
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
 const SponsorDashboard: React.FC = () => {
   const [courses, setCourses] = useState<CourseAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // Drill-down state: expanded courseId → student list
+  const [expanded, setExpanded] = useState<Record<string, SponsorStudent[] | 'loading'>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setExpanded({});
     try {
       const data = await analyticsService.getCourseAnalytics();
       setCourses(data);
@@ -66,6 +80,50 @@ const SponsorDashboard: React.FC = () => {
     load();
   }, [load]);
 
+  const toggleRow = useCallback(async (courseId: string) => {
+    setExpanded((prev) => {
+      if (prev[courseId]) {
+        // Collapse
+        const next = { ...prev };
+        delete next[courseId];
+        return next;
+      }
+      // Mark as loading, then fetch
+      return { ...prev, [courseId]: 'loading' };
+    });
+
+    // Only fetch if we're expanding (not collapsing)
+    // Check current state after the update
+    setExpanded((prev) => {
+      if (prev[courseId] !== 'loading') return prev;
+      // Trigger async fetch outside setState
+      analyticsService
+        .getSponsorStudents(courseId)
+        .then((students) => {
+          setExpanded((p) => (p[courseId] === 'loading' ? { ...p, [courseId]: students } : p));
+        })
+        .catch(() => {
+          setExpanded((p) => {
+            const next = { ...p };
+            delete next[courseId];
+            return next;
+          });
+        });
+      return prev;
+    });
+  }, []);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      await analyticsService.exportCsv();
+    } catch (e) {
+      setError(getErrorMessage(e, 'CSV export failed.'));
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
   const groups = groupBySponsor(courses);
 
   return (
@@ -78,10 +136,20 @@ const SponsorDashboard: React.FC = () => {
             Enrollment, wallet linking, and NFT issuance grouped by sponsor or cohort label.
           </p>
         </div>
-        <Button variant="outline" size="sm" type="button" onClick={load} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" type="button" onClick={handleExport} disabled={exporting || loading}>
+            {exporting ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-4 w-4 mr-1.5" aria-hidden />
+            )}
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" type="button" onClick={load} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -158,6 +226,7 @@ const SponsorDashboard: React.FC = () => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-neutral-50 border-b border-neutral-100 text-left text-xs text-neutral-500 uppercase tracking-wide">
+                        <th className="px-4 py-2.5 font-medium w-6" />
                         <th className="px-4 py-2.5 font-medium">Course</th>
                         <th className="px-4 py-2.5 font-medium text-right">Enrolled</th>
                         <th className="px-4 py-2.5 font-medium text-right">Wallets</th>
@@ -165,23 +234,96 @@ const SponsorDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100">
-                      {group.courses.map((c) => (
-                        <tr key={c.courseId} className="hover:bg-neutral-50/60 transition-colors">
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-neutral-900">{c.courseName}</p>
-                            <p className="text-xs text-neutral-400 font-mono">{c.courseCode}</p>
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
-                            {c.enrollmentsCount}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
-                            {c.walletsLinkedCount}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
-                            {c.nftsIssuedCount}
-                          </td>
-                        </tr>
-                      ))}
+                      {group.courses.map((c) => {
+                        const exp = expanded[c.courseId];
+                        const isExpanded = !!exp;
+                        const isLoading = exp === 'loading';
+                        const students = Array.isArray(exp) ? exp : [];
+
+                        return (
+                          <React.Fragment key={c.courseId}>
+                            <tr
+                              className="hover:bg-neutral-50/60 transition-colors cursor-pointer"
+                              onClick={() => toggleRow(c.courseId)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  toggleRow(c.courseId);
+                                }
+                              }}
+                            >
+                              <td className="px-4 py-3 text-neutral-400">
+                                {isLoading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                ) : isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" aria-hidden />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" aria-hidden />
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-neutral-900">{c.courseName}</p>
+                                <p className="text-xs text-neutral-400 font-mono">{c.courseCode}</p>
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
+                                {c.enrollmentsCount}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
+                                {c.walletsLinkedCount}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
+                                {c.nftsIssuedCount}
+                              </td>
+                            </tr>
+                            {isExpanded && !isLoading && (
+                              <tr>
+                                <td colSpan={5} className="px-0 py-0">
+                                  <div className="bg-neutral-50/80 border-t border-neutral-100 px-8 py-3">
+                                    {students.length === 0 ? (
+                                      <p className="text-sm text-neutral-400 italic py-2">No students enrolled</p>
+                                    ) : (
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="text-left text-neutral-500 uppercase tracking-wide">
+                                            <th className="pb-2 font-medium">Name</th>
+                                            <th className="pb-2 font-medium">Email</th>
+                                            <th className="pb-2 font-medium">Wallet</th>
+                                            <th className="pb-2 font-medium">NFT Status</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-neutral-100">
+                                          {students.map((s) => (
+                                            <tr key={s.userId}>
+                                              <td className="py-1.5 text-neutral-800">{s.name}</td>
+                                              <td className="py-1.5 text-neutral-600">{s.email}</td>
+                                              <td className="py-1.5 text-neutral-600 font-mono">
+                                                {truncateWallet(s.walletAddress)}
+                                              </td>
+                                              <td className="py-1.5">
+                                                <span
+                                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                                    s.nftStatus === 'minted'
+                                                      ? 'bg-emerald-100 text-emerald-800'
+                                                      : 'bg-neutral-100 text-neutral-500'
+                                                  }`}
+                                                >
+                                                  {s.nftStatus === 'minted' ? 'Minted' : 'None'}
+                                                </span>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
