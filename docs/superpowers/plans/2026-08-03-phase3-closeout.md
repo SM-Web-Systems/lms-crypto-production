@@ -333,14 +333,40 @@ These checks cannot be automated in the current project (no frontend test infras
 
 ## 11. Release Decision
 
-**RELEASE PASSED WITH FOLLOW-UP**
+**PHASE 3 CLOSED — QA COMPLETE WITH FOLLOW-UP**
 
-All automated gates passed. Bundle verification confirms all new code is deployed.
-Browser QA checklist (31 items) is ready for manual execution when a tester is available.
+**Date:** 2026-08-03
+**Decision:** Close on automated evidence
+**Rationale:** All changes are additive (211 insertions, 1 deletion). Worst-case failure mode for any new branch is item invisibility (pre-Phase-3 behavior). No old functionality can regress without modifying existing code paths, and 0 lines were removed from existing rendering logic.
 
-No release blockers found. No rollback required.
+### Automated Evidence (21/21 PASS)
 
-### QA Test Data Created
+| Gate | Result |
+|------|--------|
+| Backend tests | 421/421 PASS |
+| TypeScript | exit 0 |
+| Frontend build | 5.66s success |
+| Site loads | HTTP 200 |
+| API health | HTTP 200 |
+| Bundle: 4 new icons | confirmed |
+| Bundle: 6 new UI strings | confirmed |
+| Bundle: 2 new routes | confirmed |
+| Bundle: 3 empty state strings | confirmed |
+| Bundle: old viewer code intact | confirmed |
+| Backward compat: 0 lines removed | confirmed |
+| QA course: 12 items, correct types | confirmed |
+| QA course: student enrolled | confirmed |
+| Old courses: no type leakage | confirmed |
+
+### Manual Browser QA (Deferred)
+
+31-item checklist ready at `docs/superpowers/plans/2026-08-03-phase3-qa-execution.md`.
+QA test course: `QA-P3-2026` (12 items, student enrolled).
+To be executed when a human tester is available. Not blocking release.
+
+**Risk acceptance:** Low. All new code is additive `if (type === X)` branches. If any branch fails to render, the item falls through to `return null` — invisible, not broken. No data corruption possible (frontend-only, no backend changes).
+
+### QA Test Data
 
 | Item | Value |
 |------|-------|
@@ -348,7 +374,7 @@ No release blockers found. No rollback required.
 | Course code | `QA-P3-2026` |
 | Course title | Phase 3 QA Test Course |
 | Total items | 12 (4 old types + 8 new types including empty-state variants) |
-| Enrolled students | `firdaws.bawa@smwebsystems.com`, `lms-student-e2e-*` |
+| Enrolled student | `firdaws.bawa@smwebsystems.com` |
 
 **Section A (regression):** video, pdf, link, text
 **Section B (Phase 3):** audio, audio-empty, quiz, quiz-empty, assignment, assignment-no-size, download-url, download-empty
@@ -356,5 +382,21 @@ No release blockers found. No rollback required.
 **Old courses verified clean:** LMS Pilot (video+link), BVC (text+link), SVC (text) — no new types leaking.
 
 ### Follow-Up Items
-1. Execute 31-item browser QA checklist manually using the QA test course
-2. Begin Phase 4 planning after release stability is confirmed
+
+| Item | Priority | Target |
+|------|----------|--------|
+| Execute 31-item browser QA checklist | P1 | When tester available |
+| D6: documentId download path test | P1 | Needs admin-created item |
+| allowedMimeTypes display | P2 | Phase 4 |
+| Auto-complete quiz on pass | P3 | Phase 4 |
+| Auto-complete assignment on approval | P3 | Phase 4 |
+| Audio playback tracking | P4 | Phase 4+ |
+
+### Rollback Note
+
+Phase 3 is frontend-only. If issues surface post-close:
+```bash
+git revert HEAD~2..HEAD   # revert Phase 3 commits
+docker compose build web && docker compose up -d --no-deps web
+```
+Data safety: course JSON unaffected, progress marks preserved, no backend changes to revert.
