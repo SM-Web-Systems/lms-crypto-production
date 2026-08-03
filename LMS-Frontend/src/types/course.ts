@@ -1,6 +1,6 @@
 // Course content layout: course → weeks → sections (with video, link, PDF, text items)
 
-export type ContentItemType = 'video' | 'link' | 'pdf' | 'text';
+export type ContentItemType = 'video' | 'link' | 'pdf' | 'text' | 'audio' | 'quiz' | 'assignment' | 'download';
 
 export interface CourseItemBase {
   id: string;
@@ -39,7 +39,41 @@ export interface CourseItemText extends CourseItemBase {
   description?: string;
 }
 
-export type CourseItem = CourseItemVideo | CourseItemLink | CourseItemPdf | CourseItemText;
+export interface CourseItemAudio extends CourseItemBase {
+  type: 'audio';
+  /** Direct audio URL (e.g. .mp3, .ogg, .wav) for native playback */
+  url: string;
+  description?: string;
+}
+
+export interface CourseItemQuiz extends CourseItemBase {
+  type: 'quiz';
+  /** LMS quiz ID — links to quizzes table */
+  quizId: string;
+  description?: string;
+}
+
+export interface CourseItemAssignment extends CourseItemBase {
+  type: 'assignment';
+  description?: string;
+  /** Max file size in bytes (optional; UI validation hint) */
+  maxFileSize?: number;
+  /** Allowed MIME types (optional; UI validation hint) */
+  allowedMimeTypes?: string[];
+}
+
+export interface CourseItemDownload extends CourseItemBase {
+  type: 'download';
+  /** LMS document ID (optional — use documentsService.getDownloadUrl(id)) */
+  documentId?: string;
+  /** Direct file URL when not from LMS */
+  fileUrl?: string;
+  /** Display name for the downloadable file */
+  fileName: string;
+  description?: string;
+}
+
+export type CourseItem = CourseItemVideo | CourseItemLink | CourseItemPdf | CourseItemText | CourseItemAudio | CourseItemQuiz | CourseItemAssignment | CourseItemDownload;
 
 export interface CourseSection {
   id: string;

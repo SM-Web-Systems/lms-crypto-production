@@ -44,6 +44,9 @@ function toSubmissionResponse(submission: Submission & { student_name?: string; 
     reviewedBy: submission.reviewer_name,
     reviewedById: submission.reviewed_by_id,
     feedback: submission.feedback,
+    courseId: submission.course_id || undefined,
+    weekId: submission.week_id || undefined,
+    itemId: submission.item_id || undefined,
     createdAt: submission.created_at as unknown as string,
     updatedAt: submission.updated_at as unknown as string,
   };
@@ -56,6 +59,7 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     const offset = (page - 1) * limit;
     const status = req.query.status as SubmissionStatus;
     const studentId = req.query.studentId as string;
+    const courseId = req.query.courseId as string;
 
     const userRole = req.user?.role;
     const isAdmin = userRole === 'admin';
@@ -108,6 +112,11 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
       params.push(status);
       conditions.push(`s.status = ?`);
+    }
+
+    if (courseId) {
+      params.push(courseId);
+      conditions.push(`s.course_id = ?`);
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -191,7 +200,7 @@ export async function getSubmission(req: AuthRequest, res: Response, next: NextF
 
 export async function createSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { title, description } = req.body;
+    const { title, description, courseId, weekId, itemId } = req.body;
     const file = req.file;
     let userStudentId = req.user?.studentId;
 
@@ -241,11 +250,20 @@ export async function createSubmission(req: AuthRequest, res: Response, next: Ne
       throw new AppError('Student not found', 404, ErrorCodes.NOT_FOUND);
     }
 
+    // Validate courseId if provided
+    if (courseId) {
+      const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
+      if (!course) {
+        if (file) deleteFile(file.path);
+        throw new AppError('Course not found', 400, ErrorCodes.VALIDATION_ERROR);
+      }
+    }
+
     // Create submission
     const id = uuidv4();
     execute(
-      `INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, file_mime_type)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, file_mime_type, course_id, week_id, item_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         userStudentId,
@@ -255,6 +273,9 @@ export async function createSubmission(req: AuthRequest, res: Response, next: Ne
         file!.size,
         file!.path,
         file!.mimetype,
+        courseId || null,
+        weekId || null,
+        itemId || null,
       ]
     );
 
@@ -520,8 +541,62 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
       data: toSubmissionResponse({ 
         ...submission!, 
         student_name: student?.name,
-        reviewer_name: adminUser?.name 
+        reviewer_name: adminUser?.name
       }),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** Phase 1 Course-Centric IA: GET /courses/:courseId/submissions */
+export async function getCourseSubmissions(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { courseId } = req.params;
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'admin';
+    const isLecturer = userRole === 'lecturer';
+    let userStudentId = req.user?.studentId;
+
+    // Resolve studentId if missing
+    if (!isAdmin && !isLecturer && !userStudentId && userRole === 'student' && req.user?.userId) {
+      const student = queryOne<Student>('SELECT id FROM students WHERE user_id = ?', [req.user.userId]);
+      userStudentId = student?.id;
+    }
+
+    // Verify course exists
+    const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
+    if (!course) {
+      throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const conditions: string[] = ['s.course_id = ?'];
+    const params: unknown[] = [courseId];
+
+    if (!isAdmin && !isLecturer) {
+      if (!userStudentId) {
+        res.json({ success: true, data: { submissions: [] } });
+        return;
+      }
+      conditions.push('s.student_id = ?');
+      params.push(userStudentId);
+    }
+
+    const whereClause = 'WHERE ' + conditions.join(' AND ');
+
+    const submissions = query<Submission & { student_name: string; reviewer_name: string }>(
+      `SELECT s.*, st.name as student_name, u.name as reviewer_name
+       FROM submissions s
+       LEFT JOIN students st ON s.student_id = st.id
+       LEFT JOIN users u ON s.reviewed_by_id = u.id
+       ${whereClause}
+       ORDER BY s.submitted_at DESC`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: { submissions: submissions.map(toSubmissionResponse) },
     });
   } catch (error) {
     next(error);

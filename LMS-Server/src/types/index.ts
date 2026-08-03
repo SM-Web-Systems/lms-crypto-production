@@ -75,6 +75,10 @@ export interface Submission {
   reviewed_at?: Date;
   reviewed_by_id?: string;
   feedback?: string;
+  // Phase 1 Course-Centric IA: optional course/week/item context
+  course_id?: string;
+  week_id?: string;
+  item_id?: string;
   created_at: Date;
   updated_at: Date;
   // Joined fields
@@ -98,6 +102,10 @@ export interface SubmissionResponse {
   reviewedBy?: string;
   reviewedById?: string;
   feedback?: string;
+  // Phase 1 Course-Centric IA: optional course/week/item context
+  courseId?: string;
+  weekId?: string;
+  itemId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -233,6 +241,45 @@ export type CourseItem =
       order?: number;
       documentId?: string;
       fileUrl?: string;
+      description?: string;
+      information?: string;
+    }
+  | {
+      id: string;
+      type: "audio";
+      title: string;
+      order?: number;
+      url: string;
+      description?: string;
+      information?: string;
+    }
+  | {
+      id: string;
+      type: "quiz";
+      title: string;
+      order?: number;
+      quizId: string;
+      description?: string;
+      information?: string;
+    }
+  | {
+      id: string;
+      type: "assignment";
+      title: string;
+      order?: number;
+      description?: string;
+      information?: string;
+      maxFileSize?: number;
+      allowedMimeTypes?: string[];
+    }
+  | {
+      id: string;
+      type: "download";
+      title: string;
+      order?: number;
+      documentId?: string;
+      fileUrl?: string;
+      fileName: string;
       description?: string;
       information?: string;
     };

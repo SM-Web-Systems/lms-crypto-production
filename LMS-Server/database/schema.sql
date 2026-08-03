@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   reviewed_at TEXT,
   reviewed_by_id TEXT REFERENCES users(id),
   feedback TEXT,
+  course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
+  week_id TEXT,
+  item_id TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -74,6 +77,7 @@ CREATE TABLE IF NOT EXISTS course_documents (
   file_path TEXT NOT NULL,
   file_mime_type TEXT,
   course_ids TEXT,
+  week_id TEXT,
   uploaded_by_id TEXT NOT NULL REFERENCES users(id),
   uploaded_at TEXT DEFAULT (datetime('now')),
   created_at TEXT DEFAULT (datetime('now')),
@@ -84,6 +88,8 @@ CREATE INDEX IF NOT EXISTS idx_students_department ON students(department);
 CREATE INDEX IF NOT EXISTS idx_students_semester ON students(semester);
 CREATE INDEX IF NOT EXISTS idx_submissions_student_id ON submissions(student_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
+CREATE INDEX IF NOT EXISTS idx_submissions_course ON submissions(course_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_course_week ON submissions(course_id, week_id);
 CREATE INDEX IF NOT EXISTS idx_documents_category ON course_documents(category);
 CREATE INDEX IF NOT EXISTS idx_documents_uploaded_at ON course_documents(uploaded_at);
 CREATE INDEX IF NOT EXISTS idx_documents_uploaded_by ON course_documents(uploaded_by_id);

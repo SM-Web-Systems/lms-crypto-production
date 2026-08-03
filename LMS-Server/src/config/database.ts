@@ -676,6 +676,32 @@ function ensureQuizzesCourseIdFK(): void {
 }
 ensureQuizzesCourseIdFK();
 
+/** Phase 1 Course-Centric IA: add course_id, week_id, item_id to submissions. */
+function ensureSubmissionsCourseContext(): void {
+  const has = db.prepare(
+    "SELECT 1 FROM pragma_table_info('submissions') WHERE name='course_id'"
+  ).get();
+  if (!has) {
+    db.exec("ALTER TABLE submissions ADD COLUMN course_id TEXT REFERENCES courses(id) ON DELETE SET NULL");
+    db.exec("ALTER TABLE submissions ADD COLUMN week_id TEXT");
+    db.exec("ALTER TABLE submissions ADD COLUMN item_id TEXT");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_submissions_course ON submissions(course_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_submissions_course_week ON submissions(course_id, week_id)");
+  }
+}
+ensureSubmissionsCourseContext();
+
+/** Phase 1 Course-Centric IA: add week_id to course_documents for per-week placement. */
+function ensureCourseDocumentsWeekId(): void {
+  const has = db.prepare(
+    "SELECT 1 FROM pragma_table_info('course_documents') WHERE name='week_id'"
+  ).get();
+  if (!has) {
+    db.exec("ALTER TABLE course_documents ADD COLUMN week_id TEXT");
+  }
+}
+ensureCourseDocumentsWeekId();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];
