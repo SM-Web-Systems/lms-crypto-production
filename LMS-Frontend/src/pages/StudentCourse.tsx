@@ -21,6 +21,10 @@ import {
   ChevronRight,
   Circle,
   AlignLeft,
+  Headphones,
+  ClipboardCheck,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { shouldOpenVideoInModal } from '../utils/mediaUrl';
 
@@ -1081,6 +1085,96 @@ function SectionBlock({
                       )}
                     </div>
                     <span className="text-sm text-accent-teal font-semibold shrink-0">Read</span>
+                  </div>
+                );
+              }
+              if (item.type === 'audio') {
+                return (
+                  <div
+                    key={item.id}
+                    id={`course-item-${item.id}`}
+                    {...materialRowA11y(item)}
+                    className={materialRowClass(item.id)}
+                  >
+                    <MaterialDoneToggle itemId={item.id} />
+                    <div className={`${ICON_BOX} bg-purple-50 text-purple-600 border border-purple-100`}>
+                      <Headphones className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-neutral-800 block leading-snug">{item.title}</span>
+                      {item.description && (
+                        <p className="text-sm text-neutral-500 mt-0.5 leading-snug line-clamp-2">{item.description}</p>
+                      )}
+                    </div>
+                    <span className="text-sm text-accent-teal font-semibold shrink-0">Listen</span>
+                  </div>
+                );
+              }
+              if (item.type === 'quiz') {
+                return (
+                  <div
+                    key={item.id}
+                    id={`course-item-${item.id}`}
+                    {...materialRowA11y(item)}
+                    className={materialRowClass(item.id)}
+                  >
+                    <MaterialDoneToggle itemId={item.id} />
+                    <div className={`${ICON_BOX} bg-amber-50 text-amber-600 border border-amber-100`}>
+                      <ClipboardCheck className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-neutral-800 block leading-snug">{item.title}</span>
+                      {item.description && (
+                        <p className="text-sm text-neutral-500 mt-0.5 leading-snug line-clamp-2">{item.description}</p>
+                      )}
+                    </div>
+                    <span className="text-sm text-accent-teal font-semibold shrink-0">Quiz</span>
+                  </div>
+                );
+              }
+              if (item.type === 'assignment') {
+                return (
+                  <div
+                    key={item.id}
+                    id={`course-item-${item.id}`}
+                    {...materialRowA11y(item)}
+                    className={materialRowClass(item.id)}
+                  >
+                    <MaterialDoneToggle itemId={item.id} />
+                    <div className={`${ICON_BOX} bg-blue-50 text-blue-600 border border-blue-100`}>
+                      <Upload className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-neutral-800 block leading-snug">{item.title}</span>
+                      {item.description && (
+                        <p className="text-sm text-neutral-500 mt-0.5 leading-snug line-clamp-2">{item.description}</p>
+                      )}
+                    </div>
+                    <span className="text-sm text-accent-teal font-semibold shrink-0">Submit</span>
+                  </div>
+                );
+              }
+              if (item.type === 'download') {
+                return (
+                  <div
+                    key={item.id}
+                    id={`course-item-${item.id}`}
+                    {...materialRowA11y(item)}
+                    className={materialRowClass(item.id)}
+                  >
+                    <MaterialDoneToggle itemId={item.id} />
+                    <div className={`${ICON_BOX} bg-green-50 text-green-600 border border-green-100`}>
+                      <Download className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-medium text-neutral-800 block leading-snug">{item.title}</span>
+                      {(item as { fileName?: string }).fileName && (
+                        <p className="text-sm text-neutral-500 mt-0.5 leading-snug line-clamp-1">
+                          {(item as { fileName: string }).fileName}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-sm text-accent-teal font-semibold shrink-0">Download</span>
                   </div>
                 );
               }
