@@ -32,14 +32,20 @@ import { toastSuccess } from '../utils/toastBus';
 
 type ItemDraft = {
   tempId: string;
-  type: 'video' | 'link' | 'pdf' | 'text';
+  type: 'video' | 'link' | 'pdf' | 'text' | 'audio' | 'quiz' | 'assignment' | 'download';
   title: string;
   order: number;
-  url?: string;
-  documentId?: string;
-  fileUrl?: string;
+  url?: string;              // video, link, text, audio
+  documentId?: string;       // pdf, download
+  fileUrl?: string;          // pdf, download
   /** Shown above the resource in the student viewer. */
   information?: string;
+  // Phase 2 fields:
+  quizId?: string;           // quiz
+  description?: string;      // assignment
+  maxFileSize?: number;       // assignment (bytes)
+  allowedMimeTypes?: string[]; // assignment (stored, UI deferred)
+  fileName?: string;         // download
 };
 
 type SectionDraft = {
@@ -432,12 +438,26 @@ const AdminCourse: React.FC = () => {
           outcome: s.outcome || '',
           items: (s.items || []).map((it, i) => ({
             tempId: it.id,
-            type: it.type,
+            type: it.type as ItemDraft['type'],
             title: it.title,
             order: it.order ?? i + 1,
-            url: it.type !== 'pdf' ? (it as { url: string }).url : undefined,
-            documentId: it.type === 'pdf' ? (it as { documentId?: string }).documentId : undefined,
-            fileUrl: it.type === 'pdf' ? (it as { fileUrl?: string }).fileUrl : undefined,
+            // URL-based types:
+            url: (['video', 'link', 'text', 'audio'] as string[]).includes(it.type)
+              ? (it as { url?: string }).url : undefined,
+            // PDF + download:
+            documentId: (['pdf', 'download'] as string[]).includes(it.type)
+              ? (it as { documentId?: string }).documentId : undefined,
+            fileUrl: (['pdf', 'download'] as string[]).includes(it.type)
+              ? (it as { fileUrl?: string }).fileUrl : undefined,
+            // Quiz:
+            quizId: it.type === 'quiz' ? (it as { quizId?: string }).quizId : undefined,
+            // Assignment:
+            description: it.type === 'assignment' ? (it as { description?: string }).description : undefined,
+            maxFileSize: it.type === 'assignment' ? (it as { maxFileSize?: number }).maxFileSize : undefined,
+            allowedMimeTypes: it.type === 'assignment' ? (it as { allowedMimeTypes?: string[] }).allowedMimeTypes : undefined,
+            // Download:
+            fileName: it.type === 'download' ? (it as { fileName?: string }).fileName : undefined,
+            // Universal:
             information: (it as { information?: string }).information || '',
           })),
         })),
@@ -692,6 +712,35 @@ const AdminCourse: React.FC = () => {
               if (it.type === 'text') {
                 return { ...base, type: 'text' as const, url: (it.url || '').trim() };
               }
+              if (it.type === 'audio') {
+                return { ...base, type: 'audio' as const, url: (it.url || '').trim() };
+              }
+              if (it.type === 'quiz') {
+                return {
+                  ...base,
+                  type: 'quiz' as const,
+                  quizId: (it.quizId || '').trim(),
+                };
+              }
+              if (it.type === 'assignment') {
+                return {
+                  ...base,
+                  type: 'assignment' as const,
+                  ...(it.description?.trim() ? { description: it.description.trim() } : {}),
+                  ...(it.maxFileSize ? { maxFileSize: it.maxFileSize } : {}),
+                  ...(it.allowedMimeTypes?.length ? { allowedMimeTypes: it.allowedMimeTypes } : {}),
+                };
+              }
+              if (it.type === 'download') {
+                return {
+                  ...base,
+                  type: 'download' as const,
+                  documentId: it.documentId?.trim() || undefined,
+                  fileUrl: it.fileUrl?.trim() || undefined,
+                  fileName: (it.fileName || '').trim(),
+                };
+              }
+              // pdf — last explicit branch
               return {
                 ...base,
                 type: 'pdf' as const,
