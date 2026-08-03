@@ -267,7 +267,7 @@ item.type === 'quiz' ? (
 | Scenario | Behavior |
 |----------|----------|
 | `quizId` is empty/missing | Show "Quiz not configured" message |
-| Quiz has been deleted | Quiz page shows "not found" (existing behavior) |
+| Quiz has been deleted | Quiz page shows quiz picker list (student can select another quiz) |
 | Student already completed quiz | "Start quiz" still works (retake allowed) |
 | New course (no quizId) | Admin should set quizId — student sees empty state |
 
