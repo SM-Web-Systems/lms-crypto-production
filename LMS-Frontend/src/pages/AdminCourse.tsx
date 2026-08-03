@@ -27,6 +27,7 @@ import { useAuth } from '../context/useAuth';
 import { AdminCoursePageSkeleton } from '../components/PageSkeletons';
 import { AdminCoursePreview } from '../components/AdminCoursePreview';
 import { quizService } from '../services/quizService';
+import type { Quiz } from '../types/quiz';
 import { courseCompletionService, type CourseRequirements } from '../services/courseCompletionService';
 import { toastSuccess } from '../utils/toastBus';
 
@@ -266,6 +267,15 @@ const AdminCourse: React.FC = () => {
   const [documents, setDocuments] = useState<{ id: string; title: string; category: string }[]>([]);
   const [docCategories, setDocCategories] = useState<string[]>([]);
   const [pdfUploadingItemTempId, setPdfUploadingItemTempId] = useState<string | null>(null);
+  const [courseQuizzes, setCourseQuizzes] = useState<Quiz[]>([]);
+
+  // Fetch quizzes for current course (quiz picker)
+  useEffect(() => {
+    if (!editingId) { setCourseQuizzes([]); return; }
+    quizService.getAll().then(all => {
+      setCourseQuizzes(all.filter(q => q.courseId === editingId));
+    });
+  }, [editingId]);
 
   // CSV import state
   const [importOpen, setImportOpen] = useState(false);
@@ -966,7 +976,7 @@ const AdminCourse: React.FC = () => {
                                 </Button>
                               </div>
                               <div className="ml-7">
-                                <p className="text-sm font-medium text-neutral-600 mb-2">Items (videos, links, text articles, PDFs)</p>
+                                <p className="text-sm font-medium text-neutral-600 mb-2">Items (videos, links, text articles, PDFs, audio, quizzes, assignments, downloads)</p>
                                 {sec.items.map((it) => (
                                   <div key={it.tempId} className="mb-4 p-3 bg-neutral-50 border border-neutral-200 rounded space-y-2">
                                     <div className="flex flex-wrap gap-2 items-start">
@@ -979,6 +989,10 @@ const AdminCourse: React.FC = () => {
                                         <option value="link">Link</option>
                                         <option value="text">Text / Article</option>
                                         <option value="pdf">PDF</option>
+                                        <option value="audio">Audio</option>
+                                        <option value="quiz">Quiz</option>
+                                        <option value="assignment">Assignment</option>
+                                        <option value="download">Download</option>
                                       </select>
                                       <Input
                                         placeholder="Title"
@@ -986,14 +1000,20 @@ const AdminCourse: React.FC = () => {
                                         onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { title: e.target.value })}
                                         className="flex-1 min-w-[120px]"
                                       />
-                                      {it.type !== 'pdf' && (
+                                      {/* URL-based types: video, link, text, audio */}
+                                      {(['video', 'link', 'text', 'audio'] as string[]).includes(it.type) && (
                                         <Input
-                                          placeholder={it.type === 'video' ? 'YouTube URL or direct .mp4 / .webm link' : 'URL'}
+                                          placeholder={
+                                            it.type === 'video' ? 'YouTube URL or direct .mp4 / .webm link'
+                                            : it.type === 'audio' ? 'Audio URL (.mp3, .ogg, .wav)'
+                                            : 'URL'
+                                          }
                                           value={it.url || ''}
                                           onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { url: e.target.value })}
                                           className="flex-1 min-w-[200px]"
                                         />
                                       )}
+                                      {/* PDF type */}
                                       {it.type === 'pdf' && (
                                         <>
                                           <select
@@ -1045,6 +1065,79 @@ const AdminCourse: React.FC = () => {
                                               ? 'New uploads are restricted to students who can access this course.'
                                               : 'After you save the course, re-upload or set access under Resources if you need course-only visibility.'}
                                           </p>
+                                        </>
+                                      )}
+                                      {/* Quiz type */}
+                                      {it.type === 'quiz' && (
+                                        <>
+                                          <select
+                                            value={it.quizId || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { quizId: e.target.value || undefined })}
+                                            className="rounded border border-neutral-300 px-2 py-1 text-sm min-w-[180px]"
+                                          >
+                                            <option value="">— Select quiz —</option>
+                                            {courseQuizzes.map(q => (
+                                              <option key={q.id} value={q.id}>{q.title}</option>
+                                            ))}
+                                          </select>
+                                          {courseQuizzes.length === 0 && (
+                                            <p className="text-xs text-neutral-500">
+                                              {editingId
+                                                ? 'No quizzes for this course yet. Create them on the Quizzes admin page.'
+                                                : 'Save the course first, then create quizzes on the Quizzes admin page.'}
+                                            </p>
+                                          )}
+                                        </>
+                                      )}
+                                      {/* Assignment type */}
+                                      {it.type === 'assignment' && (
+                                        <>
+                                          <TextArea
+                                            placeholder="Task description shown to students"
+                                            value={it.description || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { description: e.target.value })}
+                                            rows={2}
+                                            className="flex-1 min-w-[200px] text-sm"
+                                          />
+                                          <Input
+                                            type="number"
+                                            placeholder="Max file size in MB (default: 10)"
+                                            value={it.maxFileSize ? String(it.maxFileSize / 1048576) : ''}
+                                            onChange={(e) => {
+                                              const mb = parseFloat(e.target.value);
+                                              updateItem(week.tempId, sec.tempId, it.tempId, {
+                                                maxFileSize: mb > 0 ? Math.round(mb * 1048576) : undefined,
+                                              });
+                                            }}
+                                            className="w-[180px]"
+                                          />
+                                        </>
+                                      )}
+                                      {/* Download type */}
+                                      {it.type === 'download' && (
+                                        <>
+                                          <select
+                                            value={it.documentId || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { documentId: e.target.value || undefined, fileUrl: undefined })}
+                                            className="rounded border border-neutral-300 px-2 py-1 text-sm min-w-[180px]"
+                                          >
+                                            <option value="">— Library —</option>
+                                            {documents.map((d) => (
+                                              <option key={d.id} value={d.id}>{d.title}</option>
+                                            ))}
+                                          </select>
+                                          <Input
+                                            placeholder="Or direct download URL"
+                                            value={it.fileUrl || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { fileUrl: e.target.value || undefined })}
+                                            className="flex-1 min-w-[200px]"
+                                          />
+                                          <Input
+                                            placeholder="Display filename (e.g. slides.pptx)"
+                                            value={it.fileName || ''}
+                                            onChange={(e) => updateItem(week.tempId, sec.tempId, it.tempId, { fileName: e.target.value })}
+                                            className="flex-1 min-w-[180px]"
+                                          />
                                         </>
                                       )}
                                       <Button type="button" variant="outline" size="sm" onClick={() => removeItem(week.tempId, sec.tempId, it.tempId)} className="text-red-600 shrink-0">
