@@ -21,6 +21,18 @@ export interface SponsorStudent {
   nftStatus: 'none' | 'minted';
 }
 
+export interface QuizAnalytics {
+  quizId: string;
+  quizTitle: string;
+  passingScore: number;
+  courseTitle: string | null;
+  courseCode: string | null;
+  attempts: number;
+  passedCount: number;
+  passRate: number;
+  avgScore: number;
+}
+
 export const analyticsService = {
   async getDashboard(): Promise<DashboardAnalytics> {
     const response = await api.get<ApiResponse<DashboardAnalytics>>('/analytics/dashboard');
@@ -37,6 +49,11 @@ export const analyticsService = {
       `/analytics/courses/${courseId}/students`,
     );
     return response.data?.data?.students ?? [];
+  },
+
+  async getQuizAnalytics(): Promise<QuizAnalytics[]> {
+    const response = await api.get<{ success: boolean; data: { quizzes: QuizAnalytics[] } }>('/analytics/quizzes');
+    return response.data?.data?.quizzes ?? [];
   },
 
   async exportCsv(): Promise<void> {

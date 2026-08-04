@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDashboard, getCourseAnalytics, getSponsorStudents, exportCoursesCsv } from '../controllers/analyticsController.js';
+import { getDashboard, getCourseAnalytics, getQuizAnalytics, getSponsorStudents, exportCoursesCsv } from '../controllers/analyticsController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = Router();
@@ -13,6 +13,9 @@ router.get('/dashboard', getDashboard);
 
 // GET /analytics/courses - Per-course enrollment/NFT analytics
 router.get('/courses', getCourseAnalytics);
+
+// GET /analytics/quizzes - Per-quiz completion analytics
+router.get('/quizzes', getQuizAnalytics);
 
 // GET /analytics/courses/export - CSV export (MUST be before :courseId)
 router.get('/courses/export', exportCoursesCsv);
