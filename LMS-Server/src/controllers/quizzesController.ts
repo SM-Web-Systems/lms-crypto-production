@@ -4,6 +4,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
+import { findQuizItemInCourse } from '../utils/courseHelpers.js';
 
 interface QuizQuestion {
   id: string;
@@ -437,6 +438,28 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
         mintCredentialForQuiz({ userId, quizId, walletAddress: userRow.walletAddress }).catch((err: unknown) => {
           console.error('[mint] fire-and-forget error:', err);
         });
+      }
+    }
+
+    // Phase 4: auto-complete linked course item on quiz pass (best-effort)
+    if (passed === 1 && quiz.course_id) {
+      try {
+        const course = queryOne<{ sections: string }>(
+          'SELECT sections FROM courses WHERE id = ?',
+          [quiz.course_id]
+        );
+        if (course?.sections) {
+          const match = findQuizItemInCourse(course.sections, quizId);
+          if (match) {
+            execute(
+              `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
+               VALUES (?, ?, ?, ?, ?, NULL)`,
+              [uuidv4(), userId, quiz.course_id, match.itemId, match.sectionId]
+            );
+          }
+        }
+      } catch (err) {
+        console.error('[quiz-auto-complete] error:', err);
       }
     }
 
