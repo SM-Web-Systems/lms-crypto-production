@@ -76,13 +76,14 @@ export const courseCompletionService = {
   },
 
   /** GET /courses/:courseId/lessons/completions — list own completions with progress */
-  async getLessonCompletions(courseId: string): Promise<{ itemId: string; progressPct: number | null; lastPositionS: number | null }[]> {
+  async getLessonCompletions(courseId: string): Promise<{ itemId: string; completedAt: string | null; progressPct: number | null; lastPositionS: number | null }[]> {
     const res = await api.get<{
       success: boolean;
-      data: { completions: { item_id: string; progress_pct: number | null; last_position_s: number | null }[] };
+      data: { completions: { item_id: string; completed_at: string | null; progress_pct: number | null; last_position_s: number | null }[] };
     }>(`/courses/${courseId}/lessons/completions`);
     return (res.data.data?.completions ?? []).map((c) => ({
       itemId: c.item_id,
+      completedAt: c.completed_at,
       progressPct: c.progress_pct,
       lastPositionS: c.last_position_s,
     }));

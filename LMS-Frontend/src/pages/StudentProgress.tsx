@@ -1,8 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/useAuth';
 import { courseCompletionService } from '../services/courseCompletionService';
+import { courseService } from '../services/courseService';
+import { quizService } from '../services/quizService';
 import type { MyCourseProgress, CertificateStatus } from '../types/api';
-import { Loader2, CheckCircle, XCircle, Clock, Trophy, AlertCircle, ExternalLink } from 'lucide-react';
+import type { Course, CourseItemQuiz } from '../types/course';
+import { getCourseWeeks } from '../types/course';
+import type { QuizCompletion } from '../types/quiz';
+import {
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Trophy,
+  AlertCircle,
+  ExternalLink,
+  ChevronRight,
+} from 'lucide-react';
 
 function certLabel(status: CertificateStatus): {
   text: string;
@@ -25,9 +40,16 @@ function certLabel(status: CertificateStatus): {
 }
 
 const StudentProgress: React.FC = () => {
+  const { user } = useAuth();
   const [courses, setCourses] = useState<MyCourseProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // C3: detailed data for section bars + quiz table
+  const [courseDetails, setCourseDetails] = useState<Record<string, Course>>({});
+  const [completions, setCompletions] = useState<Record<string, { itemId: string; completedAt: string | null }[]>>({});
+  const [quizCompletions, setQuizCompletions] = useState<QuizCompletion[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     courseCompletionService
@@ -36,6 +58,44 @@ const StudentProgress: React.FC = () => {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load progress'))
       .finally(() => setLoading(false));
   }, []);
+
+  // C3: fetch course structure, completions, and quiz scores after courses load
+  useEffect(() => {
+    if (courses.length === 0 || !user) return;
+
+    const fetchDetails = async () => {
+      const [courseResults, completionResults, quizResults] = await Promise.all([
+        Promise.all(courses.map((c) => courseService.fetchCourseById(c.courseId).catch(() => null))),
+        Promise.all(courses.map((c) => courseCompletionService.getLessonCompletions(c.courseId).catch(() => []))),
+        quizService.getCompletionsForUser(user.id).catch(() => []),
+      ]);
+
+      const detailMap: Record<string, Course> = {};
+      courseResults.forEach((course, i) => {
+        if (course) detailMap[courses[i].courseId] = course;
+      });
+      setCourseDetails(detailMap);
+
+      const compMap: Record<string, { itemId: string; completedAt: string | null }[]> = {};
+      completionResults.forEach((comps, i) => {
+        compMap[courses[i].courseId] = comps;
+      });
+      setCompletions(compMap);
+
+      setQuizCompletions(quizResults);
+    };
+
+    fetchDetails();
+  }, [courses, user]);
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
 
   if (loading) {
     return (
@@ -74,6 +134,35 @@ const StudentProgress: React.FC = () => {
           {courses.map((c) => {
             const cert = certLabel(c.certificateStatus);
             const pct = Math.round(c.lessonPercentage ?? 0);
+
+            // C3: section-level progress data
+            const course = courseDetails[c.courseId];
+            const allSections = course
+              ? getCourseWeeks(course).flatMap((w) => w.sections).filter((s) => s.items.length > 0)
+              : [];
+            const completedItems = new Set(
+              (completions[c.courseId] ?? [])
+                .filter((comp) => comp.completedAt !== null)
+                .map((comp) => comp.itemId)
+            );
+
+            // C3: quiz score table data — best attempt per quiz
+            const courseQuizIds = course
+              ? getCourseWeeks(course)
+                  .flatMap((w) => w.sections)
+                  .flatMap((s) => s.items)
+                  .filter((item): item is CourseItemQuiz => item.type === 'quiz')
+                  .map((item) => item.quizId)
+              : [];
+            const bestAttempts = new Map<string, QuizCompletion>();
+            for (const qc of quizCompletions) {
+              if (!courseQuizIds.includes(qc.quizId)) continue;
+              const existing = bestAttempts.get(qc.quizId);
+              if (!existing || qc.score > existing.score) {
+                bestAttempts.set(qc.quizId, qc);
+              }
+            }
+
             return (
               <div
                 key={c.courseId}
@@ -113,6 +202,64 @@ const StudentProgress: React.FC = () => {
                     <p className="text-xs text-neutral-500 mt-1">{pct}% complete</p>
                   </div>
 
+                  {/* C3: Per-section progress bars */}
+                  {allSections.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">By Section</p>
+                      {allSections.map((section) => {
+                        const total = section.items.length;
+                        const done = section.items.filter((item) => completedItems.has(item.id)).length;
+                        const sectionPct = total > 0 ? Math.round((done / total) * 100) : 0;
+                        const isExpanded = expandedSections.has(section.id);
+                        const allDone = done === total && total > 0;
+
+                        return (
+                          <div key={section.id}>
+                            <button
+                              type="button"
+                              className="w-full flex items-center gap-2 text-left group"
+                              onClick={() => toggleSection(section.id)}
+                            >
+                              <ChevronRight
+                                className={`h-3.5 w-3.5 text-neutral-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                aria-hidden
+                              />
+                              <span className="text-sm text-neutral-700 flex-1 truncate">{section.title}</span>
+                              {allDone && <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0" aria-hidden />}
+                              <span className="text-xs text-neutral-500 tabular-nums shrink-0">{done}/{total}</span>
+                            </button>
+                            <div className="ml-5 mt-1">
+                              <div className="h-1.5 w-full rounded-full bg-neutral-100 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${allDone ? 'bg-green-500' : 'bg-accent-teal'}`}
+                                  style={{ width: `${sectionPct}%` }}
+                                />
+                              </div>
+                            </div>
+                            {/* C3: Expandable item list */}
+                            {isExpanded && (
+                              <ul className="ml-5 mt-2 space-y-1">
+                                {section.items.map((item) => {
+                                  const isDone = completedItems.has(item.id);
+                                  return (
+                                    <li key={item.id} className="flex items-center gap-2 text-sm">
+                                      {isDone ? (
+                                        <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0" aria-hidden />
+                                      ) : (
+                                        <span className="h-3.5 w-3.5 rounded-full border-2 border-neutral-300 shrink-0" />
+                                      )}
+                                      <span className={isDone ? 'text-neutral-700' : 'text-neutral-400'}>{item.title}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Required quizzes */}
                   {c.requiredQuizzes.length > 0 && (
                     <div>
@@ -136,6 +283,48 @@ const StudentProgress: React.FC = () => {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* C3: Quiz score table */}
+                  {bestAttempts.size > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-2">Quiz Scores</p>
+                      <div className="overflow-x-auto -mx-1">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-xs text-neutral-500 border-b border-neutral-100">
+                              <th className="pb-2 pr-3 font-medium">Quiz</th>
+                              <th className="pb-2 pr-3 font-medium text-right">Score</th>
+                              <th className="pb-2 pr-3 font-medium text-right">Passing</th>
+                              <th className="pb-2 pr-3 font-medium">Status</th>
+                              <th className="pb-2 font-medium text-right">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...bestAttempts.values()].map((qc) => {
+                              const scorePct = qc.total > 0 ? Math.round((qc.score / qc.total) * 100) : 0;
+                              const reqQuiz = c.requiredQuizzes.find((rq) => rq.quizId === qc.quizId);
+                              const passingPct = reqQuiz?.passingScore ?? 70;
+                              return (
+                                <tr key={qc.quizId} className="border-b border-neutral-50">
+                                  <td className="py-2 pr-3 text-neutral-700">{reqQuiz?.quizTitle ?? 'Quiz'}</td>
+                                  <td className="py-2 pr-3 text-right tabular-nums">{scorePct}%</td>
+                                  <td className="py-2 pr-3 text-right tabular-nums text-neutral-500">{passingPct}%</td>
+                                  <td className="py-2 pr-3">
+                                    <span className={`inline-flex items-center text-xs font-medium ${qc.passed ? 'text-green-700' : 'text-red-600'}`}>
+                                      {qc.passed ? 'Passed' : 'Failed'}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 text-right text-xs text-neutral-500 tabular-nums">
+                                    {new Date(qc.completedAt).toLocaleDateString()}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
 
