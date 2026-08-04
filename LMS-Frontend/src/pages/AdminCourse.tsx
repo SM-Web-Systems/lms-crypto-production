@@ -1128,6 +1128,35 @@ const AdminCourse: React.FC = () => {
                                             }}
                                             className="w-[180px]"
                                           />
+                                          <div className="flex flex-wrap gap-2">
+                                            <span className="text-xs text-neutral-500 w-full">Accepted file types:</span>
+                                            {([
+                                              ['PDF', 'application/pdf'],
+                                              ['DOCX', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+                                              ['XLSX', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+                                              ['PPTX', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+                                              ['JPEG', 'image/jpeg'],
+                                              ['PNG', 'image/png'],
+                                              ['GIF', 'image/gif'],
+                                              ['TXT', 'text/plain'],
+                                              ['CSV', 'text/csv'],
+                                            ] as const).map(([label, mime]) => (
+                                              <label key={mime} className="inline-flex items-center gap-1 text-xs">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={it.allowedMimeTypes?.includes(mime) ?? false}
+                                                  onChange={(e) => {
+                                                    const current = it.allowedMimeTypes ?? [];
+                                                    const next = e.target.checked
+                                                      ? [...current, mime]
+                                                      : current.filter((m) => m !== mime);
+                                                    updateItem(week.tempId, sec.tempId, it.tempId, { allowedMimeTypes: next });
+                                                  }}
+                                                />
+                                                {label}
+                                              </label>
+                                            ))}
+                                          </div>
                                         </>
                                       )}
                                       {/* Download type */}

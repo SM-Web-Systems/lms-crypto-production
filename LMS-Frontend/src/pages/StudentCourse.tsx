@@ -318,23 +318,30 @@ const StudentCourse: React.FC = () => {
     setDoneItemIds(readDoneIds(user?.id, selectedCourseId));
   }, [selectedCourseId, user?.id]);
 
-  // Seed lesson completions from server on course change (fire-and-forget, union with local)
+  // Seed lesson completions from server + poll every 30s for auto-completions
   useEffect(() => {
     if (!selectedCourseId || !user?.id) return;
     let cancelled = false;
-    courseCompletionService.getLessonCompletions(selectedCourseId).then((ids) => {
-      if (cancelled || ids.length === 0) return;
-      setDoneItemIds((prev) => {
-        let changed = false;
-        const merged = new Set(prev);
-        for (const id of ids) {
-          if (!merged.has(id)) { merged.add(id); changed = true; }
-        }
-        if (changed) writeDoneIds(user.id, selectedCourseId, merged);
-        return changed ? merged : prev;
-      });
-    }).catch(() => { /* best-effort */ });
-    return () => { cancelled = true; };
+
+    const sync = () => {
+      courseCompletionService.getLessonCompletions(selectedCourseId).then((ids) => {
+        if (cancelled || ids.length === 0) return;
+        setDoneItemIds((prev) => {
+          let changed = false;
+          const merged = new Set(prev);
+          for (const id of ids) {
+            if (!merged.has(id)) { merged.add(id); changed = true; }
+          }
+          if (changed) writeDoneIds(user.id, selectedCourseId, merged);
+          return changed ? merged : prev;
+        });
+      }).catch(() => { /* best-effort polling */ });
+    };
+
+    sync();
+    const interval = setInterval(sync, 30_000);
+
+    return () => { cancelled = true; clearInterval(interval); };
   }, [selectedCourseId, user?.id]);
 
   useEffect(() => {
