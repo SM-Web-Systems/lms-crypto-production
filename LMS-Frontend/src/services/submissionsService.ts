@@ -32,6 +32,9 @@ export const submissionsService = {
     formData.append('title', data.title);
     formData.append('description', data.description);
     formData.append('file', data.file);
+    if (data.courseId) formData.append('courseId', data.courseId);
+    if (data.weekId) formData.append('weekId', data.weekId);
+    if (data.itemId) formData.append('itemId', data.itemId);
 
     const response = await api.post<ApiResponse<Submission>>('/submissions', formData, {
       headers: {

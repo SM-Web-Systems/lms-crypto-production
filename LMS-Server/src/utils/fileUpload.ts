@@ -17,8 +17,14 @@ const SUBMISSION_MIME_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/zip',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
   'text/plain',
+  'text/csv',
 ];
 
 // Allowed MIME types for course documents (includes images and presentations)
@@ -87,7 +93,7 @@ const submissionFileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
     cb(null, true);
   } else {
     cb(new AppError(
-      'Invalid file type. Allowed types: PDF, DOC, DOCX, ZIP, TXT',
+      'Invalid file type. Allowed types: PDF, DOC, DOCX, XLSX, PPTX, ZIP, JPEG, PNG, GIF, TXT, CSV',
       400,
       ErrorCodes.INVALID_FILE_TYPE
     ));

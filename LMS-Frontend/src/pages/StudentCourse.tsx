@@ -757,6 +757,9 @@ const StudentCourse: React.FC = () => {
                 onNext={goNextMaterial}
                 prevDisabled={pathIndex <= 0}
                 nextDisabled={pathIndex < 0 || pathIndex >= flatPath.length - 1}
+                onItemComplete={markItemEngaged}
+                courseId={selectedCourseId || undefined}
+                weekId={selectedWeekId || undefined}
               />
             ) : (
               activeWeek &&
