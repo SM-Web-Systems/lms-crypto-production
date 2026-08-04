@@ -7,6 +7,7 @@ import { AuthRequest, Submission, SubmissionResponse, Student, User, ErrorCodes,
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
+import { createNotification } from '../services/notificationService.js';
 
 function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
@@ -565,10 +566,29 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
       }
     }
 
+    // C2: Notify student of submission review (best-effort)
+    try {
+      const studentRecord = queryOne<{ user_id: string | null }>(
+        'SELECT user_id FROM students WHERE id = ?',
+        [submission!.student_id]
+      );
+      if (studentRecord?.user_id) {
+        createNotification({
+          userId: studentRecord.user_id,
+          type: 'submission_reviewed',
+          title: `Submission ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+          body: `Your submission "${submission!.title}" was ${status}`,
+          link: '/student/submissions',
+        });
+      }
+    } catch (err) {
+      console.error('[notification] submission review emission error:', err);
+    }
+
     res.json({
       success: true,
-      data: toSubmissionResponse({ 
-        ...submission!, 
+      data: toSubmissionResponse({
+        ...submission!,
         student_name: student?.name,
         reviewer_name: adminUser?.name
       }),

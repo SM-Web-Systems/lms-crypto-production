@@ -28,6 +28,7 @@ import lessonCompletionsRoutes from './routes/lessonCompletions.js';
 import progressRoutes from './routes/progress.js';
 import walletStatusRoutes from './routes/walletStatus.js';
 import publicCredentialsRoutes from './routes/publicCredentials.js';
+import notificationRoutes from './routes/notifications.js';
 import studentProgressRoutes from './routes/studentProgress.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
@@ -202,6 +203,7 @@ app.use('/api/v1', apiLimiter, nftApplicationsRoutes);
 app.use('/api/v1', apiLimiter, lessonCompletionsRoutes);
 app.use('/api/v1', apiLimiter, progressRoutes);
 app.use('/api/v1', apiLimiter, walletStatusRoutes);
+app.use('/api/v1', apiLimiter, notificationRoutes);
 app.use('/api/v1', readLimiter, publicCredentialsRoutes);
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints

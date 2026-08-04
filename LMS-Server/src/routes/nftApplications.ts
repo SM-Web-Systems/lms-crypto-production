@@ -18,6 +18,7 @@ import { db, queryOne, query, execute } from '../config/database.js';
 import { mintCredential } from '../services/mintService.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { createNotification } from '../services/notificationService.js';
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -381,8 +382,8 @@ router.patch(
     const { notes } = req.body as { notes?: string };
     const userId = req.user!.userId;
 
-    const app = queryOne<{ id: string; status: string }>(
-      'SELECT id, status FROM course_nft_applications WHERE id = ? AND course_id = ?',
+    const app = queryOne<{ id: string; status: string; user_id: string }>(
+      'SELECT id, status, user_id FROM course_nft_applications WHERE id = ? AND course_id = ?',
       [appId, courseId]
     );
     if (!app) {
@@ -407,6 +408,20 @@ router.patch(
       [userId, notes ?? null, appId]
     );
 
+    // C2: Notify student (best-effort)
+    try {
+      const courseRow = queryOne<{ title: string }>('SELECT title FROM courses WHERE id = ?', [courseId]);
+      createNotification({
+        userId: app.user_id,
+        type: 'nft_approved',
+        title: 'Certificate Approved',
+        body: `Your certificate application for "${courseRow?.title ?? 'course'}" was approved`,
+        link: '/student/course',
+      });
+    } catch (err) {
+      console.error('[notification] nft approve emission error:', err);
+    }
+
     res.json({ success: true, data: { applicationId: appId, status: 'approved' } });
   }
 );
@@ -421,8 +436,8 @@ router.patch(
     const { notes } = req.body as { notes?: string };
     const userId = req.user!.userId;
 
-    const app = queryOne<{ id: string; status: string }>(
-      'SELECT id, status FROM course_nft_applications WHERE id = ? AND course_id = ?',
+    const app = queryOne<{ id: string; status: string; user_id: string }>(
+      'SELECT id, status, user_id FROM course_nft_applications WHERE id = ? AND course_id = ?',
       [appId, courseId]
     );
     if (!app) {
@@ -446,6 +461,20 @@ router.patch(
        WHERE id = ?`,
       [userId, notes ?? null, appId]
     );
+
+    // C2: Notify student (best-effort)
+    try {
+      const courseRow = queryOne<{ title: string }>('SELECT title FROM courses WHERE id = ?', [courseId]);
+      createNotification({
+        userId: app.user_id,
+        type: 'nft_rejected',
+        title: 'Certificate Rejected',
+        body: `Your certificate application for "${courseRow?.title ?? 'course'}" was rejected`,
+        link: '/student/course',
+      });
+    } catch (err) {
+      console.error('[notification] nft reject emission error:', err);
+    }
 
     res.json({
       success: true,
@@ -615,6 +644,19 @@ router.post(
     // DEMO: fire-and-forget DB hook — logs a pending demo sponsor transfer row.
     // NOT a real sponsor grant. An admin must run demo-sponsor-flow.cjs to execute the testnet TX.
     logDemoSponsorTrigger(appId, app.user_id, courseId, courseRow?.title ?? courseId);
+
+    // C2: Notify student of successful mint (best-effort)
+    try {
+      createNotification({
+        userId: app.user_id,
+        type: 'nft_minted',
+        title: 'Certificate Minted',
+        body: `Your NFT certificate for "${courseRow?.title ?? 'course'}" has been minted`,
+        link: '/student/course',
+      });
+    } catch (err) {
+      console.error('[notification] nft mint emission error:', err);
+    }
 
     res.json({
       success: true,

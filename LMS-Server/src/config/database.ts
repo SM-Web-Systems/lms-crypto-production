@@ -738,6 +738,27 @@ function ensureCourseDocumentsWeekId(): void {
 }
 ensureCourseDocumentsWeekId();
 
+/** Phase 7 C2 — notifications table for in-app student notifications. */
+function ensureNotificationsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type       TEXT NOT NULL,
+      title      TEXT NOT NULL,
+      body       TEXT NOT NULL,
+      read       INTEGER NOT NULL DEFAULT 0,
+      link       TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_read
+      ON notifications(user_id, read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_created
+      ON notifications(user_id, created_at);
+  `);
+}
+ensureNotificationsTable();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];
