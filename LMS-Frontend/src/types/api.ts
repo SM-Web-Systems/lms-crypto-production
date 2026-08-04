@@ -125,6 +125,9 @@ export interface Submission {
   reviewedBy?: string;
   reviewedById?: string;
   feedback?: string;
+  courseId?: string;
+  weekId?: string;
+  itemId?: string;
 }
 
 export interface CreateSubmissionData {
