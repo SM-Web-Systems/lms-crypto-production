@@ -65,8 +65,11 @@ router.post(
     }
 
     execute(
-      `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+       VALUES (?, ?, ?, ?, ?, ?, 100)
+       ON CONFLICT (user_id, course_id, item_id)
+       DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+       WHERE completed_at IS NULL`,
       [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
     );
 
@@ -118,12 +121,68 @@ router.post(
     }
 
     execute(
-      `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+       VALUES (?, ?, ?, ?, ?, ?, 100)
+       ON CONFLICT (user_id, course_id, item_id)
+       DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+       WHERE completed_at IS NULL`,
       [uuidv4(), userId, courseId, itemId, sectionId, callerId]
     );
 
     res.json({ success: true, data: { userId, courseId, itemId, sectionId } });
+  }
+);
+
+// ─── PUT /courses/:courseId/lessons/:itemId/progress ─────────────────────────
+router.put(
+  '/courses/:courseId/lessons/:itemId/progress',
+  authenticate,
+  (req: AuthRequest, res: Response): void => {
+    const callerId = req.user!.userId;
+    const role = req.user!.role;
+    const { courseId, itemId } = req.params;
+    const { positionSeconds, progressPercent } = req.body;
+
+    if (typeof positionSeconds !== 'number' || !Number.isInteger(positionSeconds) || positionSeconds < 0) {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'positionSeconds must be an integer >= 0' } });
+      return;
+    }
+    if (typeof progressPercent !== 'number' || !Number.isInteger(progressPercent) || progressPercent < 0 || progressPercent > 100) {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'progressPercent must be an integer 0-100' } });
+      return;
+    }
+
+    const course = queryOne<{ id: string; course_code: string; sections: string }>(
+      'SELECT id, course_code, sections FROM courses WHERE id = ?', [courseId]);
+    if (!course) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Course not found' } });
+      return;
+    }
+
+    if (role === 'student') {
+      const enrolled = queryOne<{ user_id: string }>(
+        'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?', [callerId, course.course_code]);
+      if (!enrolled) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not enrolled in this course' } });
+        return;
+      }
+    }
+
+    const sectionId = findSectionForItem(course.sections, itemId);
+    if (!sectionId) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Lesson item not found in course' } });
+      return;
+    }
+
+    execute(
+      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, completed_at, progress_pct, last_position_s)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+       ON CONFLICT (user_id, course_id, item_id)
+       DO UPDATE SET progress_pct = excluded.progress_pct, last_position_s = excluded.last_position_s`,
+      [uuidv4(), callerId, courseId, itemId, sectionId, callerId, progressPercent, positionSeconds]
+    );
+
+    res.json({ success: true, data: { userId: callerId, courseId, itemId, progressPercent, positionSeconds } });
   }
 );
 
@@ -153,15 +212,17 @@ router.get(
       course_id: string;
       item_id: string;
       section_id: string;
-      completed_at: string;
+      completed_at: string | null;
       marked_by: string | null;
+      progress_pct: number | null;
+      last_position_s: number | null;
     };
 
     let completions: CompletionRow[];
 
     if (role === 'student') {
       completions = query<CompletionRow>(
-        `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by
+        `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
          FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
         [callerId, courseId]
       );
@@ -181,13 +242,13 @@ router.get(
       const filterUserId = req.query['userId'] as string | undefined;
       if (filterUserId) {
         completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by
+          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
            FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
           [filterUserId, courseId]
         );
       } else {
         completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by
+          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
            FROM lesson_completions WHERE course_id = ? ORDER BY completed_at`,
           [courseId]
         );
@@ -197,13 +258,13 @@ router.get(
       const filterUserId = req.query['userId'] as string | undefined;
       if (filterUserId) {
         completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by
+          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
            FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
           [filterUserId, courseId]
         );
       } else {
         completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by
+          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
            FROM lesson_completions WHERE course_id = ? ORDER BY completed_at`,
           [courseId]
         );

@@ -405,6 +405,42 @@ function ensureLessonCompletionsTable(): void {
 }
 ensureLessonCompletionsTable();
 
+/** P7-C1 — migrate lesson_completions: make completed_at nullable, add progress columns. */
+function ensureLessonCompletionsProgressColumns(): void {
+  const cols = db.prepare('PRAGMA table_info(lesson_completions)').all() as { name: string; notnull: number }[];
+  const hasProgressPct = cols.some((c) => c.name === 'progress_pct');
+  if (hasProgressPct) return; // already migrated
+
+  db.pragma('foreign_keys = OFF');
+  db.pragma('legacy_alter_table = ON');
+  db.exec(`
+    BEGIN;
+    ALTER TABLE lesson_completions RENAME TO _lesson_completions_p7_old;
+    CREATE TABLE lesson_completions (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      item_id      TEXT NOT NULL,
+      section_id   TEXT NOT NULL,
+      completed_at TEXT DEFAULT (datetime('now')),
+      marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+      progress_pct    INTEGER,
+      last_position_s INTEGER,
+      UNIQUE (user_id, course_id, item_id)
+    );
+    INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, completed_at, marked_by)
+      SELECT id, user_id, course_id, item_id, section_id, completed_at, marked_by
+      FROM _lesson_completions_p7_old;
+    DROP TABLE _lesson_completions_p7_old;
+    CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course
+      ON lesson_completions(user_id, course_id);
+    COMMIT;
+  `);
+  db.pragma('legacy_alter_table = OFF');
+  db.pragma('foreign_keys = ON');
+}
+ensureLessonCompletionsProgressColumns();
+
 /** A4 — course_completion_requirements: per-course NFT eligibility rules. */
 function ensureCourseCompletionRequirementsTable(): void {
   db.exec(`

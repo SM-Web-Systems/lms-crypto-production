@@ -135,6 +135,49 @@ describe('D1 — POST /courses/:courseId/lessons/:itemId/complete (self-mark)', 
       .post(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/complete`);
     expect(res.status).toBe(401);
   });
+
+  it('D1-AC8: complete sets completed_at on progress-only row', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    // First PUT progress (creates row with no completed_at)
+    await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 30, progressPercent: 25 });
+    const before = db.prepare(
+      'SELECT completed_at FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    expect(before.completed_at).toBeNull();
+    // Then POST complete (sets completed_at via ON CONFLICT)
+    const res = await request(app)
+      .post(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    const after = db.prepare(
+      'SELECT completed_at, progress_pct FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    expect(after.completed_at).not.toBeNull();
+    expect(after.progress_pct).toBe(100);
+  });
+
+  it('D1-AC9: complete is idempotent on already-completed item', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    // POST complete first time
+    await request(app)
+      .post(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+    const first = db.prepare(
+      'SELECT completed_at FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    // POST complete second time
+    const res = await request(app)
+      .post(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    const second = db.prepare(
+      'SELECT completed_at FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    expect(second.completed_at).toBe(first.completed_at);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -196,6 +239,117 @@ describe('D1a — POST /courses/:courseId/students/:userId/lessons/:itemId/compl
       .post(`/api/v1/courses/${ids.courseId}/students/${ids.studentId}/lessons/item-d-1/complete`)
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(403);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// D3 — PUT /courses/:courseId/lessons/:itemId/progress
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('D3 — PUT /courses/:courseId/lessons/:itemId/progress', () => {
+  let ids: ReturnType<typeof seedBase>;
+  beforeEach(() => { ids = seedBase(); });
+
+  it('D3-AC1: enrolled student saves progress', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 60, progressPercent: 25 });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.progressPercent).toBe(25);
+    expect(res.body.data.positionSeconds).toBe(60);
+    // Verify row exists with no completed_at
+    const row = db.prepare(
+      'SELECT completed_at, progress_pct, last_position_s FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    expect(row.completed_at).toBeNull();
+    expect(row.progress_pct).toBe(25);
+    expect(row.last_position_s).toBe(60);
+  });
+
+  it('D3-AC2: second progress update overwrites', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    const url = `/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`;
+    await request(app).put(url).set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 30, progressPercent: 10 });
+    const res = await request(app).put(url).set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 90, progressPercent: 50 });
+    expect(res.status).toBe(200);
+    const row = db.prepare(
+      'SELECT progress_pct, last_position_s FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    expect(row.progress_pct).toBe(50);
+    expect(row.last_position_s).toBe(90);
+  });
+
+  it('D3-AC3: progress on completed item preserves completed_at', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    // First complete the item
+    await request(app)
+      .post(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+    const before = db.prepare(
+      'SELECT completed_at FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    // Then send progress
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 120, progressPercent: 75 });
+    expect(res.status).toBe(200);
+    const after = db.prepare(
+      'SELECT completed_at, progress_pct, last_position_s FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
+    expect(after.completed_at).toBe(before.completed_at);
+    expect(after.progress_pct).toBe(75);
+    expect(after.last_position_s).toBe(120);
+  });
+
+  it('D3-AC4: rejects progressPercent > 100', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 60, progressPercent: 101 });
+    expect(res.status).toBe(400);
+  });
+
+  it('D3-AC5: rejects negative positionSeconds', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: -1, progressPercent: 25 });
+    expect(res.status).toBe(400);
+  });
+
+  it('D3-AC6: 403 for non-enrolled student', async () => {
+    const token = makeToken({ userId: ids.student2Id, email: 'student2-d@test.com', role: 'student' });
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 60, progressPercent: 25 });
+    expect(res.status).toBe(403);
+  });
+
+  it('D3-AC7: 404 for nonexistent course', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    const res = await request(app)
+      .put(`/api/v1/courses/${uuidv4()}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 60, progressPercent: 25 });
+    expect(res.status).toBe(404);
+  });
+
+  it('D3-AC8: 404 for item not in course', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/nonexistent-item/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 60, progressPercent: 25 });
+    expect(res.status).toBe(404);
   });
 });
 
@@ -271,6 +425,24 @@ describe('D1b — GET /courses/:courseId/lessons/completions', () => {
       .get(`/api/v1/courses/${uuidv4()}/lessons/completions`)
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(404);
+  });
+
+  it('D1b-AC7: GET completions includes progress_pct and last_position_s', async () => {
+    const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
+    // PUT progress for item-d-1
+    await request(app)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ positionSeconds: 45, progressPercent: 30 });
+    // GET completions
+    const res = await request(app)
+      .get(`/api/v1/courses/${ids.courseId}/lessons/completions`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    // Should include both the pre-seeded completion AND the progress-only row
+    const progressRow = res.body.data.completions.find((c: any) => c.item_id === 'item-d-1' && c.progress_pct === 30);
+    expect(progressRow).toBeDefined();
+    expect(progressRow.last_position_s).toBe(45);
   });
 });
 

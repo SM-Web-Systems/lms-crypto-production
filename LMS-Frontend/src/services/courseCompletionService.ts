@@ -75,13 +75,22 @@ export const courseCompletionService = {
     await api.post(`/courses/${courseId}/lessons/${itemId}/complete`);
   },
 
-  /** GET /courses/:courseId/lessons/completions — list own completions */
-  async getLessonCompletions(courseId: string): Promise<string[]> {
+  /** GET /courses/:courseId/lessons/completions — list own completions with progress */
+  async getLessonCompletions(courseId: string): Promise<{ itemId: string; progressPct: number | null; lastPositionS: number | null }[]> {
     const res = await api.get<{
       success: boolean;
-      data: { completions: { item_id: string }[] };
+      data: { completions: { item_id: string; progress_pct: number | null; last_position_s: number | null }[] };
     }>(`/courses/${courseId}/lessons/completions`);
-    return (res.data.data?.completions ?? []).map((c) => c.item_id);
+    return (res.data.data?.completions ?? []).map((c) => ({
+      itemId: c.item_id,
+      progressPct: c.progress_pct,
+      lastPositionS: c.last_position_s,
+    }));
+  },
+
+  /** PUT /courses/:courseId/lessons/:itemId/progress — save audio playback progress */
+  async updateProgress(courseId: string, itemId: string, positionSeconds: number, progressPercent: number): Promise<void> {
+    await api.put(`/courses/${courseId}/lessons/${itemId}/progress`, { positionSeconds, progressPercent });
   },
 
   /** POST /courses/:courseId/completions/apply — student applies for certificate */
