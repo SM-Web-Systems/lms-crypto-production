@@ -350,6 +350,27 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                 Max file size: {Math.round(((item as { maxFileSize: number }).maxFileSize) / 1048576)} MB
               </p>
             ) : null}
+            {(() => {
+              const mimeTypes = (item as { allowedMimeTypes?: string[] }).allowedMimeTypes;
+              if (!mimeTypes?.length) return null;
+              const MIME_LABELS: Record<string, string> = {
+                'application/pdf': 'PDF',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+                'image/jpeg': 'JPEG',
+                'image/png': 'PNG',
+                'image/gif': 'GIF',
+                'text/plain': 'TXT',
+                'text/csv': 'CSV',
+              };
+              const labels = mimeTypes.map(m => MIME_LABELS[m] || m.split('/').pop()?.toUpperCase() || m);
+              return (
+                <p className="text-xs text-neutral-500">
+                  Accepted formats: {labels.join(', ')}
+                </p>
+              );
+            })()}
             <a
               href="/student/submissions"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors min-w-[200px]"
