@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
+import InlineQuizTaker from './InlineQuizTaker';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
 import {
@@ -305,25 +306,7 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
           (() => {
             const quizId = (item as { quizId?: string }).quizId?.trim();
             return quizId ? (
-              <div className="flex flex-col items-center gap-5 py-8 px-4">
-                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-                  <ClipboardCheck className="h-8 w-8" aria-hidden />
-                </span>
-                <p className="text-base font-semibold text-neutral-800">{item.title}</p>
-                {item.description?.trim() && (
-                  <p className="text-sm text-neutral-600 max-w-prose text-center leading-relaxed">{item.description}</p>
-                )}
-                <a
-                  href={`/student/quizzes?quiz=${quizId}`}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors min-w-[200px]"
-                >
-                  <ClipboardCheck className="h-4 w-4 shrink-0" aria-hidden />
-                  Start quiz
-                </a>
-                <p className="text-xs text-neutral-500">
-                  The quiz opens on the Quizzes page. Your progress is tracked there.
-                </p>
-              </div>
+              <InlineQuizTaker quizId={quizId} />
             ) : (
               <div className="flex flex-col items-center gap-5 py-8 px-4">
                 <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
