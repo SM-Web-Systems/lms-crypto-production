@@ -6,6 +6,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Submission, SubmissionResponse, Student, User, ErrorCodes, SubmissionStatus } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
+import { findSectionForItem } from '../utils/courseHelpers.js';
 
 function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
@@ -535,6 +536,34 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
       'SELECT name FROM students WHERE id = ?',
       [submission!.student_id]
     );
+
+    // Phase 4: auto-complete linked course item on approval (best-effort)
+    if (status === 'approved' && submission!.course_id && submission!.item_id) {
+      try {
+        const studentRecord = queryOne<{ user_id: string | null }>(
+          'SELECT user_id FROM students WHERE id = ?',
+          [submission!.student_id]
+        );
+        if (studentRecord?.user_id) {
+          const course = queryOne<{ sections: string }>(
+            'SELECT sections FROM courses WHERE id = ?',
+            [submission!.course_id]
+          );
+          if (course?.sections) {
+            const sectionId = findSectionForItem(course.sections, submission!.item_id);
+            if (sectionId) {
+              execute(
+                `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
+                 VALUES (?, ?, ?, ?, ?, NULL)`,
+                [uuidv4(), studentRecord.user_id, submission!.course_id, submission!.item_id, sectionId]
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[assignment-auto-complete] error:', err);
+      }
+    }
 
     res.json({
       success: true,
