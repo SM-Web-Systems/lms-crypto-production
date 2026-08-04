@@ -3,7 +3,7 @@
  */
 
 import api from './api';
-import type { NftApplication, IssuedCredential } from '../types/api';
+import type { NftApplication, IssuedCredential, CoursePricing, PaymentRecord } from '../types/api';
 
 export const adminCertificateService = {
   /** GET /admin/certificates — all applications with optional filters */
@@ -75,6 +75,49 @@ export const adminCertificateService = {
       success: boolean;
       data: { newCredentialId: string; supersededCredentialId: string; txHash: string; walletAddress: string };
     }>(`/admin/credentials/${credentialId}/remint`, walletAddress ? { walletAddress } : {});
+    return res.data.data;
+  },
+
+  /** GET /admin/payments — all payments with optional filters */
+  async getPayments(params?: {
+    status?: string;
+    courseId?: string;
+  }): Promise<PaymentRecord[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.courseId) query.set('courseId', params.courseId);
+    const qs = query.toString();
+    const res = await api.get<{
+      success: boolean;
+      data: { payments: PaymentRecord[] };
+    }>(`/admin/payments${qs ? `?${qs}` : ''}`);
+    return res.data.data?.payments ?? [];
+  },
+
+  /** POST /admin/payments/:paymentId/confirm — manual payment confirmation */
+  async confirmPayment(paymentId: string, notes?: string): Promise<{ status: string }> {
+    const res = await api.post<{ success: boolean; data: { status: string } }>(
+      `/admin/payments/${paymentId}/confirm`,
+      { notes },
+    );
+    return res.data.data;
+  },
+
+  /** POST /admin/payments/:paymentId/waive — waive payment */
+  async waivePayment(paymentId: string, notes: string): Promise<{ status: string }> {
+    const res = await api.post<{ success: boolean; data: { status: string } }>(
+      `/admin/payments/${paymentId}/waive`,
+      { notes },
+    );
+    return res.data.data;
+  },
+
+  /** PUT /admin/courses/:courseId/pricing — set certificate price */
+  async setCoursePricing(courseId: string, priceCents: number): Promise<CoursePricing> {
+    const res = await api.put<{ success: boolean; data: CoursePricing }>(
+      `/admin/courses/${courseId}/pricing`,
+      { priceCents },
+    );
     return res.data.data;
   },
 };

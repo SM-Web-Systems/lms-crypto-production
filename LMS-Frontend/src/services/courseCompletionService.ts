@@ -4,7 +4,7 @@
  */
 
 import api from './api';
-import type { CourseProgress, MyCourseProgress, MyCredential, NftApplication } from '../types/api';
+import type { CourseProgress, MyCourseProgress, MyCredential, NftApplication, CoursePricing } from '../types/api';
 
 export interface CourseRequirements {
   requireAllLessons: boolean;
@@ -122,5 +122,13 @@ export const courseCompletionService = {
       { recommendation }
     );
     return res.data.data!;
+  },
+
+  /** GET /courses/:courseId/pricing — get certificate pricing */
+  async getPricing(courseId: string): Promise<CoursePricing> {
+    const res = await api.get<{ success: boolean; data: CoursePricing }>(
+      `/courses/${courseId}/pricing`,
+    );
+    return res.data.data;
   },
 };

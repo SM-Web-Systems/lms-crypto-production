@@ -16,6 +16,7 @@ import {
   Check,
   Download,
   RotateCcw,
+  DollarSign,
 } from 'lucide-react';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
@@ -119,6 +120,26 @@ const MintStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
+const PAYMENT_LABELS: Record<string, { label: string; cls: string }> = {
+  pending:   { label: 'Payment pending', cls: 'bg-amber-100 text-amber-900'   },
+  confirmed: { label: 'Paid',            cls: 'bg-emerald-100 text-emerald-900' },
+  waived:    { label: 'Waived',          cls: 'bg-blue-100 text-blue-900'     },
+};
+
+const PaymentBadge: React.FC<{ app: NftApplication }> = ({ app }) => {
+  if (!app.priceCents || app.priceCents === 0) {
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-600">Free</span>;
+  }
+  const ps = app.paymentStatus ?? 'pending';
+  const { label, cls } = PAYMENT_LABELS[ps] ?? { label: ps, cls: 'bg-neutral-100 text-neutral-900' };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
+      <DollarSign className="h-3 w-3" aria-hidden />
+      {label}
+    </span>
+  );
+};
+
 // ─── View tabs ────────────────────────────────────────────────────────────────
 
 type ViewTab = 'applications' | 'issued';
@@ -210,6 +231,33 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
     } finally { setActionLoading(null); }
   }, []);
 
+  const [waiveNotesModal, setWaiveNotesModal] = useState<NftApplication | null>(null);
+
+  const handleConfirmPayment = useCallback(async (app: NftApplication) => {
+    if (!app.paymentId) return;
+    setActionLoading(app.applicationId);
+    setActionError((e) => ({ ...e, [app.applicationId]: '' }));
+    try {
+      await adminCertificateService.confirmPayment(app.paymentId);
+      await load();
+    } catch (e) {
+      setActionError((err) => ({ ...err, [app.applicationId]: getErrorMessage(e, 'Payment confirmation failed.') }));
+    } finally { setActionLoading(null); }
+  }, [load]);
+
+  const submitWaivePayment = useCallback(async (app: NftApplication, notes: string) => {
+    if (!app.paymentId) return;
+    setWaiveNotesModal(null);
+    setActionLoading(app.applicationId);
+    setActionError((e) => ({ ...e, [app.applicationId]: '' }));
+    try {
+      await adminCertificateService.waivePayment(app.paymentId, notes);
+      await load();
+    } catch (e) {
+      setActionError((err) => ({ ...err, [app.applicationId]: getErrorMessage(e, 'Waive failed.') }));
+    } finally { setActionLoading(null); }
+  }, [load]);
+
   const counts = {
     pending:  applications.filter((a) => a.status === 'pending').length,
     approved: applications.filter((a) => a.status === 'approved').length,
@@ -229,6 +277,18 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
         confirmLabel="Confirm rejection"
         onConfirm={(reason) => rejectModal && submitReject(rejectModal, reason)}
         onCancel={() => setRejectModal(null)}
+      />
+
+      {/* Waive payment notes modal */}
+      <TextInputModal
+        isOpen={waiveNotesModal !== null}
+        title="Waive payment"
+        description={`Waive payment for ${waiveNotesModal?.userName ?? waiveNotesModal?.userEmail ?? 'this student'}'s certificate (${waiveNotesModal?.courseName ?? 'course'}). This cannot be undone.`}
+        label="Reason for waiving"
+        placeholder="e.g. Scholarship recipient, fee exemption…"
+        confirmLabel="Waive payment"
+        onConfirm={(notes) => waiveNotesModal && submitWaivePayment(waiveNotesModal, notes)}
+        onCancel={() => setWaiveNotesModal(null)}
       />
 
       {/* Mint confirmation modal */}
@@ -378,6 +438,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <StatusBadge status={app.status} />
+                        <PaymentBadge app={app} />
 
                         {app.lecturerRecommendation && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 text-xs font-medium">
@@ -396,7 +457,20 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.status === 'approved' && (
+                        {app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
+                          <>
+                            <Button size="sm" type="button" disabled={isActing} onClick={() => handleConfirmPayment(app)}
+                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
+                              <DollarSign className="h-3.5 w-3.5 mr-1" aria-hidden />
+                              {isActing ? 'Confirming…' : 'Confirm Payment'}
+                            </Button>
+                            <Button size="sm" variant="outline" type="button" disabled={isActing} onClick={() => setWaiveNotesModal(app)}
+                              className="text-xs text-blue-700 border-blue-200 hover:bg-blue-50">
+                              Waive
+                            </Button>
+                          </>
+                        )}
+                        {app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
                           <Button size="sm" type="button" disabled={isActing} onClick={() => handleMint(app)}
                             className="text-xs bg-violet-600 hover:bg-violet-700 text-white">
                             <Coins className="h-3.5 w-3.5 mr-1" aria-hidden />

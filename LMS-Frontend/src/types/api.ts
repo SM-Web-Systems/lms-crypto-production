@@ -296,6 +296,10 @@ export interface NftApplication {
   txHash: string | null;
   /** Populated when a failed nft_credentials row exists for this application. Admin-level detail. */
   mintError?: string | null;
+  /** Phase 11 C1a: payment status for this application (null = free course) */
+  paymentStatus?: 'pending' | 'confirmed' | 'waived' | null;
+  paymentId?: string | null;
+  priceCents?: number;
 }
 
 export type CredentialMintStatus = 'pending' | 'minted' | 'failed';
@@ -341,6 +345,36 @@ export interface MyCredential {
   quizTitle: string | null;
   network: string | null;
   issuedAt: string;
+}
+
+// ─── Phase 11 C1a: Payment types ─────────────────────────────────────────────
+
+export type PaymentStatus = 'pending' | 'confirmed' | 'waived';
+
+export interface CoursePricing {
+  courseId: string;
+  priceCents: number;
+  currency: string;
+  isFree: boolean;
+}
+
+export interface PaymentRecord {
+  paymentId: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  courseId: string;
+  courseName: string | null;
+  applicationId: string | null;
+  amountCents: number;
+  currency: string;
+  paymentMethod: string;
+  status: PaymentStatus;
+  confirmedBy: string | null;
+  confirmedByName: string | null;
+  confirmedAt: string | null;
+  notes: string | null;
+  createdAt: string;
 }
 
 export interface NftToken {
