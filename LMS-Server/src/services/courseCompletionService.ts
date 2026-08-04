@@ -79,7 +79,7 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
 
   // 2. Count completed lesson items for this user
   const completedRows = query<{ item_id: string }>(
-    'SELECT item_id FROM lesson_completions WHERE user_id = ? AND course_id = ?',
+    'SELECT item_id FROM lesson_completions WHERE user_id = ? AND course_id = ? AND completed_at IS NOT NULL',
     [userId, courseId]
   );
   const completedSet = new Set(completedRows.map((r) => r.item_id));

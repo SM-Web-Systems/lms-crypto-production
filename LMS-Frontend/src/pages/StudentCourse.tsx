@@ -309,6 +309,7 @@ const StudentCourse: React.FC = () => {
 
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<Set<string>>(() => new Set());
+  const [itemProgressMap, setItemProgressMap] = useState<Record<string, { positionSeconds: number; progressPercent: number }>>({});
 
   useEffect(() => {
     if (!selectedCourseId) {
@@ -324,16 +325,30 @@ const StudentCourse: React.FC = () => {
     let cancelled = false;
 
     const sync = () => {
-      courseCompletionService.getLessonCompletions(selectedCourseId).then((ids) => {
-        if (cancelled || ids.length === 0) return;
+      courseCompletionService.getLessonCompletions(selectedCourseId).then((items) => {
+        if (cancelled || items.length === 0) return;
         setDoneItemIds((prev) => {
           let changed = false;
           const merged = new Set(prev);
-          for (const id of ids) {
-            if (!merged.has(id)) { merged.add(id); changed = true; }
+          for (const item of items) {
+            if (!merged.has(item.itemId)) { merged.add(item.itemId); changed = true; }
           }
           if (changed) writeDoneIds(user.id, selectedCourseId, merged);
           return changed ? merged : prev;
+        });
+        setItemProgressMap((prev) => {
+          const next: Record<string, { positionSeconds: number; progressPercent: number }> = { ...prev };
+          let changed = false;
+          for (const item of items) {
+            if (item.progressPct != null && item.lastPositionS != null) {
+              const existing = prev[item.itemId];
+              if (!existing || existing.positionSeconds !== item.lastPositionS || existing.progressPercent !== item.progressPct) {
+                next[item.itemId] = { positionSeconds: item.lastPositionS, progressPercent: item.progressPct };
+                changed = true;
+              }
+            }
+          }
+          return changed ? next : prev;
         });
       }).catch(() => { /* best-effort polling */ });
     };
@@ -478,6 +493,19 @@ const StudentCourse: React.FC = () => {
       });
     },
     [selectedCourseId, user?.id]
+  );
+
+  const handleProgressUpdate = useCallback(
+    (itemId: string, positionSeconds: number, progressPercent: number) => {
+      if (!selectedCourseId) return;
+      courseCompletionService.updateProgress(selectedCourseId, itemId, positionSeconds, progressPercent)
+        .catch(() => {/* best-effort */});
+      setItemProgressMap((prev) => ({
+        ...prev,
+        [itemId]: { positionSeconds, progressPercent },
+      }));
+    },
+    [selectedCourseId]
   );
 
   const openMaterialViewer = useCallback((section: CourseSection, item: CourseItem) => {
@@ -758,6 +786,8 @@ const StudentCourse: React.FC = () => {
                 prevDisabled={pathIndex <= 0}
                 nextDisabled={pathIndex < 0 || pathIndex >= flatPath.length - 1}
                 onItemComplete={markItemEngaged}
+                onProgressUpdate={handleProgressUpdate}
+                itemProgress={materialViewer ? itemProgressMap[materialViewer.item.id] ?? null : null}
                 courseId={selectedCourseId || undefined}
                 weekId={selectedWeekId || undefined}
               />

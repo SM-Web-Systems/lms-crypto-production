@@ -245,8 +245,10 @@ CREATE TABLE IF NOT EXISTS lesson_completions (
   course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   item_id      TEXT NOT NULL,
   section_id   TEXT NOT NULL,
-  completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT DEFAULT (datetime('now')),
   marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  progress_pct    INTEGER,
+  last_position_s INTEGER,
   UNIQUE (user_id, course_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course ON lesson_completions(user_id, course_id);

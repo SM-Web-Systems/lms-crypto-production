@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
 import InlineQuizTaker from './InlineQuizTaker';
 import InlineAssignmentForm from './InlineAssignmentForm';
@@ -81,6 +81,8 @@ interface EmbeddedMaterialViewerProps {
   prevDisabled?: boolean;
   nextDisabled?: boolean;
   onItemComplete?: (itemId: string) => void;
+  onProgressUpdate?: (itemId: string, positionSeconds: number, progressPercent: number) => void;
+  itemProgress?: { positionSeconds: number; progressPercent: number } | null;
   courseId?: string;
   weekId?: string;
 }
@@ -98,9 +100,23 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
   prevDisabled = true,
   nextDisabled = true,
   onItemComplete,
+  onProgressUpdate,
+  itemProgress,
   courseId,
   weekId,
 }) => {
+  const lastProgressReport = useRef(0);
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const audio = e.currentTarget;
+    if (!audio.duration || !isFinite(audio.duration)) return;
+    const now = Date.now();
+    if (now - lastProgressReport.current < 10_000) return;
+    lastProgressReport.current = now;
+    const pct = Math.floor((audio.currentTime / audio.duration) * 100);
+    onProgressUpdate?.(item.id, Math.floor(audio.currentTime), pct);
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -249,6 +265,10 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               className="w-full max-w-lg"
               src={ext}
               onEnded={() => onItemComplete?.(item.id)}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={(e) => {
+                if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
+              }}
             >
               Your browser does not support the audio element.
             </audio>
@@ -298,7 +318,11 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
             {item.url?.trim() ? (
               <>
                 <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}
-                  onEnded={() => onItemComplete?.(item.id)}>
+                  onEnded={() => onItemComplete?.(item.id)}
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={(e) => {
+                    if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
+                  }}>
                   Your browser does not support the audio element.
                 </audio>
                 <a href={item.url} target="_blank" rel="noopener noreferrer"
