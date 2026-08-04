@@ -19,6 +19,7 @@ import { mintCredential } from '../services/mintService.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
+import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -137,6 +138,20 @@ router.post(
       'SELECT applied_at FROM course_nft_applications WHERE id = ?',
       [appId]
     );
+
+    // Phase 11 C1a: create payment record for paid courses
+    const pricing = getCoursePricing(courseId);
+    let paymentData: { paymentId: string; amountCents: number; currency: string; status: string } | undefined;
+    if (pricing && pricing.price_cents > 0) {
+      const payment = createPayment(userId, courseId, appId, pricing.price_cents);
+      paymentData = {
+        paymentId: payment.id,
+        amountCents: payment.amount_cents,
+        currency: payment.currency,
+        status: payment.status,
+      };
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -145,6 +160,7 @@ router.post(
         status: 'pending',
         walletAddress: userRow.walletAddress,
         appliedAt: inserted?.applied_at ?? new Date().toISOString(),
+        ...(paymentData ? { payment: paymentData } : {}),
       },
     });
   }
@@ -510,6 +526,18 @@ router.post(
         error: { code: 'INVALID_STATUS', message: `Cannot mint: application status is ${app.status}` },
       });
       return;
+    }
+
+    // Phase 11 C1a: Payment gate — block mint if payment required but not confirmed
+    const mintPricing = getCoursePricing(courseId);
+    if (mintPricing && mintPricing.price_cents > 0) {
+      if (!isPaymentSatisfied(appId)) {
+        res.status(402).json({
+          success: false,
+          error: { code: ErrorCodes.PAYMENT_REQUIRED, message: 'Payment required. Certificate payment has not been confirmed.' },
+        });
+        return;
+      }
     }
 
     // LMS-MINT-J2-001: Re-check eligibility at mint time

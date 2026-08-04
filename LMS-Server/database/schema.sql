@@ -283,7 +283,8 @@ CREATE TABLE IF NOT EXISTS course_nft_applications (
   lecturer_rec_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
   lecturer_rec_at    TEXT,
   tx_hash            TEXT,
-  credential_id      TEXT REFERENCES nft_credentials(id) ON DELETE SET NULL
+  credential_id      TEXT REFERENCES nft_credentials(id) ON DELETE SET NULL,
+  payment_id         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_nft_apps_user_course ON course_nft_applications(user_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_nft_apps_status      ON course_nft_applications(status);
@@ -319,3 +320,36 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_read
   ON notifications(user_id, read);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created
   ON notifications(user_id, created_at);
+
+-- Phase 11 C1a: Certificate pricing + payments
+CREATE TABLE IF NOT EXISTS course_pricing (
+  id          TEXT PRIMARY KEY,
+  course_id   TEXT NOT NULL UNIQUE REFERENCES courses(id) ON DELETE CASCADE,
+  price_cents INTEGER NOT NULL DEFAULT 0,
+  currency    TEXT NOT NULL DEFAULT 'USD',
+  is_active   INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_course_pricing_course_id ON course_pricing(course_id);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id       TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  application_id  TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
+  amount_cents    INTEGER NOT NULL,
+  currency        TEXT NOT NULL DEFAULT 'USD',
+  payment_method  TEXT NOT NULL DEFAULT 'manual',
+  status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'confirmed', 'waived')),
+  confirmed_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_at    TEXT,
+  notes           TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
+CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);

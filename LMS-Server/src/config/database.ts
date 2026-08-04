@@ -759,6 +759,55 @@ function ensureNotificationsTable(): void {
 }
 ensureNotificationsTable();
 
+/** Phase 11 C1a — course_pricing + payments tables for certificate monetization. */
+function ensurePaymentsTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_pricing (
+      id          TEXT PRIMARY KEY,
+      course_id   TEXT NOT NULL UNIQUE REFERENCES courses(id) ON DELETE CASCADE,
+      price_cents INTEGER NOT NULL DEFAULT 0,
+      currency    TEXT NOT NULL DEFAULT 'USD',
+      is_active   INTEGER NOT NULL DEFAULT 1,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_course_pricing_course_id
+      ON course_pricing(course_id);
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id              TEXT PRIMARY KEY,
+      user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id       TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      application_id  TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
+      amount_cents    INTEGER NOT NULL,
+      currency        TEXT NOT NULL DEFAULT 'USD',
+      payment_method  TEXT NOT NULL DEFAULT 'manual',
+      status          TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'confirmed', 'waived')),
+      confirmed_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+      confirmed_at    TEXT,
+      notes           TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+  `);
+
+  // Add payment_id FK to course_nft_applications if not present
+  const cols = db.prepare("PRAGMA table_info('course_nft_applications')").all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'payment_id')) {
+    try {
+      db.exec('ALTER TABLE course_nft_applications ADD COLUMN payment_id TEXT REFERENCES payments(id)');
+    } catch {
+      // Column already exists — safe to ignore
+    }
+  }
+}
+ensurePaymentsTables();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];

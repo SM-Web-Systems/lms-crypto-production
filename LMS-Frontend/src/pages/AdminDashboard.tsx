@@ -27,6 +27,7 @@ import {
 import { DashboardPageSkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
 import { QuizAnalyticsPanel } from '../components/QuizAnalyticsPanel';
+import { PricingManagement } from '../components/PricingManagement';
 import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
 import { Tag } from 'lucide-react';
 
@@ -458,6 +459,8 @@ const AdminDashboard: React.FC = () => {
       </Card>
 
       <QuizAnalyticsPanel />
+
+      <PricingManagement />
 
       {/* Course Analytics */}
       {courseAnalytics.length > 0 && (

@@ -87,13 +87,19 @@ export async function listCertificates(
       reviewed_by: string | null; review_notes: string | null;
       lecturer_rec: string | null; tx_hash: string | null;
       user_name: string; user_email: string; course_title: string;
+      payment_status: string | null; payment_id: string | null;
+      price_cents: number | null;
     }>(
       `SELECT a.*,
               u.name AS user_name, u.email AS user_email,
-              c.title AS course_title
+              c.title AS course_title,
+              p.status AS payment_status, p.id AS payment_id,
+              cp.price_cents
        FROM course_nft_applications a
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
+       LEFT JOIN payments p ON p.application_id = a.id
+       LEFT JOIN course_pricing cp ON cp.course_id = a.course_id AND cp.is_active = 1
        ${where}
        ORDER BY a.applied_at DESC
        LIMIT ? OFFSET ?`,
@@ -115,6 +121,9 @@ export async function listCertificates(
       reviewNotes: r.review_notes,
       lecturerRecommendation: r.lecturer_rec,
       txHash: r.tx_hash,
+      paymentStatus: r.payment_status as 'pending' | 'confirmed' | 'waived' | null,
+      paymentId: r.payment_id,
+      priceCents: r.price_cents ?? 0,
     }));
 
     res.json({ success: true, data: { certificates, total: certificates.length } });

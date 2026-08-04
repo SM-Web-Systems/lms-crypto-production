@@ -397,6 +397,37 @@ export interface CourseNftApplication {
   credential_id:      string | null;
 }
 
+// ─── Phase 11 C1a: Payment types ─────────────────────────────────────────────
+
+export type PaymentStatus = 'pending' | 'confirmed' | 'waived';
+export type PaymentMethod = 'manual' | 'waived';
+
+export interface CoursePricing {
+  id: string;
+  course_id: string;
+  price_cents: number;
+  currency: string;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Payment {
+  id: string;
+  user_id: string;
+  course_id: string;
+  application_id: string | null;
+  amount_cents: number;
+  currency: string;
+  payment_method: string;
+  status: PaymentStatus;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Error Codes
 export const ErrorCodes = {
   UNAUTHORIZED:        "UNAUTHORIZED",
@@ -413,4 +444,5 @@ export const ErrorCodes = {
   REQUIREMENTS_NOT_MET: "REQUIREMENTS_NOT_MET",
   WALLET_NOT_LINKED:   "WALLET_NOT_LINKED",
   APPLICATION_EXISTS:  "APPLICATION_EXISTS",
+  PAYMENT_REQUIRED:    "PAYMENT_REQUIRED",
 } as const;

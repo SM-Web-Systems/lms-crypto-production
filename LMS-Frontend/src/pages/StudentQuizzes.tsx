@@ -4,6 +4,7 @@ import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import Input from '../components/Input';
 import { quizService } from '../services/quizService';
+import { courseCompletionService } from '../services/courseCompletionService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
 import {
@@ -110,6 +111,7 @@ const StudentQuizzes: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const takeInitRef = useRef<string | null>(null);
+  const [pricingCache, setPricingCache] = useState<Record<string, number>>({});
 
   const activeQuiz = useMemo(() => quizzes.find((x) => x.id === qQuiz) ?? null, [quizzes, qQuiz]);
   const questions = useMemo(() => (activeQuiz ? sortedQuestions(activeQuiz) : []), [activeQuiz]);
@@ -169,6 +171,14 @@ const StudentQuizzes: React.FC = () => {
       setSearchParams({}, { replace: true });
     }
   }, [qQuiz, quizzes, loading, setSearchParams]);
+
+  /** Fetch pricing for active quiz course when viewing results */
+  useEffect(() => {
+    if (!activeQuiz?.courseId || pricingCache[activeQuiz.courseId] !== undefined) return;
+    courseCompletionService.getPricing(activeQuiz.courseId)
+      .then((p) => setPricingCache((c) => ({ ...c, [activeQuiz.courseId!]: p.priceCents })))
+      .catch(() => setPricingCache((c) => ({ ...c, [activeQuiz.courseId!]: 0 })));
+  }, [activeQuiz?.courseId, pricingCache]);
 
   /** Sync question index from URL while taking */
   useEffect(() => {
@@ -386,14 +396,20 @@ const StudentQuizzes: React.FC = () => {
               <div className="rounded-xl border border-neutral-200/90 bg-neutral-100/50 p-4 ring-1 ring-neutral-900/5">
                 <div className="flex items-center gap-2 mb-2">
                   <CreditCard className="h-5 w-5 text-neutral-600" aria-hidden />
-                  <h2 className="text-base font-semibold text-neutral-800">Pay to certify</h2>
+                  <h2 className="text-base font-semibold text-neutral-800">Certificate pricing</h2>
                 </div>
-                <p className="text-sm text-neutral-600 mb-3">
-                  Certificate payment is not wired up yet — this is a placeholder.
-                </p>
-                <Button variant="outline" disabled className="opacity-75 cursor-not-allowed">
-                  Payment coming soon
-                </Button>
+                {activeQuiz?.courseId && pricingCache[activeQuiz.courseId] !== undefined ? (
+                  pricingCache[activeQuiz.courseId] === 0 ? (
+                    <p className="text-sm text-emerald-700 font-medium">This certificate is free.</p>
+                  ) : (
+                    <p className="text-sm text-neutral-600">
+                      Certificate fee: <span className="font-semibold text-neutral-900">${(pricingCache[activeQuiz.courseId] / 100).toFixed(2)}</span>.
+                      Payment is confirmed by an administrator after you apply.
+                    </p>
+                  )
+                ) : (
+                  <p className="text-sm text-neutral-500">Loading pricing…</p>
+                )}
               </div>
 
               <Button variant="outline" onClick={() => openQuizIntro(activeQuiz)}>
