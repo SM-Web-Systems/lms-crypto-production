@@ -191,6 +191,68 @@ export async function getSponsorStudents(req: AuthRequest, res: Response, next: 
   }
 }
 
+export interface QuizAnalyticsRow {
+  quizId: string;
+  quizTitle: string;
+  passingScore: number;
+  courseTitle: string | null;
+  courseCode: string | null;
+  attempts: number;
+  passedCount: number;
+  passRate: number;
+  avgScore: number;
+}
+
+export async function getQuizAnalytics(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rows = query<{
+      quiz_id: string;
+      quiz_title: string;
+      passing_score: number;
+      course_title: string | null;
+      course_code: string | null;
+      attempts: number;
+      passed_count: number;
+      avg_score: number | null;
+    }>(`
+      SELECT
+        q.id             AS quiz_id,
+        q.title          AS quiz_title,
+        q.passing_score,
+        c.title          AS course_title,
+        c.course_code,
+        COUNT(qc.id)     AS attempts,
+        SUM(CASE WHEN qc.passed = 1 THEN 1 ELSE 0 END) AS passed_count,
+        ROUND(AVG(qc.score), 1) AS avg_score
+      FROM quizzes q
+      LEFT JOIN courses c ON c.id = q.course_id
+      LEFT JOIN quiz_completions qc ON qc.quiz_id = q.id
+      GROUP BY q.id
+      ORDER BY q.title
+    `);
+
+    const data: QuizAnalyticsRow[] = rows.map((r) => {
+      const attempts = r.attempts;
+      const passedCount = r.passed_count ?? 0;
+      return {
+        quizId: r.quiz_id,
+        quizTitle: r.quiz_title,
+        passingScore: r.passing_score,
+        courseTitle: r.course_title,
+        courseCode: r.course_code,
+        attempts,
+        passedCount,
+        passRate: attempts > 0 ? Math.round((passedCount / attempts) * 1000) / 10 : 0,
+        avgScore: attempts > 0 ? (r.avg_score ?? 0) : 0,
+      };
+    });
+
+    res.json({ success: true, data: { quizzes: data } });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function exportCoursesCsv(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const rows = query<{
