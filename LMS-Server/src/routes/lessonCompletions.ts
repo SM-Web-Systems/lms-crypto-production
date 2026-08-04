@@ -14,24 +14,10 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, authorize, requireCourseAccess } from '../middleware/auth.js';
 import { queryOne, query, execute } from '../config/database.js';
-import { AuthRequest, CourseSection, ErrorCodes } from '../types/index.js';
+import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { findSectionForItem } from '../utils/courseHelpers.js';
 
 const router = Router();
-
-/** Find the section that contains itemId. Returns sectionId or null if not found. */
-function findSectionForItem(sectionsJson: string, itemId: string): string | null {
-  try {
-    const sections: CourseSection[] = JSON.parse(sectionsJson || '[]');
-    for (const section of sections) {
-      if (section.items.some((item) => item.id === itemId)) {
-        return section.id;
-      }
-    }
-  } catch {
-    /* invalid JSON — treat as no items */
-  }
-  return null;
-}
 
 // ─── POST /courses/:courseId/lessons/:itemId/complete (self-mark) ──────────────
 router.post(
