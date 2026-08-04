@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
 import InlineQuizTaker from './InlineQuizTaker';
+import InlineAssignmentForm from './InlineAssignmentForm';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
 import {
@@ -79,6 +80,9 @@ interface EmbeddedMaterialViewerProps {
   onNext?: () => void;
   prevDisabled?: boolean;
   nextDisabled?: boolean;
+  onItemComplete?: (itemId: string) => void;
+  courseId?: string;
+  weekId?: string;
 }
 
 /**
@@ -93,6 +97,9 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
   onNext,
   prevDisabled = true,
   nextDisabled = true,
+  onItemComplete,
+  courseId,
+  weekId,
 }) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -241,6 +248,7 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               preload="metadata"
               className="w-full max-w-lg"
               src={ext}
+              onEnded={() => onItemComplete?.(item.id)}
             >
               Your browser does not support the audio element.
             </audio>
@@ -289,7 +297,8 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
             <p className="text-base font-semibold text-neutral-800">{item.title}</p>
             {item.url?.trim() ? (
               <>
-                <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}>
+                <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}
+                  onEnded={() => onItemComplete?.(item.id)}>
                   Your browser does not support the audio element.
                 </audio>
                 <a href={item.url} target="_blank" rel="noopener noreferrer"
@@ -354,16 +363,29 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                 </p>
               );
             })()}
-            <a
-              href="/student/submissions"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors min-w-[200px]"
-            >
-              <Upload className="h-4 w-4 shrink-0" aria-hidden />
-              Go to submissions
-            </a>
-            <p className="text-xs text-neutral-500">
-              Submit your work on the Submissions page.
-            </p>
+            {courseId ? (
+              <InlineAssignmentForm
+                courseId={courseId}
+                weekId={weekId}
+                itemId={item.id}
+                allowedMimeTypes={(item as { allowedMimeTypes?: string[] }).allowedMimeTypes}
+                maxFileSize={(item as { maxFileSize?: number }).maxFileSize}
+                onSubmitted={() => onItemComplete?.(item.id)}
+              />
+            ) : (
+              <>
+                <a
+                  href="/student/submissions"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors min-w-[200px]"
+                >
+                  <Upload className="h-4 w-4 shrink-0" aria-hidden />
+                  Go to submissions
+                </a>
+                <p className="text-xs text-neutral-500">
+                  Submit your work on the Submissions page.
+                </p>
+              </>
+            )}
           </div>
         ) : item.type === 'download' ? (
           (() => {

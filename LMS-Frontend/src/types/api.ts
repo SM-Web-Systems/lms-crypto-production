@@ -131,6 +131,9 @@ export interface CreateSubmissionData {
   title: string;
   description: string;
   file: File;
+  courseId?: string;
+  weekId?: string;
+  itemId?: string;
 }
 
 export interface ReviewSubmissionData {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { quizService } from '../services/quizService';
+import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
 
 interface InlineQuizTakerProps {
@@ -9,6 +10,7 @@ interface InlineQuizTakerProps {
 type Step = 'loading' | 'intro' | 'taking' | 'submitting' | 'result' | 'error';
 
 export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
+  const { user } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [step, setStep] = useState<Step>('loading');
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -19,22 +21,26 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
   useEffect(() => {
     let cancelled = false;
     setStep('loading');
-    quizService.getById(quizId).then((q) => {
+
+    const quizP = quizService.getById(quizId);
+    const compP = user?.id
+      ? quizService.getCompletion(quizId, user.id).catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([quizP, compP]).then(([q, comp]) => {
       if (cancelled) return;
-      if (!q) {
-        setErrorMsg('Quiz not found.');
-        setStep('error');
-        return;
-      }
+      if (!q) { setErrorMsg('Quiz not found.'); setStep('error'); return; }
       setQuiz(q);
-      setStep('intro');
+      if (comp?.passed) { setResult(comp); setStep('result'); }
+      else { setStep('intro'); }
     }).catch((err) => {
       if (cancelled) return;
       setErrorMsg(err?.message || 'Failed to load quiz.');
       setStep('error');
     });
+
     return () => { cancelled = true; };
-  }, [quizId]);
+  }, [quizId, user?.id]);
 
   const questions = quiz?.questions ?? [];
 
