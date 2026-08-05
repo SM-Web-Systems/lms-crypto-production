@@ -428,6 +428,21 @@ export interface Payment {
   updated_at: string;
 }
 
+// ─── Phase 11 C2: Freemium tier types ────────────────────────────────────────
+
+export type CertificateTier = 'free' | 'paid';
+export type TiersEnabled = 'free_only' | 'paid_only' | 'both';
+
+export interface CertificateBadge {
+  id: string;
+  user_id: string;
+  course_id: string;
+  application_id: string;
+  badge_svg: string;
+  badge_hash: string;
+  created_at: string;
+}
+
 // Error Codes
 export const ErrorCodes = {
   UNAUTHORIZED:        "UNAUTHORIZED",
@@ -445,4 +460,5 @@ export const ErrorCodes = {
   WALLET_NOT_LINKED:   "WALLET_NOT_LINKED",
   APPLICATION_EXISTS:  "APPLICATION_EXISTS",
   PAYMENT_REQUIRED:    "PAYMENT_REQUIRED",
+  TIER_NOT_AVAILABLE:  "TIER_NOT_AVAILABLE",
 } as const;

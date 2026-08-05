@@ -20,6 +20,7 @@ import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
 import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
+import { getTiersEnabled, createBadge } from '../services/badgeService.js';
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -101,17 +102,42 @@ router.post(
       return;
     }
 
-    // Wallet must be linked
-    const userRow = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
-      'SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?',
-      [userId]
-    );
-    if (!userRow?.walletAddress || userRow.wallet_linking_status !== 'linked') {
-      res.status(422).json({
+    // Phase 11 C2: Tier selection (default 'paid' for backward compat with pre-C2 callers)
+    const selectedTier = (req.body.selectedTier as string) || 'paid';
+    if (selectedTier !== 'free' && selectedTier !== 'paid') {
+      res.status(400).json({
         success: false,
-        error: { code: ErrorCodes.WALLET_NOT_LINKED, message: 'Wallet not linked. Link your wallet at ammawallet.com first.' },
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: "selectedTier must be 'free' or 'paid'" },
       });
       return;
+    }
+
+    // Validate tier is available for this course
+    const tiersEnabled = getTiersEnabled(courseId);
+    if (
+      (selectedTier === 'free' && tiersEnabled === 'paid_only') ||
+      (selectedTier === 'paid' && tiersEnabled === 'free_only')
+    ) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.TIER_NOT_AVAILABLE, message: 'This tier is not available for this course' },
+      });
+      return;
+    }
+
+    // Wallet must be linked (paid tier only)
+    if (selectedTier === 'paid') {
+      const userRow = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
+        'SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?',
+        [userId]
+      );
+      if (!userRow?.walletAddress || userRow.wallet_linking_status !== 'linked') {
+        res.status(422).json({
+          success: false,
+          error: { code: ErrorCodes.WALLET_NOT_LINKED, message: 'Wallet not linked. Link your wallet at ammawallet.com first.' },
+        });
+        return;
+      }
     }
 
     // No active (non-rejected) application for this user+course
@@ -127,11 +153,15 @@ router.post(
       return;
     }
 
+    const walletAddress = selectedTier === 'paid'
+      ? queryOne<{ walletAddress: string }>('SELECT walletAddress FROM users WHERE id = ?', [userId])!.walletAddress
+      : null;
+
     const appId = uuidv4();
     execute(
-      `INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status, applied_at)
-       VALUES (?, ?, ?, ?, 'pending', datetime('now'))`,
-      [appId, userId, courseId, userRow.walletAddress]
+      `INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status, selected_tier, applied_at)
+       VALUES (?, ?, ?, ?, 'pending', ?, datetime('now'))`,
+      [appId, userId, courseId, walletAddress ?? '', selectedTier]
     );
 
     const inserted = queryOne<{ applied_at: string }>(
@@ -139,17 +169,19 @@ router.post(
       [appId]
     );
 
-    // Phase 11 C1a: create payment record for paid courses
-    const pricing = getCoursePricing(courseId);
+    // Phase 11 C1a: create payment record for paid courses (paid tier only)
     let paymentData: { paymentId: string; amountCents: number; currency: string; status: string } | undefined;
-    if (pricing && pricing.price_cents > 0) {
-      const payment = createPayment(userId, courseId, appId, pricing.price_cents);
-      paymentData = {
-        paymentId: payment.id,
-        amountCents: payment.amount_cents,
-        currency: payment.currency,
-        status: payment.status,
-      };
+    if (selectedTier === 'paid') {
+      const pricing = getCoursePricing(courseId);
+      if (pricing && pricing.price_cents > 0) {
+        const payment = createPayment(userId, courseId, appId, pricing.price_cents);
+        paymentData = {
+          paymentId: payment.id,
+          amountCents: payment.amount_cents,
+          currency: payment.currency,
+          status: payment.status,
+        };
+      }
     }
 
     res.status(201).json({
@@ -158,7 +190,8 @@ router.post(
         applicationId: appId,
         courseId,
         status: 'pending',
-        walletAddress: userRow.walletAddress,
+        selectedTier,
+        walletAddress: walletAddress ?? null,
         appliedAt: inserted?.applied_at ?? new Date().toISOString(),
         ...(paymentData ? { payment: paymentData } : {}),
       },
@@ -424,6 +457,19 @@ router.patch(
       [userId, notes ?? null, appId]
     );
 
+    // Phase 11 C2: Auto-generate badge for free-tier applications
+    const appRow = queryOne<{ selected_tier: string; user_id: string }>(
+      'SELECT selected_tier, user_id FROM course_nft_applications WHERE id = ?',
+      [appId]
+    );
+    if (appRow?.selected_tier === 'free') {
+      try {
+        createBadge(appRow.user_id, courseId, appId);
+      } catch (err) {
+        console.error('[badge] Failed to generate badge for free-tier approval:', err);
+      }
+    }
+
     // C2: Notify student (best-effort)
     try {
       const courseRow = queryOne<{ title: string }>('SELECT title FROM courses WHERE id = ?', [courseId]);
@@ -524,6 +570,19 @@ router.post(
       res.status(409).json({
         success: false,
         error: { code: 'INVALID_STATUS', message: `Cannot mint: application status is ${app.status}` },
+      });
+      return;
+    }
+
+    // Phase 11 C2: Block free-tier applications from NFT minting
+    const tierRow = queryOne<{ selected_tier: string }>(
+      'SELECT selected_tier FROM course_nft_applications WHERE id = ?',
+      [appId]
+    );
+    if (tierRow?.selected_tier === 'free') {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Free-tier applications cannot be minted as NFT' },
       });
       return;
     }

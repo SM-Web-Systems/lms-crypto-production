@@ -4,7 +4,8 @@
  */
 
 import api from './api';
-import type { CourseProgress, MyCourseProgress, MyCredential, NftApplication, CoursePricing } from '../types/api';
+import type { CourseProgress, MyCourseProgress, MyCredential, NftApplication, CoursePricing, TierInfo, CertificateBadgeData, CertificateTier } from '../types/api';
+export type { TierInfo, CertificateBadgeData };
 
 export interface CourseRequirements {
   requireAllLessons: boolean;
@@ -95,9 +96,10 @@ export const courseCompletionService = {
   },
 
   /** POST /courses/:courseId/completions/apply — student applies for certificate */
-  async applyForCertificate(courseId: string): Promise<NftApplication> {
+  async applyForCertificate(courseId: string, selectedTier?: CertificateTier): Promise<NftApplication> {
     const res = await api.post<{ success: boolean; data: NftApplication }>(
-      `/courses/${courseId}/completions/apply`
+      `/courses/${courseId}/completions/apply`,
+      { ...(selectedTier ? { selectedTier } : {}) },
     );
     return res.data.data!;
   },
@@ -128,6 +130,22 @@ export const courseCompletionService = {
   async getPricing(courseId: string): Promise<CoursePricing> {
     const res = await api.get<{ success: boolean; data: CoursePricing }>(
       `/courses/${courseId}/pricing`,
+    );
+    return res.data.data;
+  },
+
+  /** GET /courses/:courseId/tiers — get tier configuration */
+  async getTiers(courseId: string): Promise<TierInfo> {
+    const res = await api.get<{ success: boolean; data: TierInfo }>(
+      `/courses/${courseId}/tiers`,
+    );
+    return res.data.data;
+  },
+
+  /** GET /badges/:badgeId — get badge data */
+  async getBadge(badgeId: string): Promise<CertificateBadgeData> {
+    const res = await api.get<{ success: boolean; data: CertificateBadgeData }>(
+      `/badges/${badgeId}`,
     );
     return res.data.data;
   },

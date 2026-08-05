@@ -1,10 +1,11 @@
 /**
  * Payment routes — Phase 11 C1a: pricing CRUD + manual payment confirmation.
+ * Phase 11 C2: tier config + badge endpoints.
  */
 
 import { Router, type Response, type NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { queryOne } from '../config/database.js';
+import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import {
   getCoursePricing,
@@ -13,6 +14,7 @@ import {
   waivePayment,
   listPayments,
 } from '../services/paymentService.js';
+import { getTiersEnabled, getBadge } from '../services/badgeService.js';
 
 const router = Router();
 
@@ -54,12 +56,20 @@ router.put(
   authorize('admin'),
   (req: AuthRequest, res: Response): void => {
     const { courseId } = req.params;
-    const { priceCents } = req.body;
+    const { priceCents, tiersEnabled } = req.body;
 
     if (typeof priceCents !== 'number' || priceCents < 0 || !Number.isInteger(priceCents)) {
       res.status(400).json({
         success: false,
         error: { code: ErrorCodes.VALIDATION_ERROR, message: 'priceCents must be a non-negative integer' },
+      });
+      return;
+    }
+
+    if (tiersEnabled !== undefined && !['free_only', 'paid_only', 'both'].includes(tiersEnabled)) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: "tiersEnabled must be 'free_only', 'paid_only', or 'both'" },
       });
       return;
     }
@@ -71,6 +81,17 @@ router.put(
     }
 
     const pricing = setCoursePricing(courseId, priceCents);
+
+    // Phase 11 C2: Update tiers_enabled if provided
+    if (tiersEnabled) {
+      execute(
+        'UPDATE course_pricing SET tiers_enabled = ? WHERE id = ?',
+        [tiersEnabled, pricing.id],
+      );
+    }
+
+    const updatedTiers = getTiersEnabled(courseId);
+
     res.json({
       success: true,
       data: {
@@ -78,6 +99,7 @@ router.put(
         priceCents: pricing.price_cents,
         currency: pricing.currency,
         isFree: pricing.price_cents === 0,
+        tiersEnabled: updatedTiers,
       },
     });
   },
@@ -178,6 +200,92 @@ router.get(
         })),
       },
     });
+  },
+);
+
+// ─── GET /courses/:courseId/tiers — tier config for a course ─────────────────
+
+router.get(
+  '/courses/:courseId/tiers',
+  (req: AuthRequest, res: Response): void => {
+    const { courseId } = req.params;
+
+    const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
+    if (!course) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Course not found' } });
+      return;
+    }
+
+    const tiersEnabled = getTiersEnabled(courseId);
+    const pricing = getCoursePricing(courseId);
+
+    res.json({
+      success: true,
+      data: {
+        tiersEnabled,
+        priceCents: pricing?.price_cents ?? 0,
+        currency: pricing?.currency ?? 'USD',
+        isFree: !pricing || pricing.price_cents === 0,
+      },
+    });
+  },
+);
+
+// ─── GET /badges/:badgeId — badge data (owner or admin) ─────────────────────
+
+router.get(
+  '/badges/:badgeId',
+  (req: AuthRequest, res: Response): void => {
+    const { badgeId } = req.params;
+    const badge = getBadge(badgeId);
+
+    if (!badge) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Badge not found' } });
+      return;
+    }
+
+    // Owner or admin only
+    if (badge.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        badgeId: badge.id,
+        userId: badge.user_id,
+        courseId: badge.course_id,
+        applicationId: badge.application_id,
+        badgeSvg: badge.badge_svg,
+        badgeHash: badge.badge_hash,
+        createdAt: badge.created_at,
+      },
+    });
+  },
+);
+
+// ─── GET /badges/:badgeId/download — SVG file download ──────────────────────
+
+router.get(
+  '/badges/:badgeId/download',
+  (req: AuthRequest, res: Response): void => {
+    const { badgeId } = req.params;
+    const badge = getBadge(badgeId);
+
+    if (!badge) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Badge not found' } });
+      return;
+    }
+
+    if (badge.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Content-Disposition', `attachment; filename="certificate-${badgeId.slice(0, 8)}.svg"`);
+    res.send(badge.badge_svg);
   },
 );
 

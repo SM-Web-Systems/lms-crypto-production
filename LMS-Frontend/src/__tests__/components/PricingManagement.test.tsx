@@ -40,6 +40,8 @@ vi.mock('../../services/courseCompletionService', () => ({
     recommendApplication: vi.fn(),
     getRequirements: vi.fn(),
     saveRequirements: vi.fn(),
+    getTiers: vi.fn(),
+    getBadge: vi.fn(),
   },
 }));
 
@@ -65,6 +67,7 @@ import { adminCertificateService } from '../../services/adminCertificateService'
 
 const mockGetCourseAnalytics = analyticsService.getCourseAnalytics as ReturnType<typeof vi.fn>;
 const mockGetPricing = courseCompletionService.getPricing as ReturnType<typeof vi.fn>;
+const mockGetTiers = courseCompletionService.getTiers as ReturnType<typeof vi.fn>;
 const mockSetCoursePricing = adminCertificateService.setCoursePricing as ReturnType<typeof vi.fn>;
 
 describe('PricingManagement', () => {
@@ -72,6 +75,7 @@ describe('PricingManagement', () => {
     vi.clearAllMocks();
     mockGetCourseAnalytics.mockResolvedValue([]);
     mockGetPricing.mockResolvedValue({ courseId: 'c1', priceCents: 0, currency: 'USD', isFree: true });
+    mockGetTiers.mockResolvedValue({ tiersEnabled: 'both', priceCents: 0, currency: 'USD', isFree: true });
   });
 
   // PAY-F1: loading then data
@@ -145,7 +149,7 @@ describe('PricingManagement', () => {
     await user.click(screen.getByText('Save Price'));
 
     await waitFor(() => {
-      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 2000);
+      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 2000, 'both');
     });
   });
 

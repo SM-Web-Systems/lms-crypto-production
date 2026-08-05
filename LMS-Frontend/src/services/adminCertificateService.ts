@@ -3,7 +3,7 @@
  */
 
 import api from './api';
-import type { NftApplication, IssuedCredential, CoursePricing, PaymentRecord } from '../types/api';
+import type { NftApplication, IssuedCredential, CoursePricing, PaymentRecord, TiersEnabled } from '../types/api';
 
 export const adminCertificateService = {
   /** GET /admin/certificates — all applications with optional filters */
@@ -112,11 +112,11 @@ export const adminCertificateService = {
     return res.data.data;
   },
 
-  /** PUT /admin/courses/:courseId/pricing — set certificate price */
-  async setCoursePricing(courseId: string, priceCents: number): Promise<CoursePricing> {
+  /** PUT /admin/courses/:courseId/pricing — set certificate price + tier mode */
+  async setCoursePricing(courseId: string, priceCents: number, tiersEnabled?: TiersEnabled): Promise<CoursePricing> {
     const res = await api.put<{ success: boolean; data: CoursePricing }>(
       `/admin/courses/${courseId}/pricing`,
-      { priceCents },
+      { priceCents, ...(tiersEnabled ? { tiersEnabled } : {}) },
     );
     return res.data.data;
   },

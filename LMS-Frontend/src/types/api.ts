@@ -300,6 +300,8 @@ export interface NftApplication {
   paymentStatus?: 'pending' | 'confirmed' | 'waived' | null;
   paymentId?: string | null;
   priceCents?: number;
+  /** Phase 11 C2: selected tier for this application */
+  selectedTier?: CertificateTier;
 }
 
 export type CredentialMintStatus = 'pending' | 'minted' | 'failed';
@@ -391,4 +393,25 @@ export interface NftToken {
   lastSyncedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Phase 11 C2: Freemium certificate tiers
+export type CertificateTier = 'free' | 'paid';
+export type TiersEnabled = 'free_only' | 'paid_only' | 'both';
+
+export interface TierInfo {
+  tiersEnabled: TiersEnabled;
+  priceCents: number;
+  currency: string;
+  isFree: boolean;
+}
+
+export interface CertificateBadgeData {
+  badgeId: string;
+  userId: string;
+  courseId: string;
+  applicationId: string;
+  badgeSvg: string;
+  badgeHash: string;
+  createdAt: string;
 }
