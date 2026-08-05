@@ -2,6 +2,7 @@
  * Payment routes — Phase 11 C1a: pricing CRUD + manual payment confirmation.
  * Phase 11 C2: tier config + badge endpoints.
  * Phase 12 C1: Paystack checkout + Stellar payment automation.
+ * Phase 16 C1: Invoice/receipt PDF generation.
  */
 
 import { Router, type Response, type Request, type NextFunction } from 'express';
@@ -498,6 +499,48 @@ router.get(
         confirmedAt: p.confirmed_at,
       })),
     });
+  },
+);
+
+// GET /payments/:paymentId/receipt — download PDF receipt (owner or admin)
+router.get(
+  '/payments/:paymentId/receipt',
+  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { getReceiptData, generateReceiptPdf } = await import('../services/invoiceService.js');
+
+      const data = getReceiptData(req.params.paymentId);
+      if (!data) {
+        res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
+        return;
+      }
+
+      // Owner or admin only
+      const paymentOwner = queryOne<{ user_id: string }>(
+        'SELECT user_id FROM payments WHERE id = ?',
+        [req.params.paymentId],
+      );
+      if (paymentOwner!.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
+
+      // Only confirmed or waived payments get receipts
+      if (data.status !== 'confirmed' && data.status !== 'waived') {
+        res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Receipt only available for confirmed or waived payments' } });
+        return;
+      }
+
+      const pdfBuffer = await generateReceiptPdf(data);
+      const filename = `receipt-${data.paymentId.slice(0, 8)}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (error) {
+      next(error);
+    }
   },
 );
 
