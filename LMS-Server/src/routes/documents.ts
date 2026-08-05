@@ -8,7 +8,8 @@ import {
   downloadDocument,
   getCategories,
 } from '../controllers/documentsController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { uploadDocument } from '../utils/fileUpload.js';
 
 const router = Router();
@@ -29,13 +30,13 @@ router.get('/:id', getDocument);
 router.get('/:id/download', downloadDocument);
 
 // POST /documents - Upload new document (admin only)
-router.post('/', authorize('admin'), uploadDocument.single('file'), createDocument);
+router.post('/', requirePermission('document.manage'), uploadDocument.single('file'), createDocument);
 
 // PUT /documents/:id - Update document metadata (admin only)
-router.put('/:id', authorize('admin'), updateDocument);
+router.put('/:id', requirePermission('document.manage'), updateDocument);
 
 // DELETE /documents/:id - Delete document (admin only)
-router.delete('/:id', authorize('admin'), deleteDocument);
+router.delete('/:id', requirePermission('document.manage'), deleteDocument);
 
 export default router;
 

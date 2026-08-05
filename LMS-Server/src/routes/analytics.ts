@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { getDashboard, getCourseAnalytics, getQuizAnalytics, getSponsorStudents, exportCoursesCsv } from '../controllers/analyticsController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 
 const router = Router();
 
 // All analytics routes require admin authentication
 router.use(authenticate);
-router.use(authorize('admin'));
+router.use(requirePermission('system.view_audit_log'));
 
 // GET /analytics/dashboard - Get dashboard statistics
 router.get('/dashboard', getDashboard);

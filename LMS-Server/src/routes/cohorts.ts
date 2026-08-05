@@ -3,7 +3,8 @@
  */
 
 import { Router, type Response } from 'express';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
 import {
@@ -19,7 +20,7 @@ import {
 const router = Router();
 
 // POST /admin/cohorts — create cohort
-router.post('/admin/cohorts', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const { name, courseId, selectedTier, memberUserIds } = req.body;
 
   if (!name || !courseId) {
@@ -53,14 +54,14 @@ router.post('/admin/cohorts', authenticate, authorize('admin'), (req: AuthReques
 });
 
 // GET /admin/cohorts — list cohorts
-router.get('/admin/cohorts', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.get('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const courseId = req.query.courseId as string | undefined;
   const cohorts = listCohorts(courseId ? { courseId } : undefined);
   res.json({ success: true, data: { cohorts, total: cohorts.length } });
 });
 
 // GET /admin/cohorts/:cohortId — get cohort detail
-router.get('/admin/cohorts/:cohortId', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.get('/admin/cohorts/:cohortId', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const result = getCohort(req.params.cohortId);
   if (!result) {
     res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
@@ -70,7 +71,7 @@ router.get('/admin/cohorts/:cohortId', authenticate, authorize('admin'), (req: A
 });
 
 // POST /admin/cohorts/:cohortId/members — add members
-router.post('/admin/cohorts/:cohortId/members', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.post('/admin/cohorts/:cohortId/members', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const { userIds } = req.body;
   if (!Array.isArray(userIds) || userIds.length === 0) {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'userIds array is required' } });
@@ -89,7 +90,7 @@ router.post('/admin/cohorts/:cohortId/members', authenticate, authorize('admin')
 });
 
 // DELETE /admin/cohorts/:cohortId/members/:userId — remove member
-router.delete('/admin/cohorts/:cohortId/members/:userId', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.delete('/admin/cohorts/:cohortId/members/:userId', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const removed = removeMember(req.params.cohortId, req.params.userId);
   if (!removed) {
     res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Member not found in cohort' } });
@@ -99,7 +100,7 @@ router.delete('/admin/cohorts/:cohortId/members/:userId', authenticate, authoriz
 });
 
 // POST /admin/cohorts/:cohortId/apply — bulk-apply
-router.post('/admin/cohorts/:cohortId/apply', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.post('/admin/cohorts/:cohortId/apply', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   try {
     const result = bulkApply(req.params.cohortId, req.user!.userId);
     res.json({ success: true, data: result });
@@ -115,7 +116,7 @@ router.post('/admin/cohorts/:cohortId/apply', authenticate, authorize('admin'), 
 });
 
 // POST /admin/cohorts/:cohortId/pay — bulk payment
-router.post('/admin/cohorts/:cohortId/pay', authenticate, authorize('admin'), (req: AuthRequest, res: Response): void => {
+router.post('/admin/cohorts/:cohortId/pay', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   try {
     const result = bulkPay(req.params.cohortId, req.user!.userId);
     res.status(201).json({ success: true, data: result });

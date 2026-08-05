@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import {
   integrationStatus,
   listCertificates,
@@ -33,7 +34,7 @@ router.get(
   '/integration-status',
   diagLimiter,
   authenticate,
-  authorize('admin'),
+  requirePermission('system.view_audit_log'),
   integrationStatus,
 );
 
@@ -42,7 +43,7 @@ router.get(
   '/certificates',
   diagLimiter,
   authenticate,
-  authorize('admin'),
+  requirePermission('certificate.approve'),
   listCertificates,
 );
 
@@ -52,7 +53,7 @@ router.get(
   '/issued-credentials',
   diagLimiter,
   authenticate,
-  authorize('admin', 'lecturer'),
+  requirePermission('certificate.approve'),
   listIssuedCredentials,
 );
 
@@ -63,7 +64,7 @@ router.get(
   '/demo-sponsor-transfers',
   diagLimiter,
   authenticate,
-  authorize('admin'),
+  requirePermission('system.view_audit_log'),
   listDemoSponsorTransfers,
 );
 
@@ -72,7 +73,7 @@ router.get(
 router.post(
   '/credentials/:credentialId/remint',
   authenticate,
-  authorize('admin'),
+  requirePermission('certificate.mint'),
   remintCredential,
 );
 

@@ -45,7 +45,7 @@ function createUser(role: 'student' | 'lecturer' | 'admin', email?: string): str
     lecturer: 'role_instructor',
     admin: 'role_admin',
   };
-  execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [id, roleMap[role]]);
+  execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [id, roleMap[role]]);
   return id;
 }
 

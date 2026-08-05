@@ -12,7 +12,8 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, authorize, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
@@ -81,7 +82,7 @@ router.post(
 router.post(
   '/courses/:courseId/students/:userId/lessons/:itemId/complete',
   authenticate,
-  authorize('admin', 'lecturer'),
+  requirePermission('course.grade'),
   requireCourseAccess,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;

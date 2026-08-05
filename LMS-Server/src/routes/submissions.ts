@@ -8,7 +8,8 @@ import {
   downloadSubmission,
   reviewSubmission,
 } from '../controllers/submissionsController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { upload } from '../utils/fileUpload.js';
 
 const router = Router();
@@ -23,10 +24,10 @@ router.get('/', getSubmissions);
 router.get('/:id', getSubmission);
 
 // POST /submissions - Create new submission (students only)
-router.post('/', authorize('student'), upload.single('file'), createSubmission);
+router.post('/', requirePermission('course.submit'), upload.single('file'), createSubmission);
 
 // PUT /submissions/:id - Update submission (students only, pending status)
-router.put('/:id', authorize('student'), updateSubmission);
+router.put('/:id', requirePermission('course.submit'), updateSubmission);
 
 // DELETE /submissions/:id - Delete submission
 router.delete('/:id', deleteSubmission);
@@ -35,7 +36,7 @@ router.delete('/:id', deleteSubmission);
 router.get('/:id/download', downloadSubmission);
 
 // POST /submissions/:id/review - Review submission (admin or lecturer — scope enforced in controller)
-router.post('/:id/review', authorize('admin', 'lecturer'), reviewSubmission);
+router.post('/:id/review', requirePermission('course.grade'), reviewSubmission);
 
 export default router;
 
