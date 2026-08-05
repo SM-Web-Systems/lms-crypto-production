@@ -442,6 +442,23 @@ CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id
 CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
 CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
 
+-- Auto-map users.role → user_roles on INSERT (bridges legacy role column to RBAC)
+CREATE TRIGGER IF NOT EXISTS trg_auto_assign_user_role
+AFTER INSERT ON users
+FOR EACH ROW
+WHEN NEW.role IN ('student', 'lecturer', 'admin')
+BEGIN
+  INSERT OR IGNORE INTO user_roles (user_id, role_id)
+  VALUES (
+    NEW.id,
+    CASE NEW.role
+      WHEN 'student' THEN 'role_student'
+      WHEN 'lecturer' THEN 'role_instructor'
+      WHEN 'admin' THEN 'role_admin'
+    END
+  );
+END;
+
 -- Phase 12 C1: Paystack webhook audit trail
 CREATE TABLE IF NOT EXISTS webhook_events (
   id            TEXT PRIMARY KEY,

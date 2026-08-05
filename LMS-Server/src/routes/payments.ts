@@ -6,7 +6,8 @@
 
 import { Router, type Response, type Request, type NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import {
@@ -84,7 +85,7 @@ router.get(
 
 router.put(
   '/admin/courses/:courseId/pricing',
-  authorize('admin'),
+  requirePermission('billing.confirm'),
   (req: AuthRequest, res: Response): void => {
     const { courseId } = req.params;
     const { priceCents, tiersEnabled, stellarPriceXlm, stellarPriceUsdc } = req.body;
@@ -152,7 +153,7 @@ router.put(
 
 router.post(
   '/admin/payments/:paymentId/confirm',
-  authorize('admin'),
+  requirePermission('billing.confirm'),
   (req: AuthRequest, res: Response): void => {
     const { paymentId } = req.params;
     const { notes } = req.body ?? {};
@@ -179,7 +180,7 @@ router.post(
 
 router.post(
   '/admin/payments/:paymentId/waive',
-  authorize('admin'),
+  requirePermission('billing.waive'),
   (req: AuthRequest, res: Response): void => {
     const { paymentId } = req.params;
     const { notes } = req.body ?? {};
@@ -215,7 +216,7 @@ router.post(
 
 router.get(
   '/admin/payments',
-  authorize('admin'),
+  requirePermission('billing.view_all'),
   (req: AuthRequest, res: Response): void => {
     const { status, courseId } = req.query as { status?: string; courseId?: string };
     const payments = listPayments({ status, courseId });
@@ -503,7 +504,7 @@ router.get(
 // POST /admin/payments/:paymentId/refund — trigger Paystack refund
 router.post(
   '/admin/payments/:paymentId/refund',
-  authorize('admin'),
+  requirePermission('billing.confirm'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     const payment = queryOne<{ id: string; status: string; payment_method: string; paystack_reference: string | null }>(
       'SELECT id, status, payment_method, paystack_reference FROM payments WHERE id = ?',

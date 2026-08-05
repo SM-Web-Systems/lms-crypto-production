@@ -13,7 +13,8 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, authorize, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { mintCredential } from '../services/mintService.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
@@ -425,7 +426,7 @@ router.post(
 router.patch(
   '/courses/:courseId/completions/applications/:appId/approve',
   authenticate,
-  authorize('admin'),
+  requirePermission('certificate.approve'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
     const { notes } = req.body as { notes?: string };
@@ -492,7 +493,7 @@ router.patch(
 router.patch(
   '/courses/:courseId/completions/applications/:appId/reject',
   authenticate,
-  authorize('admin'),
+  requirePermission('certificate.reject'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
     const { notes } = req.body as { notes?: string };
@@ -549,7 +550,7 @@ router.patch(
 router.post(
   '/courses/:courseId/completions/applications/:appId/mint',
   authenticate,
-  authorize('admin'),
+  requirePermission('certificate.mint'),
   async (req: AuthRequest, res: Response): Promise<void> => {
     const { courseId, appId } = req.params;
 

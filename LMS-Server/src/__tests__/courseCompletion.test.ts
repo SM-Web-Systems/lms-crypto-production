@@ -283,14 +283,14 @@ describe('B4 — PUT /api/v1/courses/:courseId/requirements', () => {
     expect(res.status).toBe(400);
   });
 
-  it('lecturer cannot set requirements', async () => {
+  it('lecturer (instructor) can set requirements via RBAC course.manage', async () => {
     const { lecturerId, courseId } = seedBase();
     const token = makeToken({ userId: lecturerId, email: 'lecturer-b@test.com', role: 'lecturer' });
     const res = await request(app)
       .put(`/api/v1/courses/${courseId}/requirements`)
       .set('Authorization', `Bearer ${token}`)
       .send({ minQuizScore: 70 });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 

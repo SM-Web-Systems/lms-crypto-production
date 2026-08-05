@@ -8,7 +8,8 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, authorize, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 
@@ -44,7 +45,7 @@ router.get(
 router.put(
   '/:courseId/requirements',
   authenticate,
-  authorize('admin'),
+  requirePermission('course.manage'),
   (req: AuthRequest, res: Response): void => {
     const { courseId } = req.params;
     const {

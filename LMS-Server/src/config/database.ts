@@ -960,7 +960,7 @@ function ensureRbacTables(): void {
 }
 ensureRbacTables();
 
-function seedRbacData(): void {
+export function seedRbacData(): void {
   // Seed built-in roles (idempotent)
   const roles: Array<[string, string, string, string]> = [
     ['role_student', 'student', 'Student', 'Base learner role'],
@@ -1238,7 +1238,7 @@ function seedRbacData(): void {
 }
 seedRbacData();
 
-function migrateUsersToRbac(): void {
+export function migrateUsersToRbac(): void {
   // Map existing users.role → user_roles (idempotent)
   const roleMap: Record<string, string> = {
     student: 'role_student',

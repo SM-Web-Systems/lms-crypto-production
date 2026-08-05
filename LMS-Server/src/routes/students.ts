@@ -7,13 +7,14 @@ import {
   deleteStudent,
   importStudents,
 } from '../controllers/studentsController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 
 const router = Router();
 
 // All student routes require admin authentication
 router.use(authenticate);
-router.use(authorize('admin'));
+router.use(requirePermission('user.view_all'));
 
 // GET /students - Get all students with pagination/filtering
 router.get('/', getStudents);
