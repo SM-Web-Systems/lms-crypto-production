@@ -10,6 +10,7 @@ export interface CourseAnalytics {
   enrollmentsCount: number;
   walletsLinkedCount: number;
   nftsIssuedCount: number;
+  tiersEnabled: 'free_only' | 'paid_only' | 'both';
 }
 
 export interface SponsorStudent {

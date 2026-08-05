@@ -297,4 +297,117 @@ describe('Sponsor Cohorts (C3)', () => {
     ).get(studentId1, courseId) as { selected_tier: string };
     expect(appRow.selected_tier).toBe('free');
   });
+
+  // ─── Phase 14 C1: Cohort Completion Tracking ─────────────────────────────
+
+  // COH-T1: getCohort returns completionStats
+  it('COH-T1 — getCohort returns completionStats for cohort with members', async () => {
+    seedEnrollment(studentId1, courseCode);
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Stats Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId1, studentId2] });
+    const cohortId = createRes.body.data.cohortId;
+
+    const res = await request(app)
+      .get(`/api/v1/admin/cohorts/${cohortId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.completionStats).toBeDefined();
+    expect(res.body.data.completionStats.totalMembers).toBe(2);
+    expect(typeof res.body.data.completionStats.completedCount).toBe('number');
+    expect(typeof res.body.data.completionStats.certifiedCount).toBe('number');
+    expect(typeof res.body.data.completionStats.avgLessonProgress).toBe('number');
+  });
+
+  // COH-T2: member with no completions on a course with items shows 0% progress
+  it('COH-T2 — member with no completions shows 0% progress', async () => {
+    // Give the course items so progress isn't defaulting to 100%
+    const sId = uuidv4();
+    const iId = uuidv4();
+    db.exec(`UPDATE courses SET sections = '${JSON.stringify([{
+      id: sId, title: 'S1', items: [{ id: iId, type: 'video', title: 'V1', url: 'http://x' }],
+    }])}' WHERE id = '${courseId}'`);
+
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Zero Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId1] });
+    const cohortId = createRes.body.data.cohortId;
+
+    const res = await request(app)
+      .get(`/api/v1/admin/cohorts/${cohortId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    const member = res.body.data.members.find((m: any) => m.userId === studentId1);
+    expect(member.lessonProgress).toBe(0);
+    expect(member.certificateStatus).toBe('none');
+  });
+
+  // COH-T3: member with completed lessons shows correct progress
+  it('COH-T3 — member with completed lessons shows progress', async () => {
+    // Give the course some sections with items
+    const sectionId = uuidv4();
+    const item1Id = uuidv4();
+    const item2Id = uuidv4();
+    db.exec(`UPDATE courses SET sections = '${JSON.stringify([{
+      id: sectionId, title: 'S1', items: [
+        { id: item1Id, type: 'video', title: 'V1', url: 'http://x' },
+        { id: item2Id, type: 'video', title: 'V2', url: 'http://y' },
+      ],
+    }])}' WHERE id = '${courseId}'`);
+
+    // Complete 1 of 2 items
+    const lcId = uuidv4();
+    db.exec(`INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, completed_at)
+      VALUES ('${lcId}', '${studentId1}', '${courseId}', '${item1Id}', '${sectionId}', datetime('now'))`);
+
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Progress Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId1] });
+    const cohortId = createRes.body.data.cohortId;
+
+    const res = await request(app)
+      .get(`/api/v1/admin/cohorts/${cohortId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const member = res.body.data.members.find((m: any) => m.userId === studentId1);
+    expect(member.lessonProgress).toBe(50);
+  });
+
+  // COH-T4: member with minted NFT shows certificateStatus='nft'
+  it('COH-T4 — member with minted NFT shows certificateStatus=nft', async () => {
+    const credId = uuidv4();
+    const appId = uuidv4();
+    db.exec(`INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status, selected_tier, applied_at)
+      VALUES ('${appId}', '${studentId1}', '${courseId}', 'GWALLET1', 'minted', 'paid', datetime('now'))`);
+    db.exec(`INSERT INTO nft_credentials (id, user_id, course_id, application_id, wallet_address, contract_id, network, mint_status, created_at, updated_at)
+      VALUES ('${credId}', '${studentId1}', '${courseId}', '${appId}', 'GWALLET1', 'CTEST', 'testnet', 'minted', datetime('now'), datetime('now'))`);
+
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'NFT Cohort', courseId, selectedTier: 'paid', memberUserIds: [studentId1] });
+    const cohortId = createRes.body.data.cohortId;
+
+    const res = await request(app)
+      .get(`/api/v1/admin/cohorts/${cohortId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const member = res.body.data.members.find((m: any) => m.userId === studentId1);
+    expect(member.certificateStatus).toBe('nft');
+  });
+
+  // COH-T5: completedCount reflects members meeting all requirements
+  it('COH-T5 — completedCount counts members meeting requirements', async () => {
+    // Course has no items → getCourseProgress returns 0% with meetsAllRequirements=false by default
+    // But with no completion requirements set, it defaults to meetsAllRequirements based on lesson threshold
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Completion Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId1, studentId2] });
+    const cohortId = createRes.body.data.cohortId;
+
+    const res = await request(app)
+      .get(`/api/v1/admin/cohorts/${cohortId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.body.data.completionStats.completedCount).toBeDefined();
+    // Exact count depends on course requirements; verify it's consistent with members
+    const membersWhoMeet = res.body.data.members.filter((m: any) => m.meetsRequirements).length;
+    expect(res.body.data.completionStats.completedCount).toBe(membersWhoMeet);
+  });
 });

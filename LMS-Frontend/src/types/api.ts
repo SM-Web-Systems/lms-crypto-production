@@ -442,6 +442,16 @@ export interface CohortMemberDetail {
   applicationStatus: string | null;
   isEnrolled: boolean;
   addedAt: string;
+  lessonProgress: number;
+  meetsRequirements: boolean;
+  certificateStatus: 'none' | 'badge' | 'nft';
+}
+
+export interface CohortCompletionStats {
+  totalMembers: number;
+  completedCount: number;
+  certifiedCount: number;
+  avgLessonProgress: number;
 }
 
 export interface BulkApplyResult {

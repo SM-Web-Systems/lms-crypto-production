@@ -10,6 +10,7 @@ export interface CourseAnalyticsRow {
   enrollmentsCount: number;
   walletsLinkedCount: number;
   nftsIssuedCount: number;
+  tiersEnabled: 'free_only' | 'paid_only' | 'both';
 }
 
 export async function getCourseAnalytics(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -22,6 +23,7 @@ export async function getCourseAnalytics(_req: AuthRequest, res: Response, next:
       enrollments_count: number;
       wallets_linked_count: number;
       nfts_issued_count: number;
+      tiers_enabled: string | null;
     }>(`
       SELECT
         c.id                                          AS course_id,
@@ -30,11 +32,13 @@ export async function getCourseAnalytics(_req: AuthRequest, res: Response, next:
         c.sponsor_label                               AS sponsor_label,
         COUNT(DISTINCT ucc.user_id)                   AS enrollments_count,
         COUNT(DISTINCT CASE WHEN u.walletAddress IS NOT NULL THEN u.id END) AS wallets_linked_count,
-        COUNT(DISTINCT nc.id)                         AS nfts_issued_count
+        COUNT(DISTINCT nc.id)                         AS nfts_issued_count,
+        cp.tiers_enabled
       FROM courses c
       LEFT JOIN user_course_codes ucc ON ucc.course_code = c.course_code
       LEFT JOIN users u ON u.id = ucc.user_id
       LEFT JOIN nft_credentials nc ON nc.course_id = c.id
+      LEFT JOIN course_pricing cp ON cp.course_id = c.id AND cp.is_active = 1
       GROUP BY c.id
       ORDER BY c.title
     `);
@@ -47,6 +51,7 @@ export async function getCourseAnalytics(_req: AuthRequest, res: Response, next:
       enrollmentsCount: r.enrollments_count,
       walletsLinkedCount: r.wallets_linked_count,
       nftsIssuedCount: r.nfts_issued_count,
+      tiersEnabled: (r.tiers_enabled as 'free_only' | 'paid_only' | 'both') ?? 'both',
     }));
 
     res.json({ success: true, data: { courses: data } });
