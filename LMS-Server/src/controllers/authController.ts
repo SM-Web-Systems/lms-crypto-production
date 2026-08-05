@@ -7,6 +7,7 @@ import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student, UserRole } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { createUserWallet } from "../services/walletService.js";
+import { getUserRoles } from "../middleware/rbac.js";
 import { sendPasswordResetEmail } from "../services/emailService.js";
 import {
   buildSsoInitiateUrl,
@@ -145,10 +146,12 @@ export async function login(
     }
 
     // Generate JWT token
+    const rbacRoles = process.env.RBAC_ENABLED === 'true' ? getUserRoles(user.id) : undefined;
     const token = generateToken({
       userId: user.id,
       email: user.email,
       role,
+      roles: rbacRoles,
       studentId,
     });
 
@@ -273,7 +276,8 @@ export async function register(
       );
     }
 
-    const token = generateToken({ userId, email, role, studentId });
+    const regRbacRoles = process.env.RBAC_ENABLED === 'true' ? getUserRoles(userId) : undefined;
+    const token = generateToken({ userId, email, role, roles: regRbacRoles, studentId });
 
     res.status(201).json({
       success: true,
@@ -625,7 +629,8 @@ export async function ammaCallback(
     }
 
     // 4. Issue LMS session JWT
-    const token = generateToken({ userId, email, role, studentId });
+    const ssoRbacRoles = process.env.RBAC_ENABLED === 'true' ? getUserRoles(userId) : undefined;
+    const token = generateToken({ userId, email, role, roles: ssoRbacRoles, studentId });
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
     const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}&role=${role}`;

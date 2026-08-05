@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { verifyToken } from '../config/jwt.js';
 import { queryOne } from '../config/database.js';
 import { AuthRequest, ErrorCodes, UserRole } from '../types/index.js';
+import { requireAnyRole } from './rbac.js';
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
   try {
@@ -61,6 +62,13 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 }
 
 export function authorize(...roles: UserRole[]) {
+  // When RBAC is enabled, delegate to the new role-based check
+  // which reads from user_roles junction table instead of users.role column
+  if (process.env.RBAC_ENABLED === 'true') {
+    return requireAnyRole(...roles);
+  }
+
+  // Fallback: original behavior using JWT role claim
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
