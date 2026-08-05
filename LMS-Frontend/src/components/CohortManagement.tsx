@@ -1,0 +1,329 @@
+/**
+ * CohortManagement — Phase 11 C3: cohort tab in SponsorDashboard.
+ */
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { cohortService } from '../services/cohortService';
+import type { SponsorCohortSummary, CohortMemberDetail, BulkApplyResult, CertificateTier } from '../types/api';
+import { Card, CardContent } from './Card';
+import { Button } from './Button';
+import { getErrorMessage } from '../utils/apiError';
+import {
+  Users,
+  Plus,
+  Play,
+  CreditCard,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+} from 'lucide-react';
+
+// ─── Create Cohort Modal ────────────────────────────────────────────────────
+
+interface CreateCohortModalProps {
+  courses: { id: string; title: string; tiersEnabled: string }[];
+  onCreated: () => void;
+  onClose: () => void;
+}
+
+const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreated, onClose }) => {
+  const [name, setName] = useState('');
+  const [courseId, setCourseId] = useState(courses[0]?.id ?? '');
+  const [tier, setTier] = useState<CertificateTier>('free');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedCourse = courses.find((c) => c.id === courseId);
+  const canFree = !selectedCourse || selectedCourse.tiersEnabled !== 'paid_only';
+  const canPaid = !selectedCourse || selectedCourse.tiersEnabled !== 'free_only';
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !courseId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await cohortService.createCohort({ name: name.trim(), courseId, selectedTier: tier });
+      onCreated();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold mb-4">Create Cohort</h3>
+        {error && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Name</label>
+            <input className="w-full border rounded px-3 py-2 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp Q3 2026" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Course</label>
+            <select className="w-full border rounded px-3 py-2 text-sm" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Certificate Tier</label>
+            <div className="flex gap-3">
+              {canFree && (
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input type="radio" name="tier" value="free" checked={tier === 'free'} onChange={() => setTier('free')} /> Free Badge
+                </label>
+              )}
+              {canPaid && (
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input type="radio" name="tier" value="paid" checked={tier === 'paid'} onChange={() => setTier('paid')} /> Paid NFT
+                </label>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={submitting || !name.trim()}>
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Cohort Detail ──────────────────────────────────────────────────────────
+
+interface CohortDetailProps {
+  cohortId: string;
+  selectedTier: CertificateTier;
+  onRefresh: () => void;
+}
+
+const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onRefresh }) => {
+  const [members, setMembers] = useState<CohortMemberDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [applyResult, setApplyResult] = useState<BulkApplyResult | null>(null);
+  const [payResult, setPayResult] = useState<{ paymentId: string; amountCents: number } | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadMembers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await cohortService.getCohort(cohortId);
+      setMembers(data.members);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [cohortId]);
+
+  useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  const handleBulkApply = async () => {
+    setActionLoading('apply');
+    setError(null);
+    try {
+      const result = await cohortService.bulkApply(cohortId);
+      setApplyResult(result);
+      loadMembers();
+      onRefresh();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleBulkPay = async () => {
+    setActionLoading('pay');
+    setError(null);
+    try {
+      const result = await cohortService.bulkPay(cohortId);
+      setPayResult(result);
+      onRefresh();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    try {
+      await cohortService.removeMember(cohortId, userId);
+      loadMembers();
+      onRefresh();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  if (loading) return <div className="p-3 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading members...</div>;
+
+  return (
+    <div className="p-3 bg-gray-50 border-t">
+      {error && <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm flex items-center gap-1"><AlertCircle className="w-4 h-4" />{error}</div>}
+
+      {applyResult && (
+        <div className="mb-2 p-2 bg-green-50 text-green-800 rounded text-sm flex items-center gap-1">
+          <CheckCircle className="w-4 h-4" /> Applied: {applyResult.applied}, Skipped: {applyResult.skipped.length}
+        </div>
+      )}
+
+      {payResult && (
+        <div className="mb-2 p-2 bg-blue-50 text-blue-800 rounded text-sm flex items-center gap-1">
+          <CreditCard className="w-4 h-4" /> Payment created: ${(payResult.amountCents / 100).toFixed(2)} (pending)
+        </div>
+      )}
+
+      <div className="flex gap-2 mb-3">
+        <Button size="sm" variant="outline" onClick={handleBulkApply} disabled={actionLoading !== null}>
+          {actionLoading === 'apply' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Play className="w-3 h-3 mr-1" />}
+          Apply for All
+        </Button>
+        {selectedTier === 'paid' && (
+          <Button size="sm" variant="outline" onClick={handleBulkPay} disabled={actionLoading !== null}>
+            {actionLoading === 'pay' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
+            Create Payment
+          </Button>
+        )}
+      </div>
+
+      {members.length === 0 ? (
+        <p className="text-sm text-gray-500">No members yet.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-gray-500 border-b">
+            <th className="py-1 pr-2">Name</th><th className="py-1 pr-2">Email</th>
+            <th className="py-1 pr-2">Enrolled</th><th className="py-1 pr-2">Application</th><th className="py-1"></th>
+          </tr></thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.userId} className="border-b last:border-0">
+                <td className="py-1.5 pr-2">{m.userName}</td>
+                <td className="py-1.5 pr-2 text-gray-600">{m.userEmail}</td>
+                <td className="py-1.5 pr-2">
+                  {m.isEnrolled ? <span className="text-green-600 text-xs font-medium">Yes</span> : <span className="text-red-500 text-xs font-medium">No</span>}
+                </td>
+                <td className="py-1.5 pr-2">
+                  {m.applicationStatus ? (
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                      m.applicationStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                      m.applicationStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      m.applicationStatus === 'minted' ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>{m.applicationStatus}</span>
+                  ) : <span className="text-gray-400 text-xs">—</span>}
+                </td>
+                <td className="py-1.5 text-right">
+                  <button onClick={() => handleRemoveMember(m.userId)} className="text-red-400 hover:text-red-600" title="Remove">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
+// ─── Main CohortManagement ──────────────────────────────────────────────────
+
+interface CohortManagementProps {
+  courses: { id: string; title: string; tiersEnabled: string }[];
+}
+
+export const CohortManagement: React.FC<CohortManagementProps> = ({ courses }) => {
+  const [cohorts, setCohorts] = useState<SponsorCohortSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await cohortService.listCohorts();
+      setCohorts(data);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2"><Users className="w-5 h-5" /> Cohorts</h3>
+        <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-1" /> Create Cohort</Button>
+      </div>
+
+      {error && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
+
+      {showCreate && <CreateCohortModal courses={courses} onCreated={() => { setShowCreate(false); load(); }} onClose={() => setShowCreate(false)} />}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading cohorts...</div>
+      ) : cohorts.length === 0 ? (
+        <Card><CardContent className="py-8 text-center text-gray-500">No cohorts yet. Create one to get started.</CardContent></Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 text-left text-gray-600 border-b">
+              <th className="py-2 px-3"></th><th className="py-2 px-3">Name</th><th className="py-2 px-3">Course</th>
+              <th className="py-2 px-3">Tier</th><th className="py-2 px-3">Members</th><th className="py-2 px-3">Applied</th>
+              <th className="py-2 px-3">Status</th><th className="py-2 px-3">Payment</th>
+            </tr></thead>
+            <tbody>
+              {cohorts.map((c) => (
+                <React.Fragment key={c.cohortId}>
+                  <tr className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(expanded === c.cohortId ? null : c.cohortId)}>
+                    <td className="py-2 px-3">
+                      {expanded === c.cohortId ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </td>
+                    <td className="py-2 px-3 font-medium">{c.name}</td>
+                    <td className="py-2 px-3 text-gray-600">{c.courseName}</td>
+                    <td className="py-2 px-3">
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${c.selectedTier === 'paid' ? 'bg-violet-100 text-violet-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {c.selectedTier === 'paid' ? 'NFT' : 'Free'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3">{c.memberCount}</td>
+                    <td className="py-2 px-3">{c.appliedCount}</td>
+                    <td className="py-2 px-3">
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                        c.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                        c.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>{c.status}</span>
+                    </td>
+                    <td className="py-2 px-3 text-gray-500 text-xs">{c.paymentStatus ?? '—'}</td>
+                  </tr>
+                  {expanded === c.cohortId && (
+                    <tr><td colSpan={8}>
+                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} onRefresh={load} />
+                    </td></tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};

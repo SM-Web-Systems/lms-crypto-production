@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
+import { CohortManagement } from '../components/CohortManagement';
 import { analyticsService, type CourseAnalytics, type SponsorStudent } from '../services/analyticsService';
 import { getErrorMessage } from '../utils/apiError';
 import {
@@ -58,6 +59,8 @@ const SponsorDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'cohorts'>('overview');
 
   // Drill-down state: expanded courseId → student list
   const [expanded, setExpanded] = useState<Record<string, SponsorStudent[] | 'loading'>>({});
@@ -151,6 +154,22 @@ const SponsorDashboard: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Tab navigation */}
+      <div className="flex gap-1 border-b border-neutral-200">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+          onClick={() => setActiveTab('overview')}
+        >Sponsor Overview</button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'cohorts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+          onClick={() => setActiveTab('cohorts')}
+        >Cohorts</button>
+      </div>
+
+      {activeTab === 'cohorts' ? (
+        <CohortManagement courses={courses.map((c) => ({ id: c.courseId, title: c.courseName, tiersEnabled: 'both' }))} />
+      ) : (<>
 
       {error && (
         <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900">
@@ -332,6 +351,8 @@ const SponsorDashboard: React.FC = () => {
           ))}
         </div>
       )}
+
+      </>)}
     </div>
   );
 };

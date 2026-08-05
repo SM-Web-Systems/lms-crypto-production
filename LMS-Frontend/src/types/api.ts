@@ -415,3 +415,34 @@ export interface CertificateBadgeData {
   badgeHash: string;
   createdAt: string;
 }
+
+// ─── Phase 11 C3: Sponsor Cohort types ───────────────────────────────────────
+
+export interface SponsorCohortSummary {
+  cohortId: string;
+  name: string;
+  courseId: string;
+  courseName: string;
+  selectedTier: CertificateTier;
+  status: 'draft' | 'active' | 'completed';
+  memberCount: number;
+  appliedCount: number;
+  paymentStatus: string | null;
+  createdAt: string;
+}
+
+export interface CohortMemberDetail {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  applicationId: string | null;
+  applicationStatus: string | null;
+  isEnrolled: boolean;
+  addedAt: string;
+}
+
+export interface BulkApplyResult {
+  cohortId: string;
+  applied: number;
+  skipped: { userId: string; reason: string }[];
+}
