@@ -28,6 +28,7 @@ import { DashboardPageSkeleton } from '../components/PageSkeletons';
 import { AnnouncementsPanel } from '../components/AnnouncementsPanel';
 import { QuizAnalyticsPanel } from '../components/QuizAnalyticsPanel';
 import { PricingManagement } from '../components/PricingManagement';
+import { RbacAdminPanel } from '../components/RbacAdminPanel';
 import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
 import { Tag } from 'lucide-react';
 
@@ -461,6 +462,8 @@ const AdminDashboard: React.FC = () => {
       <QuizAnalyticsPanel />
 
       <PricingManagement />
+
+      <RbacAdminPanel />
 
       {/* Course Analytics */}
       {courseAnalytics.length > 0 && (
