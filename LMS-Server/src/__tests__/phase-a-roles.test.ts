@@ -3,7 +3,7 @@
  *
  * Covers:
  *  A9.1 — users.role CHECK constraint accepts 'lecturer'
- *  A9.2 — authorize('lecturer') middleware
+ *  A9.2 — lecturer role-based access
  *  A9.3 — requireCourseAccess middleware (admin / lecturer-assigned / lecturer-unassigned / student)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -92,16 +92,16 @@ describe('A9.1 — users.role CHECK constraint', () => {
   });
 });
 
-// ─── A9.2 — authorize('lecturer') middleware ─────────────────────────────────
+// ─── A9.2 — lecturer role-based access ───────────────────────────────────────
 
-describe('A9.2 — authorize middleware with lecturer role', () => {
+describe('A9.2 — lecturer role-based access', () => {
   let ids: ReturnType<typeof seedUsers>;
 
   beforeEach(() => {
     ids = seedUsers();
   });
 
-  it('lecturer token passes authorize("lecturer") route', async () => {
+  it('lecturer token passes lecturer-allowed route', async () => {
     // Use a courses GET endpoint that accepts admin or lecturer
     const token = makeToken({ userId: ids.lecturerId, email: 'lect@a.com', role: 'lecturer' });
     const res = await request(app)
@@ -148,7 +148,7 @@ describe('A9.3 — requireCourseAccess middleware', () => {
   it('admin passes requireCourseAccess on any course (db not checked)', () => {
     // Admin can access course_lecturers table exists — just verify token works
     const token = makeToken({ userId: ids.adminId, email: 'admin@a.com', role: 'admin' });
-    // Admin creating a course uses authorize('admin'), not requireCourseAccess,
+    // Admin creating a course uses requirePermission(), not requireCourseAccess,
     // but we can test the middleware via a unit-level check:
     // Simulate by checking the course_lecturers assignment for admin doesn't exist but admin still passes
     const assignment = db.prepare(

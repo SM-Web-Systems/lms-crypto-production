@@ -9,8 +9,7 @@
  * RBAC-6  — requireAnyRole returns true if user has one of the roles
  * RBAC-7  — requireAnyRole returns false if user has none
  * RBAC-8  — Per-request caching works
- * RBAC-9  — authorize() backward compat when RBAC_ENABLED=true
- * RBAC-10 — authorize() fallback when RBAC_ENABLED=false
+ * (RBAC-9/10 removed — authorize() wrapper deleted in Phase 16 C2)
  * MIG-1   — All existing users have user_roles entries after migration
  * MIG-2   — Admin users retain admin role in user_roles
  * MIG-3   — Student users retain student role in user_roles
@@ -236,40 +235,6 @@ describe('Phase 12B: RBAC System', () => {
       expect(res.body.success).toBe(true);
     });
 
-    it('RBAC-9 — authorize() backward compat when RBAC_ENABLED=true', async () => {
-      const origRbac = process.env.RBAC_ENABLED;
-      process.env.RBAC_ENABLED = 'true';
-      try {
-        const userId = createUser('admin');
-        const token = makeToken(userId, `${userId}@test.com`, 'admin');
-
-        // admin route using authorize('admin') should still work
-        const res = await request(app)
-          .get('/api/v1/admin/certificates')
-          .set('Authorization', `Bearer ${token}`);
-        // Should not be 403 — admin is allowed
-        expect(res.status).not.toBe(403);
-      } finally {
-        process.env.RBAC_ENABLED = origRbac;
-      }
-    });
-
-    it('RBAC-10 — authorize() fallback when RBAC_ENABLED=false', async () => {
-      const origRbac = process.env.RBAC_ENABLED;
-      process.env.RBAC_ENABLED = 'false';
-      try {
-        const userId = createUser('student');
-        const token = makeToken(userId, `${userId}@test.com`, 'student');
-
-        // Student hitting admin route via old authorize() should get 403
-        const res = await request(app)
-          .get('/api/v1/admin/certificates')
-          .set('Authorization', `Bearer ${token}`);
-        expect(res.status).toBe(403);
-      } finally {
-        process.env.RBAC_ENABLED = origRbac;
-      }
-    });
   });
 
   // ─── Migration Tests ──────────────────────────────────────────────────────
