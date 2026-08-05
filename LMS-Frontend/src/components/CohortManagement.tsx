@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { cohortService } from '../services/cohortService';
-import type { SponsorCohortSummary, CohortMemberDetail, BulkApplyResult, CertificateTier } from '../types/api';
+import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, BulkApplyResult, CertificateTier } from '../types/api';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { getErrorMessage } from '../utils/apiError';
@@ -107,6 +107,7 @@ interface CohortDetailProps {
 
 const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onRefresh }) => {
   const [members, setMembers] = useState<CohortMemberDetail[]>([]);
+  const [completionStats, setCompletionStats] = useState<CohortCompletionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [applyResult, setApplyResult] = useState<BulkApplyResult | null>(null);
   const [payResult, setPayResult] = useState<{ paymentId: string; amountCents: number } | null>(null);
@@ -118,6 +119,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
     try {
       const data = await cohortService.getCohort(cohortId);
       setMembers(data.members);
+      setCompletionStats(data.completionStats);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -197,13 +199,22 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
         )}
       </div>
 
+      {completionStats && completionStats.totalMembers > 0 && (
+        <div className="mb-3 flex gap-4 text-xs text-gray-600" data-testid="completion-stats">
+          <span>Completed: <strong>{completionStats.completedCount}/{completionStats.totalMembers}</strong></span>
+          <span>Certified: <strong>{completionStats.certifiedCount}/{completionStats.totalMembers}</strong></span>
+          <span>Avg Progress: <strong>{completionStats.avgLessonProgress}%</strong></span>
+        </div>
+      )}
+
       {members.length === 0 ? (
         <p className="text-sm text-gray-500">No members yet.</p>
       ) : (
         <table className="w-full text-sm">
           <thead><tr className="text-left text-gray-500 border-b">
             <th className="py-1 pr-2">Name</th><th className="py-1 pr-2">Email</th>
-            <th className="py-1 pr-2">Enrolled</th><th className="py-1 pr-2">Application</th><th className="py-1"></th>
+            <th className="py-1 pr-2">Enrolled</th><th className="py-1 pr-2">Progress</th>
+            <th className="py-1 pr-2">Certificate</th><th className="py-1 pr-2">Application</th><th className="py-1"></th>
           </tr></thead>
           <tbody>
             {members.map((m) => (
@@ -212,6 +223,23 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
                 <td className="py-1.5 pr-2 text-gray-600">{m.userEmail}</td>
                 <td className="py-1.5 pr-2">
                   {m.isEnrolled ? <span className="text-green-600 text-xs font-medium">Yes</span> : <span className="text-red-500 text-xs font-medium">No</span>}
+                </td>
+                <td className="py-1.5 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden" data-testid="progress-bar">
+                      <div className={`h-full rounded-full ${m.meetsRequirements ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${m.lessonProgress}%` }} />
+                    </div>
+                    <span className="text-xs text-gray-500">{m.lessonProgress}%</span>
+                  </div>
+                </td>
+                <td className="py-1.5 pr-2">
+                  {m.certificateStatus === 'nft' ? (
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">NFT</span>
+                  ) : m.certificateStatus === 'badge' ? (
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Badge</span>
+                  ) : (
+                    <span className="text-gray-400 text-xs">—</span>
+                  )}
                 </td>
                 <td className="py-1.5 pr-2">
                   {m.applicationStatus ? (

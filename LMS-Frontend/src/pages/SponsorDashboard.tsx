@@ -168,7 +168,7 @@ const SponsorDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'cohorts' ? (
-        <CohortManagement courses={courses.map((c) => ({ id: c.courseId, title: c.courseName, tiersEnabled: 'both' }))} />
+        <CohortManagement courses={courses.map((c) => ({ id: c.courseId, title: c.courseName, tiersEnabled: c.tiersEnabled ?? 'both' }))} />
       ) : (<>
 
       {error && (

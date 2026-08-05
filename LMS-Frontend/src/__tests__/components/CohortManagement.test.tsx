@@ -7,6 +7,9 @@
  * COH-F4 — Bulk-apply button shows result summary
  * COH-F5 — Payment button visible only for paid-tier cohorts
  * COH-F6 — Free-tier cohort hides payment section
+ * COH-F7 — CohortManagement detail shows progress bars per member
+ * COH-F8 — CohortManagement shows aggregate completion stats
+ * COH-F9 — SponsorDashboard passes actual tiersEnabled to CohortManagement
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -104,9 +107,10 @@ describe('CohortManagement', () => {
     mockGetCohort.mockResolvedValue({
       cohort: sampleCohort,
       members: [
-        { userId: 'u1', userName: 'Alice', userEmail: 'alice@test.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05' },
-        { userId: 'u2', userName: 'Bob', userEmail: 'bob@test.com', applicationId: null, applicationStatus: null, isEnrolled: false, addedAt: '2026-08-05' },
+        { userId: 'u1', userName: 'Alice', userEmail: 'alice@test.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 75, meetsRequirements: false, certificateStatus: 'none' },
+        { userId: 'u2', userName: 'Bob', userEmail: 'bob@test.com', applicationId: null, applicationStatus: null, isEnrolled: false, addedAt: '2026-08-05', lessonProgress: 0, meetsRequirements: false, certificateStatus: 'none' },
       ],
+      completionStats: { totalMembers: 2, completedCount: 0, certifiedCount: 0, avgLessonProgress: 38 },
     });
 
     render(<CohortManagement courses={sampleCourses} />);
@@ -126,7 +130,8 @@ describe('CohortManagement', () => {
     const user = userEvent.setup();
     const memberData = {
       cohort: sampleCohort,
-      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05' }],
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
     };
     mockGetCohort.mockResolvedValue(memberData);
     mockBulkApply.mockResolvedValue({ cohortId: 'coh1', applied: 1, skipped: [] });
@@ -150,7 +155,8 @@ describe('CohortManagement', () => {
     mockListCohorts.mockResolvedValue([samplePaidCohort]);
     mockGetCohort.mockResolvedValue({
       cohort: samplePaidCohort,
-      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05' }],
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
     });
     const user = userEvent.setup();
 
@@ -167,7 +173,8 @@ describe('CohortManagement', () => {
   it('COH-F6 — free-tier cohort hides payment section', async () => {
     mockGetCohort.mockResolvedValue({
       cohort: sampleCohort,
-      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05' }],
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
     });
     const user = userEvent.setup();
 
@@ -178,5 +185,77 @@ describe('CohortManagement', () => {
     await waitFor(() => expect(screen.getByText('Apply for All')).toBeInTheDocument());
 
     expect(screen.queryByText('Create Payment')).not.toBeInTheDocument();
+  });
+
+  // COH-F7: progress bars render for each member
+  it('COH-F7 — shows progress bars per member', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [
+        { userId: 'u1', userName: 'Alice', userEmail: 'alice@test.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 75, meetsRequirements: true, certificateStatus: 'badge' },
+        { userId: 'u2', userName: 'Bob', userEmail: 'bob@test.com', applicationId: null, applicationStatus: null, isEnrolled: false, addedAt: '2026-08-05', lessonProgress: 30, meetsRequirements: false, certificateStatus: 'none' },
+      ],
+      completionStats: { totalMembers: 2, completedCount: 1, certifiedCount: 1, avgLessonProgress: 53 },
+    });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      const progressBars = screen.getAllByTestId('progress-bar');
+      expect(progressBars.length).toBe(2);
+    });
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getByText('30%')).toBeInTheDocument();
+  });
+
+  // COH-F8: aggregate completion stats displayed
+  it('COH-F8 — shows aggregate completion stats', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [
+        { userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 100, meetsRequirements: true, certificateStatus: 'nft' },
+        { userId: 'u2', userName: 'Bob', userEmail: 'b@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' },
+      ],
+      completionStats: { totalMembers: 2, completedCount: 1, certifiedCount: 1, avgLessonProgress: 75 },
+    });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      const statsEl = screen.getByTestId('completion-stats');
+      expect(statsEl).toBeInTheDocument();
+    });
+    // Stats are rendered with <strong> children, so check the container text content
+    const statsEl = screen.getByTestId('completion-stats');
+    expect(statsEl.textContent).toContain('1/2');
+    expect(statsEl.textContent).toContain('75%');
+  });
+
+  // COH-F9: certificate status badge/nft indicators render
+  it('COH-F9 — shows certificate status indicators (badge/nft)', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [
+        { userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 100, meetsRequirements: true, certificateStatus: 'nft' },
+        { userId: 'u2', userName: 'Bob', userEmail: 'b@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 100, meetsRequirements: true, certificateStatus: 'badge' },
+      ],
+      completionStats: { totalMembers: 2, completedCount: 2, certifiedCount: 2, avgLessonProgress: 100 },
+    });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      expect(screen.getByText('NFT')).toBeInTheDocument();
+      expect(screen.getByText('Badge')).toBeInTheDocument();
+    });
   });
 });

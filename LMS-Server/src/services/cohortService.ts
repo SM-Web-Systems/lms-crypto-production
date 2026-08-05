@@ -8,12 +8,14 @@ import type {
   SponsorCohort,
   SponsorCohortSummary,
   CohortMemberDetail,
+  CohortCompletionStats,
   BulkApplyResult,
   BulkPayResult,
   CertificateTier,
 } from '../types/index.js';
 import { getCoursePricing } from './paymentService.js';
 import { getTiersEnabled } from './badgeService.js';
+import { getCourseProgress } from './courseCompletionService.js';
 
 // ─── Cohort CRUD ────────────────────────────────────────────────────────────
 
@@ -117,7 +119,7 @@ export function listCohorts(filters?: { courseId?: string }): SponsorCohortSumma
   }));
 }
 
-export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; members: CohortMemberDetail[] } | null {
+export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; members: CohortMemberDetail[]; completionStats: CohortCompletionStats } | null {
   const row = queryOne<{
     id: string; name: string; course_id: string; course_name: string;
     selected_tier: CertificateTier; status: string; payment_id: string | null;
@@ -158,6 +160,50 @@ export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; mem
     ORDER BY cm.added_at
   `, [row.course_id, cohortId]);
 
+  // Compute per-member completion data
+  const enrichedMembers: CohortMemberDetail[] = members.map((m) => {
+    const progress = getCourseProgress(m.user_id, row.course_id);
+
+    // Certificate status: check for minted NFT first, then badge
+    let certificateStatus: 'none' | 'badge' | 'nft' = 'none';
+    const hasNft = queryOne<{ id: string }>(
+      "SELECT id FROM nft_credentials WHERE user_id = ? AND course_id = ? AND mint_status = 'minted'",
+      [m.user_id, row.course_id],
+    );
+    if (hasNft) {
+      certificateStatus = 'nft';
+    } else {
+      const hasBadge = queryOne<{ id: string }>(
+        'SELECT id FROM certificate_badges WHERE user_id = ? AND course_id = ?',
+        [m.user_id, row.course_id],
+      );
+      if (hasBadge) certificateStatus = 'badge';
+    }
+
+    return {
+      userId: m.user_id,
+      userName: m.user_name,
+      userEmail: m.user_email,
+      applicationId: m.application_id,
+      applicationStatus: m.application_status,
+      isEnrolled: m.is_enrolled === 1,
+      addedAt: m.added_at,
+      lessonProgress: progress.lessonPercentage,
+      meetsRequirements: progress.meetsAllRequirements,
+      certificateStatus,
+    };
+  });
+
+  // Aggregate stats
+  const completionStats: CohortCompletionStats = {
+    totalMembers: enrichedMembers.length,
+    completedCount: enrichedMembers.filter((m) => m.meetsRequirements).length,
+    certifiedCount: enrichedMembers.filter((m) => m.certificateStatus !== 'none').length,
+    avgLessonProgress: enrichedMembers.length > 0
+      ? Math.round(enrichedMembers.reduce((sum, m) => sum + m.lessonProgress, 0) / enrichedMembers.length)
+      : 0,
+  };
+
   return {
     cohort: {
       cohortId: row.id,
@@ -171,15 +217,8 @@ export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; mem
       paymentStatus: row.payment_status,
       createdAt: row.created_at,
     },
-    members: members.map((m) => ({
-      userId: m.user_id,
-      userName: m.user_name,
-      userEmail: m.user_email,
-      applicationId: m.application_id,
-      applicationStatus: m.application_status,
-      isEnrolled: m.is_enrolled === 1,
-      addedAt: m.added_at,
-    })),
+    members: enrichedMembers,
+    completionStats,
   };
 }
 

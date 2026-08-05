@@ -3,7 +3,7 @@
  */
 
 import api from './api';
-import type { SponsorCohortSummary, CohortMemberDetail, BulkApplyResult, CertificateTier } from '../types/api';
+import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, BulkApplyResult, CertificateTier } from '../types/api';
 
 export const cohortService = {
   async createCohort(params: {
@@ -22,8 +22,8 @@ export const cohortService = {
     return res.data.data?.cohorts ?? [];
   },
 
-  async getCohort(cohortId: string): Promise<{ cohort: SponsorCohortSummary; members: CohortMemberDetail[] }> {
-    const res = await api.get<{ success: boolean; data: { cohort: SponsorCohortSummary; members: CohortMemberDetail[] } }>(
+  async getCohort(cohortId: string): Promise<{ cohort: SponsorCohortSummary; members: CohortMemberDetail[]; completionStats: CohortCompletionStats }> {
+    const res = await api.get<{ success: boolean; data: { cohort: SponsorCohortSummary; members: CohortMemberDetail[]; completionStats: CohortCompletionStats } }>(
       `/admin/cohorts/${cohortId}`,
     );
     return res.data.data;
