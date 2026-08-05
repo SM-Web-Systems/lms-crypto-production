@@ -6,11 +6,14 @@ import { adminCertificateService } from '../services/adminCertificateService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import { analyticsService } from '../services/analyticsService';
 
+import type { TiersEnabled } from '../types/api';
+
 interface CourseWithPricing {
   courseId: string;
   courseName: string;
   priceCents: number;
   isFree: boolean;
+  tiersEnabled: TiersEnabled;
 }
 
 type PanelState = 'loading' | 'error' | 'empty' | 'data';
@@ -20,6 +23,7 @@ export function PricingManagement() {
   const [state, setState] = useState<PanelState>('loading');
   const [editingCourse, setEditingCourse] = useState<CourseWithPricing | null>(null);
   const [priceInput, setPriceInput] = useState('');
+  const [tierMode, setTierMode] = useState<TiersEnabled>('both');
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -30,11 +34,17 @@ export function PricingManagement() {
       for (const c of analytics) {
         try {
           const pricing = await courseCompletionService.getPricing(c.courseId);
+          let tiersEnabled: TiersEnabled = 'both';
+          try {
+            const tiers = await courseCompletionService.getTiers(c.courseId);
+            tiersEnabled = tiers.tiersEnabled;
+          } catch { /* default both */ }
           withPricing.push({
             courseId: c.courseId,
             courseName: c.courseName,
             priceCents: pricing?.priceCents ?? 0,
             isFree: pricing?.isFree ?? true,
+            tiersEnabled,
           });
         } catch {
           withPricing.push({
@@ -42,6 +52,7 @@ export function PricingManagement() {
             courseName: c.courseName,
             priceCents: 0,
             isFree: true,
+            tiersEnabled: 'both',
           });
         }
       }
@@ -59,6 +70,7 @@ export function PricingManagement() {
   const openEdit = (course: CourseWithPricing) => {
     setEditingCourse(course);
     setPriceInput((course.priceCents / 100).toFixed(2));
+    setTierMode(course.tiersEnabled);
   };
 
   const savePrice = async () => {
@@ -67,7 +79,7 @@ export function PricingManagement() {
     if (isNaN(cents) || cents < 0) return;
     setSaving(true);
     try {
-      await adminCertificateService.setCoursePricing(editingCourse.courseId, cents);
+      await adminCertificateService.setCoursePricing(editingCourse.courseId, cents, tierMode);
       setEditingCourse(null);
       load();
     } catch {
@@ -112,6 +124,7 @@ export function PricingManagement() {
                 <tr className="border-b text-left text-neutral-500">
                   <th className="pb-2 font-medium">Course</th>
                   <th className="pb-2 font-medium">Price</th>
+                  <th className="pb-2 font-medium">Tiers</th>
                   <th className="pb-2 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -125,6 +138,11 @@ export function PricingManagement() {
                       ) : (
                         <span className="font-medium">${(c.priceCents / 100).toFixed(2)}</span>
                       )}
+                    </td>
+                    <td className="py-2">
+                      <span className="text-xs bg-neutral-100 px-2 py-0.5 rounded">
+                        {c.tiersEnabled === 'both' ? 'Both' : c.tiersEnabled === 'free_only' ? 'Free Only' : 'Paid Only'}
+                      </span>
                     </td>
                     <td className="py-2">
                       <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
@@ -156,7 +174,17 @@ export function PricingManagement() {
                 className="w-full border rounded px-3 py-2 mb-2"
                 placeholder="0.00"
               />
-              <p className="text-xs text-neutral-500 mb-4">Set to $0 for free certificates</p>
+              <p className="text-xs text-neutral-500 mb-3">Set to $0 for free certificates</p>
+              <label className="block text-sm font-medium mb-1">Tier Mode</label>
+              <select
+                value={tierMode}
+                onChange={(e) => setTierMode(e.target.value as TiersEnabled)}
+                className="w-full border rounded px-3 py-2 mb-4"
+              >
+                <option value="both">Both (Free + Paid)</option>
+                <option value="free_only">Free Only</option>
+                <option value="paid_only">Paid Only</option>
+              </select>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditingCourse(null)}>Cancel</Button>
                 <Button onClick={savePrice} disabled={saving}>

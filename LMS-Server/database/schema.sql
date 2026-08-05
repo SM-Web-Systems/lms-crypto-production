@@ -284,7 +284,8 @@ CREATE TABLE IF NOT EXISTS course_nft_applications (
   lecturer_rec_at    TEXT,
   tx_hash            TEXT,
   credential_id      TEXT REFERENCES nft_credentials(id) ON DELETE SET NULL,
-  payment_id         TEXT
+  payment_id         TEXT,
+  selected_tier      TEXT NOT NULL DEFAULT 'paid'
 );
 CREATE INDEX IF NOT EXISTS idx_nft_apps_user_course ON course_nft_applications(user_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_nft_apps_status      ON course_nft_applications(status);
@@ -328,6 +329,7 @@ CREATE TABLE IF NOT EXISTS course_pricing (
   price_cents INTEGER NOT NULL DEFAULT 0,
   currency    TEXT NOT NULL DEFAULT 'USD',
   is_active   INTEGER NOT NULL DEFAULT 1,
+  tiers_enabled TEXT NOT NULL DEFAULT 'both',
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -353,3 +355,17 @@ CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
 CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
 CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+
+-- Phase 11 C2: certificate_badges — free-tier SVG badge storage
+CREATE TABLE IF NOT EXISTS certificate_badges (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id      TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  application_id TEXT NOT NULL REFERENCES course_nft_applications(id) ON DELETE CASCADE,
+  badge_svg      TEXT NOT NULL,
+  badge_hash     TEXT NOT NULL,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, course_id)
+);
+CREATE INDEX IF NOT EXISTS idx_certificate_badges_application_id
+  ON certificate_badges(application_id);

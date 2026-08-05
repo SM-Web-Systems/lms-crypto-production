@@ -438,7 +438,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <StatusBadge status={app.status} />
-                        <PaymentBadge app={app} />
+                        {app.selectedTier === 'paid' ? (
+                          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">NFT</span>
+                        ) : (
+                          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Free</span>
+                        )}
+                        {app.selectedTier !== 'free' && <PaymentBadge app={app} />}
 
                         {app.lecturerRecommendation && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 text-xs font-medium">
@@ -457,7 +462,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
+                        {app.selectedTier !== 'free' && app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
                           <>
                             <Button size="sm" type="button" disabled={isActing} onClick={() => handleConfirmPayment(app)}
                               className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
@@ -470,12 +475,17 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
+                        {app.selectedTier !== 'free' && app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
                           <Button size="sm" type="button" disabled={isActing} onClick={() => handleMint(app)}
                             className="text-xs bg-violet-600 hover:bg-violet-700 text-white">
                             <Coins className="h-3.5 w-3.5 mr-1" aria-hidden />
                             {isActing ? 'Minting…' : 'Mint NFT'}
                           </Button>
+                        )}
+                        {app.selectedTier === 'free' && app.status === 'approved' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
+                            <Award className="h-3 w-3" aria-hidden /> Badge Generated
+                          </span>
                         )}
                         {app.status === 'minted' && app.txHash && (
                           <a

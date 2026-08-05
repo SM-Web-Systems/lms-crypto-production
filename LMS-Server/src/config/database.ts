@@ -808,6 +808,45 @@ function ensurePaymentsTables(): void {
 }
 ensurePaymentsTables();
 
+/** Phase 11 C2 — certificate_badges table + tier columns. */
+function ensureBadgesTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS certificate_badges (
+      id             TEXT PRIMARY KEY,
+      user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id      TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      application_id TEXT NOT NULL REFERENCES course_nft_applications(id) ON DELETE CASCADE,
+      badge_svg      TEXT NOT NULL,
+      badge_hash     TEXT NOT NULL,
+      created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, course_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_certificate_badges_application_id
+      ON certificate_badges(application_id);
+  `);
+
+  // Add selected_tier to course_nft_applications if not present
+  const appCols = db.prepare("PRAGMA table_info('course_nft_applications')").all() as { name: string }[];
+  if (!appCols.some((c) => c.name === 'selected_tier')) {
+    try {
+      db.exec("ALTER TABLE course_nft_applications ADD COLUMN selected_tier TEXT NOT NULL DEFAULT 'paid'");
+    } catch {
+      // Column already exists
+    }
+  }
+
+  // Add tiers_enabled to course_pricing if not present
+  const pricingCols = db.prepare("PRAGMA table_info('course_pricing')").all() as { name: string }[];
+  if (!pricingCols.some((c) => c.name === 'tiers_enabled')) {
+    try {
+      db.exec("ALTER TABLE course_pricing ADD COLUMN tiers_enabled TEXT NOT NULL DEFAULT 'both'");
+    } catch {
+      // Column already exists
+    }
+  }
+}
+ensureBadgesTables();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];
