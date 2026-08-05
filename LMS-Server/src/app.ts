@@ -33,6 +33,7 @@ import studentProgressRoutes from './routes/studentProgress.js';
 import paymentRoutes from './routes/payments.js';
 import cohortRoutes from './routes/cohorts.js';
 import rbacRoutes from './routes/rbac.js';
+import webhookRoutes from './routes/webhooks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -154,6 +155,9 @@ if (process.env.NODE_ENV !== 'test') {
       (app.get('trust proxy') ? ' (trust proxy on)' : '')
   );
 }
+
+// Webhook routes — mounted BEFORE JSON body parsing so they receive raw body for HMAC verification
+app.use('/api/v1/webhooks', webhookRoutes);
 
 // Body parsing middleware
 app.use(express.json({ limit: '1mb' }));

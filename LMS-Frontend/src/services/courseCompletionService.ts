@@ -149,4 +149,80 @@ export const courseCompletionService = {
     );
     return res.data.data;
   },
+
+  /** POST /payments/checkout/paystack — create Paystack checkout session */
+  async createPaystackCheckout(applicationId: string): Promise<{
+    paymentId: string;
+    checkoutUrl: string;
+    reference: string;
+    accessCode: string;
+  }> {
+    const res = await api.post<{ success: boolean; data: {
+      paymentId: string;
+      checkoutUrl: string;
+      reference: string;
+      accessCode: string;
+    } }>('/payments/checkout/paystack', { applicationId });
+    return res.data.data;
+  },
+
+  /** POST /payments/checkout/stellar — generate Stellar payment instructions */
+  async createStellarCheckout(applicationId: string, currency?: 'xlm' | 'usdc'): Promise<{
+    paymentId: string;
+    destinationAddress: string;
+    memo: string;
+    amount: number;
+    currency: string;
+  }> {
+    const res = await api.post<{ success: boolean; data: {
+      paymentId: string;
+      destinationAddress: string;
+      memo: string;
+      amount: number;
+      currency: string;
+    } }>('/payments/checkout/stellar', { applicationId, currency });
+    return res.data.data;
+  },
+
+  /** GET /payments/:paymentId/status — check payment status */
+  async getPaymentStatus(paymentId: string): Promise<{
+    paymentId: string;
+    status: string;
+    paymentMethod: string;
+    amountCents: number;
+    currency: string;
+  }> {
+    const res = await api.get<{ success: boolean; data: {
+      paymentId: string;
+      status: string;
+      paymentMethod: string;
+      amountCents: number;
+      currency: string;
+    } }>(`/payments/${paymentId}/status`);
+    return res.data.data;
+  },
+
+  /** GET /payments/mine — student's payment history */
+  async getMyPayments(): Promise<Array<{
+    paymentId: string;
+    courseId: string;
+    amountCents: number;
+    currency: string;
+    paymentMethod: string;
+    status: string;
+    createdAt: string;
+    confirmedAt: string | null;
+  }>> {
+    const res = await api.get<{ success: boolean; data: Array<{
+      paymentId: string;
+      courseId: string;
+      amountCents: number;
+      currency: string;
+      paymentMethod: string;
+      status: string;
+      createdAt: string;
+      confirmedAt: string | null;
+    }> }>('/payments/mine');
+    return res.data.data;
+  },
 };

@@ -1,13 +1,15 @@
 /**
- * Tests for Phase 11 C1a — PricingManagement component + payment UI.
+ * Tests for Phase 11 C1a + Phase 12 C1 — PricingManagement component + payment UI.
  *
  * PAY-F1 — renders loading then pricing table
  * PAY-F2 — shows "Free" for courses with priceCents=0
  * PAY-F3 — shows dollar amount for priced courses
- * PAY-F4 — opens edit modal and saves new price
+ * PAY-F4 — opens edit modal and saves new price (with Stellar fields)
  * PAY-F5 — shows error state with retry
  * PAY-F6 — PaymentBadge shows correct labels
  * PAY-F7 — shows empty state when no courses
+ * PAY-F8 — edit modal shows Stellar XLM/USDC inputs
+ * PAY-F9 — saves Stellar prices via setCoursePricing
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -149,7 +151,7 @@ describe('PricingManagement', () => {
     await user.click(screen.getByText('Save Price'));
 
     await waitFor(() => {
-      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 2000, 'both');
+      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 2000, 'both', null, null);
     });
   });
 
@@ -201,6 +203,64 @@ describe('PricingManagement', () => {
 
     await waitFor(() => {
       expect(screen.getByText('No courses found.')).toBeInTheDocument();
+    });
+  });
+
+  // PAY-F8: Stellar fields appear in edit modal
+  it('PAY-F8 — edit modal shows Stellar XLM/USDC inputs', async () => {
+    const user = userEvent.setup();
+    mockGetCourseAnalytics.mockResolvedValue([
+      { courseId: 'c1', courseName: 'Stellar Course', courseCode: 'SC', totalStudents: 3, completionRate: 60 },
+    ]);
+    mockGetPricing.mockResolvedValue({
+      courseId: 'c1', priceCents: 500, currency: 'USD', isFree: false,
+      stellarPriceXlm: 10.5, stellarPriceUsdc: 5.0,
+    });
+
+    render(<PricingManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Stellar Course')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Edit'));
+
+    expect(screen.getByText('Stellar XLM Price')).toBeInTheDocument();
+    expect(screen.getByText('Stellar USDC Price')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('10.5')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('5')).toBeInTheDocument();
+  });
+
+  // PAY-F9: Save with Stellar prices
+  it('PAY-F9 — saves Stellar prices via setCoursePricing', async () => {
+    const user = userEvent.setup();
+    mockGetCourseAnalytics.mockResolvedValue([
+      { courseId: 'c1', courseName: 'Crypto Course', courseCode: 'CC', totalStudents: 2, completionRate: 50 },
+    ]);
+    mockGetPricing.mockResolvedValue({
+      courseId: 'c1', priceCents: 1000, currency: 'USD', isFree: false,
+      stellarPriceXlm: null, stellarPriceUsdc: null,
+    });
+    mockSetCoursePricing.mockResolvedValue({
+      courseId: 'c1', priceCents: 1000, currency: 'USD', isFree: false,
+    });
+
+    render(<PricingManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Crypto Course')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Edit'));
+
+    // Fill in Stellar prices
+    const xlmInput = screen.getByPlaceholderText('Leave empty to disable XLM');
+    await user.type(xlmInput, '25.5');
+
+    await user.click(screen.getByText('Save Price'));
+
+    await waitFor(() => {
+      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 1000, 'both', 25.5, null);
     });
   });
 });

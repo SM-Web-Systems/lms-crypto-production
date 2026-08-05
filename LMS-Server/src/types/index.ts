@@ -401,8 +401,8 @@ export interface CourseNftApplication {
 
 // ─── Phase 11 C1a: Payment types ─────────────────────────────────────────────
 
-export type PaymentStatus = 'pending' | 'confirmed' | 'waived';
-export type PaymentMethod = 'manual' | 'waived';
+export type PaymentStatus = 'pending' | 'confirmed' | 'waived' | 'failed' | 'refunded';
+export type PaymentMethod = 'manual' | 'waived' | 'paystack' | 'stellar_xlm' | 'stellar_usdc';
 
 export interface CoursePricing {
   id: string;
@@ -410,6 +410,8 @@ export interface CoursePricing {
   price_cents: number;
   currency: string;
   is_active: number;
+  stellar_price_xlm: number | null;
+  stellar_price_usdc: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -426,6 +428,10 @@ export interface Payment {
   confirmed_by: string | null;
   confirmed_at: string | null;
   notes: string | null;
+  paystack_reference: string | null;
+  paystack_access_code: string | null;
+  stellar_tx_hash: string | null;
+  stellar_memo: string | null;
   created_at: string;
   updated_at: string;
 }

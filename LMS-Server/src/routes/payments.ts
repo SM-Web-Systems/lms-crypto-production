@@ -1,20 +1,36 @@
 /**
  * Payment routes — Phase 11 C1a: pricing CRUD + manual payment confirmation.
  * Phase 11 C2: tier config + badge endpoints.
+ * Phase 12 C1: Paystack checkout + Stellar payment automation.
  */
 
-import { Router, type Response, type NextFunction } from 'express';
+import { Router, type Response, type Request, type NextFunction } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import {
   getCoursePricing,
   setCoursePricing,
+  setCourseStellarPricing,
   confirmPayment,
   waivePayment,
   listPayments,
+  getPaymentForApplication,
+  getPaymentByReference,
+  createPaystackPayment,
+  createStellarPayment,
+  failPayment,
+  refundPayment,
+  getStudentPayments,
+  recordWebhookEvent,
 } from '../services/paymentService.js';
 import { getTiersEnabled, getBadge } from '../services/badgeService.js';
+import {
+  initializeTransaction,
+  verifyWebhookSignature,
+  createRefund as paystackCreateRefund,
+} from '../services/paystackService.js';
 
 const router = Router();
 
@@ -35,13 +51,28 @@ router.get(
     }
 
     const pricing = getCoursePricing(courseId);
+    const priceCents = pricing?.price_cents ?? 0;
+    const isFree = !pricing || priceCents === 0;
+
+    // Build available payment methods
+    const paymentMethods: string[] = [];
+    if (!isFree) {
+      paymentMethods.push('manual');
+      if (process.env.PAYSTACK_SECRET_KEY) paymentMethods.push('paystack');
+      if (pricing?.stellar_price_xlm) paymentMethods.push('stellar_xlm');
+      if (pricing?.stellar_price_usdc) paymentMethods.push('stellar_usdc');
+    }
+
     res.json({
       success: true,
       data: {
         courseId,
-        priceCents: pricing?.price_cents ?? 0,
+        priceCents,
         currency: pricing?.currency ?? 'USD',
-        isFree: !pricing || pricing.price_cents === 0,
+        isFree,
+        stellarPriceXlm: pricing?.stellar_price_xlm ?? null,
+        stellarPriceUsdc: pricing?.stellar_price_usdc ?? null,
+        paymentMethods,
       },
     });
   },
@@ -56,7 +87,7 @@ router.put(
   authorize('admin'),
   (req: AuthRequest, res: Response): void => {
     const { courseId } = req.params;
-    const { priceCents, tiersEnabled } = req.body;
+    const { priceCents, tiersEnabled, stellarPriceXlm, stellarPriceUsdc } = req.body;
 
     if (typeof priceCents !== 'number' || priceCents < 0 || !Number.isInteger(priceCents)) {
       res.status(400).json({
@@ -90,16 +121,28 @@ router.put(
       );
     }
 
+    // Phase 12 C1: Update Stellar prices if provided
+    if (stellarPriceXlm !== undefined || stellarPriceUsdc !== undefined) {
+      setCourseStellarPricing(
+        courseId,
+        stellarPriceXlm ?? pricing.stellar_price_xlm ?? null,
+        stellarPriceUsdc ?? pricing.stellar_price_usdc ?? null,
+      );
+    }
+
     const updatedTiers = getTiersEnabled(courseId);
+    const updatedPricing = getCoursePricing(courseId);
 
     res.json({
       success: true,
       data: {
         courseId,
-        priceCents: pricing.price_cents,
-        currency: pricing.currency,
-        isFree: pricing.price_cents === 0,
+        priceCents: updatedPricing?.price_cents ?? priceCents,
+        currency: updatedPricing?.currency ?? 'USD',
+        isFree: priceCents === 0,
         tiersEnabled: updatedTiers,
+        stellarPriceXlm: updatedPricing?.stellar_price_xlm ?? null,
+        stellarPriceUsdc: updatedPricing?.stellar_price_usdc ?? null,
       },
     });
   },
@@ -200,6 +243,307 @@ router.get(
         })),
       },
     });
+  },
+);
+
+// ─── Phase 12 C1: Paystack Checkout ──────────────────────────────────────────
+
+// POST /payments/checkout/paystack — create Paystack checkout session
+router.post(
+  '/payments/checkout/paystack',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const { applicationId } = req.body;
+    if (!applicationId) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'applicationId is required' },
+      });
+      return;
+    }
+
+    // Fetch application
+    const application = queryOne<{ id: string; user_id: string; course_id: string; status: string }>(
+      'SELECT id, user_id, course_id, status FROM course_nft_applications WHERE id = ?',
+      [applicationId],
+    );
+    if (!application) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Application not found' } });
+      return;
+    }
+
+    // Must be own application
+    if (application.user_id !== req.user!.userId) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not your application' } });
+      return;
+    }
+
+    // Check pricing
+    const pricing = getCoursePricing(application.course_id);
+    if (!pricing || pricing.price_cents === 0) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Course is free, no payment required' },
+      });
+      return;
+    }
+
+    // Check existing payment
+    const existingPayment = getPaymentForApplication(applicationId);
+    if (existingPayment) {
+      if (existingPayment.status === 'confirmed' || existingPayment.status === 'waived') {
+        res.status(409).json({
+          success: false,
+          error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment already completed' },
+        });
+        return;
+      }
+      // If pending paystack payment exists, return same checkout info
+      if (existingPayment.payment_method === 'paystack' && existingPayment.status === 'pending' && existingPayment.paystack_reference) {
+        res.json({
+          success: true,
+          data: {
+            paymentId: existingPayment.id,
+            checkoutUrl: null, // Re-init needed — Paystack URLs expire
+            reference: existingPayment.paystack_reference,
+            message: 'Existing pending payment found. Re-initializing checkout.',
+          },
+        });
+        // Fall through to re-initialize with same reference... actually let's just create new
+      }
+    }
+
+    // Create Paystack transaction
+    const reference = `lms-pay-${uuidv4().replace(/-/g, '').slice(0, 16)}`;
+    const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/callback`;
+
+    const user = queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
+
+    try {
+      const paystackData = await initializeTransaction(
+        user?.email || req.user!.email,
+        pricing.price_cents,
+        reference,
+        callbackUrl,
+        { applicationId, courseId: application.course_id, userId: req.user!.userId },
+      );
+
+      // Create payment record
+      const payment = createPaystackPayment(
+        req.user!.userId,
+        application.course_id,
+        applicationId,
+        pricing.price_cents,
+        reference,
+        paystackData.access_code,
+      );
+
+      res.status(201).json({
+        success: true,
+        data: {
+          paymentId: payment.id,
+          checkoutUrl: paystackData.authorization_url,
+          reference: paystackData.reference,
+          accessCode: paystackData.access_code,
+        },
+      });
+    } catch (err) {
+      console.error('Paystack checkout error:', err);
+      res.status(502).json({
+        success: false,
+        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Payment gateway error' },
+      });
+    }
+  },
+);
+
+// POST /payments/checkout/stellar — generate Stellar payment instructions
+router.post(
+  '/payments/checkout/stellar',
+  (req: AuthRequest, res: Response): void => {
+    const { applicationId, currency } = req.body;
+    if (!applicationId) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'applicationId is required' },
+      });
+      return;
+    }
+
+    const paymentCurrency = currency === 'usdc' ? 'stellar_usdc' : 'stellar_xlm';
+
+    // Fetch application
+    const application = queryOne<{ id: string; user_id: string; course_id: string }>(
+      'SELECT id, user_id, course_id FROM course_nft_applications WHERE id = ?',
+      [applicationId],
+    );
+    if (!application) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Application not found' } });
+      return;
+    }
+
+    if (application.user_id !== req.user!.userId) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not your application' } });
+      return;
+    }
+
+    const pricing = getCoursePricing(application.course_id);
+    if (!pricing || pricing.price_cents === 0) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Course is free, no payment required' },
+      });
+      return;
+    }
+
+    const stellarAmount = paymentCurrency === 'stellar_xlm'
+      ? pricing.stellar_price_xlm
+      : pricing.stellar_price_usdc;
+
+    if (!stellarAmount) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: `No ${paymentCurrency === 'stellar_xlm' ? 'XLM' : 'USDC'} price configured for this course` },
+      });
+      return;
+    }
+
+    // Check existing confirmed payment
+    const existingPayment = getPaymentForApplication(applicationId);
+    if (existingPayment && (existingPayment.status === 'confirmed' || existingPayment.status === 'waived')) {
+      res.status(409).json({
+        success: false,
+        error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment already completed' },
+      });
+      return;
+    }
+
+    // Generate memo (28-char max for Stellar text memo)
+    const memo = uuidv4().replace(/-/g, '').slice(0, 28);
+    const receivingWallet = process.env.PAYMENT_RECEIVING_WALLET || '';
+
+    // Create payment record
+    const payment = createStellarPayment(
+      req.user!.userId,
+      application.course_id,
+      applicationId,
+      pricing.price_cents,
+      memo,
+      paymentCurrency as 'stellar_xlm' | 'stellar_usdc',
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        paymentId: payment.id,
+        destinationAddress: receivingWallet,
+        memo,
+        amount: stellarAmount,
+        currency: paymentCurrency === 'stellar_xlm' ? 'XLM' : 'USDC',
+        message: 'Send the exact amount with this memo to the destination address',
+      },
+    });
+  },
+);
+
+// GET /payments/:paymentId/status — payment status (owner or admin)
+router.get(
+  '/payments/:paymentId/status',
+  (req: AuthRequest, res: Response): void => {
+    const payment = queryOne<{ id: string; user_id: string; status: string; payment_method: string; amount_cents: number; currency: string; created_at: string; confirmed_at: string | null }>(
+      'SELECT id, user_id, status, payment_method, amount_cents, currency, created_at, confirmed_at FROM payments WHERE id = ?',
+      [req.params.paymentId],
+    );
+
+    if (!payment) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
+      return;
+    }
+
+    if (payment.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        paymentId: payment.id,
+        status: payment.status,
+        paymentMethod: payment.payment_method,
+        amountCents: payment.amount_cents,
+        currency: payment.currency,
+        createdAt: payment.created_at,
+        confirmedAt: payment.confirmed_at,
+      },
+    });
+  },
+);
+
+// GET /payments/mine — student's own payment history
+router.get(
+  '/payments/mine',
+  (req: AuthRequest, res: Response): void => {
+    const payments = getStudentPayments(req.user!.userId);
+    res.json({
+      success: true,
+      data: payments.map((p) => ({
+        paymentId: p.id,
+        courseId: p.course_id,
+        amountCents: p.amount_cents,
+        currency: p.currency,
+        paymentMethod: p.payment_method,
+        status: p.status,
+        createdAt: p.created_at,
+        confirmedAt: p.confirmed_at,
+      })),
+    });
+  },
+);
+
+// POST /admin/payments/:paymentId/refund — trigger Paystack refund
+router.post(
+  '/admin/payments/:paymentId/refund',
+  authorize('admin'),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const payment = queryOne<{ id: string; status: string; payment_method: string; paystack_reference: string | null }>(
+      'SELECT id, status, payment_method, paystack_reference FROM payments WHERE id = ?',
+      [req.params.paymentId],
+    );
+
+    if (!payment) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
+      return;
+    }
+
+    if (payment.status !== 'confirmed') {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Can only refund confirmed payments' },
+      });
+      return;
+    }
+
+    if (payment.payment_method !== 'paystack') {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refunds only available for Paystack payments' },
+      });
+      return;
+    }
+
+    const { notes } = req.body ?? {};
+
+    try {
+      await paystackCreateRefund(payment.paystack_reference!, notes);
+      refundPayment(payment.id, notes || 'Refunded via admin');
+      res.json({ success: true, message: 'Refund initiated' });
+    } catch (err) {
+      console.error('Paystack refund error:', err);
+      res.status(502).json({
+        success: false,
+        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Refund gateway error' },
+      });
+    }
   },
 );
 

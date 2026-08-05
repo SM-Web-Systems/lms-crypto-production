@@ -875,6 +875,44 @@ function ensureCohortTables(): void {
 }
 ensureCohortTables();
 
+// ─── Phase 12 C1: Paystack payment automation ────────────────────────────────
+function ensurePaystackColumns(): void {
+  // Add Paystack/Stellar columns to payments if not present
+  const paymentCols = db.prepare("PRAGMA table_info('payments')").all() as { name: string }[];
+  const addCol = (col: string, type: string) => {
+    if (!paymentCols.some((c) => c.name === col)) {
+      try { db.exec(`ALTER TABLE payments ADD COLUMN ${col} ${type}`); } catch { /* exists */ }
+    }
+  };
+  addCol('paystack_reference', 'TEXT');
+  addCol('paystack_access_code', 'TEXT');
+  addCol('stellar_tx_hash', 'TEXT');
+  addCol('stellar_memo', 'TEXT');
+
+  // Add Stellar pricing columns to course_pricing
+  const pricingCols = db.prepare("PRAGMA table_info('course_pricing')").all() as { name: string }[];
+  if (!pricingCols.some((c) => c.name === 'stellar_price_xlm')) {
+    try { db.exec('ALTER TABLE course_pricing ADD COLUMN stellar_price_xlm REAL'); } catch { /* exists */ }
+  }
+  if (!pricingCols.some((c) => c.name === 'stellar_price_usdc')) {
+    try { db.exec('ALTER TABLE course_pricing ADD COLUMN stellar_price_usdc REAL'); } catch { /* exists */ }
+  }
+
+  // Create webhook_events table for idempotent webhook processing
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      id            TEXT PRIMARY KEY,
+      event_id      TEXT NOT NULL UNIQUE,
+      event_type    TEXT NOT NULL,
+      provider      TEXT NOT NULL DEFAULT 'paystack',
+      processed_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      payload       TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id ON webhook_events(event_id);
+  `);
+}
+ensurePaystackColumns();
+
 // ─── Phase 12B: Capability-based RBAC ─────────────────────────────────────────
 function ensureRbacTables(): void {
   db.exec(`

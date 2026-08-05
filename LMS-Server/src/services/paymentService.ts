@@ -1,5 +1,6 @@
 /**
  * paymentService — Phase 11 C1a: course pricing + manual payment confirmation.
+ * Phase 12 C1: Paystack + Stellar payment automation.
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -142,4 +143,119 @@ export function listPayments(filters?: { status?: string; courseId?: string }): 
 
   sql += ' ORDER BY p.created_at DESC';
   return query<PaymentWithDetails>(sql, params);
+}
+
+// ─── Phase 12 C1: Paystack + Stellar extensions ─────────────────────────────
+
+export function createPaystackPayment(
+  userId: string,
+  courseId: string,
+  applicationId: string,
+  amountCents: number,
+  reference: string,
+  accessCode: string,
+): Payment {
+  const id = uuidv4();
+  execute(
+    `INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency,
+     payment_method, status, paystack_reference, paystack_access_code, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'USD', 'paystack', 'pending', ?, ?, datetime('now'), datetime('now'))`,
+    [id, userId, courseId, applicationId, amountCents, reference, accessCode],
+  );
+  return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [id])!;
+}
+
+export function createStellarPayment(
+  userId: string,
+  courseId: string,
+  applicationId: string,
+  amountCents: number,
+  memo: string,
+  method: 'stellar_xlm' | 'stellar_usdc' = 'stellar_xlm',
+): Payment {
+  const id = uuidv4();
+  execute(
+    `INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency,
+     payment_method, status, stellar_memo, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'USD', ?, 'pending', ?, datetime('now'), datetime('now'))`,
+    [id, userId, courseId, applicationId, amountCents, method, memo],
+  );
+  return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [id])!;
+}
+
+export function failPayment(paymentId: string): Payment | null {
+  const payment = queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!payment) return null;
+  if (payment.status !== 'pending') return payment;
+
+  execute(
+    "UPDATE payments SET status = 'failed', updated_at = datetime('now') WHERE id = ?",
+    [paymentId],
+  );
+  return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+}
+
+export function refundPayment(paymentId: string, notes?: string): Payment | null {
+  const payment = queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!payment) return null;
+
+  execute(
+    "UPDATE payments SET status = 'refunded', notes = COALESCE(?, notes), updated_at = datetime('now') WHERE id = ?",
+    [notes ?? null, paymentId],
+  );
+  return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+}
+
+export function getPaymentByReference(reference: string): Payment | null {
+  return queryOne<Payment>(
+    'SELECT * FROM payments WHERE paystack_reference = ?',
+    [reference],
+  );
+}
+
+export function getPaymentByStellarMemo(memo: string): Payment | null {
+  return queryOne<Payment>(
+    'SELECT * FROM payments WHERE stellar_memo = ?',
+    [memo],
+  );
+}
+
+export function getStudentPayments(userId: string): Payment[] {
+  return query<Payment>(
+    'SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC',
+    [userId],
+  );
+}
+
+export function setCourseStellarPricing(
+  courseId: string,
+  stellarPriceXlm: number | null,
+  stellarPriceUsdc: number | null,
+): void {
+  const existing = queryOne<{ id: string }>('SELECT id FROM course_pricing WHERE course_id = ?', [courseId]);
+  if (existing) {
+    execute(
+      'UPDATE course_pricing SET stellar_price_xlm = ?, stellar_price_usdc = ?, updated_at = datetime(\'now\') WHERE id = ?',
+      [stellarPriceXlm, stellarPriceUsdc, existing.id],
+    );
+  }
+}
+
+/** Record a webhook event for idempotency. Returns false if already processed. */
+export function recordWebhookEvent(
+  eventId: string,
+  eventType: string,
+  provider: string,
+  payload: string,
+): boolean {
+  try {
+    execute(
+      'INSERT INTO webhook_events (id, event_id, event_type, provider, payload) VALUES (?, ?, ?, ?, ?)',
+      [uuidv4(), eventId, eventType, provider, payload],
+    );
+    return true;
+  } catch {
+    // UNIQUE constraint on event_id — already processed
+    return false;
+  }
 }

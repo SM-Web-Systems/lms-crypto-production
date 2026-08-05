@@ -14,6 +14,8 @@ interface CourseWithPricing {
   priceCents: number;
   isFree: boolean;
   tiersEnabled: TiersEnabled;
+  stellarPriceXlm: number | null;
+  stellarPriceUsdc: number | null;
 }
 
 type PanelState = 'loading' | 'error' | 'empty' | 'data';
@@ -24,6 +26,8 @@ export function PricingManagement() {
   const [editingCourse, setEditingCourse] = useState<CourseWithPricing | null>(null);
   const [priceInput, setPriceInput] = useState('');
   const [tierMode, setTierMode] = useState<TiersEnabled>('both');
+  const [xlmInput, setXlmInput] = useState('');
+  const [usdcInput, setUsdcInput] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -45,6 +49,8 @@ export function PricingManagement() {
             priceCents: pricing?.priceCents ?? 0,
             isFree: pricing?.isFree ?? true,
             tiersEnabled,
+            stellarPriceXlm: pricing?.stellarPriceXlm ?? null,
+            stellarPriceUsdc: pricing?.stellarPriceUsdc ?? null,
           });
         } catch {
           withPricing.push({
@@ -53,6 +59,8 @@ export function PricingManagement() {
             priceCents: 0,
             isFree: true,
             tiersEnabled: 'both',
+            stellarPriceXlm: null,
+            stellarPriceUsdc: null,
           });
         }
       }
@@ -71,6 +79,8 @@ export function PricingManagement() {
     setEditingCourse(course);
     setPriceInput((course.priceCents / 100).toFixed(2));
     setTierMode(course.tiersEnabled);
+    setXlmInput(course.stellarPriceXlm != null ? String(course.stellarPriceXlm) : '');
+    setUsdcInput(course.stellarPriceUsdc != null ? String(course.stellarPriceUsdc) : '');
   };
 
   const savePrice = async () => {
@@ -79,7 +89,9 @@ export function PricingManagement() {
     if (isNaN(cents) || cents < 0) return;
     setSaving(true);
     try {
-      await adminCertificateService.setCoursePricing(editingCourse.courseId, cents, tierMode);
+      const xlm = xlmInput ? parseFloat(xlmInput) : null;
+      const usdc = usdcInput ? parseFloat(usdcInput) : null;
+      await adminCertificateService.setCoursePricing(editingCourse.courseId, cents, tierMode, xlm, usdc);
       setEditingCourse(null);
       load();
     } catch {
@@ -185,6 +197,26 @@ export function PricingManagement() {
                 <option value="free_only">Free Only</option>
                 <option value="paid_only">Paid Only</option>
               </select>
+              <label className="block text-sm font-medium mb-1">Stellar XLM Price</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={xlmInput}
+                onChange={(e) => setXlmInput(e.target.value)}
+                className="w-full border rounded px-3 py-2 mb-2"
+                placeholder="Leave empty to disable XLM"
+              />
+              <label className="block text-sm font-medium mb-1">Stellar USDC Price</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={usdcInput}
+                onChange={(e) => setUsdcInput(e.target.value)}
+                className="w-full border rounded px-3 py-2 mb-2"
+              />
+              <p className="text-xs text-neutral-500 mb-4">Leave Stellar fields empty to disable crypto payments</p>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditingCourse(null)}>Cancel</Button>
                 <Button onClick={savePrice} disabled={saving}>

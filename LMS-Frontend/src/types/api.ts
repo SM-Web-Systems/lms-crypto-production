@@ -351,13 +351,16 @@ export interface MyCredential {
 
 // ─── Phase 11 C1a: Payment types ─────────────────────────────────────────────
 
-export type PaymentStatus = 'pending' | 'confirmed' | 'waived';
+export type PaymentStatus = 'pending' | 'confirmed' | 'waived' | 'failed' | 'refunded';
 
 export interface CoursePricing {
   courseId: string;
   priceCents: number;
   currency: string;
   isFree: boolean;
+  stellarPriceXlm?: number | null;
+  stellarPriceUsdc?: number | null;
+  paymentMethods?: string[];
 }
 
 export interface PaymentRecord {

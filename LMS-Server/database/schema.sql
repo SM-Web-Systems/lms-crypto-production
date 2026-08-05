@@ -330,6 +330,8 @@ CREATE TABLE IF NOT EXISTS course_pricing (
   currency    TEXT NOT NULL DEFAULT 'USD',
   is_active   INTEGER NOT NULL DEFAULT 1,
   tiers_enabled TEXT NOT NULL DEFAULT 'both',
+  stellar_price_xlm  REAL,
+  stellar_price_usdc REAL,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -344,10 +346,14 @@ CREATE TABLE IF NOT EXISTS payments (
   currency        TEXT NOT NULL DEFAULT 'USD',
   payment_method  TEXT NOT NULL DEFAULT 'manual',
   status          TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending', 'confirmed', 'waived')),
+                    CHECK (status IN ('pending', 'confirmed', 'waived', 'failed', 'refunded')),
   confirmed_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
   confirmed_at    TEXT,
   notes           TEXT,
+  paystack_reference  TEXT,
+  paystack_access_code TEXT,
+  stellar_tx_hash TEXT,
+  stellar_memo    TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -435,3 +441,14 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role_id);
 CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id);
 CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
 CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
+
+-- Phase 12 C1: Paystack webhook audit trail
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id            TEXT PRIMARY KEY,
+  event_id      TEXT NOT NULL UNIQUE,
+  event_type    TEXT NOT NULL,
+  provider      TEXT NOT NULL DEFAULT 'paystack',
+  processed_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  payload       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id ON webhook_events(event_id);

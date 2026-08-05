@@ -112,11 +112,21 @@ export const adminCertificateService = {
     return res.data.data;
   },
 
-  /** PUT /admin/courses/:courseId/pricing — set certificate price + tier mode */
-  async setCoursePricing(courseId: string, priceCents: number, tiersEnabled?: TiersEnabled): Promise<CoursePricing> {
+  /** PUT /admin/courses/:courseId/pricing — set certificate price + tier mode + Stellar prices */
+  async setCoursePricing(
+    courseId: string,
+    priceCents: number,
+    tiersEnabled?: TiersEnabled,
+    stellarPriceXlm?: number | null,
+    stellarPriceUsdc?: number | null,
+  ): Promise<CoursePricing> {
+    const body: Record<string, unknown> = { priceCents };
+    if (tiersEnabled) body.tiersEnabled = tiersEnabled;
+    if (stellarPriceXlm !== undefined) body.stellarPriceXlm = stellarPriceXlm;
+    if (stellarPriceUsdc !== undefined) body.stellarPriceUsdc = stellarPriceUsdc;
     const res = await api.put<{ success: boolean; data: CoursePricing }>(
       `/admin/courses/${courseId}/pricing`,
-      { priceCents, ...(tiersEnabled ? { tiersEnabled } : {}) },
+      body,
     );
     return res.data.data;
   },
