@@ -146,12 +146,11 @@ export async function login(
     }
 
     // Generate JWT token
-    const rbacRoles = process.env.RBAC_ENABLED === 'true' ? getUserRoles(user.id) : undefined;
     const token = generateToken({
       userId: user.id,
       email: user.email,
       role,
-      roles: rbacRoles,
+      roles: getUserRoles(user.id),
       studentId,
     });
 
@@ -276,8 +275,7 @@ export async function register(
       );
     }
 
-    const regRbacRoles = process.env.RBAC_ENABLED === 'true' ? getUserRoles(userId) : undefined;
-    const token = generateToken({ userId, email, role, roles: regRbacRoles, studentId });
+    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
 
     res.status(201).json({
       success: true,
@@ -629,8 +627,7 @@ export async function ammaCallback(
     }
 
     // 4. Issue LMS session JWT
-    const ssoRbacRoles = process.env.RBAC_ENABLED === 'true' ? getUserRoles(userId) : undefined;
-    const token = generateToken({ userId, email, role, roles: ssoRbacRoles, studentId });
+    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
     const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}&role=${role}`;

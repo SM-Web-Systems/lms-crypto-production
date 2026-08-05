@@ -2,7 +2,7 @@
  * Phase 13 C1: RBAC Route Migration Tests
  *
  * Verifies that all migrated routes enforce permission-based access
- * via requirePermission() rather than legacy authorize().
+ * via requirePermission().
  *
  * RBAC-R1  — GET /users requires user.view_all
  * RBAC-R2  — PATCH /users/:id requires user.manage

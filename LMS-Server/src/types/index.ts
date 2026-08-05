@@ -115,7 +115,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: UserRole;
-  /** All assigned roles (RBAC). Present when RBAC_ENABLED=true. */
+  /** All assigned RBAC roles. */
   roles?: string[];
   studentId?: string;
   // Standard JWT claim set automatically by jsonwebtoken

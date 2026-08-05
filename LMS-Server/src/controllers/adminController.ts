@@ -261,7 +261,7 @@ export async function listIssuedCredentials(
  * GET /api/v1/admin/integration-status
  *
  * Read-only aggregate diagnostics for the LMS ↔ AmmaWallet integration.
- * Requires: authenticate + authorize('admin').
+ * Requires: authenticate + requirePermission('system.manage_roles').
  *
  * Response contains only:
  *   - db health (SELECT 1)
@@ -356,7 +356,7 @@ export async function integrationStatus(
  *   walletAddress — override destination wallet; defaults to original wallet
  *   notes         — admin note logged to the new credential's error field as metadata
  *
- * Requires: authenticate + authorize('admin')
+ * Requires: authenticate + requirePermission('certificate.mint')
  */
 export async function remintCredential(
   req: AuthRequest,

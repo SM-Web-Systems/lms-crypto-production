@@ -189,8 +189,8 @@ app.get('/api/v1/health', (_req, res) => {
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);
 // studentProgressRoutes MUST be mounted before studentsRoutes — the students router applies
-// authorize('admin') to all /students/* paths, so /students/me/progress would be blocked for
-// non-admin users if studentsRoutes ran first.
+// requirePermission('user.manage') to all /students/* paths, so /students/me/progress would be
+// blocked for non-admin users if studentsRoutes ran first.
 app.use('/api/v1', apiLimiter, studentProgressRoutes);
 app.use('/api/v1/students', apiLimiter, studentsRoutes);
 app.use('/api/v1/submissions', apiLimiter, submissionsRoutes);
