@@ -875,6 +875,360 @@ function ensureCohortTables(): void {
 }
 ensureCohortTables();
 
+// ─── Phase 12B: Capability-based RBAC ─────────────────────────────────────────
+function ensureRbacTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS roles (
+      id         TEXT PRIMARY KEY,
+      name       TEXT UNIQUE NOT NULL,
+      label      TEXT NOT NULL,
+      description TEXT,
+      is_system  INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS permissions (
+      id         TEXT PRIMARY KEY,
+      name       TEXT UNIQUE NOT NULL,
+      category   TEXT NOT NULL,
+      label      TEXT NOT NULL,
+      description TEXT,
+      is_system  INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      role_id       TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+      permission_id TEXT NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (role_id, permission_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_roles (
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role_id    TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+      granted_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, role_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role_id);
+    CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id);
+    CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
+    CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
+  `);
+}
+ensureRbacTables();
+
+function seedRbacData(): void {
+  // Seed built-in roles (idempotent)
+  const roles: Array<[string, string, string, string]> = [
+    ['role_student', 'student', 'Student', 'Base learner role'],
+    ['role_supporter_student', 'supporter-student', 'Supporter Student', 'Completed paid course'],
+    ['role_parent', 'parent', 'Parent', 'Family group manager'],
+    ['role_teacher', 'teacher', 'Teacher', 'Classroom manager'],
+    ['role_employer', 'employer', 'Employer', 'Team manager'],
+    ['role_sponsor', 'sponsor', 'Sponsor', 'Cohort payment manager'],
+    ['role_instructor', 'instructor', 'Instructor', 'Course creator and manager'],
+    ['role_ta', 'teaching-assistant', 'Teaching Assistant', 'Graded permissions'],
+    ['role_admin', 'admin', 'Administrator', 'Platform administrator'],
+    ['role_admin2', 'admin-2', 'Extended Administrator', 'Custom role and user creation'],
+    ['role_super_admin', 'super-admin', 'Super Administrator', 'Full system control'],
+    ['role_custom', 'custom-user', 'Custom User', 'Custom permission set'],
+  ];
+
+  const insertRole = db.prepare(
+    'INSERT OR IGNORE INTO roles (id, name, label, description, is_system) VALUES (?, ?, ?, ?, 1)'
+  );
+  for (const [id, name, label, desc] of roles) {
+    insertRole.run(id, name, label, desc);
+  }
+
+  // Seed 60 permissions (idempotent)
+  const perms: Array<[string, string, string, string]> = [
+    // course (9)
+    ['perm_course_view', 'course.view', 'course', 'View Courses'],
+    ['perm_course_create', 'course.create', 'course', 'Create Courses'],
+    ['perm_course_manage', 'course.manage', 'course', 'Manage Courses'],
+    ['perm_course_delete', 'course.delete', 'course', 'Delete Courses'],
+    ['perm_course_enroll', 'course.enroll', 'course', 'Enroll Self'],
+    ['perm_course_enroll_others', 'course.enroll_others', 'course', 'Enroll Others'],
+    ['perm_course_submit', 'course.submit', 'course', 'Submit Work'],
+    ['perm_course_grade', 'course.grade', 'course', 'Grade Submissions'],
+    ['perm_course_grade_pending', 'course.grade_pending', 'course', 'Grade (Pending Approval)'],
+    // billing (7)
+    ['perm_billing_view_own', 'billing.view_own', 'billing', 'View Own Payments'],
+    ['perm_billing_view_assigned', 'billing.view_assigned', 'billing', 'View Assigned Payments'],
+    ['perm_billing_view_all', 'billing.view_all', 'billing', 'View All Payments'],
+    ['perm_billing_create', 'billing.create', 'billing', 'Create Payments'],
+    ['perm_billing_confirm', 'billing.confirm', 'billing', 'Confirm Payments'],
+    ['perm_billing_waive', 'billing.waive', 'billing', 'Waive Payments'],
+    ['perm_billing_refund', 'billing.refund', 'billing', 'Refund Payments'],
+    // wallet (4)
+    ['perm_wallet_view_own', 'wallet.view_own', 'wallet', 'View Own Wallet'],
+    ['perm_wallet_manage_own', 'wallet.manage_own', 'wallet', 'Manage Own Wallet'],
+    ['perm_wallet_fund', 'wallet.fund', 'wallet', 'Fund Wallets'],
+    ['perm_wallet_view_assigned', 'wallet.view_assigned', 'wallet', 'View Assigned Wallets'],
+    // user (6)
+    ['perm_user_view_self', 'user.view_self', 'user', 'View Own Profile'],
+    ['perm_user_view_all', 'user.view_all', 'user', 'View All Users'],
+    ['perm_user_create', 'user.create', 'user', 'Create Users'],
+    ['perm_user_manage', 'user.manage', 'user', 'Manage Users'],
+    ['perm_user_delete', 'user.delete', 'user', 'Delete Users'],
+    ['perm_user_assign_role', 'user.assign_role', 'user', 'Assign Roles'],
+    // cohort (6)
+    ['perm_cohort_view_own', 'cohort.view_own', 'cohort', 'View Own Cohorts'],
+    ['perm_cohort_view_all', 'cohort.view_all', 'cohort', 'View All Cohorts'],
+    ['perm_cohort_create', 'cohort.create', 'cohort', 'Create Cohorts'],
+    ['perm_cohort_manage', 'cohort.manage', 'cohort', 'Manage Cohorts'],
+    ['perm_cohort_bulk_apply', 'cohort.bulk_apply', 'cohort', 'Bulk Apply'],
+    ['perm_cohort_bulk_pay', 'cohort.bulk_pay', 'cohort', 'Bulk Pay'],
+    // certificate (6)
+    ['perm_certificate_view_own', 'certificate.view_own', 'certificate', 'View Own Certificates'],
+    ['perm_certificate_apply', 'certificate.apply', 'certificate', 'Apply for Certificate'],
+    ['perm_certificate_approve', 'certificate.approve', 'certificate', 'Approve Certificates'],
+    ['perm_certificate_reject', 'certificate.reject', 'certificate', 'Reject Certificates'],
+    ['perm_certificate_mint', 'certificate.mint', 'certificate', 'Mint NFT Certificates'],
+    ['perm_certificate_badge_view', 'certificate.badge_view', 'certificate', 'View Badges'],
+    // quiz (5)
+    ['perm_quiz_view', 'quiz.view', 'quiz', 'View Quizzes'],
+    ['perm_quiz_create', 'quiz.create', 'quiz', 'Create Quizzes'],
+    ['perm_quiz_manage', 'quiz.manage', 'quiz', 'Manage Quizzes'],
+    ['perm_quiz_submit', 'quiz.submit', 'quiz', 'Submit Quizzes'],
+    ['perm_quiz_view_analytics', 'quiz.view_analytics', 'quiz', 'View Quiz Analytics'],
+    // announcement (4)
+    ['perm_announcement_view', 'announcement.view', 'announcement', 'View Announcements'],
+    ['perm_announcement_create', 'announcement.create', 'announcement', 'Create Announcements'],
+    ['perm_announcement_manage', 'announcement.manage', 'announcement', 'Manage Announcements'],
+    ['perm_announcement_delete', 'announcement.delete', 'announcement', 'Delete Announcements'],
+    // document (4)
+    ['perm_document_view', 'document.view', 'document', 'View Documents'],
+    ['perm_document_upload', 'document.upload', 'document', 'Upload Documents'],
+    ['perm_document_manage', 'document.manage', 'document', 'Manage Documents'],
+    ['perm_document_delete', 'document.delete', 'document', 'Delete Documents'],
+    // forum (3)
+    ['perm_forum_view', 'forum.view', 'forum', 'View Forum'],
+    ['perm_forum_post', 'forum.post', 'forum', 'Post in Forum'],
+    ['perm_forum_moderate', 'forum.moderate', 'forum', 'Moderate Forum'],
+    // reward (3)
+    ['perm_reward_view_own', 'reward.view_own', 'reward', 'View Own Rewards'],
+    ['perm_reward_give', 'reward.give', 'reward', 'Give Rewards'],
+    ['perm_reward_manage', 'reward.manage', 'reward', 'Manage Rewards'],
+    // system (3)
+    ['perm_system_manage_roles', 'system.manage_roles', 'system', 'Manage Roles'],
+    ['perm_system_manage_permissions', 'system.manage_permissions', 'system', 'Manage Permissions'],
+    ['perm_system_view_audit_log', 'system.view_audit_log', 'system', 'View Audit Log'],
+  ];
+
+  const insertPerm = db.prepare(
+    'INSERT OR IGNORE INTO permissions (id, name, category, label, is_system) VALUES (?, ?, ?, ?, 1)'
+  );
+  for (const [id, name, cat, label] of perms) {
+    insertPerm.run(id, name, cat, label);
+  }
+
+  // Role-permission mappings (full matrix from spec)
+  const mappings: Record<string, string[]> = {
+    role_student: [
+      'perm_course_view', 'perm_course_enroll', 'perm_course_submit',
+      'perm_billing_view_own', 'perm_wallet_view_own', 'perm_user_view_self',
+      'perm_certificate_view_own', 'perm_certificate_apply', 'perm_certificate_badge_view',
+      'perm_quiz_view', 'perm_quiz_submit',
+      'perm_announcement_view', 'perm_document_view',
+      'perm_forum_view', 'perm_forum_post',
+      'perm_reward_view_own',
+    ],
+    role_supporter_student: [
+      'perm_course_view', 'perm_course_enroll', 'perm_course_submit', 'perm_course_grade_pending',
+      'perm_billing_view_own', 'perm_wallet_view_own', 'perm_user_view_self',
+      'perm_certificate_view_own', 'perm_certificate_apply', 'perm_certificate_badge_view',
+      'perm_quiz_view', 'perm_quiz_submit',
+      'perm_announcement_view', 'perm_document_view',
+      'perm_forum_view', 'perm_forum_post',
+      'perm_reward_view_own',
+    ],
+    role_parent: [
+      'perm_course_view',
+      'perm_billing_view_assigned', 'perm_wallet_view_assigned', 'perm_wallet_fund',
+      'perm_user_view_self', 'perm_user_create',
+      'perm_certificate_view_own', 'perm_quiz_view',
+      'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
+      'perm_reward_view_own', 'perm_reward_give',
+    ],
+    role_teacher: [
+      'perm_course_view', 'perm_course_manage',
+      'perm_billing_view_assigned', 'perm_wallet_fund',
+      'perm_user_view_self', 'perm_user_create',
+      'perm_cohort_view_own', 'perm_certificate_view_own',
+      'perm_quiz_view', 'perm_quiz_create',
+      'perm_announcement_view', 'perm_announcement_create',
+      'perm_document_view', 'perm_document_upload',
+      'perm_forum_view', 'perm_forum_post',
+      'perm_reward_view_own', 'perm_reward_give',
+    ],
+    role_employer: [
+      'perm_course_view',
+      'perm_billing_view_assigned', 'perm_wallet_fund',
+      'perm_user_view_self', 'perm_user_create',
+      'perm_cohort_view_own', 'perm_cohort_create',
+      'perm_certificate_view_own', 'perm_quiz_view',
+      'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
+      'perm_reward_view_own', 'perm_reward_give',
+    ],
+    role_sponsor: [
+      'perm_course_view',
+      'perm_billing_view_all', 'perm_wallet_fund', 'perm_user_view_self',
+      'perm_cohort_view_own', 'perm_cohort_view_all', 'perm_cohort_create',
+      'perm_cohort_manage', 'perm_cohort_bulk_apply', 'perm_cohort_bulk_pay',
+      'perm_certificate_view_own', 'perm_quiz_view',
+      'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
+      'perm_reward_view_own', 'perm_reward_give',
+    ],
+    role_instructor: [
+      'perm_course_view', 'perm_course_create', 'perm_course_manage',
+      'perm_course_grade', 'perm_course_enroll_others',
+      'perm_billing_view_own', 'perm_wallet_view_own',
+      'perm_user_view_self', 'perm_user_view_all',
+      'perm_certificate_approve', 'perm_certificate_reject', 'perm_certificate_view_own',
+      'perm_quiz_view', 'perm_quiz_create', 'perm_quiz_manage', 'perm_quiz_view_analytics',
+      'perm_announcement_view', 'perm_announcement_create',
+      'perm_document_view', 'perm_document_upload', 'perm_document_manage',
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      'perm_reward_view_own',
+    ],
+    role_ta: [
+      'perm_course_view', 'perm_course_grade_pending',
+      'perm_user_view_self', 'perm_certificate_view_own',
+      'perm_quiz_view', 'perm_announcement_view', 'perm_document_view',
+      'perm_forum_view', 'perm_forum_post',
+    ],
+    role_admin: [
+      // course: all
+      'perm_course_view', 'perm_course_create', 'perm_course_manage', 'perm_course_delete',
+      'perm_course_enroll', 'perm_course_enroll_others', 'perm_course_submit',
+      'perm_course_grade', 'perm_course_grade_pending',
+      // billing: view_all, confirm, waive
+      'perm_billing_view_own', 'perm_billing_view_all', 'perm_billing_confirm', 'perm_billing_waive',
+      // wallet: view_own, manage_own
+      'perm_wallet_view_own', 'perm_wallet_manage_own',
+      // user: view_all, create, manage
+      'perm_user_view_self', 'perm_user_view_all', 'perm_user_create', 'perm_user_manage',
+      // cohort: view_all, create, manage
+      'perm_cohort_view_own', 'perm_cohort_view_all', 'perm_cohort_create', 'perm_cohort_manage',
+      // certificate: all
+      'perm_certificate_view_own', 'perm_certificate_apply', 'perm_certificate_approve',
+      'perm_certificate_reject', 'perm_certificate_mint', 'perm_certificate_badge_view',
+      // quiz: all
+      'perm_quiz_view', 'perm_quiz_create', 'perm_quiz_manage', 'perm_quiz_submit', 'perm_quiz_view_analytics',
+      // announcement: all
+      'perm_announcement_view', 'perm_announcement_create', 'perm_announcement_manage', 'perm_announcement_delete',
+      // document: all
+      'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
+      // forum: all
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      // reward: all
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
+      // system: view_audit_log
+      'perm_system_view_audit_log',
+    ],
+    role_admin2: [
+      // course: all
+      'perm_course_view', 'perm_course_create', 'perm_course_manage', 'perm_course_delete',
+      'perm_course_enroll', 'perm_course_enroll_others', 'perm_course_submit',
+      'perm_course_grade', 'perm_course_grade_pending',
+      // billing: all
+      'perm_billing_view_own', 'perm_billing_view_assigned', 'perm_billing_view_all',
+      'perm_billing_create', 'perm_billing_confirm', 'perm_billing_waive', 'perm_billing_refund',
+      // wallet: manage_own
+      'perm_wallet_view_own', 'perm_wallet_manage_own',
+      // user: all + assign_role
+      'perm_user_view_self', 'perm_user_view_all', 'perm_user_create',
+      'perm_user_manage', 'perm_user_delete', 'perm_user_assign_role',
+      // cohort: all
+      'perm_cohort_view_own', 'perm_cohort_view_all', 'perm_cohort_create',
+      'perm_cohort_manage', 'perm_cohort_bulk_apply', 'perm_cohort_bulk_pay',
+      // certificate: all
+      'perm_certificate_view_own', 'perm_certificate_apply', 'perm_certificate_approve',
+      'perm_certificate_reject', 'perm_certificate_mint', 'perm_certificate_badge_view',
+      // quiz: all
+      'perm_quiz_view', 'perm_quiz_create', 'perm_quiz_manage', 'perm_quiz_submit', 'perm_quiz_view_analytics',
+      // announcement: all
+      'perm_announcement_view', 'perm_announcement_create', 'perm_announcement_manage', 'perm_announcement_delete',
+      // document: all
+      'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
+      // forum: all
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      // reward: all
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
+      // system: manage_roles, view_audit_log
+      'perm_system_manage_roles', 'perm_system_view_audit_log',
+    ],
+    role_super_admin: [
+      // All 60 permissions
+      'perm_course_view', 'perm_course_create', 'perm_course_manage', 'perm_course_delete',
+      'perm_course_enroll', 'perm_course_enroll_others', 'perm_course_submit',
+      'perm_course_grade', 'perm_course_grade_pending',
+      'perm_billing_view_own', 'perm_billing_view_assigned', 'perm_billing_view_all',
+      'perm_billing_create', 'perm_billing_confirm', 'perm_billing_waive', 'perm_billing_refund',
+      'perm_wallet_view_own', 'perm_wallet_manage_own', 'perm_wallet_fund', 'perm_wallet_view_assigned',
+      'perm_user_view_self', 'perm_user_view_all', 'perm_user_create',
+      'perm_user_manage', 'perm_user_delete', 'perm_user_assign_role',
+      'perm_cohort_view_own', 'perm_cohort_view_all', 'perm_cohort_create',
+      'perm_cohort_manage', 'perm_cohort_bulk_apply', 'perm_cohort_bulk_pay',
+      'perm_certificate_view_own', 'perm_certificate_apply', 'perm_certificate_approve',
+      'perm_certificate_reject', 'perm_certificate_mint', 'perm_certificate_badge_view',
+      'perm_quiz_view', 'perm_quiz_create', 'perm_quiz_manage', 'perm_quiz_submit', 'perm_quiz_view_analytics',
+      'perm_announcement_view', 'perm_announcement_create', 'perm_announcement_manage', 'perm_announcement_delete',
+      'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
+      'perm_system_manage_roles', 'perm_system_manage_permissions', 'perm_system_view_audit_log',
+    ],
+    // custom-user role: no default permissions (assigned per custom role)
+  };
+
+  const insertMapping = db.prepare(
+    'INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)'
+  );
+  for (const [roleId, permIds] of Object.entries(mappings)) {
+    for (const permId of permIds) {
+      insertMapping.run(roleId, permId);
+    }
+  }
+}
+seedRbacData();
+
+function migrateUsersToRbac(): void {
+  // Map existing users.role → user_roles (idempotent)
+  const roleMap: Record<string, string> = {
+    student: 'role_student',
+    lecturer: 'role_instructor',
+    admin: 'role_admin',
+  };
+
+  const users = db.prepare('SELECT id, role, email FROM users').all() as Array<{
+    id: string; role: string; email: string;
+  }>;
+
+  const insertUserRole = db.prepare(
+    'INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)'
+  );
+
+  for (const user of users) {
+    const roleId = roleMap[user.role];
+    if (roleId) {
+      insertUserRole.run(user.id, roleId);
+    }
+    // Super-admin for hardcoded email
+    if (user.email === 'mukhtar.meer@smwebsystems.com') {
+      insertUserRole.run(user.id, 'role_super_admin');
+    }
+  }
+}
+migrateUsersToRbac();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];

@@ -32,6 +32,7 @@ import notificationRoutes from './routes/notifications.js';
 import studentProgressRoutes from './routes/studentProgress.js';
 import paymentRoutes from './routes/payments.js';
 import cohortRoutes from './routes/cohorts.js';
+import rbacRoutes from './routes/rbac.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -209,6 +210,7 @@ app.use('/api/v1', apiLimiter, notificationRoutes);
 app.use('/api/v1', readLimiter, publicCredentialsRoutes);
 app.use('/api/v1', apiLimiter, paymentRoutes);
 app.use('/api/v1', apiLimiter, cohortRoutes);
+app.use('/api/v1/admin', apiLimiter, rbacRoutes);
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');

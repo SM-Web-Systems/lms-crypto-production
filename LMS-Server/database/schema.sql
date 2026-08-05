@@ -393,3 +393,45 @@ CREATE TABLE IF NOT EXISTS cohort_members (
   PRIMARY KEY (cohort_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_cohort_members_user ON cohort_members(user_id);
+
+-- Phase 12B: Capability-based RBAC
+CREATE TABLE IF NOT EXISTS roles (
+  id         TEXT PRIMARY KEY,
+  name       TEXT UNIQUE NOT NULL,
+  label      TEXT NOT NULL,
+  description TEXT,
+  is_system  INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+  id         TEXT PRIMARY KEY,
+  name       TEXT UNIQUE NOT NULL,
+  category   TEXT NOT NULL,
+  label      TEXT NOT NULL,
+  description TEXT,
+  is_system  INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role_id       TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  permission_id TEXT NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role_id    TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  granted_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, role_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id);
+CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
+CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
