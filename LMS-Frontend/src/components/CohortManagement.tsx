@@ -40,6 +40,16 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreate
   const canFree = !selectedCourse || selectedCourse.tiersEnabled !== 'paid_only';
   const canPaid = !selectedCourse || selectedCourse.tiersEnabled !== 'free_only';
 
+  // Reset tier when course changes and current tier becomes unavailable
+  const handleCourseChange = (newCourseId: string) => {
+    setCourseId(newCourseId);
+    const newCourse = courses.find((c) => c.id === newCourseId);
+    if (newCourse) {
+      if (tier === 'paid' && newCourse.tiersEnabled === 'free_only') setTier('free');
+      if (tier === 'free' && newCourse.tiersEnabled === 'paid_only') setTier('paid');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!name.trim() || !courseId) return;
     setSubmitting(true);
@@ -66,7 +76,7 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreate
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Course</label>
-            <select className="w-full border rounded px-3 py-2 text-sm" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+            <select className="w-full border rounded px-3 py-2 text-sm" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
               {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           </div>

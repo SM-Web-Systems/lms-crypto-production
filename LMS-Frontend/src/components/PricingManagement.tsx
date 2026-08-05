@@ -7,6 +7,7 @@ import { courseCompletionService } from '../services/courseCompletionService';
 import { analyticsService } from '../services/analyticsService';
 
 import type { TiersEnabled } from '../types/api';
+import { getErrorMessage } from '../utils/apiError';
 
 interface CourseWithPricing {
   courseId: string;
@@ -29,6 +30,7 @@ export function PricingManagement() {
   const [xlmInput, setXlmInput] = useState('');
   const [usdcInput, setUsdcInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = async () => {
     setState('loading');
@@ -88,14 +90,15 @@ export function PricingManagement() {
     const cents = Math.round(parseFloat(priceInput || '0') * 100);
     if (isNaN(cents) || cents < 0) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const xlm = xlmInput ? parseFloat(xlmInput) : null;
       const usdc = usdcInput ? parseFloat(usdcInput) : null;
       await adminCertificateService.setCoursePricing(editingCourse.courseId, cents, tierMode, xlm, usdc);
       setEditingCourse(null);
       load();
-    } catch {
-      // error handled silently
+    } catch (err) {
+      setSaveError(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -173,6 +176,7 @@ export function PricingManagement() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
               <h3 className="text-lg font-semibold mb-4">Set Certificate Price</h3>
+              {saveError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{saveError}</div>}
               <p className="text-sm text-neutral-600 mb-3">
                 Course: {editingCourse.courseName}
               </p>
