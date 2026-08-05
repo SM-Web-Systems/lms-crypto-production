@@ -369,3 +369,27 @@ CREATE TABLE IF NOT EXISTS certificate_badges (
 );
 CREATE INDEX IF NOT EXISTS idx_certificate_badges_application_id
   ON certificate_badges(application_id);
+
+-- Phase 11 C3: sponsor_cohorts — named student groups per course
+CREATE TABLE IF NOT EXISTS sponsor_cohorts (
+  id               TEXT PRIMARY KEY,
+  name             TEXT NOT NULL,
+  sponsor_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id        TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  selected_tier    TEXT NOT NULL DEFAULT 'free' CHECK (selected_tier IN ('free', 'paid')),
+  payment_id       TEXT REFERENCES payments(id) ON DELETE SET NULL,
+  status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed')),
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sponsor_cohorts_course ON sponsor_cohorts(course_id);
+CREATE INDEX IF NOT EXISTS idx_sponsor_cohorts_sponsor ON sponsor_cohorts(sponsor_user_id);
+
+-- Phase 11 C3: cohort_members — membership link table
+CREATE TABLE IF NOT EXISTS cohort_members (
+  cohort_id       TEXT NOT NULL REFERENCES sponsor_cohorts(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  application_id  TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
+  added_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (cohort_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cohort_members_user ON cohort_members(user_id);

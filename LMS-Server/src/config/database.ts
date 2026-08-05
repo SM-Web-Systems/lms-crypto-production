@@ -847,6 +847,34 @@ function ensureBadgesTables(): void {
 }
 ensureBadgesTables();
 
+// ─── Phase 11 C3: Sponsor Cohorts ───────────────────────────────────────────
+function ensureCohortTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sponsor_cohorts (
+      id               TEXT PRIMARY KEY,
+      name             TEXT NOT NULL,
+      sponsor_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id        TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      selected_tier    TEXT NOT NULL DEFAULT 'free' CHECK (selected_tier IN ('free', 'paid')),
+      payment_id       TEXT REFERENCES payments(id) ON DELETE SET NULL,
+      status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed')),
+      created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_sponsor_cohorts_course ON sponsor_cohorts(course_id);
+    CREATE INDEX IF NOT EXISTS idx_sponsor_cohorts_sponsor ON sponsor_cohorts(sponsor_user_id);
+
+    CREATE TABLE IF NOT EXISTS cohort_members (
+      cohort_id       TEXT NOT NULL REFERENCES sponsor_cohorts(id) ON DELETE CASCADE,
+      user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      application_id  TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
+      added_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (cohort_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_cohort_members_user ON cohort_members(user_id);
+  `);
+}
+ensureCohortTables();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];

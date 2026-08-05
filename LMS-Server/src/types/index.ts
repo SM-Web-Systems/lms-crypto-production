@@ -443,6 +443,56 @@ export interface CertificateBadge {
   created_at: string;
 }
 
+// ─── Phase 11 C3: Sponsor Cohort types ───────────────────────────────────────
+
+export interface SponsorCohort {
+  id: string;
+  name: string;
+  sponsor_user_id: string;
+  course_id: string;
+  selected_tier: CertificateTier;
+  payment_id: string | null;
+  status: 'draft' | 'active' | 'completed';
+  created_at: string;
+}
+
+export interface SponsorCohortSummary {
+  cohortId: string;
+  name: string;
+  courseId: string;
+  courseName: string;
+  selectedTier: CertificateTier;
+  status: string;
+  memberCount: number;
+  appliedCount: number;
+  paymentStatus: string | null;
+  createdAt: string;
+}
+
+export interface CohortMemberDetail {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  applicationId: string | null;
+  applicationStatus: string | null;
+  isEnrolled: boolean;
+  addedAt: string;
+}
+
+export interface BulkApplyResult {
+  cohortId: string;
+  applied: number;
+  skipped: { userId: string; reason: string }[];
+}
+
+export interface BulkPayResult {
+  paymentId: string;
+  amountCents: number;
+  currency: string;
+  memberCount: number;
+  status: string;
+}
+
 // Error Codes
 export const ErrorCodes = {
   UNAUTHORIZED:        "UNAUTHORIZED",
@@ -461,4 +511,7 @@ export const ErrorCodes = {
   APPLICATION_EXISTS:  "APPLICATION_EXISTS",
   PAYMENT_REQUIRED:    "PAYMENT_REQUIRED",
   TIER_NOT_AVAILABLE:  "TIER_NOT_AVAILABLE",
+  COHORT_NOT_FOUND:    "COHORT_NOT_FOUND",
+  COHORT_EMPTY:        "COHORT_EMPTY",
+  COHORT_ALREADY_PAID: "COHORT_ALREADY_PAID",
 } as const;
