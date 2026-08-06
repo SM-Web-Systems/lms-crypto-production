@@ -69,4 +69,26 @@ export const cohortService = {
     );
     return res.data.data.log;
   },
+
+  async bulkInviteToCohort(cohortId: string, emails: string[]): Promise<{ added: number; invited: number; alreadyInCohort: number; errors: string[] }> {
+    const res = await api.post<{ success: boolean; data: { added: number; invited: number; alreadyInCohort: number; errors: string[] } }>(
+      `/admin/cohorts/${cohortId}/invite`,
+      { emails },
+    );
+    return res.data.data;
+  },
+
+  async getSpendingReport(): Promise<{ totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> }> {
+    const res = await api.get<{ success: boolean; data: { totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> } }>(
+      '/admin/cohorts/spending-report',
+    );
+    return res.data.data;
+  },
+
+  async sendPaymentReminder(cohortId: string): Promise<{ sent: number; cohortId: string }> {
+    const res = await api.post<{ success: boolean; data: { sent: number; cohortId: string } }>(
+      `/admin/cohorts/${cohortId}/send-reminder`,
+    );
+    return res.data.data;
+  },
 };

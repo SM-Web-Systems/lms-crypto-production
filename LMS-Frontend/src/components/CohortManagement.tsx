@@ -19,6 +19,8 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
+  Mail,
+  Bell,
 } from 'lucide-react';
 
 // ─── Create Cohort Modal ────────────────────────────────────────────────────
@@ -125,6 +127,9 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusLog, setStatusLog] = useState<Array<{ id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string }>>([]);
+  const [inviteEmails, setInviteEmails] = useState('');
+  const [inviteResult, setInviteResult] = useState<{ added: number; invited: number; alreadyInCohort: number; errors: string[] } | null>(null);
+  const [reminderResult, setReminderResult] = useState<{ sent: number } | null>(null);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -198,6 +203,39 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
     }
   };
 
+  const handleInvite = async () => {
+    const emails = inviteEmails.split(/[,\n]+/).map((e) => e.trim()).filter(Boolean);
+    if (emails.length === 0) return;
+    setActionLoading('invite');
+    setError(null);
+    setInviteResult(null);
+    try {
+      const result = await cohortService.bulkInviteToCohort(cohortId, emails);
+      setInviteResult(result);
+      setInviteEmails('');
+      loadMembers();
+      onRefresh();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSendReminders = async () => {
+    setActionLoading('reminder');
+    setError(null);
+    setReminderResult(null);
+    try {
+      const result = await cohortService.sendPaymentReminder(cohortId);
+      setReminderResult(result);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) return <div className="p-3 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading members...</div>;
 
   return (
@@ -213,6 +251,19 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
       {payResult && (
         <div className="mb-2 p-2 bg-blue-50 text-blue-800 rounded text-sm flex items-center gap-1">
           <CreditCard className="w-4 h-4" /> Payment created: ${(payResult.amountCents / 100).toFixed(2)} (pending)
+        </div>
+      )}
+
+      {inviteResult && (
+        <div className="mb-2 p-2 bg-green-50 text-green-800 rounded text-sm flex items-center gap-1" data-testid="invite-result">
+          <Mail className="w-4 h-4" /> Added: {inviteResult.added}, Invited: {inviteResult.invited}, Already in cohort: {inviteResult.alreadyInCohort}
+          {inviteResult.errors.length > 0 && <span className="text-red-600 ml-1">, Errors: {inviteResult.errors.length}</span>}
+        </div>
+      )}
+
+      {reminderResult && (
+        <div className="mb-2 p-2 bg-yellow-50 text-yellow-800 rounded text-sm flex items-center gap-1" data-testid="reminder-result">
+          <Bell className="w-4 h-4" /> Sent {reminderResult.sent} reminder(s)
         </div>
       )}
 
@@ -239,6 +290,27 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
             Mark Completed
           </Button>
         )}
+        <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={actionLoading !== null} data-testid="btn-send-reminders">
+          {actionLoading === 'reminder' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Bell className="w-3 h-3 mr-1" />}
+          Send Reminders
+        </Button>
+      </div>
+
+      <div className="mb-3" data-testid="invite-form">
+        <label htmlFor={`invite-emails-${cohortId}`} className="block text-xs font-medium text-gray-600 mb-1">Invite by Email</label>
+        <textarea
+          id={`invite-emails-${cohortId}`}
+          className="w-full border rounded px-2 py-1.5 text-sm"
+          rows={2}
+          placeholder="Enter emails, one per line or comma-separated"
+          value={inviteEmails}
+          onChange={(e) => setInviteEmails(e.target.value)}
+          data-testid="invite-emails-input"
+        />
+        <Button size="sm" className="mt-1" onClick={handleInvite} disabled={actionLoading !== null || !inviteEmails.trim()} data-testid="btn-invite">
+          {actionLoading === 'invite' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mail className="w-3 h-3 mr-1" />}
+          Invite
+        </Button>
       </div>
 
       {completionStats && completionStats.totalMembers > 0 && (

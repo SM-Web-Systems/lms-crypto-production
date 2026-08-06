@@ -136,3 +136,34 @@ export async function sendCourseInviteEmail(opts: {
   }
   await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
 }
+
+export async function sendPaymentReminderEmail(opts: {
+  to: string;
+  studentName: string;
+  courseName: string;
+  cohortName: string;
+}): Promise<void> {
+  const { to, studentName, courseName, cohortName } = opts;
+
+  const rendered = renderTemplate('cohort-payment-reminder', {
+    studentName,
+    courseName,
+    cohortName,
+    lmsName: LMS_NAME,
+    loginUrl: `${FRONTEND_URL}/login`,
+  });
+
+  const subject = rendered?.subject ?? `Payment reminder for ${courseName}`;
+  const html = rendered?.html ?? `
+    <p>Hi ${escapeHtml(studentName)},</p>
+    <p>This is a reminder that payment is pending for <strong>${escapeHtml(courseName)}</strong> (cohort: ${escapeHtml(cohortName)}) on <strong>${escapeHtml(LMS_NAME)}</strong>.</p>
+    <p><a href="${FRONTEND_URL}/login" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to complete payment</a></p>
+    <p>If you have questions, contact your administrator.</p>
+  `.trim();
+
+  if (!transporter) {
+    log(subject, to, `Payment reminder for: ${courseName} (${cohortName})`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+}

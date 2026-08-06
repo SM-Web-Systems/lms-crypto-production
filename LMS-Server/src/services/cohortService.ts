@@ -16,6 +16,8 @@ import type {
 import { getCoursePricing } from './paymentService.js';
 import { getTiersEnabled } from './badgeService.js';
 import { getCourseProgress } from './courseCompletionService.js';
+import { sendEnrollmentEmail, sendCourseInviteEmail, sendPaymentReminderEmail } from './emailService.js';
+import logger from '../utils/logger.js';
 
 // ─── Status Transitions (Phase 22 C2) ───────────────────────────────────────
 
@@ -439,4 +441,209 @@ export function bulkPay(cohortId: string, adminUserId: string): BulkPayResult {
     memberCount: appliedCount,
     status: 'pending',
   };
+}
+
+// ─── Bulk Invite (Phase 22 C4) ──────────────────────────────────────────────
+
+export function bulkInviteToCohort(
+  cohortId: string,
+  emails: string[],
+): { added: number; invited: number; alreadyInCohort: number; errors: string[] } {
+  const cohort = queryOne<{ id: string; course_id: string }>(
+    'SELECT id, course_id FROM sponsor_cohorts WHERE id = ?',
+    [cohortId],
+  );
+  if (!cohort) throw Object.assign(new Error('Cohort not found'), { code: 'COHORT_NOT_FOUND' });
+
+  const course = queryOne<{ id: string; title: string; course_code: string | null }>(
+    'SELECT id, title, course_code FROM courses WHERE id = ?',
+    [cohort.course_id],
+  );
+  if (!course) throw Object.assign(new Error('Course not found'), { code: 'NOT_FOUND' });
+
+  let added = 0;
+  let invited = 0;
+  let alreadyInCohort = 0;
+  const errors: string[] = [];
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  for (const raw of emails) {
+    const email = raw.trim().toLowerCase();
+    if (!emailRegex.test(email)) {
+      errors.push(email);
+      continue;
+    }
+
+    try {
+      const user = queryOne<{ id: string; name: string; email: string }>(
+        'SELECT id, name, email FROM users WHERE LOWER(email) = ?',
+        [email],
+      );
+
+      if (user) {
+        // Check if already in cohort
+        const inCohort = queryOne<{ user_id: string }>(
+          'SELECT user_id FROM cohort_members WHERE cohort_id = ? AND user_id = ?',
+          [cohortId, user.id],
+        );
+        if (inCohort) {
+          alreadyInCohort++;
+          continue;
+        }
+
+        // Check if enrolled in course
+        if (course.course_code) {
+          const enrolled = queryOne<{ user_id: string }>(
+            'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?',
+            [user.id, course.course_code],
+          );
+          if (!enrolled) {
+            // Enroll first
+            execute(
+              'INSERT OR IGNORE INTO user_course_codes (user_id, course_code) VALUES (?, ?)',
+              [user.id, course.course_code],
+            );
+            sendEnrollmentEmail({ to: email, name: user.name, courseName: course.title }).catch(
+              (err) => logger.error({ module: 'cohortService', err }, 'Enrollment email failed'),
+            );
+          }
+        }
+
+        // Add to cohort
+        execute(
+          "INSERT OR IGNORE INTO cohort_members (cohort_id, user_id, added_at) VALUES (?, ?, datetime('now'))",
+          [cohortId, user.id],
+        );
+        added++;
+      } else {
+        // New user — create course invite
+        const existing = queryOne<{ id: string }>(
+          "SELECT id FROM course_invites WHERE course_id = ? AND LOWER(email) = ? AND status = 'pending'",
+          [course.id, email],
+        );
+        if (!existing) {
+          const token = uuidv4();
+          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          execute(
+            'INSERT INTO course_invites (id, course_id, email, token, expires_at) VALUES (?, ?, ?, ?, ?)',
+            [uuidv4(), course.id, email, token, expiresAt],
+          );
+          sendCourseInviteEmail({ to: email, courseName: course.title, inviteToken: token }).catch(
+            (err) => logger.error({ module: 'cohortService', err }, 'Invite email failed'),
+          );
+        }
+        invited++;
+      }
+    } catch (err) {
+      errors.push(email);
+      logger.error({ module: 'cohortService', email, err }, 'Error processing cohort invite');
+    }
+  }
+
+  return { added, invited, alreadyInCohort, errors };
+}
+
+// ─── Spending Report (Phase 22 C4) ─────────────────────────────────────────
+
+export function getSpendingReport(sponsorUserId?: string): {
+  totalSpentCents: number;
+  cohorts: Array<{
+    cohortId: string;
+    cohortName: string;
+    courseName: string;
+    memberCount: number;
+    amountCents: number;
+    paymentStatus: string | null;
+    createdAt: string;
+  }>;
+} {
+  let sql = `
+    SELECT sc.id as cohort_id, sc.name as cohort_name, c.title as course_name,
+           (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) as member_count,
+           COALESCE(p.amount_cents, 0) as amount_cents,
+           p.status as payment_status,
+           sc.created_at
+    FROM sponsor_cohorts sc
+    JOIN courses c ON c.id = sc.course_id
+    LEFT JOIN payments p ON p.id = sc.payment_id
+  `;
+  const params: string[] = [];
+  if (sponsorUserId) {
+    sql += ' WHERE sc.sponsor_user_id = ?';
+    params.push(sponsorUserId);
+  }
+  sql += ' ORDER BY sc.created_at DESC';
+
+  const rows = query<{
+    cohort_id: string; cohort_name: string; course_name: string;
+    member_count: number; amount_cents: number;
+    payment_status: string | null; created_at: string;
+  }>(sql, params);
+
+  const totalSpentCents = rows
+    .filter((r) => r.payment_status === 'confirmed')
+    .reduce((sum, r) => sum + r.amount_cents, 0);
+
+  return {
+    totalSpentCents,
+    cohorts: rows.map((r) => ({
+      cohortId: r.cohort_id,
+      cohortName: r.cohort_name,
+      courseName: r.course_name,
+      memberCount: r.member_count,
+      amountCents: r.amount_cents,
+      paymentStatus: r.payment_status,
+      createdAt: r.created_at,
+    })),
+  };
+}
+
+// ─── Payment Reminders (Phase 22 C4) ────────────────────────────────────────
+
+export function sendPaymentReminders(cohortId: string): { sent: number; cohortId: string } {
+  const cohort = queryOne<{ id: string; name: string; course_id: string; payment_id: string | null }>(
+    'SELECT id, name, course_id, payment_id FROM sponsor_cohorts WHERE id = ?',
+    [cohortId],
+  );
+  if (!cohort) throw Object.assign(new Error('Cohort not found'), { code: 'COHORT_NOT_FOUND' });
+
+  // Only send reminders if cohort has a pending payment
+  if (cohort.payment_id) {
+    const payment = queryOne<{ status: string }>(
+      'SELECT status FROM payments WHERE id = ?',
+      [cohort.payment_id],
+    );
+    if (payment && payment.status !== 'pending') {
+      return { sent: 0, cohortId };
+    }
+  }
+
+  const course = queryOne<{ title: string }>(
+    'SELECT title FROM courses WHERE id = ?',
+    [cohort.course_id],
+  );
+
+  const members = query<{ user_id: string; user_name: string; user_email: string }>(
+    `SELECT cm.user_id, u.name as user_name, u.email as user_email
+     FROM cohort_members cm
+     JOIN users u ON u.id = cm.user_id
+     WHERE cm.cohort_id = ?`,
+    [cohortId],
+  );
+
+  let sent = 0;
+  for (const m of members) {
+    sendPaymentReminderEmail({
+      to: m.user_email,
+      studentName: m.user_name,
+      courseName: course?.title ?? 'Course',
+      cohortName: cohort.name,
+    }).catch(
+      (err) => logger.error({ module: 'cohortService', err }, 'Payment reminder email failed'),
+    );
+    sent++;
+  }
+
+  return { sent, cohortId };
 }
