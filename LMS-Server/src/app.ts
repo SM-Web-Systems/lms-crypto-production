@@ -38,6 +38,7 @@ import emailTemplateRoutes from './routes/emailTemplates.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
+import { getReadinessStatus } from './services/readinessService.js';
 import logger from './utils/logger.js';
 
 dotenv.config();
@@ -174,6 +175,10 @@ app.use(express.urlencoded({ extended: true }));
 // Health checks (no rate limit)
 app.get('/health', (_req, res) => { res.json(getHealthStatus()); });
 app.get('/api/v1/health', (_req, res) => { res.json(getHealthStatus()); });
+app.get('/healthz', (_req, res) => {
+  const status = getReadinessStatus();
+  res.status(status.ready ? 200 : 503).json(status);
+});
 
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);

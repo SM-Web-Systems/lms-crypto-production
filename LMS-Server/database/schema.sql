@@ -524,3 +524,9 @@ CREATE TABLE IF NOT EXISTS email_templates (
 );
 CREATE INDEX IF NOT EXISTS idx_email_templates_slug ON email_templates(slug);
 CREATE INDEX IF NOT EXISTS idx_email_templates_category ON email_templates(category);
+
+-- Phase 23 C1: Readiness probe write-path test table
+CREATE TABLE IF NOT EXISTS health_check_pings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT NOT NULL
+);

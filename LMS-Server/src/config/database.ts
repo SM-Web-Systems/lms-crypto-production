@@ -1390,6 +1390,16 @@ export function migrateUsersToRbac(): void {
 }
 migrateUsersToRbac();
 
+function ensureHealthCheckPingsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS health_check_pings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL
+    );
+  `);
+}
+ensureHealthCheckPingsTable();
+
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
   return stmt.all(...params) as T[];
