@@ -34,3 +34,29 @@ describe('HC-002 — API-prefixed health endpoint', () => {
     expect(res.body.checks.memory).toBeDefined();
   });
 });
+
+describe('HC-003 — Readiness probe returns ready state', () => {
+  it('should return ready: true with db_read, db_write, disk checks', async () => {
+    const res = await request(app).get('/healthz');
+    expect(res.status).toBe(200);
+    expect(res.body.ready).toBe(true);
+    expect(res.body.checks.db_read.ok).toBe(true);
+    expect(typeof res.body.checks.db_read.ms).toBe('number');
+    expect(res.body.checks.db_write.ok).toBe(true);
+    expect(typeof res.body.checks.db_write.ms).toBe('number');
+    expect(res.body.checks.disk.ok).toBe(true);
+    expect(typeof res.body.checks.disk.availableMB).toBe('number');
+  });
+});
+
+describe('HC-004 — Readiness probe response contract', () => {
+  it('should return complete response with all check fields', async () => {
+    const res = await request(app).get('/healthz');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('ready');
+    expect(res.body).toHaveProperty('checks');
+    expect(res.body.checks).toHaveProperty('db_read');
+    expect(res.body.checks).toHaveProperty('db_write');
+    expect(res.body.checks).toHaveProperty('disk');
+  });
+});

@@ -126,3 +126,7 @@ docker-compose.override.yml
 
 # Seed scripts with environment-specific data
 seed-courses.js
+.superpowers/
+
+# Deploy state (generated at runtime)
+.deploy-state/
