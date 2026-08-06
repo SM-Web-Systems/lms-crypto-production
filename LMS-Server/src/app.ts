@@ -40,6 +40,10 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
 import { getReadinessStatus } from './services/readinessService.js';
 import logger from './utils/logger.js';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger.js';
+import { authenticate } from './middleware/auth.js';
+import { requirePermission } from './middleware/rbac.js';
 
 dotenv.config();
 
@@ -211,6 +215,14 @@ app.use('/api/v1', apiLimiter, cohortRoutes);
 app.use('/api/v1/admin', apiLimiter, rbacRoutes);
 app.use('/api/v1/admin/tenants', apiLimiter, tenantRoutes);
 app.use('/api/v1', apiLimiter, emailTemplateRoutes);
+
+// ─── API Documentation ─────────────────────────────────────────────────────
+app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });
+if (process.env.NODE_ENV === 'production') {
+  app.use('/api-docs', authenticate, requirePermission('system.view_audit_log'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+} else {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
