@@ -119,6 +119,28 @@ CREATE INDEX IF NOT EXISTS idx_forum_topics_course_id ON forum_topics(course_id)
 CREATE INDEX IF NOT EXISTS idx_forum_posts_topic ON forum_posts(topic_id);
 CREATE INDEX IF NOT EXISTS idx_forum_posts_author ON forum_posts(author_id);
 
+-- Phase 20 C1: Multi-Tenant Architecture
+CREATE TABLE IF NOT EXISTS tenants (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  slug       TEXT UNIQUE NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
+
+CREATE TABLE IF NOT EXISTS tenant_users (
+  tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tenant_role TEXT NOT NULL DEFAULT 'member' CHECK (tenant_role IN ('admin', 'lecturer', 'member')),
+  joined_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (tenant_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id);
+
 -- Courses table (Course API: title, description, sections, course_code for access)
 CREATE TABLE IF NOT EXISTS courses (
   id TEXT PRIMARY KEY,
@@ -126,9 +148,11 @@ CREATE TABLE IF NOT EXISTS courses (
   description TEXT,
   course_code TEXT UNIQUE NOT NULL,
   sections TEXT NOT NULL DEFAULT '[]',
-  sponsor_label TEXT
+  sponsor_label TEXT,
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code);
+CREATE INDEX IF NOT EXISTS idx_courses_tenant ON courses(tenant_id);
 
 -- User course codes (which courses a user can access; replaces enrollment for access control)
 CREATE TABLE IF NOT EXISTS user_course_codes (

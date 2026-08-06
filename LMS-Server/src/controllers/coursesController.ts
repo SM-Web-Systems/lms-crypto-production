@@ -61,7 +61,26 @@ export async function getCourses(req: AuthRequest, res: Response, next: NextFunc
     const userId = req.user?.userId;
     let rows: CourseRow[];
     if (role === 'admin') {
-      rows = query<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses ORDER BY title');
+      // Check if user has tenant.manage (super-admin) — sees all courses
+      const hasTenantManage = queryOne<{ name: string }>(
+        `SELECT p.name FROM permissions p
+         JOIN role_permissions rp ON p.id = rp.permission_id
+         JOIN user_roles ur ON rp.role_id = ur.role_id
+         WHERE ur.user_id = ? AND p.name = 'tenant.manage'`,
+        [userId]
+      );
+      if (hasTenantManage) {
+        rows = query<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses ORDER BY title');
+      } else {
+        // Tenant admin: see own tenant courses + platform-wide courses
+        rows = query<CourseRow>(
+          `SELECT id, title, description, course_code, sections, sponsor_label FROM courses
+           WHERE tenant_id IN (SELECT tenant_id FROM tenant_users WHERE user_id = ? AND tenant_role = 'admin')
+              OR tenant_id IS NULL
+           ORDER BY title`,
+          [userId]
+        );
+      }
     } else if (role === 'lecturer' && userId) {
       // Lecturers see courses they are assigned to via course_lecturers
       rows = query<CourseRow>(
@@ -191,9 +210,31 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
     const sponsorLabel = (req.body as Record<string, unknown>)?.sponsorLabel;
     const sponsorLabelVal = sponsorLabel != null && String(sponsorLabel).trim() !== '' ? String(sponsorLabel).trim() : null;
 
+    // Determine tenant_id: auto-set for tenant admins, explicit for super-admins, NULL otherwise
+    let tenantId: string | null = null;
+    if (req.user?.role === 'admin' && req.user?.userId) {
+      const hasTenantManage = queryOne<{ name: string }>(
+        `SELECT p.name FROM permissions p
+         JOIN role_permissions rp ON p.id = rp.permission_id
+         JOIN user_roles ur ON rp.role_id = ur.role_id
+         WHERE ur.user_id = ? AND p.name = 'tenant.manage'`,
+        [req.user.userId]
+      );
+      if (!hasTenantManage) {
+        // Tenant admin: auto-set to their tenant
+        const tenantAdmin = queryOne<{ tenant_id: string }>(
+          `SELECT tenant_id FROM tenant_users WHERE user_id = ? AND tenant_role = 'admin' LIMIT 1`,
+          [req.user.userId]
+        );
+        if (tenantAdmin) {
+          tenantId = tenantAdmin.tenant_id;
+        }
+      }
+    }
+
     execute(
-      'INSERT INTO courses (id, title, description, course_code, sections, sponsor_label) VALUES (?, ?, ?, ?, ?, ?)',
-      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections), sponsorLabelVal]
+      'INSERT INTO courses (id, title, description, course_code, sections, sponsor_label, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections), sponsorLabelVal, tenantId]
     );
 
     const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [course.id]);

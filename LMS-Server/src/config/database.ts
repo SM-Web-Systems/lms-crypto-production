@@ -913,6 +913,40 @@ function ensurePaystackColumns(): void {
 }
 ensurePaystackColumns();
 
+// ─── Phase 20 C1: Multi-Tenant Architecture ──────────────────────────────────
+function ensureTenantTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tenants (
+      id         TEXT PRIMARY KEY,
+      name       TEXT NOT NULL,
+      slug       TEXT UNIQUE NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+    CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
+
+    CREATE TABLE IF NOT EXISTS tenant_users (
+      tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tenant_role TEXT NOT NULL DEFAULT 'member' CHECK (tenant_role IN ('admin', 'lecturer', 'member')),
+      joined_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (tenant_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id);
+  `);
+
+  // Add tenant_id to courses (nullable, backward compatible)
+  const courseSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='courses'").get() as { sql: string } | undefined;
+  if (courseSql && !courseSql.sql.includes('tenant_id')) {
+    db.exec(`ALTER TABLE courses ADD COLUMN tenant_id TEXT REFERENCES tenants(id) ON DELETE SET NULL`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_courses_tenant ON courses(tenant_id)`);
+  }
+}
+ensureTenantTables();
+
 // ─── Phase 12B: Capability-based RBAC ─────────────────────────────────────────
 function ensureRbacTables(): void {
   db.exec(`
@@ -1058,6 +1092,9 @@ export function seedRbacData(): void {
     ['perm_system_manage_roles', 'system.manage_roles', 'system', 'Manage Roles'],
     ['perm_system_manage_permissions', 'system.manage_permissions', 'system', 'Manage Permissions'],
     ['perm_system_view_audit_log', 'system.view_audit_log', 'system', 'View Audit Log'],
+    // tenant (2)
+    ['perm_tenant_manage', 'tenant.manage', 'tenant', 'Manage Tenants'],
+    ['perm_tenant_view', 'tenant.view', 'tenant', 'View Tenants'],
   ];
 
   const insertPerm = db.prepare(
@@ -1170,6 +1207,8 @@ export function seedRbacData(): void {
       'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
       // system: view_audit_log
       'perm_system_view_audit_log',
+      // tenant: view
+      'perm_tenant_view',
     ],
     role_admin2: [
       // course: all
@@ -1202,6 +1241,8 @@ export function seedRbacData(): void {
       'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
       // system: manage_roles, view_audit_log
       'perm_system_manage_roles', 'perm_system_view_audit_log',
+      // tenant: view
+      'perm_tenant_view',
     ],
     role_super_admin: [
       // All 60 permissions
@@ -1223,6 +1264,8 @@ export function seedRbacData(): void {
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
       'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
       'perm_system_manage_roles', 'perm_system_manage_permissions', 'perm_system_view_audit_log',
+      // tenant: all
+      'perm_tenant_manage', 'perm_tenant_view',
     ],
     // custom-user role: no default permissions (assigned per custom role)
   };
