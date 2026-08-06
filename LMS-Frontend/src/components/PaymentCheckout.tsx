@@ -39,7 +39,7 @@ export function PaymentCheckout({
   stellarPriceUsdc,
   onPaymentCreated,
 }: PaymentCheckoutProps) {
-  const [loading, setLoading] = useState(false);
+  const [loadingMethod, setLoadingMethod] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stellarInstructions, setStellarInstructions] = useState<StellarInstructions | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export function PaymentCheckout({
   }
 
   const handlePaystack = async () => {
-    setLoading(true);
+    setLoadingMethod('paystack');
     setError(null);
     try {
       const result = await courseCompletionService.createPaystackCheckout(applicationId);
@@ -61,12 +61,12 @@ export function PaymentCheckout({
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      setLoadingMethod(null);
     }
   };
 
   const handleStellar = async (stellarCurrency: 'xlm' | 'usdc') => {
-    setLoading(true);
+    setLoadingMethod(stellarCurrency);
     setError(null);
     try {
       const result = await courseCompletionService.createStellarCheckout(applicationId, stellarCurrency);
@@ -75,12 +75,16 @@ export function PaymentCheckout({
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      setLoadingMethod(null);
     }
   };
 
   const copyToClipboard = async (text: string, field: string) => {
-    await navigator.clipboard.writeText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // best-effort — clipboard API may be denied
+    }
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
@@ -116,6 +120,7 @@ export function PaymentCheckout({
                   <button
                     onClick={() => copyToClipboard(stellarInstructions.destinationAddress, 'address')}
                     className="text-neutral-400 hover:text-neutral-600"
+                    aria-label="Copy destination address"
                   >
                     {copiedField === 'address' ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                   </button>
@@ -129,6 +134,7 @@ export function PaymentCheckout({
                   <button
                     onClick={() => copyToClipboard(stellarInstructions.memo, 'memo')}
                     className="text-neutral-400 hover:text-neutral-600"
+                    aria-label="Copy memo"
                   >
                     {copiedField === 'memo' ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                   </button>
@@ -153,9 +159,9 @@ export function PaymentCheckout({
               <Button
                 className="w-full justify-start gap-2"
                 onClick={handlePaystack}
-                disabled={loading}
+                disabled={loadingMethod !== null}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                {loadingMethod === 'paystack' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
                 Pay with Card (Paystack)
               </Button>
             )}
@@ -165,9 +171,9 @@ export function PaymentCheckout({
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => handleStellar('xlm')}
-                disabled={loading}
+                disabled={loadingMethod !== null}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                {loadingMethod === 'xlm' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
                 Pay with XLM ({stellarPriceXlm} XLM)
               </Button>
             )}
@@ -177,9 +183,9 @@ export function PaymentCheckout({
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => handleStellar('usdc')}
-                disabled={loading}
+                disabled={loadingMethod !== null}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                {loadingMethod === 'usdc' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
                 Pay with USDC ({stellarPriceUsdc} USDC)
               </Button>
             )}

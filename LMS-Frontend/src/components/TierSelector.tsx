@@ -13,6 +13,7 @@ interface TierSelectorProps {
 export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps) {
   const [tierInfo, setTierInfo] = useState<TierInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     courseCompletionService.getTiers(courseId)
@@ -25,13 +26,13 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
           onSelect('paid');
         }
       })
-      .catch(() => setTierInfo(null))
+      .catch(() => { setTierInfo(null); setError(true); })
       .finally(() => setLoading(false));
   }, [courseId]);
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-label="Loading certificate options">
         <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
           <div className="animate-pulse space-y-4">
             <div className="h-6 bg-neutral-200 rounded w-1/2" />
@@ -42,15 +43,27 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
     );
   }
 
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="tier-dialog-title" onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}>
+        <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+          <h3 id="tier-dialog-title" className="text-lg font-semibold mb-3">Choose Certificate Type</h3>
+          <p className="text-sm text-red-600 mb-3">Failed to load certificate tier options.</p>
+          <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!tierInfo || tierInfo.tiersEnabled !== 'both') {
-    return null; // Auto-selected or error
+    return null; // Auto-selected
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="tier-dialog-title" onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}>
       <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Choose Certificate Type</h3>
+          <h3 id="tier-dialog-title" className="text-lg font-semibold">Choose Certificate Type</h3>
           <button onClick={onCancel} className="text-neutral-400 hover:text-neutral-600">
             <X className="h-5 w-5" />
           </button>
@@ -145,10 +158,10 @@ export function BadgeDisplay({ badgeId }: BadgeDisplayProps) {
       </div>
 
       {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="badge-dialog-title" onKeyDown={(e) => { if (e.key === 'Escape') setShowPreview(false); }}>
           <div className="bg-white rounded-lg p-6 max-w-lg shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Your Certificate Badge</h3>
+              <h3 id="badge-dialog-title" className="text-lg font-semibold">Your Certificate Badge</h3>
               <button onClick={() => setShowPreview(false)} className="text-neutral-400 hover:text-neutral-600">
                 <X className="h-5 w-5" />
               </button>
