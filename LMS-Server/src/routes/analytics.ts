@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDashboard, getCourseAnalytics, getQuizAnalytics, getSponsorStudents, exportCoursesCsv } from '../controllers/analyticsController.js';
+import { getDashboard, getCourseAnalytics, getQuizAnalytics, getSponsorStudents, exportCoursesCsv, getPaymentAnalytics } from '../controllers/analyticsController.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 
@@ -23,5 +23,8 @@ router.get('/courses/export', exportCoursesCsv);
 
 // GET /analytics/courses/:courseId/students - Per-student drill-down
 router.get('/courses/:courseId/students', getSponsorStudents);
+
+// GET /analytics/payments - Payment revenue analytics
+router.get('/payments', getPaymentAnalytics);
 
 export default router;

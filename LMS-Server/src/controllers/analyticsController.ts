@@ -309,3 +309,121 @@ export async function exportCoursesCsv(_req: AuthRequest, res: Response, next: N
     next(error);
   }
 }
+
+// ─── Phase 19 C1: Payment Analytics ──────────────────────────────────────────
+
+export interface PaymentAnalyticsData {
+  summary: {
+    totalRevenueCents: number;
+    totalPayments: number;
+    confirmedPayments: number;
+    pendingPayments: number;
+    failedPayments: number;
+    waivedPayments: number;
+    refundedPayments: number;
+  };
+  byCourse: { courseId: string; courseName: string; revenueCents: number; paymentCount: number }[];
+  byMethod: { method: string; revenueCents: number; count: number }[];
+  byMonth: { month: string; revenueCents: number; count: number }[];
+}
+
+export function getPaymentAnalytics(_req: AuthRequest, res: Response, next: NextFunction): void {
+  try {
+    const summaryRow = queryOne<{
+      total_revenue_cents: number;
+      total_payments: number;
+      confirmed_payments: number;
+      pending_payments: number;
+      failed_payments: number;
+      waived_payments: number;
+      refunded_payments: number;
+    }>(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status IN ('confirmed', 'waived') THEN amount_cents ELSE 0 END), 0) AS total_revenue_cents,
+        COUNT(*) AS total_payments,
+        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_payments,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_payments,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_payments,
+        SUM(CASE WHEN status = 'waived' THEN 1 ELSE 0 END) AS waived_payments,
+        SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) AS refunded_payments
+      FROM payments
+    `);
+
+    const byCourseRows = query<{
+      course_id: string;
+      course_name: string;
+      revenue_cents: number;
+      payment_count: number;
+    }>(`
+      SELECT
+        p.course_id,
+        COALESCE(c.title, 'Unknown') AS course_name,
+        COALESCE(SUM(CASE WHEN p.status IN ('confirmed', 'waived') THEN p.amount_cents ELSE 0 END), 0) AS revenue_cents,
+        COUNT(*) AS payment_count
+      FROM payments p
+      LEFT JOIN courses c ON c.id = p.course_id
+      GROUP BY p.course_id
+      ORDER BY revenue_cents DESC
+    `);
+
+    const byMethodRows = query<{
+      method: string;
+      revenue_cents: number;
+      count: number;
+    }>(`
+      SELECT
+        payment_method AS method,
+        COALESCE(SUM(CASE WHEN status IN ('confirmed', 'waived') THEN amount_cents ELSE 0 END), 0) AS revenue_cents,
+        COUNT(*) AS count
+      FROM payments
+      GROUP BY payment_method
+      ORDER BY revenue_cents DESC
+    `);
+
+    const byMonthRows = query<{
+      month: string;
+      revenue_cents: number;
+      count: number;
+    }>(`
+      SELECT
+        strftime('%Y-%m', created_at) AS month,
+        COALESCE(SUM(CASE WHEN status IN ('confirmed', 'waived') THEN amount_cents ELSE 0 END), 0) AS revenue_cents,
+        COUNT(*) AS count
+      FROM payments
+      GROUP BY strftime('%Y-%m', created_at)
+      ORDER BY month DESC
+    `);
+
+    const data: PaymentAnalyticsData = {
+      summary: {
+        totalRevenueCents: summaryRow?.total_revenue_cents ?? 0,
+        totalPayments: summaryRow?.total_payments ?? 0,
+        confirmedPayments: summaryRow?.confirmed_payments ?? 0,
+        pendingPayments: summaryRow?.pending_payments ?? 0,
+        failedPayments: summaryRow?.failed_payments ?? 0,
+        waivedPayments: summaryRow?.waived_payments ?? 0,
+        refundedPayments: summaryRow?.refunded_payments ?? 0,
+      },
+      byCourse: byCourseRows.map((r) => ({
+        courseId: r.course_id,
+        courseName: r.course_name,
+        revenueCents: r.revenue_cents,
+        paymentCount: r.payment_count,
+      })),
+      byMethod: byMethodRows.map((r) => ({
+        method: r.method,
+        revenueCents: r.revenue_cents,
+        count: r.count,
+      })),
+      byMonth: byMonthRows.map((r) => ({
+        month: r.month,
+        revenueCents: r.revenue_cents,
+        count: r.count,
+      })),
+    };
+
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}

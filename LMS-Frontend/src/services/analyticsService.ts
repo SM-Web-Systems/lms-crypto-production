@@ -34,6 +34,21 @@ export interface QuizAnalytics {
   avgScore: number;
 }
 
+export interface PaymentAnalyticsData {
+  summary: {
+    totalRevenueCents: number;
+    totalPayments: number;
+    confirmedPayments: number;
+    pendingPayments: number;
+    failedPayments: number;
+    waivedPayments: number;
+    refundedPayments: number;
+  };
+  byCourse: { courseId: string; courseName: string; revenueCents: number; paymentCount: number }[];
+  byMethod: { method: string; revenueCents: number; count: number }[];
+  byMonth: { month: string; revenueCents: number; count: number }[];
+}
+
 export const analyticsService = {
   async getDashboard(): Promise<DashboardAnalytics> {
     const response = await api.get<ApiResponse<DashboardAnalytics>>('/analytics/dashboard');
@@ -55,6 +70,11 @@ export const analyticsService = {
   async getQuizAnalytics(): Promise<QuizAnalytics[]> {
     const response = await api.get<{ success: boolean; data: { quizzes: QuizAnalytics[] } }>('/analytics/quizzes');
     return response.data?.data?.quizzes ?? [];
+  },
+
+  async getPaymentAnalytics(): Promise<PaymentAnalyticsData> {
+    const response = await api.get<{ success: boolean; data: PaymentAnalyticsData }>('/analytics/payments');
+    return response.data?.data;
   },
 
   async exportCsv(): Promise<void> {
