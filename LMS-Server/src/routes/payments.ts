@@ -12,6 +12,7 @@ import logger from '../utils/logger.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
+import { createNotification } from '../services/notificationService.js';
 import {
   getCoursePricing,
   setCoursePricing,
@@ -261,6 +262,26 @@ router.post(
     if (!payment) {
       res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
       return;
+    }
+
+    // Phase 23 C3: Emit payment_confirmed notification (best-effort)
+    try {
+      const paymentRow = queryOne<{ user_id: string; course_id: string }>(
+        'SELECT user_id, course_id FROM payments WHERE id = ?',
+        [paymentId]
+      );
+      if (paymentRow) {
+        const courseInfo = queryOne<{ title: string }>('SELECT title FROM courses WHERE id = ?', [paymentRow.course_id]);
+        createNotification({
+          userId: paymentRow.user_id,
+          type: 'payment_confirmed',
+          title: 'Payment Confirmed',
+          body: `Your payment for "${courseInfo?.title ?? 'course'}" has been confirmed`,
+          link: '/student/payments',
+        });
+      }
+    } catch {
+      // best-effort
     }
 
     res.json({

@@ -7,6 +7,8 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
+import { queryOne } from '../config/database.js';
+import { createNotification } from '../services/notificationService.js';
 import {
   createCohort,
   listCohorts,
@@ -488,6 +490,28 @@ router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('
   }
   try {
     const result = bulkInviteToCohort(req.params.cohortId, emails);
+
+    // Phase 23 C3: Emit cohort_invited notifications (best-effort)
+    try {
+      const cohortInfo = queryOne<{ name: string }>(
+        'SELECT name FROM cohorts WHERE id = ?',
+        [req.params.cohortId]
+      );
+      for (const email of emails) {
+        const user = queryOne<{ id: string }>('SELECT id FROM users WHERE email = ?', [email]);
+        if (user) {
+          createNotification({
+            userId: user.id,
+            type: 'cohort_invited',
+            title: 'Cohort Invitation',
+            body: `You have been invited to cohort "${cohortInfo?.name ?? 'a cohort'}"`,
+          });
+        }
+      }
+    } catch {
+      // best-effort
+    }
+
     res.json({ success: true, data: result });
   } catch (err: any) {
     if (err.code === 'COHORT_NOT_FOUND') {

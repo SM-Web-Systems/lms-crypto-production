@@ -525,6 +525,18 @@ CREATE TABLE IF NOT EXISTS email_templates (
 CREATE INDEX IF NOT EXISTS idx_email_templates_slug ON email_templates(slug);
 CREATE INDEX IF NOT EXISTS idx_email_templates_category ON email_templates(category);
 
+-- Phase 23 C3: Notification preferences (per-type opt-out)
+CREATE TABLE IF NOT EXISTS notification_preferences (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, type)
+);
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_user
+  ON notification_preferences(user_id);
+
 -- Phase 23 C1: Readiness probe write-path test table
 CREATE TABLE IF NOT EXISTS health_check_pings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

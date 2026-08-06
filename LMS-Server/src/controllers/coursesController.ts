@@ -4,6 +4,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Course, CourseSection, CourseItem, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDocumentFileUrl } from '../utils/fileUpload.js';
+import { createNotification } from '../services/notificationService.js';
 
 interface CourseRow {
   id: string;
@@ -415,6 +416,34 @@ export async function addCourseMember(req: AuthRequest, res: Response, next: Nex
     }
 
     execute('INSERT INTO user_course_codes (user_id, course_code) VALUES (?, ?)', [targetUserId, course.course_code]);
+
+    // Phase 23 C3: Emit enrollment notifications (best-effort)
+    try {
+      const courseInfo = queryOne<{ title: string }>(
+        'SELECT title FROM courses WHERE id = ?',
+        [courseId]
+      );
+      if (courseInfo) {
+        createNotification({
+          userId: targetUserId,
+          type: 'course_enrolled',
+          title: 'Course Enrolled',
+          body: `You have been enrolled in "${courseInfo.title}"`,
+          link: '/student/course',
+        });
+        // Notify the admin who performed the enrollment
+        if (req.user!.userId !== targetUserId) {
+          createNotification({
+            userId: req.user!.userId,
+            type: 'new_enrollment',
+            title: 'New Enrollment',
+            body: `A student has enrolled in "${courseInfo.title}"`,
+          });
+        }
+      }
+    } catch {
+      // best-effort
+    }
 
     const rows = query<{ id: string; name: string; email: string; role: string }>(
       `SELECT u.id, u.name, u.email, u.role
