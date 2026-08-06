@@ -41,3 +41,49 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx vite build
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Server/package-lock.json
+      - name: Install backend dependencies
+        run: cd LMS-Server && npm ci
+      - name: Install frontend dependencies
+        run: cd LMS-Frontend && npm ci
+      - name: Install E2E dependencies
+        run: cd e2e && npm ci
+      - name: Install Playwright browsers
+        run: cd e2e && npx playwright install chromium
+      - name: Start backend
+        run: cd LMS-Server && npx tsx src/server.ts &
+        env:
+          NODE_ENV: test
+          PORT: '3001'
+          JWT_SECRET: e2e-test-jwt-secret-do-not-use-in-production
+      - name: Build and serve frontend
+        run: |
+          cd LMS-Frontend && npx vite build
+          npx vite preview --port 5173 &
+      - name: Wait for services
+        run: |
+          npx wait-on http://localhost:3001/health http://localhost:5173 --timeout 30000
+      - name: Run E2E tests
+        run: cd e2e && npx playwright test
+        env:
+          CI: 'true'
+          E2E_BASE_URL: http://localhost:5173
+          E2E_API_URL: http://localhost:3001
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
