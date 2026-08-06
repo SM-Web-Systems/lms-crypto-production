@@ -33,6 +33,7 @@ import LecturerDashboard from './pages/LecturerDashboard';
 import LecturerCourseStudents from './pages/LecturerCourseStudents';
 import LecturerSubmissions from './pages/LecturerSubmissions';
 import StudentProgress from './pages/StudentProgress';
+import NotificationSettings from './pages/NotificationSettings';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
 
@@ -436,6 +437,18 @@ function App() {
                 <ProtectedRoute allowedRole="lecturer">
                   <Layout>
                     <Profile />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Settings — available to all authenticated roles */}
+            <Route
+              path="/settings/notifications"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <NotificationSettings />
                   </Layout>
                 </ProtectedRoute>
               }

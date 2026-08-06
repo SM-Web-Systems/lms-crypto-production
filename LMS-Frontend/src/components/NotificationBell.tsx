@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { Bell, Settings, CheckCheck } from 'lucide-react';
 import { notificationService, Notification } from '../services/notificationService';
 
 function timeAgo(dateStr: string): string {
@@ -19,22 +19,23 @@ const NotificationBell: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const data = await notificationService.getNotifications();
+      const data = await notificationService.getNotifications(1, 20);
       setNotifications(data.notifications);
       setUnreadCount(data.unreadCount);
     } catch {
-      // Silently fail — polling will retry in 60s
+      // Silently fail — polling will retry in 30s
     }
   }, []);
 
-  // Fetch on mount + 60s polling
+  // Fetch on mount + 30s polling
   useEffect(() => {
     fetchNotifications();
-    const id = setInterval(fetchNotifications, 60_000);
+    const id = setInterval(fetchNotifications, 30_000);
     return () => clearInterval(id);
   }, [fetchNotifications]);
 
@@ -79,6 +80,19 @@ const NotificationBell: React.FC = () => {
     if (notif.link) navigate(notif.link);
   };
 
+  const handleMarkAllRead = async () => {
+    setMarkingAll(true);
+    try {
+      await notificationService.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch {
+      // best-effort
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -99,8 +113,30 @@ const NotificationBell: React.FC = () => {
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg ring-1 ring-neutral-900/10 z-50 overflow-hidden" role="menu" aria-label="Notifications">
-          <div className="px-4 py-3 border-b border-neutral-100">
+          <div className="px-4 py-3 border-b border-neutral-100 flex items-center justify-between">
             <p className="text-sm font-semibold text-neutral-800">Notifications</p>
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  disabled={markingAll}
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                  title="Mark all as read"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{markingAll ? 'Marking...' : 'Read all'}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setOpen(false); navigate('/settings/notifications'); }}
+                className="inline-flex items-center p-1 text-neutral-400 hover:text-neutral-600 rounded hover:bg-neutral-100 transition-colors"
+                title="Notification settings"
+              >
+                <Settings className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (

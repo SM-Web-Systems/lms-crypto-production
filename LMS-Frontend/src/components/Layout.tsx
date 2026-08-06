@@ -180,7 +180,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-3 sm:gap-4">
-            {user?.role === 'student' && <NotificationBell />}
+            <NotificationBell />
             <div className="text-right hidden sm:block min-w-0">
               <p className="text-sm font-medium text-neutral-800 truncate max-w-[140px] sm:max-w-[200px]">
                 {user?.name}
