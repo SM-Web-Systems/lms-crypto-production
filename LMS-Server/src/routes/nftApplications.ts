@@ -57,6 +57,44 @@ function logDemoSponsorTrigger(applicationId: string, userId: string, courseId: 
 const router = Router();
 
 // ─── POST /courses/:courseId/completions/apply ────────────────────────────────
+/**
+ * @openapi
+ * /courses/{courseId}/completions/apply:
+ *   post:
+ *     tags: [Certificates]
+ *     summary: Apply for certificate
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               selectedTier:
+ *                 type: string
+ *                 enum: [free, paid]
+ *                 description: Certificate tier (defaults to 'paid')
+ *     responses:
+ *       '201':
+ *         description: Application created successfully
+ *       '400':
+ *         description: Validation error or tier not available
+ *       '403':
+ *         description: Not enrolled in this course
+ *       '409':
+ *         description: Application already exists
+ *       '422':
+ *         description: Course requirements not met or wallet not linked
+ */
 router.post(
   '/courses/:courseId/completions/apply',
   authenticate,
@@ -202,6 +240,36 @@ router.post(
 );
 
 // ─── GET /courses/:courseId/completions/applications ─────────────────────────
+/**
+ * @openapi
+ * /courses/{courseId}/completions/applications:
+ *   get:
+ *     tags: [Certificates]
+ *     summary: List certificate applications
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected, minted]
+ *         description: Filter by application status
+ *     responses:
+ *       '200':
+ *         description: List of certificate applications
+ *       '403':
+ *         description: Not assigned to this course (lecturer)
+ *       '404':
+ *         description: Course not found
+ */
 router.get(
   '/courses/:courseId/completions/applications',
   authenticate,
@@ -292,6 +360,35 @@ router.get(
 );
 
 // ─── GET /courses/:courseId/completions/applications/:appId ──────────────────
+/**
+ * @openapi
+ * /courses/{courseId}/completions/applications/{appId}:
+ *   get:
+ *     tags: [Certificates]
+ *     summary: Get certificate application
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *       - in: path
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Application ID
+ *     responses:
+ *       '200':
+ *         description: Certificate application detail
+ *       '403':
+ *         description: Access denied
+ *       '404':
+ *         description: Application not found
+ */
 router.get(
   '/courses/:courseId/completions/applications/:appId',
   authenticate,
@@ -370,6 +467,52 @@ router.get(
 
 // ─── POST /courses/:courseId/completions/applications/:appId/recommend ────────
 // Admin or assigned lecturer can add a recommendation
+/**
+ * @openapi
+ * /courses/{courseId}/completions/applications/{appId}/recommend:
+ *   post:
+ *     tags: [Certificates]
+ *     summary: Recommend application
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *       - in: path
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Application ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [recommendation]
+ *             properties:
+ *               recommendation:
+ *                 type: string
+ *                 enum: [approved, not_ready]
+ *                 description: Lecturer recommendation
+ *               notes:
+ *                 type: string
+ *                 description: Optional recommendation notes
+ *     responses:
+ *       '200':
+ *         description: Recommendation recorded
+ *       '400':
+ *         description: Invalid recommendation value
+ *       '404':
+ *         description: Application not found
+ *       '409':
+ *         description: Application is not in pending status
+ */
 router.post(
   '/courses/:courseId/completions/applications/:appId/recommend',
   authenticate,
@@ -424,6 +567,45 @@ router.post(
 );
 
 // ─── PATCH /courses/:courseId/completions/applications/:appId/approve ─────────
+/**
+ * @openapi
+ * /courses/{courseId}/completions/applications/{appId}/approve:
+ *   patch:
+ *     tags: [Certificates]
+ *     summary: Approve application
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *       - in: path
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Application ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Optional review notes
+ *     responses:
+ *       '200':
+ *         description: Application approved
+ *       '404':
+ *         description: Application not found
+ *       '409':
+ *         description: Application is not in pending status
+ */
 router.patch(
   '/courses/:courseId/completions/applications/:appId/approve',
   authenticate,
@@ -491,6 +673,45 @@ router.patch(
 );
 
 // ─── PATCH /courses/:courseId/completions/applications/:appId/reject ──────────
+/**
+ * @openapi
+ * /courses/{courseId}/completions/applications/{appId}/reject:
+ *   patch:
+ *     tags: [Certificates]
+ *     summary: Reject application
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *       - in: path
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Application ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Optional rejection notes
+ *     responses:
+ *       '200':
+ *         description: Application rejected
+ *       '404':
+ *         description: Application not found
+ *       '409':
+ *         description: Application is not in pending status
+ */
 router.patch(
   '/courses/:courseId/completions/applications/:appId/reject',
   authenticate,
@@ -548,6 +769,43 @@ router.patch(
 );
 
 // ─── POST /courses/:courseId/completions/applications/:appId/mint ─────────────
+/**
+ * @openapi
+ * /courses/{courseId}/completions/applications/{appId}/mint:
+ *   post:
+ *     tags: [Certificates]
+ *     summary: Mint NFT certificate
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *       - in: path
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Application ID
+ *     responses:
+ *       '200':
+ *         description: NFT minted successfully
+ *       '400':
+ *         description: Free-tier applications cannot be minted as NFT
+ *       '402':
+ *         description: Payment required before minting
+ *       '404':
+ *         description: Application not found
+ *       '409':
+ *         description: NFT already minted or application not in approved status
+ *       '422':
+ *         description: Requirements not met or wallet no longer linked
+ *       '502':
+ *         description: Soroban mint transaction failed
+ */
 router.post(
   '/courses/:courseId/completions/applications/:appId/mint',
   authenticate,

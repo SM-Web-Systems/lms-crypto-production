@@ -12,6 +12,25 @@ import type { AuthRequest } from '../types/index.js';
 
 const router = Router();
 
+/**
+ * @openapi
+ * /credentials/public:
+ *   get:
+ *     tags: [Certificates]
+ *     summary: Get public credentials by wallet address
+ *     parameters:
+ *       - in: query
+ *         name: wallet
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Stellar wallet address to look up credentials for
+ *     responses:
+ *       '200':
+ *         description: List of minted credentials for the given wallet address
+ *       '400':
+ *         description: wallet query param is required
+ */
 router.get('/credentials/public', (req: Request, res: Response): void => {
   const wallet = (req.query.wallet as string | undefined)?.trim();
   if (!wallet) {
@@ -65,6 +84,20 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
 });
 
 // ─── GET /credentials/mine (auth-gated) ─────────────────────────────────────
+/**
+ * @openapi
+ * /credentials/mine:
+ *   get:
+ *     tags: [Certificates]
+ *     summary: Get own minted credentials
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: List of minted credentials belonging to the authenticated user
+ *       '401':
+ *         description: Unauthorized
+ */
 router.get('/credentials/mine', authenticate, (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
 

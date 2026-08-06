@@ -42,6 +42,27 @@ router.use(authenticate);
 
 // ─── GET /courses/:courseId/pricing — any authenticated user ─────────────────
 
+/**
+ * @openapi
+ * /courses/{courseId}/pricing:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get course pricing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *     responses:
+ *       '200':
+ *         description: Course pricing details including available payment methods
+ *       '404':
+ *         description: Course not found
+ */
 router.get(
   '/courses/:courseId/pricing',
   (req: AuthRequest, res: Response): void => {
@@ -85,6 +106,51 @@ router.get(
 
 // ─── PUT /admin/courses/:courseId/pricing ─────────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/courses/{courseId}/pricing:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Set course pricing (admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [priceCents]
+ *             properties:
+ *               priceCents:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Price in cents (0 = free)
+ *               tiersEnabled:
+ *                 type: string
+ *                 enum: [free_only, paid_only, both]
+ *                 description: Which tiers are available for this course
+ *               stellarPriceXlm:
+ *                 type: number
+ *                 description: Price in XLM for Stellar payments
+ *               stellarPriceUsdc:
+ *                 type: number
+ *                 description: Price in USDC for Stellar payments
+ *     responses:
+ *       '200':
+ *         description: Course pricing updated
+ *       '400':
+ *         description: Validation error
+ *       '404':
+ *         description: Course not found
+ */
 router.put(
   '/admin/courses/:courseId/pricing',
   requirePermission('billing.confirm'),
@@ -153,6 +219,37 @@ router.put(
 
 // ─── POST /admin/payments/:paymentId/confirm ─────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/payments/{paymentId}/confirm:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Confirm manual payment
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Optional confirmation notes
+ *     responses:
+ *       '200':
+ *         description: Payment confirmed
+ *       '404':
+ *         description: Payment not found
+ */
 router.post(
   '/admin/payments/:paymentId/confirm',
   requirePermission('billing.confirm'),
@@ -180,6 +277,40 @@ router.post(
 
 // ─── POST /admin/payments/:paymentId/waive ───────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/payments/{paymentId}/waive:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Waive payment
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [notes]
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Required reason for waiving the payment
+ *     responses:
+ *       '200':
+ *         description: Payment waived
+ *       '400':
+ *         description: Notes are required when waiving payment
+ *       '404':
+ *         description: Payment not found
+ */
 router.post(
   '/admin/payments/:paymentId/waive',
   requirePermission('billing.waive'),
@@ -216,6 +347,32 @@ router.post(
 
 // ─── GET /admin/payments ─────────────────────────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/payments:
+ *   get:
+ *     tags: [Payments]
+ *     summary: List all payments
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [pending, confirmed, waived, failed, refunded]
+ *         description: Filter by payment status
+ *       - in: query
+ *         name: courseId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Filter by course ID
+ *     responses:
+ *       '200':
+ *         description: List of all payments with user and course details
+ */
 router.get(
   '/admin/payments',
   requirePermission('billing.view_all'),
@@ -252,6 +409,39 @@ router.get(
 // ─── Phase 12 C1: Paystack Checkout ──────────────────────────────────────────
 
 // POST /payments/checkout/paystack — create Paystack checkout session
+/**
+ * @openapi
+ * /payments/checkout/paystack:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Create Paystack checkout
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [applicationId]
+ *             properties:
+ *               applicationId:
+ *                 type: string
+ *                 description: Certificate application ID to pay for
+ *     responses:
+ *       '201':
+ *         description: Paystack checkout session created with authorization URL
+ *       '400':
+ *         description: Validation error or course is free
+ *       '403':
+ *         description: Not your application
+ *       '404':
+ *         description: Application not found
+ *       '409':
+ *         description: Payment already completed
+ *       '502':
+ *         description: Payment gateway error
+ */
 router.post(
   '/payments/checkout/paystack',
   async (req: AuthRequest, res: Response): Promise<void> => {
@@ -360,6 +550,41 @@ router.post(
 );
 
 // POST /payments/checkout/stellar — generate Stellar payment instructions
+/**
+ * @openapi
+ * /payments/checkout/stellar:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Create Stellar payment instructions
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [applicationId]
+ *             properties:
+ *               applicationId:
+ *                 type: string
+ *                 description: Certificate application ID to pay for
+ *               currency:
+ *                 type: string
+ *                 enum: [xlm, usdc]
+ *                 description: Stellar payment currency (defaults to XLM)
+ *     responses:
+ *       '201':
+ *         description: Stellar payment instructions with destination address and memo
+ *       '400':
+ *         description: Validation error, course is free, or currency not configured
+ *       '403':
+ *         description: Not your application
+ *       '404':
+ *         description: Application not found
+ *       '409':
+ *         description: Payment already completed
+ */
 router.post(
   '/payments/checkout/stellar',
   (req: AuthRequest, res: Response): void => {
@@ -449,6 +674,29 @@ router.post(
 );
 
 // GET /payments/:paymentId/status — payment status (owner or admin)
+/**
+ * @openapi
+ * /payments/{paymentId}/status:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get payment status
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     responses:
+ *       '200':
+ *         description: Payment status and details
+ *       '403':
+ *         description: Not authorized to view this payment
+ *       '404':
+ *         description: Payment not found
+ */
 router.get(
   '/payments/:paymentId/status',
   (req: AuthRequest, res: Response): void => {
@@ -483,6 +731,18 @@ router.get(
 );
 
 // GET /payments/mine — student's own payment history
+/**
+ * @openapi
+ * /payments/mine:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get own payment history
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: List of authenticated user's payments with course names
+ */
 router.get(
   '/payments/mine',
   (req: AuthRequest, res: Response): void => {
@@ -505,6 +765,36 @@ router.get(
 );
 
 // GET /payments/:paymentId/receipt — download PDF receipt (owner or admin)
+/**
+ * @openapi
+ * /payments/{paymentId}/receipt:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Download payment receipt PDF
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     responses:
+ *       '200':
+ *         description: PDF receipt file download
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       '400':
+ *         description: Receipt only available for confirmed or waived payments
+ *       '403':
+ *         description: Not authorized to view this receipt
+ *       '404':
+ *         description: Payment not found
+ */
 router.get(
   '/payments/:paymentId/receipt',
   async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -547,6 +837,41 @@ router.get(
 );
 
 // POST /admin/payments/:paymentId/refund — trigger Paystack refund
+/**
+ * @openapi
+ * /admin/payments/{paymentId}/refund:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Refund payment via Paystack
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Optional refund notes
+ *     responses:
+ *       '200':
+ *         description: Refund initiated successfully
+ *       '400':
+ *         description: Can only refund confirmed Paystack payments
+ *       '404':
+ *         description: Payment not found
+ *       '502':
+ *         description: Refund gateway error
+ */
 router.post(
   '/admin/payments/:paymentId/refund',
   requirePermission('billing.confirm'),
@@ -595,6 +920,27 @@ router.post(
 
 // ─── GET /courses/:courseId/tiers — tier config for a course ─────────────────
 
+/**
+ * @openapi
+ * /courses/{courseId}/tiers:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get course tier config
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Course ID
+ *     responses:
+ *       '200':
+ *         description: Tier configuration for the course (free_only, paid_only, or both)
+ *       '404':
+ *         description: Course not found
+ */
 router.get(
   '/courses/:courseId/tiers',
   (req: AuthRequest, res: Response): void => {
@@ -623,6 +969,29 @@ router.get(
 
 // ─── GET /badges/:badgeId — badge data (owner or admin) ─────────────────────
 
+/**
+ * @openapi
+ * /badges/{badgeId}:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get badge data
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: badgeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Badge ID
+ *     responses:
+ *       '200':
+ *         description: Badge data including SVG and hash
+ *       '403':
+ *         description: Not authorized to view this badge
+ *       '404':
+ *         description: Badge not found
+ */
 router.get(
   '/badges/:badgeId',
   (req: AuthRequest, res: Response): void => {
@@ -657,6 +1026,34 @@ router.get(
 
 // ─── GET /badges/:badgeId/download — SVG file download ──────────────────────
 
+/**
+ * @openapi
+ * /badges/{badgeId}/download:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Download badge SVG
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: badgeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Badge ID
+ *     responses:
+ *       '200':
+ *         description: SVG badge file download
+ *         content:
+ *           image/svg+xml:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       '403':
+ *         description: Not authorized to download this badge
+ *       '404':
+ *         description: Badge not found
+ */
 router.get(
   '/badges/:badgeId/download',
   (req: AuthRequest, res: Response): void => {

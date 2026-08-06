@@ -9,6 +9,17 @@ const router = Router();
 router.use(authenticate);
 router.use(requirePermission('tenant.manage'));
 
+/**
+ * @openapi
+ * /admin/tenants:
+ *   get:
+ *     tags: [Tenants]
+ *     summary: List tenants
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: List of tenants with user and course counts }
+ *       403: { description: Requires tenant.manage }
+ */
 // GET /admin/tenants — list all tenants with counts
 router.get('/', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -27,6 +38,28 @@ router.get('/', (req: AuthRequest, res: Response, next: NextFunction): void => {
   } catch (error) { next(error); }
 });
 
+/**
+ * @openapi
+ * /admin/tenants:
+ *   post:
+ *     tags: [Tenants]
+ *     summary: Create tenant
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, slug]
+ *             properties:
+ *               name: { type: string }
+ *               slug: { type: string }
+ *     responses:
+ *       201: { description: Tenant created }
+ *       409: { description: Slug already exists }
+ *       403: { description: Requires tenant.manage }
+ */
 // POST /admin/tenants — create tenant
 router.post('/', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -55,6 +88,32 @@ router.post('/', (req: AuthRequest, res: Response, next: NextFunction): void => 
   } catch (error) { next(error); }
 });
 
+/**
+ * @openapi
+ * /admin/tenants/{id}:
+ *   put:
+ *     tags: [Tenants]
+ *     summary: Update tenant
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               slug: { type: string }
+ *               status: { type: string, enum: [active, suspended] }
+ *     responses:
+ *       200: { description: Tenant updated }
+ *       404: { description: Tenant not found }
+ *       403: { description: Requires tenant.manage }
+ */
 // PUT /admin/tenants/:id — update tenant
 router.put('/:id', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -85,6 +144,23 @@ router.put('/:id', (req: AuthRequest, res: Response, next: NextFunction): void =
   } catch (error) { next(error); }
 });
 
+/**
+ * @openapi
+ * /admin/tenants/{id}:
+ *   delete:
+ *     tags: [Tenants]
+ *     summary: Delete tenant
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Tenant deleted }
+ *       404: { description: Tenant not found }
+ *       403: { description: Requires tenant.manage }
+ */
 // DELETE /admin/tenants/:id — delete tenant (courses get tenant_id = NULL via ON DELETE SET NULL)
 router.delete('/:id', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -101,6 +177,22 @@ router.delete('/:id', (req: AuthRequest, res: Response, next: NextFunction): voi
   } catch (error) { next(error); }
 });
 
+/**
+ * @openapi
+ * /admin/tenants/{id}/users:
+ *   get:
+ *     tags: [Tenants]
+ *     summary: List tenant users
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: List of users in the tenant }
+ *       403: { description: Requires tenant.manage }
+ */
 // GET /admin/tenants/:id/users — list tenant users
 router.get('/:id/users', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -118,6 +210,33 @@ router.get('/:id/users', (req: AuthRequest, res: Response, next: NextFunction): 
   } catch (error) { next(error); }
 });
 
+/**
+ * @openapi
+ * /admin/tenants/{id}/users:
+ *   post:
+ *     tags: [Tenants]
+ *     summary: Add user to tenant
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId]
+ *             properties:
+ *               userId: { type: string }
+ *               tenantRole: { type: string, enum: [admin, lecturer, member] }
+ *     responses:
+ *       201: { description: User added to tenant }
+ *       404: { description: Tenant or user not found }
+ *       403: { description: Requires tenant.manage }
+ */
 // POST /admin/tenants/:id/users — add user to tenant
 router.post('/:id/users', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -147,6 +266,26 @@ router.post('/:id/users', (req: AuthRequest, res: Response, next: NextFunction):
   } catch (error) { next(error); }
 });
 
+/**
+ * @openapi
+ * /admin/tenants/{id}/users/{userId}:
+ *   delete:
+ *     tags: [Tenants]
+ *     summary: Remove user from tenant
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: User removed from tenant }
+ *       403: { description: Requires tenant.manage }
+ */
 // DELETE /admin/tenants/:id/users/:userId — remove user from tenant
 router.delete('/:id/users/:userId', (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
