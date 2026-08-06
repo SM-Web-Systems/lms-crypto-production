@@ -18,3 +18,20 @@ test.describe('Health smoke test', () => {
     expect(body.uptime).toBeGreaterThan(0);
   });
 });
+
+test.describe('Readiness smoke test', () => {
+  test('SMOKE-001: GET /healthz returns 200', async ({ request }) => {
+    const response = await request.get(`${apiURL}/healthz`);
+    expect(response.status()).toBe(200);
+  });
+
+  test('SMOKE-002: GET /healthz returns ready: true with all checks', async ({ request }) => {
+    const response = await request.get(`${apiURL}/healthz`);
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.ready).toBe(true);
+    expect(body.checks.db_read.ok).toBe(true);
+    expect(body.checks.db_write.ok).toBe(true);
+    expect(body.checks.disk.ok).toBe(true);
+  });
+});
