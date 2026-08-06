@@ -173,15 +173,16 @@ export function PricingManagement() {
         )}
 
         {editingCourse && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="pricing-dialog-title" onKeyDown={(e) => { if (e.key === 'Escape') setEditingCourse(null); }}>
             <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
-              <h3 className="text-lg font-semibold mb-4">Set Certificate Price</h3>
+              <h3 id="pricing-dialog-title" className="text-lg font-semibold mb-4">Set Certificate Price</h3>
               {saveError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{saveError}</div>}
               <p className="text-sm text-neutral-600 mb-3">
                 Course: {editingCourse.courseName}
               </p>
-              <label className="block text-sm font-medium mb-1">Price (USD)</label>
+              <label htmlFor="pricing-price" className="block text-sm font-medium mb-1">Price (USD)</label>
               <input
+                id="pricing-price"
                 type="number"
                 min="0"
                 step="0.01"
@@ -191,8 +192,9 @@ export function PricingManagement() {
                 placeholder="0.00"
               />
               <p className="text-xs text-neutral-500 mb-3">Set to $0 for free certificates</p>
-              <label className="block text-sm font-medium mb-1">Tier Mode</label>
+              <label htmlFor="pricing-tier" className="block text-sm font-medium mb-1">Tier Mode</label>
               <select
+                id="pricing-tier"
                 value={tierMode}
                 onChange={(e) => setTierMode(e.target.value as TiersEnabled)}
                 className="w-full border rounded px-3 py-2 mb-4"
@@ -201,8 +203,9 @@ export function PricingManagement() {
                 <option value="free_only">Free Only</option>
                 <option value="paid_only">Paid Only</option>
               </select>
-              <label className="block text-sm font-medium mb-1">Stellar XLM Price</label>
+              <label htmlFor="pricing-xlm" className="block text-sm font-medium mb-1">Stellar XLM Price</label>
               <input
+                id="pricing-xlm"
                 type="number"
                 min="0"
                 step="0.01"
@@ -211,8 +214,9 @@ export function PricingManagement() {
                 className="w-full border rounded px-3 py-2 mb-2"
                 placeholder="Leave empty to disable XLM"
               />
-              <label className="block text-sm font-medium mb-1">Stellar USDC Price</label>
+              <label htmlFor="pricing-usdc" className="block text-sm font-medium mb-1">Stellar USDC Price</label>
               <input
+                id="pricing-usdc"
                 type="number"
                 min="0"
                 step="0.01"

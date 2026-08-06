@@ -58,6 +58,7 @@ export const AnnouncementsPanel: React.FC<Props> = ({ isAdmin }) => {
   const [saving, setSaving]         = useState(false);
   const [formError, setFormError]   = useState<string | null>(null);
   const [deleting, setDeleting]     = useState<string | null>(null);
+  const [courseLoading, setCourseLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,14 +75,20 @@ export const AnnouncementsPanel: React.FC<Props> = ({ isAdmin }) => {
 
   useEffect(() => { void load(); }, [load]);
 
+  const loadCoursesIfNeeded = async () => {
+    if (courses.length === 0) {
+      setCourseLoading(true);
+      const list = await courseService.fetchCourses().catch(() => []);
+      setCourses(list);
+      setCourseLoading(false);
+    }
+  };
+
   const openCreate = async () => {
     setEditingId(null);
     setDraft(EMPTY_DRAFT);
     setFormError(null);
-    if (courses.length === 0) {
-      const list = await courseService.fetchCourses().catch(() => []);
-      setCourses(list);
-    }
+    await loadCoursesIfNeeded();
     setModalOpen(true);
   };
 
@@ -89,10 +96,7 @@ export const AnnouncementsPanel: React.FC<Props> = ({ isAdmin }) => {
     setEditingId(a.id);
     setDraft({ title: a.title, body: a.body, scope: a.scope, courseId: a.courseId, pinned: a.pinned });
     setFormError(null);
-    if (courses.length === 0) {
-      const list = await courseService.fetchCourses().catch(() => []);
-      setCourses(list);
-    }
+    await loadCoursesIfNeeded();
     setModalOpen(true);
   };
 
@@ -126,7 +130,7 @@ export const AnnouncementsPanel: React.FC<Props> = ({ isAdmin }) => {
       await announcementService.delete(id);
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
     } catch {
-      alert('Failed to delete announcement');
+      setError('Failed to delete announcement');
     } finally {
       setDeleting(null);
     }
@@ -150,9 +154,9 @@ export const AnnouncementsPanel: React.FC<Props> = ({ isAdmin }) => {
           <h2 className="text-lg font-bold text-neutral-900">Announcements</h2>
         </div>
         {isAdmin && (
-          <Button type="button" size="sm" onClick={() => void openCreate()}>
-            <Plus className="h-3.5 w-3.5 mr-1" aria-hidden />
-            New announcement
+          <Button type="button" size="sm" onClick={() => void openCreate()} disabled={courseLoading}>
+            {courseLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" aria-hidden /> : <Plus className="h-3.5 w-3.5 mr-1" aria-hidden />}
+            {courseLoading ? 'Loading…' : 'New announcement'}
           </Button>
         )}
       </div>
@@ -271,10 +275,14 @@ export const AnnouncementsPanel: React.FC<Props> = ({ isAdmin }) => {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/40 backdrop-blur-sm"
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="announcement-dialog-title"
+          onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}
         >
           <div className="w-full max-w-lg rounded-2xl border border-neutral-200/90 bg-white shadow-2xl ring-1 ring-neutral-900/[0.04]">
             <div className="flex items-center justify-between border-b border-neutral-200/90 px-5 py-4">
-              <h2 className="font-bold text-neutral-900 text-base">
+              <h2 id="announcement-dialog-title" className="font-bold text-neutral-900 text-base">
                 {editingId ? 'Edit announcement' : 'New announcement'}
               </h2>
               <button

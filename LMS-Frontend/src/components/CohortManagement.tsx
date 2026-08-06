@@ -65,18 +65,18 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreate
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="cohort-dialog-title" onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
       <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold mb-4">Create Cohort</h3>
+        <h3 id="cohort-dialog-title" className="text-lg font-semibold mb-4">Create Cohort</h3>
         {error && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input className="w-full border rounded px-3 py-2 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp Q3 2026" />
+            <label htmlFor="cohort-name" className="block text-sm font-medium mb-1">Name</label>
+            <input id="cohort-name" className="w-full border rounded px-3 py-2 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acme Corp Q3 2026" />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Course</label>
-            <select className="w-full border rounded px-3 py-2 text-sm" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
+            <label htmlFor="cohort-course" className="block text-sm font-medium mb-1">Course</label>
+            <select id="cohort-course" className="w-full border rounded px-3 py-2 text-sm" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
               {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           </div>

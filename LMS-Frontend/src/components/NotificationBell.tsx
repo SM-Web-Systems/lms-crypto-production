@@ -38,15 +38,24 @@ const NotificationBell: React.FC = () => {
     return () => clearInterval(id);
   }, [fetchNotifications]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click or Escape key
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    if (open) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    if (open) {
+      document.addEventListener('mousedown', handler);
+      document.addEventListener('keydown', keyHandler);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, [open]);
 
   const handleBellClick = () => {
@@ -77,6 +86,8 @@ const NotificationBell: React.FC = () => {
         onClick={handleBellClick}
         className="relative inline-flex items-center justify-center p-2 rounded-md text-neutral-600 hover:bg-neutral-100 transition-colors"
         aria-label="Notifications"
+        aria-expanded={open}
+        aria-haspopup="true"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
@@ -87,7 +98,7 @@ const NotificationBell: React.FC = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg ring-1 ring-neutral-900/10 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg ring-1 ring-neutral-900/10 z-50 overflow-hidden" role="menu" aria-label="Notifications">
           <div className="px-4 py-3 border-b border-neutral-100">
             <p className="text-sm font-semibold text-neutral-800">Notifications</p>
           </div>
@@ -101,6 +112,7 @@ const NotificationBell: React.FC = () => {
                 <button
                   key={notif.id}
                   type="button"
+                  role="menuitem"
                   onClick={() => handleNotificationClick(notif)}
                   className={[
                     'w-full text-left px-4 py-3 border-b border-neutral-50 hover:bg-neutral-50 transition-colors',
