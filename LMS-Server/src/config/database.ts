@@ -760,6 +760,23 @@ function ensureNotificationsTable(): void {
 }
 ensureNotificationsTable();
 
+/** Phase 23 C3 — notification_preferences for per-type opt-out. */
+function ensureNotificationPreferencesTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type       TEXT NOT NULL,
+      enabled    INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, type)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notification_preferences_user
+      ON notification_preferences(user_id);
+  `);
+}
+ensureNotificationPreferencesTable();
+
 /** Phase 11 C1a — course_pricing + payments tables for certificate monetization. */
 function ensurePaymentsTables(): void {
   db.exec(`
@@ -1169,6 +1186,8 @@ export function seedRbacData(): void {
     ['perm_tenant_view', 'tenant.view', 'tenant', 'View Tenants'],
     // email (1)
     ['perm_email_manage', 'email.manage', 'email', 'Manage Email Templates'],
+    // notification (1)
+    ['perm_notification_broadcast', 'notification.broadcast', 'notification', 'Broadcast Notifications'],
   ];
 
   const insertPerm = db.prepare(
@@ -1285,6 +1304,8 @@ export function seedRbacData(): void {
       'perm_tenant_view',
       // email
       'perm_email_manage',
+      // notification
+      'perm_notification_broadcast',
     ],
     role_admin2: [
       // course: all
@@ -1321,9 +1342,11 @@ export function seedRbacData(): void {
       'perm_tenant_view',
       // email
       'perm_email_manage',
+      // notification
+      'perm_notification_broadcast',
     ],
     role_super_admin: [
-      // All 60 permissions
+      // All 61 permissions
       'perm_course_view', 'perm_course_create', 'perm_course_manage', 'perm_course_delete',
       'perm_course_enroll', 'perm_course_enroll_others', 'perm_course_submit',
       'perm_course_grade', 'perm_course_grade_pending',
@@ -1346,6 +1369,8 @@ export function seedRbacData(): void {
       'perm_tenant_manage', 'perm_tenant_view',
       // email
       'perm_email_manage',
+      // notification
+      'perm_notification_broadcast',
     ],
     // custom-user role: no default permissions (assigned per custom role)
   };
