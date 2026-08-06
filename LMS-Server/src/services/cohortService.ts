@@ -17,6 +17,65 @@ import { getCoursePricing } from './paymentService.js';
 import { getTiersEnabled } from './badgeService.js';
 import { getCourseProgress } from './courseCompletionService.js';
 
+// ─── Status Transitions (Phase 22 C2) ───────────────────────────────────────
+
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ['active'],
+  active: ['completed'],
+  completed: [],
+};
+
+export function transitionCohortStatus(
+  cohortId: string,
+  toStatus: 'active' | 'completed',
+  triggeredBy: string,
+  reason?: string,
+): boolean {
+  const cohort = queryOne<{ status: string }>('SELECT status FROM sponsor_cohorts WHERE id = ?', [cohortId]);
+  if (!cohort) return false;
+
+  const fromStatus = cohort.status;
+  if (fromStatus === toStatus) return false;
+  if (!VALID_TRANSITIONS[fromStatus]?.includes(toStatus)) return false;
+
+  execute("UPDATE sponsor_cohorts SET status = ? WHERE id = ?", [toStatus, cohortId]);
+  execute(
+    `INSERT INTO cohort_status_log (id, cohort_id, from_status, to_status, triggered_by, reason, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+    [uuidv4(), cohortId, fromStatus, toStatus, triggeredBy, reason ?? null],
+  );
+  return true;
+}
+
+export function getStatusLog(cohortId: string): Array<{
+  id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string;
+}> {
+  return query<{
+    id: string; from_status: string; to_status: string; triggered_by: string; reason: string | null; created_at: string;
+  }>('SELECT * FROM cohort_status_log WHERE cohort_id = ? ORDER BY created_at DESC', [cohortId]).map((r) => ({
+    id: r.id,
+    fromStatus: r.from_status,
+    toStatus: r.to_status,
+    triggeredBy: r.triggered_by,
+    reason: r.reason,
+    createdAt: r.created_at,
+  }));
+}
+
+/** Lazy evaluation: check date-based transitions for a single cohort */
+function lazyCheckStatus(cohortId: string, status: string, startDate: string | null, endDate: string | null): string {
+  const now = new Date().toISOString();
+  if (status === 'draft' && startDate && startDate <= now) {
+    transitionCohortStatus(cohortId, 'active', 'system:lazy', 'Start date reached');
+    return 'active';
+  }
+  if (status === 'active' && endDate && endDate <= now) {
+    transitionCohortStatus(cohortId, 'completed', 'system:lazy', 'End date reached');
+    return 'completed';
+  }
+  return status;
+}
+
 // ─── Cohort CRUD ────────────────────────────────────────────────────────────
 
 export function createCohort(params: {
@@ -25,8 +84,10 @@ export function createCohort(params: {
   courseId: string;
   selectedTier: CertificateTier;
   memberUserIds?: string[];
+  startDate?: string;
+  endDate?: string;
 }): SponsorCohortSummary {
-  const { name, sponsorUserId, courseId, selectedTier, memberUserIds } = params;
+  const { name, sponsorUserId, courseId, selectedTier, memberUserIds, startDate, endDate } = params;
 
   // Validate course exists
   const course = queryOne<{ id: string; title: string }>(
@@ -46,9 +107,9 @@ export function createCohort(params: {
 
   const cohortId = uuidv4();
   execute(
-    `INSERT INTO sponsor_cohorts (id, name, sponsor_user_id, course_id, selected_tier, status, created_at)
-     VALUES (?, ?, ?, ?, ?, 'draft', datetime('now'))`,
-    [cohortId, name, sponsorUserId, courseId, selectedTier],
+    `INSERT INTO sponsor_cohorts (id, name, sponsor_user_id, course_id, selected_tier, status, start_date, end_date, created_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, datetime('now'))`,
+    [cohortId, name, sponsorUserId, courseId, selectedTier, startDate ?? null, endDate ?? null],
   );
 
   // Add initial members if provided
@@ -84,6 +145,7 @@ export function listCohorts(filters?: { courseId?: string }): SponsorCohortSumma
   let sql = `
     SELECT sc.id, sc.name, sc.course_id, c.title as course_name,
            sc.selected_tier, sc.status, sc.payment_id, sc.created_at,
+           sc.start_date, sc.end_date,
            (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) as member_count,
            (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id AND cm.application_id IS NOT NULL) as applied_count,
            p.status as payment_status
@@ -101,33 +163,39 @@ export function listCohorts(filters?: { courseId?: string }): SponsorCohortSumma
   const rows = query<{
     id: string; name: string; course_id: string; course_name: string;
     selected_tier: CertificateTier; status: string; payment_id: string | null;
-    created_at: string; member_count: number; applied_count: number;
+    created_at: string; start_date: string | null; end_date: string | null;
+    member_count: number; applied_count: number;
     payment_status: string | null;
   }>(sql, params);
 
-  return rows.map((r) => ({
-    cohortId: r.id,
-    name: r.name,
-    courseId: r.course_id,
-    courseName: r.course_name,
-    selectedTier: r.selected_tier,
-    status: r.status,
-    memberCount: r.member_count,
-    appliedCount: r.applied_count,
-    paymentStatus: r.payment_status,
-    createdAt: r.created_at,
-  }));
+  return rows.map((r) => {
+    const status = lazyCheckStatus(r.id, r.status, r.start_date, r.end_date);
+    return {
+      cohortId: r.id,
+      name: r.name,
+      courseId: r.course_id,
+      courseName: r.course_name,
+      selectedTier: r.selected_tier,
+      status,
+      memberCount: r.member_count,
+      appliedCount: r.applied_count,
+      paymentStatus: r.payment_status,
+      createdAt: r.created_at,
+    };
+  });
 }
 
 export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; members: CohortMemberDetail[]; completionStats: CohortCompletionStats } | null {
   const row = queryOne<{
     id: string; name: string; course_id: string; course_name: string;
     selected_tier: CertificateTier; status: string; payment_id: string | null;
-    created_at: string; member_count: number; applied_count: number;
+    created_at: string; start_date: string | null; end_date: string | null;
+    member_count: number; applied_count: number;
     payment_status: string | null;
   }>(`
     SELECT sc.id, sc.name, sc.course_id, c.title as course_name,
            sc.selected_tier, sc.status, sc.payment_id, sc.created_at,
+           sc.start_date, sc.end_date,
            (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) as member_count,
            (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id AND cm.application_id IS NOT NULL) as applied_count,
            p.status as payment_status
@@ -204,6 +272,15 @@ export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; mem
       : 0,
   };
 
+  // Lazy evaluation: date-based transitions
+  let status = lazyCheckStatus(row.id, row.status, row.start_date, row.end_date);
+
+  // Lazy evaluation: completion-based transition (active → completed when all members done)
+  if (status === 'active' && enrichedMembers.length > 0 && completionStats.completedCount === enrichedMembers.length) {
+    transitionCohortStatus(row.id, 'completed', 'system:lazy', 'All members completed');
+    status = 'completed';
+  }
+
   return {
     cohort: {
       cohortId: row.id,
@@ -211,7 +288,7 @@ export function getCohort(cohortId: string): { cohort: SponsorCohortSummary; mem
       courseId: row.course_id,
       courseName: row.course_name,
       selectedTier: row.selected_tier,
-      status: row.status,
+      status,
       memberCount: row.member_count,
       appliedCount: row.applied_count,
       paymentStatus: row.payment_status,
@@ -312,7 +389,7 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
 
   // Update cohort status to 'active' if any applications created
   if (applied > 0) {
-    execute("UPDATE sponsor_cohorts SET status = 'active' WHERE id = ?", [cohortId]);
+    transitionCohortStatus(cohortId, 'active', 'system:bulkApply', `${applied} applications created`);
   }
 
   return { cohortId, applied, skipped };

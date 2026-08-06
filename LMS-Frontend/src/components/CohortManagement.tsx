@@ -112,10 +112,11 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreate
 interface CohortDetailProps {
   cohortId: string;
   selectedTier: CertificateTier;
+  cohortStatus: string;
   onRefresh: () => void;
 }
 
-const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onRefresh }) => {
+const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, cohortStatus, onRefresh }) => {
   const [members, setMembers] = useState<CohortMemberDetail[]>([]);
   const [completionStats, setCompletionStats] = useState<CohortCompletionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,13 +124,18 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
   const [payResult, setPayResult] = useState<{ paymentId: string; amountCents: number } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [statusLog, setStatusLog] = useState<Array<{ id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string }>>([]);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await cohortService.getCohort(cohortId);
+      const [data, log] = await Promise.all([
+        cohortService.getCohort(cohortId),
+        cohortService.getStatusLog(cohortId),
+      ]);
       setMembers(data.members);
       setCompletionStats(data.completionStats);
+      setStatusLog(log);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -178,6 +184,20 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
     }
   };
 
+  const handleTransition = async (toStatus: 'active' | 'completed') => {
+    setActionLoading('transition');
+    setError(null);
+    try {
+      await cohortService.transitionStatus(cohortId, toStatus);
+      loadMembers();
+      onRefresh();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) return <div className="p-3 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading members...</div>;
 
   return (
@@ -205,6 +225,18 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
           <Button size="sm" variant="outline" onClick={handleBulkPay} disabled={actionLoading !== null}>
             {actionLoading === 'pay' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
             Create Payment
+          </Button>
+        )}
+        {cohortStatus === 'draft' && (
+          <Button size="sm" variant="primary" onClick={() => handleTransition('active')} disabled={actionLoading !== null} data-testid="btn-mark-active">
+            {actionLoading === 'transition' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+            Mark Active
+          </Button>
+        )}
+        {cohortStatus === 'active' && (
+          <Button size="sm" variant="success" onClick={() => handleTransition('completed')} disabled={actionLoading !== null} data-testid="btn-mark-completed">
+            {actionLoading === 'transition' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+            Mark Completed
           </Button>
         )}
       </div>
@@ -270,6 +302,24 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, onR
             ))}
           </tbody>
         </table>
+      )}
+
+      {statusLog.length > 0 && (
+        <div className="mt-3 pt-3 border-t" data-testid="status-log">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Transition History</h4>
+          <div className="space-y-1">
+            {statusLog.map((entry) => (
+              <div key={entry.id} className="flex items-center gap-2 text-xs text-gray-600">
+                <span className="text-gray-400">{new Date(entry.createdAt).toLocaleString()}</span>
+                <span className="font-medium">{entry.fromStatus}</span>
+                <span aria-hidden="true">&rarr;</span>
+                <span className="font-medium">{entry.toStatus}</span>
+                <span className="text-gray-400">by {entry.triggeredBy}</span>
+                {entry.reason && <span className="italic text-gray-400">({entry.reason})</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -353,7 +403,7 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses }) =
                   </tr>
                   {expanded === c.cohortId && (
                     <tr><td colSpan={8}>
-                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} onRefresh={load} />
+                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} cohortStatus={c.status} onRefresh={load} />
                     </td></tr>
                   )}
                 </React.Fragment>

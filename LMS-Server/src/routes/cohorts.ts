@@ -15,13 +15,15 @@ import {
   removeMember,
   bulkApply,
   bulkPay,
+  transitionCohortStatus,
+  getStatusLog,
 } from '../services/cohortService.js';
 
 const router = Router();
 
 // POST /admin/cohorts — create cohort
 router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
-  const { name, courseId, selectedTier, memberUserIds } = req.body;
+  const { name, courseId, selectedTier, memberUserIds, startDate, endDate } = req.body;
 
   if (!name || !courseId) {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'name and courseId are required' } });
@@ -40,6 +42,8 @@ router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), 
       courseId,
       selectedTier: selectedTier || 'free',
       memberUserIds,
+      startDate,
+      endDate,
     });
     res.status(201).json({ success: true, data: cohort });
   } catch (err: any) {
@@ -133,6 +137,35 @@ router.post('/admin/cohorts/:cohortId/pay', authenticate, requirePermission('coh
       res.status(500).json({ success: false, error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Internal error' } });
     }
   }
+});
+
+// PATCH /admin/cohorts/:cohortId/status — admin override
+router.patch('/admin/cohorts/:cohortId/status', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const { status, reason } = req.body;
+  if (!status || (status !== 'active' && status !== 'completed')) {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: "status must be 'active' or 'completed'" } });
+    return;
+  }
+
+  const transitioned = transitionCohortStatus(
+    req.params.cohortId,
+    status,
+    `admin:${req.user!.userId}`,
+    reason,
+  );
+
+  if (!transitioned) {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Invalid status transition' } });
+    return;
+  }
+
+  res.json({ success: true, data: { cohortId: req.params.cohortId, status } });
+});
+
+// GET /admin/cohorts/:cohortId/status-log — transition history
+router.get('/admin/cohorts/:cohortId/status-log', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const log = getStatusLog(req.params.cohortId);
+  res.json({ success: true, data: { log } });
 });
 
 export default router;

@@ -25,6 +25,8 @@ vi.mock('../../services/cohortService', () => ({
     removeMember: vi.fn(),
     bulkApply: vi.fn(),
     bulkPay: vi.fn(),
+    transitionStatus: vi.fn(),
+    getStatusLog: vi.fn(),
   },
 }));
 
@@ -35,6 +37,8 @@ const mockListCohorts = cohortService.listCohorts as ReturnType<typeof vi.fn>;
 const mockGetCohort = cohortService.getCohort as ReturnType<typeof vi.fn>;
 const mockCreateCohort = cohortService.createCohort as ReturnType<typeof vi.fn>;
 const mockBulkApply = cohortService.bulkApply as ReturnType<typeof vi.fn>;
+const mockTransitionStatus = cohortService.transitionStatus as ReturnType<typeof vi.fn>;
+const mockGetStatusLog = cohortService.getStatusLog as ReturnType<typeof vi.fn>;
 
 const sampleCourses = [
   { id: 'c1', title: 'Test Course', tiersEnabled: 'both' },
@@ -64,6 +68,7 @@ describe('CohortManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListCohorts.mockResolvedValue([sampleCohort]);
+    mockGetStatusLog.mockResolvedValue([]);
   });
 
   // COH-F1: Cohort list renders with correct columns
@@ -257,5 +262,90 @@ describe('CohortManagement', () => {
       expect(screen.getByText('NFT')).toBeInTheDocument();
       expect(screen.getByText('Badge')).toBeInTheDocument();
     });
+  });
+
+  // CST-F1: Mark Active button shows for draft cohorts
+  it('CST-F1 — shows Mark Active button for draft cohorts', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
+    });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      expect(screen.getByTestId('btn-mark-active')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('btn-mark-completed')).not.toBeInTheDocument();
+  });
+
+  // CST-F2: Mark Completed button shows for active cohorts
+  it('CST-F2 — shows Mark Completed button for active cohorts', async () => {
+    const activeCohort = { ...sampleCohort, status: 'active' as const };
+    mockListCohorts.mockResolvedValue([activeCohort]);
+    mockGetCohort.mockResolvedValue({
+      cohort: activeCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 100, meetsRequirements: true, certificateStatus: 'badge' as const }],
+      completionStats: { totalMembers: 1, completedCount: 1, certifiedCount: 1, avgLessonProgress: 100 },
+    });
+    const user = userEvent.setup();
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      expect(screen.getByTestId('btn-mark-completed')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('btn-mark-active')).not.toBeInTheDocument();
+  });
+
+  // CST-F3: Transition button calls cohortService.transitionStatus
+  it('CST-F3 — Mark Active calls transitionStatus with correct args', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
+    });
+    mockTransitionStatus.mockResolvedValue({ cohortId: 'coh1', status: 'active' });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => expect(screen.getByTestId('btn-mark-active')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('btn-mark-active'));
+    await waitFor(() => {
+      expect(mockTransitionStatus).toHaveBeenCalledWith('coh1', 'active');
+    });
+  });
+
+  // CST-F4: Transition history renders when log entries exist
+  it('CST-F4 — shows transition history when status log has entries', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
+    });
+    mockGetStatusLog.mockResolvedValue([
+      { id: 'log1', fromStatus: 'draft', toStatus: 'active', triggeredBy: 'admin:u1', reason: 'Manual activation', createdAt: '2026-08-06T12:00:00Z' },
+    ]);
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      expect(screen.getByTestId('status-log')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Transition History')).toBeInTheDocument();
+    expect(screen.getByText('(Manual activation)')).toBeInTheDocument();
   });
 });

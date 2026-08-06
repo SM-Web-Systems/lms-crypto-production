@@ -409,6 +409,8 @@ CREATE TABLE IF NOT EXISTS sponsor_cohorts (
   selected_tier    TEXT NOT NULL DEFAULT 'free' CHECK (selected_tier IN ('free', 'paid')),
   payment_id       TEXT REFERENCES payments(id) ON DELETE SET NULL,
   status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed')),
+  start_date       TEXT DEFAULT NULL,
+  end_date         TEXT DEFAULT NULL,
   created_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sponsor_cohorts_course ON sponsor_cohorts(course_id);
@@ -423,6 +425,18 @@ CREATE TABLE IF NOT EXISTS cohort_members (
   PRIMARY KEY (cohort_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_cohort_members_user ON cohort_members(user_id);
+
+-- Phase 22 C2: cohort status transition audit log
+CREATE TABLE IF NOT EXISTS cohort_status_log (
+  id           TEXT PRIMARY KEY,
+  cohort_id    TEXT NOT NULL REFERENCES sponsor_cohorts(id) ON DELETE CASCADE,
+  from_status  TEXT NOT NULL,
+  to_status    TEXT NOT NULL,
+  triggered_by TEXT NOT NULL,
+  reason       TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cohort_status_log_cohort ON cohort_status_log(cohort_id);
 
 -- Phase 12B: Capability-based RBAC
 CREATE TABLE IF NOT EXISTS roles (

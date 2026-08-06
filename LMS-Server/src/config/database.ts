@@ -872,6 +872,29 @@ function ensureCohortTables(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_cohort_members_user ON cohort_members(user_id);
   `);
+
+  // Phase 22 C2: Add start_date/end_date columns + status log
+  const cols = db.pragma('table_info(sponsor_cohorts)') as Array<{ name: string }>;
+  const colNames = cols.map((c) => c.name);
+  if (!colNames.includes('start_date')) {
+    db.exec(`ALTER TABLE sponsor_cohorts ADD COLUMN start_date TEXT DEFAULT NULL`);
+  }
+  if (!colNames.includes('end_date')) {
+    db.exec(`ALTER TABLE sponsor_cohorts ADD COLUMN end_date TEXT DEFAULT NULL`);
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cohort_status_log (
+      id           TEXT PRIMARY KEY,
+      cohort_id    TEXT NOT NULL REFERENCES sponsor_cohorts(id) ON DELETE CASCADE,
+      from_status  TEXT NOT NULL,
+      to_status    TEXT NOT NULL,
+      triggered_by TEXT NOT NULL,
+      reason       TEXT,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_cohort_status_log_cohort ON cohort_status_log(cohort_id);
+  `);
 }
 ensureCohortTables();
 

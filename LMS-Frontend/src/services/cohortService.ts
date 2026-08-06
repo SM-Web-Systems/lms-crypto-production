@@ -54,4 +54,19 @@ export const cohortService = {
     );
     return res.data.data;
   },
+
+  async transitionStatus(cohortId: string, status: 'active' | 'completed', reason?: string): Promise<{ cohortId: string; status: string }> {
+    const res = await api.patch<{ success: boolean; data: { cohortId: string; status: string } }>(
+      `/admin/cohorts/${cohortId}/status`,
+      { status, reason },
+    );
+    return res.data.data;
+  },
+
+  async getStatusLog(cohortId: string): Promise<Array<{ id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string }>> {
+    const res = await api.get<{ success: boolean; data: { log: Array<{ id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string }> } }>(
+      `/admin/cohorts/${cohortId}/status-log`,
+    );
+    return res.data.data.log;
+  },
 };
