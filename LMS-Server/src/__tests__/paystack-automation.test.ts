@@ -405,6 +405,38 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
     expect(res.body.data[0].amountCents).toBeDefined();
   });
 
+  // PAY-BE-1: Student payment history includes courseName
+  it('PAY-BE-1 — GET /payments/mine includes courseName', async () => {
+    const studentId = seedUser('student', 'be1-student');
+    const courseId = seedCourse('Blockchain Fundamentals', 'PAY-BE1');
+    const appId = seedApplication(studentId, courseId);
+    seedPayment(studentId, courseId, appId, 3000, 'confirmed');
+
+    const studentToken = makeToken({ userId: studentId, email: 'payauto-be1-student@test.com', role: 'student' });
+
+    const res = await request(app)
+      .get('/api/v1/payments/mine')
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].courseName).toBe('Blockchain Fundamentals');
+    expect(res.body.data[0].courseId).toBe(courseId);
+  });
+
+  // PAY-BE-2: Student payment history returns empty array for no payments
+  it('PAY-BE-2 — GET /payments/mine returns empty array for no payments', async () => {
+    const studentId = seedUser('student', 'be2-student');
+    const studentToken = makeToken({ userId: studentId, email: 'payauto-be2-student@test.com', role: 'student' });
+
+    const res = await request(app)
+      .get('/api/v1/payments/mine')
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+
   // PAY-B25: Pricing endpoint includes stellar fields
   it('PAY-B25 — pricing endpoint includes stellar fields', async () => {
     const adminId = seedUser('admin', 'b25-admin');

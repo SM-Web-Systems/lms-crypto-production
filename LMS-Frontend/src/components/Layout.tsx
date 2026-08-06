@@ -18,6 +18,7 @@ import {
   Award,
   BarChart2,
   Tag,
+  CreditCard,
 } from 'lucide-react';
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
@@ -90,6 +91,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
           { name: 'My Progress', path: '/student/progress', icon: BarChart2 },
           { name: 'My Submissions', path: '/student/submissions', icon: FileText },
+          { name: 'Payments', path: '/student/payments', icon: CreditCard },
           { name: 'Course', path: '/student/course', icon: BookOpen },
           { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
           { name: 'Resources', path: '/student/documents', icon: BookOpen },

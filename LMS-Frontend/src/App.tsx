@@ -15,6 +15,7 @@ import Profile from './pages/Profile';
 import CourseMembers from './pages/CourseMembers';
 import StudentDashboard from './pages/StudentDashboard';
 import StudentSubmissions from './pages/StudentSubmissions';
+import StudentPayments from './pages/StudentPayments';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminStudents from './pages/AdminStudents';
 import AdminSubmissions from './pages/AdminSubmissions';
@@ -151,6 +152,16 @@ function App() {
                 <ProtectedRoute allowedRole="student">
                   <Layout>
                     <StudentSubmissions />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/payments"
+              element={
+                <ProtectedRoute allowedRole="student">
+                  <Layout>
+                    <StudentPayments />
                   </Layout>
                 </ProtectedRoute>
               }

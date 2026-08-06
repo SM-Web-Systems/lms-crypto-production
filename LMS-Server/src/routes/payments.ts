@@ -491,6 +491,7 @@ router.get(
       data: payments.map((p) => ({
         paymentId: p.id,
         courseId: p.course_id,
+        courseName: p.course_name ?? null,
         amountCents: p.amount_cents,
         currency: p.currency,
         paymentMethod: p.payment_method,
