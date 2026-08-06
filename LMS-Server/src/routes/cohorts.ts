@@ -17,6 +17,9 @@ import {
   bulkPay,
   transitionCohortStatus,
   getStatusLog,
+  bulkInviteToCohort,
+  getSpendingReport,
+  sendPaymentReminders,
 } from '../services/cohortService.js';
 
 const router = Router();
@@ -62,6 +65,12 @@ router.get('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (
   const courseId = req.query.courseId as string | undefined;
   const cohorts = listCohorts(courseId ? { courseId } : undefined);
   res.json({ success: true, data: { cohorts, total: cohorts.length } });
+});
+
+// GET /admin/cohorts/spending-report — spending report (MUST be before :cohortId)
+router.get('/admin/cohorts/spending-report', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const report = getSpendingReport();
+  res.json({ success: true, data: report });
 });
 
 // GET /admin/cohorts/:cohortId — get cohort detail
@@ -166,6 +175,39 @@ router.patch('/admin/cohorts/:cohortId/status', authenticate, requirePermission(
 router.get('/admin/cohorts/:cohortId/status-log', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const log = getStatusLog(req.params.cohortId);
   res.json({ success: true, data: { log } });
+});
+
+// POST /admin/cohorts/:cohortId/invite — bulk invite emails to cohort
+router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const { emails } = req.body;
+  if (!Array.isArray(emails) || emails.length === 0) {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'emails array is required' } });
+    return;
+  }
+  try {
+    const result = bulkInviteToCohort(req.params.cohortId, emails);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    if (err.code === 'COHORT_NOT_FOUND') {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: err.message } });
+    } else {
+      res.status(500).json({ success: false, error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Internal error' } });
+    }
+  }
+});
+
+// POST /admin/cohorts/:cohortId/send-reminder — send payment reminders
+router.post('/admin/cohorts/:cohortId/send-reminder', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  try {
+    const result = sendPaymentReminders(req.params.cohortId);
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    if (err.code === 'COHORT_NOT_FOUND') {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: err.message } });
+    } else {
+      res.status(500).json({ success: false, error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Internal error' } });
+    }
+  }
 });
 
 export default router;

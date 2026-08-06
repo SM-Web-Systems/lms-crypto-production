@@ -3,6 +3,7 @@ import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import { CohortManagement } from '../components/CohortManagement';
 import { analyticsService, type CourseAnalytics, type SponsorStudent } from '../services/analyticsService';
+import { cohortService } from '../services/cohortService';
 import { getErrorMessage } from '../utils/apiError';
 import {
   RefreshCw,
@@ -16,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  DollarSign,
 } from 'lucide-react';
 
 interface SponsorGroup {
@@ -61,6 +63,7 @@ const SponsorDashboard: React.FC = () => {
   const [exporting, setExporting] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'cohorts'>('overview');
+  const [spendingReport, setSpendingReport] = useState<{ totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> } | null>(null);
 
   // Drill-down state: expanded courseId → student list
   const [expanded, setExpanded] = useState<Record<string, SponsorStudent[] | 'loading'>>({});
@@ -70,8 +73,12 @@ const SponsorDashboard: React.FC = () => {
     setError(null);
     setExpanded({});
     try {
-      const data = await analyticsService.getCourseAnalytics();
+      const [data, report] = await Promise.all([
+        analyticsService.getCourseAnalytics(),
+        cohortService.getSpendingReport().catch(() => null),
+      ]);
       setCourses(data);
+      setSpendingReport(report);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load sponsor data.'));
     } finally {
@@ -164,7 +171,31 @@ const SponsorDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'cohorts' ? (
-        <CohortManagement courses={courses.map((c) => ({ id: c.courseId, title: c.courseName, tiersEnabled: c.tiersEnabled ?? 'both' }))} />
+        <div>
+          {spendingReport && (
+            <div className="grid grid-cols-2 gap-3 mb-4" data-testid="spending-summary">
+              <Card className="shadow-sm">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <DollarSign className="h-5 w-5 text-green-600 shrink-0" aria-hidden />
+                  <div>
+                    <p className="text-xs text-neutral-500">Total Spent (Confirmed)</p>
+                    <p className="text-lg font-bold text-neutral-900" data-testid="total-spent">${(spendingReport.totalSpentCents / 100).toFixed(2)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Users className="h-5 w-5 text-blue-500 shrink-0" aria-hidden />
+                  <div>
+                    <p className="text-xs text-neutral-500">Cohorts</p>
+                    <p className="text-lg font-bold text-neutral-900">{spendingReport.cohorts.length}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          <CohortManagement courses={courses.map((c) => ({ id: c.courseId, title: c.courseName, tiersEnabled: c.tiersEnabled ?? 'both' }))} />
+        </div>
       ) : (<>
 
       {error && (

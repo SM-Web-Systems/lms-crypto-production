@@ -27,6 +27,8 @@ vi.mock('../../services/cohortService', () => ({
     bulkPay: vi.fn(),
     transitionStatus: vi.fn(),
     getStatusLog: vi.fn(),
+    bulkInviteToCohort: vi.fn(),
+    sendPaymentReminder: vi.fn(),
   },
 }));
 
@@ -39,6 +41,8 @@ const mockCreateCohort = cohortService.createCohort as ReturnType<typeof vi.fn>;
 const mockBulkApply = cohortService.bulkApply as ReturnType<typeof vi.fn>;
 const mockTransitionStatus = cohortService.transitionStatus as ReturnType<typeof vi.fn>;
 const mockGetStatusLog = cohortService.getStatusLog as ReturnType<typeof vi.fn>;
+const mockBulkInvite = cohortService.bulkInviteToCohort as ReturnType<typeof vi.fn>;
+const mockSendReminder = cohortService.sendPaymentReminder as ReturnType<typeof vi.fn>;
 
 const sampleCourses = [
   { id: 'c1', title: 'Test Course', tiersEnabled: 'both' },
@@ -347,5 +351,95 @@ describe('CohortManagement', () => {
     });
     expect(screen.getByText('Transition History')).toBeInTheDocument();
     expect(screen.getByText('(Manual activation)')).toBeInTheDocument();
+  });
+
+  // SP-F1: Invite form renders in CohortDetail
+  it('SP-F1 — invite form renders in expanded cohort detail', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [],
+      completionStats: { totalMembers: 0, completedCount: 0, certifiedCount: 0, avgLessonProgress: 0 },
+    });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => {
+      expect(screen.getByTestId('invite-form')).toBeInTheDocument();
+      expect(screen.getByTestId('invite-emails-input')).toBeInTheDocument();
+      expect(screen.getByTestId('btn-invite')).toBeInTheDocument();
+    });
+  });
+
+  // SP-F2: Invite button calls bulkInviteToCohort
+  it('SP-F2 — invite button calls bulkInviteToCohort with parsed emails', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [],
+      completionStats: { totalMembers: 0, completedCount: 0, certifiedCount: 0, avgLessonProgress: 0 },
+    });
+    mockBulkInvite.mockResolvedValue({ added: 1, invited: 1, alreadyInCohort: 0, errors: [] });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => expect(screen.getByTestId('invite-emails-input')).toBeInTheDocument());
+
+    await user.type(screen.getByTestId('invite-emails-input'), 'alice@test.com, bob@test.com');
+    await user.click(screen.getByTestId('btn-invite'));
+
+    await waitFor(() => {
+      expect(mockBulkInvite).toHaveBeenCalledWith('coh1', ['alice@test.com', 'bob@test.com']);
+    });
+  });
+
+  // SP-F3: Reminder result displays sent count after clicking Send Reminders
+  it('SP-F3 — reminder result displays sent count', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
+    });
+    mockSendReminder.mockResolvedValue({ sent: 3, cohortId: 'coh1' });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => expect(screen.getByTestId('btn-send-reminders')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('btn-send-reminders'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('reminder-result')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('reminder-result').textContent).toContain('Sent 3 reminder(s)');
+  });
+
+  // SP-F4: Reminder button calls sendPaymentReminder
+  it('SP-F4 — reminder button calls sendPaymentReminder', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 50, meetsRequirements: false, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 0, certifiedCount: 0, avgLessonProgress: 50 },
+    });
+    mockSendReminder.mockResolvedValue({ sent: 1, cohortId: 'coh1' });
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await waitFor(() => expect(screen.getByText('Acme Cohort')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Acme Cohort'));
+    await waitFor(() => expect(screen.getByTestId('btn-send-reminders')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('btn-send-reminders'));
+    await waitFor(() => {
+      expect(mockSendReminder).toHaveBeenCalledWith('coh1');
+    });
   });
 });

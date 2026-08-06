@@ -141,6 +141,10 @@ export function seedEmailTemplates(): void {
      "You've been invited to {{courseName}}",
      `<p>Hi,</p>\n<p>You have been invited to join <strong>{{courseName}}</strong> on <strong>{{lmsName}}</strong>.</p>\n<p>Click the button below to create your account and access the course immediately:</p>\n<p><a href="{{{signupUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Accept invitation &amp; sign up</a></p>\n<p>Or copy this link: <code>{{{signupUrl}}}</code></p>\n<p>This invitation link can be used once.</p>`,
      '["courseName","lmsName","signupUrl"]'],
+    ['cohort-payment-reminder', 'payment', 'Cohort Payment Reminder',
+     'Payment reminder for {{courseName}}',
+     `<p>Hi {{studentName}},</p>\n<p>This is a reminder that payment is pending for <strong>{{courseName}}</strong> (cohort: {{cohortName}}) on <strong>{{lmsName}}</strong>.</p>\n<p><a href="{{{loginUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to complete payment</a></p>\n<p>If you have questions, contact your administrator.</p>`,
+     '["studentName","courseName","cohortName","lmsName","loginUrl"]'],
   ];
 
   for (const [slug, category, name, subject, bodyHtml, variables] of seeds) {
