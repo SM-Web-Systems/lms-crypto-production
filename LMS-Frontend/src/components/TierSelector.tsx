@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from './Button';
 import { Award, Shield, Download, X } from 'lucide-react';
 import { courseCompletionService } from '../services/courseCompletionService';
@@ -8,6 +8,19 @@ interface TierSelectorProps {
   courseId: string;
   onSelect: (tier: CertificateTier) => void;
   onCancel: () => void;
+}
+
+function SafeSvg({ svg, className }: { svg: string; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current || !svg) return;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svg, 'image/svg+xml');
+    const svgEl = doc.querySelector('svg');
+    ref.current.replaceChildren();
+    if (svgEl) ref.current.appendChild(svgEl);
+  }, [svg]);
+  return <div ref={ref} className={className} />;
 }
 
 export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps) {
@@ -166,10 +179,7 @@ export function BadgeDisplay({ badgeId }: BadgeDisplayProps) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div
-              className="border rounded-lg overflow-hidden"
-              dangerouslySetInnerHTML={{ __html: badge.badgeSvg }}
-            />
+            <SafeSvg svg={badge.badgeSvg} className="border rounded-lg overflow-hidden" />
             <div className="mt-4 flex justify-end">
               <Button size="sm" onClick={handleDownload}>
                 <Download className="h-3 w-3 mr-1" />
