@@ -34,6 +34,31 @@ interface PaystackWebhookPayload {
   };
 }
 
+/**
+ * @openapi
+ * /webhooks/paystack:
+ *   post:
+ *     tags: [Webhooks]
+ *     summary: Paystack webhook handler
+ *     description: Handles charge.success, charge.failed, refund.processed events. HMAC signature verification required.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               event: { type: string }
+ *               data:
+ *                 type: object
+ *                 properties:
+ *                   reference: { type: string }
+ *                   status: { type: string }
+ *                   amount: { type: integer }
+ *     responses:
+ *       200: { description: Webhook processed }
+ *       401: { description: Invalid signature }
+ */
 // POST /webhooks/paystack — handle Paystack events
 router.post(
   '/paystack',

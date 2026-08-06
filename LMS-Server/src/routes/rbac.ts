@@ -29,6 +29,17 @@ function getHighestPrivilegeLevel(roles: string[]): number {
 
 // ─── Role CRUD ──────────────────────────────────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/roles:
+ *   get:
+ *     tags: [RBAC]
+ *     summary: List all roles
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: List of roles }
+ *       403: { description: Requires system.manage_roles }
+ */
 // GET /api/v1/admin/roles — List all roles
 router.get(
   '/roles',
@@ -43,6 +54,28 @@ router.get(
   },
 );
 
+/**
+ * @openapi
+ * /admin/roles:
+ *   post:
+ *     tags: [RBAC]
+ *     summary: Create custom role
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, label]
+ *             properties:
+ *               name: { type: string }
+ *               label: { type: string }
+ *               description: { type: string }
+ *     responses:
+ *       201: { description: Role created }
+ *       409: { description: Name already exists }
+ */
 // POST /api/v1/admin/roles — Create custom role
 router.post(
   '/roles',
@@ -78,6 +111,30 @@ router.post(
   },
 );
 
+/**
+ * @openapi
+ * /admin/roles/{id}:
+ *   put:
+ *     tags: [RBAC]
+ *     summary: Update custom role
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               label: { type: string }
+ *               description: { type: string }
+ *     responses:
+ *       200: { description: Role updated }
+ *       400: { description: Cannot modify system roles }
+ */
 // PUT /api/v1/admin/roles/:id — Update custom role
 router.put(
   '/roles/:id',
@@ -110,6 +167,22 @@ router.put(
   },
 );
 
+/**
+ * @openapi
+ * /admin/roles/{id}:
+ *   delete:
+ *     tags: [RBAC]
+ *     summary: Delete custom role
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Role deleted }
+ *       400: { description: Cannot delete system roles }
+ */
 // DELETE /api/v1/admin/roles/:id — Delete custom role (non-system only)
 router.delete(
   '/roles/:id',
@@ -141,6 +214,16 @@ router.delete(
 
 // ─── Permissions ────────────────────────────────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/permissions:
+ *   get:
+ *     tags: [RBAC]
+ *     summary: List all permissions
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: List of permissions }
+ */
 // GET /api/v1/admin/permissions — List all permissions
 router.get(
   '/permissions',
@@ -154,6 +237,22 @@ router.get(
   },
 );
 
+/**
+ * @openapi
+ * /admin/roles/{id}/permissions:
+ *   get:
+ *     tags: [RBAC]
+ *     summary: Get role permissions
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: List of role permissions }
+ *       404: { description: Role not found }
+ */
 // GET /api/v1/admin/roles/:id/permissions — List role's permissions
 router.get(
   '/roles/:id/permissions',
@@ -181,6 +280,31 @@ router.get(
   },
 );
 
+/**
+ * @openapi
+ * /admin/roles/{id}/permissions:
+ *   put:
+ *     tags: [RBAC]
+ *     summary: Set role permissions
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [permissionIds]
+ *             properties:
+ *               permissionIds: { type: array, items: { type: string } }
+ *     responses:
+ *       200: { description: Permissions updated }
+ *       400: { description: Cannot modify system role permissions }
+ */
 // PUT /api/v1/admin/roles/:id/permissions — Set role's permissions
 router.put(
   '/roles/:id/permissions',
@@ -240,6 +364,21 @@ router.put(
 
 // ─── User Role Assignment ───────────────────────────────────────────────────
 
+/**
+ * @openapi
+ * /admin/users/{id}/roles:
+ *   get:
+ *     tags: [RBAC]
+ *     summary: Get user roles
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: User role list }
+ */
 // GET /api/v1/admin/users/:id/roles — List user's roles
 router.get(
   '/users/:id/roles',
@@ -257,6 +396,31 @@ router.get(
   },
 );
 
+/**
+ * @openapi
+ * /admin/users/{id}/roles:
+ *   post:
+ *     tags: [RBAC]
+ *     summary: Assign role to user
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [roleId]
+ *             properties:
+ *               roleId: { type: string }
+ *     responses:
+ *       201: { description: Role assigned }
+ *       403: { description: Privilege escalation blocked }
+ */
 // POST /api/v1/admin/users/:id/roles — Assign role to user
 router.post(
   '/users/:id/roles',
@@ -323,6 +487,26 @@ router.post(
   },
 );
 
+/**
+ * @openapi
+ * /admin/users/{id}/roles/{roleId}:
+ *   delete:
+ *     tags: [RBAC]
+ *     summary: Remove role from user
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: roleId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Role removed }
+ *       403: { description: Cannot modify own roles }
+ */
 // DELETE /api/v1/admin/users/:id/roles/:roleId — Remove role from user
 router.delete(
   '/users/:id/roles/:roleId',

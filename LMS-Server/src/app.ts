@@ -177,8 +177,42 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Health checks (no rate limit)
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Basic health check
+ *     servers:
+ *       - url: /
+ *     responses:
+ *       200: { description: Service healthy }
+ */
 app.get('/health', (_req, res) => { res.json(getHealthStatus()); });
+/**
+ * @openapi
+ * /api/v1/health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Health check (API-prefixed)
+ *     servers:
+ *       - url: /
+ *     responses:
+ *       200: { description: Service healthy }
+ */
 app.get('/api/v1/health', (_req, res) => { res.json(getHealthStatus()); });
+/**
+ * @openapi
+ * /healthz:
+ *   get:
+ *     tags: [Health]
+ *     summary: Readiness probe
+ *     servers:
+ *       - url: /
+ *     responses:
+ *       200: { description: Service ready }
+ *       503: { description: Service not ready }
+ */
 app.get('/healthz', (_req, res) => {
   const status = getReadinessStatus();
   res.status(status.ready ? 200 : 503).json(status);

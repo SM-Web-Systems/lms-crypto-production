@@ -21,6 +21,27 @@ import { findSectionForItem } from '../utils/courseHelpers.js';
 const router = Router();
 
 // ─── POST /courses/:courseId/lessons/:itemId/complete (self-mark) ──────────────
+/**
+ * @openapi
+ * /courses/{courseId}/lessons/{itemId}/complete:
+ *   post:
+ *     tags: [Lessons]
+ *     summary: Mark lesson item complete
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: itemId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Lesson marked complete }
+ *       403: { description: Not enrolled in course }
+ *       404: { description: Course or lesson item not found }
+ */
 router.post(
   '/courses/:courseId/lessons/:itemId/complete',
   authenticate,
@@ -79,6 +100,31 @@ router.post(
 );
 
 // ─── POST /courses/:courseId/students/:userId/lessons/:itemId/complete ─────────
+/**
+ * @openapi
+ * /courses/{courseId}/students/{userId}/lessons/{itemId}/complete:
+ *   post:
+ *     tags: [Lessons]
+ *     summary: Admin/lecturer marks lesson complete for student
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: itemId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Lesson marked complete for student }
+ *       403: { description: Requires course.grade }
+ *       404: { description: Course, user, or lesson item not found }
+ */
 router.post(
   '/courses/:courseId/students/:userId/lessons/:itemId/complete',
   authenticate,
@@ -135,6 +181,38 @@ router.post(
 );
 
 // ─── PUT /courses/:courseId/lessons/:itemId/progress ─────────────────────────
+/**
+ * @openapi
+ * /courses/{courseId}/lessons/{itemId}/progress:
+ *   put:
+ *     tags: [Lessons]
+ *     summary: Save audio playback position
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: itemId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [positionSeconds, progressPercent]
+ *             properties:
+ *               positionSeconds: { type: number, description: Playback position in seconds }
+ *               progressPercent: { type: number, minimum: 0, maximum: 100 }
+ *     responses:
+ *       200: { description: Progress saved }
+ *       400: { description: Invalid positionSeconds or progressPercent }
+ *       403: { description: Not enrolled in course }
+ *       404: { description: Course or lesson item not found }
+ */
 router.put(
   '/courses/:courseId/lessons/:itemId/progress',
   authenticate,
@@ -188,6 +266,28 @@ router.put(
 );
 
 // ─── GET /courses/:courseId/lessons/completions ────────────────────────────────
+/**
+ * @openapi
+ * /courses/{courseId}/lessons/completions:
+ *   get:
+ *     tags: [Lessons]
+ *     summary: List lesson completions
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: userId
+ *         required: false
+ *         schema: { type: string }
+ *         description: Filter by student userId (admin/lecturer only)
+ *     responses:
+ *       200: { description: Lesson completions }
+ *       403: { description: Lecturer not assigned to course }
+ *       404: { description: Course not found }
+ */
 router.get(
   '/courses/:courseId/lessons/completions',
   authenticate,

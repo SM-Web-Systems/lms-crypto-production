@@ -14,6 +14,16 @@ import { getCourseProgress } from '../services/courseCompletionService.js';
 
 const router = Router();
 
+/**
+ * @openapi
+ * /students/me/progress:
+ *   get:
+ *     tags: [Students]
+ *     summary: Get own progress across all enrolled courses
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Progress per course with cert status }
+ */
 router.get('/students/me/progress', authenticate, (req: AuthRequest, res: Response): void => {
   const userId = req.user!.userId;
 

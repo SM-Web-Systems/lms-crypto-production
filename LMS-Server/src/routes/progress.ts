@@ -22,6 +22,23 @@ import { getCourseProgress } from '../services/courseCompletionService.js';
 const router = Router();
 
 // ─── GET /courses/:courseId/progress (own) ────────────────────────────────────
+/**
+ * @openapi
+ * /courses/{courseId}/progress:
+ *   get:
+ *     tags: [Progress]
+ *     summary: Get own course progress
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Course progress for the authenticated user }
+ *       403: { description: Not enrolled in course }
+ *       404: { description: Course not found }
+ */
 router.get(
   '/courses/:courseId/progress',
   authenticate,
@@ -66,6 +83,23 @@ router.get(
 
 // ─── GET /courses/:courseId/progress/all (all students — admin/lecturer) ──────
 // Registered BEFORE /students/:userId/progress so "all" is not treated as :userId.
+/**
+ * @openapi
+ * /courses/{courseId}/progress/all:
+ *   get:
+ *     tags: [Progress]
+ *     summary: Get all students' progress (admin/lecturer)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Progress for all enrolled students }
+ *       403: { description: Requires admin or assigned lecturer }
+ *       404: { description: Course not found }
+ */
 router.get(
   '/courses/:courseId/progress/all',
   authenticate,
@@ -99,6 +133,27 @@ router.get(
 );
 
 // ─── GET /courses/:courseId/students/:userId/progress (specific student) ───────
+/**
+ * @openapi
+ * /courses/{courseId}/students/{userId}/progress:
+ *   get:
+ *     tags: [Progress]
+ *     summary: Get specific student's progress
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Progress for the specified student }
+ *       403: { description: Requires admin or assigned lecturer }
+ *       404: { description: Course or user not found }
+ */
 router.get(
   '/courses/:courseId/students/:userId/progress',
   authenticate,

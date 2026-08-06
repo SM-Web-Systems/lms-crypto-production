@@ -16,6 +16,22 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 const router = Router();
 
 // GET /:courseId/requirements — admin or assigned lecturer
+/**
+ * @openapi
+ * /courses/{courseId}/requirements:
+ *   get:
+ *     tags: [Courses]
+ *     summary: Get course completion requirements
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Requirements data }
+ *       404: { description: Course not found }
+ */
 router.get(
   '/:courseId/requirements',
   authenticate,
@@ -42,6 +58,33 @@ router.get(
 );
 
 // PUT /:courseId/requirements — admin only
+/**
+ * @openapi
+ * /courses/{courseId}/requirements:
+ *   put:
+ *     tags: [Courses]
+ *     summary: Set course completion requirements
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               requireAllLessons: { type: boolean }
+ *               requiredQuizIds: { type: array, items: { type: string } }
+ *               minQuizScore: { type: integer, minimum: 0, maximum: 100 }
+ *               requireSubmissions: { type: boolean }
+ *     responses:
+ *       200: { description: Requirements updated }
+ *       403: { description: Requires course.manage }
+ */
 router.put(
   '/:courseId/requirements',
   authenticate,

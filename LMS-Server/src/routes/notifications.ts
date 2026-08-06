@@ -14,6 +14,16 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 const router = Router();
 
 // ─── GET /notifications ─────────────────────────────────────────────────────
+/**
+ * @openapi
+ * /notifications:
+ *   get:
+ *     tags: [Notifications]
+ *     summary: Get recent notifications
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Notifications with unread count }
+ */
 router.get(
   '/notifications',
   authenticate,
@@ -62,6 +72,22 @@ router.get(
 );
 
 // ─── PUT /notifications/:id/read ────────────────────────────────────────────
+/**
+ * @openapi
+ * /notifications/{id}/read:
+ *   put:
+ *     tags: [Notifications]
+ *     summary: Mark notification as read
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Notification marked read }
+ *       404: { description: Notification not found }
+ */
 router.put(
   '/notifications/:id/read',
   authenticate,

@@ -36,6 +36,16 @@ async function fetchXlmBalance(address: string): Promise<number | null> {
   }
 }
 
+/**
+ * @openapi
+ * /wallet/status:
+ *   get:
+ *     tags: [Wallet]
+ *     summary: Get wallet status and XLM balance
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Wallet address, linking status, balance }
+ */
 router.get('/wallet/status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.userId;
 
