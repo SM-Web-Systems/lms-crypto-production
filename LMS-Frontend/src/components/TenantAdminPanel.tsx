@@ -184,7 +184,7 @@ export function TenantAdminPanel() {
                   className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <Button variant="default" size="sm" type="button" onClick={handleCreate} disabled={creating}>
+              <Button variant="primary" size="sm" type="button" onClick={handleCreate} disabled={creating}>
                 Save
               </Button>
             </div>

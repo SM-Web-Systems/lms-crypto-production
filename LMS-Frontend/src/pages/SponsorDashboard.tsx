@@ -84,6 +84,7 @@ const SponsorDashboard: React.FC = () => {
   }, [load]);
 
   const toggleRow = useCallback(async (courseId: string) => {
+    let shouldFetch = false;
     setExpanded((prev) => {
       if (prev[courseId]) {
         // Collapse
@@ -91,29 +92,24 @@ const SponsorDashboard: React.FC = () => {
         delete next[courseId];
         return next;
       }
-      // Mark as loading, then fetch
+      // Mark as loading — fetch will happen after setState
+      shouldFetch = true;
       return { ...prev, [courseId]: 'loading' };
     });
 
-    // Only fetch if we're expanding (not collapsing)
-    // Check current state after the update
-    setExpanded((prev) => {
-      if (prev[courseId] !== 'loading') return prev;
-      // Trigger async fetch outside setState
-      analyticsService
-        .getSponsorStudents(courseId)
-        .then((students) => {
-          setExpanded((p) => (p[courseId] === 'loading' ? { ...p, [courseId]: students } : p));
-        })
-        .catch(() => {
-          setExpanded((p) => {
-            const next = { ...p };
-            delete next[courseId];
-            return next;
-          });
-        });
-      return prev;
-    });
+    if (!shouldFetch) return;
+
+    // Fetch outside setState — no side-effects in updaters
+    try {
+      const students = await analyticsService.getSponsorStudents(courseId);
+      setExpanded((p) => (p[courseId] === 'loading' ? { ...p, [courseId]: students } : p));
+    } catch {
+      setExpanded((p) => {
+        const next = { ...p };
+        delete next[courseId];
+        return next;
+      });
+    }
   }, []);
 
   const handleExport = useCallback(async () => {
