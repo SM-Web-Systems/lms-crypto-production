@@ -33,6 +33,7 @@ import studentProgressRoutes from './routes/studentProgress.js';
 import paymentRoutes from './routes/payments.js';
 import cohortRoutes from './routes/cohorts.js';
 import rbacRoutes from './routes/rbac.js';
+import tenantRoutes from './routes/tenants.js';
 import webhookRoutes from './routes/webhooks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
@@ -215,6 +216,7 @@ app.use('/api/v1', readLimiter, publicCredentialsRoutes);
 app.use('/api/v1', apiLimiter, paymentRoutes);
 app.use('/api/v1', apiLimiter, cohortRoutes);
 app.use('/api/v1/admin', apiLimiter, rbacRoutes);
+app.use('/api/v1/admin/tenants', apiLimiter, tenantRoutes);
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
