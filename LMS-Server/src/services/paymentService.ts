@@ -220,9 +220,9 @@ export function getPaymentByStellarMemo(memo: string): Payment | null {
   );
 }
 
-export function getStudentPayments(userId: string): Payment[] {
-  return query<Payment>(
-    'SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC',
+export function getStudentPayments(userId: string): (Payment & { course_name: string | null })[] {
+  return query<Payment & { course_name: string | null }>(
+    'SELECT p.*, c.title AS course_name FROM payments p LEFT JOIN courses c ON c.id = p.course_id WHERE p.user_id = ? ORDER BY p.created_at DESC',
     [userId],
   );
 }

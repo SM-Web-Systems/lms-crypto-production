@@ -206,6 +206,7 @@ export const courseCompletionService = {
   async getMyPayments(): Promise<Array<{
     paymentId: string;
     courseId: string;
+    courseName: string | null;
     amountCents: number;
     currency: string;
     paymentMethod: string;
@@ -216,6 +217,7 @@ export const courseCompletionService = {
     const res = await api.get<{ success: boolean; data: Array<{
       paymentId: string;
       courseId: string;
+      courseName: string | null;
       amountCents: number;
       currency: string;
       paymentMethod: string;
