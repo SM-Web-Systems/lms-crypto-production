@@ -14,6 +14,7 @@ STATE_DIR="$DEPLOY_DIR/.deploy-state"
 LOG_FILE="$STATE_DIR/deploy-log.txt"
 TIMEOUT="${DEPLOY_TIMEOUT:-60}"
 DRY_RUN="${DEPLOY_DRY_RUN:-}"
+CAN_ROLLBACK=""
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
@@ -72,6 +73,7 @@ if [ -n "$api_image" ] && [ -n "$web_image" ]; then
   echo "web=$web_image" >> "$STATE_DIR/previous-images.txt"
   log "    Saved: api=$api_image"
   log "    Saved: web=$web_image"
+  CAN_ROLLBACK="1"
 else
   log "    WARNING: Could not capture current image IDs (first deploy?)"
   echo "api=" > "$STATE_DIR/previous-images.txt"
@@ -104,9 +106,14 @@ done
 
 if [ -z "$DRY_RUN" ] && [ "$elapsed" -ge "$TIMEOUT" ]; then
   log "ERROR: API did not become healthy within ${TIMEOUT}s"
-  log "==> Rolling back..."
-  "$SCRIPT_DIR/rollback.sh"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — API health timeout, rolled back" >> "$LOG_FILE"
+  if [ -n "$CAN_ROLLBACK" ]; then
+    log "==> Rolling back..."
+    "$SCRIPT_DIR/rollback.sh"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — API health timeout, rolled back" >> "$LOG_FILE"
+  else
+    log "WARNING: No previous state — cannot rollback (first deploy?)"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — API health timeout, no previous state to rollback" >> "$LOG_FILE"
+  fi
   exit 1
 fi
 
@@ -126,9 +133,14 @@ else
     log "==> Smoke tests PASSED"
   else
     log "ERROR: Smoke tests FAILED"
-    log "==> Rolling back..."
-    "$SCRIPT_DIR/rollback.sh"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — smoke tests failed, rolled back" >> "$LOG_FILE"
+    if [ -n "$CAN_ROLLBACK" ]; then
+      log "==> Rolling back..."
+      "$SCRIPT_DIR/rollback.sh"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — smoke tests failed, rolled back" >> "$LOG_FILE"
+    else
+      log "WARNING: No previous state — cannot rollback (first deploy?)"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — smoke tests failed, no previous state to rollback" >> "$LOG_FILE"
+    fi
     exit 1
   fi
 fi

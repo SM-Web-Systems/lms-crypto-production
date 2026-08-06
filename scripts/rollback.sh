@@ -27,7 +27,7 @@ api_image=$(grep '^api=' "$PREV_FILE" | cut -d= -f2)
 web_image=$(grep '^web=' "$PREV_FILE" | cut -d= -f2)
 
 if [ -z "$api_image" ] || [ -z "$web_image" ]; then
-  log "ERROR: Missing image IDs in $PREV_FILE"
+  log "WARNING: No previous images saved (first deploy?). Nothing to roll back to."
   exit 1
 fi
 

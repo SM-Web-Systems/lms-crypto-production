@@ -31,9 +31,12 @@ export function getReadinessStatus(): ReadinessStatus {
   let dbWriteMs = 0;
   try {
     const start = Date.now();
-    const ts = new Date().toISOString();
-    const info = db.prepare('INSERT INTO health_check_pings (ts) VALUES (?)').run(ts);
-    db.prepare('DELETE FROM health_check_pings WHERE id = ?').run(info.lastInsertRowid);
+    const pingCheck = db.transaction(() => {
+      const ts = new Date().toISOString();
+      const info = db.prepare('INSERT INTO health_check_pings (ts) VALUES (?)').run(ts);
+      db.prepare('DELETE FROM health_check_pings WHERE id = ?').run(info.lastInsertRowid);
+    });
+    pingCheck();
     dbWriteMs = Date.now() - start;
     dbWriteOk = true;
   } catch {

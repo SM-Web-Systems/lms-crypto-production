@@ -49,13 +49,8 @@ describe('HC-003 — Readiness probe returns ready state', () => {
   });
 });
 
-describe('HC-004 — Readiness probe returns 503 on failure', () => {
-  it('should return 503 when readiness check fails', async () => {
-    // The readiness endpoint reports degraded if disk check would fail,
-    // but in test env disk is always available. We verify the endpoint
-    // structure and that it returns 200 in healthy conditions.
-    // A true 503 test would require mocking fs.statfsSync which is
-    // fragile — instead we verify the contract shape.
+describe('HC-004 — Readiness probe response contract', () => {
+  it('should return complete response with all check fields', async () => {
     const res = await request(app).get('/healthz');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('ready');
