@@ -1,6 +1,7 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
@@ -970,6 +971,50 @@ function ensureTenantTables(): void {
 }
 ensureTenantTables();
 
+// ─── Phase 22 C3: Email Templates ──────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS email_templates (
+    id         TEXT PRIMARY KEY,
+    slug       TEXT NOT NULL UNIQUE,
+    category   TEXT NOT NULL CHECK (category IN ('enrollment','auth','invitation','payment','cohort','certificate','admin')),
+    name       TEXT NOT NULL,
+    subject    TEXT NOT NULL,
+    body_html  TEXT NOT NULL,
+    variables  TEXT NOT NULL DEFAULT '[]',
+    version    INTEGER NOT NULL DEFAULT 1,
+    updated_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_email_templates_slug ON email_templates(slug);
+  CREATE INDEX IF NOT EXISTS idx_email_templates_category ON email_templates(category);
+`);
+
+// Seed default email templates (idempotent)
+{
+  const seedInsert = db.prepare(
+    `INSERT OR IGNORE INTO email_templates (id, slug, category, name, subject, body_html, variables, version, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))`
+  );
+  const seeds: Array<[string, string, string, string, string, string]> = [
+    ['enrollment', 'enrollment', 'Course Enrollment',
+     "You've been enrolled in {{courseName}}",
+     `<p>Hi {{studentName}},</p>\n<p>You have been enrolled in <strong>{{courseName}}</strong> on <strong>{{lmsName}}</strong>.</p>\n<p><a href="{{{loginUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to access your course</a></p>\n<p>If you have questions, contact your administrator.</p>`,
+     '["studentName","courseName","lmsName","loginUrl"]'],
+    ['password-reset', 'auth', 'Password Reset',
+     'Reset your {{lmsName}} password',
+     `<p>Hi {{userName}},</p>\n<p>We received a request to reset the password for your <strong>{{lmsName}}</strong> account.</p>\n<p><a href="{{{resetUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Reset password</a></p>\n<p>Or copy this link into your browser:</p>\n<p><code style="word-break:break-all;">{{{resetUrl}}}</code></p>\n<p>This link expires in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email — your password will not change.</p>`,
+     '["userName","lmsName","resetUrl"]'],
+    ['course-invitation', 'invitation', 'Course Invitation',
+     "You've been invited to {{courseName}}",
+     `<p>Hi,</p>\n<p>You have been invited to join <strong>{{courseName}}</strong> on <strong>{{lmsName}}</strong>.</p>\n<p>Click the button below to create your account and access the course immediately:</p>\n<p><a href="{{{signupUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Accept invitation &amp; sign up</a></p>\n<p>Or copy this link: <code>{{{signupUrl}}}</code></p>\n<p>This invitation link can be used once.</p>`,
+     '["courseName","lmsName","signupUrl"]'],
+  ];
+  for (const [slug, category, name, subject, bodyHtml, variables] of seeds) {
+    seedInsert.run(uuidv4(), slug, category, name, subject, bodyHtml, variables);
+  }
+}
+
 // ─── Phase 12B: Capability-based RBAC ─────────────────────────────────────────
 function ensureRbacTables(): void {
   db.exec(`
@@ -1118,6 +1163,8 @@ export function seedRbacData(): void {
     // tenant (2)
     ['perm_tenant_manage', 'tenant.manage', 'tenant', 'Manage Tenants'],
     ['perm_tenant_view', 'tenant.view', 'tenant', 'View Tenants'],
+    // email (1)
+    ['perm_email_manage', 'email.manage', 'email', 'Manage Email Templates'],
   ];
 
   const insertPerm = db.prepare(
@@ -1232,6 +1279,8 @@ export function seedRbacData(): void {
       'perm_system_view_audit_log',
       // tenant: view
       'perm_tenant_view',
+      // email
+      'perm_email_manage',
     ],
     role_admin2: [
       // course: all
@@ -1266,6 +1315,8 @@ export function seedRbacData(): void {
       'perm_system_manage_roles', 'perm_system_view_audit_log',
       // tenant: view
       'perm_tenant_view',
+      // email
+      'perm_email_manage',
     ],
     role_super_admin: [
       // All 60 permissions
@@ -1289,6 +1340,8 @@ export function seedRbacData(): void {
       'perm_system_manage_roles', 'perm_system_manage_permissions', 'perm_system_view_audit_log',
       // tenant: all
       'perm_tenant_manage', 'perm_tenant_view',
+      // email
+      'perm_email_manage',
     ],
     // custom-user role: no default permissions (assigned per custom role)
   };

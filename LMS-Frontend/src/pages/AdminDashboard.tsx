@@ -31,6 +31,7 @@ import { PricingManagement } from '../components/PricingManagement';
 import { RbacAdminPanel } from '../components/RbacAdminPanel';
 import { PaymentAnalyticsPanel } from '../components/PaymentAnalyticsPanel';
 import { TenantAdminPanel } from '../components/TenantAdminPanel';
+import { EmailTemplatePanel } from '../components/EmailTemplatePanel';
 import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
 import { Tag } from 'lucide-react';
 
@@ -470,6 +471,8 @@ const AdminDashboard: React.FC = () => {
       <PaymentAnalyticsPanel />
 
       <TenantAdminPanel />
+
+      <EmailTemplatePanel />
 
       {/* Course Analytics */}
       {courseAnalytics.length > 0 && (

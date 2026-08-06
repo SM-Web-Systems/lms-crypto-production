@@ -507,3 +507,20 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   payload       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id ON webhook_events(event_id);
+
+-- Phase 22 C3: Email templates
+CREATE TABLE IF NOT EXISTS email_templates (
+  id         TEXT PRIMARY KEY,
+  slug       TEXT NOT NULL UNIQUE,
+  category   TEXT NOT NULL CHECK (category IN ('enrollment','auth','invitation','payment','cohort','certificate','admin')),
+  name       TEXT NOT NULL,
+  subject    TEXT NOT NULL,
+  body_html  TEXT NOT NULL,
+  variables  TEXT NOT NULL DEFAULT '[]',
+  version    INTEGER NOT NULL DEFAULT 1,
+  updated_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_email_templates_slug ON email_templates(slug);
+CREATE INDEX IF NOT EXISTS idx_email_templates_category ON email_templates(category);

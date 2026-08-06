@@ -2,10 +2,15 @@
  * Email service — powered by Stalwart SMTP (nodemailer) when SMTP_HOST is set.
  * If SMTP_HOST is absent the email is logged to stdout so the feature
  * degrades gracefully in development / unconfigured environments.
+ *
+ * Phase 22 C3: templates are now loaded from the email_templates table via
+ * renderTemplate(). Inline HTML is kept as a fallback if the template row
+ * is missing (safety net for fresh installs before seed runs).
  */
 
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
+import { renderTemplate } from './emailTemplateService.js';
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587', 10);
@@ -47,8 +52,17 @@ export async function sendEnrollmentEmail(opts: {
   courseName: string;
 }): Promise<void> {
   const { to, name, courseName } = opts;
-  const subject = `You've been enrolled in ${courseName}`;
-  const html = `
+
+  // Try database template first
+  const rendered = renderTemplate('enrollment', {
+    studentName: name,
+    courseName,
+    lmsName: LMS_NAME,
+    loginUrl: `${FRONTEND_URL}/login`,
+  });
+
+  const subject = rendered?.subject ?? `You've been enrolled in ${courseName}`;
+  const html = rendered?.html ?? `
     <p>Hi ${escapeHtml(name)},</p>
     <p>You have been enrolled in <strong>${escapeHtml(courseName)}</strong> on <strong>${escapeHtml(LMS_NAME)}</strong>.</p>
     <p><a href="${FRONTEND_URL}/login" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to access your course</a></p>
@@ -68,8 +82,15 @@ export async function sendPasswordResetEmail(opts: {
   resetUrl: string;
 }): Promise<void> {
   const { to, name, resetUrl } = opts;
-  const subject = `Reset your ${LMS_NAME} password`;
-  const html = `
+
+  const rendered = renderTemplate('password-reset', {
+    userName: name,
+    lmsName: LMS_NAME,
+    resetUrl,
+  });
+
+  const subject = rendered?.subject ?? `Reset your ${LMS_NAME} password`;
+  const html = rendered?.html ?? `
     <p>Hi ${escapeHtml(name)},</p>
     <p>We received a request to reset the password for your <strong>${escapeHtml(LMS_NAME)}</strong> account.</p>
     <p><a href="${resetUrl}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Reset password</a></p>
@@ -92,8 +113,15 @@ export async function sendCourseInviteEmail(opts: {
 }): Promise<void> {
   const { to, courseName, inviteToken } = opts;
   const signupUrl = `${FRONTEND_URL}/sign-up?invite=${inviteToken}`;
-  const subject = `You've been invited to ${courseName}`;
-  const html = `
+
+  const rendered = renderTemplate('course-invitation', {
+    courseName,
+    lmsName: LMS_NAME,
+    signupUrl,
+  });
+
+  const subject = rendered?.subject ?? `You've been invited to ${courseName}`;
+  const html = rendered?.html ?? `
     <p>Hi,</p>
     <p>You have been invited to join <strong>${escapeHtml(courseName)}</strong> on <strong>${escapeHtml(LMS_NAME)}</strong>.</p>
     <p>Click the button below to create your account and access the course immediately:</p>

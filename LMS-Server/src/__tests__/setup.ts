@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { beforeEach } from 'vitest';
 import { _resetForTests, seedRbacData } from '../config/database.js';
+import { seedEmailTemplates } from '../services/emailTemplateService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,4 +14,5 @@ const schemaSQL = fs.readFileSync(schemaPath, 'utf-8');
 beforeEach(() => {
   _resetForTests(schemaSQL);
   seedRbacData();
+  seedEmailTemplates();
 });
