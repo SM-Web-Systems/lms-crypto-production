@@ -22,6 +22,7 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
 import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
 import { getTiersEnabled, createBadge } from '../services/badgeService.js';
+import logger from '../utils/logger.js';
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -46,10 +47,10 @@ function logDemoSponsorTrigger(applicationId: string, userId: string, courseId: 
         userId, courseId, userRow?.email ?? '', courseTitle,
       ]
     );
-    console.log(`[DEMO-SPONSOR-TRIGGER] Pending demo transfer logged for mint appId=${applicationId} — NOT a real grant`);
+    logger.info({ module: 'DEMO-SPONSOR-TRIGGER', applicationId }, 'Pending demo transfer logged — NOT a real grant');
   } catch (err) {
     // Never block the mint response for a demo hook failure
-    console.error('[DEMO-SPONSOR-TRIGGER] Failed to log pending demo transfer (non-fatal):', err);
+    logger.error({ module: 'DEMO-SPONSOR-TRIGGER', err }, 'Failed to log pending demo transfer (non-fatal)');
   }
 }
 
@@ -467,7 +468,7 @@ router.patch(
       try {
         createBadge(appRow.user_id, courseId, appId);
       } catch (err) {
-        console.error('[badge] Failed to generate badge for free-tier approval:', err);
+        logger.error({ module: 'badge', err }, 'Failed to generate badge for free-tier approval');
       }
     }
 
@@ -482,7 +483,7 @@ router.patch(
         link: '/student/course',
       });
     } catch (err) {
-      console.error('[notification] nft approve emission error:', err);
+      logger.error({ module: 'notification', err }, 'NFT approve emission error');
     }
 
     res.json({ success: true, data: { applicationId: appId, status: 'approved' } });
@@ -536,7 +537,7 @@ router.patch(
         link: '/student/course',
       });
     } catch (err) {
-      console.error('[notification] nft reject emission error:', err);
+      logger.error({ module: 'notification', err }, 'NFT reject emission error');
     }
 
     res.json({
@@ -743,7 +744,7 @@ router.post(
         link: '/student/course',
       });
     } catch (err) {
-      console.error('[notification] nft mint emission error:', err);
+      logger.error({ module: 'notification', err }, 'NFT mint emission error');
     }
 
     res.json({

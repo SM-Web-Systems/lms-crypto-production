@@ -4,6 +4,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { sendEnrollmentEmail, sendCourseInviteEmail } from '../services/emailService.js';
+import logger from '../utils/logger.js';
 
 interface CourseRow { id: string; title: string; course_code: string | null }
 interface UserRow { id: string; name: string; email: string }
@@ -108,7 +109,7 @@ export async function bulkInvite(req: AuthRequest, res: Response, next: NextFunc
             enrolled.push(email);
             // Fire-and-forget email
             sendEnrollmentEmail({ to: email, name: user.name, courseName: course.title }).catch(
-              (err) => console.error('[invitesController] enrollment email failed:', err)
+              (err) => logger.error({ module: 'invitesController', err }, 'Enrollment email failed')
             );
           }
         } else {
@@ -128,13 +129,13 @@ export async function bulkInvite(req: AuthRequest, res: Response, next: NextFunc
             );
             invited.push(email);
             sendCourseInviteEmail({ to: email, courseName: course.title, inviteToken: token }).catch(
-              (err) => console.error('[invitesController] invite email failed:', err)
+              (err) => logger.error({ module: 'invitesController', err }, 'Invite email failed')
             );
           }
         }
       } catch (err) {
         errors.push(email);
-        console.error(`[invitesController] error processing ${email}:`, err);
+        logger.error({ module: 'invitesController', email, err }, 'Error processing invite');
       }
     }
 

@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mintCredential } from '../services/mintService.js';
 import { auditLog } from '../services/auditService.js';
+import logger from '../utils/logger.js';
 
 /** LMS-MINT-005: expire stale pending mints (>30 min) to 'failed'. */
 function expireStalePendingMints(): void {
@@ -325,9 +326,7 @@ export async function integrationStatus(
 
     const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded';
 
-    console.log(
-      `[adminDiag] userId=${userId} ip=${ip} route=GET /api/v1/admin/integration-status status=${overallStatus}`,
-    );
+    logger.info({ module: 'adminDiag', userId, ip, route: 'GET /api/v1/admin/integration-status', status: overallStatus }, 'Integration status checked');
 
     res.setHeader('Cache-Control', 'no-store');
     res.json({
@@ -339,7 +338,7 @@ export async function integrationStatus(
       recentProvisioning,
     });
   } catch (error) {
-    console.error(`[adminDiag] userId=${userId} ip=${ip} error: ${error instanceof Error ? error.message : 'unknown'}`);
+    logger.error({ module: 'adminDiag', userId, ip, err: error }, 'Integration status error');
     next(error);
   }
 }
@@ -449,7 +448,7 @@ export async function remintCredential(
         code = 'NETWORK_ERROR';
         status = 503;
       }
-      console.error(`[remint] credentialId=${credentialId} code=${code} msg=${msg}`);
+      logger.error({ module: 'remint', credentialId, code, error: msg }, 'Remint failed');
       res.status(status).json({
         success: false,
         error: { code, message: `Mint failed: ${code}`, credentialId },

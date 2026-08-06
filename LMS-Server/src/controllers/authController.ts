@@ -15,6 +15,7 @@ import {
   verifyAssertion,
   type AmmaWalletSSOUser,
 } from "../services/ammaWalletSSOService.js";
+import logger from "../utils/logger.js";
 
 
 /** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
@@ -253,10 +254,10 @@ export async function register(
         );
       }
       walletLinkingStatus = 'none';
-      console.warn('[register] wallet creation: code=' + (e?.code ?? 'UNKNOWN'));
+      logger.warn({ module: 'authController', action: 'register', code: e?.code ?? 'UNKNOWN' }, 'Wallet creation failed');
     }
     const maskedEmail = email.replace(/^(.).*@/, '$1***@');
-    console.log(`[authController:register] userId=${userId} email=${maskedEmail} transition=none→${walletLinkingStatus}`);
+    logger.info({ module: 'authController', action: 'register', userId, email: maskedEmail, transition: `none→${walletLinkingStatus}` }, 'User registered');
 
     execute(
       "INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -521,7 +522,7 @@ export async function ammaCallback(
     try {
       validateState(state);
     } catch (err) {
-      console.warn('[ammaCallback] Invalid state:', (err as Error).message);
+      logger.warn({ module: 'ammaCallback', err }, 'Invalid state');
       return safeRedirectError('invalid_state');
     }
 
@@ -530,13 +531,13 @@ export async function ammaCallback(
     try {
       ammaUser = await verifyAssertion(assertion);
     } catch (err) {
-      console.error('[ammaCallback] SSO verify error:', (err as Error).message);
+      logger.error({ module: 'ammaCallback', err }, 'SSO verify error');
       return safeRedirectError('verify_failed');
     }
 
     const email = ammaUser.email.toLowerCase();
     const maskedEmail = email.replace(/^(.).*@/, '$1***@');
-    console.log(`[ammaCallback] SSO userId=${ammaUser.userId} email=${maskedEmail}`);
+    logger.info({ module: 'ammaCallback', ammaUserId: ammaUser.userId, email: maskedEmail }, 'SSO user verified');
 
     // 3. Find-or-create LMS user profile
     // Prefer lookup by ammawallet_user_id (stable), fall back to email
@@ -567,7 +568,7 @@ export async function ammaCallback(
            WHERE id = ?`,
           [ammaUser.userId, ammaUser.mainnetWalletAddress, userId],
         );
-        console.log(`[ammaCallback] wallet linked: ${ammaUser.mainnetWalletAddress.slice(0, 8)}...`);
+        logger.info({ module: 'ammaCallback', walletPrefix: ammaUser.mainnetWalletAddress.slice(0, 8) }, 'Wallet linked');
       } else {
         execute(
           `UPDATE users SET
@@ -593,7 +594,7 @@ export async function ammaCallback(
         studentId = student?.id;
       }
 
-      console.log(`[ammaCallback] Found existing user id=${userId} email=${maskedEmail} — migrated to SSO wallet=${ammaUser.mainnetWalletAddress ? 'linked' : 'none'}`);
+      logger.info({ module: 'ammaCallback', userId, email: maskedEmail, wallet: ammaUser.mainnetWalletAddress ? 'linked' : 'none' }, 'Found existing user — migrated to SSO');
     } else {
       // Provision new LMS user (SSO-only, no local password)
       userId = uuidv4();
@@ -623,7 +624,7 @@ export async function ammaCallback(
         );
       }
 
-      console.log(`[ammaCallback] Created new SSO user id=${userId} email=${maskedEmail}`);
+      logger.info({ module: 'ammaCallback', userId, email: maskedEmail }, 'Created new SSO user');
     }
 
     // 4. Issue LMS session JWT

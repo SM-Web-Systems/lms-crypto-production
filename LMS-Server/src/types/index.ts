@@ -533,3 +533,12 @@ export const ErrorCodes = {
   COHORT_EMPTY:        "COHORT_EMPTY",
   COHORT_ALREADY_PAID: "COHORT_ALREADY_PAID",
 } as const;
+
+// Extend Express Request with requestId for request tracing
+declare global {
+  namespace Express {
+    interface Request {
+      requestId?: string;
+    }
+  }
+}

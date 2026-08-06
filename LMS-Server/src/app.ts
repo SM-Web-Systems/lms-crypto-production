@@ -1,4 +1,4 @@
-import express, { type Response } from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { db } from './config/database.js';
 
 import authRoutes from './routes/auth.js';
 import studentsRoutes from './routes/students.js';
@@ -36,6 +35,9 @@ import rbacRoutes from './routes/rbac.js';
 import tenantRoutes from './routes/tenants.js';
 import webhookRoutes from './routes/webhooks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { requestLogger } from './middleware/requestLogger.js';
+import { getHealthStatus } from './services/healthCheckService.js';
+import logger from './utils/logger.js';
 
 dotenv.config();
 
@@ -49,7 +51,7 @@ if (process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
 if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
-  console.warn('⚠️  WARNING: NODE_ENV=production but TRUST_PROXY is not set. Rate limiting may not work correctly behind a reverse proxy.');
+  logger.warn('NODE_ENV=production but TRUST_PROXY is not set. Rate limiting may not work correctly behind a reverse proxy.');
 }
 
 // Security headers
@@ -86,6 +88,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
+
+// Request tracing — adds x-request-id to all requests
+app.use(requestLogger);
 
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 
@@ -151,8 +156,9 @@ const readLimiter = rateLimit({
 
 if (process.env.NODE_ENV !== 'test') {
   const mins = RATE_WINDOW_MS / 60_000;
-  console.log(
-    `⏱️  Rate limits: writes ${writeMax} req / ${mins} min per IP | auth ${authMax} / ${mins} min per IP | reads unlimited` +
+  logger.info(
+    { writeMax, authMax, windowMin: mins, trustProxy: !!app.get('trust proxy') },
+    `Rate limits: writes ${writeMax} req / ${mins} min per IP | auth ${authMax} / ${mins} min per IP | reads unlimited` +
       (app.get('trust proxy') ? ' (trust proxy on)' : '')
   );
 }
@@ -164,28 +170,9 @@ app.use('/api/v1/webhooks', webhookRoutes);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-function sendHealthJson(res: Response): void {
-  let dbStatus: 'ok' | 'error' = 'ok';
-  try { db.prepare('SELECT 1').get(); } catch { dbStatus = 'error'; }
-  res.json({
-    status: dbStatus === 'ok' ? 'ok' : 'degraded',
-    timestamp: new Date().toISOString(),
-    db: dbStatus,
-    ammaWallet: {
-      url: !!process.env.AMMA_WALLET_URL,
-      apiKey: !!process.env.AMMA_WALLET_API_KEY,
-      network: process.env.AMMA_WALLET_NETWORK ?? 'testnet',
-    },
-  });
-}
-
-// Health checks (no rate limit). Use /health for bare-metal probes; /api/v1/health matches the API prefix (e.g. some gateways).
-app.get('/health', (_req, res) => {
-  sendHealthJson(res);
-});
-app.get('/api/v1/health', (_req, res) => {
-  sendHealthJson(res);
-});
+// Health checks (no rate limit)
+app.get('/health', (_req, res) => { res.json(getHealthStatus()); });
+app.get('/api/v1/health', (_req, res) => { res.json(getHealthStatus()); });
 
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);

@@ -8,6 +8,7 @@
 import { Router, type Response, type Request, type NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
+import logger from '../utils/logger.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
@@ -349,7 +350,7 @@ router.post(
         },
       });
     } catch (err) {
-      console.error('Paystack checkout error:', err);
+      logger.error({ module: 'payments', action: 'paystackCheckout', err }, 'Paystack checkout error');
       res.status(502).json({
         success: false,
         error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Payment gateway error' },
@@ -583,7 +584,7 @@ router.post(
       refundPayment(payment.id, notes || 'Refunded via admin');
       res.json({ success: true, message: 'Refund initiated' });
     } catch (err) {
-      console.error('Paystack refund error:', err);
+      logger.error({ module: 'payments', action: 'paystackRefund', err }, 'Paystack refund error');
       res.status(502).json({
         success: false,
         error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Refund gateway error' },

@@ -8,6 +8,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
+import logger from '../utils/logger.js';
 
 function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
@@ -562,7 +563,7 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
           }
         }
       } catch (err) {
-        console.error('[assignment-auto-complete] error:', err);
+        logger.error({ module: 'assignment-auto-complete', err }, 'Auto-complete error');
       }
     }
 
@@ -582,7 +583,7 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
         });
       }
     } catch (err) {
-      console.error('[notification] submission review emission error:', err);
+      logger.error({ module: 'notification', err }, 'Submission review emission error');
     }
 
     res.json({

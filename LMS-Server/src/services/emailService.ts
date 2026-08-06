@@ -5,6 +5,7 @@
  */
 
 import nodemailer from 'nodemailer';
+import logger from '../utils/logger.js';
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587', 10);
@@ -37,7 +38,7 @@ const LMS_NAME = process.env.LMS_NAME ?? 'SM Web Systems LMS';
 const FRONTEND_URL = (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/$/, '');
 
 function log(subject: string, to: string, body: string): void {
-  console.log(`[emailService] Would send → ${to}\nSubject: ${subject}\n${body}\n`);
+  logger.info({ module: 'emailService', to, subject }, `Would send email → ${to}`);
 }
 
 export async function sendEnrollmentEmail(opts: {

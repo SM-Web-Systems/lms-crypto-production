@@ -5,6 +5,7 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
 import { findQuizItemInCourse } from '../utils/courseHelpers.js';
+import logger from '../utils/logger.js';
 
 interface QuizQuestion {
   id: string;
@@ -436,7 +437,7 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
       );
       if (userRow?.walletAddress && userRow.wallet_linking_status === 'linked') {
         mintCredentialForQuiz({ userId, quizId, walletAddress: userRow.walletAddress }).catch((err: unknown) => {
-          console.error('[mint] fire-and-forget error:', err);
+          logger.error({ module: 'mint', err }, 'Fire-and-forget mint error');
         });
       }
     }
@@ -459,7 +460,7 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
           }
         }
       } catch (err) {
-        console.error('[quiz-auto-complete] error:', err);
+        logger.error({ module: 'quiz-auto-complete', err }, 'Auto-complete error');
       }
     }
 

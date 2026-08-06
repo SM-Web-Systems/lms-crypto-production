@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ErrorCodes } from '../types/index.js';
+import logger from '../utils/logger.js';
 
 export class AppError extends Error {
   statusCode: number;
@@ -7,8 +8,8 @@ export class AppError extends Error {
   details?: Array<{ field: string; message: string }>;
 
   constructor(
-    message: string, 
-    statusCode: number, 
+    message: string,
+    statusCode: number,
     code: string,
     details?: Array<{ field: string; message: string }>
   ) {
@@ -22,18 +23,21 @@ export class AppError extends Error {
 
 export function errorHandler(
   err: Error | AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
+  const requestId = req.requestId;
+
   // LMS-ERR-001: Operational errors → warn without stack; unexpected → error with stack
   if (err instanceof AppError) {
-    console.warn(`AppError ${err.statusCode} ${err.code}: ${err.message}`);
+    logger.warn({ requestId, statusCode: err.statusCode, code: err.code }, err.message);
     res.status(err.statusCode).json({
       success: false,
       error: {
         code: err.code,
         message: err.message,
+        requestId,
         details: err.details,
       },
     });
@@ -48,13 +52,14 @@ export function errorHandler(
       error: {
         code: ErrorCodes.FILE_TOO_LARGE,
         message: `File size exceeds maximum limit of ${maxMb}MB`,
+        requestId,
       },
     });
     return;
   }
 
   // LMS-ERR-003: Never leak SQLite internals — always generic message
-  console.error('Unexpected error:', err);
+  logger.error({ requestId, err }, 'Unexpected error');
   const isSqlite = (err as Error & { code?: string }).code?.startsWith('SQLITE_');
   res.status(500).json({
     success: false,
@@ -63,17 +68,18 @@ export function errorHandler(
       message: (isSqlite || process.env.NODE_ENV === 'production')
         ? 'An unexpected error occurred'
         : err.message,
+      requestId,
     },
   });
 }
 
-export function notFoundHandler(_req: Request, res: Response): void {
+export function notFoundHandler(req: Request, res: Response): void {
   res.status(404).json({
     success: false,
     error: {
       code: ErrorCodes.NOT_FOUND,
       message: 'Resource not found',
+      requestId: req.requestId,
     },
   });
 }
-

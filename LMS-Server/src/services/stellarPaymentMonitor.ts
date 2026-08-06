@@ -9,6 +9,7 @@
 
 import { getPaymentByStellarMemo, confirmPayment } from './paymentService.js';
 import { queryOne, execute } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 const POLL_INTERVAL_MS = 30_000; // 30 seconds
 const HORIZON_URL = process.env.STELLAR_HORIZON_URL || 'https://horizon.stellar.org';
@@ -54,10 +55,10 @@ export class StellarPaymentMonitor {
   start(): void {
     if (this.intervalId) return;
     if (!RECEIVING_WALLET) {
-      console.warn('StellarPaymentMonitor: PAYMENT_RECEIVING_WALLET not set, skipping');
+      logger.warn({ module: 'StellarPaymentMonitor' }, 'PAYMENT_RECEIVING_WALLET not set, skipping');
       return;
     }
-    console.log(`StellarPaymentMonitor: polling ${RECEIVING_WALLET} every ${POLL_INTERVAL_MS / 1000}s`);
+    logger.info({ module: 'StellarPaymentMonitor', wallet: RECEIVING_WALLET, intervalSec: POLL_INTERVAL_MS / 1000 }, 'Starting payment polling');
     this.intervalId = setInterval(() => this.poll(), POLL_INTERVAL_MS);
     // Initial poll
     this.poll();
@@ -103,7 +104,7 @@ export class StellarPaymentMonitor {
 
       const res = await fetch(url);
       if (!res.ok) {
-        console.error(`StellarPaymentMonitor: Horizon returned ${res.status}`);
+        logger.error({ module: 'StellarPaymentMonitor', status: res.status }, 'Horizon returned error');
         return;
       }
 
@@ -150,16 +151,16 @@ export class StellarPaymentMonitor {
           );
           confirmPayment(dbPayment.id, 'stellar-monitor', `Auto-confirmed via Stellar tx ${payment.transaction_hash}`);
 
-          console.log(`StellarPaymentMonitor: confirmed payment ${dbPayment.id} via tx ${payment.transaction_hash}`);
+          logger.info({ module: 'StellarPaymentMonitor', paymentId: dbPayment.id, txHash: payment.transaction_hash }, 'Payment confirmed');
         } catch (err) {
-          console.error(`StellarPaymentMonitor: error processing tx ${payment.transaction_hash}:`, err);
+          logger.error({ module: 'StellarPaymentMonitor', txHash: payment.transaction_hash, err }, 'Error processing transaction');
         }
       }
 
       // Persist cursor
       if (this.cursor) this.saveCursor(this.cursor);
     } catch (err) {
-      console.error('StellarPaymentMonitor: poll error:', err);
+      logger.error({ module: 'StellarPaymentMonitor', err }, 'Poll error');
     } finally {
       this.running = false;
     }

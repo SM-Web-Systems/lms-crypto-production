@@ -1,4 +1,5 @@
 import { execute } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 export function auditLog(opts: {
   action: string;
@@ -14,6 +15,6 @@ export function auditLog(opts: {
     );
   } catch {
     // Non-fatal: audit table may not exist in older databases or tests
-    console.warn(`[audit] Failed to log: ${opts.action}`);
+    logger.warn({ module: 'audit', action: opts.action }, 'Failed to log audit entry');
   }
 }

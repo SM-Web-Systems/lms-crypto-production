@@ -11,6 +11,7 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { queryOne, execute } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 const SOROBAN_RPC_URL = process.env.NFT_SOROBAN_RPC_URL || 'https://mainnet.sorobanrpc.com';
 
@@ -51,13 +52,13 @@ export async function mintCredentialForQuiz(params: {
   const minterSecret = process.env.NFT_MINTER_SECRET;
   const contractId = process.env.NFT_CONTRACT_ID;
   if (!minterSecret || !contractId) {
-    console.log('[mint] NFT_MINTER_SECRET or NFT_CONTRACT_ID not configured — mint skipped');
+    logger.info({ module: 'mint' }, 'NFT_MINTER_SECRET or NFT_CONTRACT_ID not configured — mint skipped');
     return;
   }
 
   // LMS-MINT-J2-003: validate Stellar address before RPC call
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(walletAddress)) {
-    console.error(`[mint] Invalid Stellar wallet address: ${walletAddress}`);
+    logger.error({ module: 'mint', walletAddress }, 'Invalid Stellar wallet address');
     return;
   }
 
@@ -69,7 +70,7 @@ export async function mintCredentialForQuiz(params: {
     );
 
     if (existing?.mint_status === 'minted') {
-      console.log(`[mint] Already minted: user=${userId} quiz=${quizId}`);
+      logger.info({ module: 'mint', userId, quizId }, 'Already minted');
       return;
     }
 
@@ -89,7 +90,7 @@ export async function mintCredentialForQuiz(params: {
       );
     }
 
-    console.log(`[mint] Attempting: user=${userId} quiz=${quizId} wallet=${walletAddress}`);
+    logger.info({ module: 'mint', userId, quizId, walletAddress }, 'Attempting mint');
 
     const server = new StellarSdk.rpc.Server(SOROBAN_RPC_URL);
     const minterKeypair = StellarSdk.Keypair.fromSecret(minterSecret);
@@ -151,7 +152,7 @@ export async function mintCredentialForQuiz(params: {
          WHERE id = ?`,
         [txHash, sorobanTokenId, credId]
       );
-      console.log(`[mint] SUCCESS: user=${userId} quiz=${quizId} tx=${txHash} tokenId=${sorobanTokenId}`);
+      logger.info({ module: 'mint', userId, quizId, txHash, sorobanTokenId }, 'Mint succeeded');
     } else {
       throw new Error(`Transaction not confirmed: status=${getResult?.status ?? 'unknown'}`);
     }
@@ -164,7 +165,7 @@ export async function mintCredentialForQuiz(params: {
        WHERE user_id = ? AND quiz_id = ?`,
       [truncated, userId, quizId]
     );
-    console.error(`[mint] FAILED: user=${userId} quiz=${quizId}: ${truncated}`);
+    logger.error({ module: 'mint', userId, quizId, error: truncated }, 'Mint failed');
   }
 }
 
@@ -196,7 +197,7 @@ export async function mintCredential(params: {
     throw new Error(`Invalid Stellar wallet address: ${walletAddress}`);
   }
 
-  console.log(`[mint-course] Attempting: user=${userId} course=${courseId} app=${applicationId} wallet=${walletAddress}`);
+  logger.info({ module: 'mint-course', userId, courseId, applicationId, walletAddress }, 'Attempting course mint');
 
   const server = new StellarSdk.rpc.Server(SOROBAN_RPC_URL);
   const minterKeypair = StellarSdk.Keypair.fromSecret(minterSecret);
@@ -252,9 +253,9 @@ export async function mintCredential(params: {
       if (typeof native === 'number') sorobanTokenId = native;
     }
   } catch {
-    console.warn('[mint-course] Could not extract soroban token ID from return value');
+    logger.warn({ module: 'mint-course' }, 'Could not extract soroban token ID from return value');
   }
 
-  console.log(`[mint-course] SUCCESS: user=${userId} course=${courseId} tx=${txHash} tokenId=${sorobanTokenId}`);
+  logger.info({ module: 'mint-course', userId, courseId, txHash, sorobanTokenId }, 'Course mint succeeded');
   return { txHash, sorobanTokenId };
 }

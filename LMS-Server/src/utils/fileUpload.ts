@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { AppError } from '../middleware/errorHandler.js';
 import { ErrorCodes } from '../types/index.js';
+import logger from './logger.js';
 
 dotenv.config();
 
@@ -137,7 +138,7 @@ export function deleteFile(filePath: string): void {
       fs.unlinkSync(filePath);
     }
   } catch (error) {
-    console.error('Error deleting file:', error);
+    logger.error({ err: error }, 'Error deleting file');
   }
 }
 

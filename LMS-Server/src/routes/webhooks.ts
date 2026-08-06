@@ -15,6 +15,7 @@ import {
   recordWebhookEvent,
 } from '../services/paymentService.js';
 import { verifyWebhookSignature } from '../services/paystackService.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
@@ -73,17 +74,14 @@ router.post(
       case 'charge.success': {
         const payment = getPaymentByReference(data.reference);
         if (!payment) {
-          console.warn(`Paystack webhook: no payment found for reference ${data.reference}`);
+          logger.warn({ module: 'paystack-webhook', reference: data.reference }, 'No payment found for reference');
           res.json({ success: true, message: 'No matching payment' });
           return;
         }
 
         // Verify amount matches
         if (data.amount !== payment.amount_cents) {
-          console.warn(
-            `Paystack webhook: amount mismatch for ${data.reference}: ` +
-            `expected ${payment.amount_cents}, got ${data.amount}`
-          );
+          logger.warn({ module: 'paystack-webhook', reference: data.reference, expected: payment.amount_cents, received: data.amount }, 'Amount mismatch');
           res.json({ success: true, message: 'Amount mismatch logged' });
           return;
         }

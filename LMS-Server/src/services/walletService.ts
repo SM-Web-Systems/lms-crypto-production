@@ -9,6 +9,8 @@
  *   the next register attempt returns 409 → handled as existing_account → banner shown. Natural path.
  */
 
+import logger from '../utils/logger.js';
+
 const AMMA_WALLET_BASE = process.env.AMMA_WALLET_URL || "http://localhost:3001/";
 // Safe URL join — new URL(relativePath, base) handles trailing-slash normalisation
 // and prevents the template-literal concatenation bug (e.g. base + "api/v1/...")
@@ -48,7 +50,7 @@ export async function generateWalletAddress(
   const registerUrl = walletUrl("api/v1/auth/register");
   const masked = maskEmail(email);
 
-  console.log(`[walletService:register] userId=${userId} email=${masked} url=${registerUrl} api-key-present=${!!apiKey}`);
+  logger.info({ module: 'walletService', action: 'register', userId, email: masked, url: registerUrl, apiKeyPresent: !!apiKey }, 'Starting wallet registration');
 
   const registerHeaders: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) registerHeaders["x-api-key"] = apiKey;
@@ -72,7 +74,7 @@ export async function generateWalletAddress(
 
   // Log status only — never log body on success (contains live accessToken/refreshToken)
   if (res.ok) {
-    console.log(`[walletService:register] userId=${userId} email=${masked} status=${res.status}`);
+    logger.info({ module: 'walletService', action: 'register', userId, email: masked, status: res.status }, 'Wallet registration succeeded');
   } else {
     let safeBody = resText.slice(0, 200);
     try {
@@ -81,11 +83,11 @@ export async function generateWalletAddress(
       delete parsed.refreshToken;
       safeBody = JSON.stringify(parsed).slice(0, 200);
     } catch { /* leave resText slice */ }
-    console.warn(`[walletService:register] userId=${userId} email=${masked} status=${res.status} body=${safeBody}`);
+    logger.warn({ module: 'walletService', action: 'register', userId, email: masked, status: res.status, body: safeBody }, 'Wallet registration returned error');
   }
 
   if (res.status === 409) {
-    console.log(`[walletService:register] userId=${userId} email=${masked} status=409 → AMMA_EMAIL_EXISTS`);
+    logger.info({ module: 'walletService', action: 'register', userId, email: masked, status: 409 }, 'AMMA_EMAIL_EXISTS');
     const err = new Error('Amma register 409: email already registered') as Error & { code: string };
     err.code = 'AMMA_EMAIL_EXISTS';
     throw err;
@@ -112,7 +114,7 @@ export async function generateWalletAddress(
     clearTimeout(timer2);
   }
 
-  console.log(`[walletService:keypair] userId=${userId} email=${masked} status=${keypairRes.status}`);
+  logger.info({ module: 'walletService', action: 'keypair', userId, email: masked, status: keypairRes.status }, 'Keypair generation response');
   if (!keypairRes.ok) {
     throw new Error(`Amma keypair generation failed (${keypairRes.status}): ${keypairText.slice(0, 200)}`);
   }
@@ -143,7 +145,7 @@ export async function generateWalletAddress(
     clearTimeout(timer3);
   }
 
-  console.log(`[walletService:wallet] userId=${userId} email=${masked} status=${walletAdditionRes.status}`);
+  logger.info({ module: 'walletService', action: 'wallet', userId, email: masked, status: walletAdditionRes.status }, 'Wallet creation response');
   if (!walletAdditionRes.ok) {
     throw new Error(`Amma wallet creation failed (${walletAdditionRes.status}): ${walletText.slice(0, 200)}`);
   }
@@ -170,7 +172,7 @@ export async function createUserWallet(
   } catch (error) {
     const e = error as { code?: string; message?: string };
     if (e?.code === 'AMMA_EMAIL_EXISTS') throw error;
-    console.error("Error creating wallet:", error);
+    logger.error({ module: 'walletService', err: error }, 'Error creating wallet');
     throw new Error("Failed to create wallet for user");
   }
 }

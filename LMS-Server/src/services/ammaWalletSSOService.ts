@@ -8,6 +8,7 @@
 
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import logger from "../utils/logger.js";
 
 const AMMA_BASE    = (process.env.AMMA_WALLET_URL || "http://localhost:3001").replace(/\/$/, "");
 const AMMA_API_KEY = process.env.AMMA_WALLET_API_KEY || "";
@@ -15,7 +16,7 @@ const AMMA_API_KEY = process.env.AMMA_WALLET_API_KEY || "";
 // LMS-SSO-002: Separate secret for signing state nonces — no JWT_SECRET fallback.
 const STATE_SECRET = process.env.AMMA_SSO_STATE_SECRET || '';
 if (!STATE_SECRET && process.env.NODE_ENV === 'production') {
-  console.warn('⚠️  AMMA_SSO_STATE_SECRET not set — SSO state signing disabled');
+  logger.warn('AMMA_SSO_STATE_SECRET not set — SSO state signing disabled');
 }
 
 function walletUrl(path: string): string {
