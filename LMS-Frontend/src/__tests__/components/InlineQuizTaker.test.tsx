@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -119,8 +119,8 @@ describe('InlineQuizTaker', () => {
     expect(screen.getByText('Question 1 of 2')).toBeInTheDocument();
   });
 
-  // IQ-6: Submits quiz and shows pass result
-  it('submits quiz and shows pass result', async () => {
+  // IQ-6: Submits quiz via confirmation modal and shows pass result
+  it('submits quiz via confirmation modal and shows pass result', async () => {
     const quiz = makeQuiz({
       questions: [{ id: 'q1', type: 'multiple_choice', question: 'Pick one', options: ['A', 'B'], order: 1 }],
     });
@@ -138,6 +138,12 @@ describe('InlineQuizTaker', () => {
     await user.click(screen.getByText('Begin'));
     await user.click(screen.getByLabelText('A'));
     await user.click(screen.getByText('Submit'));
+
+    // Confirmation modal appears
+    await waitFor(() => {
+      expect(screen.getByText('Submit Quiz?')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('Confirm Submit'));
 
     await waitFor(() => {
       expect(screen.getByText('100%')).toBeInTheDocument();
@@ -165,6 +171,10 @@ describe('InlineQuizTaker', () => {
     await user.click(screen.getByLabelText('X'));
     await user.click(screen.getByText('Submit'));
 
+    // Confirm submission
+    await waitFor(() => expect(screen.getByText('Submit Quiz?')).toBeInTheDocument());
+    await user.click(screen.getByText('Confirm Submit'));
+
     await waitFor(() => {
       expect(screen.getByText('0%')).toBeInTheDocument();
       expect(screen.getByText('Not passed')).toBeInTheDocument();
@@ -189,9 +199,103 @@ describe('InlineQuizTaker', () => {
     await user.click(screen.getByText('Begin'));
     await user.click(screen.getByLabelText('A'));
     await user.click(screen.getByText('Submit'));
+    await waitFor(() => expect(screen.getByText('Submit Quiz?')).toBeInTheDocument());
+    await user.click(screen.getByText('Confirm Submit'));
     await waitFor(() => expect(screen.getByText('Passed')).toBeInTheDocument());
 
     await user.click(screen.getByText('Retake'));
     expect(screen.getByText('Begin')).toBeInTheDocument();
+  });
+
+  // ─── New Phase 21 C2 Tests ─────────────────────────────────────────────────
+
+  // IQ-9: Confirmation modal — cancel returns to quiz
+  it('confirmation modal cancel returns to quiz', async () => {
+    const quiz = makeQuiz({
+      questions: [{ id: 'q1', type: 'multiple_choice', question: 'Pick', options: ['A'], order: 1 }],
+    });
+    mockGetById.mockResolvedValue(quiz);
+    const user = userEvent.setup();
+
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
+    await user.click(screen.getByText('Begin'));
+    await user.click(screen.getByLabelText('A'));
+    await user.click(screen.getByText('Submit'));
+
+    // Modal appears
+    await waitFor(() => expect(screen.getByText('Submit Quiz?')).toBeInTheDocument());
+    expect(screen.getByText(/You answered 1 of 1 questions/)).toBeInTheDocument();
+
+    // Cancel returns to quiz
+    await user.click(screen.getByText('Cancel'));
+    expect(screen.queryByText('Submit Quiz?')).not.toBeInTheDocument();
+    expect(screen.getByText('Pick')).toBeInTheDocument();
+  });
+
+  // IQ-10: Progress indicator shows answered count
+  it('shows progress bar with answered count', async () => {
+    mockGetById.mockResolvedValue(makeQuiz());
+    const user = userEvent.setup();
+
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
+    await user.click(screen.getByText('Begin'));
+
+    // Initially 0 answered
+    expect(screen.getByText('0 of 2 answered')).toBeInTheDocument();
+
+    // Answer Q1
+    await user.click(screen.getByLabelText('Ledger'));
+    expect(screen.getByText('1 of 2 answered')).toBeInTheDocument();
+  });
+
+  // IQ-11: Keyboard arrow keys navigate questions
+  it('arrow keys navigate between questions', async () => {
+    mockGetById.mockResolvedValue(makeQuiz());
+    const user = userEvent.setup();
+
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
+    await user.click(screen.getByText('Begin'));
+
+    expect(screen.getByText('Question 1 of 2')).toBeInTheDocument();
+
+    // ArrowRight goes to next question
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(screen.getByText('Question 2 of 2')).toBeInTheDocument();
+
+    // ArrowLeft goes back
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(screen.getByText('Question 1 of 2')).toBeInTheDocument();
+  });
+
+  // IQ-12: Review mode shows submitted answers
+  it('review mode shows submitted answers after completion', async () => {
+    mockGetById.mockResolvedValue(makeQuiz());
+    mockGetCompletion.mockResolvedValue({
+      id: 'comp-1', quizId: 'quiz-1', userId: 'u1',
+      score: 2, total: 2, passed: true,
+      answers: { q1: 'Ledger', q2: 'Agreement' },
+      completedAt: new Date().toISOString(),
+    });
+
+    const user = userEvent.setup();
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await waitFor(() => expect(screen.getByText('Passed')).toBeInTheDocument());
+
+    // Click review
+    await user.click(screen.getByText('Review Answers'));
+
+    // Shows submitted answers
+    expect(screen.getByText('Your Answers')).toBeInTheDocument();
+    expect(screen.getByText('Question 1')).toBeInTheDocument();
+    expect(screen.getByText('Question 2')).toBeInTheDocument();
+    expect(screen.getByText('Ledger')).toBeInTheDocument();
+    expect(screen.getByText('Agreement')).toBeInTheDocument();
+
+    // Hide review
+    await user.click(screen.getByText('Hide'));
+    expect(screen.queryByText('Your Answers')).not.toBeInTheDocument();
   });
 });

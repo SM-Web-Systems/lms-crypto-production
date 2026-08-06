@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { quizService } from '../services/quizService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
@@ -17,6 +17,8 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
   const [qi, setQi] = useState(0);
   const [result, setResult] = useState<QuizCompletion | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,12 +45,16 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
   }, [quizId, user?.id]);
 
   const questions = quiz?.questions ?? [];
+  const answeredCount = questions.filter((qq) => answers[qq.id]?.trim()).length;
+  const allAnswered = answeredCount === questions.length;
+  const isLast = qi === questions.length - 1;
 
   const handleAnswer = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
   const handleSubmit = async () => {
+    setShowConfirm(false);
     setStep('submitting');
     try {
       const res = await quizService.submitQuiz(quizId, '', answers);
@@ -64,6 +70,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
     setAnswers({});
     setQi(0);
     setResult(null);
+    setShowReview(false);
     setStep('intro');
   };
 
@@ -83,6 +90,39 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
       setStep('error');
     });
   };
+
+  // Keyboard navigation during quiz taking
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (step !== 'taking' || showConfirm) return;
+    const q = questions[qi];
+    if (!q) return;
+
+    // Don't intercept when typing in text input
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text') return;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      setQi((p) => Math.min(questions.length - 1, p + 1));
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setQi((p) => Math.max(0, p - 1));
+    } else if (e.key === 'Enter' && isLast && allAnswered) {
+      e.preventDefault();
+      setShowConfirm(true);
+    } else if (q.type === 'multiple_choice' && q.options) {
+      const num = parseInt(e.key, 10);
+      if (num >= 1 && num <= q.options.length) {
+        e.preventDefault();
+        handleAnswer(q.id, q.options[num - 1]);
+      }
+    }
+  }, [step, showConfirm, qi, questions, isLast, allAnswered]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (step === 'loading') {
@@ -159,6 +199,43 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
         <p className="text-sm text-neutral-500">
           {result.score} of {result.total} correct
         </p>
+
+        {/* Review answers toggle */}
+        {!showReview ? (
+          <button
+            onClick={() => setShowReview(true)}
+            className="rounded px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+          >
+            Review Answers
+          </button>
+        ) : (
+          <div className="w-full max-w-xl">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-sm font-semibold text-neutral-700">Your Answers</p>
+              <button
+                onClick={() => setShowReview(false)}
+                className="text-xs text-neutral-500 hover:text-neutral-700"
+              >
+                Hide
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {questions.map((qq, i) => {
+                const submitted = result.answers?.[qq.id] ?? '—';
+                return (
+                  <div key={qq.id} className="rounded border border-neutral-200 p-3">
+                    <p className="text-xs text-neutral-500 mb-1">Question {i + 1}</p>
+                    <p className="text-sm text-neutral-800 mb-1">{qq.question}</p>
+                    <p className="text-sm text-neutral-600">
+                      Your answer: <span className="font-medium">{submitted}</span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <button
           onClick={handleRetake}
           className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors"
@@ -183,14 +260,25 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
   const q: QuizQuestion | undefined = questions[qi];
   if (!q) return null;
 
-  const allAnswered = questions.every((qq) => answers[qq.id]?.trim());
-  const isLast = qi === questions.length - 1;
-
   return (
     <div className="flex flex-col gap-5 py-6 px-4 max-w-xl mx-auto">
-      <p className="text-xs text-neutral-500 text-right">
-        Question {qi + 1} of {questions.length}
-      </p>
+      {/* Progress indicator */}
+      <div>
+        <div className="flex justify-between items-center mb-1">
+          <p className="text-xs text-neutral-500">
+            Question {qi + 1} of {questions.length}
+          </p>
+          <p className="text-xs text-neutral-400">
+            {answeredCount} of {questions.length} answered
+          </p>
+        </div>
+        <div className="w-full bg-neutral-200 rounded-full h-1.5">
+          <div
+            className="bg-amber-500 h-1.5 rounded-full transition-all duration-300"
+            style={{ width: `${((qi + 1) / questions.length) * 100}%` }}
+          />
+        </div>
+      </div>
 
       <p className="text-sm font-semibold text-neutral-800">{q.question}</p>
 
@@ -235,7 +323,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
 
         {isLast ? (
           <button
-            onClick={handleSubmit}
+            onClick={() => setShowConfirm(true)}
             disabled={!allAnswered}
             className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
@@ -250,6 +338,36 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
           </button>
         )}
       </div>
+
+      {/* Submission confirmation dialog */}
+      {showConfirm && (
+        <div
+          role="dialog"
+          aria-label="Confirm submission"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        >
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-sm mx-4">
+            <p className="text-sm font-semibold text-neutral-800 mb-2">Submit Quiz?</p>
+            <p className="text-sm text-neutral-600 mb-4">
+              You answered {answeredCount} of {questions.length} questions. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="rounded px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors"
+              >
+                Confirm Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
