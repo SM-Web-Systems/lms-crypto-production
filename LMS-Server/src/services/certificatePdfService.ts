@@ -5,6 +5,7 @@
  * Reuses pdfkit patterns from invoiceService.ts.
  */
 import PDFDocument from 'pdfkit';
+import QRCode from 'qrcode';
 
 export interface CertificateData {
   credentialId: string;
@@ -31,7 +32,15 @@ function formatDate(dateStr: string): string {
 /**
  * Generate a PDF certificate buffer for a verified NFT credential.
  */
-export function generateCertificatePdf(data: CertificateData): Promise<Buffer> {
+export async function generateCertificatePdf(data: CertificateData): Promise<Buffer> {
+  // Generate QR code buffer before entering the PDF stream
+  const verifyUrl = `https://lms.smwebsystems.com/verify/${data.credentialId}`;
+  const qrBuffer = await QRCode.toBuffer(verifyUrl, {
+    width: 120,
+    margin: 1,
+    errorCorrectionLevel: 'M',
+  });
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const chunks: Buffer[] = [];
@@ -108,12 +117,20 @@ export function generateCertificatePdf(data: CertificateData): Promise<Buffer> {
     addRow('Network:', data.network === 'testnet' ? 'Stellar Testnet' : 'Stellar Mainnet');
     addRow('Wallet:', data.walletAddress);
 
+    // QR Code (buffer generated above, before Promise)
+    doc.moveDown(1);
+    const qrX = (595.28 - 120) / 2; // Center on A4 page
+    doc.image(qrBuffer, qrX, doc.y, { width: 120, height: 120 });
+    doc.y += 125; // Move past QR image
+    doc.fontSize(7).fillColor('#999999')
+      .text('Scan to verify', { align: 'center' });
+
     // Footer
-    doc.moveDown(2);
+    doc.moveDown(1);
     doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#cccccc').lineWidth(0.5).stroke();
     doc.moveDown(0.8);
     doc.fontSize(8).fillColor('#999999')
-      .text(`Verify at: https://lms.smwebsystems.com/verify/${data.credentialId}`, { align: 'center' });
+      .text(`Verify at: ${verifyUrl}`, { align: 'center' });
     doc.moveDown(0.3);
     doc.text(`Generated on ${new Date().toISOString().slice(0, 10)}. This is a blockchain-verified credential.`, {
       align: 'center',

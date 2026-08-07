@@ -7,6 +7,8 @@
  * BADGE-4: GET /credentials/verify/:id returns 404 for pending credential
  * BADGE-5: GET /credentials/:id/pdf returns PDF for minted credential
  * BADGE-6: GET /credentials/:id/pdf returns 404 for non-existent credential
+ * BADGE-7: PDF contains QR code image data (buffer large enough)
+ * BADGE-8: PDF still returns correct content-type after QR addition
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -123,5 +125,23 @@ describe('GET /credentials/:credentialId/pdf', () => {
     await request(app)
       .get(`${BASE}/credentials/${uuidv4()}/pdf`)
       .expect(404);
+  });
+
+  it('BADGE-7: PDF contains QR code image data (buffer large enough)', async () => {
+    const res = await request(app)
+      .get(`${BASE}/credentials/${mintedCredId}/pdf`)
+      .expect(200);
+
+    // A PDF with an embedded QR PNG should be significantly larger than 2KB
+    expect(res.body.length).toBeGreaterThan(2000);
+  });
+
+  it('BADGE-8: PDF still returns correct content-type after QR addition', async () => {
+    const res = await request(app)
+      .get(`${BASE}/credentials/${mintedCredId}/pdf`)
+      .expect(200);
+
+    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.headers['content-disposition']).toContain('certificate-');
   });
 });
