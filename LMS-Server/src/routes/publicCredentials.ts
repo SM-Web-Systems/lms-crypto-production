@@ -3,12 +3,15 @@
  *
  * GET /api/v1/credentials/public?wallet=<address>  — no auth, used by AmmaWallet NFT page
  * GET /api/v1/credentials/mine                     — auth required, returns caller's credentials
+ * GET /api/v1/credentials/verify/:credentialId     — no auth, public certificate verification
+ * GET /api/v1/credentials/:credentialId/pdf        — no auth, certificate PDF download
  */
 
 import { Router, Request, Response } from 'express';
-import { query } from '../config/database.js';
+import { query, queryOne } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthRequest } from '../types/index.js';
+import { generateCertificatePdf } from '../services/certificatePdfService.js';
 
 const router = Router();
 
@@ -142,6 +145,165 @@ router.get('/credentials/mine', authenticate, (req: AuthRequest, res: Response):
       })),
     },
   });
+});
+
+// ─── GET /credentials/verify/:credentialId (public) ─────────────────────────
+/**
+ * @openapi
+ * /credentials/verify/{credentialId}:
+ *   get:
+ *     tags: [Certificates]
+ *     summary: Verify an NFT certificate (public)
+ *     parameters:
+ *       - in: path
+ *         name: credentialId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The credential UUID to verify
+ *     responses:
+ *       '200':
+ *         description: Verified credential with full metadata
+ *       '404':
+ *         description: Certificate not found or not yet issued
+ */
+router.get('/credentials/verify/:credentialId', (req: Request, res: Response): void => {
+  const { credentialId } = req.params;
+
+  const row = queryOne<{
+    id: string;
+    wallet_address: string;
+    tx_hash: string | null;
+    contract_id: string;
+    network: string;
+    created_at: string;
+    soroban_token_id: number | null;
+    course_title: string | null;
+    course_code: string | null;
+    student_name: string | null;
+  }>(
+    `SELECT nc.id, nc.wallet_address, nc.tx_hash, nc.contract_id,
+            nc.network, nc.created_at, nc.soroban_token_id,
+            c.title AS course_title, c.course_code,
+            u.name AS student_name
+     FROM nft_credentials nc
+     LEFT JOIN courses c ON c.id = nc.course_id
+     LEFT JOIN users u ON u.id = nc.user_id
+     WHERE nc.id = ? AND nc.mint_status = 'minted' AND nc.is_superseded = 0`,
+    [credentialId],
+  );
+
+  if (!row) {
+    res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Certificate not found or not yet issued' },
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      credential: {
+        credentialId: row.id,
+        studentName: row.student_name ?? 'Student',
+        courseTitle: row.course_title ?? 'Course',
+        courseCode: row.course_code ?? '',
+        walletAddress: row.wallet_address,
+        txHash: row.tx_hash,
+        contractId: row.contract_id,
+        network: row.network,
+        sorobanTokenId: row.soroban_token_id,
+        issuedAt: row.created_at,
+        issuer: 'SM Web Systems Blockchain Academy',
+      },
+    },
+  });
+});
+
+// ─── GET /credentials/:credentialId/pdf (public) ────────────────────────────
+/**
+ * @openapi
+ * /credentials/{credentialId}/pdf:
+ *   get:
+ *     tags: [Certificates]
+ *     summary: Download certificate as PDF (public)
+ *     parameters:
+ *       - in: path
+ *         name: credentialId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The credential UUID
+ *     responses:
+ *       '200':
+ *         description: PDF certificate file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       '404':
+ *         description: Certificate not found
+ */
+router.get('/credentials/:credentialId/pdf', async (req: Request, res: Response): Promise<void> => {
+  const { credentialId } = req.params;
+
+  const row = queryOne<{
+    id: string;
+    wallet_address: string;
+    tx_hash: string | null;
+    contract_id: string;
+    network: string;
+    created_at: string;
+    soroban_token_id: number | null;
+    course_title: string | null;
+    course_code: string | null;
+    student_name: string | null;
+  }>(
+    `SELECT nc.id, nc.wallet_address, nc.tx_hash, nc.contract_id,
+            nc.network, nc.created_at, nc.soroban_token_id,
+            c.title AS course_title, c.course_code,
+            u.name AS student_name
+     FROM nft_credentials nc
+     LEFT JOIN courses c ON c.id = nc.course_id
+     LEFT JOIN users u ON u.id = nc.user_id
+     WHERE nc.id = ? AND nc.mint_status = 'minted' AND nc.is_superseded = 0`,
+    [credentialId],
+  );
+
+  if (!row) {
+    res.status(404).json({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Certificate not found' },
+    });
+    return;
+  }
+
+  try {
+    const pdfBuffer = await generateCertificatePdf({
+      credentialId: row.id,
+      studentName: row.student_name ?? 'Student',
+      courseTitle: row.course_title ?? 'Course',
+      courseCode: row.course_code ?? '',
+      walletAddress: row.wallet_address,
+      txHash: row.tx_hash,
+      contractId: row.contract_id,
+      network: row.network,
+      sorobanTokenId: row.soroban_token_id,
+      issuedAt: row.created_at,
+    });
+
+    const shortId = credentialId.slice(0, 8);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="certificate-${shortId}.pdf"`);
+    res.send(pdfBuffer);
+  } catch {
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL', message: 'Failed to generate PDF' },
+    });
+  }
 });
 
 export default router;

@@ -34,6 +34,7 @@ import LecturerCourseStudents from './pages/LecturerCourseStudents';
 import LecturerSubmissions from './pages/LecturerSubmissions';
 import StudentProgress from './pages/StudentProgress';
 import NotificationSettings from './pages/NotificationSettings';
+import CertificateVerification from './pages/CertificateVerification';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
 
@@ -134,6 +135,8 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* AmmaWallet SSO callback — must be outside ProtectedRoute */}
             <Route path="/sso-callback" element={<SsoCallback />} />
+            {/* Public certificate verification — no auth required */}
+            <Route path="/verify/:credentialId" element={<CertificateVerification />} />
             <Route path="/" element={<HomeRoute />} />
 
             {/* Student Routes */}
