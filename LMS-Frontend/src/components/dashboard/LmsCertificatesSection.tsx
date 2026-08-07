@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/useAuth';
 import { courseCompletionService } from '../../services/courseCompletionService';
 import type { MyCredential } from '../../types/api';
-import { AlertCircle, Award, ExternalLink } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import NFTBadge from '../NFTBadge';
 
 const LmsCertificatesSection: React.FC = () => {
   const { user } = useAuth();
@@ -46,48 +47,16 @@ const LmsCertificatesSection: React.FC = () => {
       ) : (
         <div className="space-y-3">
           {lmsCredentials!.map((cred) => (
-            <div
+            <NFTBadge
               key={cred.credentialId}
-              className="rounded-xl border border-violet-200/80 bg-gradient-to-br from-violet-50/60 via-white to-indigo-50/40 px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02]"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-neutral-900 truncate">
-                      {cred.courseTitle ?? cred.quizTitle ?? 'Certificate'}
-                    </p>
-                    {cred.courseCode && (
-                      <span className="text-xs text-neutral-500 font-mono">{cred.courseCode}</span>
-                    )}
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
-                      <Award className="h-3 w-3" aria-hidden />
-                      NFT Issued
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-neutral-500">
-                    {cred.issuedAt && (
-                      <span>Issued {new Date(cred.issuedAt).toLocaleDateString()}</span>
-                    )}
-                    {cred.walletAddress && (
-                      <span className="font-mono">
-                        {cred.walletAddress.slice(0, 4)}…{cred.walletAddress.slice(-4)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {cred.txHash && (
-                  <a
-                    href={`https://stellar.expert/explorer/public/tx/${cred.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-800 hover:underline transition-colors"
-                  >
-                    View on Stellar
-                    <ExternalLink className="h-3 w-3" aria-hidden />
-                  </a>
-                )}
-              </div>
-            </div>
+              credentialId={cred.credentialId}
+              courseTitle={cred.courseTitle ?? cred.quizTitle ?? 'Certificate'}
+              courseCode={cred.courseCode ?? undefined}
+              walletAddress={cred.walletAddress}
+              txHash={cred.txHash}
+              issuedAt={cred.issuedAt}
+              network="public"
+            />
           ))}
         </div>
       )}

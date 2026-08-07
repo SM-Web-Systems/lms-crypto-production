@@ -187,3 +187,18 @@
     transform: translateY(-16px) rotate(0.5deg);
   }
 }
+
+/* Phase 23 C4: NFT badge mint confetti */
+@keyframes confetti {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(300px) rotate(720deg);
+    opacity: 0;
+  }
+}
+.animate-confetti {
+  animation: confetti 2.5s ease-out forwards;
+}
