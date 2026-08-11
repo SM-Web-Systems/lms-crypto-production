@@ -250,7 +250,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
       a.href = url;
       a.download = `cohort-certificates-${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

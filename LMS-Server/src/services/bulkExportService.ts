@@ -21,6 +21,12 @@ export async function streamCertificateZip(
   res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
 
   const archive = new ZipArchive({ zlib: { level: 5 } });
+  archive.on('error', (err) => {
+    logger.error({ err }, 'Archiver error during ZIP generation');
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: { message: 'Failed to generate certificate archive' } });
+    }
+  });
   archive.pipe(res);
 
   const usedNames = new Set<string>();

@@ -35,7 +35,7 @@ const BadgeGallery: React.FC = () => {
       a.href = url;
       a.download = `certificates-${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch {
       setError('Failed to download certificates');
     } finally {

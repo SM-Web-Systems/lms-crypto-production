@@ -366,18 +366,32 @@ router.post('/credentials/bulk-export', bulkExportLimiter, authenticate, async (
     return;
   }
 
+  // Validate credentialIds elements are non-empty strings
+  if (credentialIds && !credentialIds.every((id) => typeof id === 'string' && id.length > 0)) {
+    res.status(400).json({ success: false, error: { message: 'credentialIds must be an array of non-empty strings' } });
+    return;
+  }
+
   let ids: string[];
 
   if (cohortId) {
-    if (!hasPermission(userId, 'certificate.approve')) {
+    // Admins (certificate.approve) or sponsors who own the cohort (cohort.manage) may export
+    const isAdmin = hasPermission(userId, 'certificate.approve');
+    const isCohortManager = hasPermission(userId, 'cohort.manage');
+    if (!isAdmin && !isCohortManager) {
       res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
       return;
     }
-    const cohort = queryOne<{ id: string; name: string; course_id: string }>(
-      'SELECT id, name, course_id FROM sponsor_cohorts WHERE id = ?', [cohortId],
+    const cohort = queryOne<{ id: string; name: string; course_id: string; sponsor_user_id: string }>(
+      'SELECT id, name, course_id, sponsor_user_id FROM sponsor_cohorts WHERE id = ?', [cohortId],
     );
     if (!cohort) {
       res.status(404).json({ success: false, error: { message: 'Cohort not found' } });
+      return;
+    }
+    // Non-admin cohort managers (sponsors) can only export their own cohorts
+    if (!isAdmin && cohort.sponsor_user_id !== userId) {
+      res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
       return;
     }
     const rows = query<{ id: string }>(
