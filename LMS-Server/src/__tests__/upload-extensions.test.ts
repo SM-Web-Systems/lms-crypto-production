@@ -165,6 +165,22 @@ describe('UPLOAD-EXT-3 — Markdown sanitization', () => {
   });
 });
 
+describe('DOMPurify afterSanitizeAttributes hook', () => {
+  it('SANITIZE-LINK-1: adds target and rel to markdown links', () => {
+    const result = renderMarkdownToSafeHtml('[Link](https://example.com)');
+    expect(result).toContain('target="_blank"');
+    expect(result).toContain('rel="noopener noreferrer"');
+    expect(result).toContain('href="https://example.com"');
+  });
+
+  it('SANITIZE-LINK-2: overrides target="_self" and adds rel', () => {
+    const result = renderMarkdownToSafeHtml('<a href="https://evil.com" target="_self">X</a>');
+    expect(result).toContain('target="_blank"');
+    expect(result).toContain('rel="noopener noreferrer"');
+    expect(result).not.toContain('target="_self"');
+  });
+});
+
 describe('GH-IMP-1 — GitHub URL parsing', () => {
   it('parses standard GitHub URL', async () => {
     const { parseGitHubUrl } = await import('../services/githubImportService.js');

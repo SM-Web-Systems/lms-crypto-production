@@ -1,10 +1,13 @@
 import { marked } from 'marked';
 import DOMPurify from 'isomorphic-dompurify';
 
-// Configure marked for safe output (no mangle/headerIds to keep output clean)
-marked.setOptions({
-  breaks: true,
-  gfm: true,
+// Force all <a> tags to open in new tab with noopener protection.
+// DOMPurify dedupes hooks internally — safe to call at module load.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
 });
 
 /**
@@ -12,7 +15,7 @@ marked.setOptions({
  * Uses DOMPurify to strip XSS vectors (scripts, event handlers, iframes, etc.).
  */
 export function renderMarkdownToSafeHtml(raw: string): string {
-  const html = marked.parse(raw, { async: false }) as string;
+  const html = marked.parse(raw, { breaks: true, gfm: true, async: false }) as string;
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -27,7 +30,6 @@ export function renderMarkdownToSafeHtml(raw: string): string {
       'src', 'alt', 'title',
       'class',
     ],
-    ADD_ATTR: ['target'],
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'select', 'button'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'style'],
   });
