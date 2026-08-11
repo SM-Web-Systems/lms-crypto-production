@@ -92,6 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'My Progress', path: '/student/progress', icon: BarChart2 },
           { name: 'My Submissions', path: '/student/submissions', icon: FileText },
           { name: 'Payments', path: '/student/payments', icon: CreditCard },
+          { name: 'Badges', path: '/student/badges', icon: Award },
           { name: 'Course', path: '/student/course', icon: BookOpen },
           { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
           { name: 'Resources', path: '/student/documents', icon: BookOpen },
