@@ -177,12 +177,17 @@ describe('RBAC Route Migration', () => {
   it('RBAC-R13: Instructor can access course.manage routes', async () => {
     const courseId = createCourse();
     const id = createUser('lecturer');
+    // Phase 26 C2: lecturer must also be assigned to the course via course_lecturers
+    execute(
+      'INSERT INTO course_lecturers (course_id, user_id, assigned_by) VALUES (?, ?, ?)',
+      [courseId, id, id],
+    );
     const token = makeToken(id, 'lecturer@test.com', 'lecturer');
     const res = await request(app)
       .put(`/api/v1/courses/${courseId}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ title: 'Updated by instructor' });
-    // Instructor has course.manage permission → 200
+    // Instructor has course.manage permission + assignment → 200
     expect(res.status).toBe(200);
   });
 
