@@ -527,6 +527,215 @@ function stripExt(fileName: string): string {
   return ext ? base.slice(0, -ext.length) : base;
 }
 
+export interface ZipPreviewResult {
+  sections: Array<{
+    title: string;
+    week: string;
+    items: Array<{
+      title: string;
+      type: 'pdf' | 'download' | 'text';
+      fileName: string;
+      documentId: string;
+      information?: string;
+      warnings: string[];
+    }>;
+  }>;
+  warnings: string[];
+  filesStored: number;
+  filesSkipped: number;
+}
+
+/**
+ * Shared ZIP processing — opens a ZIP, filters/validates entries, stores documents,
+ * and returns a preview structure. Used by both ZIP upload and GitHub import.
+ */
+export function processZipPreview(
+  zipPath: string,
+  courseId: string,
+  uploadedById: string,
+  subPath?: string,
+): ZipPreviewResult {
+  let zip: AdmZip;
+  try {
+    zip = new AdmZip(zipPath);
+  } catch {
+    throw new AppError('File is not a valid ZIP archive', 400, ErrorCodes.VALIDATION_ERROR);
+  }
+  const entries = zip.getEntries();
+
+  // Filter out directories, __MACOSX, dotfiles, path traversal
+  let validEntries = entries.filter((e) => {
+    if (e.isDirectory) return false;
+    const name = e.entryName;
+    if (name.startsWith('__MACOSX') || name.startsWith('.')) return false;
+    if (name.includes('..')) return false;
+    const baseName = path.basename(name);
+    if (baseName.startsWith('.')) return false;
+    return true;
+  });
+
+  // If subPath specified, filter entries to only those under that path
+  // (GitHub zipballs have a root dir like "org-repo-sha/"; strip it first)
+  if (subPath) {
+    const normalizedSub = subPath.replace(/^\/+/, '').replace(/\/+$/, '');
+    validEntries = validEntries.filter((e) => {
+      // Strip the first path component (GitHub zipball root)
+      const parts = e.entryName.split('/');
+      const withoutRoot = parts.slice(1).join('/');
+      return withoutRoot.startsWith(normalizedSub + '/') || withoutRoot === normalizedSub;
+    });
+  }
+
+  if (validEntries.length === 0) {
+    throw new AppError('ZIP contains no extractable files', 400, ErrorCodes.VALIDATION_ERROR);
+  }
+
+  if (validEntries.length > ZIP_MAX_ENTRIES) {
+    throw new AppError(
+      `ZIP contains ${validEntries.length} files, max ${ZIP_MAX_ENTRIES}`,
+      400,
+      ErrorCodes.VALIDATION_ERROR,
+    );
+  }
+
+  const totalSize = validEntries.reduce((sum, e) => sum + e.header.size, 0);
+  if (totalSize > ZIP_MAX_EXTRACTED_BYTES) {
+    throw new AppError(
+      `Extracted size ${Math.round(totalSize / 1024 / 1024)}MB exceeds ${ZIP_MAX_EXTRACTED_BYTES / 1024 / 1024}MB limit`,
+      400,
+      ErrorCodes.VALIDATION_ERROR,
+    );
+  }
+
+  type PreviewItem = {
+    title: string;
+    type: 'pdf' | 'download' | 'text';
+    fileName: string;
+    documentId: string;
+    information?: string;
+    warnings: string[];
+  };
+  type PreviewSection = { title: string; week: string; items: PreviewItem[] };
+
+  const sectionMap = new Map<string, PreviewSection>();
+  const warnings: string[] = [];
+  let filesStored = 0;
+  let filesSkipped = 0;
+
+  const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
+  const now = new Date();
+  const docDir = path.join(uploadDir, 'documents', String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
+  if (!fs.existsSync(docDir)) {
+    fs.mkdirSync(docDir, { recursive: true });
+  }
+
+  for (const entry of validEntries) {
+    const parts = entry.entryName.split('/').filter(Boolean);
+    const fileName = parts[parts.length - 1];
+    const mime = inferMime(fileName);
+
+    if (!ALLOWED_DOC_MIMES.has(mime)) {
+      filesSkipped++;
+      warnings.push(`Skipped "${fileName}" (unsupported type: ${mime})`);
+      continue;
+    }
+
+    // Determine section mapping from folder structure
+    // For GitHub zipballs, skip the root directory (first component)
+    let mappingParts = parts;
+    if (subPath !== undefined) {
+      // GitHub import: strip root dir
+      mappingParts = parts.slice(1);
+      // Also strip the subPath prefix from mapping
+      const subParts = subPath.replace(/^\/+/, '').replace(/\/+$/, '').split('/').filter(Boolean);
+      if (subParts.length > 0) {
+        mappingParts = mappingParts.slice(subParts.length);
+      }
+    }
+
+    let weekTitle: string;
+    let sectionTitle: string;
+    if (mappingParts.length >= 3) {
+      weekTitle = mappingParts[0];
+      sectionTitle = mappingParts[1];
+    } else if (mappingParts.length === 2) {
+      weekTitle = mappingParts[0];
+      sectionTitle = 'Imported';
+    } else {
+      weekTitle = 'Imported';
+      sectionTitle = 'Imported';
+    }
+
+    const docId = uuidv4();
+    const ext = path.extname(fileName);
+    const storedName = `${docId}${ext}`;
+    const storedPath = path.join(docDir, storedName);
+
+    const buffer = entry.getData();
+    fs.writeFileSync(storedPath, buffer);
+
+    execute(
+      `INSERT INTO course_documents (id, title, description, category, file_name, file_size, file_path, file_mime_type, course_ids, uploaded_by_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        docId,
+        stripExt(fileName),
+        'Imported from ZIP',
+        'Course Materials',
+        fileName,
+        buffer.length,
+        storedPath,
+        mime,
+        JSON.stringify([courseId]),
+        uploadedById,
+      ],
+    );
+    filesStored++;
+
+    // Render markdown to sanitized HTML
+    let information: string | undefined;
+    if (mime === 'text/markdown') {
+      const mdContent = buffer.toString('utf-8');
+      information = renderMarkdownToSafeHtml(mdContent);
+    }
+
+    const key = `${weekTitle}||${sectionTitle}`;
+    if (!sectionMap.has(key)) {
+      sectionMap.set(key, { title: sectionTitle, week: weekTitle, items: [] });
+    }
+    sectionMap.get(key)!.items.push({
+      title: stripExt(fileName),
+      type: itemTypeFromMime(mime),
+      fileName,
+      documentId: docId,
+      ...(information ? { information } : {}),
+      warnings: [],
+    });
+  }
+
+  // Check for duplicate file names within each section
+  for (const section of sectionMap.values()) {
+    const nameCount = new Map<string, number>();
+    for (const item of section.items) {
+      const n = item.fileName.toLowerCase();
+      nameCount.set(n, (nameCount.get(n) || 0) + 1);
+    }
+    for (const item of section.items) {
+      const n = item.fileName.toLowerCase();
+      if ((nameCount.get(n) || 0) > 1) {
+        item.warnings.push(`Duplicate: "${item.fileName}" in section "${section.title}"`);
+      }
+    }
+  }
+
+  return {
+    sections: [...sectionMap.values()],
+    warnings,
+    filesStored,
+    filesSkipped,
+  };
+}
+
 export function importZipContent(req: AuthRequest, res: Response, next: NextFunction): void {
   const uploadedPath = req.file?.path;
   try {
@@ -556,178 +765,10 @@ export function importZipContent(req: AuthRequest, res: Response, next: NextFunc
       throw new AppError('ZIP file is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
-    let zip: AdmZip;
-    try {
-      zip = new AdmZip(req.file.path);
-    } catch {
-      deleteFile(req.file.path);
-      res.status(400).json({ success: false, error: { message: 'File is not a valid ZIP archive' } });
-      return;
-    }
-    const entries = zip.getEntries();
-
-    // Filter out directories, __MACOSX, dotfiles, path traversal
-    const validEntries = entries.filter((e) => {
-      if (e.isDirectory) return false;
-      const name = e.entryName;
-      if (name.startsWith('__MACOSX') || name.startsWith('.')) return false;
-      if (name.includes('..')) return false;
-      const baseName = path.basename(name);
-      if (baseName.startsWith('.')) return false;
-      return true;
-    });
-
-    if (validEntries.length === 0) {
-      deleteFile(req.file.path);
-      res.status(400).json({
-        success: false,
-        error: { message: 'ZIP contains no extractable files' },
-      });
-      return;
-    }
-
-    if (validEntries.length > ZIP_MAX_ENTRIES) {
-      deleteFile(req.file.path);
-      res.status(400).json({
-        success: false,
-        error: { message: `ZIP contains ${validEntries.length} files, max ${ZIP_MAX_ENTRIES}` },
-      });
-      return;
-    }
-
-    // Check total extracted size
-    const totalSize = validEntries.reduce((sum, e) => sum + e.header.size, 0);
-    if (totalSize > ZIP_MAX_EXTRACTED_BYTES) {
-      deleteFile(req.file.path);
-      res.status(400).json({
-        success: false,
-        error: { message: `Extracted size ${Math.round(totalSize / 1024 / 1024)}MB exceeds ${ZIP_MAX_EXTRACTED_BYTES / 1024 / 1024}MB limit` },
-      });
-      return;
-    }
-
-    type PreviewItem = {
-      title: string;
-      type: 'pdf' | 'download' | 'text';
-      fileName: string;
-      documentId: string;
-      information?: string;
-      warnings: string[];
-    };
-    type PreviewSection = { title: string; week: string; items: PreviewItem[] };
-
-    const sectionMap = new Map<string, PreviewSection>();
-    const warnings: string[] = [];
-    let filesStored = 0;
-    let filesSkipped = 0;
-
-    const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
-    const now = new Date();
-    const docDir = path.join(uploadDir, 'documents', String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
-    if (!fs.existsSync(docDir)) {
-      fs.mkdirSync(docDir, { recursive: true });
-    }
-
-    for (const entry of validEntries) {
-      const parts = entry.entryName.split('/').filter(Boolean);
-      const fileName = parts[parts.length - 1];
-      const mime = inferMime(fileName);
-
-      if (!ALLOWED_DOC_MIMES.has(mime)) {
-        filesSkipped++;
-        warnings.push(`Skipped "${fileName}" (unsupported type: ${mime})`);
-        continue;
-      }
-
-      let weekTitle: string;
-      let sectionTitle: string;
-      if (parts.length >= 3) {
-        weekTitle = parts[0];
-        sectionTitle = parts[1];
-      } else if (parts.length === 2) {
-        weekTitle = parts[0];
-        sectionTitle = 'Imported';
-      } else {
-        weekTitle = 'Imported';
-        sectionTitle = 'Imported';
-      }
-
-      const docId = uuidv4();
-      const ext = path.extname(fileName);
-      const storedName = `${docId}${ext}`;
-      const storedPath = path.join(docDir, storedName);
-
-      const buffer = entry.getData();
-      fs.writeFileSync(storedPath, buffer);
-
-      execute(
-        `INSERT INTO course_documents (id, title, description, category, file_name, file_size, file_path, file_mime_type, course_ids, uploaded_by_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          docId,
-          stripExt(fileName),
-          'Imported from ZIP',
-          'Course Materials',
-          fileName,
-          buffer.length,
-          storedPath,
-          mime,
-          JSON.stringify([id]),
-          req.user?.userId,
-        ],
-      );
-      filesStored++;
-
-      let information: string | undefined;
-      if (mime === 'text/markdown') {
-        const mdContent = buffer.toString('utf-8');
-        information = renderMarkdownToSafeHtml(mdContent);
-      }
-
-      const key = `${weekTitle}||${sectionTitle}`;
-      if (!sectionMap.has(key)) {
-        sectionMap.set(key, { title: sectionTitle, week: weekTitle, items: [] });
-      }
-      sectionMap.get(key)!.items.push({
-        title: stripExt(fileName),
-        type: itemTypeFromMime(mime),
-        fileName,
-        documentId: docId,
-        ...(information ? { information } : {}),
-        warnings: [],
-      });
-    }
-
-    // Check for duplicate file names within each section
-    for (const section of sectionMap.values()) {
-      const nameCount = new Map<string, number>();
-      for (const item of section.items) {
-        const n = item.fileName.toLowerCase();
-        nameCount.set(n, (nameCount.get(n) || 0) + 1);
-      }
-      for (const item of section.items) {
-        const n = item.fileName.toLowerCase();
-        if ((nameCount.get(n) || 0) > 1) {
-          item.warnings.push(`Duplicate: "${item.fileName}" in section "${section.title}"`);
-        }
-      }
-    }
-
+    const result = processZipPreview(req.file.path, id, req.user!.userId);
     deleteFile(req.file.path);
 
-    const sections = [...sectionMap.values()];
-
-    res.json({
-      success: true,
-      data: {
-        preview: {
-          sections,
-          warnings,
-          filesStored,
-          filesSkipped,
-        },
-      },
-    });
+    res.json({ success: true, data: { preview: result } });
   } catch (error) {
     if (uploadedPath) deleteFile(uploadedPath);
     next(error);
