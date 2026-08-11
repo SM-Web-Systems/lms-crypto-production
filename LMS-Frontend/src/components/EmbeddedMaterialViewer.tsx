@@ -14,6 +14,14 @@ import {
   isGoogleDriveUrl,
 } from '../utils/mediaUrl';
 
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif']);
+
+function isImageFileName(fileName?: string): boolean {
+  if (!fileName) return false;
+  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
 function externalUrlForItem(item: CourseItem): string | null {
   if (item.type === 'video') return item.url.trim();
   if (item.type === 'link') return item.url.trim();
@@ -418,6 +426,24 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               ? `/api/v1/documents/${dlItem.documentId}/download`
               : dlItem.fileUrl?.trim() || null;
             const displayName = dlItem.fileName || item.title;
+
+            // Inline image rendering for image files
+            if (isImageFileName(dlItem.fileName) && downloadUrl) {
+              return (
+                <div className="flex flex-col items-center gap-5 py-8 px-4">
+                  <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                  {item.description?.trim() && (
+                    <p className="text-sm text-neutral-600 max-w-prose text-center leading-relaxed">{item.description}</p>
+                  )}
+                  <img
+                    src={downloadUrl}
+                    alt={item.title}
+                    className="max-w-full max-h-[600px] rounded-lg shadow-sm object-contain"
+                  />
+                </div>
+              );
+            }
+
             return (
               <div className="flex flex-col items-center gap-5 py-8 px-4">
                 <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-600">
