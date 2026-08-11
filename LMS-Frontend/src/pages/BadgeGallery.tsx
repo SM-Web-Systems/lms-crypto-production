@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Award, Loader2, ArrowUpDown } from 'lucide-react';
+import { Award, Loader2, ArrowUpDown, Search, X } from 'lucide-react';
 import NFTBadge from '../components/NFTBadge';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { MyCredential } from '../types/api';
@@ -12,6 +12,7 @@ const BadgeGallery: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     courseCompletionService
@@ -21,11 +22,24 @@ const BadgeGallery: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const courseTitles = [...new Set(credentials.map((c) => c.courseTitle).filter(Boolean))] as string[];
-
-  const filtered = filter
-    ? credentials.filter((c) => c.courseTitle === filter)
+  // Search filter (substring on courseTitle/courseCode)
+  const searched = search.trim()
+    ? credentials.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+          (c.courseTitle ?? '').toLowerCase().includes(q) ||
+          (c.courseCode ?? '').toLowerCase().includes(q)
+        );
+      })
     : credentials;
+
+  // Course dropdown options derived from searched results
+  const courseTitles = [...new Set(searched.map((c) => c.courseTitle).filter(Boolean))] as string[];
+
+  // Course dropdown filter (exact match, applied after search)
+  const filtered = filter
+    ? searched.filter((c) => c.courseTitle === filter)
+    : searched;
 
   const sorted = [...filtered].sort((a, b) => {
     const diff = new Date(a.issuedAt).getTime() - new Date(b.issuedAt).getTime();
@@ -54,6 +68,27 @@ const BadgeGallery: React.FC = () => {
         <h1 className="text-xl font-bold text-neutral-900">My Badges</h1>
         {credentials.length > 0 && (
           <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" aria-hidden />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search badges..."
+                className="rounded-lg border border-neutral-200 pl-9 pr-8 py-1.5 text-sm text-neutral-700 bg-white w-full sm:w-56"
+                aria-label="Search badges"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -80,12 +115,20 @@ const BadgeGallery: React.FC = () => {
         )}
       </div>
 
-      {sorted.length === 0 ? (
+      {credentials.length === 0 ? (
         <div className="text-center py-16">
           <Award className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-neutral-700 mb-1">No badges yet</h2>
           <p className="text-sm text-neutral-500">
             Complete courses to earn blockchain-verified certificates.
+          </p>
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="text-center py-16">
+          <Search className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-neutral-700 mb-1">No matching badges</h2>
+          <p className="text-sm text-neutral-500">
+            Try a different search term or filter.
           </p>
         </div>
       ) : (

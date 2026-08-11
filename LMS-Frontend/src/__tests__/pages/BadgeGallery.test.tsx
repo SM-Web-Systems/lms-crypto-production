@@ -124,4 +124,65 @@ describe('BadgeGallery', () => {
 
     expect(await screen.findByText(/No badges yet/i)).toBeTruthy();
   });
+
+  it('SEARCH-FE-1: search input filters by course title', async () => {
+    render(
+      <MemoryRouter>
+        <BadgeGallery />
+      </MemoryRouter>,
+    );
+
+    await screen.findAllByText('Blockchain 101');
+
+    const searchInput = screen.getByRole('textbox', { name: /search badges/i });
+    fireEvent.change(searchInput, { target: { value: 'Block' } });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Blockchain 101').length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText('Smart Contracts')).toBeNull();
+    });
+  });
+
+  it('SEARCH-FE-2: search input filters by course code', async () => {
+    render(
+      <MemoryRouter>
+        <BadgeGallery />
+      </MemoryRouter>,
+    );
+
+    await screen.findAllByText('Blockchain 101');
+
+    const searchInput = screen.getByRole('textbox', { name: /search badges/i });
+    fireEvent.change(searchInput, { target: { value: 'SVC' } });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Smart Contracts').length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText('Blockchain 101')).toBeNull();
+    });
+  });
+
+  it('SEARCH-FE-3: clear button resets search', async () => {
+    render(
+      <MemoryRouter>
+        <BadgeGallery />
+      </MemoryRouter>,
+    );
+
+    await screen.findAllByText('Blockchain 101');
+
+    const searchInput = screen.getByRole('textbox', { name: /search badges/i });
+    fireEvent.change(searchInput, { target: { value: 'Block' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Smart Contracts')).toBeNull();
+    });
+
+    const clearBtn = screen.getByRole('button', { name: /clear search/i });
+    fireEvent.click(clearBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Blockchain 101').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Smart Contracts').length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
