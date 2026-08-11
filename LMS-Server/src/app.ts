@@ -35,6 +35,7 @@ import rbacRoutes from './routes/rbac.js';
 import tenantRoutes from './routes/tenants.js';
 import webhookRoutes from './routes/webhooks.js';
 import emailTemplateRoutes from './routes/emailTemplates.js';
+import ogPagesRoutes from './routes/ogPages.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
@@ -217,6 +218,9 @@ app.get('/healthz', (_req, res) => {
   const status = getReadinessStatus();
   res.status(status.ready ? 200 : 503).json(status);
 });
+
+// OG pages — dynamic Open Graph tags for certificate verification (Phase 25 C2)
+app.use(readLimiter, ogPagesRoutes);
 
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);
