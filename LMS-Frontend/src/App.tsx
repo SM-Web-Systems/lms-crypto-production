@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
@@ -10,34 +10,36 @@ import SignUp from './pages/SignUp';
 import Landing from './pages/Landing';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Messages from './pages/Messages';
-import Profile from './pages/Profile';
-import CourseMembers from './pages/CourseMembers';
-import StudentDashboard from './pages/StudentDashboard';
-import StudentSubmissions from './pages/StudentSubmissions';
-import StudentPayments from './pages/StudentPayments';
-import BadgeGallery from './pages/BadgeGallery';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminStudents from './pages/AdminStudents';
-import AdminSubmissions from './pages/AdminSubmissions';
-import StudentDocuments from './pages/StudentDocuments';
-import StudentCourse from './pages/StudentCourse';
-import Forum from './pages/Forum';
-import AdminDocuments from './pages/AdminDocuments';
-import AdminCourse from './pages/AdminCourse';
-import AdminQuizzes from './pages/AdminQuizzes';
-import StudentQuizzes from './pages/StudentQuizzes';
 import SsoCallback from './pages/SsoCallback';
-import AdminCertificates from './pages/AdminCertificates';
-import SponsorDashboard from './pages/SponsorDashboard';
-import LecturerDashboard from './pages/LecturerDashboard';
-import LecturerCourseStudents from './pages/LecturerCourseStudents';
-import LecturerSubmissions from './pages/LecturerSubmissions';
-import StudentProgress from './pages/StudentProgress';
-import NotificationSettings from './pages/NotificationSettings';
 import CertificateVerification from './pages/CertificateVerification';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
+
+// Lazy-loaded pages — split into separate chunks per route
+const Messages = React.lazy(() => import('./pages/Messages'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const CourseMembers = React.lazy(() => import('./pages/CourseMembers'));
+const StudentDashboard = React.lazy(() => import('./pages/StudentDashboard'));
+const StudentSubmissions = React.lazy(() => import('./pages/StudentSubmissions'));
+const StudentPayments = React.lazy(() => import('./pages/StudentPayments'));
+const BadgeGallery = React.lazy(() => import('./pages/BadgeGallery'));
+const StudentDocuments = React.lazy(() => import('./pages/StudentDocuments'));
+const StudentCourse = React.lazy(() => import('./pages/StudentCourse'));
+const Forum = React.lazy(() => import('./pages/Forum'));
+const StudentQuizzes = React.lazy(() => import('./pages/StudentQuizzes'));
+const StudentProgress = React.lazy(() => import('./pages/StudentProgress'));
+const NotificationSettings = React.lazy(() => import('./pages/NotificationSettings'));
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
+const AdminStudents = React.lazy(() => import('./pages/AdminStudents'));
+const AdminSubmissions = React.lazy(() => import('./pages/AdminSubmissions'));
+const AdminDocuments = React.lazy(() => import('./pages/AdminDocuments'));
+const AdminCourse = React.lazy(() => import('./pages/AdminCourse'));
+const AdminQuizzes = React.lazy(() => import('./pages/AdminQuizzes'));
+const AdminCertificates = React.lazy(() => import('./pages/AdminCertificates'));
+const SponsorDashboard = React.lazy(() => import('./pages/SponsorDashboard'));
+const LecturerDashboard = React.lazy(() => import('./pages/LecturerDashboard'));
+const LecturerCourseStudents = React.lazy(() => import('./pages/LecturerCourseStudents'));
+const LecturerSubmissions = React.lazy(() => import('./pages/LecturerSubmissions'));
 
 function roleHome(role: string | undefined): string {
   if (role === 'admin') return '/admin';
@@ -129,6 +131,7 @@ function App() {
       <ToastProvider>
         <AuthProvider>
           <DataProvider>
+            <Suspense fallback={<LoadingScreen />}>
             <Routes>
             <Route path="/login/*" element={<LoginRoute />} />
             <Route path="/sign-up/*" element={<SignUpRoute />} />
@@ -470,6 +473,7 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </Suspense>
           </DataProvider>
         </AuthProvider>
       </ToastProvider>
