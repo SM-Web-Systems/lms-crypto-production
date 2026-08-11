@@ -5,6 +5,7 @@ import {
   createCourse,
   updateCourse,
   deleteCourse,
+  importCourseContent,
   getCourseMembers,
   addCourseMember,
   removeCourseMember,
@@ -229,6 +230,54 @@ router.post('/', requirePermission('course.create'), createCourse);
  *       403: { description: Requires course.manage }
  */
 router.put('/:id', requirePermission('course.manage'), updateCourse);
+/**
+ * @openapi
+ * /courses/{id}/import:
+ *   post:
+ *     tags: [Courses]
+ *     summary: Import sections into an existing course
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [sections]
+ *             properties:
+ *               mode: { type: string, enum: [append, replace], description: "append (default) or replace existing sections" }
+ *               sections:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [title]
+ *                   properties:
+ *                     title: { type: string }
+ *                     objective: { type: string }
+ *                     outcome: { type: string }
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         required: [type, title]
+ *                         properties:
+ *                           type: { type: string, enum: [video, link, pdf, text, audio, quiz, assignment, download] }
+ *                           title: { type: string }
+ *                           url: { type: string }
+ *                           quizId: { type: string }
+ *                           fileName: { type: string }
+ *     responses:
+ *       200: { description: Import result with sectionsImported, itemsImported, and updated course }
+ *       400: { description: Validation errors }
+ *       403: { description: Requires course.manage }
+ *       404: { description: Course not found }
+ */
+router.post('/:id/import', requirePermission('course.manage'), importCourseContent);
 /**
  * @openapi
  * /courses/{id}:
