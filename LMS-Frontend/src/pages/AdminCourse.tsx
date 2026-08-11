@@ -31,6 +31,7 @@ import type { Quiz } from '../types/quiz';
 import { courseCompletionService, type CourseRequirements } from '../services/courseCompletionService';
 import { toastSuccess } from '../utils/toastBus';
 import BulkUploadModal from '../components/BulkUploadModal';
+import ImportWizard from '../components/ImportWizard';
 
 type ItemDraft = {
   tempId: string;
@@ -317,6 +318,7 @@ const AdminCourse: React.FC = () => {
   const [jsonImportText, setJsonImportText] = useState('');
   const [jsonImportError, setJsonImportError] = useState('');
   const [jsonImporting, setJsonImporting] = useState(false);
+  const [importWizardOpen, setImportWizardOpen] = useState(false);
 
   // Preview state
   const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
@@ -990,6 +992,12 @@ const AdminCourse: React.FC = () => {
                   <FileSpreadsheet className="h-4 w-4 mr-1" />
                   Import CSV
                 </Button>
+                {editingId && (
+                  <Button variant="outline" size="sm" onClick={() => setImportWizardOpen(true)}>
+                    <Upload className="h-4 w-4 mr-1" />
+                    Import Wizard
+                  </Button>
+                )}
                 {editingId && weeks.length > 0 && (
                   <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
                     <Upload className="h-4 w-4 mr-1" />
@@ -1561,6 +1569,13 @@ const AdminCourse: React.FC = () => {
         courseId={editingId}
         docCategories={docCategories}
         onFilesUploaded={handleBulkFilesUploaded}
+      />
+      <ImportWizard
+        open={importWizardOpen}
+        onClose={() => setImportWizardOpen(false)}
+        courseId={editingId || ''}
+        courseTitle={courseTitle}
+        onImportComplete={() => { loadCourses({ silent: true }); if (editingId) { courseService.fetchCourses().then(list => { const c = list.find(x => x.id === editingId); if (c) startEdit(c); }); } }}
       />
     </div>
   );
