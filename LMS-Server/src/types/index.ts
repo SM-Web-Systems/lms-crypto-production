@@ -257,6 +257,15 @@ export type CourseItem =
     }
   | {
       id: string;
+      type: "text";
+      title: string;
+      order?: number;
+      url?: string;
+      description?: string;
+      information?: string;
+    }
+  | {
+      id: string;
       type: "quiz";
       title: string;
       order?: number;

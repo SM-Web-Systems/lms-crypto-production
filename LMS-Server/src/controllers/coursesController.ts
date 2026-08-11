@@ -325,6 +325,151 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
   }
 }
 
+const VALID_ITEM_TYPES = ['video', 'link', 'pdf', 'text', 'audio', 'quiz', 'assignment', 'download'] as const;
+const URL_REQUIRED_TYPES = ['video', 'link', 'audio'];
+
+export async function importCourseContent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id } = req.params;
+    const existing = queryOne<CourseRow>(
+      'SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?',
+      [id],
+    );
+    if (!existing) {
+      throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    // Lecturer assignment guard (same as updateCourse)
+    if (req.user?.role === 'lecturer') {
+      const assigned = queryOne<{ course_id: string }>(
+        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+        [id, req.user.userId],
+      );
+      if (!assigned) {
+        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+      }
+    }
+
+    const body = req.body as { sections?: unknown; mode?: string };
+    const mode = body.mode === 'replace' ? 'replace' : 'append';
+
+    if (!body.sections || !Array.isArray(body.sections) || body.sections.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'sections must be a non-empty array' },
+      });
+      return;
+    }
+
+    const errors: Array<{ section: number; item?: number; field: string; message: string }> = [];
+    const importedSections: CourseSection[] = [];
+    let totalItems = 0;
+
+    for (let si = 0; si < body.sections.length; si++) {
+      const sec = body.sections[si] as Record<string, unknown>;
+      const secTitle = typeof sec.title === 'string' ? sec.title.trim() : '';
+      if (!secTitle) {
+        errors.push({ section: si, field: 'title', message: 'Section title is required' });
+        continue;
+      }
+
+      const items: CourseItem[] = [];
+      const rawItems = Array.isArray(sec.items) ? sec.items : [];
+
+      for (let ii = 0; ii < rawItems.length; ii++) {
+        const raw = rawItems[ii] as Record<string, unknown>;
+        const itemType = typeof raw.type === 'string' ? raw.type.trim().toLowerCase() : '';
+        const itemTitle = typeof raw.title === 'string' ? raw.title.trim() : '';
+
+        if (!VALID_ITEM_TYPES.includes(itemType as typeof VALID_ITEM_TYPES[number])) {
+          errors.push({ section: si, item: ii, field: 'type', message: `Invalid type "${itemType}"` });
+          continue;
+        }
+        if (!itemTitle) {
+          errors.push({ section: si, item: ii, field: 'title', message: 'Item title is required' });
+          continue;
+        }
+
+        if (URL_REQUIRED_TYPES.includes(itemType)) {
+          const url = typeof raw.url === 'string' ? raw.url.trim() : '';
+          if (!url) {
+            errors.push({ section: si, item: ii, field: 'url', message: `url is required for ${itemType} items` });
+            continue;
+          }
+        }
+        if (itemType === 'quiz') {
+          const quizId = typeof raw.quizId === 'string' ? raw.quizId.trim() : '';
+          if (!quizId) {
+            errors.push({ section: si, item: ii, field: 'quizId', message: 'quizId is required for quiz items' });
+            continue;
+          }
+        }
+        if (itemType === 'download') {
+          const fileName = typeof raw.fileName === 'string' ? raw.fileName.trim() : '';
+          if (!fileName) {
+            errors.push({ section: si, item: ii, field: 'fileName', message: 'fileName is required for download items' });
+            continue;
+          }
+        }
+
+        const item: CourseItem = {
+          id: uuidv4(),
+          type: itemType,
+          title: itemTitle,
+          order: ii + 1,
+          ...(raw.url && typeof raw.url === 'string' ? { url: raw.url.trim() } : {}),
+          ...(raw.documentId && typeof raw.documentId === 'string' ? { documentId: raw.documentId.trim() } : {}),
+          ...(raw.fileUrl && typeof raw.fileUrl === 'string' ? { fileUrl: raw.fileUrl.trim() } : {}),
+          ...(raw.quizId && typeof raw.quizId === 'string' ? { quizId: raw.quizId.trim() } : {}),
+          ...(raw.description && typeof raw.description === 'string' ? { description: raw.description.trim() } : {}),
+          ...(raw.information && typeof raw.information === 'string' ? { information: raw.information.trim() } : {}),
+          ...(raw.fileName && typeof raw.fileName === 'string' ? { fileName: raw.fileName.trim() } : {}),
+        } as CourseItem;
+
+        items.push(item);
+        totalItems++;
+      }
+
+      importedSections.push({
+        id: uuidv4(),
+        title: secTitle,
+        objective: typeof sec.objective === 'string' ? sec.objective.trim() : undefined,
+        outcome: typeof sec.outcome === 'string' ? sec.outcome.trim() : undefined,
+        items,
+      });
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({
+        success: false,
+        error: { message: 'Import validation failed', details: errors },
+      });
+      return;
+    }
+
+    const existingSections = parseSections(existing.sections);
+    const finalSections = mode === 'replace' ? importedSections : [...existingSections, ...importedSections];
+
+    execute('UPDATE courses SET sections = ? WHERE id = ?', [JSON.stringify(finalSections), id]);
+
+    const row = queryOne<CourseRow>(
+      'SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?',
+      [id],
+    );
+
+    res.json({
+      success: true,
+      data: {
+        sectionsImported: importedSections.length,
+        itemsImported: totalItems,
+        course: rowToCourse(row!),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function deleteCourse(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
