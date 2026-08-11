@@ -36,8 +36,11 @@ const BadgeGallery: React.FC = () => {
   // Course dropdown options derived from searched results
   const courseTitles = [...new Set(searched.map((c) => c.courseTitle).filter(Boolean))] as string[];
 
+  // Reset dropdown filter if search narrowed away the selected course
+  const activeFilter = filter && courseTitles.includes(filter) ? filter : '';
+
   // Course dropdown filter (exact match, applied after search)
-  const filtered = filter
+  const filtered = activeFilter
     ? searched.filter((c) => c.courseTitle === filter)
     : searched;
 
@@ -90,7 +93,7 @@ const BadgeGallery: React.FC = () => {
               )}
             </div>
             <select
-              value={filter}
+              value={activeFilter}
               onChange={(e) => setFilter(e.target.value)}
               className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 bg-white"
               aria-label="Filter by course"

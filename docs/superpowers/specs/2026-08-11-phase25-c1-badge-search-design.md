@@ -14,10 +14,9 @@ The Badge Gallery page (`/student/badges`) has a course filter dropdown (exact-m
 ## 2. Goals
 
 1. Add a text search input to BadgeGallery that filters credentials by substring match on `courseTitle` and `courseCode`
-2. Search works alongside the existing course filter dropdown (AND logic)
-3. Debounced input to avoid excessive re-renders
-4. Clear button (×) to reset search
-5. Empty state when search yields no results ("No matching badges")
+2. Search works alongside the existing course filter dropdown (AND logic — dropdown auto-resets when search narrows away the selected course)
+3. Clear button (×) to reset search
+4. Empty state when search yields no results ("No matching badges")
 
 ## 3. Non-Goals
 
