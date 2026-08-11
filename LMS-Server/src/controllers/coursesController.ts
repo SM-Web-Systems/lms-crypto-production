@@ -260,6 +260,17 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
 
+    // Lecturers may only update courses they are assigned to via course_lecturers
+    if (req.user?.role === 'lecturer') {
+      const assigned = queryOne<{ course_id: string }>(
+        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+        [id, req.user.userId]
+      );
+      if (!assigned) {
+        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+      }
+    }
+
     const o = (req.body || {}) as Record<string, unknown>;
     const errors: Array<{ field: string; message: string }> = [];
     if (o.title !== undefined && (o.title === null || String(o.title).trim() === '')) {

@@ -59,7 +59,8 @@ const LoadingScreen: React.FC = () => (
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   allowedRole?: 'student' | 'admin' | 'lecturer';
-}> = ({ children, allowedRole }) => {
+  allowedRoles?: Array<'student' | 'admin' | 'lecturer'>;
+}> = ({ children, allowedRole, allowedRoles }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -68,6 +69,10 @@ const ProtectedRoute: React.FC<{
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user?.role as 'student' | 'admin' | 'lecturer')) {
+    return <Navigate to={roleHome(user?.role)} replace />;
   }
 
   if (allowedRole && user?.role !== allowedRole) {
@@ -319,7 +324,7 @@ function App() {
             <Route
               path="/admin/course"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedRoles={['admin', 'lecturer']}>
                   <Layout>
                     <AdminCourse />
                   </Layout>
@@ -424,6 +429,16 @@ function App() {
                 <ProtectedRoute allowedRole="lecturer">
                   <Layout>
                     <LecturerCourseStudents />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lecturer/course"
+              element={
+                <ProtectedRoute allowedRole="lecturer">
+                  <Layout>
+                    <AdminCourse />
                   </Layout>
                 </ProtectedRoute>
               }

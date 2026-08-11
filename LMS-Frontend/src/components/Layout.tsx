@@ -84,6 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       : user?.role === 'lecturer'
       ? [
           { name: 'Dashboard', path: '/lecturer', icon: LayoutDashboard },
+          { name: 'Course Editor', path: '/lecturer/course', icon: BookOpen },
           { name: 'Submissions', path: '/lecturer/submissions', icon: FileText },
           { name: 'Messages', path: '/lecturer/messages', icon: Mail },
           { name: 'Profile', path: '/lecturer/profile', icon: User },
