@@ -167,3 +167,49 @@ export async function sendPaymentReminderEmail(opts: {
   }
   await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
 }
+
+export async function sendCertificateMintedEmail(opts: {
+  to: string;
+  name: string;
+  courseName: string;
+  credentialId: string;
+  txHash: string;
+  userId: string;
+}): Promise<void> {
+  const { to, name, courseName, credentialId, txHash, userId } = opts;
+
+  // Respect notification preferences (nft_minted opt-out)
+  // Import db lazily to avoid circular initialization at module load time
+  const { db: database } = await import('../config/database.js');
+  const pref = database.prepare(
+    'SELECT enabled FROM notification_preferences WHERE user_id = ? AND type = ?'
+  ).get(userId, 'nft_minted') as { enabled: number } | undefined;
+  if (pref && pref.enabled === 0) return;
+
+  const verifyUrl = `${FRONTEND_URL}/verify/${credentialId}`;
+  const explorerUrl = `https://stellar.expert/explorer/public/tx/${txHash}`;
+
+  const rendered = renderTemplate('certificate-minted', {
+    studentName: name,
+    courseName,
+    verifyUrl,
+    explorerUrl,
+    lmsName: LMS_NAME,
+  });
+
+  const subject = rendered?.subject ?? `Your NFT Certificate for "${courseName}" Has Been Minted!`;
+  const html = rendered?.html ?? `
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>Congratulations! Your NFT certificate for <strong>${escapeHtml(courseName)}</strong> has been minted on the Stellar blockchain.</p>
+    <p><a href="${verifyUrl}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">View &amp; Verify Certificate</a></p>
+    <p><a href="${explorerUrl}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View on Blockchain Explorer</a></p>
+    <p>Your certificate is permanently recorded on the blockchain and can be independently verified by anyone.</p>
+    <p>— ${escapeHtml(LMS_NAME)}</p>
+  `.trim();
+
+  if (!transporter) {
+    log(subject, to, `Certificate minted for: ${courseName}. Verify: ${verifyUrl}`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+}
