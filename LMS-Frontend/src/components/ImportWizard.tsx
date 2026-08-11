@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from './Button';
-import { X, Upload, FileSpreadsheet, FolderOpen, Loader2, AlertTriangle, Trash2, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, FolderOpen, Loader2, AlertTriangle, Trash2, ChevronRight, ChevronLeft, Check, Github } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 import { toastSuccess } from '../utils/toastBus';
 
@@ -26,7 +26,7 @@ type PreviewSection = {
   items: PreviewItem[];
 };
 
-type ImportSource = 'zip' | 'csv' | 'folder' | null;
+type ImportSource = 'zip' | 'csv' | 'folder' | 'github' | null;
 
 const VALID_TYPES = ['video', 'link', 'pdf', 'text', 'audio', 'quiz', 'assignment', 'download'] as const;
 
@@ -181,6 +181,12 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
   const [commitError, setCommitError] = useState('');
   const [folderProgress, setFolderProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const [githubUrl, setGithubUrl] = useState('');
+  const [githubSubPath, setGithubSubPath] = useState('');
+  const [githubRef, setGithubRef] = useState('main');
+  const [githubError, setGithubError] = useState('');
+  const [githubLoading, setGithubLoading] = useState(false);
+
   const zipInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -196,6 +202,11 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
     setCommitting(false);
     setCommitError('');
     setFolderProgress(null);
+    setGithubUrl('');
+    setGithubSubPath('');
+    setGithubRef('main');
+    setGithubError('');
+    setGithubLoading(false);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -366,6 +377,65 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
     setFolderProgress(null);
   }, [courseId]);
 
+  /* ── GitHub source ── */
+  const handleGitHubFetch = useCallback(async () => {
+    if (!githubUrl.trim()) {
+      setGithubError('Repository URL is required');
+      return;
+    }
+
+    setGithubLoading(true);
+    setGithubError('');
+
+    try {
+      const token = localStorage.getItem('lms_token');
+      const res = await fetch(`/api/v1/courses/${courseId}/import/github`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          repoUrl: githubUrl.trim(),
+          subPath: githubSubPath.trim() || undefined,
+          ref: githubRef.trim() || 'main',
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        setGithubError(json.error?.message || 'Failed to fetch repository');
+        return;
+      }
+
+      const preview = json.data.preview;
+      const mapped: PreviewSection[] = preview.sections.map((s: { title: string; week: string; items: Array<{ title: string; type: string; fileName?: string; documentId?: string; information?: string; warnings?: string[] }> }) => ({
+        id: newId(),
+        week: s.week,
+        title: s.title,
+        items: s.items.map((item) => ({
+          id: newId(),
+          title: item.title,
+          type: item.type,
+          fileName: item.fileName,
+          documentId: item.documentId,
+          information: item.information,
+          warnings: item.warnings || [],
+        })),
+      }));
+
+      setSections(mapped);
+      setGlobalWarnings(preview.warnings || []);
+      setSource('github');
+      setStep(2);
+    } catch (err) {
+      setGithubError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setGithubLoading(false);
+    }
+  }, [courseId, githubUrl, githubSubPath, githubRef]);
+
   /* ── Preview editing ── */
   const updateItemField = useCallback((sectionId: string, itemId: string, field: keyof PreviewItem, value: string) => {
     setSections((prev) =>
@@ -449,9 +519,6 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
     }
   }, [sections, courseId, importMode, reset, onClose, onImportComplete]);
 
-  // Suppress unused variable warning for source
-  void source;
-
   if (!open) return null;
 
   const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0);
@@ -498,7 +565,7 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
                 </div>
               )}
 
-              <div className="grid gap-3 sm:grid-cols-3" data-testid="source-options">
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4" data-testid="source-options">
                 {/* ZIP */}
                 <button
                   className="border rounded-xl p-4 text-left hover:border-blue-400 hover:bg-blue-50 transition-colors"
@@ -544,7 +611,84 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
                   {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
                   onChange={(e) => { const f = e.target.files; if (f && f.length > 0) void handleFolderFiles(f); e.target.value = ''; }}
                 />
+
+                {/* GitHub */}
+                <button
+                  type="button"
+                  onClick={() => { setSource('github'); setGithubError(''); }}
+                  disabled={loading}
+                  data-testid="source-github"
+                  className={`border rounded-xl p-4 text-left transition-colors ${
+                    source === 'github' ? 'border-blue-500 bg-blue-50' : 'hover:border-blue-400 hover:bg-blue-50'
+                  }`}
+                >
+                  <Github className="h-8 w-8 text-neutral-600 mb-2" />
+                  <div className="font-medium text-neutral-800">GitHub Repository</div>
+                  <p className="text-xs text-neutral-500 mt-1">Import from a public repo</p>
+                </button>
               </div>
+
+              {/* GitHub form */}
+              {source === 'github' && (
+                <div className="space-y-3 mt-4 border rounded-lg p-4 bg-neutral-50">
+                  <div>
+                    <label htmlFor="github-url" className="block text-sm font-medium text-neutral-700 mb-1">
+                      Repository URL <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="github-url"
+                      type="url"
+                      value={githubUrl}
+                      onChange={(e) => { setGithubUrl(e.target.value); setGithubError(''); }}
+                      placeholder="https://github.com/SM-Web-Systems/repo-name"
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="github-subpath" className="block text-sm font-medium text-neutral-700 mb-1">
+                      Subdirectory <span className="text-neutral-400">(optional)</span>
+                    </label>
+                    <input
+                      id="github-subpath"
+                      type="text"
+                      value={githubSubPath}
+                      onChange={(e) => setGithubSubPath(e.target.value)}
+                      placeholder="/courseware"
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="github-ref" className="block text-sm font-medium text-neutral-700 mb-1">
+                      Branch / Tag
+                    </label>
+                    <input
+                      id="github-ref"
+                      type="text"
+                      value={githubRef}
+                      onChange={(e) => setGithubRef(e.target.value)}
+                      placeholder="main"
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  {githubError && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      {githubError}
+                    </p>
+                  )}
+                  <Button
+                    onClick={() => void handleGitHubFetch()}
+                    disabled={githubLoading}
+                    className="w-full"
+                  >
+                    {githubLoading ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Fetching...</>
+                    ) : (
+                      <><Github className="h-4 w-4 mr-1" /> Fetch</>
+                    )}
+                  </Button>
+                </div>
+              )}
 
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-neutral-600">
