@@ -33,6 +33,8 @@ import { PaymentAnalyticsPanel } from '../components/PaymentAnalyticsPanel';
 import { TenantAdminPanel } from '../components/TenantAdminPanel';
 import { EmailTemplatePanel } from '../components/EmailTemplatePanel';
 import { BroadcastPanel } from '../components/BroadcastPanel';
+import { CohortInsightsPanel } from '../components/CohortInsightsPanel';
+import { SponsorROIPanel } from '../components/SponsorROIPanel';
 import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
 import { Tag } from 'lucide-react';
 
@@ -470,6 +472,10 @@ const AdminDashboard: React.FC = () => {
       <RbacAdminPanel />
 
       <PaymentAnalyticsPanel />
+
+      <CohortInsightsPanel />
+
+      <SponsorROIPanel />
 
       <TenantAdminPanel />
 

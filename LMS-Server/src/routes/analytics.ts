@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDashboard, getCourseAnalytics, getQuizAnalytics, getSponsorStudents, exportCoursesCsv, getPaymentAnalytics } from '../controllers/analyticsController.js';
+import { getDashboard, getCourseAnalytics, getQuizAnalytics, getSponsorStudents, exportCoursesCsv, getPaymentAnalytics, getCohortInsights, getSponsorROI } from '../controllers/analyticsController.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 
@@ -112,5 +112,73 @@ router.get('/courses/:courseId/students', getSponsorStudents);
  *         description: Payment revenue summary and breakdowns by course, method, and month
  */
 router.get('/payments', getPaymentAnalytics);
+
+// GET /analytics/cohorts/insights - Cohort enrollment trends + completion rates
+/**
+ * @openapi
+ * /analytics/cohorts/insights:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Cohort enrollment trends and completion rates
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date (default 90 days ago)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date (default today)
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [csv]
+ *         description: Response format (csv for CSV export)
+ *     responses:
+ *       '200':
+ *         description: Cohort insights with enrollment trends, completion rates, and drop-off analysis
+ */
+router.get('/cohorts/insights', getCohortInsights);
+
+// GET /analytics/sponsors/roi - Sponsor ROI metrics
+/**
+ * @openapi
+ * /analytics/sponsors/roi:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Sponsor ROI metrics
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date (default 90 days ago)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date (default today)
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [csv]
+ *         description: Response format (csv for CSV export)
+ *     responses:
+ *       '200':
+ *         description: Sponsor spend, cost per completion, NFT issuance rate, per-cohort breakdown
+ */
+router.get('/sponsors/roi', getSponsorROI);
 
 export default router;
