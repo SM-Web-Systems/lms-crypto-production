@@ -347,6 +347,8 @@ export interface MyCredential {
   quizTitle: string | null;
   network: string | null;
   issuedAt: string;
+  sorobanTokenId: number | null;
+  contractId: string;
 }
 
 // ─── Phase 11 C1a: Payment types ─────────────────────────────────────────────
