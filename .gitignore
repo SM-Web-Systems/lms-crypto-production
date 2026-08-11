@@ -130,3 +130,9 @@ seed-courses.js
 
 # Deploy state (generated at runtime)
 .deploy-state/
+
+# Test artifacts (Playwright, Vitest)
+test-results/
+
+# SQLite runtime databases
+*.sqlite
