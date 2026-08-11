@@ -30,6 +30,7 @@ import { quizService } from '../services/quizService';
 import type { Quiz } from '../types/quiz';
 import { courseCompletionService, type CourseRequirements } from '../services/courseCompletionService';
 import { toastSuccess } from '../utils/toastBus';
+import BulkUploadModal from '../components/BulkUploadModal';
 
 type ItemDraft = {
   tempId: string;
@@ -300,6 +301,7 @@ const AdminCourse: React.FC = () => {
   const [importParsed, setImportParsed] = useState<WeekDraft[] | null>(null);
   const [importFileName, setImportFileName] = useState('');
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   // Preview state
   const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
@@ -435,6 +437,35 @@ const AdminCourse: React.FC = () => {
     } finally {
       setPdfUploadingItemTempId(null);
     }
+  };
+
+  const handleBulkFilesUploaded = (
+    items: Array<{ documentId: string; title: string; type: 'pdf' | 'download'; fileName: string }>,
+    weekTempId: string,
+    sectionTempId: string,
+  ) => {
+    setWeeks((prev) =>
+      prev.map((w) => {
+        if (w.tempId !== weekTempId) return w;
+        return {
+          ...w,
+          sections: w.sections.map((s) => {
+            if (s.tempId !== sectionTempId) return s;
+            const maxOrder = s.items.reduce((max, it) => Math.max(max, it.order), 0);
+            const newItems: ItemDraft[] = items.map((item, i) => ({
+              tempId: newTempId(),
+              type: item.type,
+              title: item.title,
+              order: maxOrder + 1 + i,
+              documentId: item.documentId,
+              fileName: item.fileName,
+            }));
+            return { ...s, items: [...s.items, ...newItems] };
+          }),
+        };
+      }),
+    );
+    refreshDocumentsList();
   };
 
   const startNew = () => {
@@ -893,6 +924,12 @@ const AdminCourse: React.FC = () => {
                   <FileSpreadsheet className="h-4 w-4 mr-1" />
                   Import CSV
                 </Button>
+                {editingId && weeks.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
+                    <Upload className="h-4 w-4 mr-1" />
+                    Bulk Upload
+                  </Button>
+                )}
                 {weeks.length > 0 && (
                   <Button variant="outline" size="sm" onClick={() => exportCourseToCSV(courseTitle, weeks)}>
                     <Download className="h-4 w-4 mr-1" />
@@ -1398,6 +1435,16 @@ const AdminCourse: React.FC = () => {
       {previewCourse && (
         <AdminCoursePreview course={previewCourse} onClose={() => setPreviewCourse(null)} />
       )}
+
+      <BulkUploadModal
+        open={bulkUploadOpen}
+        onClose={() => setBulkUploadOpen(false)}
+        weeks={weeks}
+        courseTitle={courseTitle}
+        courseId={editingId}
+        docCategories={docCategories}
+        onFilesUploaded={handleBulkFilesUploaded}
+      />
     </div>
   );
 };
