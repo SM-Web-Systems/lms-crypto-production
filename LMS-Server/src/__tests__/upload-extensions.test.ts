@@ -1,9 +1,99 @@
 /**
+ * UPLOAD-EXT-1 — Integration test: new MIME types accepted via document upload endpoint.
  * UPLOAD-EXT-2 — Item type mapping for new MIME types.
  * UPLOAD-EXT-3 — Markdown sanitization.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import request from 'supertest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import app from '../app.js';
+import { seedTestData, type TestIds } from './helpers/seed.js';
+import { makeToken } from './helpers/auth.js';
 import { renderMarkdownToSafeHtml } from '../utils/markdownProcessor.js';
+
+// ── UPLOAD-EXT-1: Integration test for new MIME types via document upload ──
+
+let ids: TestIds;
+let adminToken: string;
+
+beforeEach(() => {
+  ids = seedTestData();
+  adminToken = makeToken({ userId: ids.adminId, email: 'admin@test.com', role: 'admin' });
+});
+
+describe('UPLOAD-EXT-1 — New MIME types accepted via document upload endpoint', () => {
+  it('should accept .md file upload without 400 invalid-file-type error', async () => {
+    const tmpFile = path.join(os.tmpdir(), `test-upload-ext-${Date.now()}.md`);
+    fs.writeFileSync(tmpFile, '# Test\n\nHello world');
+
+    try {
+      const res = await request(app)
+        .post('/api/v1/documents')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', tmpFile, { filename: 'test.md', contentType: 'text/markdown' })
+        .field('title', 'Test Markdown Doc')
+        .field('description', 'A markdown test file')
+        .field('category', 'Course Materials');
+
+      // 201 = created successfully; anything other than 400 means it was not
+      // rejected as an invalid file type. 400 with INVALID_FILE_TYPE code
+      // is the specific failure we are guarding against.
+      expect(res.status).not.toBe(400);
+      if (res.status === 201) {
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.fileMimeType).toBe('text/markdown');
+      }
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
+  });
+
+  it('should accept .json file upload without 400 invalid-file-type error', async () => {
+    const tmpFile = path.join(os.tmpdir(), `test-upload-ext-${Date.now()}.json`);
+    fs.writeFileSync(tmpFile, JSON.stringify({ key: 'value', test: true }));
+
+    try {
+      const res = await request(app)
+        .post('/api/v1/documents')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', tmpFile, { filename: 'test.json', contentType: 'application/json' })
+        .field('title', 'Test JSON Doc')
+        .field('description', 'A JSON test file')
+        .field('category', 'Course Materials');
+
+      expect(res.status).not.toBe(400);
+      if (res.status === 201) {
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.fileMimeType).toBe('application/json');
+      }
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
+  });
+
+  it('should reject an unsupported MIME type (e.g. .exe) with 400', async () => {
+    const tmpFile = path.join(os.tmpdir(), `test-upload-ext-${Date.now()}.exe`);
+    fs.writeFileSync(tmpFile, 'MZ fake exe binary');
+
+    try {
+      const res = await request(app)
+        .post('/api/v1/documents')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', tmpFile, { filename: 'malware.exe', contentType: 'application/octet-stream' })
+        .field('title', 'Malware')
+        .field('description', 'Should be rejected')
+        .field('category', 'Course Materials');
+
+      expect(res.status).toBe(400);
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
+  });
+});
+
+// ── UPLOAD-EXT-2 & UPLOAD-EXT-3: Unit tests ────────────────────────────────
 
 // itemTypeFromMime is not exported — test it indirectly via importZipContent,
 // but we can test the mapping logic directly by importing the module and
