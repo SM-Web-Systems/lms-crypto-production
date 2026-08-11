@@ -150,6 +150,8 @@ const DOC_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/zip',
   'text/plain',
+  'text/markdown',
+  'application/json',
   'image/png',
   'image/jpeg',
   'image/gif',

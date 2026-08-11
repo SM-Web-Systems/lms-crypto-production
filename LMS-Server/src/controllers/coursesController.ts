@@ -481,6 +481,8 @@ const MIME_FROM_EXT: Record<string, string> = {
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -497,6 +499,8 @@ const ALLOWED_DOC_MIMES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/zip',
   'text/plain',
+  'text/markdown',
+  'application/json',
   'image/png',
   'image/jpeg',
   'image/gif',
@@ -510,8 +514,10 @@ function inferMime(fileName: string): string {
   return MIME_FROM_EXT[ext] || 'application/octet-stream';
 }
 
-function itemTypeFromMime(mime: string): 'pdf' | 'download' {
-  return mime === 'application/pdf' ? 'pdf' : 'download';
+export function itemTypeFromMime(mime: string): 'pdf' | 'download' | 'text' {
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'text/markdown') return 'text';
+  return 'download';
 }
 
 function stripExt(fileName: string): string {
@@ -601,9 +607,10 @@ export function importZipContent(req: AuthRequest, res: Response, next: NextFunc
 
     type PreviewItem = {
       title: string;
-      type: 'pdf' | 'download';
+      type: 'pdf' | 'download' | 'text';
       fileName: string;
       documentId: string;
+      information?: string;
       warnings: string[];
     };
     type PreviewSection = { title: string; week: string; items: PreviewItem[] };

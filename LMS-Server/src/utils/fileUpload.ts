@@ -35,6 +35,8 @@ const DOCUMENT_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/zip',
   'text/plain',
+  'text/markdown',
+  'application/json',
   'image/png',
   'image/jpeg',
   'image/gif',
@@ -51,6 +53,8 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
   'application/zip': '.zip',
   'text/plain': '.txt',
+  'text/markdown': '.md',
+  'application/json': '.json',
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/gif': '.gif',
@@ -107,7 +111,7 @@ const documentFileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
     cb(null, true);
   } else {
     cb(new AppError(
-      'Invalid file type. Allowed types: PDF, DOC, DOCX, ZIP, TXT, PNG, JPG, GIF, PPT, PPTX',
+      'Invalid file type. Allowed types: PDF, DOC, DOCX, ZIP, TXT, MD, JSON, PNG, JPG, GIF, PPT, PPTX',
       400,
       ErrorCodes.INVALID_FILE_TYPE
     ));

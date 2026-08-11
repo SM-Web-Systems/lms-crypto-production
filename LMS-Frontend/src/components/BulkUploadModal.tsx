@@ -11,6 +11,8 @@ const ACCEPTED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/zip',
   'text/plain',
+  'text/markdown',
+  'application/json',
   'image/png',
   'image/jpeg',
   'image/gif',
@@ -23,10 +25,11 @@ const ACCEPT_STRING = ACCEPTED_MIME_TYPES.join(',');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_FILES = 20;
 
-type ItemType = 'pdf' | 'download';
+type ItemType = 'pdf' | 'download' | 'text';
 
 function mimeToItemType(mime: string): ItemType {
   if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'text/markdown') return 'text';
   return 'download';
 }
 
