@@ -556,6 +556,8 @@ export function processZipPreview(
   uploadedById: string,
   subPath?: string,
 ): ZipPreviewResult {
+  const normalizedSubPath = subPath?.trim() || undefined;
+
   let zip: AdmZip;
   try {
     zip = new AdmZip(zipPath);
@@ -577,8 +579,8 @@ export function processZipPreview(
 
   // If subPath specified, filter entries to only those under that path
   // (GitHub zipballs have a root dir like "org-repo-sha/"; strip it first)
-  if (subPath) {
-    const normalizedSub = subPath.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (normalizedSubPath) {
+    const normalizedSub = normalizedSubPath.replace(/^\/+/, '').replace(/\/+$/, '');
     validEntries = validEntries.filter((e) => {
       // Strip the first path component (GitHub zipball root)
       const parts = e.entryName.split('/');
@@ -644,11 +646,11 @@ export function processZipPreview(
     // Determine section mapping from folder structure
     // For GitHub zipballs, skip the root directory (first component)
     let mappingParts = parts;
-    if (subPath !== undefined) {
+    if (normalizedSubPath !== undefined) {
       // GitHub import: strip root dir
       mappingParts = parts.slice(1);
       // Also strip the subPath prefix from mapping
-      const subParts = subPath.replace(/^\/+/, '').replace(/\/+$/, '').split('/').filter(Boolean);
+      const subParts = normalizedSubPath.replace(/^\/+/, '').replace(/\/+$/, '').split('/').filter(Boolean);
       if (subParts.length > 0) {
         mappingParts = mappingParts.slice(subParts.length);
       }
@@ -808,6 +810,8 @@ export async function importGitHubContent(req: AuthRequest, res: Response, next:
       throw new AppError('repoUrl is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
+    const safeRef = (typeof ref === 'string' && ref.trim()) ? ref.trim() : 'main';
+
     const { owner, repo } = parseGitHubUrl(repoUrl);
     if (!isAllowedOrg(owner)) {
       throw new AppError(
@@ -819,7 +823,7 @@ export async function importGitHubContent(req: AuthRequest, res: Response, next:
 
     let zipPath: string | undefined;
     try {
-      zipPath = await fetchGitHubZip(owner, repo, ref);
+      zipPath = await fetchGitHubZip(owner, repo, safeRef);
       const result = processZipPreview(zipPath, id, req.user!.userId, subPath);
       res.json({ success: true, data: { preview: result } });
     } finally {

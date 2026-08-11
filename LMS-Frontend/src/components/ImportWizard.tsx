@@ -160,8 +160,10 @@ const DOC_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
 ]);
 
-function mimeToItemType(mime: string): 'pdf' | 'download' {
-  return mime === 'application/pdf' ? 'pdf' : 'download';
+function mimeToItemType(mime: string): 'pdf' | 'download' | 'text' {
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'text/markdown') return 'text';
+  return 'download';
 }
 
 function stripExtension(name: string): string {
