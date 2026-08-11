@@ -220,7 +220,7 @@ app.get('/healthz', (_req, res) => {
 });
 
 // OG pages — dynamic Open Graph tags for certificate verification (Phase 25 C2)
-app.use(ogPagesRoutes);
+app.use(readLimiter, ogPagesRoutes);
 
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);

@@ -56,10 +56,12 @@ function renderVerifyPage(cred: {
   <meta property="og:title" content="${escapeHtml(ogTitle)}" />
   <meta property="og:description" content="${escapeHtml(ogDesc)}" />
   <meta property="og:url" content="${escapeHtml(ogUrl)}" />
+  <meta property="og:image" content="${FRONTEND_URL}/logo.png" />
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="${escapeHtml(ogTitle)}" />
   <meta name="twitter:description" content="${escapeHtml(ogDesc)}" />
+  <meta name="twitter:image" content="${FRONTEND_URL}/logo.png" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
