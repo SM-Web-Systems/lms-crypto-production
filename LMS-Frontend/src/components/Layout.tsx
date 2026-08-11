@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
+import GlobalSearchBar from './GlobalSearchBar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -179,7 +180,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex-1 lg:flex-none" />
+          <div className="flex-1 flex items-center lg:justify-start">
+            <GlobalSearchBar />
+          </div>
           <div className="flex items-center gap-3 sm:gap-4">
             <NotificationBell />
             <div className="text-right hidden sm:block min-w-0">

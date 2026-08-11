@@ -36,6 +36,7 @@ import tenantRoutes from './routes/tenants.js';
 import webhookRoutes from './routes/webhooks.js';
 import emailTemplateRoutes from './routes/emailTemplates.js';
 import ogPagesRoutes from './routes/ogPages.js';
+import searchRoutes from './routes/search.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
@@ -253,6 +254,7 @@ app.use('/api/v1', apiLimiter, cohortRoutes);
 app.use('/api/v1/admin', apiLimiter, rbacRoutes);
 app.use('/api/v1/admin/tenants', apiLimiter, tenantRoutes);
 app.use('/api/v1', apiLimiter, emailTemplateRoutes);
+app.use('/api/v1', readLimiter, searchRoutes);
 
 // ─── API Documentation ─────────────────────────────────────────────────────
 app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });
