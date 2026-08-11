@@ -45,12 +45,12 @@ const mockCredentials = [
 
 // Mock the courseCompletionService
 vi.mock('../../services/courseCompletionService', () => ({
-  default: {
+  courseCompletionService: {
     getMyCredentials: vi.fn(),
   },
 }));
 
-import courseCompletionService from '../../services/courseCompletionService';
+import { courseCompletionService } from '../../services/courseCompletionService';
 
 describe('BadgeGallery', () => {
   beforeEach(() => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Loader2, ArrowUpDown } from 'lucide-react';
 import NFTBadge from '../components/NFTBadge';
-import courseCompletionService from '../services/courseCompletionService';
+import { courseCompletionService } from '../services/courseCompletionService';
 import type { MyCredential } from '../types/api';
 
 type SortOrder = 'newest' | 'oldest';
