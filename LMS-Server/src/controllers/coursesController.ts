@@ -1,9 +1,12 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import AdmZip from 'adm-zip';
+import path from 'path';
+import fs from 'fs';
 import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Course, CourseSection, CourseItem, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { getDocumentFileUrl } from '../utils/fileUpload.js';
+import { getDocumentFileUrl, deleteFile } from '../utils/fileUpload.js';
 import { createNotification } from '../services/notificationService.js';
 
 interface CourseRow {
@@ -466,6 +469,245 @@ export async function importCourseContent(req: AuthRequest, res: Response, next:
       },
     });
   } catch (error) {
+    next(error);
+  }
+}
+
+const ZIP_MAX_ENTRIES = 200;
+const ZIP_MAX_EXTRACTED_BYTES = 200 * 1024 * 1024; // 200 MB
+
+const MIME_FROM_EXT: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.txt': 'text/plain',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.ppsx': 'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  '.zip': 'application/zip',
+};
+
+const ALLOWED_DOC_MIMES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/zip',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+]);
+
+function inferMime(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  return MIME_FROM_EXT[ext] || 'application/octet-stream';
+}
+
+function itemTypeFromMime(mime: string): 'pdf' | 'download' {
+  return mime === 'application/pdf' ? 'pdf' : 'download';
+}
+
+function stripExt(fileName: string): string {
+  const base = path.basename(fileName);
+  const ext = path.extname(base);
+  return ext ? base.slice(0, -ext.length) : base;
+}
+
+export async function importZipContent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  const uploadedPath = req.file?.path;
+  try {
+    const { id } = req.params;
+    const existing = queryOne<CourseRow>(
+      'SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?',
+      [id],
+    );
+    if (!existing) {
+      if (uploadedPath) deleteFile(uploadedPath);
+      throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    // Lecturer assignment guard
+    if (req.user?.role === 'lecturer') {
+      const assigned = queryOne<{ course_id: string }>(
+        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+        [id, req.user.userId],
+      );
+      if (!assigned) {
+        if (uploadedPath) deleteFile(uploadedPath);
+        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+      }
+    }
+
+    if (!req.file) {
+      throw new AppError('ZIP file is required', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const zip = new AdmZip(req.file.path);
+    const entries = zip.getEntries();
+
+    // Filter out directories, __MACOSX, dotfiles, path traversal
+    const validEntries = entries.filter((e) => {
+      if (e.isDirectory) return false;
+      const name = e.entryName;
+      if (name.startsWith('__MACOSX') || name.startsWith('.')) return false;
+      if (name.includes('..')) return false;
+      const baseName = path.basename(name);
+      if (baseName.startsWith('.')) return false;
+      return true;
+    });
+
+    if (validEntries.length === 0) {
+      deleteFile(req.file.path);
+      res.status(400).json({
+        success: false,
+        error: { message: 'ZIP contains no extractable files' },
+      });
+      return;
+    }
+
+    if (validEntries.length > ZIP_MAX_ENTRIES) {
+      deleteFile(req.file.path);
+      res.status(400).json({
+        success: false,
+        error: { message: `ZIP contains ${validEntries.length} files, max ${ZIP_MAX_ENTRIES}` },
+      });
+      return;
+    }
+
+    // Check total extracted size
+    const totalSize = validEntries.reduce((sum, e) => sum + e.header.size, 0);
+    if (totalSize > ZIP_MAX_EXTRACTED_BYTES) {
+      deleteFile(req.file.path);
+      res.status(400).json({
+        success: false,
+        error: { message: `Extracted size ${Math.round(totalSize / 1024 / 1024)}MB exceeds ${ZIP_MAX_EXTRACTED_BYTES / 1024 / 1024}MB limit` },
+      });
+      return;
+    }
+
+    type PreviewItem = {
+      title: string;
+      type: 'pdf' | 'download';
+      fileName: string;
+      documentId: string;
+      warnings: string[];
+    };
+    type PreviewSection = { title: string; week: string; items: PreviewItem[] };
+
+    const sectionMap = new Map<string, PreviewSection>();
+    const warnings: string[] = [];
+    let filesStored = 0;
+    let filesSkipped = 0;
+
+    const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
+    const now = new Date();
+    const docDir = path.join(uploadDir, 'documents', String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'));
+    if (!fs.existsSync(docDir)) {
+      fs.mkdirSync(docDir, { recursive: true });
+    }
+
+    for (const entry of validEntries) {
+      const parts = entry.entryName.split('/').filter(Boolean);
+      const fileName = parts[parts.length - 1];
+      const mime = inferMime(fileName);
+
+      if (!ALLOWED_DOC_MIMES.has(mime)) {
+        filesSkipped++;
+        warnings.push(`Skipped "${fileName}" (unsupported type: ${mime})`);
+        continue;
+      }
+
+      let weekTitle: string;
+      let sectionTitle: string;
+      if (parts.length >= 3) {
+        weekTitle = parts[0];
+        sectionTitle = parts[1];
+      } else if (parts.length === 2) {
+        weekTitle = parts[0];
+        sectionTitle = 'Imported';
+      } else {
+        weekTitle = 'Imported';
+        sectionTitle = 'Imported';
+      }
+
+      const docId = uuidv4();
+      const ext = path.extname(fileName);
+      const storedName = `${docId}${ext}`;
+      const storedPath = path.join(docDir, storedName);
+
+      const buffer = entry.getData();
+      fs.writeFileSync(storedPath, buffer);
+
+      execute(
+        `INSERT INTO course_documents (id, title, description, category, file_name, file_size, file_path, file_mime_type, course_ids, uploaded_by_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          docId,
+          stripExt(fileName),
+          'Imported from ZIP',
+          'Course Materials',
+          fileName,
+          buffer.length,
+          storedPath,
+          mime,
+          JSON.stringify([id]),
+          req.user?.userId,
+        ],
+      );
+      filesStored++;
+
+      const key = `${weekTitle}||${sectionTitle}`;
+      if (!sectionMap.has(key)) {
+        sectionMap.set(key, { title: sectionTitle, week: weekTitle, items: [] });
+      }
+      sectionMap.get(key)!.items.push({
+        title: stripExt(fileName),
+        type: itemTypeFromMime(mime),
+        fileName,
+        documentId: docId,
+        warnings: [],
+      });
+    }
+
+    // Check for duplicate file names within each section
+    for (const section of sectionMap.values()) {
+      const nameCount = new Map<string, number>();
+      for (const item of section.items) {
+        const n = item.fileName.toLowerCase();
+        nameCount.set(n, (nameCount.get(n) || 0) + 1);
+      }
+      for (const item of section.items) {
+        const n = item.fileName.toLowerCase();
+        if ((nameCount.get(n) || 0) > 1) {
+          item.warnings.push(`Duplicate: "${item.fileName}" in section "${section.title}"`);
+        }
+      }
+    }
+
+    deleteFile(req.file.path);
+
+    const sections = [...sectionMap.values()];
+
+    res.json({
+      success: true,
+      data: {
+        preview: {
+          sections,
+          warnings,
+          filesStored,
+          filesSkipped,
+        },
+      },
+    });
+  } catch (error) {
+    if (uploadedPath) deleteFile(uploadedPath);
     next(error);
   }
 }

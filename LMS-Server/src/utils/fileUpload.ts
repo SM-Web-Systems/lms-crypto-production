@@ -132,6 +132,28 @@ export const uploadDocument = multer({
   fileFilter: documentFileFilter,
 });
 
+// File filter for ZIP imports — only application/zip
+const zipFileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
+  if (file.mimetype === 'application/zip') {
+    cb(null, true);
+  } else {
+    cb(new AppError(
+      'Only ZIP files are accepted',
+      400,
+      ErrorCodes.INVALID_FILE_TYPE
+    ));
+  }
+};
+
+// Upload middleware for ZIP course imports (50 MB max)
+export const uploadZip = multer({
+  storage: createStorage('imports'),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50 MB
+  },
+  fileFilter: zipFileFilter,
+});
+
 export function deleteFile(filePath: string): void {
   try {
     if (fs.existsSync(filePath)) {
