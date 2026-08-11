@@ -8,6 +8,7 @@ import { AuthRequest, Course, CourseSection, CourseItem, UserDirectoryItem, Erro
 import { AppError } from '../middleware/errorHandler.js';
 import { getDocumentFileUrl, deleteFile } from '../utils/fileUpload.js';
 import { createNotification } from '../services/notificationService.js';
+import { renderMarkdownToSafeHtml } from '../utils/markdownProcessor.js';
 
 interface CourseRow {
   id: string;
@@ -677,6 +678,12 @@ export function importZipContent(req: AuthRequest, res: Response, next: NextFunc
       );
       filesStored++;
 
+      let information: string | undefined;
+      if (mime === 'text/markdown') {
+        const mdContent = buffer.toString('utf-8');
+        information = renderMarkdownToSafeHtml(mdContent);
+      }
+
       const key = `${weekTitle}||${sectionTitle}`;
       if (!sectionMap.has(key)) {
         sectionMap.set(key, { title: sectionTitle, week: weekTitle, items: [] });
@@ -686,6 +693,7 @@ export function importZipContent(req: AuthRequest, res: Response, next: NextFunc
         type: itemTypeFromMime(mime),
         fileName,
         documentId: docId,
+        ...(information ? { information } : {}),
         warnings: [],
       });
     }
