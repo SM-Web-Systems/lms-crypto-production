@@ -234,6 +234,35 @@ router.post('/', requirePermission('course.create'), createCourse);
 router.put('/:id', requirePermission('course.manage'), updateCourse);
 /**
  * @openapi
+ * /courses/{id}/import/zip:
+ *   post:
+ *     tags: [Courses]
+ *     summary: Upload ZIP to preview course import
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [zipfile]
+ *             properties:
+ *               zipfile: { type: string, format: binary }
+ *     responses:
+ *       200: { description: Preview of extracted course structure }
+ *       400: { description: Invalid ZIP or no extractable files }
+ *       403: { description: Requires course.manage }
+ *       404: { description: Course not found }
+ */
+// ZIP import registered before generic import (more-specific route first)
+router.post('/:id/import/zip', requirePermission('course.manage'), uploadZip.single('zipfile'), importZipContent);
+/**
+ * @openapi
  * /courses/{id}/import:
  *   post:
  *     tags: [Courses]
@@ -280,34 +309,6 @@ router.put('/:id', requirePermission('course.manage'), updateCourse);
  *       404: { description: Course not found }
  */
 router.post('/:id/import', requirePermission('course.manage'), importCourseContent);
-/**
- * @openapi
- * /courses/{id}/import/zip:
- *   post:
- *     tags: [Courses]
- *     summary: Upload ZIP to preview course import
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required: [zipfile]
- *             properties:
- *               zipfile: { type: string, format: binary }
- *     responses:
- *       200: { description: Preview of extracted course structure }
- *       400: { description: Invalid ZIP or no extractable files }
- *       403: { description: Requires course.manage }
- *       404: { description: Course not found }
- */
-router.post('/:id/import/zip', requirePermission('course.manage'), uploadZip.single('zipfile'), importZipContent);
 /**
  * @openapi
  * /courses/{id}:

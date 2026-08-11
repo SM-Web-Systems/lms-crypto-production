@@ -520,7 +520,7 @@ function stripExt(fileName: string): string {
   return ext ? base.slice(0, -ext.length) : base;
 }
 
-export async function importZipContent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export function importZipContent(req: AuthRequest, res: Response, next: NextFunction): void {
   const uploadedPath = req.file?.path;
   try {
     const { id } = req.params;
@@ -549,7 +549,14 @@ export async function importZipContent(req: AuthRequest, res: Response, next: Ne
       throw new AppError('ZIP file is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
-    const zip = new AdmZip(req.file.path);
+    let zip: AdmZip;
+    try {
+      zip = new AdmZip(req.file.path);
+    } catch {
+      deleteFile(req.file.path);
+      res.status(400).json({ success: false, error: { message: 'File is not a valid ZIP archive' } });
+      return;
+    }
     const entries = zip.getEntries();
 
     // Filter out directories, __MACOSX, dotfiles, path traversal
