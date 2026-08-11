@@ -427,3 +427,234 @@ export function getPaymentAnalytics(_req: AuthRequest, res: Response, next: Next
     next(error);
   }
 }
+
+// ─── Phase 25 C4: Cohort Insights ──────────────────────────────────────────
+
+function parseDateRange(req: AuthRequest): { from: string; to: string } {
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : ninetyDaysAgo.toISOString().slice(0, 10);
+  const to = typeof req.query.to === 'string' && req.query.to ? req.query.to : now.toISOString().slice(0, 10);
+  return { from, to: to + ' 23:59:59' };
+}
+
+export function getCohortInsights(req: AuthRequest, res: Response, next: NextFunction): void {
+  try {
+    const { from, to } = parseDateRange(req);
+
+    const enrollmentsByMonth = query<{ month: string; count: number }>(
+      `SELECT strftime('%Y-%m', cm.added_at) AS month, COUNT(*) AS count
+       FROM cohort_members cm
+       JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+       WHERE cm.added_at >= ? AND cm.added_at <= ?
+       GROUP BY month ORDER BY month`,
+      [from, to],
+    );
+
+    const cohortRows = query<{
+      cohort_id: string;
+      cohort_name: string;
+      course_name: string;
+      status: string;
+      total_members: number;
+      nft_count: number;
+    }>(
+      `SELECT sc.id AS cohort_id, sc.name AS cohort_name, c.title AS course_name,
+              sc.status,
+              (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) AS total_members,
+              (SELECT COUNT(*) FROM cohort_members cm2
+               JOIN nft_credentials nc ON nc.user_id = cm2.user_id AND nc.course_id = sc.course_id
+                    AND nc.mint_status = 'minted' AND nc.is_superseded = 0
+               WHERE cm2.cohort_id = sc.id) AS nft_count
+       FROM sponsor_cohorts sc
+       JOIN courses c ON c.id = sc.course_id
+       WHERE sc.created_at >= ? AND sc.created_at <= ?
+       ORDER BY sc.name`,
+      [from, to],
+    );
+
+    const cohorts = cohortRows.map((r) => {
+      const completedCount = r.nft_count; // NFT minted = completed
+      return {
+        cohortId: r.cohort_id,
+        cohortName: r.cohort_name,
+        courseName: r.course_name,
+        status: r.status,
+        totalMembers: r.total_members,
+        completedCount,
+        completionRate: r.total_members > 0 ? Math.round((completedCount / r.total_members) * 100) : 0,
+        nftCount: r.nft_count,
+      };
+    });
+
+    const dropOff = query<{
+      course_id: string;
+      course_name: string;
+      item_id: string;
+      section_id: string;
+      completions: number;
+      total_enrolled: number;
+    }>(
+      `SELECT lc.course_id, c.title AS course_name, lc.item_id, lc.section_id,
+              COUNT(*) AS completions,
+              (SELECT COUNT(DISTINCT ucc.user_id) FROM user_course_codes ucc WHERE ucc.course_code = c.course_code) AS total_enrolled
+       FROM lesson_completions lc
+       JOIN courses c ON c.id = lc.course_id
+       WHERE lc.completed_at >= ? AND lc.completed_at <= ?
+       GROUP BY lc.course_id, lc.item_id
+       HAVING total_enrolled > 0
+       ORDER BY (CAST(completions AS REAL) / total_enrolled) ASC
+       LIMIT 20`,
+      [from, to],
+    );
+
+    const dropOffData = dropOff.map((r) => ({
+      courseId: r.course_id,
+      courseName: r.course_name,
+      itemId: r.item_id,
+      sectionId: r.section_id,
+      completions: r.completions,
+      totalEnrolled: r.total_enrolled,
+      completionRate: r.total_enrolled > 0 ? Math.round((r.completions / r.total_enrolled) * 100) : 0,
+    }));
+
+    if (req.query.format === 'csv') {
+      const header = 'Cohort,Course,Status,Members,Completed,Completion Rate %,NFTs\n';
+      const rows = cohorts.map((c) =>
+        `"${c.cohortName}","${c.courseName}","${c.status}",${c.totalMembers},${c.completedCount},${c.completionRate},${c.nftCount}`,
+      ).join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="cohort-insights.csv"');
+      res.send(header + rows);
+      return;
+    }
+
+    res.json({ success: true, data: { enrollmentsByMonth, cohorts, dropOff: dropOffData } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ─── Phase 25 C4: Sponsor ROI ──────────────────────────────────────────────
+
+export function getSponsorROI(req: AuthRequest, res: Response, next: NextFunction): void {
+  try {
+    const { from, to } = parseDateRange(req);
+
+    const rows = query<{
+      sponsor_user_id: string;
+      sponsor_name: string;
+      cohort_id: string;
+      cohort_name: string;
+      course_name: string;
+      course_id: string;
+      member_count: number;
+      spent_cents: number;
+      payment_status: string | null;
+    }>(
+      `SELECT sc.sponsor_user_id, u.name AS sponsor_name,
+              sc.id AS cohort_id, sc.name AS cohort_name,
+              c.title AS course_name, sc.course_id,
+              (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) AS member_count,
+              COALESCE(p.amount_cents, 0) AS spent_cents,
+              p.status AS payment_status
+       FROM sponsor_cohorts sc
+       JOIN users u ON u.id = sc.sponsor_user_id
+       JOIN courses c ON c.id = sc.course_id
+       LEFT JOIN payments p ON p.id = sc.payment_id
+       WHERE sc.created_at >= ? AND sc.created_at <= ?
+       ORDER BY u.name, sc.name`,
+      [from, to],
+    );
+
+    // Group by sponsor
+    const sponsorMap = new Map<string, {
+      sponsorUserId: string;
+      sponsorName: string;
+      totalSpentCents: number;
+      totalMembers: number;
+      nftCount: number;
+      cohorts: Array<{
+        cohortId: string;
+        cohortName: string;
+        courseName: string;
+        memberCount: number;
+        spentCents: number;
+        completedCount: number;
+        nftCount: number;
+      }>;
+    }>();
+
+    for (const r of rows) {
+      if (!sponsorMap.has(r.sponsor_user_id)) {
+        sponsorMap.set(r.sponsor_user_id, {
+          sponsorUserId: r.sponsor_user_id,
+          sponsorName: r.sponsor_name,
+          totalSpentCents: 0,
+          totalMembers: 0,
+          nftCount: 0,
+          cohorts: [],
+        });
+      }
+      const sponsor = sponsorMap.get(r.sponsor_user_id)!;
+
+      const confirmedSpend = r.payment_status === 'confirmed' ? r.spent_cents : 0;
+      sponsor.totalSpentCents += confirmedSpend;
+      sponsor.totalMembers += r.member_count;
+
+      // Count NFTs for this cohort's members
+      const nftRow = queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM cohort_members cm
+         JOIN nft_credentials nc ON nc.user_id = cm.user_id AND nc.course_id = ?
+              AND nc.mint_status = 'minted' AND nc.is_superseded = 0
+         WHERE cm.cohort_id = ?`,
+        [r.course_id, r.cohort_id],
+      );
+      const cohortNfts = nftRow?.cnt ?? 0;
+      sponsor.nftCount += cohortNfts;
+
+      sponsor.cohorts.push({
+        cohortId: r.cohort_id,
+        cohortName: r.cohort_name,
+        courseName: r.course_name,
+        memberCount: r.member_count,
+        spentCents: confirmedSpend,
+        completedCount: cohortNfts,
+        nftCount: cohortNfts,
+      });
+    }
+
+    const sponsors = Array.from(sponsorMap.values()).map((s) => ({
+      ...s,
+      costPerCompletionCents: s.nftCount > 0 ? Math.round(s.totalSpentCents / s.nftCount) : null,
+      nftRate: s.totalMembers > 0 ? Math.round((s.nftCount / s.totalMembers) * 100) : 0,
+    }));
+
+    const totals = {
+      totalSpentCents: sponsors.reduce((sum, s) => sum + s.totalSpentCents, 0),
+      totalMembers: sponsors.reduce((sum, s) => sum + s.totalMembers, 0),
+      totalCompleted: sponsors.reduce((sum, s) => sum + s.nftCount, 0),
+      totalNfts: sponsors.reduce((sum, s) => sum + s.nftCount, 0),
+      overallCostPerCompletion: null as number | null,
+      overallNftRate: 0,
+    };
+    const totalNfts = totals.totalNfts;
+    totals.overallCostPerCompletion = totalNfts > 0 ? Math.round(totals.totalSpentCents / totalNfts) : null;
+    totals.overallNftRate = totals.totalMembers > 0 ? Math.round((totalNfts / totals.totalMembers) * 100) : 0;
+
+    if (req.query.format === 'csv') {
+      const header = 'Sponsor,Total Spent ($),Members,NFTs,NFT Rate %,Cost Per Completion ($)\n';
+      const csvRows = sponsors.map((s) =>
+        `"${s.sponsorName}",${(s.totalSpentCents / 100).toFixed(2)},${s.totalMembers},${s.nftCount},${s.nftRate},${s.costPerCompletionCents !== null ? (s.costPerCompletionCents / 100).toFixed(2) : 'N/A'}`,
+      ).join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="sponsor-roi.csv"');
+      res.send(header + csvRows);
+      return;
+    }
+
+    res.json({ success: true, data: { sponsors, totals } });
+  } catch (error) {
+    next(error);
+  }
+}
