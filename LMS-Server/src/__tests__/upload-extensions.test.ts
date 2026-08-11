@@ -74,3 +74,50 @@ describe('UPLOAD-EXT-3 — Markdown sanitization', () => {
     expect(result).toContain('text');
   });
 });
+
+describe('GH-IMP-1 — GitHub URL parsing', () => {
+  it('parses standard GitHub URL', async () => {
+    const { parseGitHubUrl } = await import('../services/githubImportService.js');
+    const result = parseGitHubUrl('https://github.com/SM-Web-Systems/blockchain-course');
+    expect(result).toEqual({ owner: 'SM-Web-Systems', repo: 'blockchain-course' });
+  });
+
+  it('parses GitHub URL with .git suffix', async () => {
+    const { parseGitHubUrl } = await import('../services/githubImportService.js');
+    const result = parseGitHubUrl('https://github.com/SM-Web-Systems/blockchain-course.git');
+    expect(result).toEqual({ owner: 'SM-Web-Systems', repo: 'blockchain-course' });
+  });
+
+  it('parses GitHub URL with trailing slash', async () => {
+    const { parseGitHubUrl } = await import('../services/githubImportService.js');
+    const result = parseGitHubUrl('https://github.com/SM-Web-Systems/repo/');
+    expect(result).toEqual({ owner: 'SM-Web-Systems', repo: 'repo' });
+  });
+
+  it('throws on non-GitHub URL', async () => {
+    const { parseGitHubUrl } = await import('../services/githubImportService.js');
+    expect(() => parseGitHubUrl('https://gitlab.com/foo/bar')).toThrow();
+  });
+
+  it('throws on invalid URL format', async () => {
+    const { parseGitHubUrl } = await import('../services/githubImportService.js');
+    expect(() => parseGitHubUrl('not-a-url')).toThrow();
+  });
+});
+
+describe('GH-IMP-2 — Org whitelist', () => {
+  it('allows SM-Web-Systems (default)', async () => {
+    const { isAllowedOrg } = await import('../services/githubImportService.js');
+    expect(isAllowedOrg('SM-Web-Systems')).toBe(true);
+  });
+
+  it('allows case-insensitive match', async () => {
+    const { isAllowedOrg } = await import('../services/githubImportService.js');
+    expect(isAllowedOrg('sm-web-systems')).toBe(true);
+  });
+
+  it('rejects non-whitelisted org', async () => {
+    const { isAllowedOrg } = await import('../services/githubImportService.js');
+    expect(isAllowedOrg('evil-org')).toBe(false);
+  });
+});

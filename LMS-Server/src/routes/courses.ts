@@ -7,6 +7,7 @@ import {
   deleteCourse,
   importCourseContent,
   importZipContent,
+  importGitHubContent,
   getCourseMembers,
   addCourseMember,
   removeCourseMember,
@@ -261,6 +262,36 @@ router.put('/:id', requirePermission('course.manage'), updateCourse);
  */
 // ZIP import registered before generic import (more-specific route first)
 router.post('/:id/import/zip', requirePermission('course.manage'), uploadZip.single('zipfile'), importZipContent);
+/**
+ * @openapi
+ * /courses/{id}/import/github:
+ *   post:
+ *     tags: [Courses]
+ *     summary: Import course content from a public GitHub repository
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [repoUrl]
+ *             properties:
+ *               repoUrl: { type: string, description: "GitHub repository URL" }
+ *               subPath: { type: string, description: "Subdirectory to import from" }
+ *               ref: { type: string, description: "Branch or tag (default: main)" }
+ *     responses:
+ *       200: { description: Preview of extracted course structure }
+ *       400: { description: Invalid URL or ZIP }
+ *       403: { description: Non-whitelisted org or insufficient permissions }
+ *       404: { description: Course or repo not found }
+ */
+router.post('/:id/import/github', requirePermission('course.manage'), importGitHubContent);
 /**
  * @openapi
  * /courses/{id}/import:

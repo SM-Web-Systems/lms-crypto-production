@@ -9,6 +9,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { getDocumentFileUrl, deleteFile } from '../utils/fileUpload.js';
 import { createNotification } from '../services/notificationService.js';
 import { renderMarkdownToSafeHtml } from '../utils/markdownProcessor.js';
+import { parseGitHubUrl, isAllowedOrg, fetchGitHubZip } from '../services/githubImportService.js';
 
 interface CourseRow {
   id: string;
@@ -771,6 +772,60 @@ export function importZipContent(req: AuthRequest, res: Response, next: NextFunc
     res.json({ success: true, data: { preview: result } });
   } catch (error) {
     if (uploadedPath) deleteFile(uploadedPath);
+    next(error);
+  }
+}
+
+export async function importGitHubContent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id } = req.params;
+    const existing = queryOne<CourseRow>(
+      'SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?',
+      [id],
+    );
+    if (!existing) {
+      throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    // Lecturer assignment guard
+    if (req.user?.role === 'lecturer') {
+      const assigned = queryOne<{ course_id: string }>(
+        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+        [id, req.user.userId],
+      );
+      if (!assigned) {
+        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
+      }
+    }
+
+    const { repoUrl, subPath, ref = 'main' } = req.body as {
+      repoUrl?: string;
+      subPath?: string;
+      ref?: string;
+    };
+
+    if (!repoUrl || typeof repoUrl !== 'string') {
+      throw new AppError('repoUrl is required', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const { owner, repo } = parseGitHubUrl(repoUrl);
+    if (!isAllowedOrg(owner)) {
+      throw new AppError(
+        `Repository owner '${owner}' is not in the allowed list`,
+        403,
+        ErrorCodes.FORBIDDEN,
+      );
+    }
+
+    let zipPath: string | undefined;
+    try {
+      zipPath = await fetchGitHubZip(owner, repo, ref);
+      const result = processZipPreview(zipPath, id, req.user!.userId, subPath);
+      res.json({ success: true, data: { preview: result } });
+    } finally {
+      if (zipPath) deleteFile(zipPath);
+    }
+  } catch (error) {
     next(error);
   }
 }
