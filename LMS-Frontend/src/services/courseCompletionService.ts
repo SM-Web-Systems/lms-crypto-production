@@ -227,4 +227,16 @@ export const courseCompletionService = {
     }> }>('/payments/mine');
     return res.data.data;
   },
+
+  /** POST /credentials/bulk-export — download ZIP of certificate PDFs (by IDs) */
+  async bulkExportCredentials(credentialIds: string[]): Promise<Blob> {
+    const res = await api.post('/credentials/bulk-export', { credentialIds }, { responseType: 'blob' });
+    return res.data;
+  },
+
+  /** POST /credentials/bulk-export — download ZIP of certificate PDFs (by cohort) */
+  async bulkExportCohort(cohortId: string): Promise<Blob> {
+    const res = await api.post('/credentials/bulk-export', { cohortId }, { responseType: 'blob' });
+    return res.data;
+  },
 };

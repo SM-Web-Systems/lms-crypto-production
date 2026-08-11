@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Award, Loader2, ArrowUpDown, Search, X } from 'lucide-react';
+import { Award, Loader2, ArrowUpDown, Search, X, Download } from 'lucide-react';
 import NFTBadge from '../components/NFTBadge';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { MyCredential } from '../types/api';
@@ -13,6 +13,7 @@ const BadgeGallery: React.FC = () => {
   const [filter, setFilter] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     courseCompletionService
@@ -21,6 +22,26 @@ const BadgeGallery: React.FC = () => {
       .catch(() => setError('Failed to load badges'))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDownloadAll = async () => {
+    if (credentials.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const blob = await courseCompletionService.bulkExportCredentials(
+        credentials.map((c) => c.credentialId),
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificates-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch {
+      setError('Failed to download certificates');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Search filter (substring on courseTitle/courseCode)
   const searched = search.trim()
@@ -113,6 +134,20 @@ const BadgeGallery: React.FC = () => {
             >
               <ArrowUpDown className="h-4 w-4" aria-hidden />
               {sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadAll}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="btn-download-all"
+            >
+              {exporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Download className="h-4 w-4" aria-hidden />
+              )}
+              {exporting ? 'Preparing download...' : 'Download All'}
             </button>
           </div>
         )}

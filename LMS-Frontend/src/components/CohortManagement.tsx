@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { cohortService } from '../services/cohortService';
+import { courseCompletionService } from '../services/courseCompletionService';
 import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, BulkApplyResult, CertificateTier } from '../types/api';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
@@ -21,6 +22,7 @@ import {
   CheckCircle,
   Mail,
   Bell,
+  Download,
 } from 'lucide-react';
 
 // ─── Create Cohort Modal ────────────────────────────────────────────────────
@@ -236,6 +238,26 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
     }
   };
 
+  const hasNftMembers = members.some((m) => m.certificateStatus === 'nft');
+
+  const handleExportCertificates = async () => {
+    setActionLoading('export');
+    setError(null);
+    try {
+      const blob = await courseCompletionService.bulkExportCohort(cohortId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cohort-certificates-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) return <div className="p-3 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading members...</div>;
 
   return (
@@ -294,6 +316,12 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
           {actionLoading === 'reminder' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Bell className="w-3 h-3 mr-1" />}
           Send Reminders
         </Button>
+        {hasNftMembers && (
+          <Button size="sm" variant="outline" onClick={handleExportCertificates} disabled={actionLoading !== null} data-testid="btn-export-certificates">
+            {actionLoading === 'export' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+            {actionLoading === 'export' ? 'Preparing download...' : 'Export Certificates'}
+          </Button>
+        )}
       </div>
 
       <div className="mb-3" data-testid="invite-form">
