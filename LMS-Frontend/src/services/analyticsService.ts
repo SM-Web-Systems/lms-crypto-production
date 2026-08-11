@@ -49,6 +49,60 @@ export interface PaymentAnalyticsData {
   byMonth: { month: string; revenueCents: number; count: number }[];
 }
 
+export interface CohortInsightsData {
+  enrollmentsByMonth: { month: string; count: number }[];
+  cohorts: {
+    cohortId: string;
+    cohortName: string;
+    courseName: string;
+    status: string;
+    totalMembers: number;
+    completedCount: number;
+    completionRate: number;
+    avgDaysToComplete: number | null;
+    nftCount: number;
+  }[];
+  dropOff: {
+    courseId: string;
+    courseName: string;
+    itemId: string;
+    sectionId: string;
+    completions: number;
+    totalEnrolled: number;
+    completionRate: number;
+  }[];
+}
+
+export interface SponsorROIData {
+  sponsors: {
+    sponsorUserId: string;
+    sponsorName: string;
+    totalSpentCents: number;
+    totalMembers: number;
+    completedCount: number;
+    costPerCompletionCents: number | null;
+    nftCount: number;
+    nftRate: number;
+    cohorts: {
+      cohortId: string;
+      cohortName: string;
+      courseName: string;
+      memberCount: number;
+      spentCents: number;
+      completedCount: number;
+      nftCount: number;
+    }[];
+  }[];
+  totals: {
+    totalSpentCents: number;
+    totalMembers: number;
+    totalCompleted: number;
+    totalNfts: number;
+    overallCostPerCompletion: number | null;
+    overallNftRate: number;
+  };
+}
+
 export const analyticsService = {
   async getDashboard(): Promise<DashboardAnalytics> {
     const response = await api.get<ApiResponse<DashboardAnalytics>>('/analytics/dashboard');
@@ -74,6 +128,28 @@ export const analyticsService = {
 
   async getPaymentAnalytics(): Promise<PaymentAnalyticsData> {
     const response = await api.get<{ success: boolean; data: PaymentAnalyticsData }>('/analytics/payments');
+    return response.data?.data;
+  },
+
+  async getCohortInsights(from?: string, to?: string): Promise<CohortInsightsData> {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    const response = await api.get<{ success: boolean; data: CohortInsightsData }>(
+      `/analytics/cohorts/insights${qs ? `?${qs}` : ''}`,
+    );
+    return response.data?.data;
+  },
+
+  async getSponsorROI(from?: string, to?: string): Promise<SponsorROIData> {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    const response = await api.get<{ success: boolean; data: SponsorROIData }>(
+      `/analytics/sponsors/roi${qs ? `?${qs}` : ''}`,
+    );
     return response.data?.data;
   },
 

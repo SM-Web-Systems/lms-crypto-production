@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import { CohortManagement } from '../components/CohortManagement';
+import { SponsorROIPanel } from '../components/SponsorROIPanel';
 import { analyticsService, type CourseAnalytics, type SponsorStudent } from '../services/analyticsService';
 import { cohortService } from '../services/cohortService';
 import { getErrorMessage } from '../utils/apiError';
@@ -380,6 +381,8 @@ const SponsorDashboard: React.FC = () => {
       )}
 
       </>)}
+
+      <SponsorROIPanel />
     </div>
   );
 };
