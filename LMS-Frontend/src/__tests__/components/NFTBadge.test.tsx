@@ -1,10 +1,12 @@
 /**
- * Phase 23 C4: NFTBadge + CertificateVerification tests.
+ * Phase 23 C4 + Phase 24 C1: NFTBadge + CertificateVerification tests.
  *
  * BADGE-FE-1: NFTBadge renders course title, date, wallet
  * BADGE-FE-2: NFTBadge shows Stellar explorer link when txHash present
  * BADGE-FE-3: NFTBadge share button copies verification URL
  * BADGE-FE-4: CertificateVerification page renders verified state
+ * BADGE-FE-5: CertificateVerification renders QR code image
+ * BADGE-FE-6: QR code image has data URL src
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -97,5 +99,79 @@ describe('CertificateVerification', () => {
     expect(await screen.findByText('Blockchain 101')).toBeTruthy();
     expect(screen.getByText('Alice Test')).toBeTruthy();
     expect(screen.getByText(/Verified Certificate/i)).toBeTruthy();
+  });
+
+  it('BADGE-FE-5: renders QR code image', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            credential: {
+              credentialId: 'cred-qr-test',
+              studentName: 'QR Student',
+              courseTitle: 'QR Course',
+              courseCode: 'QR-101',
+              walletAddress: 'GABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDE',
+              txHash: 'qrhash123',
+              contractId: 'CDPKSOOE4UZF',
+              network: 'public',
+              sorobanTokenId: 99,
+              issuedAt: '2026-08-07T12:00:00Z',
+              issuer: 'SM Web Systems Blockchain Academy',
+            },
+          },
+        }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/verify/cred-qr-test']}>
+        <Routes>
+          <Route path="/verify/:credentialId" element={<CertificateVerification />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('QR Course');
+    const qrImg = await screen.findByAltText('QR code');
+    expect(qrImg).toBeTruthy();
+  });
+
+  it('BADGE-FE-6: QR code image has data URL src', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            credential: {
+              credentialId: 'cred-qr-test2',
+              studentName: 'QR Student 2',
+              courseTitle: 'QR Course 2',
+              courseCode: 'QR-102',
+              walletAddress: 'GABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDE',
+              txHash: 'qrhash456',
+              contractId: 'CDPKSOOE4UZF',
+              network: 'public',
+              sorobanTokenId: 100,
+              issuedAt: '2026-08-07T12:00:00Z',
+              issuer: 'SM Web Systems Blockchain Academy',
+            },
+          },
+        }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/verify/cred-qr-test2']}>
+        <Routes>
+          <Route path="/verify/:credentialId" element={<CertificateVerification />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('QR Course 2');
+    const qrImg = await screen.findByAltText('QR code');
+    expect(qrImg.getAttribute('src')).toMatch(/^data:image/);
   });
 });

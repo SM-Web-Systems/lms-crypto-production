@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle, ExternalLink, Download, AlertCircle, Loader2 } from 'lucide-react';
+import QRCode from 'qrcode';
 
 interface VerifiedCredential {
   credentialId: string;
@@ -21,6 +22,7 @@ const CertificateVerification: React.FC = () => {
   const [credential, setCredential] = useState<VerifiedCredential | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const apiBase = import.meta.env?.VITE_API_BASE_URL || '/api/v1';
 
@@ -41,6 +43,14 @@ const CertificateVerification: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, [credentialId, apiBase]);
+
+  useEffect(() => {
+    if (!credential) return;
+    const url = `${window.location.origin}/verify/${credential.credentialId}`;
+    QRCode.toDataURL(url, { width: 160, margin: 1, errorCorrectionLevel: 'M' })
+      .then(setQrDataUrl)
+      .catch(() => {});
+  }, [credential]);
 
   if (loading) {
     return (
@@ -159,6 +169,14 @@ const CertificateVerification: React.FC = () => {
               Download Certificate PDF
             </a>
           </div>
+
+          {/* QR Code */}
+          {qrDataUrl && (
+            <div className="text-center pt-4">
+              <img src={qrDataUrl} alt="QR code" className="mx-auto" width={160} height={160} />
+              <p className="text-xs text-neutral-400 mt-1">Scan to verify this certificate</p>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-xs text-neutral-400 mt-6">

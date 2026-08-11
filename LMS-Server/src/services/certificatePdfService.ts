@@ -121,7 +121,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     doc.moveDown(1);
     const qrX = (595.28 - 120) / 2; // Center on A4 page
     doc.image(qrBuffer, qrX, doc.y, { width: 120, height: 120 });
-    doc.y += 125; // Move past QR image
+    doc.moveDown(8); // Move past QR image (~120px / ~15px per line)
     doc.fontSize(7).fillColor('#999999')
       .text('Scan to verify', { align: 'center' });
 
