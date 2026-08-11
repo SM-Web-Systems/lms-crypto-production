@@ -233,15 +233,17 @@ export default function BulkUploadModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => { if (e.target === e.currentTarget && !uploading) onClose(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape' && !uploading) onClose(); }}
       role="dialog"
       aria-modal="true"
-      aria-label="Bulk upload files"
+      aria-labelledby="bulk-upload-modal-title"
+      tabIndex={-1}
       data-testid="bulk-upload-modal"
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b">
-          <h2 className="text-lg font-semibold text-neutral-800">Bulk Upload Files</h2>
+          <h2 id="bulk-upload-modal-title" className="text-lg font-semibold text-neutral-800">Bulk Upload Files</h2>
           <button onClick={onClose} disabled={uploading} className="text-neutral-400 hover:text-neutral-600" aria-label="Close">
             <X className="h-5 w-5" />
           </button>

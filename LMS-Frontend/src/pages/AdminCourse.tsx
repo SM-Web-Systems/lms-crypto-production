@@ -866,10 +866,12 @@ const AdminCourse: React.FC = () => {
       {!showForm ? (
         <>
           <div className="flex flex-wrap gap-3 mb-6">
-            <Button onClick={openNewCourseForm}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create course
-            </Button>
+            {user?.role === 'admin' && (
+              <Button onClick={openNewCourseForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create course
+              </Button>
+            )}
             <Button variant="outline" onClick={downloadCourseTemplate}>
               <Download className="h-4 w-4 mr-2" />
               Download CSV template
@@ -902,9 +904,11 @@ const AdminCourse: React.FC = () => {
                         <Pencil className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-red-600 hover:bg-red-50">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {user?.role === 'admin' && (
+                        <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-red-600 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
