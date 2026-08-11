@@ -115,11 +115,14 @@ router.get('/credentials/mine', authenticate, (req: AuthRequest, res: Response):
     quiz_title: string | null;
     network: string | null;
     created_at: string;
+    soroban_token_id: number | null;
+    contract_id: string | null;
   }>(
     `SELECT nc.id, nc.wallet_address, nc.tx_hash,
             nc.course_id, c.title AS course_title, c.course_code,
             nc.quiz_id, q.title AS quiz_title,
-            nc.network, nc.created_at
+            nc.network, nc.created_at,
+            nc.soroban_token_id, nc.contract_id
      FROM nft_credentials nc
      LEFT JOIN courses c ON c.id = nc.course_id
      LEFT JOIN quizzes q ON q.id = nc.quiz_id
@@ -142,6 +145,8 @@ router.get('/credentials/mine', authenticate, (req: AuthRequest, res: Response):
         quizTitle: r.quiz_title,
         network: r.network,
         issuedAt: r.created_at,
+        sorobanTokenId: r.soroban_token_id ?? null,
+        contractId: r.contract_id ?? '',
       })),
     },
   });

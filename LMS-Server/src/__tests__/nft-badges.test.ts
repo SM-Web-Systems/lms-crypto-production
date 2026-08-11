@@ -1,5 +1,5 @@
 /**
- * nft-badges.test.ts — Phase 23 C4
+ * nft-badges.test.ts — Phase 23 C4 + Phase 24 C3
  *
  * BADGE-1: GET /credentials/verify/:id returns credential for minted, non-superseded
  * BADGE-2: GET /credentials/verify/:id returns 404 for non-existent ID
@@ -9,13 +9,20 @@
  * BADGE-6: GET /credentials/:id/pdf returns 404 for non-existent credential
  * BADGE-7: PDF contains QR code image data (buffer large enough)
  * BADGE-8: PDF still returns correct content-type after QR addition
+ * GALLERY-BE-1: GET /credentials/mine returns sorobanTokenId
+ * GALLERY-BE-2: GET /credentials/mine returns contractId
+ * GALLERY-BE-3: GET /credentials/mine returns empty for user with no credentials
+ * GALLERY-BE-4: GET /credentials/mine excludes non-minted credentials
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import { db } from '../config/database.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
 const BASE = '/api/v1';
 const WALLET = 'GBOHFMJWVGMYTWWBKRTDAZZ2MYXGKOVZWEW3JFPVJ4EK3CYG7BADGE01';
@@ -143,5 +150,61 @@ describe('GET /credentials/:credentialId/pdf', () => {
 
     expect(res.headers['content-type']).toContain('application/pdf');
     expect(res.headers['content-disposition']).toContain('certificate-');
+  });
+});
+
+describe('GET /credentials/mine', () => {
+  let token: string;
+
+  beforeEach(() => {
+    token = jwt.sign({ userId, role: 'student' }, JWT_SECRET, { expiresIn: '1h' });
+  });
+
+  it('GALLERY-BE-1: returns sorobanTokenId for minted credential', async () => {
+    const res = await request(app)
+      .get(`${BASE}/credentials/mine`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(res.body.data.credentials.length).toBeGreaterThanOrEqual(1);
+    const cred = res.body.data.credentials[0];
+    expect(cred).toHaveProperty('sorobanTokenId');
+    expect(cred.sorobanTokenId).toBe(42);
+  });
+
+  it('GALLERY-BE-2: returns contractId for minted credential', async () => {
+    const res = await request(app)
+      .get(`${BASE}/credentials/mine`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    const cred = res.body.data.credentials[0];
+    expect(cred).toHaveProperty('contractId');
+    expect(cred.contractId).toBe('CDPKSOOE4UZF');
+  });
+
+  it('GALLERY-BE-3: returns empty array for user with no credentials', async () => {
+    const noCredUserId = uuidv4();
+    db.prepare(
+      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'No Creds', ?, 'hash', 'student')`,
+    ).run(noCredUserId, `nocreds-${noCredUserId}@test.com`);
+    const noCredToken = jwt.sign({ userId: noCredUserId, role: 'student' }, JWT_SECRET, { expiresIn: '1h' });
+
+    const res = await request(app)
+      .get(`${BASE}/credentials/mine`)
+      .set('Authorization', `Bearer ${noCredToken}`)
+      .expect(200);
+
+    expect(res.body.data.credentials).toEqual([]);
+  });
+
+  it('GALLERY-BE-4: excludes non-minted credentials', async () => {
+    const res = await request(app)
+      .get(`${BASE}/credentials/mine`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    const ids = res.body.data.credentials.map((c: { credentialId: string }) => c.credentialId);
+    expect(ids).not.toContain(pendingCredId);
   });
 });
