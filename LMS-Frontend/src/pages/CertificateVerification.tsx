@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle, ExternalLink, Download, AlertCircle, Loader2 } from 'lucide-react';
 import QRCode from 'qrcode';
+import SocialShare from '../components/SocialShare';
 
 interface VerifiedCredential {
   credentialId: string;
@@ -177,6 +178,12 @@ const CertificateVerification: React.FC = () => {
               <p className="text-xs text-neutral-400 mt-1">Scan to verify this certificate</p>
             </div>
           )}
+
+          {/* Social Sharing */}
+          <SocialShare
+            url={`${window.location.origin}/verify/${credential.credentialId}`}
+            title={credential.courseTitle}
+          />
         </div>
 
         <p className="text-center text-xs text-neutral-400 mt-6">

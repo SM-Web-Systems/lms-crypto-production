@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Award, ExternalLink, Share2, Download } from 'lucide-react';
+import { Award, ExternalLink, Download } from 'lucide-react';
+import SocialShare from './SocialShare';
 
 interface NFTBadgeProps {
   credentialId: string;
@@ -30,7 +31,6 @@ const NFTBadge: React.FC<NFTBadgeProps> = ({
   isNewlyMinted = false,
 }) => {
   const [showConfetti, setShowConfetti] = useState(isNewlyMinted);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (showConfetti) {
@@ -38,17 +38,6 @@ const NFTBadge: React.FC<NFTBadgeProps> = ({
       return () => clearTimeout(timer);
     }
   }, [showConfetti]);
-
-  const handleShare = async () => {
-    const url = `${window.location.origin}/verify/${credentialId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard unavailable
-    }
-  };
 
   const explorerNetwork = network === 'testnet' ? 'testnet' : 'public';
   const formattedDate = new Date(issuedAt).toLocaleDateString('en-US', {
@@ -110,15 +99,11 @@ const NFTBadge: React.FC<NFTBadgeProps> = ({
                 <ExternalLink className="h-3 w-3" aria-hidden />
               </a>
             )}
-            <button
-              type="button"
-              onClick={handleShare}
-              className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
-              aria-label="Share"
-            >
-              <Share2 className="h-3 w-3" aria-hidden />
-              {copied ? 'Copied!' : 'Share'}
-            </button>
+            <SocialShare
+              url={`${window.location.origin}/verify/${credentialId}`}
+              title={courseTitle}
+              compact
+            />
             <a
               href={`${apiBase}/credentials/${credentialId}/pdf`}
               target="_blank"

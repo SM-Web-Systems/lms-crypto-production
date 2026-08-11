@@ -52,10 +52,10 @@ describe('NFTBadge', () => {
     );
   });
 
-  it('BADGE-FE-3: share button copies verification URL', () => {
+  it('BADGE-FE-3: share Copy Link copies verification URL', () => {
     render(<NFTBadge {...mockCredential} />);
-    const shareBtn = screen.getByRole('button', { name: /Share/i });
-    fireEvent.click(shareBtn);
+    const copyBtn = screen.getByLabelText('Copy link');
+    fireEvent.click(copyBtn);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining('/verify/cred-1234-5678-abcd-efgh'),
     );
