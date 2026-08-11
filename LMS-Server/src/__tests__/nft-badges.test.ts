@@ -21,6 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import { db } from '../config/database.js';
+import { renderTemplate } from '../services/emailTemplateService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
@@ -206,5 +207,37 @@ describe('GET /credentials/mine', () => {
 
     const ids = res.body.data.credentials.map((c: { credentialId: string }) => c.credentialId);
     expect(ids).not.toContain(pendingCredId);
+  });
+});
+
+describe('Certificate Minted Email', () => {
+  it('MINT-EMAIL-4: certificate-minted template is seeded in DB', () => {
+    const row = db.prepare("SELECT slug, category, subject FROM email_templates WHERE slug = 'certificate-minted'").get() as { slug: string; category: string; subject: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.slug).toBe('certificate-minted');
+    expect(row!.category).toBe('certificate');
+    expect(row!.subject).toContain('{{courseName}}');
+  });
+
+  it('MINT-EMAIL-1: certificate-minted template renders subject with course name', () => {
+    const result = renderTemplate('certificate-minted', {
+      studentName: 'Alice',
+      courseName: 'Blockchain 101',
+      verifyUrl: 'https://example.com/verify/cred-123',
+      explorerUrl: 'https://stellar.expert/explorer/public/tx/tx-abc',
+      lmsName: 'Test LMS',
+    });
+    expect(result).not.toBeNull();
+    expect(result!.subject).toContain('Blockchain 101');
+  });
+
+  it('MINT-EMAIL-2: certificate-minted template includes verification URL placeholder', () => {
+    const row = db.prepare("SELECT body_html FROM email_templates WHERE slug = 'certificate-minted'").get() as { body_html: string };
+    expect(row.body_html).toContain('{{{verifyUrl}}}');
+  });
+
+  it('MINT-EMAIL-3: certificate-minted template includes explorer URL placeholder', () => {
+    const row = db.prepare("SELECT body_html FROM email_templates WHERE slug = 'certificate-minted'").get() as { body_html: string };
+    expect(row.body_html).toContain('{{{explorerUrl}}}');
   });
 });

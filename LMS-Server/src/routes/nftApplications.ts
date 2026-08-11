@@ -23,6 +23,7 @@ import { createNotification } from '../services/notificationService.js';
 import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
 import { getTiersEnabled, createBadge } from '../services/badgeService.js';
 import logger from '../utils/logger.js';
+import { sendCertificateMintedEmail } from '../services/emailService.js';
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -1003,6 +1004,22 @@ router.post(
       });
     } catch (err) {
       logger.error({ module: 'notification', err }, 'NFT mint emission error');
+    }
+
+    // C4: Email notification (best-effort, fire-and-forget)
+    const studentRow = queryOne<{ email: string; name: string }>(
+      'SELECT email, name FROM users WHERE id = ?',
+      [app.user_id]
+    );
+    if (studentRow?.email) {
+      sendCertificateMintedEmail({
+        to: studentRow.email,
+        name: studentRow.name || 'Student',
+        courseName: courseRow?.title ?? 'your course',
+        credentialId: credId,
+        txHash: txHash!,
+        userId: app.user_id,
+      }).catch((emailErr) => logger.error({ err: emailErr }, 'Failed to send certificate minted email'));
     }
 
     res.json({
