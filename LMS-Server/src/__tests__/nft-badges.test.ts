@@ -208,3 +208,13 @@ describe('GET /credentials/mine', () => {
     expect(ids).not.toContain(pendingCredId);
   });
 });
+
+describe('Certificate Minted Email', () => {
+  it('MINT-EMAIL-4: certificate-minted template is seeded in DB', () => {
+    const row = db.prepare("SELECT slug, category, subject FROM email_templates WHERE slug = 'certificate-minted'").get() as { slug: string; category: string; subject: string } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.slug).toBe('certificate-minted');
+    expect(row!.category).toBe('certificate');
+    expect(row!.subject).toContain('{{courseName}}');
+  });
+});

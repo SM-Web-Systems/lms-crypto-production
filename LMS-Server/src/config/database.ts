@@ -1030,6 +1030,10 @@ db.exec(`
      'Payment reminder for {{courseName}}',
      `<p>Hi {{studentName}},</p>\n<p>This is a reminder that payment is pending for <strong>{{courseName}}</strong> (cohort: {{cohortName}}) on <strong>{{lmsName}}</strong>.</p>\n<p><a href="{{{loginUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to complete payment</a></p>\n<p>If you have questions, contact your administrator.</p>`,
      '["studentName","courseName","cohortName","lmsName","loginUrl"]'],
+    ['certificate-minted', 'certificate', 'Certificate Minted Notification',
+     'Your NFT Certificate for "{{courseName}}" Has Been Minted!',
+     `<p>Hi {{studentName}},</p>\n<p>Congratulations! Your NFT certificate for <strong>{{courseName}}</strong> has been minted on the Stellar blockchain.</p>\n<p><a href="{{{verifyUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">View &amp; Verify Certificate</a></p>\n<p><a href="{{{explorerUrl}}}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View on Blockchain Explorer</a></p>\n<p>Your certificate is permanently recorded on the blockchain and can be independently verified by anyone.</p>\n<p>— {{lmsName}}</p>`,
+     '["studentName","courseName","verifyUrl","explorerUrl","lmsName"]'],
   ];
   for (const [slug, category, name, subject, bodyHtml, variables] of seeds) {
     seedInsert.run(uuidv4(), slug, category, name, subject, bodyHtml, variables);
