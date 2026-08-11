@@ -499,7 +499,7 @@ const AdminCourse: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('lms_token')}`,
         },
         body: JSON.stringify(parsed),
       });
