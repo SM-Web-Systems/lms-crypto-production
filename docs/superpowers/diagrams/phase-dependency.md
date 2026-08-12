@@ -17,7 +17,7 @@ flowchart TD
     B_BE["Phase B: Sponsor + Employer<br/>🔧 BACKEND COMPLETE"]
     C_BE["Phase C: Parent + Teacher<br/>🔧 BACKEND COMPLETE"]
 
-    D_BE["Phase D: Instructor/TA<br/>🔧 BACKEND (in progress)"]
+    D_BE["Phase D: Instructor/TA<br/>🔧 BACKEND COMPLETE"]
 
     G_FE["Phase G: Frontend for B/C/D Roles<br/>🖥️ FRONTEND (new)"]
 
@@ -93,8 +93,9 @@ flowchart TD
     style B_BE fill:#16a34a,color:#fff
     style C_BE fill:#16a34a,color:#fff
 
-    %% IN PROGRESS
-    style D_BE fill:#2563eb,color:#fff
+    %% COMPLETE
+    style D_BE fill:#16a34a,color:#fff
+    %% NEW — Frontend
     style G_FE fill:#f59e0b,color:#000
 
     %% Resolved gate
@@ -115,7 +116,7 @@ flowchart TD
 | Color | Meaning |
 |---|---|
 | Green | COMPLETE (backend tests passing) |
-| Blue (D) | IN PROGRESS — Phase D Instructor/TA backend |
+| Green (D) | COMPLETE — Phase D Instructor/TA backend (25 tests) |
 | Amber (G) | NEW — Phase G Frontend for B/C/D roles |
 | Gray (A7) | RESOLVED — Escrow gate closed, platform-managed balances |
 | Orange (E1) | Admin tier enforcement — middleware-level (Decision #5) |
@@ -126,10 +127,10 @@ flowchart TD
 
 | Phase | Backend | Frontend |
 |---|---|---|
-| A (Foundation) | COMPLETE (770/770 tests) | N/A (schema + permissions only) |
+| A (Foundation) | COMPLETE (770 tests) | N/A (schema + permissions only) |
 | B (Sponsor/Employer) | COMPLETE (10 tests) | NOT STARTED → Phase G |
 | C (Parent/Teacher) | COMPLETE (19 tests) | NOT STARTED → Phase G |
-| D (Instructor/TA) | IN PROGRESS | NOT STARTED → Phase G |
+| D (Instructor/TA) | COMPLETE (25 tests) | NOT STARTED → Phase G |
 | E (Admin Tiers) | NOT STARTED | NOT STARTED |
 | F (Cross-Cutting) | NOT STARTED | NOT STARTED |
 | G (Frontend Gap) | N/A | NOT STARTED |

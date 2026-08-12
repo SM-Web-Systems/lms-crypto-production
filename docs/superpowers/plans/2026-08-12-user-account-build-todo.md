@@ -3,7 +3,7 @@
 **Date:** 2026-08-12 (updated)
 **Spec:** `docs/superpowers/specs/2026-08-12-user-account-audit-spec.md`
 **Per-phase specs:** `phase-a-foundation-spec.md`, `phase-bc-roles-spec.md`, `phase-d-instructor-ta-design.md`, `phase-e-admin-tiers-spec.md`, `phase-f-cross-cutting-spec.md`, `phase-g-frontend-gap-design.md`
-**Status:** Phase D in progress
+**Status:** Phase D complete, Phase G next
 
 ## Locked Decisions Applied
 
@@ -59,63 +59,18 @@
 
 ---
 
-## Phase D — Instructor/TA Refinement (IN PROGRESS)
+## Phase D — Instructor/TA Refinement (COMPLETE)
 
 **Spec:** `phase-d-instructor-ta-design.md`
 
-### Loop D0: Schema + Migrations
-- [ ] Add course_tas table to schema.sql + database.ts ensure function
-- [ ] Add course_material_submissions table to schema.sql + database.ts ensure function
-- [ ] Add grade_status + graded_by columns to submissions table
-- [ ] Run tests — confirm no regressions
-
-### Loop D1: Course Approval Workflow
-- [ ] Write test D1-APPROVAL-1: instructor creates course → approval_status='draft'
-- [ ] Write test D1-APPROVAL-2: admin creates course → approval_status='published'
-- [ ] Write test D1-APPROVAL-3: instructor submits → approval_status='submitted', workflow row
-- [ ] Write test D1-APPROVAL-4: admin approves → approval_status='approved'
-- [ ] Write test D1-APPROVAL-5: admin rejects → approval_status='rejected' with review_note
-- [ ] Write test D1-APPROVAL-6: students cannot see draft/submitted/rejected courses
-- [ ] Modify createCourse(): role-aware default (course.approve → published, else → draft)
-- [ ] Modify getCourses(): add approval_status filter for student queries
-- [ ] Implement POST /courses/:id/submit-for-approval
-- [ ] Implement POST /courses/:id/approve
-- [ ] Implement POST /courses/:id/reject
-- [ ] Run full test suite
-
-### Loop D2: TA Assignment System
-- [ ] Write test D2-TA-1: instructor assigns TA to course
-- [ ] Write test D2-TA-2: TA can view assigned course submissions
-- [ ] Write test D2-TA-3: TA cannot view unassigned course submissions
-- [ ] Implement GET/POST/DELETE /courses/:id/tas
-- [ ] Implement GET /ta/courses
-- [ ] Run tests
-
-### Loop D3: TA Grading (Decision #4: Always Explicit)
-- [ ] Write test D3-GRADE-1: TA grade sets grade_status='pending_approval', submission status unchanged
-- [ ] Write test D3-GRADE-2: TA-graded submission NOT visible as graded to students until approved
-- [ ] Write test D3-GRADE-3: TA cannot see student billing or wallet data
-- [ ] Create ta.ts route file
-- [ ] Implement POST /ta/submissions/:id/grade
-- [ ] Implement GET /ta/courses/:id/submissions
-- [ ] Mount ta.ts in app.ts
-- [ ] Run tests
-
-### Loop D4: Grade + Material Approval
-- [ ] Write test D4-APPROVE-1: instructor approves TA grade → grade_status='approved', submission status updated
-- [ ] Write test D4-APPROVE-2: NO auto-publish mechanism exists (Decision #4 invariant)
-- [ ] Write test D4-MATERIAL-1: TA-submitted material not visible until approved
-- [ ] Implement POST /ta/submissions/:id/approve-grade
-- [ ] Implement POST /ta/submissions/:id/reject-grade
-- [ ] Implement POST /ta/courses/:id/materials (staging table)
-- [ ] Implement POST /courses/:id/materials/:materialId/approve
-- [ ] Implement POST /courses/:id/materials/:materialId/reject
-- [ ] Run full test suite
-
-### Loop D-INV: TA Grade Invariant Tests (CI-level)
-- [ ] Write TA-GRADE-INV-1: grade_status='pending_approval' never exposed in student submission queries
-- [ ] Write TA-GRADE-INV-2: no auto-publish mechanism exists (grep + assertion)
-- [ ] Run invariant tests
+- [x] D0: Schema — course_tas, course_material_submissions tables + grade_status/graded_by columns — 3 tests
+- [x] D1: Course Approval Workflow — role-aware createCourse, approval_status filtering, submit/approve/reject — 6 tests
+- [x] D2: TA Assignment System — GET/POST/DELETE /courses/:id/tas, GET /ta/courses, ta.ts routes — 6 tests
+- [x] D3: TA Grading — POST /ta/submissions/:id/grade, grade_status=pending_approval — 3 tests
+- [x] D4: Grade + Material Approval — approve-grade, reject-grade, material staging + merge — 3 tests
+- [x] D-INV: TA Grade Invariant Tests (CI-level) — 4 invariant tests
+- **Tests:** 21 Phase D tests + 4 invariant tests = 25 new (795 total)
+- **Commits:** `8eea7ba` (D0), `44d87f4` (D1), `33f8f47` (D2), `c0c4ff6` (D3+D4+D-INV)
 
 ---
 
