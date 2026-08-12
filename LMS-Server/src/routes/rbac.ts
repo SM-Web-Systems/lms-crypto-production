@@ -17,7 +17,7 @@ const ROLE_PRIVILEGE_LEVEL: Record<string, number> = {
   'employer': 50,
   'teacher': 50,
   'parent': 50,
-  'supporter-student': 20,
+  'super-student': 20,
   'teaching-assistant': 15,
   'student': 10,
   'custom-user': 10,

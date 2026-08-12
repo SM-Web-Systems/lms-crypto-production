@@ -34,7 +34,7 @@ const BLOCKED_ROLES = [
   { id: 'role_employer', name: 'employer' },
   { id: 'role_sponsor', name: 'sponsor' },
   { id: 'role_student', name: 'student' },
-  { id: 'role_supporter_student', name: 'supporter-student' },
+  { id: 'role_supporter_student', name: 'super-student' },
   { id: 'role_instructor', name: 'instructor' },
   { id: 'role_ta', name: 'teaching-assistant' },
   { id: 'role_custom', name: 'custom-user' },

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_reset_token TEXT,
   password_reset_expires_at TEXT,
   password_changed_at TEXT,
+  reward_balance REAL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -149,7 +150,8 @@ CREATE TABLE IF NOT EXISTS courses (
   course_code TEXT UNIQUE NOT NULL,
   sections TEXT NOT NULL DEFAULT '[]',
   sponsor_label TEXT,
-  tenant_id TEXT REFERENCES tenants(id) ON DELETE SET NULL
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE SET NULL,
+  approval_status TEXT DEFAULT 'published'
 );
 CREATE INDEX IF NOT EXISTS idx_courses_course_code ON courses(course_code);
 CREATE INDEX IF NOT EXISTS idx_courses_tenant ON courses(tenant_id);
@@ -541,4 +543,97 @@ CREATE INDEX IF NOT EXISTS idx_notification_preferences_user
 CREATE TABLE IF NOT EXISTS health_check_pings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts TEXT NOT NULL
+);
+
+-- Phase A: Tenant settings (super-student threshold)
+CREATE TABLE IF NOT EXISTS tenant_settings (
+  tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  super_student_threshold INTEGER NOT NULL DEFAULT 3,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Phase A: User links (parent/teacher/employer → student relationships)
+CREATE TABLE IF NOT EXISTS user_links (
+  id TEXT PRIMARY KEY,
+  parent_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  child_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  link_type TEXT NOT NULL CHECK (link_type IN ('parent', 'teacher', 'employer', 'sponsor')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(parent_user_id, child_user_id, link_type)
+);
+CREATE INDEX IF NOT EXISTS idx_user_links_parent ON user_links(parent_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_links_child ON user_links(child_user_id);
+
+-- Phase A: User groups (family/class/team)
+CREATE TABLE IF NOT EXISTS user_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  group_type TEXT NOT NULL CHECK (group_type IN ('family', 'class', 'team')),
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS user_group_members (
+  group_id TEXT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (group_id, user_id)
+);
+
+-- Phase A: Login history
+CREATE TABLE IF NOT EXISTS login_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  login_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ip_address TEXT,
+  user_agent TEXT,
+  auth_method TEXT CHECK (auth_method IN ('local', 'ammawallet', 'sso'))
+);
+CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id);
+
+-- Phase A: Course approval workflow
+CREATE TABLE IF NOT EXISTS course_approval_workflow (
+  id TEXT PRIMARY KEY,
+  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  submitted_by TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved', 'rejected')),
+  reviewed_by TEXT REFERENCES users(id),
+  review_note TEXT,
+  submitted_at TEXT,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Phase A: Rewards (platform-managed, no escrow)
+CREATE TABLE IF NOT EXISTS rewards (
+  id TEXT PRIMARY KEY,
+  creator_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('individual', 'class', 'all')),
+  amount_xlm REAL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'released', 'cancelled')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  released_at TEXT
+);
+
+-- Phase A: Perks marketplace
+CREATE TABLE IF NOT EXISTS perks (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  expires_at TEXT,
+  max_claims INTEGER,
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS perk_claims (
+  id TEXT PRIMARY KEY,
+  perk_id TEXT NOT NULL REFERENCES perks(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(perk_id, user_id)
 );

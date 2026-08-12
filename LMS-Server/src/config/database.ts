@@ -1091,7 +1091,7 @@ export function seedRbacData(): void {
   // Seed built-in roles (idempotent)
   const roles: Array<[string, string, string, string]> = [
     ['role_student', 'student', 'Student', 'Base learner role'],
-    ['role_supporter_student', 'supporter-student', 'Supporter Student', 'Completed paid course'],
+    ['role_supporter_student', 'super-student', 'Super Student', 'Completed paid course'],
     ['role_parent', 'parent', 'Parent', 'Family group manager'],
     ['role_teacher', 'teacher', 'Teacher', 'Classroom manager'],
     ['role_employer', 'employer', 'Employer', 'Team manager'],
@@ -1110,6 +1110,11 @@ export function seedRbacData(): void {
   for (const [id, name, label, desc] of roles) {
     insertRole.run(id, name, label, desc);
   }
+
+  // Migration: rename supporter-student → super-student (for existing DBs)
+  db.prepare(
+    "UPDATE roles SET name = 'super-student', label = 'Super Student' WHERE id = 'role_supporter_student' AND name = 'supporter-student'"
+  ).run();
 
   // Seed 60 permissions (idempotent)
   const perms: Array<[string, string, string, string]> = [
@@ -1192,6 +1197,22 @@ export function seedRbacData(): void {
     ['perm_email_manage', 'email.manage', 'email', 'Manage Email Templates'],
     // notification (1)
     ['perm_notification_broadcast', 'notification.broadcast', 'notification', 'Broadcast Notifications'],
+    // Phase A: 15 new permissions (61 → 76)
+    ['perm_course_approve', 'course.approve', 'course', 'Approve Course Publication'],
+    ['perm_student_view_assigned', 'student.view_assigned', 'user', 'View Assigned Students'],
+    ['perm_student_login_history', 'student.login_history', 'user', 'View Student Login History'],
+    ['perm_student_wallet_read', 'student_wallet.read_assigned', 'wallet', 'Read Assigned Student Wallets'],
+    ['perm_student_wallet_write', 'student_wallet.write_assigned', 'wallet', 'Write Assigned Student Wallets'],
+    ['perm_billing_pay_student', 'billing.pay_for_student', 'billing', 'Pay for Student Enrollment'],
+    ['perm_group_create', 'group.create', 'group', 'Create Groups'],
+    ['perm_group_manage', 'group.manage', 'group', 'Manage Groups'],
+    ['perm_reward_setup', 'reward.setup', 'reward', 'Set Up Rewards'],
+    ['perm_perks_access', 'perks.access', 'perks', 'Access Perks Marketplace'],
+    ['perm_user_suspend', 'user.suspend', 'user', 'Suspend User Accounts'],
+    ['perm_system_config', 'system.config', 'system', 'System Configuration'],
+    ['perm_session_manage_own', 'session.manage_own', 'session', 'Manage Own Sessions'],
+    ['perm_session_manage_any', 'session.manage_any', 'session', 'Manage Any User Sessions'],
+    ['perm_impact_report', 'impact_report.read', 'reporting', 'View Impact Reports'],
   ];
 
   const insertPerm = db.prepare(
@@ -1211,6 +1232,7 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_document_view',
       'perm_forum_view', 'perm_forum_post',
       'perm_reward_view_own',
+      'perm_session_manage_own',
     ],
     role_supporter_student: [
       'perm_course_view', 'perm_course_enroll', 'perm_course_submit', 'perm_course_grade_pending',
@@ -1220,43 +1242,59 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_document_view',
       'perm_forum_view', 'perm_forum_post',
       'perm_reward_view_own',
+      'perm_perks_access', 'perm_session_manage_own',
     ],
     role_parent: [
       'perm_course_view',
-      'perm_billing_view_assigned', 'perm_wallet_view_assigned', 'perm_wallet_fund',
+      'perm_billing_view_assigned', 'perm_billing_pay_student',
+      'perm_wallet_view_assigned', 'perm_wallet_fund',
+      'perm_student_wallet_read', 'perm_student_wallet_write',
       'perm_user_view_self', 'perm_user_create',
+      'perm_student_view_assigned', 'perm_student_login_history',
       'perm_certificate_view_own', 'perm_quiz_view',
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
-      'perm_reward_view_own', 'perm_reward_give',
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_group_create', 'perm_group_manage',
+      'perm_session_manage_own',
     ],
     role_teacher: [
       'perm_course_view', 'perm_course_manage',
-      'perm_billing_view_assigned', 'perm_wallet_fund',
+      'perm_billing_view_assigned', 'perm_billing_pay_student', 'perm_wallet_fund',
       'perm_user_view_self', 'perm_user_create',
+      'perm_student_view_assigned', 'perm_student_login_history',
       'perm_cohort_view_own', 'perm_certificate_view_own',
       'perm_quiz_view', 'perm_quiz_create',
       'perm_announcement_view', 'perm_announcement_create',
       'perm_document_view', 'perm_document_upload',
       'perm_forum_view', 'perm_forum_post',
-      'perm_reward_view_own', 'perm_reward_give',
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_group_create', 'perm_group_manage',
+      'perm_session_manage_own',
     ],
     role_employer: [
       'perm_course_view',
-      'perm_billing_view_assigned', 'perm_wallet_fund',
+      'perm_billing_view_assigned', 'perm_billing_pay_student', 'perm_wallet_fund',
       'perm_user_view_self', 'perm_user_create',
+      'perm_student_view_assigned', 'perm_student_login_history',
       'perm_cohort_view_own', 'perm_cohort_create',
       'perm_certificate_view_own', 'perm_quiz_view',
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
-      'perm_reward_view_own', 'perm_reward_give',
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_group_create', 'perm_group_manage',
+      'perm_session_manage_own',
     ],
     role_sponsor: [
       'perm_course_view',
-      'perm_billing_view_all', 'perm_wallet_fund', 'perm_user_view_self',
+      'perm_billing_view_all', 'perm_billing_pay_student', 'perm_wallet_fund',
+      'perm_user_view_self',
+      'perm_student_view_assigned', 'perm_student_login_history',
       'perm_cohort_view_own', 'perm_cohort_view_all', 'perm_cohort_create',
       'perm_cohort_manage', 'perm_cohort_bulk_apply', 'perm_cohort_bulk_pay',
       'perm_certificate_view_own', 'perm_quiz_view',
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
-      'perm_reward_view_own', 'perm_reward_give',
+      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_impact_report',
+      'perm_session_manage_own',
     ],
     role_instructor: [
       'perm_course_view', 'perm_course_create', 'perm_course_manage',
@@ -1269,12 +1307,14 @@ export function seedRbacData(): void {
       'perm_document_view', 'perm_document_upload', 'perm_document_manage',
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
       'perm_reward_view_own',
+      'perm_session_manage_own',
     ],
     role_ta: [
       'perm_course_view', 'perm_course_grade_pending',
       'perm_user_view_self', 'perm_certificate_view_own',
       'perm_quiz_view', 'perm_announcement_view', 'perm_document_view',
       'perm_forum_view', 'perm_forum_post',
+      'perm_session_manage_own',
     ],
     role_admin: [
       // course: all
@@ -1310,6 +1350,11 @@ export function seedRbacData(): void {
       'perm_email_manage',
       // notification
       'perm_notification_broadcast',
+      // Phase A new permissions
+      'perm_course_approve', 'perm_user_suspend',
+      'perm_session_manage_own', 'perm_session_manage_any',
+      'perm_student_view_assigned', 'perm_student_login_history',
+      'perm_group_create', 'perm_group_manage',
     ],
     role_admin2: [
       // course: all
@@ -1348,6 +1393,11 @@ export function seedRbacData(): void {
       'perm_email_manage',
       // notification
       'perm_notification_broadcast',
+      // Phase A new permissions
+      'perm_course_approve', 'perm_user_suspend',
+      'perm_session_manage_own', 'perm_session_manage_any',
+      'perm_student_view_assigned', 'perm_student_login_history',
+      'perm_group_create', 'perm_group_manage',
     ],
     role_super_admin: [
       // All 61 permissions
@@ -1375,8 +1425,18 @@ export function seedRbacData(): void {
       'perm_email_manage',
       // notification
       'perm_notification_broadcast',
+      // Phase A: all 15 new permissions
+      'perm_course_approve', 'perm_student_view_assigned', 'perm_student_login_history',
+      'perm_student_wallet_read', 'perm_student_wallet_write',
+      'perm_billing_pay_student', 'perm_group_create', 'perm_group_manage',
+      'perm_reward_setup', 'perm_perks_access', 'perm_user_suspend',
+      'perm_system_config', 'perm_session_manage_own', 'perm_session_manage_any',
+      'perm_impact_report',
     ],
-    // custom-user role: no default permissions (assigned per custom role)
+    // custom-user role: minimal default permissions
+    role_custom: [
+      'perm_session_manage_own',
+    ],
   };
 
   const insertMapping = db.prepare(
@@ -1418,6 +1478,142 @@ export function migrateUsersToRbac(): void {
   }
 }
 migrateUsersToRbac();
+
+// Phase A: Add approval_status column to courses (live DB migration)
+function ensureCoursesApprovalStatus(): void {
+  const info = db.pragma('table_info(courses)') as Array<{ name: string }>;
+  if (!info.some(col => col.name === 'approval_status')) {
+    db.exec("ALTER TABLE courses ADD COLUMN approval_status TEXT DEFAULT 'published'");
+  }
+}
+ensureCoursesApprovalStatus();
+
+// Phase A: Add reward_balance column to users (live DB migration)
+function ensureUsersRewardBalance(): void {
+  const info = db.pragma('table_info(users)') as Array<{ name: string }>;
+  if (!info.some(col => col.name === 'reward_balance')) {
+    db.exec('ALTER TABLE users ADD COLUMN reward_balance REAL DEFAULT 0');
+  }
+}
+ensureUsersRewardBalance();
+
+// Phase A: user_links table
+function ensureUserLinksTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_links (
+      id TEXT PRIMARY KEY,
+      parent_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      child_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      link_type TEXT NOT NULL CHECK (link_type IN ('parent', 'teacher', 'employer', 'sponsor')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(parent_user_id, child_user_id, link_type)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_links_parent ON user_links(parent_user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_links_child ON user_links(child_user_id);
+  `);
+}
+ensureUserLinksTable();
+
+// Phase A: user_groups + user_group_members tables
+function ensureUserGroupsTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      group_type TEXT NOT NULL CHECK (group_type IN ('family', 'class', 'team')),
+      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS user_group_members (
+      group_id TEXT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (group_id, user_id)
+    );
+  `);
+}
+ensureUserGroupsTables();
+
+// Phase A: login_history table
+function ensureLoginHistoryTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS login_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      login_at TEXT NOT NULL DEFAULT (datetime('now')),
+      ip_address TEXT,
+      user_agent TEXT,
+      auth_method TEXT CHECK (auth_method IN ('local', 'ammawallet', 'sso'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id);
+  `);
+}
+ensureLoginHistoryTable();
+
+// Phase A: course_approval_workflow table
+function ensureCourseApprovalWorkflowTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_approval_workflow (
+      id TEXT PRIMARY KEY,
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      submitted_by TEXT NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved', 'rejected')),
+      reviewed_by TEXT REFERENCES users(id),
+      review_note TEXT,
+      submitted_at TEXT,
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+}
+ensureCourseApprovalWorkflowTable();
+
+// Phase A: rewards + perks tables
+function ensureRewardsAndPerksTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rewards (
+      id TEXT PRIMARY KEY,
+      creator_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      reward_type TEXT NOT NULL CHECK (reward_type IN ('individual', 'class', 'all')),
+      amount_xlm REAL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'released', 'cancelled')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      released_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS perks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      image_url TEXT,
+      expires_at TEXT,
+      max_claims INTEGER,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS perk_claims (
+      id TEXT PRIMARY KEY,
+      perk_id TEXT NOT NULL REFERENCES perks(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(perk_id, user_id)
+    );
+  `);
+}
+ensureRewardsAndPerksTables();
+
+function ensureTenantSettingsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tenant_settings (
+      tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+      super_student_threshold INTEGER NOT NULL DEFAULT 3,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+}
+ensureTenantSettingsTable();
 
 function ensureHealthCheckPingsTable(): void {
   db.exec(`

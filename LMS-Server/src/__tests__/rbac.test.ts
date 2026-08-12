@@ -57,7 +57,7 @@ function seedRbac(): void {
   // Seed roles
   const roles: Array<[string, string, string]> = [
     ['role_student', 'student', 'Student'],
-    ['role_supporter_student', 'supporter-student', 'Supporter Student'],
+    ['role_supporter_student', 'super-student', 'Super Student'],
     ['role_parent', 'parent', 'Parent'],
     ['role_teacher', 'teacher', 'Teacher'],
     ['role_employer', 'employer', 'Employer'],
