@@ -18,6 +18,18 @@ import {
 import logger from "../utils/logger.js";
 
 
+/** Record a login event in the login_history table. Best-effort — never throws. */
+function recordLoginHistory(userId: string, req: Request, authMethod: 'local' | 'ammawallet' | 'sso'): void {
+  try {
+    execute(
+      'INSERT INTO login_history (user_id, ip_address, user_agent, auth_method) VALUES (?, ?, ?, ?)',
+      [userId, req.ip ?? req.socket?.remoteAddress ?? null, req.get('user-agent') ?? null, authMethod]
+    );
+  } catch {
+    // Best-effort — never block login on history failure
+  }
+}
+
 /** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
 function isAdminEmail(email: string): boolean {
   const raw = process.env.ADMIN_EMAILS?.trim();
@@ -155,6 +167,8 @@ export async function login(
       studentId,
     });
 
+    recordLoginHistory(user.id, req, 'local');
+
     res.json({
       success: true,
       data: {
@@ -277,6 +291,8 @@ export async function register(
     }
 
     const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+
+    recordLoginHistory(userId, req, 'local');
 
     res.status(201).json({
       success: true,
@@ -629,6 +645,8 @@ export async function ammaCallback(
 
     // 4. Issue LMS session JWT
     const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+
+    recordLoginHistory(userId, req, 'sso');
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
     const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}&role=${role}`;

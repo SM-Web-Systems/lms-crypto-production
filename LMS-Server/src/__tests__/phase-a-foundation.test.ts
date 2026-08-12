@@ -14,6 +14,8 @@
 
 import { describe, it, expect } from 'vitest';
 import './setup.js';
+import request from 'supertest';
+import app from '../app.js';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -310,6 +312,33 @@ describe('A4: login_history Table', () => {
     expect(row!.user_id).toBe(userId);
     expect(row!.ip_address).toBe('192.168.1.1');
     expect(row!.auth_method).toBe('local');
+  });
+
+  it('A4-HISTORY-2: login via API records login_history row', async () => {
+    const email = `logintest-${uuidv4().slice(0, 8)}@test.com`;
+    // Register a user first
+    await request(app).post('/api/v1/auth/register').send({
+      name: 'Login Test',
+      email,
+      password: 'TestPass123!',
+      confirmPassword: 'TestPass123!',
+    });
+
+    // Clear login history from register
+    execute('DELETE FROM login_history');
+
+    // Login
+    const res = await request(app).post('/api/v1/auth/login').send({
+      email,
+      password: 'TestPass123!',
+    });
+    expect(res.status).toBe(200);
+
+    const rows = query<{ user_id: string; auth_method: string }>(
+      'SELECT user_id, auth_method FROM login_history'
+    );
+    expect(rows.length).toBe(1);
+    expect(rows[0].auth_method).toBe('local');
   });
 });
 

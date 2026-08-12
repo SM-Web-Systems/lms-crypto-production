@@ -37,6 +37,10 @@ import webhookRoutes from './routes/webhooks.js';
 import emailTemplateRoutes from './routes/emailTemplates.js';
 import ogPagesRoutes from './routes/ogPages.js';
 import searchRoutes from './routes/search.js';
+import sponsorRoutes from './routes/sponsor.js';
+import employerRoutes from './routes/employer.js';
+import parentRoutes from './routes/parent.js';
+import teacherRoutes from './routes/teacher.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
@@ -257,6 +261,10 @@ app.use('/api/v1/admin', apiLimiter, rbacRoutes);
 app.use('/api/v1/admin/tenants', apiLimiter, tenantRoutes);
 app.use('/api/v1', apiLimiter, emailTemplateRoutes);
 app.use('/api/v1', readLimiter, searchRoutes);
+app.use('/api/v1', apiLimiter, sponsorRoutes);
+app.use('/api/v1', apiLimiter, employerRoutes);
+app.use('/api/v1', apiLimiter, parentRoutes);
+app.use('/api/v1', apiLimiter, teacherRoutes);
 
 // ─── API Documentation ─────────────────────────────────────────────────────
 app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });
