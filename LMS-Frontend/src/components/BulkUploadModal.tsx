@@ -180,7 +180,7 @@ export default function BulkUploadModal({
         setQueue((prev) =>
           prev.map((f) => (f.id === qf.id ? { ...f, status: 'done' as FileStatus, documentId: created.id } : f)),
         );
-        const information = (created as Record<string, unknown>).renderedHtml as string | undefined;
+        const information = (created as unknown as Record<string, unknown>).renderedHtml as string | undefined;
         uploaded.push({
           documentId: created.id,
           title,
@@ -223,7 +223,7 @@ export default function BulkUploadModal({
       setQueue((prev) =>
         prev.map((f) => (f.id === fileId ? { ...f, status: 'done' as FileStatus, documentId: created.id } : f)),
       );
-      const retryInfo = (created as Record<string, unknown>).renderedHtml as string | undefined;
+      const retryInfo = (created as unknown as Record<string, unknown>).renderedHtml as string | undefined;
       onFilesUploaded([{ documentId: created.id, title, type: qf.itemType, fileName: qf.file.name, ...(retryInfo ? { information: retryInfo } : {}) }], weekTempId, sectionTempId);
     } catch (err) {
       setQueue((prev) =>

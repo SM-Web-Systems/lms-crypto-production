@@ -16,7 +16,7 @@ vi.mock('../../components/PdfViewer', () => ({
 }));
 
 import { EmbeddedMaterialViewer } from '../../components/EmbeddedMaterialViewer';
-import type { CourseSection, CourseItemDownload, CourseItemText } from '../../types/course';
+import type { CourseSection, CourseItemDownload } from '../../types/course';
 
 const mockSection: CourseSection = {
   id: 's1',
