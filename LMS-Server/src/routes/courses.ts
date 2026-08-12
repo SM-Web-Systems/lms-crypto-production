@@ -14,6 +14,14 @@ import {
   getLecturers,
   addLecturer,
   removeLecturer,
+  submitForApproval,
+  approveCourse,
+  rejectCourse,
+  listCourseTAs,
+  assignTA,
+  removeTA,
+  approveMaterial,
+  rejectMaterial,
 } from '../controllers/coursesController.js';
 import { getCourseSubmissions } from '../controllers/submissionsController.js';
 import { authenticate } from '../middleware/auth.js';
@@ -193,6 +201,18 @@ router.delete('/:id/lecturers/:lecturerUserId', requirePermission('user.manage')
  *       200: { description: Course data }
  *       404: { description: Course not found }
  */
+// Phase D: Course approval workflow (must be before /:id catch-all)
+router.post('/:id/submit-for-approval', requirePermission('course.manage'), submitForApproval);
+router.post('/:id/approve', requirePermission('course.approve'), approveCourse);
+router.post('/:id/reject', requirePermission('course.approve'), rejectCourse);
+// Phase D: TA assignment
+router.get('/:id/tas', requirePermission('course.manage'), listCourseTAs);
+router.post('/:id/tas', requirePermission('course.manage'), assignTA);
+router.delete('/:id/tas/:userId', requirePermission('course.manage'), removeTA);
+// Phase D: Material approval
+router.post('/:id/materials/:materialId/approve', requirePermission('course.manage'), approveMaterial);
+router.post('/:id/materials/:materialId/reject', requirePermission('course.manage'), rejectMaterial);
+
 router.get('/:id', getCourse);
 /**
  * @openapi

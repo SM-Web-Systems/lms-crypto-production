@@ -4,6 +4,7 @@ import AdmZip from 'adm-zip';
 import path from 'path';
 import fs from 'fs';
 import { query, queryOne, execute } from '../config/database.js';
+import { hasPermission } from '../middleware/rbac.js';
 import { AuthRequest, Course, CourseSection, CourseItem, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDocumentFileUrl, deleteFile } from '../utils/fileUpload.js';
@@ -107,7 +108,7 @@ export async function getCourses(req: AuthRequest, res: Response, next: NextFunc
       } else {
         const placeholders = codes.map(() => '?').join(',');
         rows = query<CourseRow>(
-          `SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE course_code IN (${placeholders}) ORDER BY title`,
+          `SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE course_code IN (${placeholders}) AND approval_status IN ('approved', 'published') ORDER BY title`,
           codes
         );
       }
@@ -238,9 +239,14 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
       }
     }
 
+    // Role-aware approval_status: users with course.approve → published, else → draft
+    const approvalStatus = req.user?.userId && hasPermission(req.user.userId, 'course.approve')
+      ? 'published'
+      : 'draft';
+
     execute(
-      'INSERT INTO courses (id, title, description, course_code, sections, sponsor_label, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections), sponsorLabelVal, tenantId]
+      'INSERT INTO courses (id, title, description, course_code, sections, sponsor_label, tenant_id, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections), sponsorLabelVal, tenantId, approvalStatus]
     );
 
     const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [course.id]);
@@ -1120,4 +1126,213 @@ export async function removeLecturer(req: AuthRequest, res: Response, next: Next
   } catch (error) {
     next(error);
   }
+}
+
+// Phase D: Course approval workflow
+
+export function submitForApproval(req: AuthRequest, res: Response): void {
+  const { id } = req.params;
+  const userId = req.user!.userId;
+
+  const course = queryOne<{ id: string; approval_status: string }>('SELECT id, approval_status FROM courses WHERE id = ?', [id]);
+  if (!course) {
+    res.status(404).json({ success: false, error: 'Course not found' });
+    return;
+  }
+  if (course.approval_status !== 'draft' && course.approval_status !== 'rejected') {
+    res.status(400).json({ success: false, error: `Cannot submit course with status '${course.approval_status}'` });
+    return;
+  }
+
+  execute("UPDATE courses SET approval_status = 'submitted' WHERE id = ?", [id]);
+
+  const existing = queryOne<{ id: string }>('SELECT id FROM course_approval_workflow WHERE course_id = ?', [id]);
+  if (existing) {
+    execute(
+      "UPDATE course_approval_workflow SET status = 'submitted', submitted_at = datetime('now'), submitted_by = ?, reviewed_by = NULL, review_note = NULL, reviewed_at = NULL WHERE course_id = ?",
+      [userId, id],
+    );
+  } else {
+    execute(
+      "INSERT INTO course_approval_workflow (id, course_id, submitted_by, status, submitted_at) VALUES (?, ?, ?, 'submitted', datetime('now'))",
+      [uuidv4(), id, userId],
+    );
+  }
+
+  res.json({ success: true, data: { courseId: id, approvalStatus: 'submitted' } });
+}
+
+export function approveCourse(req: AuthRequest, res: Response): void {
+  const { id } = req.params;
+  const userId = req.user!.userId;
+
+  const course = queryOne<{ id: string; approval_status: string }>('SELECT id, approval_status FROM courses WHERE id = ?', [id]);
+  if (!course) {
+    res.status(404).json({ success: false, error: 'Course not found' });
+    return;
+  }
+  if (course.approval_status !== 'submitted') {
+    res.status(400).json({ success: false, error: `Cannot approve course with status '${course.approval_status}'` });
+    return;
+  }
+
+  execute("UPDATE courses SET approval_status = 'approved' WHERE id = ?", [id]);
+  execute(
+    "UPDATE course_approval_workflow SET status = 'approved', reviewed_by = ?, reviewed_at = datetime('now') WHERE course_id = ?",
+    [userId, id],
+  );
+
+  res.json({ success: true, data: { courseId: id, approvalStatus: 'approved' } });
+}
+
+export function rejectCourse(req: AuthRequest, res: Response): void {
+  const { id } = req.params;
+  const userId = req.user!.userId;
+  const { reviewNote } = req.body;
+
+  const course = queryOne<{ id: string; approval_status: string }>('SELECT id, approval_status FROM courses WHERE id = ?', [id]);
+  if (!course) {
+    res.status(404).json({ success: false, error: 'Course not found' });
+    return;
+  }
+  if (course.approval_status !== 'submitted') {
+    res.status(400).json({ success: false, error: `Cannot reject course with status '${course.approval_status}'` });
+    return;
+  }
+
+  execute("UPDATE courses SET approval_status = 'rejected' WHERE id = ?", [id]);
+  execute(
+    "UPDATE course_approval_workflow SET status = 'rejected', reviewed_by = ?, review_note = ?, reviewed_at = datetime('now') WHERE course_id = ?",
+    [userId, reviewNote || null, id],
+  );
+
+  res.json({ success: true, data: { courseId: id, approvalStatus: 'rejected' } });
+}
+
+// Phase D: TA assignment
+
+export function listCourseTAs(req: AuthRequest, res: Response): void {
+  const { id } = req.params;
+  const tas = query<{ user_id: string; name: string; email: string; assigned_at: string }>(
+    `SELECT ct.user_id, u.name, u.email, ct.assigned_at
+     FROM course_tas ct JOIN users u ON u.id = ct.user_id
+     WHERE ct.course_id = ?`,
+    [id],
+  );
+  res.json({ success: true, data: { tas } });
+}
+
+export function assignTA(req: AuthRequest, res: Response): void {
+  const { id } = req.params;
+  const { userId: taUserId } = req.body;
+  const assignerId = req.user!.userId;
+
+  if (!taUserId) {
+    res.status(400).json({ success: false, error: 'userId is required' });
+    return;
+  }
+
+  const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [id]);
+  if (!course) {
+    res.status(404).json({ success: false, error: 'Course not found' });
+    return;
+  }
+
+  try {
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [id, taUserId, assignerId]);
+  } catch {
+    res.status(409).json({ success: false, error: 'TA already assigned to this course' });
+    return;
+  }
+
+  res.status(201).json({ success: true, data: { courseId: id, userId: taUserId } });
+}
+
+export function removeTA(req: AuthRequest, res: Response): void {
+  const { id, userId: taUserId } = req.params;
+
+  const changes = execute('DELETE FROM course_tas WHERE course_id = ? AND user_id = ?', [id, taUserId]);
+  if (changes === 0) {
+    res.status(404).json({ success: false, error: 'TA assignment not found' });
+    return;
+  }
+
+  res.json({ success: true, data: { removed: true } });
+}
+
+// Phase D: Material approval
+
+export function approveMaterial(req: AuthRequest, res: Response): void {
+  const { id: courseId, materialId } = req.params;
+  const userId = req.user!.userId;
+
+  const material = queryOne<{
+    id: string; course_id: string; section_id: string;
+    item_title: string; item_type: string; content: string; status: string;
+  }>(
+    'SELECT id, course_id, section_id, item_title, item_type, content, status FROM course_material_submissions WHERE id = ? AND course_id = ?',
+    [materialId, courseId],
+  );
+
+  if (!material) {
+    res.status(404).json({ success: false, error: 'Material submission not found' });
+    return;
+  }
+  if (material.status !== 'pending') {
+    res.status(400).json({ success: false, error: `Material already ${material.status}` });
+    return;
+  }
+
+  const course = queryOne<{ sections: string }>('SELECT sections FROM courses WHERE id = ?', [courseId]);
+  if (!course) {
+    res.status(404).json({ success: false, error: 'Course not found' });
+    return;
+  }
+
+  const sections = JSON.parse(course.sections || '[]');
+  const section = sections.find((s: any) => s.id === material.section_id);
+  if (!section) {
+    res.status(400).json({ success: false, error: `Section '${material.section_id}' not found in course` });
+    return;
+  }
+
+  if (!section.items) section.items = [];
+  section.items.push({
+    id: uuidv4(),
+    title: material.item_title,
+    type: material.item_type,
+    content: material.content,
+  });
+
+  execute('UPDATE courses SET sections = ? WHERE id = ?', [JSON.stringify(sections), courseId]);
+  execute(
+    "UPDATE course_material_submissions SET status = 'approved', reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?",
+    [userId, materialId],
+  );
+
+  res.json({ success: true, data: { materialId, status: 'approved' } });
+}
+
+export function rejectMaterial(req: AuthRequest, res: Response): void {
+  const { materialId } = req.params;
+  const userId = req.user!.userId;
+  const { reviewNote } = req.body;
+
+  const material = queryOne<{ id: string; status: string }>(
+    'SELECT id, status FROM course_material_submissions WHERE id = ?', [materialId]);
+  if (!material) {
+    res.status(404).json({ success: false, error: 'Material submission not found' });
+    return;
+  }
+  if (material.status !== 'pending') {
+    res.status(400).json({ success: false, error: `Material already ${material.status}` });
+    return;
+  }
+
+  execute(
+    "UPDATE course_material_submissions SET status = 'rejected', reviewed_by = ?, review_note = ?, reviewed_at = datetime('now') WHERE id = ?",
+    [userId, reviewNote || null, materialId],
+  );
+
+  res.json({ success: true, data: { materialId, status: 'rejected' } });
 }
