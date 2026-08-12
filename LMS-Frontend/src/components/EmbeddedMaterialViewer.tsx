@@ -209,7 +209,14 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               </span>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Information</p>
-                <div className="text-sm text-neutral-800 mt-1.5 leading-relaxed whitespace-pre-wrap">{item.information}</div>
+                {item.information.includes('<') ? (
+                  <div
+                    className="text-sm text-neutral-800 mt-1.5 leading-relaxed prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: item.information }}
+                  />
+                ) : (
+                  <div className="text-sm text-neutral-800 mt-1.5 leading-relaxed whitespace-pre-wrap">{item.information}</div>
+                )}
               </div>
             </div>
           </div>

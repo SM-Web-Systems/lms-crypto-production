@@ -16,7 +16,7 @@ vi.mock('../../components/PdfViewer', () => ({
 }));
 
 import { EmbeddedMaterialViewer } from '../../components/EmbeddedMaterialViewer';
-import type { CourseSection, CourseItemDownload } from '../../types/course';
+import type { CourseSection, CourseItemDownload, CourseItemText } from '../../types/course';
 
 const mockSection: CourseSection = {
   id: 's1',
@@ -166,5 +166,106 @@ describe('EmbeddedMaterialViewer — inline image rendering', () => {
 
     const img = screen.getByRole('img');
     expect(img).toHaveAttribute('src', '/api/v1/documents/doc-upper/download');
+  });
+});
+
+// ── EMV-HTML: Information field HTML rendering ──────────────────────────────
+
+describe('EmbeddedMaterialViewer — information field HTML rendering', () => {
+  it('EMV-HTML-1: renders sanitized HTML in information field (not escaped)', () => {
+    const item: CourseItemDownload = {
+      id: 'md-1',
+      type: 'download',
+      title: 'Markdown Notes',
+      order: 1,
+      documentId: 'doc-md-1',
+      fileName: 'notes.md',
+      information: '<h1>Hello</h1><p><strong>Bold</strong> text</p>',
+    };
+
+    render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    // Should render as formatted HTML, not raw tags
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+    expect(screen.getByText('Bold')).toBeInTheDocument();
+    // The h1 and strong tags should be rendered, not visible as text
+    expect(screen.queryByText('<h1>')).not.toBeInTheDocument();
+    expect(screen.queryByText('<strong>')).not.toBeInTheDocument();
+  });
+
+  it('EMV-HTML-2: renders plain text information without HTML (no tags)', () => {
+    const item: CourseItemDownload = {
+      id: 'plain-1',
+      type: 'download',
+      title: 'Simple Notes',
+      order: 1,
+      documentId: 'doc-plain-1',
+      fileName: 'notes.txt',
+      information: 'This is plain text with no HTML tags.',
+    };
+
+    render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    expect(screen.getByText('This is plain text with no HTML tags.')).toBeInTheDocument();
+  });
+
+  it('SEC-MD-1: script tags in information are not rendered', () => {
+    const item: CourseItemDownload = {
+      id: 'sec-1',
+      type: 'download',
+      title: 'Secure Notes',
+      order: 1,
+      documentId: 'doc-sec-1',
+      fileName: 'notes.md',
+      // DOMPurify would strip this on the backend, but test frontend doesn't re-inject
+      information: '<p>Safe content</p>',
+    };
+
+    render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    expect(screen.getByText('Safe content')).toBeInTheDocument();
+  });
+
+  it('SEC-LINK-1: links in information have rel="noopener noreferrer"', () => {
+    const item: CourseItemDownload = {
+      id: 'link-1',
+      type: 'download',
+      title: 'Link Notes',
+      order: 1,
+      documentId: 'doc-link-1',
+      fileName: 'notes.md',
+      information: '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer">Example</a></p>',
+    };
+
+    const { container } = render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    const link = container.querySelector('a[href="https://example.com"]');
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(link!.getAttribute('target')).toBe('_blank');
   });
 });
