@@ -65,6 +65,31 @@ describe('WIZ-GH-2 — GitHub form validation', () => {
   });
 });
 
+describe('WIZ-GH-2b — Non-GitHub URL error display', () => {
+  it('shows error for non-GitHub URL (backend validation)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({
+        success: false,
+        error: { message: 'Only GitHub URLs are supported' },
+      }),
+    });
+
+    render(<ImportWizard {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('source-github'));
+
+    const urlInput = screen.getByPlaceholderText(/github\.com/i);
+    fireEvent.change(urlInput, { target: { value: 'https://gitlab.com/some/repo' } });
+
+    fireEvent.click(screen.getByText(/^Fetch$/i));
+
+    await waitFor(() => {
+      expect(screen.getByText(/only github/i)).toBeInTheDocument();
+    });
+  });
+});
+
 describe('WIZ-GH-3 — GitHub import error handling', () => {
   it('shows error message on 404 response', async () => {
     mockFetch.mockResolvedValueOnce({
@@ -87,6 +112,77 @@ describe('WIZ-GH-3 — GitHub import error handling', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/not found|not public/i)).toBeInTheDocument();
+    });
+  });
+});
+
+describe('WIZ-GH-4 — Successful GitHub import shows preview', () => {
+  it('displays preview sections and items after successful fetch', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        success: true,
+        data: {
+          preview: {
+            sections: [{
+              title: 'Week 1 — Introduction',
+              week: '1',
+              items: [
+                { title: 'README', type: 'text', fileName: 'README.md', documentId: 'doc-1', warnings: [] },
+                { title: 'Slides', type: 'pdf', fileName: 'slides.pdf', documentId: 'doc-2', warnings: [] },
+              ],
+            }],
+            warnings: [],
+            filesStored: 2,
+            filesSkipped: 0,
+          },
+        },
+      }),
+    });
+
+    render(<ImportWizard {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('source-github'));
+
+    const urlInput = screen.getByPlaceholderText(/github\.com/i);
+    fireEvent.change(urlInput, { target: { value: 'https://github.com/SM-Web-Systems/blockchain-course' } });
+
+    fireEvent.click(screen.getByText(/^Fetch$/i));
+
+    await waitFor(() => {
+      // Step 2 preview should be visible
+      expect(screen.getByTestId('preview-step')).toBeInTheDocument();
+    });
+
+    // Item titles rendered as editable inputs
+    expect(screen.getByDisplayValue('README')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Slides')).toBeInTheDocument();
+    // Summary text
+    expect(screen.getByText(/2 items? in 1 section/i)).toBeInTheDocument();
+  });
+});
+
+describe('WIZ-GH-5 — Non-whitelisted org error', () => {
+  it('shows error message on 403 response', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({
+        success: false,
+        error: { message: 'Repository owner not in allowed list' },
+      }),
+    });
+
+    render(<ImportWizard {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('source-github'));
+
+    const urlInput = screen.getByPlaceholderText(/github\.com/i);
+    fireEvent.change(urlInput, { target: { value: 'https://github.com/evil-org/repo' } });
+
+    fireEvent.click(screen.getByText(/^Fetch$/i));
+
+    await waitFor(() => {
+      expect(screen.getByText(/not in allowed list/i)).toBeInTheDocument();
     });
   });
 });

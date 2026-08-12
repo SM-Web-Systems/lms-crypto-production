@@ -43,4 +43,4 @@ Each item is a vertical slice: test + implementation + verification. Process one
 - [x] All existing tests still pass: **696/696 BE** + **177/177 FE**
 - [x] No new lint/type errors (`tsc --noEmit` clean)
 - [x] Diagrams updated (H-5 — DONE)
-- [ ] Commit with tag `phase27-c1-followup-complete-2026-08-12`
+- [x] Commit `90d8b0c` + tag `phase27-c1-followup-complete-2026-08-12`
