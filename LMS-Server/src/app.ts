@@ -41,6 +41,7 @@ import sponsorRoutes from './routes/sponsor.js';
 import employerRoutes from './routes/employer.js';
 import parentRoutes from './routes/parent.js';
 import teacherRoutes from './routes/teacher.js';
+import taRoutes from './routes/ta.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
@@ -265,6 +266,7 @@ app.use('/api/v1', apiLimiter, sponsorRoutes);
 app.use('/api/v1', apiLimiter, employerRoutes);
 app.use('/api/v1', apiLimiter, parentRoutes);
 app.use('/api/v1', apiLimiter, teacherRoutes);
+app.use('/api/v1', apiLimiter, taRoutes);
 
 // ─── API Documentation ─────────────────────────────────────────────────────
 app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });

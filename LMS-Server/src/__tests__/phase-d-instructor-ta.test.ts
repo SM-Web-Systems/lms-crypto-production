@@ -179,3 +179,85 @@ describe('D1: Course Approval Workflow', () => {
     expect(titles).not.toContain('Rejected');
   });
 });
+
+describe('D2: TA Assignment System', () => {
+  let instructor: { userId: string; token: string };
+  let ta: { userId: string; token: string };
+  let admin: { userId: string; token: string };
+  let courseId: string;
+
+  beforeEach(() => {
+    instructor = createUserWithRole('role_instructor', 'instructor');
+    ta = createUserWithRole('role_ta', 'ta');
+    admin = createUserWithRole('role_admin', 'admin');
+    courseId = uuidv4();
+    execute("INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'TA Course', 'desc', 'TA-001', '[]')", [courseId]);
+    execute('INSERT INTO course_lecturers (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, instructor.userId, instructor.userId]);
+  });
+
+  it('D2-TA-1: instructor can assign TA to course', async () => {
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${instructor.token}`)
+      .send({ userId: ta.userId });
+
+    expect(res.status).toBe(201);
+
+    const assignment = queryOne<{ user_id: string }>('SELECT user_id FROM course_tas WHERE course_id = ? AND user_id = ?', [courseId, ta.userId]);
+    expect(assignment).not.toBeNull();
+  });
+
+  it('D2-TA-2: TA can view assigned course submissions', async () => {
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, ta.userId, instructor.userId]);
+
+    const res = await request(app)
+      .get(`/api/v1/ta/courses/${courseId}/submissions`)
+      .set('Authorization', `Bearer ${ta.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('D2-TA-3: TA cannot view unassigned course submissions', async () => {
+    const res = await request(app)
+      .get(`/api/v1/ta/courses/${courseId}/submissions`)
+      .set('Authorization', `Bearer ${ta.token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('D2-TA-4: TA can list assigned courses', async () => {
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, ta.userId, instructor.userId]);
+
+    const res = await request(app)
+      .get('/api/v1/ta/courses')
+      .set('Authorization', `Bearer ${ta.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.courses).toHaveLength(1);
+    expect(res.body.data.courses[0].title).toBe('TA Course');
+  });
+
+  it('D2-TA-5: instructor can list TAs for course', async () => {
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, ta.userId, instructor.userId]);
+
+    const res = await request(app)
+      .get(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${instructor.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.tas).toHaveLength(1);
+  });
+
+  it('D2-TA-6: instructor can remove TA from course', async () => {
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, ta.userId, instructor.userId]);
+
+    const res = await request(app)
+      .delete(`/api/v1/courses/${courseId}/tas/${ta.userId}`)
+      .set('Authorization', `Bearer ${instructor.token}`);
+
+    expect(res.status).toBe(200);
+    const remaining = queryOne('SELECT user_id FROM course_tas WHERE course_id = ? AND user_id = ?', [courseId, ta.userId]);
+    expect(remaining).toBeNull();
+  });
+});
