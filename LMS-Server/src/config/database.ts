@@ -1615,6 +1615,51 @@ function ensureTenantSettingsTable(): void {
 }
 ensureTenantSettingsTable();
 
+function ensureCourseTasTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_tas (
+      course_id   TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      assigned_by TEXT NOT NULL REFERENCES users(id),
+      assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (course_id, user_id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_course_tas_user ON course_tas(user_id)');
+}
+ensureCourseTasTable();
+
+function ensureCourseMaterialSubmissionsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_material_submissions (
+      id            TEXT PRIMARY KEY,
+      course_id     TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      submitter_id  TEXT NOT NULL REFERENCES users(id),
+      section_id    TEXT NOT NULL,
+      item_title    TEXT NOT NULL,
+      item_type     TEXT NOT NULL DEFAULT 'text',
+      content       TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'pending',
+      reviewed_by   TEXT REFERENCES users(id),
+      review_note   TEXT,
+      reviewed_at   TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+}
+ensureCourseMaterialSubmissionsTable();
+
+function ensureSubmissionsGradeColumns(): void {
+  const info = db.pragma('table_info(submissions)') as Array<{ name: string }>;
+  if (!info.some(col => col.name === 'grade_status')) {
+    db.exec("ALTER TABLE submissions ADD COLUMN grade_status TEXT DEFAULT 'direct'");
+  }
+  if (!info.some(col => col.name === 'graded_by')) {
+    db.exec('ALTER TABLE submissions ADD COLUMN graded_by TEXT');
+  }
+}
+ensureSubmissionsGradeColumns();
+
 function ensureHealthCheckPingsTable(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS health_check_pings (

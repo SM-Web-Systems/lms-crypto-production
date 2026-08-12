@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS submissions (
   course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
   week_id TEXT,
   item_id TEXT,
+  grade_status TEXT DEFAULT 'direct' CHECK (grade_status IN ('direct', 'pending_approval', 'approved')),
+  graded_by TEXT REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -603,6 +605,32 @@ CREATE TABLE IF NOT EXISTS course_approval_workflow (
   submitted_at TEXT,
   reviewed_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Phase D: TA assignments
+CREATE TABLE IF NOT EXISTS course_tas (
+  course_id   TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_by TEXT NOT NULL REFERENCES users(id),
+  assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (course_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_course_tas_user ON course_tas(user_id);
+
+-- Phase D: TA material staging
+CREATE TABLE IF NOT EXISTS course_material_submissions (
+  id            TEXT PRIMARY KEY,
+  course_id     TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  submitter_id  TEXT NOT NULL REFERENCES users(id),
+  section_id    TEXT NOT NULL,
+  item_title    TEXT NOT NULL,
+  item_type     TEXT NOT NULL DEFAULT 'text' CHECK (item_type IN ('text', 'video', 'audio', 'document', 'quiz', 'assignment', 'download')),
+  content       TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by   TEXT REFERENCES users(id),
+  review_note   TEXT,
+  reviewed_at   TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Phase A: Rewards (platform-managed, no escrow)
