@@ -1,40 +1,25 @@
 # Phase Dependency Diagram
 
-## Build Phases — Dependency Graph
+## Build Phases — Dependency Graph (Backend vs Frontend)
 
 ```mermaid
 flowchart TD
     A0["Phase A0: CI Invariant Test<br/>(parent-only wallet write)"]
     A1["Phase A1: Supporter→Super-Student Rename"]
-    A2["Phase A2: New Permissions Seed (76 total)"]
+    A2["Phase A2: New Permissions Seed (79 total)"]
     A3["Phase A3: user_links + user_groups Tables"]
     A4["Phase A4: login_history Table"]
     A5["Phase A5: course_approval_workflow Table"]
     A6["Phase A6: rewards + perks Tables"]
-    A7["Phase A7: AmmaWallet Escrow Discovery<br/>⛔ HARD GATE"]
+    A7["Phase A7: AmmaWallet Escrow Discovery<br/>⛔ HARD GATE (RESOLVED)"]
     A8["Phase A8: Tenant Settings<br/>(super-student threshold config)"]
 
-    B1["Phase B1: Sponsor Dashboard Access"]
-    B2["Phase B2: Sponsor Frontend"]
-    B3["Phase B3: Sponsor Impact Report"]
-    B4["Phase B4: Sponsor Billing View"]
-    B5["Phase B5: Employer Dashboard + Teams"]
-    B6["Phase B6: Invite-as-Role Flow"]
-    BR["Phase B-R: Sponsor Rewards"]
+    B_BE["Phase B: Sponsor + Employer<br/>🔧 BACKEND COMPLETE"]
+    C_BE["Phase C: Parent + Teacher<br/>🔧 BACKEND COMPLETE"]
 
-    C1["Phase C1: Parent Dashboard + Family Groups"]
-    C2["Phase C2: Parent Creates Student Accounts"]
-    C3["Phase C3: Parent Wallet Management"]
-    C4["Phase C4: Parent Billing"]
-    CR["Phase C-R: Parent Rewards"]
-    C5["Phase C5: Teacher Dashboard + Classes"]
-    C6["Phase C6: Teacher Enrollment"]
-    CTR["Phase C-TR: Teacher Rewards"]
+    D_BE["Phase D: Instructor/TA<br/>🔧 BACKEND (in progress)"]
 
-    D1["Phase D1: Course Approval Workflow"]
-    D2["Phase D2: TA Assignment System"]
-    D3["Phase D3: TA Dashboard + Grading"]
-    D4["Phase D4: Grade Approval<br/>(always explicit, no auto-publish)"]
+    G_FE["Phase G: Frontend for B/C/D Roles<br/>🖥️ FRONTEND (new)"]
 
     E1["Phase E1: Admin Tier Enforcement<br/>(middleware-level blocks)"]
     E2["Phase E2: Admin-2 UI Differentiation"]
@@ -49,6 +34,10 @@ flowchart TD
     F5["Phase F5: Messaging Rate Limiting"]
     F6["Phase F6: Notification Preferences Per Role"]
 
+    BR["Phase B-R: Sponsor Rewards"]
+    CR["Phase C-R: Parent Rewards"]
+    CTR["Phase C-TR: Teacher Rewards"]
+
     %% Phase A dependencies (all foundation)
     A0 --> A2
     A1 --> A2
@@ -58,44 +47,33 @@ flowchart TD
     A2 --> A6
     A2 --> A8
 
-    %% Escrow gate — blocks ALL reward-related work
-    A7 -->|"⛔ HARD GATE<br/>Escrow resolved → platform-managed"| BR
-    A7 -->|"⛔ HARD GATE"| CR
-    A7 -->|"⛔ HARD GATE"| CTR
+    %% Escrow gate (RESOLVED)
+    A7 -->|"⛔ RESOLVED"| BR
+    A7 -->|"⛔ RESOLVED"| CR
+    A7 -->|"⛔ RESOLVED"| CTR
 
-    %% Phase B dependencies (sponsor + employer)
-    A3 --> B1
-    A2 --> B1
-    B1 --> B2
-    B2 --> B3
-    B2 --> B4
-    A3 --> B5
-    B2 --> B6
-    B5 --> B6
+    %% Phase B/C backend
+    A3 --> B_BE
+    A2 --> B_BE
+    A3 --> C_BE
+    A2 --> C_BE
 
-    %% Phase C dependencies (parent + teacher) — PARALLEL with B
-    A3 --> C1
-    A2 --> C1
-    C1 --> C2
-    C2 --> C3
-    C3 --> C4
-    A3 --> C5
-    C5 --> C6
+    %% Phase D backend depends on A5
+    A5 --> D_BE
 
-    %% Phase D depends on A5 (course approval table)
-    A5 --> D1
-    D1 --> D2
-    D2 --> D3
-    D3 --> D4
+    %% Phase G frontend depends on B/C/D backend
+    B_BE --> G_FE
+    C_BE --> G_FE
+    D_BE --> G_FE
 
-    %% Phase E depends on A2 (permissions) + A8 (tenant config)
+    %% Phase E
     A2 --> E1
     A8 --> E4
     E1 --> E2
     E1 --> E3
     E4 --> E5
 
-    %% Phase F depends on A4 (login_history)
+    %% Phase F
     A4 --> F1
     F1 --> F2
     F2 --> F3
@@ -103,34 +81,64 @@ flowchart TD
     A2 --> F5
     F4 --> F6
 
-    %% Styling
-    style A7 fill:#dc2626,color:#fff,stroke:#991b1b,stroke-width:3px
+    %% Styling — COMPLETE phases
     style A0 fill:#16a34a,color:#fff
+    style A1 fill:#16a34a,color:#fff
+    style A2 fill:#16a34a,color:#fff
+    style A3 fill:#16a34a,color:#fff
+    style A4 fill:#16a34a,color:#fff
+    style A5 fill:#16a34a,color:#fff
+    style A6 fill:#16a34a,color:#fff
+    style A8 fill:#16a34a,color:#fff
+    style B_BE fill:#16a34a,color:#fff
+    style C_BE fill:#16a34a,color:#fff
+
+    %% IN PROGRESS
+    style D_BE fill:#2563eb,color:#fff
+    style G_FE fill:#f59e0b,color:#000
+
+    %% Resolved gate
+    style A7 fill:#6b7280,color:#fff,stroke:#6b7280
+
+    %% Decision highlights
+    style E1 fill:#ea580c,color:#fff
+    style E4 fill:#7c3aed,color:#fff
+
+    %% Rewards (blocked until implementation)
     style BR fill:#fbbf24,color:#000,stroke:#dc2626,stroke-width:2px,stroke-dasharray:5
     style CR fill:#fbbf24,color:#000,stroke:#dc2626,stroke-width:2px,stroke-dasharray:5
     style CTR fill:#fbbf24,color:#000,stroke:#dc2626,stroke-width:2px,stroke-dasharray:5
-    style E1 fill:#ea580c,color:#fff
-    style D4 fill:#7c3aed,color:#fff
-    style E4 fill:#2563eb,color:#fff
 ```
 
 ## Key
 
-| Symbol | Meaning |
+| Color | Meaning |
 |---|---|
-| ⛔ HARD GATE | AmmaWallet escrow discovery blocks all reward-funding work. **RESOLVED:** No escrow exists — rewards use platform-managed balances. |
-| Red border (dashed) | Reward-related nodes — blocked until escrow gate resolved |
-| Green (A0) | CI invariant test — already written and passing (12/12) |
-| Orange (E1) | Admin tier enforcement — middleware-level, not UI-only (Decision #5) |
-| Purple (D4) | TA grade approval — always explicit, never auto-publish (Decision #4) |
-| Blue (E4) | Super-student auto-unlock — tenant-configurable threshold (Decision #2) |
+| Green | COMPLETE (backend tests passing) |
+| Blue (D) | IN PROGRESS — Phase D Instructor/TA backend |
+| Amber (G) | NEW — Phase G Frontend for B/C/D roles |
+| Gray (A7) | RESOLVED — Escrow gate closed, platform-managed balances |
+| Orange (E1) | Admin tier enforcement — middleware-level (Decision #5) |
+| Purple (E4) | Super-student auto-unlock — tenant-configurable (Decision #2) |
+| Yellow dashed | Reward phases — blocked until implementation |
+
+## Backend vs Frontend Status
+
+| Phase | Backend | Frontend |
+|---|---|---|
+| A (Foundation) | COMPLETE (770/770 tests) | N/A (schema + permissions only) |
+| B (Sponsor/Employer) | COMPLETE (10 tests) | NOT STARTED → Phase G |
+| C (Parent/Teacher) | COMPLETE (19 tests) | NOT STARTED → Phase G |
+| D (Instructor/TA) | IN PROGRESS | NOT STARTED → Phase G |
+| E (Admin Tiers) | NOT STARTED | NOT STARTED |
+| F (Cross-Cutting) | NOT STARTED | NOT STARTED |
+| G (Frontend Gap) | N/A | NOT STARTED |
 
 ## Parallel Execution
 
-Phases B and C run in **parallel** (Decision #1). Both depend on Phase A foundation work completing first.
-
 ```
-Phase A (foundation) ──┬──► Phase B (sponsor + employer)  ──┐
-                       │                                      ├──► Phase D ──► Phase E ──► Phase F
-                       └──► Phase C (parent + teacher)    ──┘
+Phase A (foundation) ──┬──► Phase B backend ──┐
+                       │                       ├──► Phase D backend ──┬──► Phase G frontend
+                       └──► Phase C backend ──┘                      │
+                                                                      ├──► Phase E ──► Phase F
 ```
