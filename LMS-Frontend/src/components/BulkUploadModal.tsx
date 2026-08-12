@@ -60,7 +60,7 @@ interface BulkUploadModalProps {
   courseId: string | null;
   docCategories: string[];
   onFilesUploaded: (
-    items: Array<{ documentId: string; title: string; type: ItemType; fileName: string }>,
+    items: Array<{ documentId: string; title: string; type: ItemType; fileName: string; information?: string }>,
     weekTempId: string,
     sectionTempId: string,
   ) => void;
@@ -162,7 +162,7 @@ export default function BulkUploadModal({
 
     setUploading(true);
     const category = pickCategory(docCategories);
-    const uploaded: Array<{ documentId: string; title: string; type: ItemType; fileName: string }> = [];
+    const uploaded: Array<{ documentId: string; title: string; type: ItemType; fileName: string; information?: string }> = [];
 
     for (const qf of pending) {
       // Mark uploading
@@ -180,7 +180,14 @@ export default function BulkUploadModal({
         setQueue((prev) =>
           prev.map((f) => (f.id === qf.id ? { ...f, status: 'done' as FileStatus, documentId: created.id } : f)),
         );
-        uploaded.push({ documentId: created.id, title, type: qf.itemType, fileName: qf.file.name });
+        const information = (created as Record<string, unknown>).renderedHtml as string | undefined;
+        uploaded.push({
+          documentId: created.id,
+          title,
+          type: qf.itemType,
+          fileName: qf.file.name,
+          ...(information ? { information } : {}),
+        });
       } catch (err) {
         setQueue((prev) =>
           prev.map((f) =>
@@ -216,7 +223,8 @@ export default function BulkUploadModal({
       setQueue((prev) =>
         prev.map((f) => (f.id === fileId ? { ...f, status: 'done' as FileStatus, documentId: created.id } : f)),
       );
-      onFilesUploaded([{ documentId: created.id, title, type: qf.itemType, fileName: qf.file.name }], weekTempId, sectionTempId);
+      const retryInfo = (created as Record<string, unknown>).renderedHtml as string | undefined;
+      onFilesUploaded([{ documentId: created.id, title, type: qf.itemType, fileName: qf.file.name, ...(retryInfo ? { information: retryInfo } : {}) }], weekTempId, sectionTempId);
     } catch (err) {
       setQueue((prev) =>
         prev.map((f) =>

@@ -6,6 +6,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, CourseDocument, CourseDocumentResponse, User, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getDocumentFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
+import { renderMarkdownToSafeHtml } from '../utils/markdownProcessor.js';
 
 function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
@@ -257,9 +258,23 @@ export async function createDocument(req: AuthRequest, res: Response, next: Next
       throw new AppError('Failed to create document', 500, ErrorCodes.INTERNAL_ERROR);
     }
 
+    // If markdown file, render HTML for frontend use
+    let renderedHtml: string | undefined;
+    if (file!.mimetype === 'text/markdown' && file!.path) {
+      try {
+        const content = fs.readFileSync(file!.path, 'utf-8');
+        renderedHtml = renderMarkdownToSafeHtml(content);
+      } catch {
+        // Non-fatal — file is already stored, just skip rendering
+      }
+    }
+
     res.status(201).json({
       success: true,
-      data: toDocumentResponse({ ...document, uploader_name: adminUser?.name }),
+      data: {
+        ...toDocumentResponse({ ...document, uploader_name: adminUser?.name }),
+        ...(renderedHtml ? { renderedHtml } : {}),
+      },
     });
   } catch (error) {
     next(error);

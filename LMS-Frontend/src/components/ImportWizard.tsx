@@ -357,12 +357,14 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
         if (!sectionMap.has(key)) {
           sectionMap.set(key, { id: newId(), week: weekTitle, title: sectionTitle, items: [] });
         }
+        const information = data.data?.renderedHtml;
         sectionMap.get(key)!.items.push({
           id: newId(),
           title: stripExtension(fileName),
           type: mimeToItemType(file.type),
           fileName,
           documentId: data.data?.id,
+          ...(information ? { information } : {}),
           warnings: [],
         });
       } catch (e) {

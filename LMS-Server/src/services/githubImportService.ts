@@ -1,5 +1,7 @@
 import path from 'path';
 import fs from 'fs';
+import { Readable, Transform, type TransformCallback } from 'stream';
+import { pipeline } from 'stream/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '../middleware/errorHandler.js';
 import { ErrorCodes } from '../types/index.js';
@@ -124,17 +126,50 @@ export async function fetchGitHubZip(
 
   const zipPath = path.join(importDir, `${uuidv4()}.zip`);
 
-  const arrayBuffer = await response.arrayBuffer();
-  if (arrayBuffer.byteLength > GITHUB_ZIP_MAX_BYTES) {
-    throw new AppError(
-      `Repository ZIP exceeds ${GITHUB_ZIP_MAX_BYTES / 1024 / 1024}MB limit`,
-      400,
-      ErrorCodes.VALIDATION_ERROR,
-    );
+  // Stream response body to disk with size enforcement (avoids buffering full ZIP in heap)
+  if (!response.body) {
+    throw new AppError('Empty response body from GitHub', 502, 'EXTERNAL_SERVICE_ERROR');
   }
 
-  fs.writeFileSync(zipPath, Buffer.from(arrayBuffer));
-  logger.info({ zipPath, size: arrayBuffer.byteLength }, 'GitHub ZIP downloaded');
+  const sizeChecker = new SizeLimitTransform(GITHUB_ZIP_MAX_BYTES);
+  const nodeStream = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
+  const fileStream = fs.createWriteStream(zipPath);
+
+  try {
+    await pipeline(nodeStream, sizeChecker, fileStream);
+  } catch (err) {
+    // Clean up partial file on failure
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+    throw err;
+  }
+
+  const stat = fs.statSync(zipPath);
+  logger.info({ zipPath, size: stat.size }, 'GitHub ZIP downloaded');
 
   return zipPath;
+}
+
+/**
+ * Transform stream that enforces a byte size limit.
+ * Throws AppError if cumulative bytes exceed maxBytes.
+ */
+export class SizeLimitTransform extends Transform {
+  private bytesRead = 0;
+  constructor(private maxBytes: number) {
+    super();
+  }
+  _transform(chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback): void {
+    this.bytesRead += chunk.length;
+    if (this.bytesRead > this.maxBytes) {
+      callback(
+        new AppError(
+          `Repository ZIP exceeds ${this.maxBytes / 1024 / 1024}MB limit`,
+          400,
+          ErrorCodes.VALIDATION_ERROR,
+        ),
+      );
+    } else {
+      callback(null, chunk);
+    }
+  }
 }

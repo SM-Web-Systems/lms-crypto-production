@@ -457,7 +457,7 @@ const AdminCourse: React.FC = () => {
   };
 
   const handleBulkFilesUploaded = (
-    items: Array<{ documentId: string; title: string; type: 'pdf' | 'download' | 'text'; fileName: string }>,
+    items: Array<{ documentId: string; title: string; type: 'pdf' | 'download' | 'text'; fileName: string; information?: string }>,
     weekTempId: string,
     sectionTempId: string,
   ) => {
@@ -476,6 +476,7 @@ const AdminCourse: React.FC = () => {
               order: maxOrder + 1 + i,
               documentId: item.documentId,
               fileName: item.fileName,
+              ...(item.information ? { information: item.information } : {}),
             }));
             return { ...s, items: [...s.items, ...newItems] };
           }),

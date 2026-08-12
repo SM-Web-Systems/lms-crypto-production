@@ -181,6 +181,29 @@ describe('DOMPurify afterSanitizeAttributes hook', () => {
   });
 });
 
+describe('Folder upload markdown rendering', () => {
+  it('MD-FOLDER-1: POST /documents returns renderedHtml for markdown files', async () => {
+    const tmpFile = path.join(os.tmpdir(), `test-md-folder-${Date.now()}.md`);
+    fs.writeFileSync(tmpFile, '# Test\n\n**Bold** text');
+
+    try {
+      const res = await request(app)
+        .post('/api/v1/documents')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('file', tmpFile, { filename: 'test.md', contentType: 'text/markdown' })
+        .field('title', 'MD Folder Test')
+        .field('description', 'Integration test for markdown rendering')
+        .field('category', 'Course Materials');
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.renderedHtml).toContain('<h1>Test</h1>');
+      expect(res.body.data.renderedHtml).toContain('<strong>Bold</strong>');
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
+  });
+});
+
 describe('GH-IMP-1 — GitHub URL parsing', () => {
   it('parses standard GitHub URL', async () => {
     const { parseGitHubUrl } = await import('../services/githubImportService.js');
@@ -225,5 +248,35 @@ describe('GH-IMP-2 — Org whitelist', () => {
   it('rejects non-whitelisted org', async () => {
     const { isAllowedOrg } = await import('../services/githubImportService.js');
     expect(isAllowedOrg('evil-org')).toBe(false);
+  });
+});
+
+// ── GH-STREAM: SizeLimitTransform streaming tests ───────────────────────────
+
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import { PassThrough } from 'stream';
+
+describe('GH-STREAM — SizeLimitTransform', () => {
+  it('GH-STREAM-1: passes through data under the size limit', async () => {
+    const { SizeLimitTransform } = await import('../services/githubImportService.js');
+    const transform = new SizeLimitTransform(1024); // 1 KB limit
+    const input = Readable.from([Buffer.alloc(512, 0x41)]); // 512 bytes
+    const chunks: Buffer[] = [];
+    const output = new PassThrough();
+    output.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+    await pipeline(input, transform, output);
+    const totalBytes = chunks.reduce((sum, c) => sum + c.length, 0);
+    expect(totalBytes).toBe(512);
+  });
+
+  it('GH-STREAM-2: aborts with error when data exceeds the size limit', async () => {
+    const { SizeLimitTransform } = await import('../services/githubImportService.js');
+    const transform = new SizeLimitTransform(100); // 100 byte limit
+    const input = Readable.from([Buffer.alloc(50), Buffer.alloc(60)]); // 110 bytes total
+    const output = new PassThrough();
+
+    await expect(pipeline(input, transform, output)).rejects.toThrow(/exceeds.*limit/i);
   });
 });
