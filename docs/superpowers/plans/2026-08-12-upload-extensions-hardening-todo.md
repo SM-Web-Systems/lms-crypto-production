@@ -33,4 +33,4 @@ Each slice is a vertical unit: write test → verify it fails → (implement if 
 - [x] All frontend tests pass: **180/180** (`cd LMS-Frontend && npx vitest run`)
 - [x] All backend tests pass: **696/696** (`cd LMS-Server && npx vitest run`)
 - [x] No new lint/type errors
-- [ ] Commit with tag `phase27-c1-hardening-complete-2026-08-12`
+- [x] Commit `ad3a0e9` + tag `phase27-c1-hardening-complete-2026-08-12`
