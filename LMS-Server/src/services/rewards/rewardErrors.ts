@@ -1,0 +1,31 @@
+export const REWARD_ERROR_CODES = {
+  INVALID_AMOUNT: 'INVALID_AMOUNT',
+  AMOUNT_EXCEEDS_MAXIMUM: 'AMOUNT_EXCEEDS_MAXIMUM',
+  EXPOSURE_EXCEEDS_MAXIMUM: 'EXPOSURE_EXCEEDS_MAXIMUM',
+  UNSUPPORTED_CURRENCY: 'UNSUPPORTED_CURRENCY',
+  INVALID_PRECISION: 'INVALID_PRECISION',
+  INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION',
+  INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
+  SCOPE_DENIED: 'SCOPE_DENIED',
+  DUPLICATE_OPERATION: 'DUPLICATE_OPERATION',
+  REWARD_NOT_FOUND: 'REWARD_NOT_FOUND',
+  INVALID_FUNDING_SOURCE: 'INVALID_FUNDING_SOURCE',
+  CONFLICT_OF_INTEREST: 'CONFLICT_OF_INTEREST',
+  INSUFFICIENT_RECIPIENT_BALANCE: 'INSUFFICIENT_RECIPIENT_BALANCE',
+  MISSING_TARGET_TYPE: 'MISSING_TARGET_TYPE',
+} as const;
+
+export type RewardErrorCode = typeof REWARD_ERROR_CODES[keyof typeof REWARD_ERROR_CODES];
+
+export class RewardError extends Error {
+  code: RewardErrorCode;
+  statusCode: number;
+  details?: Record<string, unknown>;
+
+  constructor(code: RewardErrorCode, message?: string, statusCode = 400, details?: Record<string, unknown>) {
+    super(message ?? code);
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
+  }
+}

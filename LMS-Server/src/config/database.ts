@@ -2079,11 +2079,30 @@ export function _resetForTests(schemaSQL: string): void {
   // Drop-and-recreate without reassigning `db` so ESM imports in test files
   // always reference the same object (avoids live-binding propagation issues).
   db.pragma('foreign_keys = OFF');
-  const tables = db.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+  // Drop triggers first (they may reference tables)
+  const triggers = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='trigger'"
   ).all() as { name: string }[];
-  for (const { name } of tables) {
-    db.exec(`DROP TABLE IF EXISTS "${name}"`);
+  for (const { name } of triggers) {
+    db.exec(`DROP TRIGGER IF EXISTS "${name}"`);
+  }
+  // Drop views
+  const views = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='view'"
+  ).all() as { name: string }[];
+  for (const { name } of views) {
+    db.exec(`DROP VIEW IF EXISTS "${name}"`);
+  }
+  // Drop all tables (loop until none remain to handle FK ordering)
+  let remaining = 100;
+  while (remaining-- > 0) {
+    const tables = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).all() as { name: string }[];
+    if (tables.length === 0) break;
+    for (const { name } of tables) {
+      try { db.exec(`DROP TABLE IF EXISTS "${name}"`); } catch { /* retry on next pass */ }
+    }
   }
   db.exec(schemaSQL);
   db.pragma('foreign_keys = ON');
