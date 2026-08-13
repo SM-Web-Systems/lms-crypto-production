@@ -11,6 +11,17 @@ import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
 import { execute, query, queryOne } from '../config/database.js';
+import {
+  createReward,
+  fundReward,
+  activateReward,
+  cancelReward,
+  getReward,
+  listRewards,
+  getRewardAllocations,
+  getRewardTransactions,
+} from '../services/rewards/rewardService.js';
+import { RewardError } from '../services/rewards/rewardErrors.js';
 
 const router = Router();
 
@@ -271,6 +282,154 @@ router.get(
       success: true,
       data: { payments, total: payments.length },
     });
+  },
+);
+
+// ──── Reward Routes ────
+
+function handleRewardError(err: unknown, res: Response): void {
+  if (err instanceof RewardError) {
+    res.status(err.statusCode).json({ success: false, error: { code: err.code, message: err.message } });
+  } else {
+    throw err;
+  }
+}
+
+// POST /employer/rewards — create draft reward
+router.post(
+  '/employer/rewards',
+  authenticate,
+  requirePermission('reward.create'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const reward = createReward(req.user!.userId, {
+        scopeType: 'employer_team',
+        scopeId: req.body.scopeId,
+        rewardType: req.body.rewardType,
+        amountStroops: String(req.body.amountStroops),
+        maxRecipients: req.body.maxRecipients,
+        autoRelease: req.body.autoRelease,
+        description: req.body.description,
+        eligibilityConfig: req.body.eligibilityConfig,
+        expiresAt: req.body.expiresAt,
+        idempotencyKey: req.body.idempotencyKey,
+      });
+      res.status(201).json({ success: true, data: reward });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// POST /employer/rewards/:id/fund
+router.post(
+  '/employer/rewards/:id/fund',
+  authenticate,
+  requirePermission('reward.fund'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const reward = fundReward(
+        req.params.id,
+        req.user!.userId,
+        { type: req.body.sourceType, reference: req.body.reference },
+        req.body.idempotencyKey,
+      );
+      res.json({ success: true, data: reward });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// POST /employer/rewards/:id/activate
+router.post(
+  '/employer/rewards/:id/activate',
+  authenticate,
+  requirePermission('reward.activate'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const reward = activateReward(req.params.id, req.user!.userId, req.body.idempotencyKey);
+      res.json({ success: true, data: reward });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// POST /employer/rewards/:id/cancel
+router.post(
+  '/employer/rewards/:id/cancel',
+  authenticate,
+  requirePermission('reward.cancel'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const reward = cancelReward(
+        req.params.id,
+        req.user!.userId,
+        req.body.reason ?? '',
+        req.body.idempotencyKey,
+      );
+      res.json({ success: true, data: reward });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// GET /employer/rewards — list rewards for a team
+router.get(
+  '/employer/rewards',
+  authenticate,
+  requirePermission('reward.view_assigned'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const scopeId = req.query.scopeId as string;
+      if (!scopeId) {
+        res.status(400).json({ success: false, error: { message: 'scopeId required' } });
+        return;
+      }
+      const rewards = listRewards('employer_team', scopeId, req.user!.userId);
+      res.json({ success: true, data: rewards });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// GET /employer/rewards/:id
+router.get(
+  '/employer/rewards/:id',
+  authenticate,
+  requirePermission('reward.view_assigned'),
+  (req: AuthRequest, res: Response): void => {
+    const reward = getReward(req.params.id);
+    if (!reward) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+    res.json({ success: true, data: reward });
+  },
+);
+
+// GET /employer/rewards/:id/allocations
+router.get(
+  '/employer/rewards/:id/allocations',
+  authenticate,
+  requirePermission('reward.view_assigned'),
+  (req: AuthRequest, res: Response): void => {
+    const allocations = getRewardAllocations(req.params.id);
+    res.json({ success: true, data: allocations });
+  },
+);
+
+// GET /employer/rewards/:id/transactions
+router.get(
+  '/employer/rewards/:id/transactions',
+  authenticate,
+  requirePermission('reward.view_assigned'),
+  (req: AuthRequest, res: Response): void => {
+    const transactions = getRewardTransactions(req.params.id);
+    res.json({ success: true, data: transactions });
   },
 );
 
