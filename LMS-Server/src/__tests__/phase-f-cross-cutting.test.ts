@@ -252,6 +252,199 @@ describe('F2: Session Management', () => {
   });
 });
 
+// ── F4: Dispute/Refund Workflow ──────────────────────────────────────
+
+describe('F4: Dispute/Refund Workflow', () => {
+  function createAdminWithPerms(roleId: string = 'role_admin'): { userId: string; token: string } {
+    const userId = createUser('admin');
+    execute('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+    execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, roleId]);
+    const token = generateToken({ userId, email: `${userId}@test.com`, role: 'admin' });
+    createSession(userId, token);
+    return { userId, token };
+  }
+
+  function createConfirmedPayment(userId: string): string {
+    const courseId = uuidv4();
+    const courseCode = 'COURSE-' + courseId.slice(0, 8);
+    execute(
+      "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)",
+      [courseId, courseCode],
+    );
+    const paymentId = uuidv4();
+    execute(
+      "INSERT INTO payments (id, user_id, course_id, amount_cents, status) VALUES (?, ?, ?, 5000, 'confirmed')",
+      [paymentId, userId, courseId],
+    );
+    return paymentId;
+  }
+
+  it('F4-DISPUTE-1: Admin creates dispute for a confirmed payment', async () => {
+    const { token: adminToken } = createAdminWithPerms('role_admin');
+    const studentId = createUser('student');
+    const paymentId = createConfirmedPayment(studentId);
+
+    const res = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ paymentId, reason: 'Customer complaint' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.dispute).toHaveProperty('id');
+    expect(res.body.data.dispute.status).toBe('open');
+  });
+
+  it('F4-DISPUTE-2: Admin-2 resolves dispute → payment becomes refunded', async () => {
+    const { token: adminToken } = createAdminWithPerms('role_admin');
+    const { token: admin2Token } = createAdminWithPerms('role_admin2');
+    const studentId = createUser('student');
+    const paymentId = createConfirmedPayment(studentId);
+
+    // Admin creates dispute
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ paymentId, reason: 'Refund request' });
+    const disputeId = createRes.body.data.dispute.id;
+
+    // Admin-2 resolves
+    const res = await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ resolutionNote: 'Approved refund' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.dispute.status).toBe('resolved');
+
+    // Payment should now be 'refunded'
+    const payment = queryOne<{ status: string }>('SELECT status FROM payments WHERE id = ?', [paymentId]);
+    expect(payment!.status).toBe('refunded');
+  });
+
+  it('F4-DISPUTE-3: Admin CANNOT resolve disputes (403 — Decision #5)', async () => {
+    const { token: adminToken } = createAdminWithPerms('role_admin');
+    const { token: admin2Token } = createAdminWithPerms('role_admin2');
+    const studentId = createUser('student');
+    const paymentId = createConfirmedPayment(studentId);
+
+    // Admin-2 creates dispute
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ paymentId, reason: 'Refund' });
+    const disputeId = createRes.body.data.dispute.id;
+
+    // Admin tries to resolve → 403
+    const res = await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ resolutionNote: 'Should fail' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('F4-DISPUTE-4: Super-admin can resolve disputes', async () => {
+    const { token: adminToken } = createAdminWithPerms('role_admin');
+    const { token: superAdminToken } = createAdminWithPerms('role_super_admin');
+    const studentId = createUser('student');
+    const paymentId = createConfirmedPayment(studentId);
+
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ paymentId, reason: 'Refund' });
+    const disputeId = createRes.body.data.dispute.id;
+
+    const res = await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ resolutionNote: 'Approved' });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('F4-DISPUTE-5: Duplicate resolution rejected', async () => {
+    const { token: admin2Token } = createAdminWithPerms('role_admin2');
+    const studentId = createUser('student');
+    const paymentId = createConfirmedPayment(studentId);
+
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ paymentId, reason: 'Refund' });
+    const disputeId = createRes.body.data.dispute.id;
+
+    // First resolve
+    await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ resolutionNote: 'Approved' });
+
+    // Second resolve → 400
+    const res = await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ resolutionNote: 'Double refund attempt' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('F4-DISPUTE-6: Cannot resolve dispute for non-confirmed payment', async () => {
+    const { token: admin2Token } = createAdminWithPerms('role_admin2');
+    const studentId = createUser('student');
+    const courseId = uuidv4();
+    const courseCode2 = 'COURSE-' + courseId.slice(0, 8);
+    execute(
+      "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test', 'desc', ?)",
+      [courseId, courseCode2],
+    );
+    const paymentId = uuidv4();
+    execute(
+      "INSERT INTO payments (id, user_id, course_id, amount_cents, status) VALUES (?, ?, ?, 5000, 'pending')",
+      [paymentId, studentId, courseId],
+    );
+
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ paymentId, reason: 'Refund pending payment' });
+    const disputeId = createRes.body.data.dispute.id;
+
+    const res = await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ resolutionNote: 'Should fail' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('confirmed');
+  });
+
+  it('F4-DISPUTE-7: Atomic — dispute stays unresolved if payment is already refunded', async () => {
+    const { token: admin2Token } = createAdminWithPerms('role_admin2');
+    const studentId = createUser('student');
+    const paymentId = createConfirmedPayment(studentId);
+
+    const createRes = await request(app)
+      .post('/api/v1/disputes')
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ paymentId, reason: 'Refund' });
+    const disputeId = createRes.body.data.dispute.id;
+
+    // Manually set payment to refunded (simulate race)
+    execute("UPDATE payments SET status = 'refunded' WHERE id = ?", [paymentId]);
+
+    const res = await request(app)
+      .post(`/api/v1/disputes/${disputeId}/resolve`)
+      .set('Authorization', `Bearer ${admin2Token}`)
+      .send({ resolutionNote: 'Should fail' });
+
+    expect(res.status).toBe(400);
+    // Dispute should still be open
+    const dispute = queryOne<{ status: string }>('SELECT status FROM disputes WHERE id = ?', [disputeId]);
+    expect(dispute!.status).toBe('open');
+  });
+});
+
 // ── F3: GDPR Data Export ─────────────────────────────────────────────
 
 describe('F3: GDPR Data Export', () => {

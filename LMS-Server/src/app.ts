@@ -47,6 +47,7 @@ import perksRoutes from './routes/perks.js';
 import loginHistoryRoutes from './routes/loginHistory.js';
 import sessionsRoutes from './routes/sessions.js';
 import dataExportRoutes from './routes/dataExport.js';
+import disputeRoutes from './routes/disputes.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
@@ -277,6 +278,7 @@ app.use('/api/v1/perks', apiLimiter, perksRoutes);
 app.use('/api/v1', apiLimiter, loginHistoryRoutes);
 app.use('/api/v1', apiLimiter, sessionsRoutes);
 app.use('/api/v1', apiLimiter, dataExportRoutes);
+app.use('/api/v1', apiLimiter, disputeRoutes);
 
 // ─── API Documentation ─────────────────────────────────────────────────────
 app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });

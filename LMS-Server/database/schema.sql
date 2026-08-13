@@ -390,6 +390,21 @@ CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
 CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 
+-- Phase F4: disputes — payment dispute / refund workflow
+CREATE TABLE IF NOT EXISTS disputes (
+  id              TEXT PRIMARY KEY,
+  payment_id      TEXT NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'under_review', 'resolved', 'rejected')),
+  reason          TEXT NOT NULL,
+  resolution_note TEXT,
+  created_by      TEXT NOT NULL REFERENCES users(id),
+  resolved_by     TEXT REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  resolved_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_disputes_payment ON disputes(payment_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
+
 -- Phase 11 C2: certificate_badges — free-tier SVG badge storage
 CREATE TABLE IF NOT EXISTS certificate_badges (
   id             TEXT PRIMARY KEY,

@@ -1742,6 +1742,80 @@ function ensureDataExportsTable(): void {
 }
 ensureDataExportsTable();
 
+// Phase F4: migrate payments.status CHECK to include 'refunded' (production DBs only;
+// in-memory test DBs use schema.sql which already contains 'refunded').
+function migratePaymentsStatusCheck(): void {
+  const tableExists = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payments'")
+    .get();
+  if (!tableExists) return;
+
+  try {
+    const testId = '_migration_test_' + Date.now();
+    db.prepare(
+      "INSERT INTO payments (id, user_id, course_id, amount_cents, currency, payment_method, status) VALUES (?, 'test', 'test', 0, 'USD', 'test', 'refunded')",
+    ).run(testId);
+    db.prepare('DELETE FROM payments WHERE id = ?').run(testId);
+    return; // Already supports 'refunded'
+  } catch {
+    // Need to rebuild table
+  }
+
+  db.pragma('foreign_keys = OFF');
+  db.pragma('legacy_alter_table = ON');
+  db.exec(`
+    ALTER TABLE payments RENAME TO payments_old;
+    CREATE TABLE payments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      payment_method TEXT NOT NULL DEFAULT 'manual',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'waived', 'failed', 'refunded')),
+      confirmed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      confirmed_at TEXT,
+      notes TEXT,
+      paystack_reference TEXT,
+      paystack_access_code TEXT,
+      stellar_tx_hash TEXT,
+      stellar_memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO payments SELECT * FROM payments_old;
+    DROP TABLE payments_old;
+    CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+  `);
+  db.pragma('legacy_alter_table = OFF');
+  db.pragma('foreign_keys = ON');
+}
+migratePaymentsStatusCheck();
+
+// Phase F4: disputes table for payment dispute / refund workflow
+function ensureDisputesTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS disputes (
+      id              TEXT PRIMARY KEY,
+      payment_id      TEXT NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+      status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'under_review', 'resolved', 'rejected')),
+      reason          TEXT NOT NULL,
+      resolution_note TEXT,
+      created_by      TEXT NOT NULL REFERENCES users(id),
+      resolved_by     TEXT REFERENCES users(id),
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at     TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_disputes_payment ON disputes(payment_id);
+    CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
+  `);
+}
+ensureDisputesTable();
+
 // Re-enable foreign key checks after all module-level migrations complete.
 db.pragma('foreign_keys = ON');
 
