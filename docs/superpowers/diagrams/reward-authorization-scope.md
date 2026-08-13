@@ -18,9 +18,9 @@ flowchart TD
     end
 
     subgraph "Parent Scope"
-        P[Parent User] -->|user_links parent| PC1[Child F]
-        P -->|user_links parent| PC2[Child G]
-        P -->|owns| FG[Family Group]
+        P[Parent User] -->|"target_type=child<br/>scope_type=parent_child"| PC1[Child F]
+        P -->|"target_type=child<br/>scope_type=parent_child"| PC2[Child G]
+        P -->|"target_type=family<br/>scope_type=parent_family"| FG[Family Group]
         FG -->|members must be linked children| PC1
         FG -->|members must be linked children| PC2
     end

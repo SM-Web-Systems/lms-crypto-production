@@ -128,7 +128,8 @@ sequenceDiagram
         RS->>DB: COMMIT
         RS-->>A: 200 OK
     else Insufficient balance
-        RS->>DB: INSERT reward_transactions<br/>type='refund'<br/>metadata: {blocked: 'insufficient_balance'}
+        RS->>DB: INSERT reward_refund_attempts<br/>(audit record, NOT a ledger entry)
+        Note over RS: No balance changes<br/>No state changes<br/>No reward_transactions row
         RS-->>A: 409 Conflict<br/>{error: 'insufficient_recipient_balance',<br/>available: 5000000, required: 10000000}
     end
 ```

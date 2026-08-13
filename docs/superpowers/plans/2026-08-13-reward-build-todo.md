@@ -57,15 +57,17 @@ cd LMS-Server && npx vitest run src/__tests__/reward-schema.test.ts
 - R-SCHEMA-7: Invalid enum values rejected
 - R-SCHEMA-8: ON DELETE RESTRICT prevents cascade
 - R-SCHEMA-9: XLM-only enforced
-- R-SCHEMA-10: Actor consistency CHECK (system → NULL user)
-- R-SCHEMA-11: Fund requires funding_source_type
-- R-SCHEMA-12: Release/refund require allocation_id + dest user
+- R-SCHEMA-10: reward_event_outbox created with composite unique
+- R-SCHEMA-11: reward_refund_attempts created with RESTRICT FKs
+- R-SCHEMA-12: Actor consistency CHECK (system → NULL user)
+- R-SCHEMA-13: Fund requires funding_source_type
+- R-SCHEMA-14: Release/refund require allocation_id + dest user
 
 **Implementation files:**
 - LMS-Server/src/config/database.ts (new ensure* functions)
 - LMS-Server/src/__tests__/reward-schema.test.ts (NEW)
 
-**Expected result:** ~12 schema tests passing
+**Expected result:** ~14 schema tests passing
 
 **Full-suite verification:**
 ```bash
@@ -313,13 +315,13 @@ cd LMS-Server && npx vitest run src/__tests__/reward-parent.test.ts
 ```
 
 **Tests to write:**
-- CR-P-1 through CR-P-18
+- CR-P-1 through CR-P-20 (includes target_type validation)
 
 **Implementation files:**
 - LMS-Server/src/routes/parent.ts (UPDATE — add reward endpoints)
 - LMS-Server/src/__tests__/reward-parent.test.ts (NEW)
 
-**Expected result:** 18 parent reward tests passing
+**Expected result:** 20 parent reward tests passing
 
 **Full-suite verification:**
 ```bash
@@ -453,7 +455,9 @@ cd LMS-Server && npx vitest run src/__tests__/reward-lifecycle.test.ts
 - R-LIFE-4: Expire cancels pending allocations
 - R-LIFE-5: Refund via dispute workflow
 - R-LIFE-6: Refund blocked on insufficient recipient balance (409)
-- R-LIFE-7: Blocked refund creates escalation record
+- R-LIFE-7: Blocked refund creates reward_refund_attempts record (NOT ledger entry)
+- R-LIFE-7a: Blocked refund leaves all balances unchanged
+- R-LIFE-7b: Blocked refund leaves reward/allocation state unchanged
 - R-LIFE-8: Group refund → partially_refunded
 - R-LIFE-9: All released allocs refunded → refunded
 - R-LIFE-10: Duplicate cancel/expire/refund idempotent

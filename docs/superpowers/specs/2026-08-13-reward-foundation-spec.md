@@ -43,9 +43,15 @@ export const MAX_RECIPIENTS = 10_000;
 // MAX_TOTAL_EXPOSURE = MAX_INDIVIDUAL_AMOUNT * MAX_RECIPIENTS checked via BigInt
 
 // High-value auto-release threshold: rewards above this require manual
-// approval regardless of auto_release setting. Configurable per tenant
-// if tenant settings support it; otherwise system-wide default.
+// approval regardless of auto_release setting.
+// Resolution order: tenant_settings.reward_high_value_threshold → system default.
+// Min: 10_000_000n (1 XLM). Max: MAX_SAFE_STROOPS. Evaluated at activation time.
 export const HIGH_VALUE_THRESHOLD_STROOPS = 1_000_000_000n; // 100 XLM
+
+// Tenant override: tenant_settings table already exists (Phase A8).
+// Column: reward_high_value_threshold INTEGER DEFAULT NULL
+// NULL = use system default. Non-null = override for that tenant.
+// Service checks: tenantSettings?.reward_high_value_threshold ?? HIGH_VALUE_THRESHOLD_STROOPS
 ```
 
 ### 2.2 reward_accounts Table
@@ -83,7 +89,7 @@ CREATE TABLE IF NOT EXISTS rewards (
   id                    TEXT PRIMARY KEY,
   creator_user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   scope_type            TEXT NOT NULL CHECK (scope_type IN (
-    'sponsor_cohort', 'employer_team', 'parent_child', 'teacher_class'
+    'sponsor_cohort', 'employer_team', 'parent_child', 'parent_family', 'teacher_class'
   )),
   scope_id              TEXT NOT NULL,
   reward_type           TEXT NOT NULL CHECK (reward_type IN (
@@ -449,15 +455,25 @@ deprecation).
 
 ### 4.3 Seed Migration
 
-```typescript
-// In seedRbacData(), add new permissions and update role assignments.
-// Remove 'perm_reward_give' from all role assignments.
-// Keep 'perm_reward_give' in permissions table for backward compatibility.
-// Add new perm_reward_create, perm_reward_fund, perm_reward_activate,
-// perm_reward_approve, perm_reward_cancel, perm_reward_view_assigned,
-// perm_reward_refund to the permissions table.
-// CI invariant tests updated to check new permission names.
-```
+**Current state:** `perm_reward_give` is assigned to 7 roles (parent, teacher,
+employer, sponsor, admin, admin-2, super-admin). It is a single permission
+covering all reward operations.
+
+**Migration steps (in `seedRbacData()`):**
+1. INSERT new permissions: `perm_reward_create`, `perm_reward_fund`,
+   `perm_reward_activate`, `perm_reward_approve`, `perm_reward_cancel`,
+   `perm_reward_view_assigned`, `perm_reward_refund`.
+2. DELETE all `role_permissions` rows referencing `perm_reward_give`.
+3. INSERT new `role_permissions` rows per the §4.2 matrix.
+4. Keep `perm_reward_give` row in `permissions` table (backward-compatible
+   deprecation — no roles reference it).
+5. Update CI invariant tests to:
+   - Assert `perm_reward_give` has zero role assignments.
+   - Assert each role has exactly the new permissions listed in §4.2.
+
+**Idempotency:** All INSERT statements use `INSERT OR IGNORE` so the
+migration is safe to re-run. DELETE of `role_permissions` uses
+`WHERE permission_id = 'perm_reward_give'`.
 
 ## 5. Funding Source Verification
 
@@ -466,7 +482,7 @@ deprecation).
 | funding_source_type | source_account_type | Verification |
 |--------------------|--------------------|----|
 | paystack | external | Paystack payment_id must reference a `payments` record with status='confirmed' |
-| stellar | external | Stellar tx hash (56-char hex) format-validated; admin attestation via `POST /admin/rewards/:id/verify-funding` required before activation. Horizon API verification deferred. |
+| stellar | external | Stellar tx hash (64-char lowercase hex, SHA-256) format-validated; admin attestation via `POST /admin/rewards/:id/verify-funding` required before activation; network recorded; Horizon API verification deferred. |
 | admin_grant | platform | Actor must have `reward.manage` permission; audit record required |
 | platform_credit | platform | Actor must have `reward.manage` permission; must not be self-authorized by the funder |
 
@@ -476,8 +492,29 @@ deprecation).
   `platform_credit` or `admin_grant`. Only `reward.manage` holders (admin,
   admin-2, super-admin) can authorize these.
 - Paystack references are validated against the `payments` table.
-- Stellar references must match a known transaction format.
+- Stellar transaction hashes must be exactly 64 lowercase hex characters
+  (SHA-256 format, as returned by the Horizon API). Do not confuse with
+  56-character StrKey-encoded public keys (GA... prefix). The funding
+  reference must also record: network (public/testnet), attesting admin
+  user ID, attestation timestamp, and verification status
+  (pending_attestation/attested/horizon_verified).
 - Duplicate `funding_reference` values are rejected (idempotency).
+
+### 5.3 Conflict of Interest Rules
+
+- **Self-approval:** A reward creator CAN approve their own reward (the
+  creator already funded it with their own money; approval is just
+  confirming the release). Exception: teacher rewards with `grade_approved`
+  eligibility — see teacher spec §4.
+- **Admin approval of own reward:** An admin who is also a reward creator
+  (e.g., a parent with admin privileges) CAN approve their own reward.
+  This is logged with `actor_user_id == creator_user_id` for audit.
+- **Platform credit / admin grant:** The actor authorizing the funding
+  MUST NOT be the same user as the funder (prevent self-enrichment).
+  Enforced by: `actor_user_id != reward.creator_user_id` when
+  `funding_source_type IN ('platform_credit', 'admin_grant')`.
+- **Stellar attestation:** The admin attesting the Stellar transaction
+  MUST NOT be the reward creator. Enforced by the same check.
 
 ## 6. Centralized Service Structure
 
@@ -504,28 +541,108 @@ LMS-Server/src/services/rewards/
   idempotencyKey, currency, amountStroops? }`.
 - Scope validation uses `rewardScopeService` to verify ownership.
 
-### 6.1 Event Processor Architecture
+### 6.1 Event Processor Architecture — Transactional Outbox
 
-Eligibility events are processed **synchronously** via hooks in existing
-controllers. When a lesson completion, quiz submission, or grade approval
-occurs, the controller calls `rewardEligibilityService.processEvent()`
-after the primary operation succeeds. This is a synchronous call within
-the same request — no message queue or async processing.
+Eligibility events use a **transactional outbox** pattern to prevent lost
+events. The primary LMS operation and an outbox row are written in one
+atomic SQLite transaction.
 
-The eligibility service:
-1. Queries active rewards matching the event type and scope.
-2. For each matching reward, checks if the student is in the audience snapshot.
-3. Creates or updates `reward_eligibility_events` with idempotency.
-4. If eligible, transitions the allocation and reward status.
-5. If `auto_release=true` and amount <= `HIGH_VALUE_THRESHOLD_STROOPS`,
-   executes the release transaction atomically.
+#### 6.1.1 reward_event_outbox Table
 
-**Retry safety:** If the controller request fails after eligibility processing,
-the idempotency key prevents duplicate processing on retry.
+```sql
+CREATE TABLE IF NOT EXISTS reward_event_outbox (
+  id              TEXT PRIMARY KEY,
+  event_type      TEXT NOT NULL CHECK (event_type IN (
+    'course_completion', 'quiz_pass', 'milestone', 'grade_approved', 'custom'
+  )),
+  event_source_id TEXT NOT NULL,
+  student_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  event_data      TEXT,
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+    'pending', 'processing', 'completed', 'failed'
+  )),
+  attempt_count   INTEGER NOT NULL DEFAULT 0,
+  last_attempt_at TEXT,
+  completed_at    TEXT,
+  error_message   TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(event_type, event_source_id, student_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_reward_outbox_status ON reward_event_outbox(status);
+```
 
-**Performance:** The eligibility check is O(active_rewards_for_scope). For
-typical class sizes (< 100 students, < 10 active rewards), this adds < 10ms.
-If performance becomes an issue, migrate to async processing in a future phase.
+#### 6.1.2 Event Production
+
+When a lesson completion, quiz submission, or grade approval succeeds, the
+controller inserts an outbox row **inside the same database transaction** as
+the primary operation:
+
+```typescript
+const txn = db.transaction(() => {
+  // 1. Primary operation (e.g., INSERT INTO lesson_completions)
+  execute(primarySQL, primaryParams);
+  // 2. Outbox event (same transaction — if primary rolls back, event is lost safely)
+  execute(
+    `INSERT OR IGNORE INTO reward_event_outbox (id, event_type, event_source_id,
+     student_user_id, event_data) VALUES (?, ?, ?, ?, ?)`,
+    [uuid(), eventType, sourceId, studentId, JSON.stringify(eventData)]
+  );
+});
+txn();
+```
+
+If the primary operation rolls back, the outbox row is also rolled back
+(no orphaned events). If the primary succeeds, the outbox row is guaranteed
+to exist.
+
+#### 6.1.3 Event Processing
+
+A processor runs after the controller response (best-effort synchronous,
+with retry):
+
+```typescript
+// After primary transaction commits, attempt immediate processing
+try {
+  rewardEligibilityService.processPendingEvents();
+} catch (err) {
+  logger.error({ module: 'reward-eligibility', err }, 'Immediate processing failed');
+  // Event stays in outbox for retry
+}
+```
+
+The processor:
+1. Queries `reward_event_outbox WHERE status = 'pending' ORDER BY created_at`.
+2. Sets `status = 'processing'`, `attempt_count += 1`, `last_attempt_at = now`.
+3. For each matching active reward, checks audience snapshot membership.
+4. Creates `reward_eligibility_events` with idempotency key.
+5. If eligible + auto-release, executes release atomically.
+6. On success: `status = 'completed'`, `completed_at = now`.
+7. On failure: `status = 'failed'`, `error_message` set.
+
+#### 6.1.4 Retry and Reconciliation
+
+- Failed events remain in the outbox for retry.
+- A periodic reconciliation check (admin endpoint or cron) retries failed
+  events up to `MAX_RETRY_ATTEMPTS = 3`.
+- The composite unique `(event_type, event_source_id, student_user_id)` on
+  the outbox table prevents duplicate event production.
+- The composite unique on `reward_eligibility_events` prevents duplicate
+  eligibility processing.
+- A completed outbox event cannot be processed twice (status check).
+
+#### 6.1.5 Idempotency Guarantees
+
+- Primary rollback → no outbox row → no eligibility event → safe.
+- Outbox row exists, processing fails → event retryable → safe.
+- Duplicate controller delivery → `INSERT OR IGNORE` → single outbox row → safe.
+- Processing succeeds, allocates once → idempotency key on eligibility → safe.
+- Release succeeds → idempotency key on ledger transaction → safe.
+
+**Known limitation:** If the server crashes after the primary transaction
+commits but before the immediate processing attempt, events remain in
+`pending` status until the next request triggers `processPendingEvents()`
+or a reconciliation check runs. This is acceptable for the initial release;
+a background worker can be added later for guaranteed delivery.
 
 ## 7. BigInt Boundaries
 
@@ -589,19 +706,58 @@ record linked to the allocation and delegates to the dispute resolution flow.
 - Single-allocation reward: `released → refunded`.
 - Group reward, some refunds: `released → partially_refunded`.
 - Group reward, all released allocations refunded: `partially_refunded → refunded`.
-- Insufficient recipient balance: refund blocked, 409 Conflict returned,
-  a `reward_transactions` entry is created with `transaction_type = 'refund'`,
-  `amount_stroops` = attempted amount, `new_state` = current state (unchanged),
-  and `metadata` = JSON string `{"blocked":true,"reason":"insufficient_recipient_balance",
-  "available_stroops":<actual>,"required_stroops":<requested>}`. This serves
-  as the escalation audit record. Admin notification is triggered via
-  `notificationService.createNotification()` to all `reward.refund` holders.
+- **Blocked refunds (insufficient recipient balance):**
+  - HTTP 409 Conflict returned.
+  - Reward and allocation states remain **unchanged**.
+  - All balances remain **unchanged**.
+  - **No** `reward_transactions` row is created (no funds moved = no ledger entry).
+  - A `reward_refund_attempts` audit record is created (see §8.4).
+  - Admin notification triggered via `notificationService.createNotification()`
+    to all `reward.refund` holders. Notification includes reward ID and
+    allocation ID only — no student balance or PII.
+  - The attempt remains available for later resolution (admin can retry
+    after the student's recipient balance is replenished).
 - Blocked refunds are NEVER reported as successful.
 
 ### 8.3 Refund Permissions
 
 `reward.refund` is required. Only `role_admin2` and `role_super_admin` have
 this permission, matching the Phase F `billing.refund` pattern.
+
+### 8.4 reward_refund_attempts Table
+
+Blocked refunds are recorded in a separate audit table, NOT in
+`reward_transactions` (which is reserved for actual fund movements).
+
+```sql
+CREATE TABLE IF NOT EXISTS reward_refund_attempts (
+  id                  TEXT PRIMARY KEY,
+  reward_id           TEXT NOT NULL REFERENCES rewards(id) ON DELETE RESTRICT,
+  allocation_id       TEXT NOT NULL REFERENCES reward_allocations(id) ON DELETE RESTRICT,
+  attempted_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  attempted_amount_stroops INTEGER NOT NULL CHECK (attempted_amount_stroops > 0),
+  currency_code       TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+  recipient_available_stroops INTEGER NOT NULL,
+  status              TEXT NOT NULL DEFAULT 'blocked' CHECK (status IN (
+    'blocked', 'resolved'
+  )),
+  resolution          TEXT CHECK (resolution IN (
+    'retried_success', 'waived', 'escalated'
+  )),
+  resolved_at         TEXT,
+  resolved_by_user_id TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_refund_attempts_reward ON reward_refund_attempts(reward_id);
+CREATE INDEX IF NOT EXISTS idx_refund_attempts_status ON reward_refund_attempts(status);
+```
+
+**Semantics:**
+- `blocked`: Refund attempted but recipient had insufficient balance.
+- `resolved` + `retried_success`: Admin retried and refund succeeded (a real
+  `reward_transactions` row now exists).
+- `resolved` + `waived`: Admin decided not to pursue the refund.
+- `resolved` + `escalated`: Forwarded to external dispute resolution.
 
 ## 9. Privacy Rules
 
@@ -664,6 +820,8 @@ Admin endpoint: `GET /admin/rewards/reconciliation` (requires `reward.manage`).
 - R-SCHEMA-7: Invalid enum values rejected by CHECK constraints
 - R-SCHEMA-8: ON DELETE RESTRICT prevents cascade deletion of financial records
 - R-SCHEMA-9: XLM-only currency enforced
+- R-SCHEMA-10: reward_event_outbox created with composite unique
+- R-SCHEMA-11: reward_refund_attempts created with RESTRICT FKs
 
 ### Currency/BigInt Tests
 - R-CURR-1: 1.50 XLM converts exactly to 15,000,000 stroops
@@ -691,7 +849,9 @@ Admin endpoint: `GET /admin/rewards/reconciliation` (requires `reward.manage`).
 - R-BAL-11: Concurrent reservations cannot overspend
 - R-BAL-12: Negative balance prevented by CHECK constraint
 - R-BAL-13: Refund blocked when recipient has insufficient balance (409)
-- R-BAL-14: Blocked refund creates escalation audit record
+- R-BAL-14: Blocked refund creates reward_refund_attempts record (NOT ledger entry)
+- R-BAL-15: Blocked refund leaves all balances unchanged
+- R-BAL-16: Blocked refund leaves reward/allocation state unchanged
 
 ### Idempotency Tests
 - R-IDEM-1: Duplicate fund request returns original result
@@ -755,6 +915,9 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" https://lms.smwebsystems.com/api/v1
 | Parent wallet read | LMS-Server/src/routes/parent.ts:130-142 | UPDATE (use reward_accounts) |
 | Invariant tests | LMS-Server/src/__tests__/rbac-wallet-invariant.test.ts | UPDATE |
 | Dispute workflow | LMS-Server/src/routes/disputes.ts | EXTEND (reward disputes) |
+| reward_event_outbox | NEW (in database.ts) | CREATE |
+| reward_refund_attempts | NEW (in database.ts) | CREATE |
+| tenant_settings | LMS-Server/src/config/database.ts | ADD reward_high_value_threshold column |
 | Sponsor cohorts | database/schema.sql:422-446 | EXISTING (scope source) |
 | User links | LMS-Server/src/config/database.ts:1518-1533 | EXISTING (scope source) |
 | User groups | LMS-Server/src/config/database.ts:1535-1554 | EXISTING (scope source) |

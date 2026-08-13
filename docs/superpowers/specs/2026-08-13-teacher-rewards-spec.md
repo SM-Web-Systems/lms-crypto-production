@@ -101,10 +101,11 @@ A teacher reward configured for `grade_approved` must NOT trigger when:
 - A TA approves the grade without instructor/admin sign-off.
 
 Only instructor-approved or admin-approved grades trigger teacher reward
-eligibility. The eligibility service checks the `reviewed_by` field on the
-`submissions` table (existing column from Phase D instructor/TA workflow)
-and verifies that the reviewer has instructor or admin role. It also rejects
-if `reviewed_by == reward.creator_user_id` to prevent conflict of interest.
+eligibility. The eligibility service checks the `reviewed_by_id` column on
+the `submissions` table (existing FK to `users.id` from Phase D instructor/TA
+workflow) and verifies that the reviewer has instructor or admin role via
+RBAC lookup. It also rejects if `reviewed_by_id == reward.creator_user_id`
+to prevent conflict of interest.
 
 ### Teacher Cannot Manipulate Grades
 

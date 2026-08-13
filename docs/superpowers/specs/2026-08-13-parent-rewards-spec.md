@@ -37,8 +37,8 @@ WHERE ul.parent_user_id = :actorId
 ```
 
 **scope_type:** `parent_child`
-**scope_id:** For individual rewards targeting a single child, scope_id =
-the child's user ID. The service validates `user_links` with
+**scope_id:** The child's user ID.
+The service validates `user_links` with
 `parent_user_id = actor AND child_user_id = scope_id AND link_type = 'parent'`.
 
 ### Parent → Family Group Members
@@ -52,16 +52,24 @@ WHERE ug.owner_user_id = :actorId
   AND ug.group_type = 'family';
 ```
 
-**scope_type:** `parent_child`
-**scope_id:** `user_groups.id` (for family group rewards)
+**scope_type:** `parent_family`
+**scope_id:** `user_groups.id` (family group ID)
 
 All family group members must also be linked to the parent via `user_links`
 to ensure the parent-child relationship is verified.
 
-**Scope detection logic:** The service distinguishes individual vs family
-rewards by checking whether `scope_id` matches a `user_groups.id` with
-`group_type = 'family'` owned by the parent. If no matching group exists,
-`scope_id` is treated as a child user ID for individual rewards.
+### Scope Determination — Explicit `target_type` Field
+
+The API request includes an explicit `target_type` field to distinguish
+individual vs family rewards. **No inference from `scope_id` format.**
+
+| target_type | scope_id contains | scope_type stored | Validation |
+|-------------|-------------------|-------------------|------------|
+| `child` | child user ID | `parent_child` | `user_links` row exists |
+| `family` | family group ID | `parent_family` | `user_groups` row exists + all members linked |
+
+Requests without `target_type` are rejected with 400. This eliminates
+ambiguity from UUID collision between user IDs and group IDs.
 
 ## 3. API Endpoints
 
@@ -71,7 +79,8 @@ rewards by checking whether `scope_id` matches a `user_groups.id` with
 **Request:**
 ```json
 {
-  "scope_id": "family-group-uuid-or-parent-user-id",
+  "target_type": "child",
+  "scope_id": "child-user-uuid",
   "reward_type": "grade",
   "amount_stroops": "10000000",
   "max_recipients": 3,
@@ -178,6 +187,8 @@ admin-approved grades qualify.
 - CR-P-16: Family group members must be linked children
 - CR-P-17: Reward balance separate from student wallet balance
 - CR-P-18: Refund blocked when child has insufficient recipient balance
+- CR-P-19: Missing target_type in request → 400
+- CR-P-20: Invalid target_type value → 400
 
 ## 7. Verification Commands
 
