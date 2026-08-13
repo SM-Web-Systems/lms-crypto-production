@@ -673,3 +673,18 @@ CREATE TABLE IF NOT EXISTS system_config (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_by TEXT REFERENCES users(id)
 );
+
+-- Phase F2: Session management
+CREATE TABLE IF NOT EXISTS active_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_active TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_user ON active_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_hash ON active_sessions(token_hash);

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { query, queryOne, execute } from "../config/database.js";
+import { query, queryOne, execute, createSession } from "../config/database.js";
 import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student, UserRole } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -168,6 +168,7 @@ export async function login(
     });
 
     recordLoginHistory(user.id, req, 'local');
+    try { createSession(user.id, token, req); } catch { /* best-effort */ }
 
     res.json({
       success: true,
@@ -293,6 +294,7 @@ export async function register(
     const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
 
     recordLoginHistory(userId, req, 'local');
+    try { createSession(userId, token, req); } catch { /* best-effort */ }
 
     res.status(201).json({
       success: true,
@@ -656,6 +658,7 @@ export async function ammaCallback(
     const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
 
     recordLoginHistory(userId, req, 'sso');
+    try { createSession(userId, token, req); } catch { /* best-effort */ }
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
     const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}&role=${role}`;

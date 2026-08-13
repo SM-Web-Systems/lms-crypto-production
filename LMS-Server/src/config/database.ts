@@ -2,6 +2,7 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 
 dotenv.config();
 
@@ -1701,6 +1702,30 @@ function ensureHealthCheckPingsTable(): void {
 }
 ensureHealthCheckPingsTable();
 
+// Phase F2: active_sessions table for JWT hash tracking
+function ensureActiveSessionsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS active_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_active TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_user ON active_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_active_sessions_hash ON active_sessions(token_hash);
+  `);
+  // Migration: add revoked_at column to existing active_sessions tables
+  try {
+    db.exec('ALTER TABLE active_sessions ADD COLUMN revoked_at TEXT');
+  } catch { /* column already exists */ }
+}
+ensureActiveSessionsTable();
+
 // Re-enable foreign key checks after all module-level migrations complete.
 db.pragma('foreign_keys = ON');
 
@@ -1728,6 +1753,33 @@ export function insert(sql: string, params: unknown[] = []): string | number {
 
 export function close(): void {
   db.close();
+}
+
+// ─── Phase F2: Session management helpers ────────────────────────────────────
+
+/** Compute SHA-256 hex digest of a JWT for storage/lookup in active_sessions. */
+export function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+/** Insert a new row in active_sessions and return the generated session ID.
+ *  req is optional — pass Express request to capture IP and User-Agent. */
+export function createSession(
+  userId: string,
+  token: string,
+  req?: { ip?: string; get?: (h: string) => string | undefined },
+  expiresAt?: string,
+): string {
+  const sessionId = uuidv4();
+  const tokenHash = hashToken(token);
+  const ip = req?.ip ?? req?.get?.('x-forwarded-for') ?? null;
+  const ua = req?.get?.('user-agent') ?? null;
+  const expires = expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const stmt = db.prepare(
+    'INSERT INTO active_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  stmt.run(sessionId, userId, tokenHash, ip, ua, expires);
+  return sessionId;
 }
 
 export function _resetForTests(schemaSQL: string): void {

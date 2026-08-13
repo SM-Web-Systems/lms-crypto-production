@@ -13,7 +13,7 @@ import './setup.js';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import app from '../app.js';
-import { execute, query, queryOne } from '../config/database.js';
+import { execute, query, queryOne, createSession, hashToken } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -142,5 +142,112 @@ describe('F1: Login History API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.history).toHaveLength(2);
+  });
+});
+
+// ── F2: Session Management ──────────────────────────────────────────
+
+describe('F2: Session Management', () => {
+  function loginAndGetSession(userId: string, role: 'student' | 'lecturer' | 'admin'): { token: string; sessionId: string } {
+    const token = generateToken({ userId, email: `${userId}@test.com`, role });
+    const sessionId = createSession(userId, token);
+    return { token, sessionId };
+  }
+
+  it('F2-SESSION-1: User can list own sessions', async () => {
+    const userId = createUser('student');
+    const { token } = loginAndGetSession(userId, 'student');
+
+    const res = await request(app)
+      .get('/api/v1/sessions')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.sessions.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.sessions[0]).toHaveProperty('id');
+    expect(res.body.data.sessions[0]).toHaveProperty('ip_address');
+    expect(res.body.data.sessions[0]).toHaveProperty('created_at');
+  });
+
+  it('F2-SESSION-2: User can revoke own session', async () => {
+    const userId = createUser('student');
+    const { token: token1 } = loginAndGetSession(userId, 'student');
+    const { token: _token2, sessionId: session2Id } = loginAndGetSession(userId, 'student');
+
+    // Revoke session 2
+    const res = await request(app)
+      .delete(`/api/v1/sessions/${session2Id}`)
+      .set('Authorization', `Bearer ${token1}`);
+
+    expect(res.status).toBe(200);
+
+    // Session 2's row should be gone
+    const row = queryOne<{ id: string }>('SELECT id FROM active_sessions WHERE id = ?', [session2Id]);
+    expect(row).toBeNull();
+  });
+
+  it("F2-SESSION-3: Admin can list any user's sessions", async () => {
+    const adminId = createUser('admin');
+    const studentId = createUser('student');
+    const { token: adminToken } = loginAndGetSession(adminId, 'admin');
+    loginAndGetSession(studentId, 'student');
+
+    const res = await request(app)
+      .get(`/api/v1/admin/sessions/${studentId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sessions.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("F2-SESSION-4: Admin can force-logout any user's session", async () => {
+    const adminId = createUser('admin');
+    const studentId = createUser('student');
+    const { token: adminToken } = loginAndGetSession(adminId, 'admin');
+    const { sessionId: studentSessionId } = loginAndGetSession(studentId, 'student');
+
+    const res = await request(app)
+      .delete(`/api/v1/admin/sessions/${studentId}/${studentSessionId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+
+    // Force-logout uses soft-revoke (sets revoked_at) so authenticate() can detect it
+    const row = queryOne<{ id: string; revoked_at: string | null }>('SELECT id, revoked_at FROM active_sessions WHERE id = ?', [studentSessionId]);
+    expect(row).not.toBeNull();
+    expect(row!.revoked_at).not.toBeNull();
+  });
+
+  it('F2-SESSION-5: Student cannot access admin session endpoints', async () => {
+    const studentId = createUser('student');
+    const adminId = createUser('admin');
+    const { token: studentToken } = loginAndGetSession(studentId, 'student');
+
+    const res = await request(app)
+      .get(`/api/v1/admin/sessions/${adminId}`)
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('F2-SESSION-6: Force-logged-out token is rejected on next request', async () => {
+    const adminId = createUser('admin');
+    const studentId = createUser('student');
+    const { token: adminToken } = loginAndGetSession(adminId, 'admin');
+    const { token: studentToken, sessionId: studentSessionId } = loginAndGetSession(studentId, 'student');
+
+    // Force-logout the student
+    await request(app)
+      .delete(`/api/v1/admin/sessions/${studentId}/${studentSessionId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    // Student's token should now be rejected
+    const res = await request(app)
+      .get('/api/v1/login-history')
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toContain('Session revoked');
   });
 });
