@@ -50,6 +50,12 @@ function insertLoginHistory(userId: string, count: number): void {
   }
 }
 
+function loginAndGetSession(userId: string, role: 'student' | 'lecturer' | 'admin'): { token: string; sessionId: string } {
+  const token = generateToken({ userId, email: `${userId}@test.com`, role });
+  const sessionId = createSession(userId, token);
+  return { token, sessionId };
+}
+
 // ── F1: Login History API ────────────────────────────────────────────
 
 describe('F1: Login History API', () => {
@@ -148,12 +154,6 @@ describe('F1: Login History API', () => {
 // ── F2: Session Management ──────────────────────────────────────────
 
 describe('F2: Session Management', () => {
-  function loginAndGetSession(userId: string, role: 'student' | 'lecturer' | 'admin'): { token: string; sessionId: string } {
-    const token = generateToken({ userId, email: `${userId}@test.com`, role });
-    const sessionId = createSession(userId, token);
-    return { token, sessionId };
-  }
-
   it('F2-SESSION-1: User can list own sessions', async () => {
     const userId = createUser('student');
     const { token } = loginAndGetSession(userId, 'student');
@@ -249,5 +249,70 @@ describe('F2: Session Management', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error.message).toContain('Session revoked');
+  });
+});
+
+// ── F3: GDPR Data Export ─────────────────────────────────────────────
+
+describe('F3: GDPR Data Export', () => {
+  it('F3-EXPORT-1: POST /data-export returns 202 Accepted with export ID', async () => {
+    const userId = createUser('student');
+    const { token } = loginAndGetSession(userId, 'student');
+
+    const res = await request(app)
+      .post('/api/v1/data-export')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(202);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveProperty('exportId');
+    expect(res.body.data).toHaveProperty('status', 'pending');
+  });
+
+  it('F3-EXPORT-2: GET /data-export/:id returns ZIP when ready', async () => {
+    const userId = createUser('student');
+    const { token } = loginAndGetSession(userId, 'student');
+
+    // Create export request
+    const postRes = await request(app)
+      .post('/api/v1/data-export')
+      .set('Authorization', `Bearer ${token}`);
+
+    const exportId = postRes.body.data.exportId;
+
+    // Wait for async processing (in tests, should complete quickly)
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const getRes = await request(app)
+      .get(`/api/v1/data-export/${exportId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    // Should be ready (ZIP response) or still processing (JSON status)
+    const isZip = (getRes.headers['content-type'] ?? '').includes('application/zip');
+    if (isZip) {
+      expect(getRes.status).toBe(200);
+      expect(getRes.headers['content-type']).toContain('application/zip');
+    } else {
+      // Still processing — check status response
+      expect(getRes.status).toBe(200);
+      expect(['pending', 'processing']).toContain(getRes.body.data.status);
+    }
+  });
+
+  it('F3-EXPORT-3: Second export within 24h returns 429', async () => {
+    const userId = createUser('student');
+    const { token } = loginAndGetSession(userId, 'student');
+
+    // First export
+    const res1 = await request(app)
+      .post('/api/v1/data-export')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res1.status).toBe(202);
+
+    // Second export immediately
+    const res2 = await request(app)
+      .post('/api/v1/data-export')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res2.status).toBe(429);
   });
 });

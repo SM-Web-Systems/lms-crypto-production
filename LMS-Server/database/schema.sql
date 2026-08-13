@@ -688,3 +688,15 @@ CREATE TABLE IF NOT EXISTS active_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_active_sessions_user ON active_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_active_sessions_hash ON active_sessions(token_hash);
+
+-- Phase F3: GDPR data export
+CREATE TABLE IF NOT EXISTS data_exports (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'ready', 'failed')),
+  file_path TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_data_exports_user ON data_exports(user_id);

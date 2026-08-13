@@ -1726,6 +1726,22 @@ function ensureActiveSessionsTable(): void {
 }
 ensureActiveSessionsTable();
 
+function ensureDataExportsTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS data_exports (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'ready', 'failed')),
+      file_path TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_data_exports_user ON data_exports(user_id);
+  `);
+}
+ensureDataExportsTable();
+
 // Re-enable foreign key checks after all module-level migrations complete.
 db.pragma('foreign_keys = ON');
 
