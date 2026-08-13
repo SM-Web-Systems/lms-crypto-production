@@ -21,7 +21,7 @@ flowchart TD
 
     subgraph PARALLEL["⚡ Parallel Execution (worktrees)"]
         direction TB
-        G_FE["Phase G: Frontend for B/C/D/TA Roles<br/>🖥️ FRONTEND IN PROGRESS"]
+        G_FE["Phase G: Frontend for B/C/D/TA Roles<br/>🖥️ FRONTEND COMPLETE"]
 
         E1["Phase E1: Admin Tier Enforcement<br/>(middleware-level blocks)"]
         E2["Phase E2: Admin-2 UI Differentiation"]
@@ -107,7 +107,10 @@ flowchart TD
     style E6 fill:#16a34a,color:#fff
     style G4 fill:#16a34a,color:#fff
     style E1 fill:#16a34a,color:#fff
+    style E2 fill:#16a34a,color:#fff
+    style E3 fill:#16a34a,color:#fff
     style E4 fill:#16a34a,color:#fff
+    style E5 fill:#16a34a,color:#fff
 
     %% Resolved gate
     style A7 fill:#6b7280,color:#fff,stroke:#6b7280
