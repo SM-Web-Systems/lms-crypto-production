@@ -50,7 +50,7 @@ export interface NFTResponse {
 }
 
 // User Types
-export type UserRole = "student" | "admin" | "lecturer";
+export type UserRole = "student" | "admin" | "lecturer" | "sponsor" | "employer" | "parent" | "teacher" | "teaching-assistant" | "custom";
 
 export interface User {
   id: string;

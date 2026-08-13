@@ -665,3 +665,11 @@ CREATE TABLE IF NOT EXISTS perk_claims (
   claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(perk_id, user_id)
 );
+
+-- Phase E: System config
+CREATE TABLE IF NOT EXISTS system_config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_by TEXT REFERENCES users(id)
+);

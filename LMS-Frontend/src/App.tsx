@@ -14,6 +14,8 @@ import SsoCallback from './pages/SsoCallback';
 import CertificateVerification from './pages/CertificateVerification';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
+import { resolveClosestRole } from './utils/resolveClosestRole';
+import type { UserRole } from './types/api';
 
 // Lazy-loaded pages — split into separate chunks per route
 const Messages = React.lazy(() => import('./pages/Messages'));
@@ -40,10 +42,20 @@ const SponsorDashboard = React.lazy(() => import('./pages/SponsorDashboard'));
 const LecturerDashboard = React.lazy(() => import('./pages/LecturerDashboard'));
 const LecturerCourseStudents = React.lazy(() => import('./pages/LecturerCourseStudents'));
 const LecturerSubmissions = React.lazy(() => import('./pages/LecturerSubmissions'));
+const TADashboard = React.lazy(() => import('./pages/TADashboard'));
+const EmployerDashboard = React.lazy(() => import('./pages/EmployerDashboard'));
+const ParentDashboard = React.lazy(() => import('./pages/ParentDashboard'));
+const TeacherDashboard = React.lazy(() => import('./pages/TeacherDashboard'));
 
 function roleHome(role: string | undefined): string {
   if (role === 'admin') return '/admin';
   if (role === 'lecturer') return '/lecturer';
+  if (role === 'teaching-assistant') return '/ta';
+  if (role === 'sponsor') return '/sponsor';
+  if (role === 'employer') return '/employer';
+  if (role === 'parent') return '/parent';
+  if (role === 'teacher') return '/teacher';
+  if (role === 'custom') return roleHome(resolveClosestRole(role));
   return '/student';
 }
 
@@ -58,8 +70,8 @@ const LoadingScreen: React.FC = () => (
 
 const ProtectedRoute: React.FC<{
   children: React.ReactNode;
-  allowedRole?: 'student' | 'admin' | 'lecturer';
-  allowedRoles?: Array<'student' | 'admin' | 'lecturer'>;
+  allowedRole?: UserRole;
+  allowedRoles?: UserRole[];
 }> = ({ children, allowedRole, allowedRoles }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
@@ -71,7 +83,7 @@ const ProtectedRoute: React.FC<{
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user?.role as 'student' | 'admin' | 'lecturer')) {
+  if (allowedRoles && !allowedRoles.includes(user?.role as UserRole)) {
     return <Navigate to={roleHome(user?.role)} replace />;
   }
 
@@ -469,6 +481,196 @@ function App() {
                 <ProtectedRoute allowedRole="lecturer">
                   <Layout>
                     <Profile />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* TA Routes */}
+            <Route
+              path="/ta"
+              element={
+                <ProtectedRoute allowedRole="teaching-assistant">
+                  <Layout>
+                    <TADashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ta/courses"
+              element={
+                <ProtectedRoute allowedRole="teaching-assistant">
+                  <Layout>
+                    <TADashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ta/grade"
+              element={
+                <ProtectedRoute allowedRole="teaching-assistant">
+                  <Layout>
+                    <TADashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Sponsor Routes (self-service) */}
+            <Route
+              path="/sponsor"
+              element={
+                <ProtectedRoute allowedRole="sponsor">
+                  <Layout>
+                    <SponsorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sponsor/impact"
+              element={
+                <ProtectedRoute allowedRole="sponsor">
+                  <Layout>
+                    <SponsorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sponsor/billing"
+              element={
+                <ProtectedRoute allowedRole="sponsor">
+                  <Layout>
+                    <SponsorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Employer Routes */}
+            <Route
+              path="/employer"
+              element={
+                <ProtectedRoute allowedRole="employer">
+                  <Layout>
+                    <EmployerDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employer/teams"
+              element={
+                <ProtectedRoute allowedRole="employer">
+                  <Layout>
+                    <EmployerDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employer/billing"
+              element={
+                <ProtectedRoute allowedRole="employer">
+                  <Layout>
+                    <EmployerDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Parent Routes */}
+            <Route
+              path="/parent"
+              element={
+                <ProtectedRoute allowedRole="parent">
+                  <Layout>
+                    <ParentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/parent/children"
+              element={
+                <ProtectedRoute allowedRole="parent">
+                  <Layout>
+                    <ParentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/parent/wallets"
+              element={
+                <ProtectedRoute allowedRole="parent">
+                  <Layout>
+                    <ParentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/parent/groups"
+              element={
+                <ProtectedRoute allowedRole="parent">
+                  <Layout>
+                    <ParentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/parent/billing"
+              element={
+                <ProtectedRoute allowedRole="parent">
+                  <Layout>
+                    <ParentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Teacher Routes */}
+            <Route
+              path="/teacher"
+              element={
+                <ProtectedRoute allowedRole="teacher">
+                  <Layout>
+                    <TeacherDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/classes"
+              element={
+                <ProtectedRoute allowedRole="teacher">
+                  <Layout>
+                    <TeacherDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/analytics"
+              element={
+                <ProtectedRoute allowedRole="teacher">
+                  <Layout>
+                    <TeacherDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/billing"
+              element={
+                <ProtectedRoute allowedRole="teacher">
+                  <Layout>
+                    <TeacherDashboard />
                   </Layout>
                 </ProtectedRoute>
               }

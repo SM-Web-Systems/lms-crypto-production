@@ -19,13 +19,18 @@ flowchart TD
 
     D_BE["Phase D: Instructor/TA<br/>🔧 BACKEND COMPLETE"]
 
-    G_FE["Phase G: Frontend for B/C/D Roles<br/>🖥️ FRONTEND (new)"]
+    subgraph PARALLEL["⚡ Parallel Execution (worktrees)"]
+        direction TB
+        G_FE["Phase G: Frontend for B/C/D/TA Roles<br/>🖥️ FRONTEND IN PROGRESS"]
 
-    E1["Phase E1: Admin Tier Enforcement<br/>(middleware-level blocks)"]
-    E2["Phase E2: Admin-2 UI Differentiation"]
-    E3["Phase E3: Super-Admin System Config"]
-    E4["Phase E4: Super-Student Auto-Unlock<br/>(tenant-configurable threshold)"]
-    E5["Phase E5: Perks Marketplace"]
+        E1["Phase E1: Admin Tier Enforcement<br/>(middleware-level blocks)"]
+        E2["Phase E2: Admin-2 UI Differentiation"]
+        E3["Phase E3: Super-Admin System Config"]
+        E4["Phase E4: Super-Student Auto-Unlock<br/>(tenant-configurable threshold)"]
+        E5["Phase E5: Perks Marketplace"]
+        E6["Phase E6: Custom-User Permission<br/>Assignment Backend"]
+        G4["Phase G4: Custom-User Permission<br/>Mapping Frontend"]
+    end
 
     F1["Phase F1: Login History API"]
     F2["Phase F2: Session Management"]
@@ -72,6 +77,8 @@ flowchart TD
     E1 --> E2
     E1 --> E3
     E4 --> E5
+    E1 --> E6
+    E6 -.->|"⚠️ G4 blocked on E6"| G4
 
     %% Phase F
     A4 --> F1
@@ -95,15 +102,15 @@ flowchart TD
 
     %% COMPLETE
     style D_BE fill:#16a34a,color:#fff
-    %% NEW — Frontend
-    style G_FE fill:#f59e0b,color:#000
+    %% COMPLETE — Phase E + G (merged from parallel worktrees 2026-08-13)
+    style G_FE fill:#16a34a,color:#fff
+    style E6 fill:#16a34a,color:#fff
+    style G4 fill:#16a34a,color:#fff
+    style E1 fill:#16a34a,color:#fff
+    style E4 fill:#16a34a,color:#fff
 
     %% Resolved gate
     style A7 fill:#6b7280,color:#fff,stroke:#6b7280
-
-    %% Decision highlights
-    style E1 fill:#ea580c,color:#fff
-    style E4 fill:#7c3aed,color:#fff
 
     %% Rewards (blocked until implementation)
     style BR fill:#fbbf24,color:#000,stroke:#dc2626,stroke-width:2px,stroke-dasharray:5
@@ -117,10 +124,9 @@ flowchart TD
 |---|---|
 | Green | COMPLETE (backend tests passing) |
 | Green (D) | COMPLETE — Phase D Instructor/TA backend (25 tests) |
-| Amber (G) | NEW — Phase G Frontend for B/C/D roles |
+| Green (G) | COMPLETE — Phase G Frontend (193 tests, 9 new) |
+| Green (E) | COMPLETE — Phase E Admin Tiers (29 new tests) |
 | Gray (A7) | RESOLVED — Escrow gate closed, platform-managed balances |
-| Orange (E1) | Admin tier enforcement — middleware-level (Decision #5) |
-| Purple (E4) | Super-student auto-unlock — tenant-configurable (Decision #2) |
 | Yellow dashed | Reward phases — blocked until implementation |
 
 ## Backend vs Frontend Status
@@ -128,18 +134,25 @@ flowchart TD
 | Phase | Backend | Frontend |
 |---|---|---|
 | A (Foundation) | COMPLETE (770 tests) | N/A (schema + permissions only) |
-| B (Sponsor/Employer) | COMPLETE (10 tests) | NOT STARTED → Phase G |
-| C (Parent/Teacher) | COMPLETE (19 tests) | NOT STARTED → Phase G |
-| D (Instructor/TA) | COMPLETE (25 tests) | NOT STARTED → Phase G |
-| E (Admin Tiers) | NOT STARTED | NOT STARTED |
+| B (Sponsor/Employer) | COMPLETE (10 tests) | COMPLETE (Phase G) |
+| C (Parent/Teacher) | COMPLETE (19 tests) | COMPLETE (Phase G) |
+| D (Instructor/TA) | COMPLETE (25 tests) | COMPLETE (Phase G) |
+| E (Admin Tiers) | COMPLETE (29 tests) | E2 backend flags only |
 | F (Cross-Cutting) | NOT STARTED | NOT STARTED |
-| G (Frontend Gap) | N/A | NOT STARTED |
+| G (Frontend Gap) | N/A | COMPLETE (9 tests) |
 
-## Parallel Execution
+## Parallel Execution (Completed 2026-08-13)
 
 ```
 Phase A (foundation) ──┬──► Phase B backend ──┐
-                       │                       ├──► Phase D backend ──┬──► Phase G frontend
+                       │                       ├──► Phase D backend ──┬──► Phase G frontend ✅
                        └──► Phase C backend ──┘                      │
-                                                                      ├──► Phase E ──► Phase F
+                                                                      ├──► Phase E backend ✅
+                                                                      │         │
+                                                                      │    E6 ──┘──► G4 ✅ (dependency satisfied)
+                                                                      │
+                                                                      └──► Phase F (next)
 ```
+
+**Note:** Phase E and Phase G ran in separate git worktrees (zero file overlap: E = LMS-Server, G = LMS-Frontend).
+G4→E6 dependency respected: E6 completed in backend worktree before G4 merged. Zero merge conflicts.

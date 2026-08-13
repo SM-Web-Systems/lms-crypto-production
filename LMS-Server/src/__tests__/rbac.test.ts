@@ -317,7 +317,7 @@ describe('Phase 12B: RBAC System', () => {
         .send({ permissionIds: ['perm_system_manage_permissions'] });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('system.manage_permissions');
+      expect(res.body.error.message).toContain('system management permissions');
     });
 
     it('ESC-3 — Student cannot access role management endpoints', async () => {

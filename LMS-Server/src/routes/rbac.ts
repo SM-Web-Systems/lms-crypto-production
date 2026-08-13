@@ -338,16 +338,16 @@ router.put(
       return;
     }
 
-    // ESC-3: Prevent system.manage_permissions on custom roles
+    // ESC-3: Prevent system.manage_permissions AND system.manage_roles on custom roles
     const forbidden = queryOne<{ id: string }>(
-      "SELECT id FROM permissions WHERE name = 'system.manage_permissions' AND id IN (" +
+      "SELECT id FROM permissions WHERE name IN ('system.manage_permissions', 'system.manage_roles') AND id IN (" +
       permissionIds.map(() => '?').join(',') + ')',
       permissionIds,
     );
     if (forbidden) {
       res.status(400).json({
         success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Cannot assign system.manage_permissions to custom roles' },
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Cannot assign system management permissions to custom roles' },
       });
       return;
     }

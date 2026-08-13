@@ -18,6 +18,61 @@ import { queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
 
+/**
+ * Phase E4: Super-Student auto-unlock.
+ * After each lesson completion, check if the user has completed enough courses
+ * to earn the super-student role. Threshold is tenant-configurable (default 3).
+ */
+function checkSuperStudentPromotion(userId: string): void {
+  try {
+    // Already promoted? Skip.
+    const alreadyPromoted = queryOne<{ user_id: string }>(
+      "SELECT user_id FROM user_roles WHERE user_id = ? AND role_id = 'role_supporter_student'",
+      [userId],
+    );
+    if (alreadyPromoted) return;
+
+    // Count distinct courses with at least one completed lesson
+    const result = queryOne<{ cnt: number }>(
+      `SELECT COUNT(DISTINCT course_id) as cnt
+       FROM lesson_completions
+       WHERE user_id = ? AND completed_at IS NOT NULL`,
+      [userId],
+    );
+    const completedCourses = result?.cnt ?? 0;
+
+    // Get threshold: check tenant_settings for the user's tenant, default 3
+    let threshold = 3;
+    const tenantRow = queryOne<{ super_student_threshold: number }>(
+      `SELECT ts.super_student_threshold
+       FROM tenant_settings ts
+       JOIN tenant_users tu ON ts.tenant_id = tu.tenant_id
+       WHERE tu.user_id = ?`,
+      [userId],
+    );
+    if (tenantRow) {
+      threshold = tenantRow.super_student_threshold;
+    }
+
+    if (completedCourses >= threshold) {
+      // Promote to super-student
+      execute(
+        'INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)',
+        [userId, 'role_supporter_student'],
+      );
+
+      // Create notification
+      execute(
+        `INSERT INTO notifications (id, user_id, type, title, body)
+         VALUES (?, ?, 'system', 'Super Student Promotion', 'Congratulations! You''ve been promoted to Super Student!')`,
+        [uuidv4(), userId],
+      );
+    }
+  } catch {
+    // Best-effort: don't fail the lesson completion if promotion check fails
+  }
+}
+
 const router = Router();
 
 // ─── POST /courses/:courseId/lessons/:itemId/complete (self-mark) ──────────────
@@ -94,6 +149,9 @@ router.post(
        WHERE completed_at IS NULL`,
       [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
     );
+
+    // Phase E4: check super-student auto-unlock
+    checkSuperStudentPromotion(callerId);
 
     res.json({ success: true, data: { userId: callerId, courseId, itemId, sectionId } });
   }

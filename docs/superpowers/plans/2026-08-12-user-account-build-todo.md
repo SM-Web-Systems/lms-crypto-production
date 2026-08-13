@@ -3,7 +3,25 @@
 **Date:** 2026-08-12 (updated)
 **Spec:** `docs/superpowers/specs/2026-08-12-user-account-audit-spec.md`
 **Per-phase specs:** `phase-a-foundation-spec.md`, `phase-bc-roles-spec.md`, `phase-d-instructor-ta-design.md`, `phase-e-admin-tiers-spec.md`, `phase-f-cross-cutting-spec.md`, `phase-g-frontend-gap-design.md`
-**Status:** Phase D complete, Phase G next
+**Status:** Phase E + Phase G COMPLETE (merged from parallel worktrees 2026-08-13)
+
+## Invariant Test Count (Task 0 Resolution — Verified 2026-08-13)
+
+Total CI invariant tests: **29** across 2 files:
+- `rbac-wallet-invariant.test.ts`: 25 tests (12 wallet + 13 reward_balance)
+  - Original 12 (Phase A): WALLET-INV-1 through INV-7 (7 named, INV-4/5/6 loop expands to 8 via BLOCKED_ROLES)
+  - Added 13 (Phase B/C): REWARD-INV-1 ×4 roles + REWARD-INV-2 ×4 + REWARD-INV-3 ×4 + REWARD-INV-4 ×1
+  - **Discrepancy explained:** Phase A reported "12/12" (wallet-only), Phase D reported "25/25" (wallet + reward_balance). The 13 reward_balance tests were added when Phase B/C introduced reward.give/reward.setup permissions.
+- `ta-grade-invariant.test.ts`: 4 tests (TA-GRADE-INV-1 through INV-4)
+
+## Verified Baselines (2026-08-13)
+
+| Suite | Count | Notes |
+|---|---|---|
+| Backend | 824/824 | Was 806/807 pre-Phase E. +29 Phase E tests. Pre-existing rbac.test.ts:320 assertion fixed in E1. |
+| Frontend | 193/193 | Was 192 pre-Phase G. +9 Phase G tests (in pages/phase-g-frontend.test.tsx). Old duplicate test file removed. |
+| Invariant (wallet+reward) | 25/25 | Confirmed via file inspection + test run |
+| Invariant (TA grade) | 4/4 | Confirmed |
 
 ## Locked Decisions Applied
 
@@ -74,49 +92,74 @@
 
 ---
 
-## Phase G — Frontend for B/C/D Roles (NOT STARTED)
+## Phase G — Frontend for B/C/D Roles (COMPLETE)
 
 **Spec:** `phase-g-frontend-gap-design.md`
-**Depends on:** Phase B backend + Phase C backend (both complete) + Phase D backend
-**Can run in parallel with:** Phase E backend
+**Depends on:** Phase B backend + Phase C backend (both complete) + Phase D backend (complete)
+**Executed in parallel with:** Phase E backend (zero file overlap confirmed)
 
 ### Loop G1: Type System + Route Guards
-- [ ] Expand UserRole in types/api.ts
-- [ ] Update ProtectedRoute type unions in App.tsx
-- [ ] Update roleHome() for new role → route mappings
-- [ ] Write test G-TYPE-1
+- [x] Expand UserRole in types/api.ts (add sponsor, employer, parent, teacher, teaching-assistant, custom)
+- [x] Update ProtectedRoute type unions in App.tsx (18 new sub-routes)
+- [x] Update roleHome() for new role → route mappings (including TA → /lecturer)
+- [x] Write test G-TYPE-1
 
 ### Loop G2: Layout.tsx Navigation
-- [ ] Add sponsor nav items
-- [ ] Add employer nav items
-- [ ] Add parent nav items
-- [ ] Add teacher nav items
-- [ ] Write tests G-NAV-1 through G-NAV-4
+- [x] Refactored Layout.tsx nav from chained ternary to `navigationMap` Record
+- [x] Add sponsor, employer, parent, teacher, teaching-assistant nav items
+- [x] Write tests G-NAV-1 through G-NAV-5
 
 ### Loop G3: Dashboard Components
-- [ ] Create SponsorPortal.tsx + sponsorService.ts
-- [ ] Create EmployerDashboard.tsx + employerService.ts
-- [ ] Create ParentDashboard.tsx + parentService.ts
-- [ ] Create TeacherDashboard.tsx + teacherService.ts
+- [x] SponsorPortal.tsx already existed + sponsorService.ts created
+- [x] Create EmployerDashboard.tsx + employerService.ts
+- [x] Create ParentDashboard.tsx + parentService.ts
+- [x] Create TeacherDashboard.tsx + teacherService.ts
+- [x] Create TADashboard.tsx + taService.ts
 
 ### Loop G4: Custom-User Permission Mapping (Decision #7)
-- [ ] Create resolveClosestRole.ts utility
-- [ ] Create PermissionGate.tsx component
-- [ ] Update roleHome() for custom role → closest role resolution
-- [ ] Update Layout.tsx nav for permission-based filtering (custom-user)
-- [ ] Write tests G-CUSTOM-1 through G-CUSTOM-3
+- [x] Create resolveClosestRole.ts utility (ROLE_SIGNATURES priority-ordered matching)
+- [x] Create PermissionGate.tsx component
+- [x] Update roleHome() for custom role → closest role resolution
+- [x] Update Layout.tsx nav for permission-based filtering (custom-user)
+- [x] Write tests G-CUSTOM-1 through G-CUSTOM-3
+- **Tests:** 9 Phase G tests (G-TYPE-1, G-NAV-1–5, G-CUSTOM-1–3)
+- **Files created:** TADashboard.tsx, taService.ts, sponsorService.ts, employerService.ts, parentService.ts, teacherService.ts, resolveClosestRole.ts, PermissionGate.tsx, phase-g-frontend.test.tsx
+- **Files modified:** App.tsx (18 new routes), Layout.tsx (navigationMap refactor), types/api.ts
 
 ---
 
-## Phase E — Admin Tiers + Super-Student (NOT STARTED)
+## Phase E — Admin Tiers + Super-Student (COMPLETE)
 
-### Loop E1–E6: See original spec
-- [ ] E1: Admin tier enforcement (middleware-level, Decision #5)
-- [ ] E2: Admin-2 UI differentiation
-- [ ] E3: Super-admin system config
-- [ ] E4: Super-student auto-unlock (tenant-configurable, Decision #2)
-- [ ] E5: Perks marketplace
-- [ ] E6: Custom-user dashboard routing (Decision #7) — frontend in Phase G
+**Spec:** `phase-e-admin-tiers-spec.md`
+**Executed in parallel with:** Phase G frontend (zero file overlap confirmed)
+
+### Loop E1: Admin Tier Enforcement (Decision #5) — 8 tests
+- [x] E1-BLOCK-1 through E1-BLOCK-8: middleware-level hard blocks on admin appointment chains
+- [x] Fix pre-existing rbac.test.ts:320 assertion (ESC-2 message text)
+
+### Loop E2: Admin-2 UI Differentiation — 3 tests
+- [x] E2-UI-1 through E2-UI-3: GET /auth/me returns rbacRoles + adminTier field
+
+### Loop E3: Super-Admin System Config — 4 tests
+- [x] system_config table + GET/PUT /system/config endpoints (systemConfig.ts)
+- [x] E3-CONFIG-1 through E3-CONFIG-4
+
+### Loop E4: Super-Student Auto-Unlock (Decision #2) — 5 tests
+- [x] checkSuperStudentPromotion() in lessonCompletions.ts
+- [x] Auto-promotion on course completion + tenant threshold (default=3)
+- [x] E4-UNLOCK-1 through E4-UNLOCK-5
+
+### Loop E5: Perks Marketplace — 5 tests
+- [x] GET /perks, POST /perks/:id/claim, admin CRUD (perks.ts)
+- [x] E5-PERKS-1 through E5-PERKS-5
+
+### Loop E6: Custom-User Permission Assignment Backend — 4 tests
+- [x] Permission-granting endpoints for admin-2/super-admin → custom-user
+- [x] E6-CUSTOM-1 through E6-CUSTOM-4
+- [x] G4 dependency satisfied (E6 complete before G4 merge)
+- **Tests:** 29 Phase E tests total
+- **Files created:** phase-e-admin-tiers.test.ts, perks.ts, systemConfig.ts
+- **Files modified:** database.ts (migration guards + system_config table), rbac.ts (ESC-3 extended), rbac.test.ts (assertion fix), lessonCompletions.ts (super-student auto-unlock), authController.ts (adminTier + rbacRoles), app.ts (mount new routes), schema.sql
 
 ---
 

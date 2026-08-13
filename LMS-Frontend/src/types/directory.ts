@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'admin';
+export type { UserRole } from './api';
 
 export interface DirectoryUser {
   id: string;

@@ -42,6 +42,8 @@ import employerRoutes from './routes/employer.js';
 import parentRoutes from './routes/parent.js';
 import teacherRoutes from './routes/teacher.js';
 import taRoutes from './routes/ta.js';
+import systemConfigRoutes from './routes/systemConfig.js';
+import perksRoutes from './routes/perks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { getHealthStatus } from './services/healthCheckService.js';
@@ -267,6 +269,8 @@ app.use('/api/v1', apiLimiter, employerRoutes);
 app.use('/api/v1', apiLimiter, parentRoutes);
 app.use('/api/v1', apiLimiter, teacherRoutes);
 app.use('/api/v1', apiLimiter, taRoutes);
+app.use('/api/v1/system', apiLimiter, systemConfigRoutes);
+app.use('/api/v1/perks', apiLimiter, perksRoutes);
 
 // ─── API Documentation ─────────────────────────────────────────────────────
 app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });

@@ -23,7 +23,10 @@ if (DB_PATH !== ':memory:') {
 export let db: DatabaseType = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// FK checks are enabled after module-level migrations complete (see bottom of migration block).
+// This prevents failures when ensure* functions reference tables that don't yet exist
+// (e.g., in-memory test DBs where schema.sql hasn't been loaded yet).
+db.pragma('foreign_keys = OFF');
 
 /** A1 — Redesign Phase A: widen users.role CHECK to include 'lecturer'.
  *  SQLite cannot ALTER a CHECK constraint, so the table must be recreated.
@@ -715,6 +718,8 @@ ensureQuizzesCourseIdFK();
 
 /** Phase 1 Course-Centric IA: add course_id, week_id, item_id to submissions. */
 function ensureSubmissionsCourseContext(): void {
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='submissions'").get();
+  if (!tableExists) return;
   const has = db.prepare(
     "SELECT 1 FROM pragma_table_info('submissions') WHERE name='course_id'"
   ).get();
@@ -730,6 +735,8 @@ ensureSubmissionsCourseContext();
 
 /** Phase 1 Course-Centric IA: add week_id to course_documents for per-week placement. */
 function ensureCourseDocumentsWeekId(): void {
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='course_documents'").get();
+  if (!tableExists) return;
   const has = db.prepare(
     "SELECT 1 FROM pragma_table_info('course_documents') WHERE name='week_id'"
   ).get();
@@ -1448,7 +1455,11 @@ export function seedRbacData(): void {
     }
   }
 }
-seedRbacData();
+// Only seed at module load if the users table already exists (production DB).
+// For test DBs (empty in-memory), setup.ts calls seedRbacData() explicitly after loading schema.sql.
+if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) {
+  seedRbacData();
+}
 
 export function migrateUsersToRbac(): void {
   // Map existing users.role → user_roles (idempotent)
@@ -1477,10 +1488,14 @@ export function migrateUsersToRbac(): void {
     }
   }
 }
-migrateUsersToRbac();
+if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) {
+  migrateUsersToRbac();
+}
 
 // Phase A: Add approval_status column to courses (live DB migration)
 function ensureCoursesApprovalStatus(): void {
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='courses'").get();
+  if (!tableExists) return;
   const info = db.pragma('table_info(courses)') as Array<{ name: string }>;
   if (!info.some(col => col.name === 'approval_status')) {
     db.exec("ALTER TABLE courses ADD COLUMN approval_status TEXT DEFAULT 'published'");
@@ -1490,6 +1505,8 @@ ensureCoursesApprovalStatus();
 
 // Phase A: Add reward_balance column to users (live DB migration)
 function ensureUsersRewardBalance(): void {
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+  if (!tableExists) return;
   const info = db.pragma('table_info(users)') as Array<{ name: string }>;
   if (!info.some(col => col.name === 'reward_balance')) {
     db.exec('ALTER TABLE users ADD COLUMN reward_balance REAL DEFAULT 0');
@@ -1615,6 +1632,18 @@ function ensureTenantSettingsTable(): void {
 }
 ensureTenantSettingsTable();
 
+function ensureSystemConfigTable(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_by TEXT REFERENCES users(id)
+    );
+  `);
+}
+ensureSystemConfigTable();
+
 function ensureCourseTasTable(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS course_tas (
@@ -1650,6 +1679,8 @@ function ensureCourseMaterialSubmissionsTable(): void {
 ensureCourseMaterialSubmissionsTable();
 
 function ensureSubmissionsGradeColumns(): void {
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='submissions'").get();
+  if (!tableExists) return;
   const info = db.pragma('table_info(submissions)') as Array<{ name: string }>;
   if (!info.some(col => col.name === 'grade_status')) {
     db.exec("ALTER TABLE submissions ADD COLUMN grade_status TEXT DEFAULT 'direct'");
@@ -1669,6 +1700,9 @@ function ensureHealthCheckPingsTable(): void {
   `);
 }
 ensureHealthCheckPingsTable();
+
+// Re-enable foreign key checks after all module-level migrations complete.
+db.pragma('foreign_keys = ON');
 
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);

@@ -19,6 +19,11 @@ import {
   BarChart2,
   Tag,
   CreditCard,
+  Briefcase,
+  Heart,
+  GraduationCap,
+  Wallet,
+  PenTool,
 } from 'lucide-react';
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
@@ -59,50 +64,80 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   /** Dashboard paths are prefixes of every other app route — only exact match for those. */
+  const dashboardPaths = ['/student', '/admin', '/lecturer', '/ta', '/sponsor', '/employer', '/parent', '/teacher'];
   const isActive = (path: string) => {
     if (location.pathname === path) return true;
-    if (path === '/student' || path === '/admin' || path === '/lecturer') return false;
+    if (dashboardPaths.includes(path)) return false;
     return location.pathname.startsWith(path + '/');
   };
 
-  const navigation =
-    user?.role === 'admin'
-      ? [
-          { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
-          { name: 'Students', path: '/admin/students', icon: Users },
-          { name: 'Submissions', path: '/admin/submissions', icon: FileText },
-          { name: 'Course', path: '/admin/course', icon: BookOpen },
-          { name: 'Quizzes', path: '/admin/quizzes', icon: ClipboardList },
-          { name: 'Resources', path: '/admin/documents', icon: BookOpen },
-          { name: 'Certificates', path: '/admin/certificates', icon: Award },
-          { name: 'Sponsor Portal', path: '/admin/sponsor', icon: Tag },
-          { name: 'Forum', path: '/admin/forum', icon: MessageCircle },
-          { name: 'Messages', path: '/admin/messages', icon: Mail },
-          { name: 'Course members', path: '/admin/course-members', icon: UserCircle },
-          { name: 'Profile', path: '/admin/profile', icon: User },
-        ]
-      : user?.role === 'lecturer'
-      ? [
-          { name: 'Dashboard', path: '/lecturer', icon: LayoutDashboard },
-          { name: 'Course Editor', path: '/lecturer/course', icon: BookOpen },
-          { name: 'Submissions', path: '/lecturer/submissions', icon: FileText },
-          { name: 'Messages', path: '/lecturer/messages', icon: Mail },
-          { name: 'Profile', path: '/lecturer/profile', icon: User },
-        ]
-      : [
-          { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
-          { name: 'My Progress', path: '/student/progress', icon: BarChart2 },
-          { name: 'My Submissions', path: '/student/submissions', icon: FileText },
-          { name: 'Payments', path: '/student/payments', icon: CreditCard },
-          { name: 'Badges', path: '/student/badges', icon: Award },
-          { name: 'Course', path: '/student/course', icon: BookOpen },
-          { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
-          { name: 'Resources', path: '/student/documents', icon: BookOpen },
-          { name: 'Forum', path: '/student/forum', icon: MessageCircle },
-          { name: 'Messages', path: '/student/messages', icon: Mail },
-          { name: 'Course members', path: '/student/course-members', icon: UserCircle },
-          { name: 'Profile', path: '/student/profile', icon: User },
-        ];
+  const navigationMap: Record<string, Array<{ name: string; path: string; icon: typeof LayoutDashboard }>> = {
+    admin: [
+      { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+      { name: 'Students', path: '/admin/students', icon: Users },
+      { name: 'Submissions', path: '/admin/submissions', icon: FileText },
+      { name: 'Course', path: '/admin/course', icon: BookOpen },
+      { name: 'Quizzes', path: '/admin/quizzes', icon: ClipboardList },
+      { name: 'Resources', path: '/admin/documents', icon: BookOpen },
+      { name: 'Certificates', path: '/admin/certificates', icon: Award },
+      { name: 'Sponsor Portal', path: '/admin/sponsor', icon: Tag },
+      { name: 'Forum', path: '/admin/forum', icon: MessageCircle },
+      { name: 'Messages', path: '/admin/messages', icon: Mail },
+      { name: 'Course members', path: '/admin/course-members', icon: UserCircle },
+      { name: 'Profile', path: '/admin/profile', icon: User },
+    ],
+    lecturer: [
+      { name: 'Dashboard', path: '/lecturer', icon: LayoutDashboard },
+      { name: 'Course Editor', path: '/lecturer/course', icon: BookOpen },
+      { name: 'Submissions', path: '/lecturer/submissions', icon: FileText },
+      { name: 'Messages', path: '/lecturer/messages', icon: Mail },
+      { name: 'Profile', path: '/lecturer/profile', icon: User },
+    ],
+    'teaching-assistant': [
+      { name: 'Dashboard', path: '/ta', icon: LayoutDashboard },
+      { name: 'Courses', path: '/ta/courses', icon: BookOpen },
+      { name: 'Grade', path: '/ta/grade', icon: PenTool },
+    ],
+    sponsor: [
+      { name: 'Dashboard', path: '/sponsor', icon: LayoutDashboard },
+      { name: 'Impact Report', path: '/sponsor/impact', icon: BarChart2 },
+      { name: 'Billing', path: '/sponsor/billing', icon: CreditCard },
+    ],
+    employer: [
+      { name: 'Dashboard', path: '/employer', icon: LayoutDashboard },
+      { name: 'Teams', path: '/employer/teams', icon: Briefcase },
+      { name: 'Billing', path: '/employer/billing', icon: CreditCard },
+    ],
+    parent: [
+      { name: 'Dashboard', path: '/parent', icon: LayoutDashboard },
+      { name: 'Children', path: '/parent/children', icon: Heart },
+      { name: 'Wallets', path: '/parent/wallets', icon: Wallet },
+      { name: 'Groups', path: '/parent/groups', icon: Users },
+      { name: 'Billing', path: '/parent/billing', icon: CreditCard },
+    ],
+    teacher: [
+      { name: 'Dashboard', path: '/teacher', icon: LayoutDashboard },
+      { name: 'Classes', path: '/teacher/classes', icon: GraduationCap },
+      { name: 'Analytics', path: '/teacher/analytics', icon: BarChart2 },
+      { name: 'Billing', path: '/teacher/billing', icon: CreditCard },
+    ],
+    student: [
+      { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
+      { name: 'My Progress', path: '/student/progress', icon: BarChart2 },
+      { name: 'My Submissions', path: '/student/submissions', icon: FileText },
+      { name: 'Payments', path: '/student/payments', icon: CreditCard },
+      { name: 'Badges', path: '/student/badges', icon: Award },
+      { name: 'Course', path: '/student/course', icon: BookOpen },
+      { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
+      { name: 'Resources', path: '/student/documents', icon: BookOpen },
+      { name: 'Forum', path: '/student/forum', icon: MessageCircle },
+      { name: 'Messages', path: '/student/messages', icon: Mail },
+      { name: 'Course members', path: '/student/course-members', icon: UserCircle },
+      { name: 'Profile', path: '/student/profile', icon: User },
+    ],
+  };
+
+  const navigation = navigationMap[user?.role ?? 'student'] ?? navigationMap.student;
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">

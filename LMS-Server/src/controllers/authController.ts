@@ -345,6 +345,13 @@ export async function getMe(
       throw new AppError("User not found", 404, ErrorCodes.NOT_FOUND);
     }
 
+    // Derive admin tier from RBAC roles for frontend UI differentiation
+    const rbacRoles = getUserRoles(user.id);
+    let adminTier: string | null = null;
+    if (rbacRoles.includes('super-admin')) adminTier = 'super-admin';
+    else if (rbacRoles.includes('admin-2')) adminTier = 'admin-2';
+    else if (rbacRoles.includes('admin')) adminTier = 'admin';
+
     res.json({
       success: true,
       data: {
@@ -355,6 +362,8 @@ export async function getMe(
         walletAddress: user.walletAddress,
         walletLinkingStatus: user.wallet_linking_status,
         courseCodes: getUserCourseCodes(user.id),
+        rbacRoles,
+        adminTier,
       },
     });
   } catch (error) {
