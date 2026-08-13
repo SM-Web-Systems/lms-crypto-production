@@ -163,15 +163,15 @@ Total CI invariant tests: **29** across 2 files:
 
 ---
 
-## Phase F — Cross-Cutting (NOT STARTED)
+## Phase F — Cross-Cutting (COMPLETE 2026-08-13) — 853/853 backend, 193/193 frontend
 
 ### Loop F1–F6: See original spec
-- [ ] F1: Login history API
-- [ ] F2: Session management
-- [ ] F3: GDPR data export
-- [ ] F4: Dispute/refund workflow
-- [ ] F5: Messaging rate limiting
-- [ ] F6: Notification preferences per role
+- [x] F1: Login history API (5 tests)
+- [x] F2: Session management (6 tests)
+- [x] F3: GDPR data export (3 tests)
+- [x] F4: Dispute/refund workflow (7 tests)
+- [x] F5: Messaging rate limiting (4 tests)
+- [x] F6: Notification preferences per role (4 tests) — student_login, class_completion, cohort_milestone, team_completion, grade_approved
 
 ---
 

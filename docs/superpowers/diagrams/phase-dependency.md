@@ -112,6 +112,14 @@ flowchart TD
     style E4 fill:#16a34a,color:#fff
     style E5 fill:#16a34a,color:#fff
 
+    %% COMPLETE — Phase F Cross-Cutting Features (2026-08-13)
+    style F1 fill:#16a34a,color:#fff
+    style F2 fill:#16a34a,color:#fff
+    style F3 fill:#16a34a,color:#fff
+    style F4 fill:#16a34a,color:#fff
+    style F5 fill:#16a34a,color:#fff
+    style F6 fill:#16a34a,color:#fff
+
     %% Resolved gate
     style A7 fill:#6b7280,color:#fff,stroke:#6b7280
 
