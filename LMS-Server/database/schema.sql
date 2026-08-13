@@ -239,21 +239,17 @@ CREATE TABLE IF NOT EXISTS nft_credentials (
   error TEXT,
   contract_id TEXT NOT NULL,
   network TEXT NOT NULL DEFAULT 'public',
+  course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
+  application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
+  is_superseded INTEGER NOT NULL DEFAULT 0,
+  soroban_token_id INTEGER,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   UNIQUE (user_id, quiz_id)
 );
 CREATE INDEX IF NOT EXISTS idx_nft_credentials_user ON nft_credentials(user_id);
 CREATE INDEX IF NOT EXISTS idx_nft_credentials_status ON nft_credentials(mint_status);
-
--- Phase A redesign: nft_credentials gets course_id + application_id for course-level mints
-ALTER TABLE nft_credentials ADD COLUMN course_id TEXT REFERENCES courses(id) ON DELETE SET NULL;
-ALTER TABLE nft_credentials ADD COLUMN application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_nft_credentials_course ON nft_credentials(course_id);
--- L-013: is_superseded marks old credential after a re-mint correction (both rows kept for audit)
-ALTER TABLE nft_credentials ADD COLUMN is_superseded INTEGER NOT NULL DEFAULT 0;
--- NM-A2: soroban_token_id stores the on-chain Soroban u32 token ID returned by mint() for deterministic matching
-ALTER TABLE nft_credentials ADD COLUMN soroban_token_id INTEGER;
 
 -- Phase A: course_lecturers — maps lecturers to courses
 CREATE TABLE IF NOT EXISTS course_lecturers (

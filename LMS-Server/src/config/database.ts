@@ -1190,10 +1190,17 @@ export function seedRbacData(): void {
     ['perm_forum_view', 'forum.view', 'forum', 'View Forum'],
     ['perm_forum_post', 'forum.post', 'forum', 'Post in Forum'],
     ['perm_forum_moderate', 'forum.moderate', 'forum', 'Moderate Forum'],
-    // reward (3)
+    // reward (10)
     ['perm_reward_view_own', 'reward.view_own', 'reward', 'View Own Rewards'],
-    ['perm_reward_give', 'reward.give', 'reward', 'Give Rewards'],
-    ['perm_reward_manage', 'reward.manage', 'reward', 'Manage Rewards'],
+    ['perm_reward_give', 'reward.give', 'reward', 'Give Rewards (deprecated)'],
+    ['perm_reward_manage', 'reward.manage', 'reward', 'Manage All Rewards'],
+    ['perm_reward_create', 'reward.create', 'reward', 'Create Reward Drafts'],
+    ['perm_reward_fund', 'reward.fund', 'reward', 'Fund Rewards'],
+    ['perm_reward_activate', 'reward.activate', 'reward', 'Activate Funded Rewards'],
+    ['perm_reward_approve', 'reward.approve', 'reward', 'Approve Eligible Rewards'],
+    ['perm_reward_cancel', 'reward.cancel', 'reward', 'Cancel Rewards'],
+    ['perm_reward_view_assigned', 'reward.view_assigned', 'reward', 'View Assigned Rewards'],
+    ['perm_reward_refund', 'reward.refund', 'reward', 'Refund Rewards'],
     // system (3)
     ['perm_system_manage_roles', 'system.manage_roles', 'system', 'Manage Roles'],
     ['perm_system_manage_permissions', 'system.manage_permissions', 'system', 'Manage Permissions'],
@@ -1239,7 +1246,7 @@ export function seedRbacData(): void {
       'perm_quiz_view', 'perm_quiz_submit',
       'perm_announcement_view', 'perm_document_view',
       'perm_forum_view', 'perm_forum_post',
-      'perm_reward_view_own',
+      'perm_reward_view_own', 'perm_reward_view_assigned',
       'perm_session_manage_own',
     ],
     role_supporter_student: [
@@ -1249,7 +1256,7 @@ export function seedRbacData(): void {
       'perm_quiz_view', 'perm_quiz_submit',
       'perm_announcement_view', 'perm_document_view',
       'perm_forum_view', 'perm_forum_post',
-      'perm_reward_view_own',
+      'perm_reward_view_own', 'perm_reward_view_assigned',
       'perm_perks_access', 'perm_session_manage_own',
     ],
     role_parent: [
@@ -1261,7 +1268,9 @@ export function seedRbacData(): void {
       'perm_student_view_assigned', 'perm_student_login_history',
       'perm_certificate_view_own', 'perm_quiz_view',
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_setup',
       'perm_group_create', 'perm_group_manage',
       'perm_session_manage_own',
     ],
@@ -1275,7 +1284,9 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_announcement_create',
       'perm_document_view', 'perm_document_upload',
       'perm_forum_view', 'perm_forum_post',
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_setup',
       'perm_group_create', 'perm_group_manage',
       'perm_session_manage_own',
     ],
@@ -1287,7 +1298,9 @@ export function seedRbacData(): void {
       'perm_cohort_view_own', 'perm_cohort_create',
       'perm_certificate_view_own', 'perm_quiz_view',
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_setup',
       'perm_group_create', 'perm_group_manage',
       'perm_session_manage_own',
     ],
@@ -1300,7 +1313,9 @@ export function seedRbacData(): void {
       'perm_cohort_manage', 'perm_cohort_bulk_apply', 'perm_cohort_bulk_pay',
       'perm_certificate_view_own', 'perm_quiz_view',
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_setup',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_setup',
       'perm_impact_report',
       'perm_session_manage_own',
     ],
@@ -1349,7 +1364,9 @@ export function seedRbacData(): void {
       // forum: all
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
       // reward: all
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_manage',
       // system: view_audit_log
       'perm_system_view_audit_log',
       // tenant: view
@@ -1392,7 +1409,9 @@ export function seedRbacData(): void {
       // forum: all
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
       // reward: all
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_manage',
       // system: manage_roles, view_audit_log
       'perm_system_manage_roles', 'perm_system_view_audit_log',
       // tenant: view
@@ -1425,7 +1444,9 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_announcement_create', 'perm_announcement_manage', 'perm_announcement_delete',
       'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
-      'perm_reward_view_own', 'perm_reward_give', 'perm_reward_manage',
+      'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
+      'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
+      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_manage',
       'perm_system_manage_roles', 'perm_system_manage_permissions', 'perm_system_view_audit_log',
       // tenant: all
       'perm_tenant_manage', 'perm_tenant_view',
@@ -2102,6 +2123,16 @@ export function _resetForTests(schemaSQL: string): void {
     if (tables.length === 0) break;
     for (const { name } of tables) {
       try { db.exec(`DROP TABLE IF EXISTS "${name}"`); } catch { /* retry on next pass */ }
+    }
+  }
+  // Safety: verify all tables dropped
+  const leftover = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+  ).all() as { name: string }[];
+  if (leftover.length > 0) {
+    // Force-drop any remaining tables
+    for (const { name } of leftover) {
+      try { db.exec(`DROP TABLE IF EXISTS "${name}"`); } catch { /* ignore */ }
     }
   }
   db.exec(schemaSQL);

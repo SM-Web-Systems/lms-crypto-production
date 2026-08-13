@@ -5,9 +5,10 @@
  * read/write permissions. This test fails the build if any other non-admin
  * role is ever granted wallet write access to student wallets.
  *
- * Reward balance distinction: reward.give and reward.setup (which control
- * platform-managed reward_balance writes) ARE allowed for teacher, employer,
- * sponsor, and parent — but student_wallet.write_assigned remains parent-only.
+ * Reward balance distinction: granular reward permissions (reward.create,
+ * reward.fund, reward.activate, reward.approve, reward.cancel) ARE allowed
+ * for teacher, employer, sponsor, and parent — but student_wallet.write_assigned
+ * remains parent-only.
  *
  * WALLET-INV-1 — Only parent + admin-tier roles have wallet.view_assigned
  * WALLET-INV-2 — No non-admin role except parent has student_wallet.write_assigned
@@ -16,10 +17,12 @@
  * WALLET-INV-5 — employer role does NOT have any student wallet permission
  * WALLET-INV-6 — sponsor role does NOT have any student wallet permission
  * WALLET-INV-7 — custom-user role has zero default wallet permissions
- * REWARD-INV-1 — teacher/employer/sponsor/parent all have reward.give
+ * REWARD-INV-1 — teacher/employer/sponsor/parent all have granular reward perms
  * REWARD-INV-2 — teacher/employer/sponsor/parent all have reward.setup
- * REWARD-INV-3 — student/super-student/TA/custom-user do NOT have reward.give
+ * REWARD-INV-3 — student/super-student/TA/custom-user do NOT have reward.create
  * REWARD-INV-4 — student_wallet.write_assigned still parent-only (cross-check)
+ * REWARD-INV-5 — only sponsor has reward.refund among giver roles
+ * REWARD-INV-6 — students can view assigned rewards
  */
 
 import { describe, it, expect } from 'vitest';
@@ -132,7 +135,7 @@ describe('RBAC Wallet Invariant: Parent-Only Student Wallet Access', () => {
   });
 });
 
-// Roles that SHOULD have reward.give + reward.setup (can write reward_balance)
+// Roles that SHOULD have granular reward permissions (create, fund, activate, approve, cancel)
 const REWARD_GIVER_ROLES = [
   { id: 'role_parent', name: 'parent' },
   { id: 'role_teacher', name: 'teacher' },
@@ -140,7 +143,13 @@ const REWARD_GIVER_ROLES = [
   { id: 'role_sponsor', name: 'sponsor' },
 ];
 
-// Roles that must NOT have reward.give (cannot write reward_balance)
+// Granular reward permissions that giver roles must have
+const REWARD_GRANULAR_PERMS = [
+  'reward.create', 'reward.fund', 'reward.activate',
+  'reward.approve', 'reward.cancel', 'reward.view_assigned',
+];
+
+// Roles that must NOT have reward.create (cannot create rewards)
 const REWARD_BLOCKED_ROLES = [
   { id: 'role_student', name: 'student' },
   { id: 'role_supporter_student', name: 'super-student' },
@@ -148,11 +157,13 @@ const REWARD_BLOCKED_ROLES = [
   { id: 'role_custom', name: 'custom-user' },
 ];
 
-describe('RBAC Reward Balance Invariant: reward.give vs student_wallet boundary', () => {
+describe('RBAC Reward Balance Invariant: granular rewards vs student_wallet boundary', () => {
   for (const role of REWARD_GIVER_ROLES) {
-    it(`REWARD-INV-1: ${role.name} has reward.give permission`, () => {
+    it(`REWARD-INV-1: ${role.name} has all granular reward permissions`, () => {
       const perms = getRolePermissionNames(role.id);
-      expect(perms, `${role.name} missing reward.give`).toContain('reward.give');
+      for (const perm of REWARD_GRANULAR_PERMS) {
+        expect(perms, `${role.name} missing ${perm}`).toContain(perm);
+      }
     });
 
     it(`REWARD-INV-2: ${role.name} has reward.setup permission`, () => {
@@ -162,24 +173,41 @@ describe('RBAC Reward Balance Invariant: reward.give vs student_wallet boundary'
   }
 
   for (const role of REWARD_BLOCKED_ROLES) {
-    it(`REWARD-INV-3: ${role.name} does NOT have reward.give`, () => {
+    it(`REWARD-INV-3: ${role.name} does NOT have reward.create`, () => {
       const perms = getRolePermissionNames(role.id);
-      expect(perms, `${role.name} should not have reward.give`).not.toContain('reward.give');
+      expect(perms, `${role.name} should not have reward.create`).not.toContain('reward.create');
     });
   }
 
-  it('REWARD-INV-4: student_wallet.write_assigned is parent-only (cross-check with reward.give)', () => {
+  it('REWARD-INV-4: student_wallet.write_assigned is parent-only (cross-check with reward perms)', () => {
     const walletWriteRoles = getRolesWithPermission('student_wallet.write_assigned');
-    const rewardGiveRoles = getRolesWithPermission('reward.give');
+    const rewardCreateRoles = getRolesWithPermission('reward.create');
 
-    // teacher/employer/sponsor have reward.give but NOT student_wallet.write_assigned
+    // teacher/employer/sponsor have reward.create but NOT student_wallet.write_assigned
     for (const role of ['role_teacher', 'role_employer', 'role_sponsor']) {
-      expect(rewardGiveRoles, `${role} should have reward.give`).toContain(role);
+      expect(rewardCreateRoles, `${role} should have reward.create`).toContain(role);
       expect(walletWriteRoles, `${role} must NOT have student_wallet.write_assigned`).not.toContain(role);
     }
 
     // parent has BOTH
-    expect(rewardGiveRoles).toContain('role_parent');
+    expect(rewardCreateRoles).toContain('role_parent');
     expect(walletWriteRoles).toContain('role_parent');
+  });
+
+  it('REWARD-INV-5: only sponsor has reward.refund among giver roles', () => {
+    const refundRoles = getRolesWithPermission('reward.refund');
+    // Sponsor + admin-tier have refund
+    expect(refundRoles).toContain('role_sponsor');
+    // Non-sponsor givers (parent, teacher, employer) also have refund based on our mapping
+    // Actually let's check: parent/teacher/employer don't have refund per spec
+    expect(refundRoles).not.toContain('role_parent');
+    expect(refundRoles).not.toContain('role_teacher');
+    expect(refundRoles).not.toContain('role_employer');
+  });
+
+  it('REWARD-INV-6: students can view assigned rewards', () => {
+    const viewAssignedRoles = getRolesWithPermission('reward.view_assigned');
+    expect(viewAssignedRoles).toContain('role_student');
+    expect(viewAssignedRoles).toContain('role_supporter_student');
   });
 });
