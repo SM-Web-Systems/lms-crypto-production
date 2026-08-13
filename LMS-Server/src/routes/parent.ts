@@ -5,6 +5,18 @@ import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
+import {
+  createReward,
+  fundReward,
+  activateReward,
+  cancelReward,
+  getReward,
+  listRewards,
+  getRewardAllocations,
+  getRewardTransactions,
+} from '../services/rewards/rewardService.js';
+import { RewardError } from '../services/rewards/rewardErrors.js';
+import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
 
@@ -243,6 +255,108 @@ router.delete('/parent/groups/:id/members/:userId', authenticate, requirePermiss
 
   execute('DELETE FROM user_group_members WHERE group_id = ? AND user_id = ?', [id, memberId]);
   res.json({ success: true });
+});
+
+// ──── Reward Routes ────
+
+function handleRewardError(err: unknown, res: Response): void {
+  if (err instanceof RewardError) {
+    res.status(err.statusCode).json({ success: false, error: { code: err.code, message: err.message } });
+  } else {
+    throw err;
+  }
+}
+
+function resolveParentScopeType(targetType?: string): ScopeType {
+  if (targetType === 'family') return 'parent_family';
+  return 'parent_child';
+}
+
+// POST /parent/rewards — create draft reward with target_type
+router.post('/parent/rewards', authenticate, requirePermission('reward.create'), (req: AuthRequest, res: Response): void => {
+  try {
+    const scopeType = resolveParentScopeType(req.body.targetType);
+    const reward = createReward(req.user!.userId, {
+      scopeType,
+      scopeId: req.body.scopeId,
+      rewardType: req.body.rewardType,
+      amountStroops: String(req.body.amountStroops),
+      maxRecipients: req.body.maxRecipients,
+      autoRelease: req.body.autoRelease,
+      description: req.body.description,
+      eligibilityConfig: req.body.eligibilityConfig,
+      expiresAt: req.body.expiresAt,
+      idempotencyKey: req.body.idempotencyKey,
+    });
+    res.status(201).json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /parent/rewards/:id/fund
+router.post('/parent/rewards/:id/fund', authenticate, requirePermission('reward.fund'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = fundReward(req.params.id, req.user!.userId,
+      { type: req.body.sourceType, reference: req.body.reference },
+      req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /parent/rewards/:id/activate
+router.post('/parent/rewards/:id/activate', authenticate, requirePermission('reward.activate'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = activateReward(req.params.id, req.user!.userId, req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /parent/rewards/:id/cancel
+router.post('/parent/rewards/:id/cancel', authenticate, requirePermission('reward.cancel'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = cancelReward(req.params.id, req.user!.userId, req.body.reason ?? '', req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// GET /parent/rewards — list rewards
+router.get('/parent/rewards', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  try {
+    const scopeId = req.query.scopeId as string;
+    const scopeType = resolveParentScopeType(req.query.targetType as string);
+    if (!scopeId) {
+      res.status(400).json({ success: false, error: { message: 'scopeId required' } });
+      return;
+    }
+    const rewards = listRewards(scopeType, scopeId, req.user!.userId);
+    res.json({ success: true, data: rewards });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// GET /parent/rewards/:id
+router.get('/parent/rewards/:id', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  const reward = getReward(req.params.id);
+  if (!reward) { res.status(404).json({ success: false, error: { message: 'Reward not found' } }); return; }
+  res.json({ success: true, data: reward });
+});
+
+// GET /parent/rewards/:id/allocations
+router.get('/parent/rewards/:id/allocations', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  res.json({ success: true, data: getRewardAllocations(req.params.id) });
+});
+
+// GET /parent/rewards/:id/transactions
+router.get('/parent/rewards/:id/transactions', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  res.json({ success: true, data: getRewardTransactions(req.params.id) });
 });
 
 export default router;

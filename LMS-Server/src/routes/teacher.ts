@@ -4,6 +4,17 @@ import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
+import {
+  createReward,
+  fundReward,
+  activateReward,
+  cancelReward,
+  getReward,
+  listRewards,
+  getRewardAllocations,
+  getRewardTransactions,
+} from '../services/rewards/rewardService.js';
+import { RewardError } from '../services/rewards/rewardErrors.js';
 
 const router = Router();
 
@@ -204,6 +215,98 @@ router.get('/teacher/analytics', authenticate, requirePermission('student.view_a
   );
 
   res.json({ success: true, data: { analytics } });
+});
+
+// ──── Reward Routes ────
+
+function handleRewardError(err: unknown, res: Response): void {
+  if (err instanceof RewardError) {
+    res.status(err.statusCode).json({ success: false, error: { code: err.code, message: err.message } });
+  } else {
+    throw err;
+  }
+}
+
+// POST /teacher/rewards
+router.post('/teacher/rewards', authenticate, requirePermission('reward.create'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = createReward(req.user!.userId, {
+      scopeType: 'teacher_class',
+      scopeId: req.body.scopeId,
+      rewardType: req.body.rewardType,
+      amountStroops: String(req.body.amountStroops),
+      maxRecipients: req.body.maxRecipients,
+      autoRelease: req.body.autoRelease,
+      description: req.body.description,
+      eligibilityConfig: req.body.eligibilityConfig,
+      expiresAt: req.body.expiresAt,
+      idempotencyKey: req.body.idempotencyKey,
+    });
+    res.status(201).json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /teacher/rewards/:id/fund
+router.post('/teacher/rewards/:id/fund', authenticate, requirePermission('reward.fund'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = fundReward(req.params.id, req.user!.userId,
+      { type: req.body.sourceType, reference: req.body.reference },
+      req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /teacher/rewards/:id/activate
+router.post('/teacher/rewards/:id/activate', authenticate, requirePermission('reward.activate'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = activateReward(req.params.id, req.user!.userId, req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /teacher/rewards/:id/cancel
+router.post('/teacher/rewards/:id/cancel', authenticate, requirePermission('reward.cancel'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = cancelReward(req.params.id, req.user!.userId, req.body.reason ?? '', req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// GET /teacher/rewards
+router.get('/teacher/rewards', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  try {
+    const scopeId = req.query.scopeId as string;
+    if (!scopeId) { res.status(400).json({ success: false, error: { message: 'scopeId required' } }); return; }
+    const rewards = listRewards('teacher_class', scopeId, req.user!.userId);
+    res.json({ success: true, data: rewards });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// GET /teacher/rewards/:id
+router.get('/teacher/rewards/:id', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  const reward = getReward(req.params.id);
+  if (!reward) { res.status(404).json({ success: false, error: { message: 'Reward not found' } }); return; }
+  res.json({ success: true, data: reward });
+});
+
+// GET /teacher/rewards/:id/allocations
+router.get('/teacher/rewards/:id/allocations', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  res.json({ success: true, data: getRewardAllocations(req.params.id) });
+});
+
+// GET /teacher/rewards/:id/transactions
+router.get('/teacher/rewards/:id/transactions', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  res.json({ success: true, data: getRewardTransactions(req.params.id) });
 });
 
 export default router;
