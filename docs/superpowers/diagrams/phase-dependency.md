@@ -149,7 +149,10 @@ flowchart TD
 | C (Parent/Teacher) | COMPLETE (19 tests) | COMPLETE (Phase G) |
 | D (Instructor/TA) | COMPLETE (25 tests) | COMPLETE (Phase G) |
 | E (Admin Tiers) | COMPLETE (29 tests) | E2 backend flags only |
-| F (Cross-Cutting) | NOT STARTED | NOT STARTED |
+| F (Cross-Cutting) | COMPLETE (853 tests total) | COMPLETE (193 tests) |
+| BR (Sponsor Rewards) | IN PROGRESS | PENDING |
+| CR (Parent Rewards) | IN PROGRESS | PENDING |
+| CTR (Teacher Rewards) | IN PROGRESS | PENDING |
 | G (Frontend Gap) | N/A | COMPLETE (9 tests) |
 
 ## Parallel Execution (Completed 2026-08-13)
