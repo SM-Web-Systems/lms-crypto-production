@@ -195,7 +195,7 @@ structurally identical.
 ## 5. Funding Source Verification
 
 - **Stellar:** Sponsor provides a Stellar transaction hash. The service
-  validates the hash format (56-character hex string). Full Horizon API
+  validates the hash format (64-character lowercase hex, SHA-256). Full Horizon API
   verification is deferred. Initial implementation: the hash is recorded as
   `funding_reference`. A user with `reward.manage` permission must confirm
   the transaction via `POST /admin/rewards/:id/verify-funding` before the

@@ -173,19 +173,39 @@ cd LMS-Server && npx vitest run src/__tests__/reward-ledger.test.ts
 ```
 
 **Tests to write:**
-- R-BAL-1 through R-BAL-14 (fund/reserve/release/cancel/expire/refund)
-- R-IDEM-1 through R-IDEM-6 (duplicate operations)
-- R-LED-1: Ledger entries are append-only
-- R-LED-2: Reconciliation query matches materialized balances
-- R-LED-3: Every mutation creates exactly one ledger entry
-- R-LED-4: Transaction shapes validated (invalid combos rejected)
+- R-LED-1: Fund creates funder available credit via ledger
+- R-LED-2: Reserve moves funder available → reserved via ledger
+- R-LED-3: Release moves funder reserved → recipient available via ledger
+- R-LED-4: Cancel moves funder reserved → funder available via ledger
+- R-LED-5: Expire moves funder reserved → funder available (system actor)
+- R-LED-6: Refund moves recipient available → funder available via ledger
+- R-LED-7: Release cannot debit funder available directly
+- R-LED-8: Cancel cannot credit recipient account
+- R-LED-9: Refund cannot debit funder reserved
+- R-LED-10: Available + reserved reconcile after every transition
+- R-LED-11: Concurrent reservations cannot overspend
+- R-LED-12: Negative balance prevented by CHECK constraint
+- R-LED-13: Refund blocked when recipient has insufficient balance (409)
+- R-LED-14: Blocked refund creates reward_refund_attempts record (NOT ledger entry)
+- R-LED-15: Blocked refund leaves all balances unchanged
+- R-LED-16: Blocked refund leaves reward/allocation state unchanged
+- R-LED-17: Ledger entries are append-only (no UPDATE/DELETE)
+- R-LED-18: Reconciliation query matches materialized balances
+- R-LED-19: Every mutation creates exactly one ledger entry per balance change
+- R-LED-20: Transaction shapes validated (invalid combos rejected)
+- R-IDEM-1: Duplicate fund request returns original result
+- R-IDEM-2: Duplicate reserve is idempotent
+- R-IDEM-3: Duplicate release does not transfer twice
+- R-IDEM-4: Duplicate eligibility event returns already_processed
+- R-IDEM-5: Duplicate cancel does not return funds twice
+- R-IDEM-6: Duplicate refund does not credit twice
 
 **Implementation files:**
 - LMS-Server/src/services/rewards/rewardLedger.ts (NEW)
 - LMS-Server/src/services/rewards/rewardIdempotencyService.ts (NEW)
 - LMS-Server/src/__tests__/reward-ledger.test.ts (NEW)
 
-**Expected result:** ~24 ledger/idempotency tests passing
+**Expected result:** ~26 ledger/idempotency tests passing
 
 **Full-suite verification:**
 ```bash
