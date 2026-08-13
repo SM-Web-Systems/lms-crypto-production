@@ -1589,18 +1589,8 @@ ensureCourseApprovalWorkflowTable();
 
 // Phase A: rewards + perks tables
 function ensureRewardsAndPerksTables(): void {
+  // Perks tables (unchanged)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS rewards (
-      id TEXT PRIMARY KEY,
-      creator_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      recipient_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      reward_type TEXT NOT NULL CHECK (reward_type IN ('individual', 'class', 'all')),
-      amount_xlm REAL,
-      description TEXT,
-      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'released', 'cancelled')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      released_at TEXT
-    );
     CREATE TABLE IF NOT EXISTS perks (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1619,6 +1609,16 @@ function ensureRewardsAndPerksTables(): void {
       UNIQUE(perk_id, user_id)
     );
   `);
+
+  // Drop the old 3-state rewards stub if it exists (has amount_xlm column)
+  const hasOldRewards = db.prepare("SELECT count(*) as c FROM sqlite_master WHERE type='table' AND name='rewards'").get() as { c: number };
+  if (hasOldRewards.c > 0) {
+    const cols = db.pragma('table_info(rewards)') as Array<{ name: string }>;
+    const hasAmountXlm = cols.some(c => c.name === 'amount_xlm');
+    if (hasAmountXlm) {
+      db.exec('DROP TABLE IF EXISTS rewards');
+    }
+  }
 }
 ensureRewardsAndPerksTables();
 
@@ -1815,6 +1815,209 @@ function ensureDisputesTable(): void {
   `);
 }
 ensureDisputesTable();
+
+// ─── Reward System Tables (R2) ───────────────────────────────────────────────
+
+function migrateRewardBalance(): void {
+  const cols = db.pragma('table_info(users)') as Array<{ name: string }>;
+  const hasLegacy = cols.some(c => c.name === 'reward_balance_legacy_real');
+  const hasOriginal = cols.some(c => c.name === 'reward_balance');
+  if (hasLegacy || !hasOriginal) return;
+  db.exec("ALTER TABLE users RENAME COLUMN reward_balance TO reward_balance_legacy_real");
+}
+migrateRewardBalance();
+
+function ensureRewardTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_accounts (
+      id                TEXT PRIMARY KEY,
+      user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      account_type      TEXT NOT NULL CHECK (account_type IN ('funder', 'recipient', 'platform')),
+      available_stroops INTEGER NOT NULL DEFAULT 0 CHECK (available_stroops >= 0),
+      reserved_stroops  INTEGER NOT NULL DEFAULT 0 CHECK (reserved_stroops >= 0),
+      currency_code     TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+      created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, account_type, currency_code)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reward_accounts_user ON reward_accounts(user_id);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rewards (
+      id                    TEXT PRIMARY KEY,
+      creator_user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      scope_type            TEXT NOT NULL CHECK (scope_type IN (
+        'sponsor_cohort', 'employer_team', 'parent_child', 'parent_family', 'teacher_class'
+      )),
+      scope_id              TEXT NOT NULL,
+      reward_type           TEXT NOT NULL CHECK (reward_type IN (
+        'individual', 'milestone', 'course_completion', 'grade', 'custom'
+      )),
+      amount_mode           TEXT NOT NULL DEFAULT 'per_recipient' CHECK (amount_mode IN ('per_recipient')),
+      amount_stroops        INTEGER NOT NULL CHECK (amount_stroops > 0),
+      max_recipients        INTEGER CHECK (max_recipients IS NULL OR max_recipients > 0),
+      currency_code         TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+      description           TEXT,
+      auto_release          INTEGER NOT NULL DEFAULT 0 CHECK (auto_release IN (0, 1)),
+      eligibility_config    TEXT,
+      status                TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
+        'draft', 'pending_funding', 'funded', 'active',
+        'eligible_pending_approval', 'approved', 'eligible_auto_release',
+        'partially_released', 'released',
+        'cancelled', 'expired',
+        'partially_refunded', 'refunded'
+      )),
+      idempotency_key       TEXT NOT NULL UNIQUE,
+      expires_at            TEXT,
+      funded_at             TEXT,
+      activated_at          TEXT,
+      eligible_at           TEXT,
+      approved_at           TEXT,
+      released_at           TEXT,
+      cancelled_at          TEXT,
+      refunded_at           TEXT,
+      created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_rewards_creator ON rewards(creator_user_id);
+    CREATE INDEX IF NOT EXISTS idx_rewards_scope ON rewards(scope_type, scope_id);
+    CREATE INDEX IF NOT EXISTS idx_rewards_status ON rewards(status);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_audience_snapshots (
+      id              TEXT PRIMARY KEY,
+      reward_id       TEXT NOT NULL REFERENCES rewards(id) ON DELETE RESTRICT,
+      student_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      snapshot_at     TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(reward_id, student_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reward_audience_reward ON reward_audience_snapshots(reward_id);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_allocations (
+      id                TEXT PRIMARY KEY,
+      reward_id         TEXT NOT NULL REFERENCES rewards(id) ON DELETE RESTRICT,
+      student_user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      amount_stroops    INTEGER NOT NULL CHECK (amount_stroops > 0),
+      currency_code     TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+      status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+        'pending', 'eligible', 'released', 'cancelled', 'refunded'
+      )),
+      idempotency_key   TEXT NOT NULL UNIQUE,
+      eligible_at       TEXT,
+      released_at       TEXT,
+      cancelled_at      TEXT,
+      refunded_at       TEXT,
+      created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(reward_id, student_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reward_allocations_reward ON reward_allocations(reward_id);
+    CREATE INDEX IF NOT EXISTS idx_reward_allocations_student ON reward_allocations(student_user_id);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_transactions (
+      id                       TEXT PRIMARY KEY,
+      reward_id                TEXT REFERENCES rewards(id) ON DELETE RESTRICT,
+      allocation_id            TEXT REFERENCES reward_allocations(id) ON DELETE RESTRICT,
+      source_account_type      TEXT NOT NULL CHECK (source_account_type IN ('external', 'platform', 'funder', 'recipient')),
+      source_bucket            TEXT CHECK (source_bucket IN ('available', 'reserved')),
+      source_user_id           TEXT REFERENCES users(id) ON DELETE RESTRICT,
+      destination_account_type TEXT NOT NULL CHECK (destination_account_type IN ('funder', 'recipient', 'platform')),
+      destination_bucket       TEXT NOT NULL CHECK (destination_bucket IN ('available', 'reserved')),
+      destination_user_id      TEXT REFERENCES users(id) ON DELETE RESTRICT,
+      actor_type               TEXT NOT NULL DEFAULT 'user' CHECK (actor_type IN ('user', 'system')),
+      actor_user_id            TEXT REFERENCES users(id) ON DELETE RESTRICT,
+      transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),
+      amount_stroops           INTEGER NOT NULL CHECK (amount_stroops > 0),
+      currency_code            TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+      previous_state           TEXT NOT NULL,
+      new_state                TEXT NOT NULL,
+      funding_source_type      TEXT CHECK (funding_source_type IN ('platform_credit', 'admin_grant', 'stellar', 'paystack')),
+      funding_reference        TEXT,
+      source_event_id          TEXT,
+      idempotency_key          TEXT NOT NULL UNIQUE,
+      reason                   TEXT,
+      metadata                 TEXT,
+      created_at               TEXT NOT NULL DEFAULT (datetime('now')),
+      CHECK ((actor_type = 'system' AND actor_user_id IS NULL) OR (actor_type = 'user' AND actor_user_id IS NOT NULL)),
+      CHECK ((transaction_type = 'fund' AND funding_source_type IS NOT NULL) OR (transaction_type != 'fund')),
+      CHECK ((transaction_type IN ('release', 'refund') AND allocation_id IS NOT NULL AND destination_user_id IS NOT NULL) OR (transaction_type NOT IN ('release', 'refund'))),
+      CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire'))),
+      CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_reward_txn_reward ON reward_transactions(reward_id);
+    CREATE INDEX IF NOT EXISTS idx_reward_txn_allocation ON reward_transactions(allocation_id);
+    CREATE INDEX IF NOT EXISTS idx_reward_txn_idem ON reward_transactions(idempotency_key);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_eligibility_events (
+      id              TEXT PRIMARY KEY,
+      reward_id       TEXT NOT NULL REFERENCES rewards(id) ON DELETE RESTRICT,
+      allocation_id   TEXT REFERENCES reward_allocations(id) ON DELETE RESTRICT,
+      event_type      TEXT NOT NULL CHECK (event_type IN ('course_completion', 'quiz_pass', 'milestone', 'grade_approved', 'custom')),
+      event_source_id TEXT NOT NULL,
+      student_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      evaluated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      result          TEXT NOT NULL CHECK (result IN ('eligible', 'ineligible', 'already_processed')),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      UNIQUE(reward_id, event_type, event_source_id, student_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reward_elig_reward ON reward_eligibility_events(reward_id);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_event_outbox (
+      id              TEXT PRIMARY KEY,
+      event_type      TEXT NOT NULL CHECK (event_type IN ('course_completion', 'quiz_pass', 'milestone', 'grade_approved', 'custom')),
+      event_source_id TEXT NOT NULL,
+      student_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      event_data      TEXT,
+      status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+      attempt_count   INTEGER NOT NULL DEFAULT 0,
+      last_attempt_at TEXT,
+      completed_at    TEXT,
+      error_message   TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(event_type, event_source_id, student_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reward_outbox_status ON reward_event_outbox(status);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_refund_attempts (
+      id                       TEXT PRIMARY KEY,
+      reward_id                TEXT NOT NULL REFERENCES rewards(id) ON DELETE RESTRICT,
+      allocation_id            TEXT NOT NULL REFERENCES reward_allocations(id) ON DELETE RESTRICT,
+      attempted_by_user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      attempted_amount_stroops INTEGER NOT NULL CHECK (attempted_amount_stroops > 0),
+      currency_code            TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+      recipient_available_stroops INTEGER NOT NULL,
+      status                   TEXT NOT NULL DEFAULT 'blocked' CHECK (status IN ('blocked', 'resolved')),
+      resolution               TEXT CHECK (resolution IN ('retried_success', 'waived', 'escalated')),
+      resolved_at              TEXT,
+      resolved_by_user_id      TEXT REFERENCES users(id) ON DELETE RESTRICT,
+      created_at               TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_refund_attempts_reward ON reward_refund_attempts(reward_id);
+    CREATE INDEX IF NOT EXISTS idx_refund_attempts_status ON reward_refund_attempts(status);
+  `);
+}
+ensureRewardTables();
+
+function ensureTenantSettingsRewardColumn(): void {
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tenant_settings'").get();
+  if (!tableExists) return;
+  const cols = db.pragma('table_info(tenant_settings)') as Array<{ name: string }>;
+  if (!cols.some(c => c.name === 'reward_high_value_threshold')) {
+    db.exec('ALTER TABLE tenant_settings ADD COLUMN reward_high_value_threshold INTEGER DEFAULT NULL');
+  }
+}
+ensureTenantSettingsRewardColumn();
 
 // Re-enable foreign key checks after all module-level migrations complete.
 db.pragma('foreign_keys = ON');

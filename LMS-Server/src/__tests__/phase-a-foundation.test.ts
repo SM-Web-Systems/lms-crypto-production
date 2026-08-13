@@ -385,23 +385,23 @@ describe('A5: course_approval_workflow Table', () => {
 });
 
 describe('A6: rewards + perks Tables + reward_balance', () => {
-  it('A6-REWARDS-1: rewards table accepts insert', () => {
+  it('A6-REWARDS-1: rewards table accepts insert (new 13-state schema)', () => {
     const userId = createTestUser();
     const rewardId = uuidv4();
 
     execute(
-      "INSERT INTO rewards (id, creator_user_id, reward_type, amount_xlm, description, status) VALUES (?, ?, 'individual', 10.0, 'Test reward', 'pending')",
-      [rewardId, userId]
+      "INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, idempotency_key, description, status) VALUES (?, ?, 'sponsor_cohort', 'scope1', 'custom', 100000000, ?, 'Test reward', 'draft')",
+      [rewardId, userId, `idem-${rewardId}`]
     );
 
-    const row = queryOne<{ reward_type: string; amount_xlm: number; status: string }>(
-      'SELECT reward_type, amount_xlm, status FROM rewards WHERE id = ?',
+    const row = queryOne<{ reward_type: string; amount_stroops: number; status: string }>(
+      'SELECT reward_type, amount_stroops, status FROM rewards WHERE id = ?',
       [rewardId]
     );
     expect(row).not.toBeNull();
-    expect(row!.reward_type).toBe('individual');
-    expect(row!.amount_xlm).toBe(10.0);
-    expect(row!.status).toBe('pending');
+    expect(row!.reward_type).toBe('custom');
+    expect(row!.amount_stroops).toBe(100000000);
+    expect(row!.status).toBe('draft');
   });
 
   it('A6-PERKS-1: perk_claims unique constraint works', () => {
