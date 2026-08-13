@@ -285,6 +285,33 @@ export async function postMessage(req: AuthRequest, res: Response, next: NextFun
       throw new AppError('Conversation not found', 404, ErrorCodes.NOT_FOUND);
     }
 
+    // Messaging rate limit: 10/hr per new contact (< 24h first message)
+    const firstMsg = queryOne<{ created_at: string }>(
+      `SELECT MIN(created_at) as created_at FROM conversation_messages WHERE conversation_id = ?`,
+      [conversationId],
+    );
+
+    if (firstMsg?.created_at) {
+      // Handle both SQLite 'YYYY-MM-DD HH:MM:SS' and ISO 'YYYY-MM-DDTHH:MM:SS.sssZ' formats
+      const normalised = firstMsg.created_at.includes('T')
+        ? firstMsg.created_at
+        : firstMsg.created_at.replace(' ', 'T') + 'Z';
+      const firstMsgAge = Date.now() - new Date(normalised).getTime();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+
+      if (firstMsgAge < twentyFourHours) {
+        // New contact — check rate
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const recentCount = queryOne<{ cnt: number }>(
+          'SELECT COUNT(*) as cnt FROM conversation_messages WHERE conversation_id = ? AND sender_id = ? AND created_at > ?',
+          [conversationId, userId, oneHourAgo],
+        );
+        if (recentCount && recentCount.cnt >= 10) {
+          throw new AppError('Message rate limit exceeded for new contact', 429, ErrorCodes.RATE_LIMITED);
+        }
+      }
+    }
+
     const errors: Array<{ field: string; message: string }> = [];
     if (body === undefined || body === null || (typeof body === 'string' && body.trim() === '')) {
       errors.push({ field: 'body', message: 'Body is required' });

@@ -509,3 +509,110 @@ describe('F3: GDPR Data Export', () => {
     expect(res2.status).toBe(429);
   });
 });
+
+// ── F5: Messaging Rate Limiting ──────────────────────────────────────
+
+describe('F5: Messaging Rate Limiting', () => {
+  function createConversation(user1Id: string, user2Id: string): string {
+    const convId = uuidv4();
+    // Ensure user1_id < user2_id for stable ordering
+    const [u1, u2] = user1Id < user2Id ? [user1Id, user2Id] : [user2Id, user1Id];
+    execute(
+      'INSERT INTO conversations (id, user1_id, user2_id) VALUES (?, ?, ?)',
+      [convId, u1, u2],
+    );
+    return convId;
+  }
+
+  it('F5-RATE-1: First 10 messages to new contact succeed', async () => {
+    const senderId = createUser('student');
+    const recipientId = createUser('student');
+    const { token } = loginAndGetSession(senderId, 'student');
+    const convId = createConversation(senderId, recipientId);
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .post(`/api/v1/messages/conversations/${convId}/messages`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ body: `Message ${i + 1}` });
+      expect(res.status).toBe(201);
+    }
+  });
+
+  it('F5-RATE-2: 11th message to new contact within 1 hour → 429', async () => {
+    const senderId = createUser('student');
+    const recipientId = createUser('student');
+    const { token } = loginAndGetSession(senderId, 'student');
+    const convId = createConversation(senderId, recipientId);
+
+    // Send 10 messages
+    for (let i = 0; i < 10; i++) {
+      await request(app)
+        .post(`/api/v1/messages/conversations/${convId}/messages`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ body: `Message ${i + 1}` });
+    }
+
+    // 11th should be rate-limited
+    const res = await request(app)
+      .post(`/api/v1/messages/conversations/${convId}/messages`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ body: 'Message 11' });
+
+    expect(res.status).toBe(429);
+  });
+
+  it('F5-RATE-3: After 24h of mutual messaging, 11th message succeeds', async () => {
+    const senderId = createUser('student');
+    const recipientId = createUser('student');
+    const { token } = loginAndGetSession(senderId, 'student');
+    const convId = createConversation(senderId, recipientId);
+
+    // Backdate a message to > 24h ago
+    execute(
+      "INSERT INTO conversation_messages (id, conversation_id, sender_id, body, created_at) VALUES (?, ?, ?, 'old msg', datetime('now', '-25 hours'))",
+      [uuidv4(), convId, senderId],
+    );
+
+    // Send 10 messages now
+    for (let i = 0; i < 10; i++) {
+      await request(app)
+        .post(`/api/v1/messages/conversations/${convId}/messages`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ body: `Message ${i + 1}` });
+    }
+
+    // 11th should succeed (contact > 24h old)
+    const res = await request(app)
+      .post(`/api/v1/messages/conversations/${convId}/messages`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ body: 'Message 11 — uncapped' });
+
+    expect(res.status).toBe(201);
+  });
+
+  it('F5-RATE-4: Rate limit is per-contact, not global', async () => {
+    const senderId = createUser('student');
+    const recipientId = createUser('student');
+    const otherRecipientId = createUser('student');
+    const { token } = loginAndGetSession(senderId, 'student');
+    const convId1 = createConversation(senderId, recipientId);
+    const convId2 = createConversation(senderId, otherRecipientId);
+
+    // Max out messages to recipient 1
+    for (let i = 0; i < 10; i++) {
+      await request(app)
+        .post(`/api/v1/messages/conversations/${convId1}/messages`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ body: `Msg ${i}` });
+    }
+
+    // Can still message recipient 2
+    const res = await request(app)
+      .post(`/api/v1/messages/conversations/${convId2}/messages`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ body: 'Different contact' });
+
+    expect(res.status).toBe(201);
+  });
+});

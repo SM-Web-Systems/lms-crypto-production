@@ -541,6 +541,7 @@ export const ErrorCodes = {
   COHORT_NOT_FOUND:    "COHORT_NOT_FOUND",
   COHORT_EMPTY:        "COHORT_EMPTY",
   COHORT_ALREADY_PAID: "COHORT_ALREADY_PAID",
+  RATE_LIMITED:        "RATE_LIMITED",
 } as const;
 
 // Extend Express Request with requestId for request tracing
