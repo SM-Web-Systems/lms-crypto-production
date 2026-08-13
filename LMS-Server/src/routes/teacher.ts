@@ -138,6 +138,43 @@ router.post('/teacher/classes/:id/invite', authenticate, requirePermission('stud
   res.status(201).json({ success: true });
 });
 
+// GET /teacher/classes/:classId/students/:userId/login-history — scoped via class membership
+router.get(
+  '/teacher/classes/:classId/students/:userId/login-history',
+  authenticate,
+  requirePermission('student.login_history'),
+  (req, res: Response) => {
+    const teacherId = (req as AuthRequest).user!.userId;
+    const { classId: groupId, userId: studentId } = req.params;
+
+    // Verify teacher owns this class
+    const group = queryOne<{ id: string }>(
+      "SELECT id FROM user_groups WHERE id = ? AND owner_user_id = ? AND group_type = 'class'",
+      [groupId, teacherId],
+    );
+    if (!group) {
+      res.status(403).json({ success: false, error: { message: 'Not your class' } });
+      return;
+    }
+
+    // Verify student is in this class
+    const member = queryOne<{ user_id: string }>(
+      'SELECT user_id FROM user_group_members WHERE group_id = ? AND user_id = ?',
+      [groupId, studentId],
+    );
+    if (!member) {
+      res.status(403).json({ success: false, error: { message: 'Student not in this class' } });
+      return;
+    }
+
+    const history = query<{ login_at: string; ip_address: string; auth_method: string }>(
+      'SELECT login_at, ip_address, auth_method FROM login_history WHERE user_id = ? ORDER BY login_at DESC LIMIT 50',
+      [studentId],
+    );
+    res.json({ success: true, data: { history } });
+  },
+);
+
 // GET /teacher/billing — own payment history
 router.get('/teacher/billing', authenticate, requirePermission('billing.view_own'), (req, res: Response) => {
   const { userId } = (req as AuthRequest).user!;
