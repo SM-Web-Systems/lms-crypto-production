@@ -12,6 +12,8 @@ export const CONFIGURABLE_TYPES = [
   'submission_reviewed', 'nft_approved', 'nft_rejected', 'nft_minted',
   'course_enrolled', 'new_enrollment', 'payment_confirmed', 'payment_failed',
   'cohort_invited',
+  // Phase F6: role-specific notification types
+  'student_login', 'class_completion', 'cohort_milestone', 'team_completion', 'grade_approved',
 ] as const;
 
 export function createNotification(params: {

@@ -616,3 +616,170 @@ describe('F5: Messaging Rate Limiting', () => {
     expect(res.status).toBe(201);
   });
 });
+
+// ── F6: Notification Preferences Per Role ────────────────────────────────────
+
+describe('F6: Notification Preferences Per Role', () => {
+  it('F6-NOTIF-1: Parent receives student_login notification when linked student logs in', async () => {
+    const parentId = createUser('student');
+    assignRole(parentId, 'role_parent');
+    const childId = createUser('student');
+
+    // Link parent→child using correct schema (link_type, no status column)
+    execute(
+      "INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')",
+      [uuidv4(), parentId, childId],
+    );
+
+    // Set a real bcrypt password hash on the child so POST /auth/login works
+    const bcrypt = await import('bcryptjs');
+    const hash = await bcrypt.hash('testpass123', 10);
+    execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, childId]);
+
+    const childEmail = `${childId}@test.com`;
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: childEmail, password: 'testpass123' });
+
+    // Check parent got a notification
+    const notif = queryOne<{ type: string; title: string }>(
+      "SELECT type, title FROM notifications WHERE user_id = ? AND type = 'student_login'",
+      [parentId],
+    );
+    expect(notif).toBeDefined();
+    expect(notif!.type).toBe('student_login');
+  });
+
+  it('F6-NOTIF-2: Parent can opt out of student_login notifications', async () => {
+    const parentId = createUser('student');
+    assignRole(parentId, 'role_parent');
+    const childId = createUser('student');
+
+    execute(
+      "INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')",
+      [uuidv4(), parentId, childId],
+    );
+
+    // Opt out of student_login
+    execute(
+      "INSERT INTO notification_preferences (id, user_id, type, enabled) VALUES (?, ?, 'student_login', 0)",
+      [uuidv4(), parentId],
+    );
+
+    // Set a real password hash and log child in
+    const bcrypt = await import('bcryptjs');
+    const hash = await bcrypt.hash('testpass123', 10);
+    execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, childId]);
+    const childEmail = `${childId}@test.com`;
+
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: childEmail, password: 'testpass123' });
+
+    // Parent should NOT have a notification
+    const notif = queryOne<{ id: string }>(
+      "SELECT id FROM notifications WHERE user_id = ? AND type = 'student_login'",
+      [parentId],
+    );
+    expect(notif).toBeNull();
+  });
+
+  it('F6-NOTIF-3: Teacher receives class_completion notification', async () => {
+    const teacherId = createUser('lecturer');
+    assignRole(teacherId, 'role_teacher');
+    const studentId = createUser('student');
+
+    // Create a class group and add the student (owner_user_id, no id on members)
+    const groupId = uuidv4();
+    execute(
+      "INSERT INTO user_groups (id, name, owner_user_id, group_type) VALUES (?, 'Test Class', ?, 'class')",
+      [groupId, teacherId],
+    );
+    execute(
+      'INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)',
+      [groupId, studentId],
+    );
+
+    // Create a course with a flat sections array
+    const courseId = uuidv4();
+    const courseCode = 'F6C-' + courseId.slice(0, 8);
+    const sections = JSON.stringify([
+      { id: 'S1', title: 'Section 1', items: [{ id: 'item1', title: 'Lesson 1', type: 'video', url: 'test.mp4' }] },
+    ]);
+    execute(
+      'INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, ?, ?, ?, ?)',
+      [courseId, 'Test Course', 'desc', courseCode, sections],
+    );
+
+    // Enroll the student in the course
+    execute(
+      'INSERT INTO user_course_codes (user_id, course_code) VALUES (?, ?)',
+      [studentId, courseCode],
+    );
+
+    // Student completes the lesson
+    const { token: studentToken } = loginAndGetSession(studentId, 'student');
+    await request(app)
+      .post(`/api/v1/courses/${courseId}/lessons/item1/complete`)
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ sectionId: 'S1' });
+
+    // Check teacher got a notification
+    const notif = queryOne<{ type: string }>(
+      "SELECT type FROM notifications WHERE user_id = ? AND type = 'class_completion'",
+      [teacherId],
+    );
+    expect(notif).toBeDefined();
+  });
+
+  it('F6-NOTIF-4: TA receives grade_approved notification', async () => {
+    const instructorId = createUser('lecturer');
+    const taId = createUser('student');
+    assignRole(taId, 'role_ta');
+    const studentUserId = createUser('student');
+
+    // Create course
+    const courseId = uuidv4();
+    const courseCode = 'F6T-' + courseId.slice(0, 8);
+    const sections = JSON.stringify([
+      { id: 'S1', title: 'S1', items: [{ id: 'item1', title: 'Assignment', type: 'assignment', url: '' }] },
+    ]);
+    execute(
+      'INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, ?, ?, ?, ?)',
+      [courseId, 'Test Course', 'desc', courseCode, sections],
+    );
+
+    // Assign TA to course (course_tas uses user_id, no id column)
+    execute(
+      'INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)',
+      [courseId, taId, instructorId],
+    );
+
+    // Create a students record (submissions.student_id references students.id, not users.id)
+    const studentRecordId = uuidv4();
+    execute(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Test Student', ?, ?, 'General', 1)",
+      [studentRecordId, studentUserId, `${studentUserId}@test.com`, `ENR-F6T-${studentRecordId.slice(0, 8)}`],
+    );
+
+    // Insert a submission already graded by the TA, pending instructor approval
+    const submissionId = uuidv4();
+    execute(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, course_id, item_id, status, grade_status, graded_by) VALUES (?, ?, 'Assignment', 'desc', 'file.pdf', 512, '/tmp/file.pdf', ?, 'item1', 'pending', 'pending_approval', ?)",
+      [submissionId, studentRecordId, courseId, taId],
+    );
+
+    // Instructor approves the grade
+    const { token: instructorToken } = loginAndGetSession(instructorId, 'lecturer');
+    await request(app)
+      .post(`/api/v1/ta/submissions/${submissionId}/approve-grade`)
+      .set('Authorization', `Bearer ${instructorToken}`);
+
+    // TA should get grade_approved notification
+    const notif = queryOne<{ type: string }>(
+      "SELECT type FROM notifications WHERE user_id = ? AND type = 'grade_approved'",
+      [taId],
+    );
+    expect(notif).toBeDefined();
+  });
+});

@@ -17,6 +17,7 @@ import { requirePermission } from '../middleware/rbac.js';
 import { queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
+import { createNotification } from '../services/notificationService.js';
 
 /**
  * Phase E4: Super-Student auto-unlock.
@@ -152,6 +153,25 @@ router.post(
 
     // Phase E4: check super-student auto-unlock
     checkSuperStudentPromotion(callerId);
+
+    // F6: Notify teachers of class members' lesson completions (best-effort)
+    try {
+      const memberships = query<{ group_id: string; owner_user_id: string }>(
+        `SELECT ug.id as group_id, ug.owner_user_id FROM user_groups ug
+         JOIN user_group_members ugm ON ug.id = ugm.group_id
+         WHERE ugm.user_id = ? AND ug.group_type = 'class'`,
+        [callerId],
+      );
+      const studentRow = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [callerId]);
+      for (const membership of memberships) {
+        createNotification({
+          userId: membership.owner_user_id,
+          type: 'class_completion',
+          title: 'Class Member Progress',
+          body: `${studentRow?.name ?? 'A student'} completed a lesson in your class.`,
+        });
+      }
+    } catch { /* best-effort */ }
 
     res.json({ success: true, data: { userId: callerId, courseId, itemId, sectionId } });
   }

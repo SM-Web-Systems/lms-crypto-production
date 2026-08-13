@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { query, queryOne, execute } from '../config/database.js';
+import { createNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -109,6 +110,22 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
     "UPDATE submissions SET grade_status = 'approved', status = ?, reviewed_by_id = ?, reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
     [finalStatus, userId, submissionId],
   );
+
+  // F6: Notify the TA whose grade was approved (best-effort)
+  try {
+    const sub = queryOne<{ graded_by: string | null; item_id: string | null }>(
+      'SELECT graded_by, item_id FROM submissions WHERE id = ?',
+      [submissionId],
+    );
+    if (sub?.graded_by) {
+      createNotification({
+        userId: sub.graded_by,
+        type: 'grade_approved',
+        title: 'Grade Approved',
+        body: `Your grade for submission ${sub.item_id ?? submissionId} was approved by the instructor.`,
+      });
+    }
+  } catch { /* best-effort */ }
 
   res.json({ success: true, data: { submissionId, gradeStatus: 'approved', status: finalStatus } });
 });

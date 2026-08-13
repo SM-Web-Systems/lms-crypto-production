@@ -16,6 +16,7 @@ import {
   type AmmaWalletSSOUser,
 } from "../services/ammaWalletSSOService.js";
 import logger from "../utils/logger.js";
+import { createNotification } from "../services/notificationService.js";
 
 
 /** Record a login event in the login_history table. Best-effort — never throws. */
@@ -169,6 +170,22 @@ export async function login(
 
     recordLoginHistory(user.id, req, 'local');
     try { createSession(user.id, token, req); } catch { /* best-effort */ }
+
+    // F6: Notify linked parents of student login (best-effort)
+    try {
+      const parentLinks = query<{ parent_user_id: string }>(
+        "SELECT parent_user_id FROM user_links WHERE child_user_id = ? AND link_type = 'parent'",
+        [user.id],
+      );
+      for (const link of parentLinks) {
+        createNotification({
+          userId: link.parent_user_id,
+          type: 'student_login',
+          title: 'Student Login',
+          body: `${user.name} has logged in.`,
+        });
+      }
+    } catch { /* best-effort */ }
 
     res.json({
       success: true,
