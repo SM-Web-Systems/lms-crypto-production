@@ -7,11 +7,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
-// POST /disputes — create dispute (admin+)
+// POST /disputes — create dispute (admin+, not sponsor)
 router.post(
   '/disputes',
   authenticate,
-  requirePermission('billing.view_all'),
+  requirePermission('billing.waive'),
   (req: AuthRequest, res: Response) => {
     const { paymentId, reason } = req.body;
     if (!paymentId || !reason) {
@@ -36,11 +36,11 @@ router.post(
   },
 );
 
-// GET /disputes — list disputes (admin+)
+// GET /disputes — list disputes (admin+, not sponsor)
 router.get(
   '/disputes',
   authenticate,
-  requirePermission('billing.view_all'),
+  requirePermission('billing.waive'),
   (req: AuthRequest, res: Response) => {
     const status = req.query.status as string | undefined;
     let disputes;
@@ -53,11 +53,11 @@ router.get(
   },
 );
 
-// GET /disputes/:id — view dispute (admin+)
+// GET /disputes/:id — view dispute (admin+, not sponsor)
 router.get(
   '/disputes/:id',
   authenticate,
-  requirePermission('billing.view_all'),
+  requirePermission('billing.waive'),
   (req: AuthRequest, res: Response) => {
     const dispute = queryOne<Record<string, unknown>>('SELECT * FROM disputes WHERE id = ?', [req.params.id]);
     if (!dispute) {

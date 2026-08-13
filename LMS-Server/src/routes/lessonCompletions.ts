@@ -154,22 +154,42 @@ router.post(
     // Phase E4: check super-student auto-unlock
     checkSuperStudentPromotion(callerId);
 
-    // F6: Notify teachers of class members' lesson completions (best-effort)
+    // F6: Notify teachers when a class member completes an entire course (best-effort)
     try {
-      const memberships = query<{ group_id: string; owner_user_id: string }>(
-        `SELECT ug.id as group_id, ug.owner_user_id FROM user_groups ug
-         JOIN user_group_members ugm ON ug.id = ugm.group_id
-         WHERE ugm.user_id = ? AND ug.group_type = 'class'`,
-        [callerId],
+      // Count total items in the course from sections JSON
+      let totalItems = 0;
+      try {
+        const sections: Array<{ items: unknown[] }> = JSON.parse(course.sections || '[]');
+        for (const section of sections) {
+          totalItems += section.items.length;
+        }
+      } catch { /* invalid JSON */ }
+
+      // Count completed items for this user+course
+      const completedRow = queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM lesson_completions
+         WHERE user_id = ? AND course_id = ? AND completed_at IS NOT NULL`,
+        [callerId, courseId],
       );
-      const studentRow = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [callerId]);
-      for (const membership of memberships) {
-        createNotification({
-          userId: membership.owner_user_id,
-          type: 'class_completion',
-          title: 'Class Member Progress',
-          body: `${studentRow?.name ?? 'A student'} completed a lesson in your class.`,
-        });
+      const completedItems = completedRow?.cnt ?? 0;
+
+      // Only fire the notification when the student has completed ALL items in the course
+      if (totalItems > 0 && completedItems >= totalItems) {
+        const memberships = query<{ group_id: string; owner_user_id: string }>(
+          `SELECT ug.id as group_id, ug.owner_user_id FROM user_groups ug
+           JOIN user_group_members ugm ON ug.id = ugm.group_id
+           WHERE ugm.user_id = ? AND ug.group_type = 'class'`,
+          [callerId],
+        );
+        const studentRow = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [callerId]);
+        for (const membership of memberships) {
+          createNotification({
+            userId: membership.owner_user_id,
+            type: 'class_completion',
+            title: 'Class Member Completed Course',
+            body: `${studentRow?.name ?? 'A student'} completed the course in your class.`,
+          });
+        }
       }
     } catch { /* best-effort */ }
 
