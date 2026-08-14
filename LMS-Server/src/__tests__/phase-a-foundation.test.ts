@@ -427,13 +427,27 @@ describe('A6: rewards + perks Tables + reward_balance', () => {
     }).toThrow();
   });
 
-  it('A6-BALANCE-1: users table has reward_balance column with default 0', () => {
+  it('A6-BALANCE-1: reward_accounts table tracks balance in stroops (not users.reward_balance)', () => {
     const userId = createTestUser();
-    const row = queryOne<{ reward_balance: number }>(
-      'SELECT reward_balance FROM users WHERE id = ?',
+    // Legacy column still exists but is unused
+    const legacy = queryOne<{ reward_balance_legacy_real: number }>(
+      'SELECT reward_balance_legacy_real FROM users WHERE id = ?',
       [userId]
     );
-    expect(row).not.toBeNull();
-    expect(row!.reward_balance).toBe(0);
+    expect(legacy).not.toBeNull();
+    expect(legacy!.reward_balance_legacy_real).toBe(0);
+
+    // Real balance lives in reward_accounts
+    const acctId = uuidv4();
+    execute(
+      "INSERT INTO reward_accounts (id, user_id, account_type, available_stroops) VALUES (?, ?, 'recipient', 5000000)",
+      [acctId, userId]
+    );
+    const acct = queryOne<{ available_stroops: number }>(
+      "SELECT available_stroops FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'",
+      [userId]
+    );
+    expect(acct).not.toBeNull();
+    expect(acct!.available_stroops).toBe(5000000);
   });
 });

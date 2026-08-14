@@ -139,6 +139,34 @@ describe('Phase C — Parent Routes', () => {
     expect(res.body.data.wallets[0].id).toBe(child.userId);
   });
 
+  it('C3-WALLET-3: Parent wallets include reward_balance_stroops from reward_accounts', async () => {
+    // Seed a reward account for the child
+    execute(
+      "INSERT INTO reward_accounts (id, user_id, account_type, available_stroops) VALUES (?, ?, 'recipient', 7500000)",
+      [uuidv4(), child.userId]
+    );
+
+    const res = await request(app)
+      .get('/api/v1/parent/wallets')
+      .set('Authorization', `Bearer ${parent.token}`);
+
+    expect(res.status).toBe(200);
+    const wallet = res.body.data.wallets.find((w: any) => w.id === child.userId);
+    expect(wallet).toBeDefined();
+    expect(wallet.reward_balance_stroops).toBe(7500000);
+  });
+
+  it('C3-WALLET-4: Parent wallets show 0 reward_balance_stroops when no reward account', async () => {
+    const res = await request(app)
+      .get('/api/v1/parent/wallets')
+      .set('Authorization', `Bearer ${parent.token}`);
+
+    expect(res.status).toBe(200);
+    const wallet = res.body.data.wallets.find((w: any) => w.id === child.userId);
+    expect(wallet).toBeDefined();
+    expect(wallet.reward_balance_stroops).toBe(0);
+  });
+
   it('C3-WALLET-2: Parent wallets do NOT include unlinked students', async () => {
     const res = await request(app)
       .get('/api/v1/parent/wallets')

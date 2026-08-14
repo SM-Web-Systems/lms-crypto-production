@@ -143,9 +143,12 @@ router.get('/parent/children/:id/login-history', authenticate, requirePermission
 router.get('/parent/wallets', authenticate, requirePermission('student_wallet.read_assigned'), (req, res: Response) => {
   const { userId } = (req as AuthRequest).user!;
 
-  const wallets = query<{ id: string; name: string; walletAddress: string | null; reward_balance: number }>(
-    `SELECT u.id, u.name, u.walletAddress, u.reward_balance FROM users u
+  const wallets = query<{ id: string; name: string; walletAddress: string | null; reward_balance_stroops: number }>(
+    `SELECT u.id, u.name, u.walletAddress,
+            COALESCE(ra.available_stroops, 0) AS reward_balance_stroops
+     FROM users u
      JOIN user_links ul ON ul.child_user_id = u.id
+     LEFT JOIN reward_accounts ra ON ra.user_id = u.id AND ra.account_type = 'recipient' AND ra.currency_code = 'XLM'
      WHERE ul.parent_user_id = ? AND ul.link_type = 'parent'`,
     [userId]
   );

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_reset_token TEXT,
   password_reset_expires_at TEXT,
   password_changed_at TEXT,
-  reward_balance REAL DEFAULT 0,
+  reward_balance_legacy_real REAL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
