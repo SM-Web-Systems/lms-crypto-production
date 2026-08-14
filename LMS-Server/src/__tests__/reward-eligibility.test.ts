@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
+import request from 'supertest';
+import app from '../app.js';
 import { db } from '../config/database.js';
+import { generateToken } from '../config/jwt.js';
 import {
   produceOutboxEvent,
   processPendingEvents,
@@ -12,6 +15,23 @@ import {
   activateReward,
   getRewardAllocations,
 } from '../services/rewards/rewardService.js';
+
+function createTestToken(userId: string, role: string): string {
+  return generateToken({ userId, email: `${userId}@test.com`, role });
+}
+
+/** Install a BEFORE INSERT trigger on reward_event_outbox that aborts for a specific event_source_id. */
+function installOutboxFailTrigger(targetSourceId: string): void {
+  db.exec(`
+    CREATE TRIGGER test_outbox_fail BEFORE INSERT ON reward_event_outbox
+    WHEN NEW.event_source_id = '${targetSourceId}'
+    BEGIN SELECT RAISE(ABORT, 'Injected outbox failure for atomicity test'); END
+  `);
+}
+
+function removeOutboxFailTrigger(): void {
+  db.exec('DROP TRIGGER IF EXISTS test_outbox_fail');
+}
 
 function seedSponsorWithCohort(): {
   sponsorId: string;
@@ -72,6 +92,429 @@ function createActiveReward(
   activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
   return reward.id;
 }
+
+describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
+  afterEach(() => {
+    removeOutboxFailTrigger();
+  });
+
+  // ─── Lesson completion atomicity ───────────────────────────────────────────
+
+  it('R-ATOM-1: lesson completion and outbox event are committed together', async () => {
+    const userId = uuidv4();
+    const courseId = uuidv4();
+    const courseCode = `CC-${courseId.slice(0, 8)}`;
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      `INSERT INTO courses (id, title, description, course_code, sections)
+       VALUES (?, 'Test', 'desc', ?, ?)`
+    ).run(courseId, courseCode, JSON.stringify([
+      { id: 'sec1', title: 'Section 1', items: [{ id: 'item1', title: 'Item 1', type: 'text', content: '' }] }
+    ]));
+    db.prepare('INSERT INTO user_course_codes (user_id, course_code) VALUES (?, ?)').run(userId, courseCode);
+
+    const token = createTestToken(userId, 'student');
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/lessons/item1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+
+    const completion = db.prepare(
+      'SELECT * FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(userId, courseId, 'item1');
+    expect(completion).toBeDefined();
+
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_type = 'course_completion' AND event_source_id = ?`
+    ).get(userId, courseId);
+    expect(outboxEvent).toBeDefined();
+  });
+
+  it('R-ATOM-3: if outbox insert fails, lesson completion is rolled back', async () => {
+    const userId = uuidv4();
+    const courseId = uuidv4();
+    const courseCode = `CC-${courseId.slice(0, 8)}`;
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      `INSERT INTO courses (id, title, description, course_code, sections)
+       VALUES (?, 'Test', 'desc', ?, ?)`
+    ).run(courseId, courseCode, JSON.stringify([
+      { id: 'sec1', title: 'Section 1', items: [{ id: 'item1', title: 'Item 1', type: 'text', content: '' }] }
+    ]));
+    db.prepare('INSERT INTO user_course_codes (user_id, course_code) VALUES (?, ?)').run(userId, courseCode);
+
+    // Inject failure: trigger ABORTs outbox insert for this courseId
+    installOutboxFailTrigger(courseId);
+
+    const token = createTestToken(userId, 'student');
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/lessons/item1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(500);
+
+    // Primary write must be rolled back
+    const completion = db.prepare(
+      'SELECT * FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(userId, courseId, 'item1');
+    expect(completion).toBeUndefined();
+
+    // Outbox event must not exist
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_source_id = ?`
+    ).get(userId, courseId);
+    expect(outboxEvent).toBeUndefined();
+  });
+
+  it('R-ATOM-4: replaying lesson completion is idempotent (no duplicate events)', async () => {
+    const userId = uuidv4();
+    const courseId = uuidv4();
+    const courseCode = `CC-${courseId.slice(0, 8)}`;
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      `INSERT INTO courses (id, title, description, course_code, sections)
+       VALUES (?, 'Test', 'desc', ?, ?)`
+    ).run(courseId, courseCode, JSON.stringify([
+      { id: 'sec1', title: 'Section 1', items: [{ id: 'item1', title: 'Item 1', type: 'text', content: '' }] }
+    ]));
+    db.prepare('INSERT INTO user_course_codes (user_id, course_code) VALUES (?, ?)').run(userId, courseCode);
+
+    const token = createTestToken(userId, 'student');
+
+    // First request
+    await request(app)
+      .post(`/api/v1/courses/${courseId}/lessons/item1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+
+    // Replay
+    const res2 = await request(app)
+      .post(`/api/v1/courses/${courseId}/lessons/item1/complete`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res2.status).toBe(200);
+
+    // Exactly one outbox event
+    const count = db.prepare(
+      `SELECT COUNT(*) as cnt FROM reward_event_outbox
+       WHERE student_user_id = ? AND event_type = 'course_completion' AND event_source_id = ?`
+    ).get(userId, courseId) as { cnt: number };
+    expect(count.cnt).toBe(1);
+  });
+
+  // ─── Quiz pass atomicity ──────────────────────────────────────────────────
+
+  it('R-ATOM-2: quiz submission and outbox event are committed together', async () => {
+    const userId = uuidv4();
+    const quizId = uuidv4();
+    const courseId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
+    ).run(courseId, `QC-${courseId.slice(0, 8)}`);
+    db.prepare(
+      "INSERT INTO quizzes (id, title, questions, passing_score, course_id) VALUES (?, 'Q', ?, 70, ?)"
+    ).run(quizId, JSON.stringify([
+      { id: 'q1', question: 'What is 2+2?', type: 'multiple_choice', options: ['3', '4', '5'], correctIndex: 1 }
+    ]), courseId);
+
+    const token = createTestToken(userId, 'student');
+    const res = await request(app)
+      .post(`/api/v1/quizzes/${quizId}/submit`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { q1: '4' } });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.passed).toBe(true);
+
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_type = 'quiz_pass' AND event_source_id = ?`
+    ).get(userId, quizId);
+    expect(outboxEvent).toBeDefined();
+  });
+
+  it('R-ATOM-5: if outbox insert fails, quiz completion is rolled back', async () => {
+    const userId = uuidv4();
+    const quizId = uuidv4();
+    const courseId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
+    ).run(courseId, `QC-${courseId.slice(0, 8)}`);
+    db.prepare(
+      "INSERT INTO quizzes (id, title, questions, passing_score, course_id) VALUES (?, 'Q', ?, 70, ?)"
+    ).run(quizId, JSON.stringify([
+      { id: 'q1', question: 'What is 2+2?', type: 'multiple_choice', options: ['3', '4', '5'], correctIndex: 1 }
+    ]), courseId);
+
+    // Inject failure: trigger ABORTs outbox insert for this quizId
+    installOutboxFailTrigger(quizId);
+
+    const token = createTestToken(userId, 'student');
+    const res = await request(app)
+      .post(`/api/v1/quizzes/${quizId}/submit`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { q1: '4' } });
+
+    expect(res.status).toBe(500);
+
+    // Quiz completion must be rolled back
+    const completion = db.prepare(
+      'SELECT * FROM quiz_completions WHERE quiz_id = ? AND user_id = ?'
+    ).get(quizId, userId);
+    expect(completion).toBeUndefined();
+
+    // Outbox event must not exist
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_source_id = ?`
+    ).get(userId, quizId);
+    expect(outboxEvent).toBeUndefined();
+  });
+
+  it('R-ATOM-6: failed quiz creates no outbox event', async () => {
+    const userId = uuidv4();
+    const quizId = uuidv4();
+    const courseId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
+    ).run(courseId, `QC-${courseId.slice(0, 8)}`);
+    db.prepare(
+      "INSERT INTO quizzes (id, title, questions, passing_score, course_id) VALUES (?, 'Q', ?, 70, ?)"
+    ).run(quizId, JSON.stringify([
+      { id: 'q1', question: 'What is 2+2?', type: 'multiple_choice', options: ['3', '4', '5'], correctIndex: 1 }
+    ]), courseId);
+
+    const token = createTestToken(userId, 'student');
+    const res = await request(app)
+      .post(`/api/v1/quizzes/${quizId}/submit`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { q1: '3' } }); // Wrong answer
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.passed).toBe(false);
+
+    // No outbox event for failed quiz
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_type = 'quiz_pass'`
+    ).get(userId);
+    expect(outboxEvent).toBeUndefined();
+  });
+
+  it('R-ATOM-7: duplicate quiz submission is idempotent (no duplicate events)', async () => {
+    const userId = uuidv4();
+    const quizId = uuidv4();
+    const courseId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
+    ).run(userId, `${userId}@test.com`);
+    db.prepare(
+      "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
+    ).run(courseId, `QC-${courseId.slice(0, 8)}`);
+    db.prepare(
+      "INSERT INTO quizzes (id, title, questions, passing_score, course_id) VALUES (?, 'Q', ?, 70, ?)"
+    ).run(quizId, JSON.stringify([
+      { id: 'q1', question: 'What is 2+2?', type: 'multiple_choice', options: ['3', '4', '5'], correctIndex: 1 }
+    ]), courseId);
+
+    const token = createTestToken(userId, 'student');
+
+    // First submission
+    await request(app)
+      .post(`/api/v1/quizzes/${quizId}/submit`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { q1: '4' } });
+
+    // Replay
+    const res2 = await request(app)
+      .post(`/api/v1/quizzes/${quizId}/submit`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ answers: { q1: '4' } });
+
+    expect(res2.status).toBe(201);
+
+    // Exactly one outbox event
+    const count = db.prepare(
+      `SELECT COUNT(*) as cnt FROM reward_event_outbox
+       WHERE student_user_id = ? AND event_type = 'quiz_pass' AND event_source_id = ?`
+    ).get(userId, quizId) as { cnt: number };
+    expect(count.cnt).toBe(1);
+  });
+
+  // ─── Grade approval atomicity ─────────────────────────────────────────────
+
+  it('R-ATOM-8: approved grade creates outbox event atomically', async () => {
+    const adminId = uuidv4();
+    const studentUserId = uuidv4();
+    const studentId = uuidv4();
+    const courseId = uuidv4();
+    const itemId = uuidv4();
+    const submissionId = uuidv4();
+    const code = `GA-${uuidv4().slice(0, 6)}`;
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+    ).run(adminId, `${adminId}@test.com`);
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
+    ).run(studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR001', 'CS', 1)"
+    ).run(studentId, studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      `INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'Grade Course', 'desc', ?, ?)`
+    ).run(courseId, code, JSON.stringify([{ id: 'sec1', title: 'S1', items: [{ id: itemId, type: 'assignment', title: 'A1' }] }]));
+    db.prepare(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status, course_id, item_id) VALUES (?, ?, 'Work', 'desc', 'f.pdf', 1024, '/tmp/f.pdf', 'pending', ?, ?)"
+    ).run(submissionId, studentId, courseId, itemId);
+
+    const token = createTestToken(adminId, 'admin');
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'approved', feedback: 'Good' });
+
+    expect(res.status).toBe(200);
+
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_type = 'grade_approved' AND event_source_id = ?`
+    ).get(studentUserId, submissionId);
+    expect(outboxEvent).toBeDefined();
+  });
+
+  it('R-ATOM-9: rejected grade creates no outbox event', async () => {
+    const adminId = uuidv4();
+    const studentUserId = uuidv4();
+    const studentId = uuidv4();
+    const submissionId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+    ).run(adminId, `${adminId}@test.com`);
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
+    ).run(studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR002', 'CS', 1)"
+    ).run(studentId, studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status) VALUES (?, ?, 'Work', 'desc', 'f.pdf', 1024, '/tmp/f.pdf', 'pending')"
+    ).run(submissionId, studentId);
+
+    const token = createTestToken(adminId, 'admin');
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'rejected', feedback: 'Needs improvement' });
+
+    expect(res.status).toBe(200);
+
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE student_user_id = ? AND event_type = 'grade_approved'`
+    ).get(studentUserId);
+    expect(outboxEvent).toBeUndefined();
+  });
+
+  it('R-ATOM-10: if outbox insert fails, grade update is rolled back', async () => {
+    const adminId = uuidv4();
+    const studentUserId = uuidv4();
+    const studentId = uuidv4();
+    const submissionId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+    ).run(adminId, `${adminId}@test.com`);
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
+    ).run(studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR003', 'CS', 1)"
+    ).run(studentId, studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status) VALUES (?, ?, 'Work', 'desc', 'f.pdf', 1024, '/tmp/f.pdf', 'pending')"
+    ).run(submissionId, studentId);
+
+    // Inject failure: trigger ABORTs outbox insert for this submissionId
+    installOutboxFailTrigger(submissionId);
+
+    const token = createTestToken(adminId, 'admin');
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'approved', feedback: 'Good' });
+
+    expect(res.status).toBe(500);
+
+    // Submission status must remain 'pending' (rolled back)
+    const sub = db.prepare('SELECT status FROM submissions WHERE id = ?').get(submissionId) as { status: string };
+    expect(sub.status).toBe('pending');
+
+    // Outbox event must not exist
+    const outboxEvent = db.prepare(
+      `SELECT * FROM reward_event_outbox WHERE event_source_id = ?`
+    ).get(submissionId);
+    expect(outboxEvent).toBeUndefined();
+  });
+
+  it('R-ATOM-11: duplicate grade approval is idempotent (no duplicate events)', async () => {
+    const adminId = uuidv4();
+    const studentUserId = uuidv4();
+    const studentId = uuidv4();
+    const submissionId = uuidv4();
+
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+    ).run(adminId, `${adminId}@test.com`);
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
+    ).run(studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR004', 'CS', 1)"
+    ).run(studentId, studentUserId, `${studentUserId}@test.com`);
+    db.prepare(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status) VALUES (?, ?, 'Work', 'desc', 'f.pdf', 1024, '/tmp/f.pdf', 'pending')"
+    ).run(submissionId, studentId);
+
+    const token = createTestToken(adminId, 'admin');
+
+    // First approval
+    await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'approved', feedback: 'Good' });
+
+    // Re-approve (replay)
+    const res2 = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'approved', feedback: 'Still good' });
+
+    expect(res2.status).toBe(200);
+
+    // Exactly one outbox event (INSERT OR IGNORE deduplication)
+    const count = db.prepare(
+      `SELECT COUNT(*) as cnt FROM reward_event_outbox
+       WHERE student_user_id = ? AND event_type = 'grade_approved' AND event_source_id = ?`
+    ).get(studentUserId, submissionId) as { cnt: number };
+    expect(count.cnt).toBe(1);
+  });
+});
 
 describe('R12: Outbox and Eligibility Processing', () => {
   it('R-ELIG-1: produceOutboxEvent inserts pending event', () => {

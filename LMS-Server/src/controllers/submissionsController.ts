@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, execute } from '../config/database.js';
+import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Submission, SubmissionResponse, Student, User, ErrorCodes, SubmissionStatus } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
@@ -524,13 +524,55 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
       [reviewerUserId]
     );
 
-    // Update submission
-    execute(
-      `UPDATE submissions
-       SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now')
-       WHERE id = ?`,
-      [status, feedback?.trim() || null, reviewerUserId, id]
-    );
+    // P1.3: Atomic transaction — submission update + auto-complete + outbox event commit together
+    const atomicWrite = db.transaction(() => {
+      execute(
+        `UPDATE submissions
+         SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now')
+         WHERE id = ?`,
+        [status, feedback?.trim() || null, reviewerUserId, id]
+      );
+
+      if (status === 'approved') {
+        const studentRecord = queryOne<{ user_id: string | null }>(
+          'SELECT user_id FROM students WHERE id = ?',
+          [existing.student_id]
+        );
+        if (studentRecord?.user_id) {
+          // Phase 4: auto-complete linked course item on approval
+          if (existing.course_id && existing.item_id) {
+            const course = queryOne<{ sections: string }>(
+              'SELECT sections FROM courses WHERE id = ?',
+              [existing.course_id]
+            );
+            if (course?.sections) {
+              const sId = findSectionForItem(course.sections, existing.item_id);
+              if (sId) {
+                execute(
+                  `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
+                   VALUES (?, ?, ?, ?, ?, NULL)`,
+                  [uuidv4(), studentRecord.user_id, existing.course_id, existing.item_id, sId]
+                );
+              }
+            }
+          }
+
+          // R12: produce outbox event for reward eligibility
+          produceOutboxEvent('grade_approved', id, studentRecord.user_id, {
+            reviewerId: reviewerUserId,
+            courseId: existing.course_id,
+            itemId: existing.item_id,
+          });
+        }
+      }
+    });
+
+    try {
+      atomicWrite();
+    } catch (err) {
+      logger.error({ module: 'review-submission', err, submissionId: id }, 'Atomic submission review + outbox write failed');
+      throw new AppError('Failed to review submission', 500, ErrorCodes.INTERNAL_ERROR);
+    }
 
     const submission = queryOne<Submission>('SELECT * FROM submissions WHERE id = ?', [id]);
 
@@ -540,51 +582,12 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
       [submission!.student_id]
     );
 
-    // Phase 4: auto-complete linked course item on approval (best-effort)
-    if (status === 'approved' && submission!.course_id && submission!.item_id) {
-      try {
-        const studentRecord = queryOne<{ user_id: string | null }>(
-          'SELECT user_id FROM students WHERE id = ?',
-          [submission!.student_id]
-        );
-        if (studentRecord?.user_id) {
-          const course = queryOne<{ sections: string }>(
-            'SELECT sections FROM courses WHERE id = ?',
-            [submission!.course_id]
-          );
-          if (course?.sections) {
-            const sectionId = findSectionForItem(course.sections, submission!.item_id);
-            if (sectionId) {
-              execute(
-                `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
-                 VALUES (?, ?, ?, ?, ?, NULL)`,
-                [uuidv4(), studentRecord.user_id, submission!.course_id, submission!.item_id, sectionId]
-              );
-            }
-          }
-        }
-      } catch (err) {
-        logger.error({ module: 'assignment-auto-complete', err }, 'Auto-complete error');
-      }
-    }
-
-    // R12: produce outbox event for reward eligibility on grade approval
+    // Process pending outbox events (retryable, outside transaction)
     if (status === 'approved') {
       try {
-        const stuRecord = queryOne<{ user_id: string | null }>(
-          'SELECT user_id FROM students WHERE id = ?',
-          [submission!.student_id]
-        );
-        if (stuRecord?.user_id) {
-          produceOutboxEvent('grade_approved', id, stuRecord.user_id, {
-            reviewerId: reviewerUserId,
-            courseId: submission!.course_id,
-            itemId: submission!.item_id,
-          });
-          processPendingEvents();
-        }
+        processPendingEvents();
       } catch (err) {
-        logger.error({ module: 'reward-eligibility', err, submissionId: id }, 'Reward outbox event failed for grade approval');
+        logger.error({ module: 'reward-eligibility', err, submissionId: id }, 'Reward event processing failed');
       }
     }
 

@@ -55,24 +55,23 @@ cd LMS-Server && npx vitest run src/__tests__/phase-f-cross-cutting.test.ts
 
 ---
 
-### P1.3 — R12 outbox atomicity (document or fix)
+### P1.3 — R12 outbox atomicity ✅ RESOLVED (2026-08-14)
 
 **Preconditions:** P1.1
-**Failing test:** None (risk assessment)
-**Files:**
-- `LMS-Server/src/routes/lessonCompletions.ts`
-- `LMS-Server/src/controllers/quizzesController.ts`
-- `LMS-Server/src/controllers/submissionsController.ts`
-- `LMS-Server/src/services/rewards/rewardEligibilityService.ts`
+**Resolution:** Option A — `db.transaction()` wrapping primary writes + outbox inserts
+**Files changed:**
+- `LMS-Server/src/routes/lessonCompletions.ts` — lesson completion + outbox in atomic transaction
+- `LMS-Server/src/controllers/quizzesController.ts` — quiz completion + auto-complete + outbox in atomic transaction
+- `LMS-Server/src/controllers/submissionsController.ts` — grade update + auto-complete + outbox in atomic transaction
+- `LMS-Server/src/__tests__/reward-eligibility.test.ts` — 11 new atomicity tests (R-ATOM-1 through R-ATOM-11)
 
-**Options:**
-A. Wrap primary write + outbox insert in `db.transaction()` (true atomicity)
-B. Document the gap + add a reconciliation job that re-creates missing events from completion/quiz/submission records
+**Evidence:**
+- Rollback tests use SQLite `RAISE(ABORT)` triggers to inject outbox failure; verify primary writes are rolled back
+- Idempotency tests verify duplicate requests produce exactly one outbox event
+- Full backend suite: 1005/1005 (was 994, +11 new tests)
 
-**Expected evidence:** Either atomic outbox test passes OR gap documented with reconciliation job
-**Rollback:** Revert to current best-effort pattern
-**Completion criteria:** Either tests verify atomicity OR reconciliation doc + job exists
-**Human approval:** Yes — choose option A or B
+**Invariant verified:** Either (primary write + outbox event) both commit, or neither commits.
+**Remaining known limitation:** If server crashes after transaction commits but before `processPendingEvents()`, events stay in `pending` status until the next request triggers processing. Acceptable for initial release; background worker can be added later.
 
 ---
 

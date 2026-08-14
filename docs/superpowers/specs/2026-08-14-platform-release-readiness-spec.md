@@ -133,7 +133,7 @@ This spec defines the criteria for declaring the LMS-AmmaWallet platform product
 |---|---------|----------|-------|
 | 1 | Messaging rate limit (F5) not implemented | Critical | Backend |
 | 2 | Parent.ts stale reward_balance column ref | Critical | Backend |
-| 3 | R12 outbox non-atomic (risk assessment) | High | Architecture |
+| 3 | ~~R12 outbox non-atomic~~ ✅ P1.3 resolved (db.transaction atomicity) | ~~High~~ | Architecture |
 | 4 | Reward frontend (R14) not started | High | Frontend |
 | 5 | No automatic outbox retry | High | Backend |
 | 6 | No reward expiry function | Medium | Backend |

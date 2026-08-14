@@ -14,7 +14,7 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, requireCourseAccess } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
-import { queryOne, query, execute } from '../config/database.js';
+import { db, queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
@@ -144,24 +144,39 @@ router.post(
       return;
     }
 
-    execute(
-      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
-       VALUES (?, ?, ?, ?, ?, ?, 100)
-       ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
-       WHERE completed_at IS NULL`,
-      [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
-    );
+    // P1.3: Atomic transaction — primary write + outbox event commit together
+    const atomicWrite = db.transaction(() => {
+      execute(
+        `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+         VALUES (?, ?, ?, ?, ?, ?, 100)
+         ON CONFLICT (user_id, course_id, item_id)
+         DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+         WHERE completed_at IS NULL`,
+        [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
+      );
 
-    // Phase E4: check super-student auto-unlock
+      produceOutboxEvent('course_completion', courseId, callerId, { itemId, sectionId });
+    });
+
+    try {
+      atomicWrite();
+    } catch (err) {
+      logger.error({ module: 'lesson-completion', err, courseId, callerId }, 'Atomic lesson completion + outbox write failed');
+      res.status(500).json({
+        success: false,
+        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Failed to complete lesson' },
+      });
+      return;
+    }
+
+    // Phase E4: check super-student auto-unlock (best-effort, outside transaction)
     checkSuperStudentPromotion(callerId);
 
-    // R12: produce outbox event for reward eligibility
+    // Process pending outbox events (retryable, outside transaction)
     try {
-      produceOutboxEvent('course_completion', courseId, callerId, { itemId, sectionId });
       processPendingEvents();
     } catch (err) {
-      logger.error({ module: 'reward-eligibility', err, courseId, callerId }, 'Reward outbox event failed for course completion');
+      logger.error({ module: 'reward-eligibility', err, courseId, callerId }, 'Reward event processing failed');
     }
 
     // F6: Notify teachers when a class member completes an entire course (best-effort)

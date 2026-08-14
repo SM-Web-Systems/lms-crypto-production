@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, execute } from '../config/database.js';
+import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
@@ -414,12 +414,45 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
     const passed = score >= (quiz.passing_score ?? 70) ? 1 : 0;
     const completionId = uuidv4();
 
-    execute('DELETE FROM quiz_completions WHERE quiz_id = ? AND user_id = ?', [quizId, userId]);
-    execute(
-      `INSERT INTO quiz_completions (id, quiz_id, user_id, score, total, passed, answers, payment_status, completed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'none', datetime('now'))`,
-      [completionId, quizId, userId, score, total, passed, JSON.stringify(answersMap)]
-    );
+    // P1.3: Atomic transaction — quiz writes + auto-complete + outbox event commit together
+    const atomicWrite = db.transaction(() => {
+      execute('DELETE FROM quiz_completions WHERE quiz_id = ? AND user_id = ?', [quizId, userId]);
+      execute(
+        `INSERT INTO quiz_completions (id, quiz_id, user_id, score, total, passed, answers, payment_status, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'none', datetime('now'))`,
+        [completionId, quizId, userId, score, total, passed, JSON.stringify(answersMap)]
+      );
+
+      // Phase 4: auto-complete linked course item on quiz pass
+      if (passed === 1 && quiz.course_id) {
+        const course = queryOne<{ sections: string }>(
+          'SELECT sections FROM courses WHERE id = ?',
+          [quiz.course_id]
+        );
+        if (course?.sections) {
+          const match = findQuizItemInCourse(course.sections, quizId);
+          if (match) {
+            execute(
+              `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
+               VALUES (?, ?, ?, ?, ?, NULL)`,
+              [uuidv4(), userId, quiz.course_id, match.itemId, match.sectionId]
+            );
+          }
+        }
+      }
+
+      // R12: produce outbox event for reward eligibility (only on pass)
+      if (passed === 1) {
+        produceOutboxEvent('quiz_pass', quizId, userId, { score, total, courseId: quiz.course_id });
+      }
+    });
+
+    try {
+      atomicWrite();
+    } catch (err) {
+      logger.error({ module: 'quiz-submit', err, quizId, userId }, 'Atomic quiz submission + outbox write failed');
+      throw new AppError('Failed to submit quiz', 500, ErrorCodes.INTERNAL_ERROR);
+    }
 
     const row = queryOne<QuizCompletionRow>(
       'SELECT * FROM quiz_completions WHERE id = ?',
@@ -443,35 +476,12 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
       }
     }
 
-    // Phase 4: auto-complete linked course item on quiz pass (best-effort)
-    if (passed === 1 && quiz.course_id) {
-      try {
-        const course = queryOne<{ sections: string }>(
-          'SELECT sections FROM courses WHERE id = ?',
-          [quiz.course_id]
-        );
-        if (course?.sections) {
-          const match = findQuizItemInCourse(course.sections, quizId);
-          if (match) {
-            execute(
-              `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
-               VALUES (?, ?, ?, ?, ?, NULL)`,
-              [uuidv4(), userId, quiz.course_id, match.itemId, match.sectionId]
-            );
-          }
-        }
-      } catch (err) {
-        logger.error({ module: 'quiz-auto-complete', err }, 'Auto-complete error');
-      }
-    }
-
-    // R12: produce outbox event for reward eligibility
+    // Process pending outbox events (retryable, outside transaction)
     if (passed === 1) {
       try {
-        produceOutboxEvent('quiz_pass', quizId, userId, { score, total, courseId: quiz.course_id });
         processPendingEvents();
       } catch (err) {
-        logger.error({ module: 'reward-eligibility', err, quizId, userId }, 'Reward outbox event failed for quiz pass');
+        logger.error({ module: 'reward-eligibility', err, quizId, userId }, 'Reward event processing failed');
       }
     }
 
