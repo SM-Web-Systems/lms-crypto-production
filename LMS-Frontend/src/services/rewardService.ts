@@ -196,11 +196,25 @@ export const rewardService = {
   async refundAllocation(
     role: string, rewardId: string, allocationId: string, idempotencyKey: string,
   ): Promise<RewardAllocation | { blocked: true; reason: string }> {
-    const res = await api.post<ApiRes<RewardAllocation | { blocked: true; reason: string }>>(
-      `${prefix(role)}/rewards/${rewardId}/allocations/${allocationId}/refund`,
-      { idempotencyKey },
-    );
-    return res.data.data;
+    try {
+      const res = await api.post<ApiRes<RewardAllocation | { blocked: true; reason: string }>>(
+        `${prefix(role)}/rewards/${rewardId}/allocations/${allocationId}/refund`,
+        { idempotencyKey },
+      );
+      return res.data.data;
+    } catch (err: unknown) {
+      // 409 = blocked refund (insufficient balance). Return structured result instead of throwing.
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { status?: number; data?: { data?: unknown } } };
+        if (axiosErr.response?.status === 409 && axiosErr.response?.data?.data) {
+          const data = axiosErr.response.data.data as Record<string, unknown>;
+          if (data.blocked) {
+            return { blocked: true, reason: String(data.reason ?? 'Insufficient balance') };
+          }
+        }
+      }
+      throw err;
+    }
   },
 
   /** Student: get my received rewards (privacy-safe — no funder data) */

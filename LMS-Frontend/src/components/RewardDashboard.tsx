@@ -258,7 +258,14 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
           if (allocId) await rewardService.releaseAllocation(role, rewardId, allocId, idem);
           break;
         case 'refund':
-          if (allocId) await rewardService.refundAllocation(role, rewardId, allocId, idem);
+          if (allocId) {
+            const refundResult = await rewardService.refundAllocation(role, rewardId, allocId, idem);
+            if (refundResult && 'blocked' in refundResult && refundResult.blocked) {
+              setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
+              setActionLoading(null);
+              return;
+            }
+          }
           break;
       }
       await load();
