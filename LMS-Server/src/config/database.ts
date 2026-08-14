@@ -1223,6 +1223,8 @@ export function seedRbacData(): void {
     ['perm_group_create', 'group.create', 'group', 'Create Groups'],
     ['perm_group_manage', 'group.manage', 'group', 'Manage Groups'],
     ['perm_reward_setup', 'reward.setup', 'reward', 'Set Up Rewards'],
+    ['perm_reward_refund_review', 'reward.refund_review', 'reward', 'View Blocked Refund Attempts'],
+    ['perm_reward_refund_resolve', 'reward.refund_resolve', 'reward', 'Resolve/Waive Blocked Refunds'],
     ['perm_perks_access', 'perks.access', 'perks', 'Access Perks Marketplace'],
     ['perm_user_suspend', 'user.suspend', 'user', 'Suspend User Accounts'],
     ['perm_system_config', 'system.config', 'system', 'System Configuration'],
@@ -1368,6 +1370,7 @@ export function seedRbacData(): void {
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
       'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
+      'perm_reward_refund_review',
       // system: view_audit_log
       'perm_system_view_audit_log',
       // tenant: view
@@ -1413,6 +1416,7 @@ export function seedRbacData(): void {
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
       'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
+      'perm_reward_refund_review', 'perm_reward_refund_resolve',
       // system: manage_roles, view_audit_log
       'perm_system_manage_roles', 'perm_system_view_audit_log',
       // tenant: view
@@ -1448,6 +1452,7 @@ export function seedRbacData(): void {
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
       'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
+      'perm_reward_refund_review', 'perm_reward_refund_resolve',
       'perm_system_manage_roles', 'perm_system_manage_permissions', 'perm_system_view_audit_log',
       // tenant: all
       'perm_tenant_manage', 'perm_tenant_view',
@@ -2030,6 +2035,56 @@ function ensureRewardTables(): void {
   `);
 }
 ensureRewardTables();
+
+// ──── Scheduler Tables ────
+function ensureSchedulerTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scheduler_locks (
+      lock_name    TEXT PRIMARY KEY,
+      holder_id    TEXT NOT NULL,
+      acquired_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at   TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scheduler_tick_log (
+      id               TEXT PRIMARY KEY,
+      started_at       TEXT NOT NULL,
+      completed_at     TEXT,
+      duration_ms      INTEGER,
+      result           TEXT NOT NULL CHECK (result IN ('success', 'partial', 'error', 'skipped')),
+      outbox_processed INTEGER DEFAULT 0,
+      outbox_failed    INTEGER DEFAULT 0,
+      expiry_processed INTEGER DEFAULT 0,
+      expiry_failed    INTEGER DEFAULT 0,
+      error_message    TEXT
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_refund_audit_log (
+      id              TEXT PRIMARY KEY,
+      attempt_id      TEXT NOT NULL REFERENCES reward_refund_attempts(id) ON DELETE RESTRICT,
+      reward_id       TEXT NOT NULL,
+      allocation_id   TEXT NOT NULL,
+      actor_user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      action          TEXT NOT NULL CHECK (action IN ('retry', 'waive', 'escalate')),
+      resolution_type TEXT CHECK (resolution_type IN ('retried_success', 'waived', 'escalated')),
+      amount_stroops  INTEGER NOT NULL,
+      reason          TEXT NOT NULL,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_refund_audit_attempt ON reward_refund_audit_log(attempt_id);
+  `);
+
+  // Add next_attempt_at column to outbox if missing
+  const outboxCols = db.pragma('table_info(reward_event_outbox)') as Array<{ name: string }>;
+  if (!outboxCols.some(c => c.name === 'next_attempt_at')) {
+    db.exec('ALTER TABLE reward_event_outbox ADD COLUMN next_attempt_at TEXT');
+  }
+}
+ensureSchedulerTables();
 
 function ensureTenantSettingsRewardColumn(): void {
   const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tenant_settings'").get();

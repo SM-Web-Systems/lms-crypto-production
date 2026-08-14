@@ -4,6 +4,7 @@ dotenv.config();
 import app from './app.js';
 import { db, close } from './config/database.js';
 import logger from './utils/logger.js';
+import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -24,6 +25,9 @@ function startServer() {
       logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);
       logger.info({ port: PORT }, `API base URL: http://localhost:${PORT}/api/v1`);
       logger.info({ env: process.env.NODE_ENV || 'development' }, `Environment: ${process.env.NODE_ENV || 'development'}`);
+
+      // Start reward scheduler for outbox processing + auto-expiry
+      startScheduler();
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to start server');
@@ -45,12 +49,14 @@ process.on('uncaughtException', (error) => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Shutting down gracefully...');
+  stopScheduler();
   close();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   logger.info('Shutting down gracefully...');
+  stopScheduler();
   close();
   process.exit(0);
 });

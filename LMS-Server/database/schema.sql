@@ -786,6 +786,7 @@ CREATE TABLE IF NOT EXISTS reward_event_outbox (
   last_attempt_at TEXT,
   completed_at    TEXT,
   error_message   TEXT,
+  next_attempt_at TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(event_type, event_source_id, student_user_id)
 );
@@ -807,6 +808,40 @@ CREATE TABLE IF NOT EXISTS reward_refund_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_refund_attempts_reward ON reward_refund_attempts(reward_id);
 CREATE INDEX IF NOT EXISTS idx_refund_attempts_status ON reward_refund_attempts(status);
+
+CREATE TABLE IF NOT EXISTS scheduler_locks (
+  lock_name    TEXT PRIMARY KEY,
+  holder_id    TEXT NOT NULL,
+  acquired_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scheduler_tick_log (
+  id               TEXT PRIMARY KEY,
+  started_at       TEXT NOT NULL,
+  completed_at     TEXT,
+  duration_ms      INTEGER,
+  result           TEXT NOT NULL CHECK (result IN ('success', 'partial', 'error', 'skipped')),
+  outbox_processed INTEGER DEFAULT 0,
+  outbox_failed    INTEGER DEFAULT 0,
+  expiry_processed INTEGER DEFAULT 0,
+  expiry_failed    INTEGER DEFAULT 0,
+  error_message    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS reward_refund_audit_log (
+  id              TEXT PRIMARY KEY,
+  attempt_id      TEXT NOT NULL REFERENCES reward_refund_attempts(id) ON DELETE RESTRICT,
+  reward_id       TEXT NOT NULL,
+  allocation_id   TEXT NOT NULL,
+  actor_user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  action          TEXT NOT NULL CHECK (action IN ('retry', 'waive', 'escalate')),
+  resolution_type TEXT CHECK (resolution_type IN ('retried_success', 'waived', 'escalated')),
+  amount_stroops  INTEGER NOT NULL,
+  reason          TEXT NOT NULL,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_refund_audit_attempt ON reward_refund_audit_log(attempt_id);
 
 -- Phase A: Perks marketplace
 CREATE TABLE IF NOT EXISTS perks (

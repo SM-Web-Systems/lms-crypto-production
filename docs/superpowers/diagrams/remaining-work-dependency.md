@@ -1,31 +1,49 @@
-# Remaining Work Dependencies
+# Remaining Work Dependencies — Reward System N15 (Scheduler + Refund + Notifications)
 
 ```mermaid
 graph TD
-    P1A[P1.1 Fix parent.ts<br/>reward_balance ref] --> P2[P2 Test Suites]
-    P1B[P1.2 Messaging<br/>Rate Limit] --> P2
-    P1C[P1.3 R12 Outbox<br/>Atomicity] --> P4A
+    N0[N0: Baseline ✅<br/>1033/1033 tests] --> N1[N1: Scheduler ✅<br/>8 tests]
+    N1 --> N2[N2: Outbox Worker ✅<br/>7 tests]
+    N1 --> N3[N3: Expiry Worker ✅<br/>5 tests]
+    N2 --> N4[N4-N6: Refund Admin API ✅<br/>12 tests]
+    N3 --> N4
+    N4 --> N7[N7-N8: Notifications ✅<br/>11 tests]
+    N7 --> N9[N9: Full Suite ✅]
+    N9 --> N10[N10: Specs + Diagrams ✅]
+    N10 --> N11[N11: Review + Push]
 
-    P2 --> P3[P3 DB Migration<br/>Verification]
-
-    P3 --> P4A[P4.1 R13<br/>Lifecycle Tests]
-    P4A --> P4B[P4.2 R14<br/>Reward Frontend]
-    P4B --> P4C[P4.3 R15<br/>Security Tests]
-    P4C --> P4D[P4.4 R16/R17<br/>Regression + Tag]
-
-    P2 --> P5[P5 Role<br/>Onboarding]
-    P2 --> P6[P6 Financial<br/>Hardening]
-
-    P4D --> P7[P7 Deployment<br/>Verification]
-    P5 --> P8[P8 Launch QA]
-    P6 --> P8
-    P7 --> P8
-
-    P8 --> P9[P9 Review<br/>+ Release]
-
-    style P1A fill:#ff6666,color:#fff
-    style P1B fill:#ff6666,color:#fff
-    style P1C fill:#ffcc00,color:#000
-    style P4B fill:#ff6666,color:#fff
-    style P9 fill:#2196F3,color:#fff
+    style N0 fill:#90EE90
+    style N1 fill:#90EE90
+    style N2 fill:#90EE90
+    style N3 fill:#90EE90
+    style N4 fill:#90EE90
+    style N7 fill:#90EE90
+    style N9 fill:#90EE90
+    style N10 fill:#90EE90
+    style N11 fill:#FFD700
 ```
+
+## New Files (11)
+1. `src/services/rewards/rewardScheduler.ts`
+2. `src/services/rewards/rewardSchedulerLock.ts`
+3. `src/services/rewards/rewardSchedulerMetrics.ts`
+4. `src/services/rewards/rewardOutboxWorker.ts`
+5. `src/services/rewards/rewardExpiryWorker.ts`
+6. `src/services/rewards/rewardNotificationService.ts`
+7. `src/routes/adminRewards.ts`
+8. `src/__tests__/reward-scheduler.test.ts`
+9. `src/__tests__/reward-outbox-worker.test.ts`
+10. `src/__tests__/reward-expiry-worker.test.ts`
+11. `src/__tests__/reward-refund-admin.test.ts`
+12. `src/__tests__/reward-notifications.test.ts`
+
+## Modified Files (6)
+1. `src/config/database.ts` — scheduler tables, audit log, RBAC permissions, next_attempt_at
+2. `database/schema.sql` — new tables + next_attempt_at column
+3. `src/server.ts` — scheduler start/stop integration
+4. `src/app.ts` — admin rewards route mount
+5. `src/services/rewards/rewardService.ts` — notification hooks
+6. `src/services/rewards/rewardEligibilityService.ts` — eligible notification
+7. `src/services/notificationService.ts` — 6 new notification types
+
+## New Test Count: 51 (8 + 7 + 5 + 12 + 11 + 8 security)

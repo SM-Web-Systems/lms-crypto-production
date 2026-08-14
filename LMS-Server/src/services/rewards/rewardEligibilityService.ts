@@ -11,6 +11,7 @@ import { releaseAllocation } from './rewardService.js';
 import { HIGH_VALUE_THRESHOLD_STROOPS } from './currencyConfig.js';
 import type { RewardRow, AllocationRow } from './rewardTypes.js';
 import logger from '../../utils/logger.js';
+import { notifyRewardEligible } from './rewardNotificationService.js';
 
 // ──── Outbox Event Production ────
 
@@ -111,6 +112,17 @@ function processEvent(event: OutboxEvent): void {
 
       if (result === 'eligible') {
         markAllocationEligible(reward, event.student_user_id);
+
+        // Best-effort notification
+        try {
+          notifyRewardEligible(
+            event.student_user_id,
+            reward.creator_user_id,
+            reward.description ?? 'Reward',
+            !reward.auto_release,
+          );
+        } catch { /* notification failure is non-fatal */ }
+
         maybeAutoRelease(reward, event.student_user_id);
       }
     } catch (err) {

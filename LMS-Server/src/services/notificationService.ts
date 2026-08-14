@@ -14,6 +14,9 @@ export const CONFIGURABLE_TYPES = [
   'cohort_invited',
   // Phase F6: role-specific notification types
   'student_login', 'class_completion', 'cohort_milestone', 'team_completion', 'grade_approved',
+  // Reward notification types
+  'reward_released', 'reward_eligible', 'reward_refunded',
+  'reward_expired', 'reward_cancelled', 'refund_blocked',
 ] as const;
 
 export function createNotification(params: {

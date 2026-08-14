@@ -8,6 +8,13 @@ import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow } from './rewardTypes.js';
+import {
+  notifyRewardReleased,
+  notifyRewardRefunded,
+  notifyRewardExpired,
+  notifyRewardCancelled,
+  notifyRefundBlocked,
+} from './rewardNotificationService.js';
 
 // ──── Parameter Types ────
 
@@ -279,16 +286,29 @@ export function cancelReward(
       }
     }
 
+    // Capture affected students before cancelling
+    const affectedStudents = db.prepare(
+      `SELECT student_user_id FROM reward_allocations
+       WHERE reward_id = ? AND status IN ('pending', 'eligible')`
+    ).all(rewardId) as Array<{ student_user_id: string }>;
+
     db.prepare(
       `UPDATE reward_allocations SET status = 'cancelled'
        WHERE reward_id = ? AND status IN ('pending', 'eligible')`
     ).run(rewardId);
 
     updateRewardStatus(rewardId, 'cancelled');
-    return getRewardRow(rewardId)!;
+    return { reward: getRewardRow(rewardId)!, affectedStudentIds: affectedStudents.map(s => s.student_user_id) };
   });
 
-  return txn();
+  const { reward: result, affectedStudentIds } = txn();
+
+  // Best-effort notification for cancellation
+  try {
+    notifyRewardCancelled(result.creator_user_id, result.description ?? 'Reward', affectedStudentIds);
+  } catch { /* notification failure is non-fatal */ }
+
+  return result;
 }
 
 /**
@@ -342,7 +362,16 @@ export function releaseAllocation(
     return getAllocationRow(allocationId)!;
   });
 
-  return txn();
+  const result = txn();
+
+  // Best-effort notification — must not roll back financial state
+  try {
+    const amountXlm = (result.amount_stroops / 10_000_000).toFixed(7);
+    const reward = getReward(result.reward_id);
+    notifyRewardReleased(result.student_user_id, reward?.description ?? 'Reward', amountXlm);
+  } catch { /* notification failure is non-fatal */ }
+
+  return result;
 }
 
 /**
@@ -383,6 +412,13 @@ export function refundAllocation(
         allocation.amount_stroops,
         recipientAccount ? Number(recipientAccount.available_stroops) : 0
       );
+
+      // Best-effort notification for blocked refund
+      try {
+        const amountXlm = (allocation.amount_stroops / 10_000_000).toFixed(7);
+        notifyRefundBlocked(attemptId, amountXlm);
+      } catch { /* notification failure is non-fatal */ }
+
       return { blocked: true, attemptId } as const;
     }
 
@@ -409,10 +445,20 @@ export function refundAllocation(
     ).run(allocationId);
 
     updateRewardAggregateStatus(reward.id);
-    return getAllocationRow(allocationId)!;
+    return { ...getAllocationRow(allocationId)!, _creatorUserId: reward.creator_user_id, _description: reward.description };
   });
 
-  return txn();
+  const result = txn();
+
+  // Best-effort notification for successful refund
+  try {
+    const amountXlm = (result.amount_stroops / 10_000_000).toFixed(7);
+    notifyRewardRefunded(result.student_user_id, result._creatorUserId, amountXlm, result._description ?? 'Reward');
+  } catch { /* notification failure is non-fatal */ }
+
+  // Strip internal fields before returning
+  const { _creatorUserId, _description, ...cleanResult } = result;
+  return cleanResult;
 }
 
 /**
@@ -478,7 +524,14 @@ export function expireReward(
     return getRewardRow(rewardId)!;
   });
 
-  return txn();
+  const result = txn();
+
+  // Best-effort notification for expiry
+  try {
+    notifyRewardExpired(result.creator_user_id, result.description ?? 'Reward');
+  } catch { /* notification failure is non-fatal */ }
+
+  return result;
 }
 
 /**

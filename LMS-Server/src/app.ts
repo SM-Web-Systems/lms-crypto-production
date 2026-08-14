@@ -30,6 +30,7 @@ import publicCredentialsRoutes from './routes/publicCredentials.js';
 import notificationRoutes from './routes/notifications.js';
 import studentProgressRoutes from './routes/studentProgress.js';
 import studentRewardsRoutes from './routes/studentRewards.js';
+import adminRewardsRoutes from './routes/adminRewards.js';
 import paymentRoutes from './routes/payments.js';
 import cohortRoutes from './routes/cohorts.js';
 import rbacRoutes from './routes/rbac.js';
@@ -244,6 +245,7 @@ app.use('/api/v1/auth', authLimiter, authRoutes);
 // blocked for non-admin users if studentsRoutes ran first.
 app.use('/api/v1', apiLimiter, studentProgressRoutes);
 app.use('/api/v1', apiLimiter, studentRewardsRoutes);
+app.use('/api/v1/admin/rewards', apiLimiter, adminRewardsRoutes);
 app.use('/api/v1/students', apiLimiter, studentsRoutes);
 app.use('/api/v1/submissions', apiLimiter, submissionsRoutes);
 app.use('/api/v1/analytics', apiLimiter, analyticsRoutes);
