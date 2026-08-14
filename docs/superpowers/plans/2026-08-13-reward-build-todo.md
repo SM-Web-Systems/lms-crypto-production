@@ -1,7 +1,8 @@
 # Reward System Build Todo
 
-**Date:** 2026-08-13
+**Date:** 2026-08-13 (updated 2026-08-14)
 **Baseline:** Backend 853/853, Frontend 193/193
+**Current:** Backend 992/992, Frontend 193/193 (as of fd6e66d)
 **Structure:** /loop-compatible autonomous units
 
 ---
@@ -40,7 +41,7 @@
 
 ## R2: Migration and Schema Constraint Tests
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit fa4ff35, 11 tests)
 **Preconditions:** R1 design approved
 **Failing tests first:**
 ```bash
@@ -84,7 +85,7 @@ cd LMS-Server && npx vitest run
 
 ## R3: Currency and BigInt Boundary
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit cf1b0e1, 10 tests)
 **Preconditions:** R2 schema tables exist
 **Failing tests first:**
 ```bash
@@ -124,7 +125,7 @@ cd LMS-Server && npx vitest run
 
 ## R4: Reward Accounts and Balance Buckets
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit cf1b0e1, 10 tests)
 **Preconditions:** R2, R3 complete
 **Failing tests first:**
 ```bash
@@ -165,7 +166,7 @@ cd LMS-Server && npx vitest run
 
 ## R5: Ledger and Idempotency Foundation
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit d52e96e, 22 tests)
 **Preconditions:** R4 accounts exist
 **Failing tests first:**
 ```bash
@@ -220,7 +221,7 @@ cd LMS-Server && npx vitest run
 
 ## R6: Reward State Machine
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit d52e96e, 17 tests)
 **Preconditions:** R5 ledger operational
 **Failing tests first:**
 ```bash
@@ -251,7 +252,7 @@ cd LMS-Server && npx vitest run
 
 ## R7: Audience Snapshot and Scope Enforcement
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit d52e96e, 9 tests)
 **Preconditions:** R6 state machine operational
 **Failing tests first:**
 ```bash
@@ -290,7 +291,7 @@ cd LMS-Server && npx vitest run
 
 ## R8: Sponsor/Employer Reward Routes
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit a7337bd, 5 perm + 12 orch tests)
 **Preconditions:** R7 scope service operational
 **Failing tests first:**
 ```bash
@@ -327,7 +328,7 @@ cd LMS-Server && npx vitest run
 
 ## R9: Parent Reward Routes
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit a564ef3, 11 sponsor + 8 employer tests)
 **Preconditions:** R7 scope service operational (can parallel with R8)
 **Failing tests first:**
 ```bash
@@ -357,7 +358,7 @@ cd LMS-Server && npx vitest run src/__tests__/rbac-wallet-invariant.test.ts
 
 ## R10: Teacher Reward Routes
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit 806775b, 8 parent tests)
 **Preconditions:** R7 scope service operational (can parallel with R8, R9)
 **Failing tests first:**
 ```bash
@@ -387,7 +388,7 @@ cd LMS-Server && npx vitest run src/__tests__/rbac-wallet-invariant.test.ts
 
 ## R11: Event-Driven Eligibility
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit 806775b, 8 teacher tests)
 **Preconditions:** R8-R10 routes operational
 **Failing tests first:**
 ```bash
@@ -424,7 +425,7 @@ cd LMS-Server && npx vitest run
 
 ## R12: Manual and Automatic Release
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE (commit fd6e66d, 12 eligibility tests; outbox non-atomic deviation documented)
 **Preconditions:** R11 eligibility operational
 **Failing tests first:**
 ```bash
