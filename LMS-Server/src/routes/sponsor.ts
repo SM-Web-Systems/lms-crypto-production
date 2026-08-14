@@ -14,7 +14,10 @@ import {
   createReward,
   fundReward,
   activateReward,
+  approveReward,
   cancelReward,
+  releaseAllocation,
+  refundAllocation,
   getReward,
   listRewards,
   getRewardAllocations,
@@ -228,6 +231,55 @@ router.post(
         req.body.idempotencyKey,
       );
       res.json({ success: true, data: reward });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// POST /sponsor/rewards/:id/approve
+router.post(
+  '/sponsor/rewards/:id/approve',
+  authenticate,
+  requirePermission('reward.approve'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const reward = approveReward(req.params.id, req.user!.userId, req.body.idempotencyKey);
+      res.json({ success: true, data: reward });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// POST /sponsor/rewards/:id/allocations/:allocId/release
+router.post(
+  '/sponsor/rewards/:id/allocations/:allocId/release',
+  authenticate,
+  requirePermission('reward.release'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      res.json({ success: true, data: allocation });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// POST /sponsor/rewards/:id/allocations/:allocId/refund
+router.post(
+  '/sponsor/rewards/:id/allocations/:allocId/refund',
+  authenticate,
+  requirePermission('reward.refund'),
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      if ('blocked' in result) {
+        res.status(409).json({ success: false, data: result });
+        return;
+      }
+      res.json({ success: true, data: result });
     } catch (err) {
       handleRewardError(err, res);
     }

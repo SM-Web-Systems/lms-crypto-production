@@ -8,7 +8,10 @@ import {
   createReward,
   fundReward,
   activateReward,
+  approveReward,
   cancelReward,
+  releaseAllocation,
+  refundAllocation,
   getReward,
   listRewards,
   getRewardAllocations,
@@ -275,6 +278,26 @@ router.post('/teacher/rewards/:id/cancel', authenticate, requirePermission('rewa
   try {
     const reward = cancelReward(req.params.id, req.user!.userId, req.body.reason ?? '', req.body.idempotencyKey);
     res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /teacher/rewards/:id/approve
+router.post('/teacher/rewards/:id/approve', authenticate, requirePermission('reward.approve'), (req: AuthRequest, res: Response): void => {
+  try {
+    const reward = approveReward(req.params.id, req.user!.userId, req.body.idempotencyKey);
+    res.json({ success: true, data: reward });
+  } catch (err) {
+    handleRewardError(err, res);
+  }
+});
+
+// POST /teacher/rewards/:id/allocations/:allocId/release
+router.post('/teacher/rewards/:id/allocations/:allocId/release', authenticate, requirePermission('reward.release'), (req: AuthRequest, res: Response): void => {
+  try {
+    const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+    res.json({ success: true, data: allocation });
   } catch (err) {
     handleRewardError(err, res);
   }

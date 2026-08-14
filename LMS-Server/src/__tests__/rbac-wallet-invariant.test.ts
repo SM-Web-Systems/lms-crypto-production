@@ -146,7 +146,7 @@ const REWARD_GIVER_ROLES = [
 // Granular reward permissions that giver roles must have
 const REWARD_GRANULAR_PERMS = [
   'reward.create', 'reward.fund', 'reward.activate',
-  'reward.approve', 'reward.cancel', 'reward.view_assigned',
+  'reward.approve', 'reward.cancel', 'reward.release', 'reward.view_assigned',
 ];
 
 // Roles that must NOT have reward.create (cannot create rewards)

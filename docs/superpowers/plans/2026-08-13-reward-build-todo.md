@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-13 (updated 2026-08-14)
 **Baseline:** Backend 853/853, Frontend 193/193
-**Current:** Backend 992/992, Frontend 193/193 (as of fd6e66d)
+**Current:** Backend 1028/1028, Frontend 193/193 (as of R13)
 **Structure:** /loop-compatible autonomous units
 
 ---
@@ -462,7 +462,7 @@ cd LMS-Server && npx vitest run
 
 ## R13: Cancellation, Expiry, and Refunds
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE
 **Preconditions:** R12 release operational
 **Failing tests first:**
 ```bash

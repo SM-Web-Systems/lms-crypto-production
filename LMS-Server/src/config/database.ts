@@ -1190,7 +1190,7 @@ export function seedRbacData(): void {
     ['perm_forum_view', 'forum.view', 'forum', 'View Forum'],
     ['perm_forum_post', 'forum.post', 'forum', 'Post in Forum'],
     ['perm_forum_moderate', 'forum.moderate', 'forum', 'Moderate Forum'],
-    // reward (10)
+    // reward (11)
     ['perm_reward_view_own', 'reward.view_own', 'reward', 'View Own Rewards'],
     ['perm_reward_give', 'reward.give', 'reward', 'Give Rewards (deprecated)'],
     ['perm_reward_manage', 'reward.manage', 'reward', 'Manage All Rewards'],
@@ -1201,6 +1201,7 @@ export function seedRbacData(): void {
     ['perm_reward_cancel', 'reward.cancel', 'reward', 'Cancel Rewards'],
     ['perm_reward_view_assigned', 'reward.view_assigned', 'reward', 'View Assigned Rewards'],
     ['perm_reward_refund', 'reward.refund', 'reward', 'Refund Rewards'],
+    ['perm_reward_release', 'reward.release', 'reward', 'Release Reward Allocations'],
     // system (3)
     ['perm_system_manage_roles', 'system.manage_roles', 'system', 'Manage Roles'],
     ['perm_system_manage_permissions', 'system.manage_permissions', 'system', 'Manage Permissions'],
@@ -1270,7 +1271,7 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_setup',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_setup',
       'perm_group_create', 'perm_group_manage',
       'perm_session_manage_own',
     ],
@@ -1286,7 +1287,7 @@ export function seedRbacData(): void {
       'perm_forum_view', 'perm_forum_post',
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_setup',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_setup',
       'perm_group_create', 'perm_group_manage',
       'perm_session_manage_own',
     ],
@@ -1300,7 +1301,7 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_setup',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_setup',
       'perm_group_create', 'perm_group_manage',
       'perm_session_manage_own',
     ],
@@ -1315,7 +1316,7 @@ export function seedRbacData(): void {
       'perm_announcement_view', 'perm_document_view', 'perm_forum_view',
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_setup',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_setup',
       'perm_impact_report',
       'perm_session_manage_own',
     ],
@@ -1366,7 +1367,7 @@ export function seedRbacData(): void {
       // reward: all
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_manage',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
       // system: view_audit_log
       'perm_system_view_audit_log',
       // tenant: view
@@ -1411,7 +1412,7 @@ export function seedRbacData(): void {
       // reward: all
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_manage',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
       // system: manage_roles, view_audit_log
       'perm_system_manage_roles', 'perm_system_view_audit_log',
       // tenant: view
@@ -1446,7 +1447,7 @@ export function seedRbacData(): void {
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
-      'perm_reward_view_assigned', 'perm_reward_refund', 'perm_reward_manage',
+      'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
       'perm_system_manage_roles', 'perm_system_manage_permissions', 'perm_system_view_audit_log',
       // tenant: all
       'perm_tenant_manage', 'perm_tenant_view',

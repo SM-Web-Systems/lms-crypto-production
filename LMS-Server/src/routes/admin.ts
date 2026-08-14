@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
+import type { AuthRequest } from '../types/index.js';
 import {
   integrationStatus,
   listCertificates,
@@ -9,6 +10,9 @@ import {
   listDemoSponsorTransfers,
   remintCredential,
 } from '../controllers/adminController.js';
+import { db } from '../config/database.js';
+import { reconcileAccount } from '../services/rewards/rewardLedger.js';
+import type { AccountType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
 
@@ -135,6 +139,36 @@ router.post(
   authenticate,
   requirePermission('certificate.mint'),
   remintCredential,
+);
+
+// GET /admin/rewards/reconcile — safe summary reconciliation
+router.get(
+  '/rewards/reconcile',
+  authenticate,
+  requirePermission('reward.manage'),
+  (req: AuthRequest, res: Response): void => {
+    const accounts = db.prepare(
+      `SELECT user_id, account_type FROM reward_accounts`
+    ).all() as Array<{ user_id: string; account_type: AccountType }>;
+
+    let mismatchCount = 0;
+    for (const acct of accounts) {
+      const result = reconcileAccount(acct.user_id, acct.account_type);
+      if (!result.matches) {
+        mismatchCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalAccounts: accounts.length,
+        mismatches: mismatchCount,
+        allMatch: mismatchCount === 0,
+        checkedAt: new Date().toISOString(),
+      },
+    });
+  },
 );
 
 export default router;

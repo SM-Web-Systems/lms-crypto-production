@@ -416,6 +416,72 @@ export function refundAllocation(
 }
 
 /**
+ * Expire an active reward: returns reserved funds to funder.available (system actor).
+ * Cancels all pending/eligible allocations. Idempotent.
+ */
+export function expireReward(
+  rewardId: string,
+  idempotencyKey: string,
+  metadata?: Record<string, unknown>,
+): RewardRow {
+  const idem = checkTransactionIdempotency(`${idempotencyKey}_expire`);
+  if (idem.exists) {
+    return getReward(rewardId)!;
+  }
+
+  const txn = db.transaction(() => {
+    const reward = getRewardForUpdate(rewardId);
+
+    assertTransition(reward.status as RewardState, 'expired');
+
+    const funderAccount = getAccount(reward.creator_user_id, 'funder', reward.currency_code ?? 'XLM');
+    if (funderAccount && Number(funderAccount.reserved_stroops) > 0) {
+      const totalExposure = Number(calculateMaxExposure(
+        BigInt(reward.amount_stroops),
+        BigInt(reward.max_recipients ?? 1)
+      ));
+
+      const released = db.prepare(
+        `SELECT COALESCE(SUM(amount_stroops), 0) as total
+         FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
+      ).get(rewardId) as { total: number };
+      const remainingReserved = totalExposure - released.total;
+
+      if (remainingReserved > 0) {
+        writeLedgerEntry({
+          rewardId,
+          transactionType: 'expire',
+          amountStroops: remainingReserved,
+          sourceAccountType: 'funder',
+          sourceBucket: 'reserved',
+          sourceUserId: reward.creator_user_id,
+          destinationAccountType: 'funder',
+          destinationBucket: 'available',
+          destinationUserId: reward.creator_user_id,
+          actorType: 'system',
+          actorUserId: null,
+          previousState: reward.status,
+          newState: 'expired',
+          idempotencyKey: `${idempotencyKey}_expire`,
+          reason: 'Reward expired',
+          metadata: metadata ? JSON.stringify(metadata) : null,
+        });
+      }
+    }
+
+    db.prepare(
+      `UPDATE reward_allocations SET status = 'cancelled'
+       WHERE reward_id = ? AND status IN ('pending', 'eligible')`
+    ).run(rewardId);
+
+    updateRewardStatus(rewardId, 'expired');
+    return getRewardRow(rewardId)!;
+  });
+
+  return txn();
+}
+
+/**
  * Get a reward by ID.
  */
 export function getReward(rewardId: string): RewardRow | null {
