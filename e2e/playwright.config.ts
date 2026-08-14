@@ -4,6 +4,7 @@ const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
 const apiURL = process.env.E2E_API_URL || 'http://localhost:3001';
 
 export default defineConfig({
+  globalSetup: './global-setup.ts',
   testDir: './tests',
   timeout: 30_000,
   expect: { timeout: 5_000 },
@@ -41,6 +42,7 @@ export default defineConfig({
         NODE_ENV: 'test',
         PORT: '3001',
         JWT_SECRET: 'e2e-test-jwt-secret-do-not-use-in-production',
+        ADMIN_EMAILS: 'admin@test.com',
       },
     },
     {
@@ -48,6 +50,9 @@ export default defineConfig({
       url: baseURL,
       reuseExistingServer: true,
       timeout: 30_000,
+      env: {
+        VITE_API_BASE_URL: `${apiURL}/api/v1`,
+      },
     },
   ],
 });
