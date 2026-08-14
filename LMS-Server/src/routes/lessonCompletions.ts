@@ -18,6 +18,8 @@ import { queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
+import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import logger from '../utils/logger.js';
 
 /**
  * Phase E4: Super-Student auto-unlock.
@@ -153,6 +155,14 @@ router.post(
 
     // Phase E4: check super-student auto-unlock
     checkSuperStudentPromotion(callerId);
+
+    // R12: produce outbox event for reward eligibility
+    try {
+      produceOutboxEvent('course_completion', courseId, callerId, { itemId, sectionId });
+      processPendingEvents();
+    } catch (err) {
+      logger.error({ module: 'reward-eligibility', err, courseId, callerId }, 'Reward outbox event failed for course completion');
+    }
 
     // F6: Notify teachers when a class member completes an entire course (best-effort)
     try {

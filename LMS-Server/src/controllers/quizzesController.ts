@@ -6,6 +6,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
 import { findQuizItemInCourse } from '../utils/courseHelpers.js';
 import logger from '../utils/logger.js';
+import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
 
 interface QuizQuestion {
   id: string;
@@ -461,6 +462,16 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
         }
       } catch (err) {
         logger.error({ module: 'quiz-auto-complete', err }, 'Auto-complete error');
+      }
+    }
+
+    // R12: produce outbox event for reward eligibility
+    if (passed === 1) {
+      try {
+        produceOutboxEvent('quiz_pass', quizId, userId, { score, total, courseId: quiz.course_id });
+        processPendingEvents();
+      } catch (err) {
+        logger.error({ module: 'reward-eligibility', err, quizId, userId }, 'Reward outbox event failed for quiz pass');
       }
     }
 

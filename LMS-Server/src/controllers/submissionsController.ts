@@ -9,6 +9,7 @@ import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.j
 import { findSectionForItem } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
 import logger from '../utils/logger.js';
+import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
 
 function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
@@ -564,6 +565,26 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
         }
       } catch (err) {
         logger.error({ module: 'assignment-auto-complete', err }, 'Auto-complete error');
+      }
+    }
+
+    // R12: produce outbox event for reward eligibility on grade approval
+    if (status === 'approved') {
+      try {
+        const stuRecord = queryOne<{ user_id: string | null }>(
+          'SELECT user_id FROM students WHERE id = ?',
+          [submission!.student_id]
+        );
+        if (stuRecord?.user_id) {
+          produceOutboxEvent('grade_approved', id, stuRecord.user_id, {
+            reviewerId: reviewerUserId,
+            courseId: submission!.course_id,
+            itemId: submission!.item_id,
+          });
+          processPendingEvents();
+        }
+      } catch (err) {
+        logger.error({ module: 'reward-eligibility', err, submissionId: id }, 'Reward outbox event failed for grade approval');
       }
     }
 
