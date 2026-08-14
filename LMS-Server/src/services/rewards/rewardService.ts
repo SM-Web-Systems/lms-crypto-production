@@ -7,7 +7,7 @@ import { writeLedgerEntry } from './rewardLedger.js';
 import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
-import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow } from './rewardTypes.js';
+import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
   notifyRewardReleased,
   notifyRewardRefunded,
@@ -449,6 +449,7 @@ export function refundAllocation(
   });
 
   const result = txn();
+  if ('blocked' in result && result.blocked) return result;
 
   // Best-effort notification for successful refund
   try {
@@ -631,7 +632,7 @@ function updateRewardStatus(rewardId: string, status: RewardState): void {
 function updateRewardAggregateStatus(rewardId: string): void {
   const allocations = db.prepare(
     `SELECT status FROM reward_allocations WHERE reward_id = ?`
-  ).all(rewardId) as Array<{ status: string }>;
+  ).all(rewardId) as Array<{ status: AllocationState }>;
 
   const reward = getRewardRow(rewardId);
   if (!reward) return;
