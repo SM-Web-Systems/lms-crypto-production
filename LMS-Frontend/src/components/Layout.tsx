@@ -24,6 +24,7 @@ import {
   GraduationCap,
   Wallet,
   PenTool,
+  Gift,
 } from 'lucide-react';
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
@@ -100,16 +101,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ],
     sponsor: [
       { name: 'Dashboard', path: '/sponsor', icon: LayoutDashboard },
+      { name: 'Rewards', path: '/sponsor/rewards', icon: Gift },
       { name: 'Impact Report', path: '/sponsor/impact', icon: BarChart2 },
       { name: 'Billing', path: '/sponsor/billing', icon: CreditCard },
     ],
     employer: [
       { name: 'Dashboard', path: '/employer', icon: LayoutDashboard },
+      { name: 'Rewards', path: '/employer/rewards', icon: Gift },
       { name: 'Teams', path: '/employer/teams', icon: Briefcase },
       { name: 'Billing', path: '/employer/billing', icon: CreditCard },
     ],
     parent: [
       { name: 'Dashboard', path: '/parent', icon: LayoutDashboard },
+      { name: 'Rewards', path: '/parent/rewards', icon: Gift },
       { name: 'Children', path: '/parent/children', icon: Heart },
       { name: 'Wallets', path: '/parent/wallets', icon: Wallet },
       { name: 'Groups', path: '/parent/groups', icon: Users },
@@ -117,6 +121,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ],
     teacher: [
       { name: 'Dashboard', path: '/teacher', icon: LayoutDashboard },
+      { name: 'Rewards', path: '/teacher/rewards', icon: Gift },
       { name: 'Classes', path: '/teacher/classes', icon: GraduationCap },
       { name: 'Analytics', path: '/teacher/analytics', icon: BarChart2 },
       { name: 'Billing', path: '/teacher/billing', icon: CreditCard },
@@ -126,6 +131,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'My Progress', path: '/student/progress', icon: BarChart2 },
       { name: 'My Submissions', path: '/student/submissions', icon: FileText },
       { name: 'Payments', path: '/student/payments', icon: CreditCard },
+      { name: 'Rewards', path: '/student/rewards', icon: Gift },
       { name: 'Badges', path: '/student/badges', icon: Award },
       { name: 'Course', path: '/student/course', icon: BookOpen },
       { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },

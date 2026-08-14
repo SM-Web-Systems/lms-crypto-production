@@ -9,6 +9,7 @@ import { useAuth } from '../context/useAuth';
 import { employerService, type EmployerDashboardData, type EmployerTeam } from '../services/employerService';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
+import { RewardDashboard } from '../components/RewardDashboard';
 import {
   Users,
   RefreshCw,
@@ -28,11 +29,13 @@ const EmployerDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Determine active section from URL
-  const section = location.pathname.includes('/teams')
-    ? 'teams'
-    : location.pathname.includes('/billing')
-      ? 'billing'
-      : 'dashboard';
+  const section = location.pathname.includes('/rewards')
+    ? 'rewards'
+    : location.pathname.includes('/teams')
+      ? 'teams'
+      : location.pathname.includes('/billing')
+        ? 'billing'
+        : 'dashboard';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,7 +43,7 @@ const EmployerDashboard: React.FC = () => {
     try {
       const data = await employerService.getDashboard();
       setDashboard(data);
-      if (section === 'teams') {
+      if (section === 'teams' || section === 'rewards') {
         const t = await employerService.getTeams();
         setTeams(t);
       }
@@ -136,6 +139,25 @@ const EmployerDashboard: React.FC = () => {
                     </Card>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Rewards section */}
+          {section === 'rewards' && (
+            <div className="space-y-6">
+              {teams.length > 0 ? (
+                teams.map((team) => (
+                  <RewardDashboard
+                    key={team.id}
+                    role="employer"
+                    scopeId={team.id}
+                    scopeLabel={team.name}
+                    canRefund
+                  />
+                ))
+              ) : (
+                <p className="text-neutral-500 text-sm py-8 text-center">Create a team first to manage rewards.</p>
               )}
             </div>
           )}

@@ -503,7 +503,7 @@ cd LMS-Server && npx vitest run
 
 ## R14: Frontend Reward Views
 
-**Status:** PENDING
+**Status:** ✅ COMPLETE
 **Preconditions:** R13 backend complete and tested
 **Failing tests first:**
 ```bash

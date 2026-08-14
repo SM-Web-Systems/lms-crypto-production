@@ -192,6 +192,16 @@ function App() {
               }
             />
             <Route
+              path="/student/rewards"
+              element={
+                <ProtectedRoute allowedRole="student">
+                  <Layout>
+                    <StudentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/student/badges"
               element={
                 <ProtectedRoute allowedRole="student">
@@ -530,6 +540,16 @@ function App() {
               }
             />
             <Route
+              path="/sponsor/rewards"
+              element={
+                <ProtectedRoute allowedRole="sponsor">
+                  <Layout>
+                    <SponsorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/sponsor/impact"
               element={
                 <ProtectedRoute allowedRole="sponsor">
@@ -562,6 +582,16 @@ function App() {
               }
             />
             <Route
+              path="/employer/rewards"
+              element={
+                <ProtectedRoute allowedRole="employer">
+                  <Layout>
+                    <EmployerDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/employer/teams"
               element={
                 <ProtectedRoute allowedRole="employer">
@@ -585,6 +615,16 @@ function App() {
             {/* Parent Routes */}
             <Route
               path="/parent"
+              element={
+                <ProtectedRoute allowedRole="parent">
+                  <Layout>
+                    <ParentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/parent/rewards"
               element={
                 <ProtectedRoute allowedRole="parent">
                   <Layout>
@@ -637,6 +677,16 @@ function App() {
             {/* Teacher Routes */}
             <Route
               path="/teacher"
+              element={
+                <ProtectedRoute allowedRole="teacher">
+                  <Layout>
+                    <TeacherDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/rewards"
               element={
                 <ProtectedRoute allowedRole="teacher">
                   <Layout>

@@ -9,6 +9,7 @@ import { useAuth } from '../context/useAuth';
 import { teacherService, type TeacherDashboardData } from '../services/teacherService';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
+import { RewardDashboard } from '../components/RewardDashboard';
 import {
   Users,
   RefreshCw,
@@ -28,13 +29,15 @@ const TeacherDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const section = location.pathname.includes('/classes')
-    ? 'classes'
-    : location.pathname.includes('/analytics')
-      ? 'analytics'
-      : location.pathname.includes('/billing')
-        ? 'billing'
-        : 'dashboard';
+  const section = location.pathname.includes('/rewards')
+    ? 'rewards'
+    : location.pathname.includes('/classes')
+      ? 'classes'
+      : location.pathname.includes('/analytics')
+        ? 'analytics'
+        : location.pathname.includes('/billing')
+          ? 'billing'
+          : 'dashboard';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +135,18 @@ const TeacherDashboard: React.FC = () => {
                     </Card>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {section === 'rewards' && dashboard?.classes && (
+            <div className="space-y-6">
+              {dashboard.classes.length > 0 ? (
+                dashboard.classes.map((cls: { id: string; name: string }) => (
+                  <RewardDashboard key={cls.id} role="teacher" scopeId={cls.id} scopeLabel={cls.name} />
+                ))
+              ) : (
+                <p className="text-neutral-500 text-sm py-8 text-center">Create a class first to manage rewards.</p>
               )}
             </div>
           )}

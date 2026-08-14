@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import { CohortManagement } from '../components/CohortManagement';
+import { RewardDashboard } from '../components/RewardDashboard';
 import { analyticsService, type CourseAnalytics, type SponsorStudent } from '../services/analyticsService';
 import { cohortService } from '../services/cohortService';
 import { getErrorMessage } from '../utils/apiError';
@@ -57,12 +59,14 @@ function truncateWallet(address: string | null): string {
 }
 
 const SponsorDashboard: React.FC = () => {
+  const location = useLocation();
   const [courses, setCourses] = useState<CourseAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'cohorts'>('overview');
+  const initialTab = location.pathname.includes('/rewards') ? 'rewards' as const : 'overview' as const;
+  const [activeTab, setActiveTab] = useState<'overview' | 'cohorts' | 'rewards'>(initialTab);
   const [spendingReport, setSpendingReport] = useState<{ totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> } | null>(null);
 
   // Drill-down state: expanded courseId → student list
@@ -168,9 +172,34 @@ const SponsorDashboard: React.FC = () => {
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'cohorts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('cohorts')}
         >Cohorts</button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'rewards' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
+          onClick={() => setActiveTab('rewards')}
+        >Rewards</button>
       </div>
 
-      {activeTab === 'cohorts' ? (
+      {activeTab === 'rewards' ? (
+        <div>
+          <p className="text-sm text-neutral-600 mb-4">
+            Manage rewards for your sponsored cohorts. Select a cohort to view and create rewards.
+          </p>
+          {spendingReport && spendingReport.cohorts.length > 0 ? (
+            <div className="space-y-6">
+              {spendingReport.cohorts.map((c) => (
+                <RewardDashboard
+                  key={c.cohortId}
+                  role="sponsor"
+                  scopeId={c.cohortId}
+                  scopeLabel={c.cohortName}
+                  canRefund
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-neutral-500 text-sm py-8 text-center">No cohorts found. Create a cohort first.</p>
+          )}
+        </div>
+      ) : activeTab === 'cohorts' ? (
         <div>
           {spendingReport && (
             <div className="grid grid-cols-2 gap-3 mb-4" data-testid="spending-summary">

@@ -9,6 +9,7 @@ import { useAuth } from '../context/useAuth';
 import { parentService, type ParentDashboardData } from '../services/parentService';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
+import { RewardDashboard } from '../components/RewardDashboard';
 import {
   Users,
   RefreshCw,
@@ -26,15 +27,17 @@ const ParentDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const section = location.pathname.includes('/children')
-    ? 'children'
-    : location.pathname.includes('/wallets')
-      ? 'wallets'
-      : location.pathname.includes('/groups')
-        ? 'groups'
-        : location.pathname.includes('/billing')
-          ? 'billing'
-          : 'dashboard';
+  const section = location.pathname.includes('/rewards')
+    ? 'rewards'
+    : location.pathname.includes('/children')
+      ? 'children'
+      : location.pathname.includes('/wallets')
+        ? 'wallets'
+        : location.pathname.includes('/groups')
+          ? 'groups'
+          : location.pathname.includes('/billing')
+            ? 'billing'
+            : 'dashboard';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +129,18 @@ const ParentDashboard: React.FC = () => {
                 Wallets
               </h2>
               <p className="text-neutral-500 text-sm py-8 text-center">Wallet information will appear here.</p>
+            </div>
+          )}
+
+          {section === 'rewards' && dashboard?.groups && (
+            <div className="space-y-6">
+              {dashboard.groups.length > 0 ? (
+                dashboard.groups.map((g: { id: string; name: string }) => (
+                  <RewardDashboard key={g.id} role="parent" scopeId={g.id} scopeLabel={g.name} />
+                ))
+              ) : (
+                <p className="text-neutral-500 text-sm py-8 text-center">Create a family group first to manage rewards.</p>
+              )}
             </div>
           )}
 

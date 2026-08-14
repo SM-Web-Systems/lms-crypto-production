@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
 import { Button } from '../components/Button';
@@ -20,10 +21,13 @@ import NftBadgesSection from '../components/dashboard/NftBadgesSection';
 import LmsCertificatesSection from '../components/dashboard/LmsCertificatesSection';
 import OnboardingChecklist from '../components/dashboard/OnboardingChecklist';
 import CertEligibilitySection from '../components/dashboard/CertEligibilitySection';
+import { StudentRewardsPanel } from '../components/StudentRewardsPanel';
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const { submissions, submissionsLoading, submissionsError, fetchSubmissions } = useData();
+  const isRewardsSection = location.pathname.includes('/rewards');
 
   // Quiz completions — needed by checklist + stats + engagement hint
   const [quizCompletions, setQuizCompletions] = useState<QuizCompletion[] | null>(null);
@@ -118,6 +122,15 @@ const StudentDashboard: React.FC = () => {
   const handleAppStatusChange = (courseId: string, app: NftApplication) => {
     setAppStatusMap((m) => ({ ...m, [courseId]: app }));
   };
+
+  if (isRewardsSection) {
+    return (
+      <div className="pb-10 space-y-6">
+        <h1 className="text-xl font-bold text-neutral-900">My Rewards</h1>
+        <StudentRewardsPanel />
+      </div>
+    );
+  }
 
   if (submissionsLoading) {
     return <DashboardPageSkeleton variant="student" />;
