@@ -22,7 +22,9 @@
 | Frontend HTTPS | PASS | HTTP 200 at `https://lms.smwebsystems.com/` |
 | Reverse proxy/TLS | PASS | HTTP 200 at `https://lms.smwebsystems.com/api/v1/health` |
 | Reward scheduler | PASS | Started at container boot: `Starting reward scheduler` (60s interval) |
-| Outbox pending/failed | NOT AVAILABLE | `webhook_events` table exists but uses different column schema |
+| Reward outbox (pending) | PASS | 0 pending in `reward_event_outbox` |
+| Reward outbox (failed) | PASS | 0 failed, 0 dead-lettered in `reward_event_outbox` |
+| Webhook events (Paystack) | PASS | 0 events recorded (no webhooks received yet) |
 | Container restarts | PASS | 0 restarts since `2026-08-14T22:14:36Z` |
 | Recent errors (6h) | PASS | Zero error/fail/exception entries in logs |
 | Auth/session errors | PASS | No authentication failures logged |
@@ -81,7 +83,7 @@
 
 ## Known Limitations
 
-- Outbox/webhook_events table schema differs from expected; dead-letter count not verified
+- Initial spot check queried wrong table (`webhook_events` instead of `reward_event_outbox`); corrected in follow-up
 - Soroban smoke test blocked (production, no testnet target)
 - `npm audit` for dev dependencies not re-run (production audit: 0 vulns confirmed at release)
 

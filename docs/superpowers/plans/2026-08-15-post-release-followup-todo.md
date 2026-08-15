@@ -30,7 +30,7 @@
 - [ ] Soroban/NFT smoke test (blocked — needs testnet target or authorized production mint)
 - [ ] Deploy updated frontend Docker container to production
 - [ ] Verify first real admin-triggered NFT mint uses SDK v16 successfully
-- [ ] Review webhook_events table schema for outbox monitoring
+- [x] Review outbox schema — correct table is `reward_event_outbox` (not `webhook_events`); stats: 0/0/0/0
 
 ## Deferred
 
