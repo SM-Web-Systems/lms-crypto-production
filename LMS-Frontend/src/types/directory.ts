@@ -1,4 +1,5 @@
-export type { UserRole } from './api';
+import type { UserRole } from './api';
+export type { UserRole };
 
 export interface DirectoryUser {
   id: string;

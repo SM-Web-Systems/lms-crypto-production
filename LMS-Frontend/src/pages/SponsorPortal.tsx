@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/useAuth';
-import { sponsorService, SponsorDashboardData, SponsorImpactReport } from '../services/sponsorService';
+import { sponsorService, type SponsorDashboardData, type ImpactReport } from '../services/sponsorService';
 import { BarChart2, Users, BookOpen } from 'lucide-react';
 
 const SponsorPortal: React.FC = () => {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<SponsorDashboardData | null>(null);
-  const [impact, setImpact] = useState<SponsorImpactReport | null>(null);
+  const [impact, setImpact] = useState<ImpactReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,14 +53,14 @@ const SponsorPortal: React.FC = () => {
             <Users className="w-5 h-5 text-green-600" />
             <h3 className="font-semibold text-gray-700">Total Students</h3>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{dashboard?.totalStudents ?? 0}</p>
+          <p className="text-3xl font-bold text-gray-900">{dashboard?.totalMembers ?? 0}</p>
         </div>
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center gap-3 mb-2">
             <BarChart2 className="w-5 h-5 text-purple-600" />
             <h3 className="font-semibold text-gray-700">Completion Rate</h3>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{impact?.completionRate ?? 0}%</p>
+          <p className="text-3xl font-bold text-gray-900">{impact?.totalStudents && impact.totalStudents > 0 ? Math.round((impact.completedCount / impact.totalStudents) * 100) : 0}%</p>
         </div>
       </div>
     </div>

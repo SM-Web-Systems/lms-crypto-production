@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { parentService, type ParentDashboardData } from '../services/parentService';
+import { parentService, type ParentDashboardData, type ParentGroup } from '../services/parentService';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { RewardDashboard } from '../components/RewardDashboard';
@@ -24,6 +24,7 @@ const ParentDashboard: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const [dashboard, setDashboard] = useState<ParentDashboardData | null>(null);
+  const [groups, setGroups] = useState<ParentGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,8 +44,12 @@ const ParentDashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await parentService.getDashboard();
+      const [data, grps] = await Promise.all([
+        parentService.getDashboard(),
+        parentService.getGroups().catch(() => [] as ParentGroup[]),
+      ]);
       setDashboard(data);
+      setGroups(grps);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load parent data.'));
     } finally {
@@ -132,10 +137,10 @@ const ParentDashboard: React.FC = () => {
             </div>
           )}
 
-          {section === 'rewards' && dashboard?.groups && (
+          {section === 'rewards' && groups.length > 0 && (
             <div className="space-y-6">
-              {dashboard.groups.length > 0 ? (
-                dashboard.groups.map((g: { id: string; name: string }) => (
+              {groups.length > 0 ? (
+                groups.map((g) => (
                   <RewardDashboard key={g.id} role="parent" scopeId={g.id} scopeLabel={g.name} />
                 ))
               ) : (
