@@ -9,6 +9,8 @@ export default defineConfig({
     testTimeout: 10000,
     env: {
       JWT_SECRET: 'test-only-jwt-secret-do-not-use-in-production',
+      PAYSTACK_SECRET_KEY: 'test-only-paystack-key-do-not-use-in-production',
+      AMMA_SSO_STATE_SECRET: 'test-only-sso-state-secret-do-not-use-in-production',
     },
     // SQLite in-memory DB is per-module-instance; run files sequentially to avoid
     // parallel workers sharing state (each file gets its own clean reset via _resetForTests).
