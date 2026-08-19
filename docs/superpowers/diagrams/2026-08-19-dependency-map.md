@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 9 (Post-Keypair Generation)
+**Updated:** Phase 10 (Post-Incident Response)
 
 ## Task Dependencies
 
@@ -20,19 +20,25 @@ graph LR
         STORAGE --> KEYPAIR["Keypair Generated"]
     end
 
+    subgraph "INCIDENT RESPONSE"
+        ROTATION["Passphrase Rotation"]
+    end
+
     subgraph "BLOCKED — Next Steps"
         FUND["Fund Account"] --> CONTRACT["Deploy Contract"]
         CONTRACT --> ENV["Configure Testnet"]
         ENV --> MINT["Execute Mint"]
     end
 
-    KEYPAIR -->|"Friendbot"| FUND
+    KEYPAIR --> ROTATION
+    ROTATION -->|"Rotation confirmed + SIR-012 approved"| FUND
     WASM -->|"deploy with constructor"| CONTRACT
 
     style CLI fill:#90EE90
     style WASM fill:#90EE90
     style STORAGE fill:#90EE90
     style KEYPAIR fill:#90EE90
+    style ROTATION fill:#FFD700
     style FUND fill:#FFB6C1
     style CONTRACT fill:#FFB6C1
     style ENV fill:#FFB6C1

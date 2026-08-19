@@ -1,7 +1,7 @@
 # Approval Gates and Loop
 
 **Date:** 2026-08-19
-**Updated:** Phase 9 (Post-Keypair Generation)
+**Updated:** Phase 10 (Post-Incident Response)
 
 ```mermaid
 flowchart TD
@@ -21,13 +21,18 @@ flowchart TD
     subgraph "APPROVAL GATES"
         G1{Approve storage method?}
         G2{Approve keypair generation?}
+        GROT{Approve passphrase rotation?}
         G3{Approve Friendbot funding?}
         G4{Approve contract deployment?}
         G5{Approve testnet env config?}
         G6{Approve test mint?}
     end
 
-    GEN --> G3
+    GEN --> GROT
+    GROT -->|"YES — user runs rotation script"| ROT["Rotation Script Executed"]
+    GROT -->|"NO"| BROT[BLOCKED]
+    ROT --> ROTVER["Rotation Verified (ROT-001–ROT-012)"]
+    ROTVER --> G3
     G3 -->|YES| FUND[Fund via Friendbot]
     G3 -->|NO| B3[BLOCKED]
     FUND --> G4
@@ -44,6 +49,9 @@ flowchart TD
     style GEN fill:#90EE90
     style G1 fill:#90EE90
     style G2 fill:#90EE90
+    style GROT fill:#FFD700
+    style ROT fill:#FFD700
+    style ROTVER fill:#FFD700
     style FUND fill:#FFB6C1
     style DEPLOY fill:#FFB6C1
     style ENV fill:#FFB6C1
@@ -52,4 +60,17 @@ flowchart TD
     style B4 fill:#FFB6C1
     style B5 fill:#FFB6C1
     style B6 fill:#FFB6C1
+    style BROT fill:#FFB6C1
 ```
+
+## Current Gate
+
+**GROT — Passphrase Rotation Gate** (yellow) is the active gate.
+
+Status: REQUESTING approval (SIR-006)
+
+To advance:
+1. User approves rotation
+2. User runs `bash ~/scripts/rotate-testnet-gpg-passphrase.sh` in terminal
+3. ROT-001 through ROT-012 all confirmed PASS
+4. Gate clears to G3 (Friendbot funding approval)
