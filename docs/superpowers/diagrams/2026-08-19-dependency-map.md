@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 12 (Passphrase Rotation VERIFIED)
+**Updated:** Phase 13 (Friendbot Funding RECONCILED — 19,997.8 XLM)
 
 ## Task Dependencies
 
@@ -26,16 +26,21 @@ graph LR
         ROTVERIFY["Rotation VERIFIED"]
     end
 
+    subgraph "FUNDED — RECONCILED"
+        FUND["Funded 19,997.8 XLM\n2x Friendbot VERIFIED"]
+    end
+
     subgraph "BLOCKED — Next Steps"
-        FUND["Fund Account"] --> CONTRACT["Deploy Contract"]
-        CONTRACT --> ENV["Configure Testnet"]
+        CONTRACT["Deploy Contract"] --> ENV["Configure Testnet"]
         ENV --> MINT["Execute Mint"]
+        MINT --> EXPLORER["Verify on Explorer"]
     end
 
     KEYPAIR --> ROTATION
     ROTATION --> ROTFIX
     ROTFIX --> ROTVERIFY
-    ROTVERIFY -->|"Funding requires separate approval"| FUND
+    ROTVERIFY --> FUND
+    FUND -->|"Deployment requires approval"| CONTRACT
     WASM -->|"deploy with constructor"| CONTRACT
 
     style CLI fill:#90EE90
@@ -45,10 +50,11 @@ graph LR
     style ROTATION fill:#90EE90
     style ROTFIX fill:#90EE90
     style ROTVERIFY fill:#90EE90
-    style FUND fill:#FFB6C1
+    style FUND fill:#90EE90
     style CONTRACT fill:#FFB6C1
     style ENV fill:#FFB6C1
     style MINT fill:#FFB6C1
+    style EXPLORER fill:#FFB6C1
 ```
 
 ## Legend
