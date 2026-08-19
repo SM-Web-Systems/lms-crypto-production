@@ -1,7 +1,7 @@
 # GPG Rotation Script Fix — Diagnosis
 
 **Date:** 2026-08-19
-**Status:** FIXED
+**Status:** FIXED AND VERIFIED
 **Incident:** SIR-012 (passphrase exposure) — rotation script failed on first attempt
 
 ## Symptoms
@@ -29,7 +29,14 @@ The rotation script (lines 80, 103) used `gpg --batch --yes --decrypt` and `gpg 
 ## Files Changed
 - `~/scripts/rotate-testnet-gpg-passphrase.sh` — lines 80-84 (decrypt), 99-122 (encrypt), 43-46 (cleanup), 163-183 (verification)
 
+## Additional Fix (Phase 12)
+6. Moved NEWENC_TMP to same filesystem as TARGET (`$HOME/` instead of `/dev/shm/`) for truly atomic `mv` (rename syscall, not cross-fs copy+delete)
+7. Changed NEWENC_TMP cleanup to use `shred -u` since it's now on disk (encrypted content, but defense in depth)
+
 ## Encrypted File Status
-- `~/.stellar-testnet-secrets.gpg` — INTACT, not modified (rotation not yet re-attempted)
+- `~/.stellar-testnet-secrets.gpg` — ROTATED AND VERIFIED
 - Type: PGP symmetric key encrypted data - AES with 256-bit key salted & iterated - SHA512
-- Mode: 600, Owner: webadmin, Size: 127 bytes
+- Mode: 600, Owner: webadmin, Size: 160 bytes
+- New passphrase: accepted (script auto-verified)
+- Old passphrase: rejected (script auto-verified)
+- Plaintext artifacts: NONE OBSERVED

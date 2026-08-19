@@ -11,9 +11,10 @@
 | 3 | Reproduce failure with minimal GPG test | COMPLETE |
 | 4 | Fix script (loopback + read -s + verification) | COMPLETE |
 | 5 | Syntax check | COMPLETE |
-| 6 | User runs fixed script in SSH terminal | BLOCKED — awaiting user |
-| 7 | Update incident documentation | IN PROGRESS |
-| 8 | Commit and push | BLOCKED — Phase 7 |
+| 6 | User runs fixed script in SSH terminal | COMPLETE |
+| 7 | Verify rotation metadata | COMPLETE |
+| 8 | Update incident documentation | COMPLETE |
+| 9 | Commit and push | COMPLETE |
 
 ## Root Cause Summary
 Script used pinentry-curses (requires TTY) instead of `--pinentry-mode loopback` with `--passphrase-fd`.

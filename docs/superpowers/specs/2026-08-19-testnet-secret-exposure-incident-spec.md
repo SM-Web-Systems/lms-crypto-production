@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-19
 **Severity:** MEDIUM
-**Status:** ROTATION PENDING
+**Status:** ROTATION VERIFIED
 **Incident ID:** INC-2026-08-19-001
 
 ---
@@ -23,7 +23,11 @@ During a session on 2026-08-19, a GPG passphrase used to encrypt a Stellar testn
 | Post-detection | Passphrase file shredded from /dev/shm |
 | Post-detection | CLI identity removed from Stellar CLI keystore |
 | Post-detection | Incident documented; rotation script prepared |
-| Pending | Manual passphrase rotation via interactive terminal script |
+| 2026-08-19 | Rotation script failed: pinentry-curses cannot access TTY |
+| 2026-08-19 | Root cause identified: missing `--pinentry-mode loopback` |
+| 2026-08-19 | Script fixed: `read -s` + `--passphrase-fd 3` + atomic same-fs mv |
+| 2026-08-19 | User executed rotation script successfully via SSH terminal |
+| 2026-08-19 | **Rotation VERIFIED**: new passphrase accepted, old rejected, file intact |
 
 ---
 
@@ -35,7 +39,7 @@ During a session on 2026-08-19, a GPG passphrase used to encrypt a Stellar testn
 | Stellar private key | **NOT EXPOSED** | Piped via `stellar keys secret \| gpg --symmetric`; stdout went to gpg stdin, never to terminal |
 | Seed phrase / mnemonic | **NOT EXPOSED** | Not generated or handled in this session |
 | Public address (GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3) | **SAFE** | Public by design; no operational risk |
-| Encrypted file (~/.stellar-testnet-secrets.gpg) | **INTACT** | File present, mode 600, AES-256; passphrase rotation pending |
+| Encrypted file (~/.stellar-testnet-secrets.gpg) | **ROTATED** | File present, mode 600, AES-256+SHA512; passphrase rotated and verified |
 
 ---
 
@@ -73,7 +77,8 @@ No tool call read the contents of the encrypted file. The private key's only pla
 - [x] No funding operations were performed on the testnet account
 - [x] No deployment or minting operations were performed
 - [x] Rotation script prepared at `~/scripts/rotate-testnet-gpg-passphrase.sh`
-- [ ] Manual passphrase rotation executed by user (PENDING)
+- [x] Rotation script fixed (pinentry → loopback + atomic same-fs mv)
+- [x] Manual passphrase rotation executed by user (VERIFIED 2026-08-19)
 
 ---
 
@@ -120,14 +125,14 @@ No tool call read the contents of the encrypted file. The private key's only pla
 
 ## 11. Acceptance Criteria
 
-- [ ] `~/scripts/rotate-testnet-gpg-passphrase.sh` executed successfully by user
-- [ ] Old passphrase is rejected by `gpg --decrypt ~/.stellar-testnet-secrets.gpg`
-- [ ] New passphrase successfully decrypts the file
-- [ ] Decrypted content is confirmed to be the original private key material
-- [ ] `~/.stellar-testnet-secrets.gpg` remains mode 600 after rotation
-- [ ] No passphrase value appears in any session output, commit, issue, or document
-- [ ] Testnet account funding is unblocked after rotation verified
+- [x] `~/scripts/rotate-testnet-gpg-passphrase.sh` executed successfully by user
+- [x] Old passphrase is rejected by `gpg --decrypt ~/.stellar-testnet-secrets.gpg`
+- [x] New passphrase successfully decrypts the file
+- [x] Decrypted content is confirmed to be the original private key material
+- [x] `~/.stellar-testnet-secrets.gpg` remains mode 600 after rotation
+- [x] No passphrase value appears in any session output, commit, issue, or document
+- [ ] Testnet account funding is unblocked after rotation verified — BLOCKED pending separate approval
 
 ---
 
-*Authored: 2026-08-19 | Incident phase: Rotation pending*
+*Authored: 2026-08-19 | Incident phase: ROTATION VERIFIED — funding still BLOCKED pending separate approval*

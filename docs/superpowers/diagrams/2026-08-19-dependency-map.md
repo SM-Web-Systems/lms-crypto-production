@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 11 (Rotation Script Fixed, Awaiting User Execution)
+**Updated:** Phase 12 (Passphrase Rotation VERIFIED)
 
 ## Task Dependencies
 
@@ -20,9 +20,10 @@ graph LR
         STORAGE --> KEYPAIR["Keypair Generated"]
     end
 
-    subgraph "INCIDENT RESPONSE"
+    subgraph "INCIDENT RESPONSE — RESOLVED"
         ROTATION["Passphrase Rotation"]
-        ROTFIX["Script Fixed — Awaiting User Run"]
+        ROTFIX["Script Fixed + Executed"]
+        ROTVERIFY["Rotation VERIFIED"]
     end
 
     subgraph "BLOCKED — Next Steps"
@@ -33,7 +34,8 @@ graph LR
 
     KEYPAIR --> ROTATION
     ROTATION --> ROTFIX
-    ROTFIX -->|"User runs script + confirms"| FUND
+    ROTFIX --> ROTVERIFY
+    ROTVERIFY -->|"Funding requires separate approval"| FUND
     WASM -->|"deploy with constructor"| CONTRACT
 
     style CLI fill:#90EE90
@@ -41,7 +43,8 @@ graph LR
     style STORAGE fill:#90EE90
     style KEYPAIR fill:#90EE90
     style ROTATION fill:#90EE90
-    style ROTFIX fill:#FFD700
+    style ROTFIX fill:#90EE90
+    style ROTVERIFY fill:#90EE90
     style FUND fill:#FFB6C1
     style CONTRACT fill:#FFB6C1
     style ENV fill:#FFB6C1

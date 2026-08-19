@@ -18,8 +18,8 @@
 | TNS-005 | Verify WASM ABI | P2 | COMPLETE | — | mint(to, caller) EXACT MATCH with mintService.ts |
 | TNS-006 / TKS-011 | Generate testnet keypair | P2 | COMPLETE | — | Public: `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3`; stellar v27.1.0; 2026-08-19 |
 | TNS-007 / TKS-013 | Store testnet secret securely | P2 | COMPLETE | — | `~/.stellar-testnet-secrets.gpg` mode 600, AES-256 GPG symmetric, no plaintext on disk |
-| TNS-007a | Rotate compromised GPG passphrase | P2 | SCRIPT FIXED — awaiting user run | SIR-012 | `~/scripts/rotate-testnet-gpg-passphrase.sh` fixed (loopback pinentry) |
-| TNS-008 | Fund testnet account via Friendbot | P2 | BLOCKED | TNS-007a + Approval | curl friendbot.stellar.org |
+| TNS-007a | Rotate compromised GPG passphrase | P2 | COMPLETE | SIR-012 | Passphrase rotated and verified; old rejected, new accepted; mode 600 |
+| TNS-008 | Fund testnet account via Friendbot | P2 | BLOCKED | Approval | curl friendbot.stellar.org |
 | TNS-009 | Deploy contract to testnet | P2 | BLOCKED | TNS-004 + TNS-008 + Approval | `stellar contract deploy` |
 | TNS-010 | Configure testnet env vars | P2 | BLOCKED | TNS-009 + Approval | Isolated from production |
 | TNS-011 | Execute one test mint | P2 | BLOCKED | TNS-010 + Approval | mintCredential() call |
