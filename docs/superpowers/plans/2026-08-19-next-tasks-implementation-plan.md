@@ -1,52 +1,64 @@
 # Next Tasks Implementation Plan
 
 **Date:** 2026-08-19
-**Status:** IN PROGRESS
+**Updated:** Phase 4 (Post-Worktree-Cleanup)
+**Status:** P1 COMPLETE, P2 DECISION PENDING, P3 BLOCKED
 
 ## Completed This Session
 
 | Task | Evidence | Status |
 |------|----------|--------|
-| Test-environment hardening | 1108/1108 in both worktrees | VERIFIED |
-| vitest.config.ts fix | 2 lines added | COMPLETE |
-| Testnet preflight (read-only) | No CLI/WASM/keypair available | BLOCKED |
-| Documentation | 5 specs, plans, diagrams | COMPLETE |
+| Test-environment hardening | 1108/1108 in both worktrees | COMPLETE (94a7d4d) |
+| vitest.config.ts fix | 2 lines added, committed, pushed | COMPLETE |
+| Documentation (30 files) | specs, plans, diagrams | COMPLETE (51f337c) |
+| NFT worktree deletion | `git worktree list` = main only | COMPLETE |
+| Feature branch deletion | `git branch -d` (was 490780c) | COMPLETE |
+| Testnet preflight (read-only) | No CLI/WASM/keypair available | COMPLETE |
+| Test verification | 1108/1108 | VERIFIED |
+| Health check | Container healthy, network=public | VERIFIED |
 
 ## Execution Order
 
-| # | Task | Priority | Precondition | Approval | Status |
-|---|------|----------|-------------|----------|--------|
-| 1 | Commit vitest.config.ts | P1 | Tests pass | User authorized | READY |
-| 2 | Push test hardening | P1 | Committed | User authorized | READY |
-| 3 | Commit documentation | P1 | Reviewed | User authorized | READY |
-| 4 | Push documentation | P1 | Committed | User authorized | READY |
-| 5 | Install Stellar CLI | P2 | None | REQUIRES APPROVAL | NOT STARTED |
-| 6 | Generate testnet keypair | P2 | CLI installed | REQUIRES APPROVAL | BLOCKED |
-| 7 | Fund testnet account | P2 | Keypair generated | REQUIRES APPROVAL | BLOCKED |
-| 8 | Obtain contract WASM | P2 | None | REQUIRES APPROVAL | BLOCKED |
-| 9 | Deploy testnet contract | P2 | WASM + funded account | REQUIRES APPROVAL | BLOCKED |
-| 10 | Configure testnet env | P2 | Contract + account | REQUIRES APPROVAL | BLOCKED |
-| 11 | Execute testnet mint | P2 | All above | REQUIRES APPROVAL | BLOCKED |
-| 12 | Delete NFT worktree | P3 | Inspection complete | REQUIRES APPROVAL | READY |
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| 1 | Commit vitest.config.ts | P1 | COMPLETE (94a7d4d) |
+| 2 | Push test hardening | P1 | COMPLETE |
+| 3 | Commit documentation | P1 | COMPLETE (51f337c) |
+| 4 | Push documentation | P1 | COMPLETE |
+| 5 | Delete NFT worktree | P1 | COMPLETE |
+| 6 | Delete merged feature branch | P1 | COMPLETE |
+| 7 | PR historical record correction | P2 | READY FOR DECISION |
+| 8 | Install Stellar CLI | P3 | BLOCKED (Approval) |
+| 9 | Generate testnet keypair | P3 | BLOCKED (Approval) |
+| 10 | Fund testnet account | P3 | BLOCKED (Approval) |
+| 11 | Obtain contract WASM | P3 | BLOCKED (Approval) |
+| 12 | Deploy testnet contract | P3 | BLOCKED (Approval) |
+| 13 | Configure testnet env | P3 | BLOCKED (Approval) |
+| 14 | Execute testnet mint | P3 | BLOCKED (Approval) |
 
 ## Brainstorming Decisions
 
-### Test Failures — RESOLVED
+### Worktree Handling — RESOLVED
+- **Selected:** Delete immediately after verified inspection.
+- **Evidence:** Zero unique commits, modified file already on main, PR merged.
+- **Result:** COMPLETE.
+
+### PR Body Correction — PENDING DECISION
+- **Recommended:** Add PR comment (Option 3) — preserves historical record.
+- **Rejected:** Edit PR body — rewrites history on merged PR.
+- **Rejected:** Leave unchanged — may confuse future readers.
+- **Status:** Awaiting user decision.
+
+### Test Environment — RESOLVED
 - **Selected:** Add deterministic test fixtures to vitest.config.ts.
-- **Rejected:** "Document as accepted prerequisite" — fragile, breaks CI/worktrees.
-- **Rejected:** "Refactor module-level capture" — larger change, more risk.
-- **Reason:** 2-line fix, follows existing JWT_SECRET pattern, zero behavior change.
+- **Evidence:** 1108/1108, follows JWT_SECRET pattern.
+- **Result:** COMPLETE (94a7d4d).
 
 ### Testnet Contract — BLOCKED
 - **Preferred:** Check for existing approved testnet contract first.
-- **Finding:** No existing testnet contract ID found in repo or config.
-- **Next:** Would need to deploy new contract (requires CLI + WASM + approval).
+- **Finding:** No existing testnet contract found.
+- **Next:** Would need deployment (requires CLI + WASM + approval).
 
 ### Testnet Account — BLOCKED
 - **Selected:** Dedicated testnet-only keypair (never reuse production).
-- **Rejected:** Shared dev account — contamination risk.
-- **Rejected:** Production account on testnet — secret leakage risk.
-
-### Worktree Cleanup — READY (awaiting approval)
-- **Finding:** Zero uncommitted changes, zero unique commits.
-- **Selected:** Safe for deletion after explicit approval.
+- **Next:** Requires CLI installation + keypair generation + Friendbot funding.
