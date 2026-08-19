@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 7 (Post-WASM Fetch)
+**Updated:** Phase 8 (Post-Storage Design)
 
 ## Task Dependencies
 
@@ -16,6 +16,7 @@ graph LR
         WT --> PRCORR["PR Comment"]
         PRCORR --> CLI["Stellar CLI v27.1.0"]
         CLI -->|"stellar contract fetch"| WASM["WASM Fetched + ABI Verified"]
+        WASM --> STORAGE["Storage Design"]
     end
 
     subgraph "BLOCKED — Next Steps"
@@ -27,9 +28,11 @@ graph LR
 
     WASM -->|"deploy with constructor"| CONTRACT
     CLI -->|"stellar keys generate"| KEYPAIR
+    STORAGE -->|"gpg encrypt secret"| KEYPAIR
 
     style CLI fill:#90EE90
     style WASM fill:#90EE90
+    style STORAGE fill:#90EE90
     style KEYPAIR fill:#FFB6C1
     style FUND fill:#FFB6C1
     style CONTRACT fill:#FFB6C1
