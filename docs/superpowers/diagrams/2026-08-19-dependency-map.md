@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 14 (Contract Deployed & Verified — CAJ74ZCQ...THRB)
+**Updated:** Phase 16 (Assessment Complete — 24/24 PASS, Stages A-C Proposed)
 
 ## Task Dependencies
 
@@ -37,11 +37,22 @@ graph LR
         NO_ACTIVITY["No Unauthorized Activity\nVERIFIED"]
     end
 
-    subgraph "BLOCKED — Next Steps"
-        ENV["Configure Testnet Env"] --> API_TEST["Run API Testnet"]
-        API_TEST --> SMOKE["Smoke Test"]
-        SMOKE --> MINT["Execute Mint"]
-        MINT --> EXPLORER["Verify on Explorer"]
+    subgraph "ENV + RUNTIME — VERIFIED"
+        ENV["Testnet Env Created\n.env.testnet-nft"]
+        API_TEST["API Runtime Verified\nPort 3003, testnet config"]
+    end
+
+    subgraph "ASSESSMENT — COMPLETE"
+        ASSESS["Repository Assessment\n24/24 PASS"]
+        SAFEGUARDS["Safeguard Inventory\n6 categories STRONG/ADEQUATE"]
+        DOCS16["16 Assessment Docs\n4 specs + 4 plans + 8 diagrams"]
+    end
+
+    subgraph "BLOCKED — Next Stages"
+        READ["Stage A: Read Contract\nstellar contract read"]
+        SIM["Stage B: Simulation\nstellar invoke --sim-only"]
+        MINT["Stage C: One Mint\nControlled testnet mint"]
+        EXPLORER["Stage D: Integration\nFull test suite"]
     end
 
     KEYPAIR --> ROTATION
@@ -53,9 +64,17 @@ graph LR
     CONTRACT --> TX_VERIFY
     CONTRACT --> CODE_VERIFY
     CONTRACT --> NO_ACTIVITY
-    TX_VERIFY -->|"Requires approval"| ENV
+    TX_VERIFY --> ENV
     CODE_VERIFY --> ENV
     NO_ACTIVITY --> ENV
+    ENV --> API_TEST
+    API_TEST --> ASSESS
+    ASSESS --> SAFEGUARDS
+    SAFEGUARDS --> DOCS16
+    DOCS16 -->|"Gate 1"| READ
+    READ -->|"Gate 2"| SIM
+    SIM -->|"Gate 3"| MINT
+    MINT -->|"Gate 4"| EXPLORER
 
     style CLI fill:#90EE90
     style WASM fill:#90EE90
@@ -69,9 +88,13 @@ graph LR
     style TX_VERIFY fill:#90EE90
     style CODE_VERIFY fill:#90EE90
     style NO_ACTIVITY fill:#90EE90
-    style ENV fill:#FFB6C1
-    style API_TEST fill:#FFB6C1
-    style SMOKE fill:#FFB6C1
+    style ENV fill:#90EE90
+    style API_TEST fill:#90EE90
+    style ASSESS fill:#90EE90
+    style SAFEGUARDS fill:#90EE90
+    style DOCS16 fill:#90EE90
+    style READ fill:#FFD700
+    style SIM fill:#FFD700
     style MINT fill:#FFB6C1
     style EXPLORER fill:#FFB6C1
 ```
