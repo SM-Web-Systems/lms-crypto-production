@@ -489,7 +489,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                         )}
                         {app.status === 'minted' && app.txHash && (
                           <a
-                            href={`https://stellar.expert/explorer/${app.network || 'public'}/tx/${app.txHash}`}
+                            href={`https://stellar.expert/explorer/public/tx/${app.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-violet-700 font-mono flex items-center gap-1 hover:underline"
