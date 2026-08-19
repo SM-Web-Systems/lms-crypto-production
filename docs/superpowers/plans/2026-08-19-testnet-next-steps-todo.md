@@ -20,8 +20,9 @@
 | TNS-007 / TKS-013 | Store testnet secret securely | P2 | COMPLETE | — | `~/.stellar-testnet-secrets.gpg` mode 600, AES-256 GPG symmetric, no plaintext on disk |
 | TNS-007a | Rotate compromised GPG passphrase | P2 | COMPLETE | SIR-012 | Passphrase rotated and verified; old rejected, new accepted; mode 600 |
 | TNS-008 | Fund testnet account via Friendbot | P2 | COMPLETE | — | 2x Friendbot: 9,998.9 + 9,998.9 = 19,997.8 XLM. Reconciled via Horizon API. |
-| TNS-009 | Deploy contract to testnet | P2 | BLOCKED | Approval | `stellar contract deploy` |
-| TNS-010 | Configure testnet env vars | P2 | BLOCKED | TNS-009 + Approval | Isolated from production |
+| TNS-009 | Deploy contract to testnet | P2 | COMPLETE | — | Contract: `CAJ74ZCQHBXQ3DHJ722EQOR6TT7XKFR6M2ITTDOSVX2L7CNYFNXUTHRB`; Tx: `41511aeb...3b85`; Ledger: 4226582; 2026-08-19T15:58:43Z |
+| TNS-009a | Verify deployment read-only | P2 | COMPLETE | — | WASM hash IDENTICAL; 21/21 test matrix PASS; no unauthorized activity; production unchanged |
+| TNS-010 | Configure testnet env vars | P2 | BLOCKED | Approval | Isolated from production |
 | TNS-011 | Execute one test mint | P2 | BLOCKED | TNS-010 + Approval | mintCredential() call |
 | TNS-012 | Verify on testnet explorer | P2 | BLOCKED | TNS-011 | Read-only check |
 
@@ -29,5 +30,5 @@
 
 | ID | Task | Status |
 |----|------|--------|
-| TNS-013 | Update documentation with results | NOT STARTED |
+| TNS-013 | Update documentation with results | COMPLETE |
 | TNS-014 | Clean up stale feature branches | NOT STARTED |
