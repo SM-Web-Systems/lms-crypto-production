@@ -13,7 +13,61 @@ import { v4 as uuidv4 } from 'uuid';
 import { queryOne, execute } from '../config/database.js';
 import logger from '../utils/logger.js';
 
-const SOROBAN_RPC_URL = process.env.NFT_SOROBAN_RPC_URL || 'https://mainnet.sorobanrpc.com';
+const VALID_NETWORKS = ['public', 'testnet'] as const;
+type StellarNetwork = (typeof VALID_NETWORKS)[number];
+
+const NETWORK_DEFAULTS: Record<StellarNetwork, { passphrase: string; rpcUrl: string }> = {
+  public: {
+    passphrase: 'Public Global Stellar Network ; September 2015',
+    rpcUrl: 'https://mainnet.sorobanrpc.com',
+  },
+  testnet: {
+    passphrase: 'Test SDF Network ; September 2015',
+    rpcUrl: 'https://soroban-testnet.stellar.org',
+  },
+};
+
+/**
+ * Validates and returns NFT network configuration.
+ * Fails closed: missing or invalid NFT_STELLAR_NETWORK throws.
+ * Never exposes NFT_MINTER_SECRET in error messages.
+ */
+export function getNftNetworkConfig(): {
+  network: StellarNetwork;
+  networkPassphrase: string;
+  rpcUrl: string;
+  contractId: string;
+  minterSecret: string;
+} {
+  const rawNetwork = process.env.NFT_STELLAR_NETWORK;
+  if (!rawNetwork || !(VALID_NETWORKS as readonly string[]).includes(rawNetwork)) {
+    throw new Error(
+      `NFT_STELLAR_NETWORK must be one of: ${VALID_NETWORKS.join(', ')}. Got: ${JSON.stringify(rawNetwork ?? '')}`
+    );
+  }
+  const network = rawNetwork as StellarNetwork;
+
+  const minterSecret = process.env.NFT_MINTER_SECRET;
+  if (!minterSecret) {
+    throw new Error('NFT_MINTER_SECRET is not configured');
+  }
+
+  const contractId = process.env.NFT_CONTRACT_ID;
+  if (!contractId) {
+    throw new Error('NFT_CONTRACT_ID is not configured');
+  }
+
+  const defaults = NETWORK_DEFAULTS[network];
+  const rpcUrl = process.env.NFT_SOROBAN_RPC_URL || defaults.rpcUrl;
+
+  return {
+    network,
+    networkPassphrase: defaults.passphrase,
+    rpcUrl,
+    contractId,
+    minterSecret,
+  };
+}
 
 /**
  * Returns true if this quiz ID should trigger an NFT credential mint on pass.
@@ -48,11 +102,12 @@ export async function mintCredentialForQuiz(params: {
 }): Promise<void> {
   const { userId, quizId, walletAddress } = params;
 
-  // Guard: both secret and contract ID must be configured (read at call time for testability)
-  const minterSecret = process.env.NFT_MINTER_SECRET;
-  const contractId = process.env.NFT_CONTRACT_ID;
-  if (!minterSecret || !contractId) {
-    logger.info({ module: 'mint' }, 'NFT_MINTER_SECRET or NFT_CONTRACT_ID not configured — mint skipped');
+  // Guard: network, secret, and contract ID must all be configured
+  let nftConfig: ReturnType<typeof getNftNetworkConfig>;
+  try {
+    nftConfig = getNftNetworkConfig();
+  } catch {
+    logger.info({ module: 'mint' }, 'NFT configuration incomplete — mint skipped');
     return;
   }
 
@@ -79,8 +134,8 @@ export async function mintCredentialForQuiz(params: {
     if (!existing) {
       execute(
         `INSERT INTO nft_credentials (id, user_id, quiz_id, wallet_address, mint_status, contract_id, network)
-         VALUES (?, ?, ?, ?, 'pending', ?, 'public')`,
-        [credId, userId, quizId, walletAddress, contractId]
+         VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+        [credId, userId, quizId, walletAddress, nftConfig.contractId, nftConfig.network]
       );
     } else {
       execute(
@@ -92,14 +147,14 @@ export async function mintCredentialForQuiz(params: {
 
     logger.info({ module: 'mint', userId, quizId, walletAddress }, 'Attempting mint');
 
-    const server = new StellarSdk.rpc.Server(SOROBAN_RPC_URL);
-    const minterKeypair = StellarSdk.Keypair.fromSecret(minterSecret);
+    const server = new StellarSdk.rpc.Server(nftConfig.rpcUrl);
+    const minterKeypair = StellarSdk.Keypair.fromSecret(nftConfig.minterSecret);
     const account = await server.getAccount(minterKeypair.publicKey());
-    const contract = new StellarSdk.Contract(contractId);
+    const contract = new StellarSdk.Contract(nftConfig.contractId);
 
     const tx = new StellarSdk.TransactionBuilder(account, {
       fee: '1000000', // 0.1 XLM max fee for Soroban
-      networkPassphrase: StellarSdk.Networks.PUBLIC,
+      networkPassphrase: nftConfig.networkPassphrase,
     })
       .addOperation(
         contract.call(
@@ -186,11 +241,7 @@ export async function mintCredential(params: {
 }): Promise<{ txHash: string; sorobanTokenId: number | null }> {
   const { userId, courseId, walletAddress, applicationId } = params;
 
-  const minterSecret = process.env.NFT_MINTER_SECRET;
-  const contractId = process.env.NFT_CONTRACT_ID;
-  if (!minterSecret || !contractId) {
-    throw new Error('NFT_MINTER_SECRET or NFT_CONTRACT_ID not configured');
-  }
+  const nftConfig = getNftNetworkConfig();
 
   // LMS-MINT-J2-003: validate Stellar address before RPC call
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(walletAddress)) {
@@ -199,14 +250,14 @@ export async function mintCredential(params: {
 
   logger.info({ module: 'mint-course', userId, courseId, applicationId, walletAddress }, 'Attempting course mint');
 
-  const server = new StellarSdk.rpc.Server(SOROBAN_RPC_URL);
-  const minterKeypair = StellarSdk.Keypair.fromSecret(minterSecret);
+  const server = new StellarSdk.rpc.Server(nftConfig.rpcUrl);
+  const minterKeypair = StellarSdk.Keypair.fromSecret(nftConfig.minterSecret);
   const account = await server.getAccount(minterKeypair.publicKey());
-  const contract = new StellarSdk.Contract(contractId);
+  const contract = new StellarSdk.Contract(nftConfig.contractId);
 
   const tx = new StellarSdk.TransactionBuilder(account, {
     fee: '1000000',
-    networkPassphrase: StellarSdk.Networks.PUBLIC,
+    networkPassphrase: nftConfig.networkPassphrase,
   })
     .addOperation(
       contract.call(
