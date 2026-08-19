@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 8 (Post-Storage Design)
+**Updated:** Phase 9 (Post-Keypair Generation)
 
 ## Task Dependencies
 
@@ -17,23 +17,22 @@ graph LR
         PRCORR --> CLI["Stellar CLI v27.1.0"]
         CLI -->|"stellar contract fetch"| WASM["WASM Fetched + ABI Verified"]
         WASM --> STORAGE["Storage Design"]
+        STORAGE --> KEYPAIR["Keypair Generated"]
     end
 
     subgraph "BLOCKED — Next Steps"
-        KEYPAIR["Generate Keypair"] --> FUND["Fund Account"]
-        FUND --> CONTRACT["Deploy Contract"]
+        FUND["Fund Account"] --> CONTRACT["Deploy Contract"]
         CONTRACT --> ENV["Configure Testnet"]
         ENV --> MINT["Execute Mint"]
     end
 
+    KEYPAIR -->|"Friendbot"| FUND
     WASM -->|"deploy with constructor"| CONTRACT
-    CLI -->|"stellar keys generate"| KEYPAIR
-    STORAGE -->|"gpg encrypt secret"| KEYPAIR
 
     style CLI fill:#90EE90
     style WASM fill:#90EE90
     style STORAGE fill:#90EE90
-    style KEYPAIR fill:#FFB6C1
+    style KEYPAIR fill:#90EE90
     style FUND fill:#FFB6C1
     style CONTRACT fill:#FFB6C1
     style ENV fill:#FFB6C1

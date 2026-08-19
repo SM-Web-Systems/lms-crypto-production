@@ -16,8 +16,8 @@
 |----|------|----------|--------|---------|----------|
 | TNS-004 | Fetch contract WASM from mainnet | P2 | COMPLETE | — | SHA-256: 2e8c87f0...ed6eb, 32,110 bytes |
 | TNS-005 | Verify WASM ABI | P2 | COMPLETE | — | mint(to, caller) EXACT MATCH with mintService.ts |
-| TNS-006 | Generate testnet keypair | P2 | BLOCKED | Approval + secret storage plan | `stellar keys generate` |
-| TNS-007 | Store testnet secret securely | P2 | BLOCKED | TNS-006 + method approval | Separate from production |
+| TNS-006 / TKS-011 | Generate testnet keypair | P2 | COMPLETE | — | Public: `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3`; stellar v27.1.0; 2026-08-19 |
+| TNS-007 / TKS-013 | Store testnet secret securely | P2 | COMPLETE | — | `~/.stellar-testnet-secrets.gpg` mode 600, AES-256 GPG symmetric, no plaintext on disk |
 | TNS-008 | Fund testnet account via Friendbot | P2 | BLOCKED | TNS-006 + Approval | curl friendbot.stellar.org |
 | TNS-009 | Deploy contract to testnet | P2 | BLOCKED | TNS-004 + TNS-008 + Approval | `stellar contract deploy` |
 | TNS-010 | Configure testnet env vars | P2 | BLOCKED | TNS-009 + Approval | Isolated from production |

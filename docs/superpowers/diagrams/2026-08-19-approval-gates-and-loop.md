@@ -1,7 +1,7 @@
 # Approval Gates and Loop
 
 **Date:** 2026-08-19
-**Updated:** Phase 8 (Post-Storage Design)
+**Updated:** Phase 9 (Post-Keypair Generation)
 
 ```mermaid
 flowchart TD
@@ -15,6 +15,7 @@ flowchart TD
         A7 --> A8[Stellar CLI v27.1.0]
         A8 --> A9[WASM Fetched + ABI Verified]
         A9 --> A10[Storage Design Complete]
+        A10 --> GEN["Keypair Generated + Encrypted (GBNOP73...UE3)"]
     end
 
     subgraph "APPROVAL GATES"
@@ -26,11 +27,6 @@ flowchart TD
         G6{Approve test mint?}
     end
 
-    A10 --> G1
-    G1 -->|YES| G2
-    G1 -->|NO| B1[BLOCKED]
-    G2 -->|YES| GEN[Generate + Encrypt Keypair]
-    G2 -->|NO| B2[BLOCKED]
     GEN --> G3
     G3 -->|YES| FUND[Fund via Friendbot]
     G3 -->|NO| B3[BLOCKED]
@@ -45,13 +41,13 @@ flowchart TD
     G6 -->|NO| B6[BLOCKED]
 
     style A10 fill:#90EE90
-    style GEN fill:#FFD700
+    style GEN fill:#90EE90
+    style G1 fill:#90EE90
+    style G2 fill:#90EE90
     style FUND fill:#FFB6C1
     style DEPLOY fill:#FFB6C1
     style ENV fill:#FFB6C1
     style MINT fill:#FFB6C1
-    style B1 fill:#FFB6C1
-    style B2 fill:#FFB6C1
     style B3 fill:#FFB6C1
     style B4 fill:#FFB6C1
     style B5 fill:#FFB6C1

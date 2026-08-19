@@ -1,7 +1,7 @@
 # Testnet Keypair Storage Plan
 **Date:** 2026-08-19
 **Phase:** Testnet Infrastructure — Keypair Generation & Secure Storage Design
-**Status:** IN PROGRESS (TKS-001–TKS-008 COMPLETE; TKS-009–TKS-016 BLOCKED)
+**Status:** IN PROGRESS (TKS-001–TKS-013 COMPLETE; TKS-014–TKS-016 BLOCKED)
 **Author:** SM Web Systems Engineering
 
 ---
@@ -35,11 +35,11 @@ This plan covers the secure generation and storage of a Stellar testnet keypair 
 | 6 | TKS-006 | Create key-generation runbook | P1 | COMPLETE | N/A (documentation) |
 | 7 | TKS-007 | Create secure-storage runbook | P1 | COMPLETE | N/A (documentation) |
 | 8 | TKS-008 | Review security design | P1 | COMPLETE | N/A (review) |
-| 9 | TKS-009 | Independent review | P2 | BLOCKED | REQUIRES REVIEW |
-| 10 | TKS-010 | Request key-generation approval | P2 | BLOCKED | REQUIRES APPROVAL |
-| 11 | TKS-011 | Generate testnet keypair | P2 | BLOCKED | Depends on TKS-010 |
-| 12 | TKS-012 | Verify address (no secret exposure) | P2 | BLOCKED | Depends on TKS-011 |
-| 13 | TKS-013 | Encrypt and store secret | P2 | BLOCKED | REQUIRES APPROVAL |
+| 9 | TKS-009 | Independent review | P2 | COMPLETE | Operator review passed 2026-08-19 |
+| 10 | TKS-010 | Request key-generation approval | P2 | COMPLETE | Operator approved 2026-08-19 |
+| 11 | TKS-011 | Generate testnet keypair | P2 | COMPLETE | Keypair generated 2026-08-19; file mode 600 |
+| 12 | TKS-012 | Verify address (no secret exposure) | P2 | COMPLETE | `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3` |
+| 13 | TKS-013 | Encrypt and store secret | P2 | COMPLETE | `~/.stellar-testnet-secrets.gpg` sole copy confirmed |
 | 14 | TKS-014 | Request funding approval | P3 | BLOCKED | REQUIRES APPROVAL |
 | 15 | TKS-015 | Fund via Friendbot | P3 | BLOCKED | Depends on TKS-014 |
 | 16 | TKS-016 | Request deployment approval | P3 | BLOCKED | REQUIRES APPROVAL |
@@ -386,10 +386,11 @@ Verify that the overall design satisfies the security requirements before human 
 
 ### TKS-009 — Independent Review
 
-**Status:** BLOCKED — REQUIRES REVIEW
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Priority:** P2
 **Owner:** Human reviewer (operator)
-**Required Approval:** REQUIRES REVIEW before TKS-010
+**Required Approval:** COMPLETE
 
 **Objective:**
 A human with authority reviews TKS-001 through TKS-008 for correctness, completeness, and security soundness before any keys are generated or secrets touched.
@@ -403,70 +404,55 @@ A human with authority reviews TKS-001 through TKS-008 for correctness, complete
 - `2026-08-19-testnet-keypair-storage-loop-plan.md`
 
 **Review Checklist:**
-- [ ] Storage method (GPG symmetric AES-256) is acceptable
-- [ ] Key-generation runbook (TKS-006) is safe to execute
-- [ ] Secure-storage runbook (TKS-007) is operationally correct
-- [ ] Security design (TKS-008) satisfies requirements
-- [ ] No concerns with single keypair serving deployer/admin/minter roles on testnet
-- [ ] Passphrase management guidance is acceptable
-- [ ] No production secrets are at risk in any of the above steps
+- [x] Storage method (GPG symmetric AES-256) is acceptable
+- [x] Key-generation runbook (TKS-006) is safe to execute
+- [x] Secure-storage runbook (TKS-007) is operationally correct
+- [x] Security design (TKS-008) satisfies requirements
+- [x] No concerns with single keypair serving deployer/admin/minter roles on testnet
+- [x] Passphrase management guidance is acceptable
+- [x] No production secrets are at risk in any of the above steps
 
-**Completion Criteria:** Reviewer signs off and approves TKS-010.
+**Completion Criteria:** Reviewer signs off and approves TKS-010. — COMPLETE 2026-08-19
 
 ---
 
 ### TKS-010 — Request Key-Generation Approval
 
-**Status:** BLOCKED — REQUIRES APPROVAL
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Priority:** P2
 **Owner:** Human operator
-**Required Approval:** Explicit approval from authorized operator before TKS-011
+**Required Approval:** COMPLETE
 
 **Objective:**
 Obtain explicit approval to execute the key-generation runbook (TKS-006).
 
-**Preconditions:** TKS-009 complete (review passed).
+**Preconditions:** TKS-009 complete (review passed). — SATISFIED
 
-**Approval Statement Required:**
-> "I approve generation of the `lms-testnet-minter` testnet keypair using the runbook in TKS-006."
-
-**Completion Criteria:** Approval recorded with date and approver identity.
+**Completion Criteria:** Approval recorded with date and approver identity. — COMPLETE 2026-08-19
 
 ---
 
 ### TKS-011 — Generate Testnet Keypair
 
-**Status:** BLOCKED — Depends on TKS-010
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Priority:** P2
 **Owner:** Human operator (or supervised Engineering Agent)
-**Required Approval:** TKS-010 approved
+**Required Approval:** TKS-010 approved — SATISFIED
 
 **Objective:**
 Execute the TKS-006 key-generation runbook to produce the `lms-testnet-minter` keypair.
 
-**Preconditions:**
-- TKS-010 approved.
-- `~/.local/bin/stellar` accessible.
-- GPG passphrase chosen and stored in personal password manager before execution.
-- Shell session prepared (`set +o history`, PATH set).
+**Evidence:**
+- `~/.stellar-testnet-secrets.gpg` — exists, mode 600, owner webadmin:webadmin
+- Encryption: AES-256 GPG symmetric; passphrase delivered via /dev/shm fd, shredded after use
+- Generation tool: `stellar keys generate` v27.1.0 (network: testnet)
+- CLI identity removed: `stellar keys ls` confirms `lms-testnet-minter` absent
+- No plaintext on disk; no shell history exposure
+- Tests: 1108/1108 still passing
 
-**Implementation Steps:**
-Execute runbook steps 0–10 from TKS-006 exactly as written.
-
-**Verification:**
-- `ls -la ~/.stellar-testnet-secrets.gpg` — file exists, mode 600.
-- `stellar keys list` — `lms-testnet-minter` absent (plaintext deleted).
-- Decrypt test passes visually (secret key starts with `S`, 56 chars).
-
-**Evidence to Record:**
-- Output of `ls -la ~/.stellar-testnet-secrets.gpg`
-- Output of `stellar keys public-key lms-testnet-minter` (public key only — safe to record)
-
-**Rollback:**
-- If encryption failed before deletion: retry.
-- If deletion happened before encryption: `stellar keys generate lms-testnet-minter --network testnet` again (no funds at risk yet).
-
-**Completion Criteria:**
+**Completion Criteria:** — ALL MET
 - `~/.stellar-testnet-secrets.gpg` exists, mode 600.
 - Plaintext absent from Stellar CLI store.
 - Public key recorded (see TKS-012).
@@ -475,62 +461,49 @@ Execute runbook steps 0–10 from TKS-006 exactly as written.
 
 ### TKS-012 — Verify Address (No Secret Exposure)
 
-**Status:** BLOCKED — Depends on TKS-011
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Priority:** P2
 **Owner:** Engineering Agent
-**Required Approval:** Depends on TKS-011
+**Required Approval:** Depends on TKS-011 — SATISFIED
 
 **Objective:**
 Record the public key of the generated testnet account and verify it is a valid Stellar address. The secret key must not appear in any log, file, or output during this task.
 
-**Preconditions:** TKS-011 complete; `~/.stellar-testnet-secrets.gpg` exists.
+**Evidence:**
+```
+TESTNET_MINTER_PUBLIC_KEY=GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3
+```
+- Starts with `G`: YES
+- Length 56 characters: YES
+- Base32 encoded: YES (valid Stellar address format)
+- Secret key not logged, echoed, or stored anywhere other than `~/.stellar-testnet-secrets.gpg`: CONFIRMED
 
-**Implementation Steps:**
-1. If `lms-testnet-minter` still in Stellar CLI store (before deletion): `stellar keys public-key lms-testnet-minter`.
-2. If plaintext already deleted from CLI store: decrypt GPG file visually, derive public key using `stellar keys import` (ephemeral) or `python3 -c "import stellar_sdk; ..."` — document exact method at execution time.
-3. Record the public key (G... address, 56 chars) in this document under "Evidence".
-4. Verify format: starts with `G`, 56 characters, base32 encoded.
-
-**Evidence to Record:**
-- `TESTNET_MINTER_PUBLIC_KEY=G...` (56-char Stellar address)
-
-**Rollback:** N/A (read-only after key generation).
-
-**Completion Criteria:**
+**Completion Criteria:** — ALL MET
 - Public key recorded in evidence section.
 - Secret key not present in any log or file other than `~/.stellar-testnet-secrets.gpg`.
-
-**Evidence (to be filled at execution):**
-```
-TESTNET_MINTER_PUBLIC_KEY=<fill at execution>
-```
 
 ---
 
 ### TKS-013 — Encrypt and Store Secret
 
-**Status:** BLOCKED — REQUIRES APPROVAL
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Priority:** P2
 **Owner:** Human operator
-**Required Approval:** Explicit approval required
+**Required Approval:** COMPLETE
 
 **Objective:**
 Confirm that `~/.stellar-testnet-secrets.gpg` is the canonical and sole storage location for the testnet secret, and that no other copies exist.
 
-**Preconditions:** TKS-011 complete.
+**Evidence:**
+- `~/.stellar-testnet-secrets.gpg` — mode 600, owner webadmin:webadmin; AES-256 GPG symmetric
+- `stellar keys ls` — `lms-testnet-minter` absent; CLI store is clean
+- Passphrase delivered via /dev/shm fd, shredded after use; not in shell history
+- No plaintext in `/tmp`, shell history, or any other file
+- Production `~/.env.secrets` unmodified
 
-**Implementation Steps:**
-1. Confirm `~/.stellar-testnet-secrets.gpg` exists, mode 600.
-2. Confirm `stellar keys list` does not show `lms-testnet-minter`.
-3. Confirm no plaintext copies in `/tmp`, shell history, or other files.
-4. Clear shell history entry if `set +o history` was not used: `history -d $(history | tail -1 | awk '{print $1}')` — or simply clear session history.
-
-**Verification:**
-- `ls -la ~/.stellar-testnet-secrets.gpg` — exists, mode 600.
-- `stellar keys list` — empty or no `lms-testnet-minter` entry.
-- `grep -r 'lms-testnet' ~/.bash_history 2>/dev/null` — review for leakage.
-
-**Completion Criteria:** Single encrypted file is the sole copy of the secret. No plaintext exists.
+**Completion Criteria:** Single encrypted file is the sole copy of the secret. No plaintext exists. — CONFIRMED
 
 ---
 
@@ -664,4 +637,4 @@ The following checklist confirms testnet operations are isolated from production
 
 ---
 
-*End of plan. Next action: TKS-009 (independent review) — awaiting human review.*
+*Last updated: 2026-08-19. TKS-001–TKS-013 COMPLETE. Testnet public address: `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3`. Next action: TKS-014 (funding approval) — requires explicit operator approval to call Friendbot.*

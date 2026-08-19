@@ -1,7 +1,7 @@
 # Testnet Keypair Storage — Test Matrix
 **Date:** 2026-08-19
 **Phase:** Testnet Infrastructure — Keypair Generation & Secure Storage Design
-**Status:** DESIGN ONLY — No source code changes; all tests NOT RUN
+**Status:** PARTIALLY EXECUTED — TKS-011/TKS-012/TKS-013 complete; keypair generation tests PASS; decrypt/secret-inspection tests NOT RUN
 
 > **Note on TDD cycle:** The TDD implementation cycle is not applicable to this phase. This phase produces an operational security design (runbooks, approval gates, a storage architecture decision) and does not alter runtime behavior of the LMS application. There are no new functions, modules, routes, or database tables introduced. The test matrix below defines what must be verified when the operational steps in TKS-009–TKS-016 and TNS-009–TNS-014 are executed by a human operator. Tests will be marked PASS or FAIL at that time with execution evidence.
 >
@@ -13,16 +13,16 @@
 
 | Test ID | Category | Test | Expected Result | Status | Evidence |
 |---------|----------|------|----------------|--------|----------|
-| SM-001 | SECRET-MGMT | `gpg --symmetric --cipher-algo AES256 -o ~/.stellar-testnet-secrets.gpg` completes without error | Exit code 0; encrypted file created at target path | NOT RUN | — |
-| SM-002 | SECRET-MGMT | `gpg --decrypt ~/.stellar-testnet-secrets.gpg` prompts for passphrase and decrypts successfully | Decrypted output is a valid 56-character Stellar secret key starting with `S` | NOT RUN | — |
+| SM-001 | SECRET-MGMT | `gpg --symmetric --cipher-algo AES256 -o ~/.stellar-testnet-secrets.gpg` completes without error | Exit code 0; encrypted file created at target path | PASS | 2026-08-19: exit code 0; `~/.stellar-testnet-secrets.gpg` created via pipe from `stellar keys secret` |
+| SM-002 | SECRET-MGMT | `gpg --decrypt ~/.stellar-testnet-secrets.gpg` prompts for passphrase and decrypts successfully | Decrypted output is a valid 56-character Stellar secret key starting with `S` | NOT RUN | Decrypt not performed in this phase |
 | SM-003 | SECRET-MGMT | Encrypted file survives a new shell session (gpg-agent cache flushed) and still decrypts with correct passphrase | Same decrypted output as SM-002 | NOT RUN | — |
 | SM-004 | SECRET-MGMT | Wrong passphrase returns non-zero exit code and no plaintext output | `gpg: decryption failed: Bad session key`; exit code != 0 | NOT RUN | — |
 | SM-005 | SECRET-MGMT | Re-encryption (overwrite) with `gpg --symmetric ... -o ~/.stellar-testnet-secrets.gpg` produces a valid new file | New file decrypts to same secret key | NOT RUN | — |
-| PE-001 | PERMISSIONS | `ls -la ~/.stellar-testnet-secrets.gpg` shows mode `-rw-------` | Mode `600`; no group or other read/write bits | NOT RUN | — |
-| PE-002 | PERMISSIONS | Owner of `~/.stellar-testnet-secrets.gpg` is `webadmin` | `webadmin webadmin` in `ls -la` output | NOT RUN | — |
+| PE-001 | PERMISSIONS | `ls -la ~/.stellar-testnet-secrets.gpg` shows mode `-rw-------` | Mode `600`; no group or other read/write bits | PASS | 2026-08-19: mode 600 confirmed; `-rw-------` |
+| PE-002 | PERMISSIONS | Owner of `~/.stellar-testnet-secrets.gpg` is `webadmin` | `webadmin webadmin` in `ls -la` output | PASS | 2026-08-19: owner webadmin:webadmin confirmed |
 | PE-003 | PERMISSIONS | No group or other read access on encrypted file | `stat --format=%a ~/.stellar-testnet-secrets.gpg` returns `600` | NOT RUN | — |
 | PE-004 | PERMISSIONS | After `chmod 600 ~/.stellar-testnet-secrets.gpg`, mode is preserved across gpg operations | Mode remains `600` after a decrypt-and-rewrite cycle | NOT RUN | — |
-| IS-001 | ISOLATION | `stellar keys list` does not contain `lms-testnet-minter` after deletion step | No `lms-testnet-minter` entry in output | NOT RUN | — |
+| IS-001 | ISOLATION | `stellar keys list` does not contain `lms-testnet-minter` after deletion step | No `lms-testnet-minter` entry in output | PASS | 2026-08-19: `stellar keys ls` returned empty / no `lms-testnet-minter` entry; identity removed with `stellar keys rm --force` |
 | IS-002 | ISOLATION | Testnet `NFT_MINTER_SECRET` is not present in production `.env` (`/home/webadmin/amma-wallet-docker/app.env` or equivalent) | `grep NFT_MINTER_SECRET /home/webadmin/amma-wallet-docker/app.env` returns no match | NOT RUN | — |
 | IS-003 | ISOLATION | Testnet contract ID is not present in production `.env` | `grep NFT_CONTRACT_ID /home/webadmin/amma-wallet-docker/app.env` returns production value, not testnet value | NOT RUN | — |
 | IS-004 | ISOLATION | Testnet `.env` file (if created) is mode 600 and not tracked by git | `git status` in LMS repo shows testnet `.env` as untracked (or listed in `.gitignore`) | NOT RUN | — |
@@ -39,13 +39,13 @@
 | RV-001 | REVOCATION | `rm -f ~/.stellar-testnet-secrets.gpg` deletes the file | `ls ~/.stellar-testnet-secrets.gpg` returns "No such file or directory" | NOT RUN | — |
 | RV-002 | REVOCATION | After file deletion, testnet account is inaccessible (no plaintext backup) | Cannot sign testnet transactions without re-generating and re-funding | NOT RUN | — |
 | RV-003 | REVOCATION | Testnet account abandonment has no production impact | Production `NFT_STELLAR_NETWORK=public` container unaffected; `NFT_AUTO_MINT_ENABLED` remains false | NOT RUN | — |
-| TL-001 | TOOLING | `~/.local/bin/stellar --version` returns `stellar 27.1.0` | Exact string match `stellar 27.1.0` | NOT RUN | — |
-| TL-002 | TOOLING | `stellar keys generate lms-testnet-minter --network testnet` creates a key entry in CLI store | `stellar keys list` shows `lms-testnet-minter` | NOT RUN | — |
-| TL-003 | TOOLING | `stellar keys public-key lms-testnet-minter` returns a 56-character G-address | Output starts with `G`, length 56, valid base32 characters only | NOT RUN | — |
-| TL-004 | TOOLING | `stellar keys secret lms-testnet-minter` returns a 56-character S-key (verified visually, not logged) | Output starts with `S`, length 56 — visual confirm only, not stored | NOT RUN | — |
-| TL-005 | TOOLING | `stellar keys rm lms-testnet-minter` removes the key from CLI store | `stellar keys list` no longer shows `lms-testnet-minter` | NOT RUN | — |
-| TL-006 | TOOLING | `gpg --symmetric --cipher-algo AES256` is available in installed gpg version | `gpg --help` or `gpg --version` shows AES256 in list of available ciphers | NOT RUN | — |
-| TL-007 | TOOLING | Pipe from `stellar keys secret` to `gpg --symmetric` works end-to-end without tee or intermediate file | Encrypted file created; no temp file in /tmp | NOT RUN | — |
+| TL-001 | TOOLING | `~/.local/bin/stellar --version` returns `stellar 27.1.0` | Exact string match `stellar 27.1.0` | PASS | 2026-08-19: `stellar 27.1.0` confirmed |
+| TL-002 | TOOLING | `stellar keys generate lms-testnet-minter --network testnet` creates a key entry in CLI store | `stellar keys list` shows `lms-testnet-minter` | PASS | 2026-08-19: identity `lms-testnet-minter` created in CLI store during generation step |
+| TL-003 | TOOLING | `stellar keys public-key lms-testnet-minter` returns a 56-character G-address | Output starts with `G`, length 56, valid base32 characters only | PASS | 2026-08-19: `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3` (56 chars, starts with G) |
+| TL-004 | TOOLING | `stellar keys secret lms-testnet-minter` returns a 56-character S-key (verified visually, not logged) | Output starts with `S`, length 56 — visual confirm only, not stored | NOT RUN | Secret piped directly to GPG; visual inspection not performed separately (by design) |
+| TL-005 | TOOLING | `stellar keys rm lms-testnet-minter` removes the key from CLI store | `stellar keys list` no longer shows `lms-testnet-minter` | PASS | 2026-08-19: `stellar keys rm --force lms-testnet-minter` executed; `stellar keys ls` confirms absent |
+| TL-006 | TOOLING | `gpg --symmetric --cipher-algo AES256` is available in installed gpg version | `gpg --help` or `gpg --version` shows AES256 in list of available ciphers | PASS | 2026-08-19: gpg 2.4.4 — AES256 confirmed available |
+| TL-007 | TOOLING | Pipe from `stellar keys secret` to `gpg --symmetric` works end-to-end without tee or intermediate file | Encrypted file created; no temp file in /tmp | NOT RUN | Passphrase was delivered via /dev/shm fd rather than interactive tty; pipe mechanism functioned correctly but exact temp-file check not separately verified |
 | IN-001 | INTEGRATION | `mintService.ts` reads `NFT_MINTER_SECRET` from environment variable, not from a hardcoded value | Code audit: `process.env.NFT_MINTER_SECRET` or equivalent env access pattern | NOT RUN | — |
 | IN-002 | INTEGRATION | Testnet `.env` with `NFT_STELLAR_NETWORK=testnet` causes mintService to use testnet Horizon endpoint | Log output or network capture shows `horizon-testnet.stellar.org` during test mint | NOT RUN | — |
 | IN-003 | INTEGRATION | `NFT_AUTO_MINT_ENABLED=false` in testnet `.env` prevents automatic minting | Submitting a completed course does not trigger automatic mint; only manual admin action triggers mint | NOT RUN | — |
@@ -59,15 +59,15 @@
 
 | Category | Total Tests | NOT RUN | PASS | FAIL |
 |----------|------------|---------|------|------|
-| SECRET-MGMT | 5 | 5 | 0 | 0 |
-| PERMISSIONS | 4 | 4 | 0 | 0 |
-| ISOLATION | 5 | 5 | 0 | 0 |
+| SECRET-MGMT | 5 | 4 | 1 | 0 |
+| PERMISSIONS | 4 | 2 | 2 | 0 |
+| ISOLATION | 5 | 4 | 1 | 0 |
 | REDACTION | 5 | 5 | 0 | 0 |
 | ROTATION | 4 | 4 | 0 | 0 |
 | REVOCATION | 3 | 3 | 0 | 0 |
-| TOOLING | 7 | 7 | 0 | 0 |
+| TOOLING | 7 | 2 | 5 | 0 |
 | INTEGRATION | 6 | 6 | 0 | 0 |
-| **TOTAL** | **39** | **39** | **0** | **0** |
+| **TOTAL** | **39** | **30** | **9** | **0** |
 
 ---
 
@@ -123,4 +123,4 @@ The following are explicitly out of scope for this test matrix:
 
 ---
 
-*Last updated: 2026-08-19. All tests NOT RUN — this is a design-only phase.*
+*Last updated: 2026-08-19. 9/39 tests PASS (keypair generation, permissions, isolation, tooling). 30 NOT RUN (decrypt/secret-inspection, redaction, rotation, revocation, integration — pending TKS-014 and beyond). 0 FAIL.*

@@ -1,49 +1,44 @@
 # Testnet Approval Gates
 
 **Date:** 2026-08-19
-**Updated:** Post-CLI Installation
+**Updated:** Phase 9 (Post-Keypair Generation)
 
 ```mermaid
 flowchart TD
     subgraph "COMPLETE"
-        C1["PR Review & Merge"]
-        C2["Production Config"]
-        C3["API Deploy & Health"]
-        C4["Tests 1108/1108"]
-        C5["Worktree Cleanup"]
-        C6["PR Correction Comment"]
-        C7["Testnet Preflight"]
-        C8["Stellar CLI v27.1.0"]
+        S1["Storage Design"] --> S2["Keypair Generated"]
+        S2 --> S3["Secret Encrypted (GPG AES-256)"]
+        S3 --> S4["Public Address Verified"]
     end
 
     subgraph "APPROVAL GATES"
-        G1{"Fetch WASM?"}
-        G2{"Generate Keypair?"}
-        G3{"Fund Account?"}
-        G4{"Deploy Contract?"}
-        G5{"Configure Env?"}
-        G6{"Execute Mint?"}
+        G1{Approve recording public address?}
+        G2{Approve Friendbot funding?}
+        G3{Approve testnet deployment?}
+        G4{Approve testnet env config?}
+        G5{Approve test mint?}
     end
 
-    C8 --> G1
-    C8 --> G2
-    G1 -->|Approved| T1["stellar contract fetch"]
-    G2 -->|Approved| T2["stellar keys generate"]
-    T2 --> G3
-    G3 -->|Approved| T3["Friendbot funding"]
-    T1 --> G4
-    T3 --> G4
-    G4 -->|Approved| T4["stellar contract deploy"]
-    T4 --> G5
-    G5 -->|Approved| T5["Set testnet env vars"]
-    T5 --> G6
-    G6 -->|Approved| T6["One testnet mint"]
+    S4 --> G1
+    G1 -->|YES| REC["Record: GBNOP73...UE3"]
+    G1 -->|NO| B1[BLOCKED]
+    REC --> G2
+    G2 -->|YES| FUND["Fund via Friendbot"]
+    G2 -->|NO| B2[BLOCKED]
+    FUND --> G3
+    G3 -->|YES| DEPLOY["Deploy WASM to Testnet"]
+    G3 -->|NO| B3[BLOCKED]
+    DEPLOY --> G4
+    G4 -->|YES| ENV["Configure Testnet Env"]
+    G4 -->|NO| B4[BLOCKED]
+    ENV --> G5
+    G5 -->|YES| MINT["Execute Test Mint"]
+    G5 -->|NO| B5[BLOCKED]
 
-    style C8 fill:#90EE90
-    style G1 fill:#FFD700
-    style G2 fill:#FFB6C1
-    style G3 fill:#FFB6C1
-    style G4 fill:#FFB6C1
-    style G5 fill:#FFB6C1
-    style G6 fill:#FFB6C1
+    style S4 fill:#90EE90
+    style REC fill:#FFD700
+    style FUND fill:#FFB6C1
+    style DEPLOY fill:#FFB6C1
+    style ENV fill:#FFB6C1
+    style MINT fill:#FFB6C1
 ```

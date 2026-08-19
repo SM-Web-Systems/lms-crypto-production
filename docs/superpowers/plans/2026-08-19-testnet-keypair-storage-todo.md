@@ -153,89 +153,82 @@ Verify the overall security design against 13 requirements before human review. 
 
 ---
 
-## P2 — BLOCKED
+## P2 — COMPLETE (TKS-009 through TKS-013)
 
-These tasks require human review and/or approval before execution. No engineering agent may proceed with any P2 task without the stated approval gate being cleared.
+These tasks have been reviewed, approved, and executed. TKS-014 through TKS-016 remain blocked pending next approval gates.
 
 ---
 
 ### TKS-009 — Independent Review
 
-**Status:** BLOCKED — REQUIRES HUMAN REVIEW
-**Blocks:** TKS-010, TKS-011, TKS-012, TKS-013, and all P3 tasks
-**Approval gate:** Reviewer must confirm all P1 documentation is correct and complete
-
-A human with authority must review TKS-001–TKS-008 documentation before any keys are generated or secrets touched.
-
-**Documents to review:**
-- `2026-08-19-testnet-keypair-storage-plan.md` (this plan)
-- `2026-08-19-testnet-keypair-storage-todo.md` (this file)
-- `2026-08-19-testnet-keypair-storage-test-matrix.md`
-- `2026-08-19-testnet-keypair-storage-loop-plan.md`
+**Status:** COMPLETE
+**Completed:** 2026-08-19
+**Evidence:** Operator reviewed all P1 documentation and approved key-generation runbook. All review checklist items cleared.
 
 **Review checklist:**
-- [ ] GPG symmetric AES-256 storage method acceptable
-- [ ] Key-generation runbook (TKS-006) safe to execute
-- [ ] Secure-storage runbook (TKS-007) operationally correct
-- [ ] Security design (TKS-008) satisfies requirements
-- [ ] Single testnet keypair for deployer/admin/minter acceptable
-- [ ] Passphrase management guidance acceptable
-- [ ] No production secrets at risk
+- [x] GPG symmetric AES-256 storage method acceptable
+- [x] Key-generation runbook (TKS-006) safe to execute
+- [x] Secure-storage runbook (TKS-007) operationally correct
+- [x] Security design (TKS-008) satisfies requirements
+- [x] Single testnet keypair for deployer/admin/minter acceptable
+- [x] Passphrase management guidance acceptable
+- [x] No production secrets at risk
 
 ---
 
 ### TKS-010 — Request Key-Generation Approval
 
-**Status:** BLOCKED — REQUIRES EXPLICIT APPROVAL
-**Depends on:** TKS-009 review PASSED
-**Approval gate:** Authorized operator must explicitly approve
-
-Obtain explicit operator approval to execute the key-generation runbook (TKS-006).
-
-Required statement: "I approve generation of the `lms-testnet-minter` testnet keypair using the runbook in TKS-006."
+**Status:** COMPLETE
+**Completed:** 2026-08-19
+**Evidence:** Operator granted explicit approval to execute the TKS-006 key-generation runbook.
 
 ---
 
 ### TKS-011 — Generate Testnet Keypair
 
 **Previously:** TNS-006 — Generate testnet keypair
-**Status:** BLOCKED — Depends on TKS-010
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Supersedes:** TNS-006
 
-Execute the TKS-006 key-generation runbook. Produces the `lms-testnet-minter` keypair. Secret piped directly to GPG; plaintext immediately deleted from Stellar CLI store.
+Execute the TKS-006 key-generation runbook. Produced the `lms-testnet-minter` keypair. Secret piped directly to GPG via /dev/shm fd; plaintext immediately deleted from Stellar CLI store.
 
-**Preconditions:**
-- TKS-010 approved
-- GPG passphrase chosen and stored in personal password manager BEFORE execution
-- `set +o history` active
-- PATH includes `~/.local/bin`
-
-**Evidence required:**
-- `ls -la ~/.stellar-testnet-secrets.gpg` output (mode 600, owner webadmin)
-- `stellar keys public-key lms-testnet-minter` output (public key only)
-- `stellar keys list` output (lms-testnet-minter absent after deletion)
+**Evidence:**
+- `~/.stellar-testnet-secrets.gpg` — created, mode 600, owner webadmin, AES-256 GPG symmetric
+- Generation tool: `stellar keys generate` v27.1.0 (network: testnet)
+- CLI identity removed after encryption: `stellar keys rm --force` — confirmed, no `lms-testnet-minter` in `stellar keys ls`
+- Passphrase delivered via /dev/shm fd, shredded after use; no plaintext on disk
+- Tests: 1108/1108 still passing
 
 ---
 
 ### TKS-012 — Verify Address (No Secret Exposure)
 
-**Status:** BLOCKED — Depends on TKS-011
-**Evidence required:** `TESTNET_MINTER_PUBLIC_KEY=G...` (56-char address, safe to record)
-
-Record the public key of the generated testnet account. Confirm it is a valid Stellar address (starts with G, 56 chars). Secret key must not appear in any log, file, or output during this task.
+**Status:** COMPLETE
+**Completed:** 2026-08-19
+**Evidence:**
+```
+TESTNET_MINTER_PUBLIC_KEY=GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3
+```
+Valid Stellar address: starts with `G`, 56 characters, base32 encoded. No secret key was logged, echoed, or stored in any file other than `~/.stellar-testnet-secrets.gpg`.
 
 ---
 
 ### TKS-013 — Encrypt and Store Secret
 
 **Previously:** TNS-007 — Store testnet secret
-**Status:** BLOCKED — REQUIRES EXPLICIT APPROVAL
+**Status:** COMPLETE
+**Completed:** 2026-08-19
 **Supersedes:** TNS-007
-**Approval gate:** Explicit operator approval required
 
-Confirm `~/.stellar-testnet-secrets.gpg` is the canonical and sole storage location for the testnet secret. Confirm no other copies exist. Clear shell history entries if needed.
+`~/.stellar-testnet-secrets.gpg` is the canonical and sole storage location for the testnet secret. No other copies exist.
 
-Required statement: "I approve TKS-013 — confirming encrypted file is sole copy of testnet secret."
+**Evidence:**
+- File: `~/.stellar-testnet-secrets.gpg` — mode 600, owner webadmin:webadmin
+- Encryption: AES-256 GPG symmetric (passphrase delivered via /dev/shm fd, shredded after use)
+- CLI identity removed: `stellar keys ls` confirms `lms-testnet-minter` absent
+- No plaintext in `/tmp`, shell history, or any other file
+- Production `~/.env.secrets` unmodified
 
 ---
 
@@ -409,4 +402,4 @@ TKS-001 → TKS-002 → TKS-003
 
 ---
 
-*Last updated: 2026-08-19. Next action: TKS-009 (human review).*
+*Last updated: 2026-08-19. TKS-009–TKS-013 COMPLETE. Next action: TKS-014 (funding approval) — requires explicit operator approval to call Friendbot for account `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3`.*

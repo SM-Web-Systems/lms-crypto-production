@@ -1,9 +1,10 @@
 # Testnet Account Roles Specification
 
 **Date:** 2026-08-19
-**Status:** Approved
+**Status:** COMPLETE (keypair generated; account NOT funded)
 **Author:** SM Web Systems Engineering
 **Phase:** Testnet NFT Deployment Prerequisite
+**Updated:** 2026-08-19 — keypair generated, public address recorded
 
 ---
 
@@ -64,6 +65,15 @@ A single testnet Stellar keypair serves as deployer, admin, and minter simultane
 | Mint Caller (`mintService.ts`) | Testnet keypair | Secret key (S...) used to sign `mint(to, caller)` invocations |
 
 All four roles resolve to the same underlying keypair. The testnet public key (`G...`) appears in two constructor parameters. The testnet secret key (`S...`) is used for all signed transactions on testnet.
+
+**Testnet Public Address (generated 2026-08-19):**
+```
+GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3
+```
+
+**Account Status:** NOT funded. Friendbot has not been called. The account does not yet exist on the Stellar testnet ledger. Funding is pending TKS-014/TKS-015 approval.
+
+**Secret Storage:** Encrypted at `~/.stellar-testnet-secrets.gpg` (AES-256 GPG symmetric, mode 600, owner webadmin). No plaintext copy remains on disk. CLI identity removed after encryption.
 
 ---
 
@@ -136,8 +146,8 @@ The following parameter values flow directly from this role design:
 
 | Constructor Parameter | Testnet Value |
 |---|---|
-| `admin` | Testnet keypair public key (G...) |
-| `minter` | Testnet keypair public key (G...) — same address |
+| `admin` | `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3` |
+| `minter` | `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3` — same address |
 | `uri` | `https://lms.smwebsystems.com/api/v1/credentials/{id}/verify` |
 
 The `uri` parameter uses the production LMS verification endpoint. This is intentional: the URI is baked into token metadata and the verification endpoint is live and accessible. Testnet certificates will produce valid verification URLs; the endpoint will return credential data if a matching credential exists in the database.
@@ -153,9 +163,9 @@ Full constructor specification is in `2026-08-19-testnet-contract-constructor-sp
 | Variable | Testnet Value |
 |---|---|
 | `NFT_STELLAR_NETWORK` | `testnet` |
-| `NFT_CONTRACT_ID` | Testnet contract address (set after deployment) |
-| `NFT_MINTER_PUBLIC_KEY` | Testnet keypair public key |
-| `NFT_MINTER_SECRET` | Testnet keypair secret key |
+| `NFT_CONTRACT_ID` | Testnet contract address (set after deployment — pending TKS-016/TNS-009) |
+| `NFT_MINTER_PUBLIC_KEY` | `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3` |
+| `NFT_MINTER_SECRET` | Testnet keypair secret key (decrypt from `~/.stellar-testnet-secrets.gpg`) |
 | `NFT_SOROBAN_RPC_URL` | `https://soroban-testnet.stellar.org` |
 | `NFT_AUTO_MINT_ENABLED` | `false` (admin-triggered, same as production) |
 | `NFT_TRIGGER_QUIZ_IDS` | Testnet quiz IDs (configured per test scenario) |
@@ -182,13 +192,13 @@ The production `.env` file (`LMS-Server/.env`) is not modified during testnet op
 
 ## 12. Acceptance Criteria
 
-- [ ] A single testnet keypair is generated and stored per `2026-08-19-testnet-keypair-storage-spec.md`
-- [ ] The testnet public key (G...) is used for both `admin` and `minter` constructor parameters — verified in the deployment command before submission
-- [ ] `NFT_STELLAR_NETWORK=testnet` in all testnet environment files
-- [ ] `NFT_MINTER_PUBLIC_KEY` in testnet env matches the public key decrypted from `~/.stellar-testnet-secrets.gpg`
-- [ ] `NFT_MINTER_SECRET` in testnet env matches the secret key decrypted from `~/.stellar-testnet-secrets.gpg`
-- [ ] The production `~/.env.secrets` file shows no modification after testnet keypair operations
-- [ ] A test mint call on testnet succeeds with the testnet minter as `caller`
-- [ ] A test mint call on testnet uses a real student wallet address as `to`
-- [ ] The production contract ID (`CDPKSOOE4UZFM4TS52H7LMP2TYNLJBFAMT6M4E2H67KZEAH6UF54H524`) does not appear in any testnet environment file
-- [ ] The testnet keypair public key does not appear in any production environment file or the production database as `NFT_MINTER_PUBLIC_KEY`
+- [x] A single testnet keypair is generated and stored per `2026-08-19-testnet-keypair-storage-spec.md` — COMPLETE (2026-08-19)
+- [ ] The testnet public key (G...) is used for both `admin` and `minter` constructor parameters — verified in the deployment command before submission — PENDING (TKS-016/TNS-009)
+- [ ] `NFT_STELLAR_NETWORK=testnet` in all testnet environment files — PENDING (TNS-010)
+- [ ] `NFT_MINTER_PUBLIC_KEY` in testnet env matches the public key decrypted from `~/.stellar-testnet-secrets.gpg` — PENDING (TNS-010); public key on record: `GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3`
+- [ ] `NFT_MINTER_SECRET` in testnet env matches the secret key decrypted from `~/.stellar-testnet-secrets.gpg` — PENDING (TNS-010)
+- [x] The production `~/.env.secrets` file shows no modification after testnet keypair operations — CONFIRMED (no production file touched)
+- [ ] A test mint call on testnet succeeds with the testnet minter as `caller` — PENDING (TNS-011)
+- [ ] A test mint call on testnet uses a real student wallet address as `to` — PENDING (TNS-011)
+- [ ] The production contract ID (`CDPKSOOE4UZFM4TS52H7LMP2TYNLJBFAMT6M4E2H67KZEAH6UF54H524`) does not appear in any testnet environment file — PENDING (TNS-010)
+- [x] The testnet keypair public key does not appear in any production environment file or the production database as `NFT_MINTER_PUBLIC_KEY` — CONFIRMED (keypair is newly generated, not present in any existing config)
