@@ -53,17 +53,32 @@ export const adminCertificateService = {
     courseId?: string;
     userId?: string;
     mintStatus?: 'pending' | 'minted' | 'failed';
+    network?: 'public' | 'testnet';
   }): Promise<IssuedCredential[]> {
     const qs = new URLSearchParams();
     if (params?.courseId) qs.set('courseId', params.courseId);
     if (params?.userId) qs.set('userId', params.userId);
     if (params?.mintStatus) qs.set('mintStatus', params.mintStatus);
+    if (params?.network) qs.set('network', params.network);
     const q = qs.toString();
     const res = await api.get<{
       success: boolean;
       data: { credentials: IssuedCredential[]; total: number };
     }>(`/admin/issued-credentials${q ? `?${q}` : ''}`);
     return res.data.data?.credentials ?? [];
+  },
+
+  /** POST /admin/credentials/:id/reconcile — check Horizon for failed credential */
+  async reconcileCredential(credentialId: string): Promise<{
+    status: string;
+    reason?: string;
+    txHash?: string;
+  }> {
+    const res = await api.post<{
+      success: boolean;
+      data: { status: string; reason?: string; txHash?: string };
+    }>(`/admin/credentials/${credentialId}/reconcile`);
+    return res.data.data;
   },
 
   /** POST /admin/credentials/:credentialId/remint — L-013 re-mint correction flow */

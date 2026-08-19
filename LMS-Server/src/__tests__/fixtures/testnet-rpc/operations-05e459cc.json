@@ -1,0 +1,66 @@
+{
+  "_links": {
+    "self": {
+      "href": "https://horizon-testnet.stellar.org/transactions/05e459ccc8cbdcae5e520ce5a3c912f09598dc5e81488764b4fbf6801f6744b2/operations?cursor=\u0026limit=10\u0026order=asc"
+    },
+    "next": {
+      "href": "https://horizon-testnet.stellar.org/transactions/05e459ccc8cbdcae5e520ce5a3c912f09598dc5e81488764b4fbf6801f6744b2/operations?cursor=18162523341611009\u0026limit=10\u0026order=asc"
+    },
+    "prev": {
+      "href": "https://horizon-testnet.stellar.org/transactions/05e459ccc8cbdcae5e520ce5a3c912f09598dc5e81488764b4fbf6801f6744b2/operations?cursor=18162523341611009\u0026limit=10\u0026order=desc"
+    }
+  },
+  "_embedded": {
+    "records": [
+      {
+        "_links": {
+          "self": {
+            "href": "https://horizon-testnet.stellar.org/operations/18162523341611009"
+          },
+          "transaction": {
+            "href": "https://horizon-testnet.stellar.org/transactions/05e459ccc8cbdcae5e520ce5a3c912f09598dc5e81488764b4fbf6801f6744b2"
+          },
+          "effects": {
+            "href": "https://horizon-testnet.stellar.org/operations/18162523341611009/effects"
+          },
+          "succeeds": {
+            "href": "https://horizon-testnet.stellar.org/effects?order=desc\u0026cursor=18162523341611009"
+          },
+          "precedes": {
+            "href": "https://horizon-testnet.stellar.org/effects?order=asc\u0026cursor=18162523341611009"
+          }
+        },
+        "id": "18162523341611009",
+        "paging_token": "18162523341611009",
+        "transaction_successful": true,
+        "source_account": "GBNOP73GG2O2WGMSYSALUZDDVLQTTOEXSUPG3NODIUHZVWPC7QGKUUE3",
+        "type": "invoke_host_function",
+        "type_i": 24,
+        "created_at": "2026-08-19T19:03:15Z",
+        "transaction_hash": "05e459ccc8cbdcae5e520ce5a3c912f09598dc5e81488764b4fbf6801f6744b2",
+        "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+        "parameters": [
+          {
+            "value": "AAAAEgAAAAET/mRQOG8NjOn+tEg6Ppz/dRY+ZpE5jdKt9L+JuCtvSQ==",
+            "type": "Address"
+          },
+          {
+            "value": "AAAADwAAAARtaW50",
+            "type": "Sym"
+          },
+          {
+            "value": "AAAAEgAAAAAAAAAAWuf/ZjadqxmSxIC6ZGOq4Tm4l5UebbXDRQ+a2eL8DKo=",
+            "type": "Address"
+          },
+          {
+            "value": "AAAAEgAAAAAAAAAAWuf/ZjadqxmSxIC6ZGOq4Tm4l5UebbXDRQ+a2eL8DKo=",
+            "type": "Address"
+          }
+        ],
+        "address": "",
+        "salt": "",
+        "asset_balance_changes": null
+      }
+    ]
+  }
+}

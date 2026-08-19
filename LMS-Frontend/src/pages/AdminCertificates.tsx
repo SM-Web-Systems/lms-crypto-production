@@ -489,7 +489,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                         )}
                         {app.status === 'minted' && app.txHash && (
                           <a
-                            href={`https://stellar.expert/explorer/public/tx/${app.txHash}`}
+                            href={`https://stellar.expert/explorer/${app.network || 'public'}/tx/${app.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-violet-700 font-mono flex items-center gap-1 hover:underline"
@@ -578,7 +578,9 @@ const IssuedCredentialsPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mintStatusFilter, setMintStatusFilter] = useState<'all' | 'pending' | 'minted' | 'failed'>('all');
+  const [networkFilter, setNetworkFilter] = useState<'all' | 'public' | 'testnet'>('all');
   const [copiedTxHash, setCopiedTxHash] = useState<string | null>(null);
+  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
 
   // L-013 Re-mint state
   const [remintTarget, setRemintTarget] = useState<IssuedCredential | null>(null);
@@ -624,20 +626,38 @@ const IssuedCredentialsPanel: React.FC = () => {
     }).catch(() => {});
   };
 
+  const handleReconcile = async (credId: string) => {
+    setReconcilingId(credId);
+    try {
+      const result = await adminCertificateService.reconcileCredential(credId);
+      if (result.status === 'recovered') {
+        toastSuccess('Credential recovered — Horizon confirmed the transaction.');
+        await load();
+      } else {
+        setError(`Reconciliation: ${result.reason ?? result.status}`);
+      }
+    } catch (e) {
+      setError(getErrorMessage(e, 'Reconciliation failed.'));
+    } finally {
+      setReconcilingId(null);
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const creds = await adminCertificateService.getIssuedCredentials(
-        mintStatusFilter !== 'all' ? { mintStatus: mintStatusFilter } : undefined
-      );
+      const creds = await adminCertificateService.getIssuedCredentials({
+        ...(mintStatusFilter !== 'all' && { mintStatus: mintStatusFilter }),
+        ...(networkFilter !== 'all' && { network: networkFilter }),
+      });
       setCredentials(creds);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load issued credentials.'));
     } finally {
       setLoading(false);
     }
-  }, [mintStatusFilter]);
+  }, [mintStatusFilter, networkFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -687,6 +707,16 @@ const IssuedCredentialsPanel: React.FC = () => {
             <span className="tabular-nums font-bold">{counts.superseded}</span>
           </span>
         )}
+        <select
+          value={networkFilter}
+          onChange={(e) => setNetworkFilter(e.target.value as 'all' | 'public' | 'testnet')}
+          className="ml-2 text-sm border border-neutral-300 rounded-lg px-2.5 py-1 bg-white text-neutral-700 focus:ring-2 focus:ring-violet-300 focus:outline-none"
+          aria-label="Filter by network"
+        >
+          <option value="all">All networks</option>
+          <option value="public">Public (mainnet)</option>
+          <option value="testnet">Testnet</option>
+        </select>
         <Button variant="outline" size="sm" type="button" onClick={load} className="ml-auto">
           <RefreshCw className="h-4 w-4 mr-1.5" aria-hidden />
           Refresh
@@ -759,9 +789,20 @@ const IssuedCredentialsPanel: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {cred.isSuperseded
-                          ? <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-500">Superseded</span>
-                          : <MintStatusBadge status={cred.mintStatus} />}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {cred.isSuperseded
+                            ? <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-500">Superseded</span>
+                            : <MintStatusBadge status={cred.mintStatus} />}
+                          {cred.network && (
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                              cred.network === 'testnet'
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {cred.network === 'testnet' ? 'testnet' : 'mainnet'}
+                            </span>
+                          )}
+                        </div>
                         {cred.mintError && !cred.isSuperseded && (
                           <p className="text-[10px] text-red-500 mt-0.5 truncate max-w-[100px]" title={cred.mintError}>
                             {cred.mintError.slice(0, 40)}…
@@ -784,7 +825,7 @@ const IssuedCredentialsPanel: React.FC = () => {
                         {cred.txHash ? (
                           <div className="flex items-center gap-1">
                             <a
-                              href={`https://stellar.expert/explorer/public/tx/${cred.txHash}`}
+                              href={`https://stellar.expert/explorer/${cred.network || 'public'}/tx/${cred.txHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-mono text-xs text-violet-600 hover:text-violet-800 hover:underline flex items-center gap-0.5"
@@ -810,19 +851,35 @@ const IssuedCredentialsPanel: React.FC = () => {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {cred.mintStatus === 'minted' && !cred.isSuperseded && cred.courseId ? (
-                          <button
-                            type="button"
-                            onClick={() => openRemint(cred)}
-                            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
-                            title="Re-mint to a corrected wallet address"
-                          >
-                            <RotateCcw className="h-3 w-3" aria-hidden />
-                            Re-mint
-                          </button>
-                        ) : (
-                          <span className="text-neutral-300 text-xs">—</span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {cred.mintStatus === 'minted' && !cred.isSuperseded && cred.courseId && (
+                            <button
+                              type="button"
+                              onClick={() => openRemint(cred)}
+                              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
+                              title="Re-mint to a corrected wallet address"
+                            >
+                              <RotateCcw className="h-3 w-3" aria-hidden />
+                              Re-mint
+                            </button>
+                          )}
+                          {cred.mintStatus === 'failed' && cred.txHash && !cred.isSuperseded && (
+                            <button
+                              type="button"
+                              onClick={() => handleReconcile(cred.credentialId)}
+                              disabled={reconcilingId === cred.credentialId}
+                              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              title="Check Horizon to see if this transaction actually succeeded"
+                            >
+                              <RefreshCw className={`h-3 w-3 ${reconcilingId === cred.credentialId ? 'animate-spin' : ''}`} aria-hidden />
+                              {reconcilingId === cred.credentialId ? 'Checking…' : 'Reconcile'}
+                            </button>
+                          )}
+                          {!(cred.mintStatus === 'minted' && !cred.isSuperseded && cred.courseId) &&
+                           !(cred.mintStatus === 'failed' && cred.txHash && !cred.isSuperseded) && (
+                            <span className="text-neutral-300 text-xs">—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -9,6 +9,7 @@ import {
   listIssuedCredentials,
   listDemoSponsorTransfers,
   remintCredential,
+  handleReconcile,
 } from '../controllers/adminController.js';
 import { db } from '../config/database.js';
 import { reconcileAccount } from '../services/rewards/rewardLedger.js';
@@ -139,6 +140,29 @@ router.post(
   authenticate,
   requirePermission('certificate.mint'),
   remintCredential,
+);
+
+/**
+ * @openapi
+ * /admin/credentials/{id}/reconcile:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Reconcile failed credential against Horizon
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Reconciliation result }
+ *       403: { description: Requires certificate.approve }
+ */
+router.post(
+  '/credentials/:id/reconcile',
+  authenticate,
+  requirePermission('certificate.approve'),
+  handleReconcile,
 );
 
 // GET /admin/rewards/reconcile — safe summary reconciliation

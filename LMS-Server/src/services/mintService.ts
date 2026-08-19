@@ -182,8 +182,14 @@ export async function mintCredentialForQuiz(params: {
       throw new Error(`Send failed: ${JSON.stringify(sendResult.errorResult)}`);
     }
 
-    // Poll for on-chain confirmation (up to ~30 seconds, 10 × 3s)
+    // Persist tx_hash immediately for reconciliation if poll times out
     const txHash = sendResult.hash;
+    execute(
+      `UPDATE nft_credentials SET tx_hash = ?, updated_at = datetime('now') WHERE id = ?`,
+      [txHash, credId]
+    );
+
+    // Poll for on-chain confirmation (up to ~30 seconds, 10 × 3s)
     type GetTxResult = Awaited<ReturnType<typeof server.getTransaction>>;
     let getResult: GetTxResult | null = null;
     for (let i = 0; i < 10; i++) {
@@ -283,7 +289,20 @@ export async function mintCredential(params: {
     throw new Error(`Send failed: ${JSON.stringify(sendResult.errorResult)}`);
   }
 
+  // Persist tx_hash immediately for reconciliation if poll times out.
+  // The route handler creates the nft_credentials row before calling this function.
   const txHash = sendResult.hash;
+  const existingCred = queryOne<{ id: string }>(
+    `SELECT id FROM nft_credentials WHERE user_id = ? AND course_id = ? AND mint_status IN ('pending', 'failed')`,
+    [userId, courseId]
+  );
+  if (existingCred) {
+    execute(
+      `UPDATE nft_credentials SET tx_hash = ?, updated_at = datetime('now') WHERE id = ?`,
+      [txHash, existingCred.id]
+    );
+  }
+
   type GetTxResult = Awaited<ReturnType<typeof server.getTransaction>>;
   let getResult: GetTxResult | null = null;
   for (let i = 0; i < 15; i++) {

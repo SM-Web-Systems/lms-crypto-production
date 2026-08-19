@@ -4,6 +4,7 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mintCredential } from '../services/mintService.js';
+import { reconcileCredential } from '../services/reconciliationService.js';
 import { auditLog } from '../services/auditService.js';
 import logger from '../utils/logger.js';
 
@@ -149,10 +150,11 @@ export async function listIssuedCredentials(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const { courseId, userId, mintStatus } = req.query as {
+  const { courseId, userId, mintStatus, network } = req.query as {
     courseId?: string;
     userId?: string;
     mintStatus?: string;
+    network?: string;
   };
   const role = req.user?.role;
   const requestingUserId = req.user?.userId;
@@ -193,6 +195,10 @@ export async function listIssuedCredentials(
     if (mintStatus && ['pending', 'minted', 'failed'].includes(mintStatus)) {
       conditions.push('nc.mint_status = ?');
       params.push(mintStatus);
+    }
+    if (network && ['public', 'testnet'].includes(network)) {
+      conditions.push('nc.network = ?');
+      params.push(network);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -517,6 +523,26 @@ export async function remintCredential(
         walletAddress: targetWallet,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/v1/admin/credentials/:id/reconcile
+ *
+ * Check Horizon for a failed credential's tx_hash. If the transaction
+ * actually succeeded on-chain, update the DB to 'minted'.
+ */
+export async function handleReconcile(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const { id } = req.params;
+  try {
+    const result = await reconcileCredential(id);
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
