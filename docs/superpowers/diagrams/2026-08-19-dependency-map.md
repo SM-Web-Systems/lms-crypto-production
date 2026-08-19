@@ -1,82 +1,52 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 4 (Post-Worktree-Cleanup)
-
-## Code Dependencies
-
-```mermaid
-graph LR
-    subgraph "Changed (PR #1 — Merged)"
-        MS["mintService.ts"]
-        MT["mint-network-config.test.ts"]
-    end
-
-    subgraph "Depends on mintService (unchanged)"
-        QC["quizzesController.ts<br/>isTriggerQuiz + mintCredentialForQuiz"]
-        NA["nftApplications.ts<br/>mintCredential"]
-        AC["adminController.ts<br/>mintCredential"]
-    end
-
-    subgraph "Amma Wallet (unchanged, independent)"
-        SSO["ammaWalletSSOService.ts"]
-        WS["walletService.ts"]
-        AU["authController.ts"]
-    end
-
-    subgraph "Environment"
-        E1["NFT_STELLAR_NETWORK (NEW)"]
-        E2["NFT_MINTER_SECRET"]
-        E3["NFT_CONTRACT_ID"]
-        E4["NFT_SOROBAN_RPC_URL"]
-    end
-
-    QC --> MS
-    NA --> MS
-    AC --> MS
-    MT --> MS
-    MS --> E1
-    MS --> E2
-    MS --> E3
-    MS --> E4
-
-    AU --> SSO
-    AU --> WS
-```
+**Updated:** Phase 5 (Testnet Tooling)
 
 ## Task Dependencies
 
 ```mermaid
 graph LR
     subgraph "COMPLETE"
-        PR["PR #1 Merge<br/>b6cc879"] --> PROD["Production Config"]
+        PR["PR #1 Merge"] --> PROD["Production Config"]
         PROD --> DEPLOY["API Deploy"]
         DEPLOY --> TESTS["Tests 1108/1108"]
         TESTS --> DOCS["Documentation"]
         DOCS --> WT["Worktree Deleted"]
+        WT --> PRCORR["PR Comment Posted"]
+        PRCORR --> PREFLIGHT["Testnet Preflight"]
     end
 
-    subgraph "DECISION"
-        WT --> PRCORR["PR Correction?"]
+    subgraph "BLOCKED — Tooling"
+        CLI["Stellar CLI Install"] --> WASM_FETCH["Fetch WASM"]
+        CLI --> KEYPAIR["Generate Keypair"]
     end
 
-    subgraph "BLOCKED"
-        CLI["Stellar CLI"] --> KEYPAIR["Testnet Keypair"]
+    subgraph "BLOCKED — Testnet Pipeline"
         KEYPAIR --> FUND["Friendbot Funding"]
-        WASM["Contract WASM"] --> CDEPLOY["Contract Deploy"]
-        FUND --> CDEPLOY
-        CDEPLOY --> ENV["Testnet Env Config"]
+        WASM_FETCH --> CONTRACT["Deploy Contract"]
+        FUND --> CONTRACT
+        CONTRACT --> ENV["Testnet Env Config"]
         ENV --> MINT["Testnet Mint"]
     end
 
-    PRCORR -.->|"independent"| CLI
-    PRCORR -.->|"independent"| WASM
+    PREFLIGHT -.->|"next"| CLI
+
+    style PRCORR fill:#90EE90
+    style PREFLIGHT fill:#90EE90
+    style CLI fill:#FFD700
+    style WASM_FETCH fill:#FFD700
+    style KEYPAIR fill:#FFB6C1
+    style FUND fill:#FFB6C1
+    style CONTRACT fill:#FFB6C1
+    style ENV fill:#FFB6C1
+    style MINT fill:#FFB6C1
 ```
 
 ## Legend
 
 | Color | Meaning |
 |-------|---------|
-| Complete | All P1 tasks done |
-| Decision | PR correction method |
-| Blocked | Testnet pipeline (each step requires approval) |
+| Green | COMPLETE |
+| Yellow | BLOCKED (approval pending) |
+| Red | BLOCKED (multiple approvals needed) |
