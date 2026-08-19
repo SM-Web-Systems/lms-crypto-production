@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mintCredential } from '../services/mintService.js';
 import { reconcileCredential } from '../services/reconciliationService.js';
+import { getNftProvider } from '../services/nftProvider.js';
 import { auditLog } from '../services/auditService.js';
 import logger from '../utils/logger.js';
 
@@ -332,6 +333,12 @@ export async function integrationStatus(
 
     const overallStatus = dbStatus === 'ok' ? 'ok' : 'degraded';
 
+    // NFT provider info (no secrets)
+    let nftProvider: { name: string; version: string; network: string; capabilities: string[] } | null = null;
+    try {
+      nftProvider = getNftProvider().getProviderInfo();
+    } catch { /* provider not configured — leave null */ }
+
     logger.info({ module: 'adminDiag', userId, ip, route: 'GET /api/v1/admin/integration-status', status: overallStatus }, 'Integration status checked');
 
     res.setHeader('Cache-Control', 'no-store');
@@ -340,6 +347,7 @@ export async function integrationStatus(
       timestamp: new Date().toISOString(),
       db: dbStatus,
       ammaWallet,
+      nftProvider,
       walletStatus,
       recentProvisioning,
     });
