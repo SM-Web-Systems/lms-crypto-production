@@ -14,8 +14,8 @@
 
 | ID | Task | Priority | Status | Blocker | Approval |
 |----|------|----------|--------|---------|----------|
-| TNS-004 | Fetch contract WASM from mainnet | P2 | BLOCKED | Approval | `stellar contract fetch --id CDPK... --network mainnet` |
-| TNS-005 | Verify WASM ABI | P2 | BLOCKED | TNS-004 | Read-only inspection |
+| TNS-004 | Fetch contract WASM from mainnet | P2 | COMPLETE | — | SHA-256: 2e8c87f0...ed6eb, 32,110 bytes |
+| TNS-005 | Verify WASM ABI | P2 | COMPLETE | — | mint(to, caller) EXACT MATCH with mintService.ts |
 | TNS-006 | Generate testnet keypair | P2 | BLOCKED | Approval + secret storage plan | `stellar keys generate` |
 | TNS-007 | Store testnet secret securely | P2 | BLOCKED | TNS-006 + method approval | Separate from production |
 | TNS-008 | Fund testnet account via Friendbot | P2 | BLOCKED | TNS-006 + Approval | curl friendbot.stellar.org |

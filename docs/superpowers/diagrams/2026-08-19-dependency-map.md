@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 6 (Post-CLI Installation)
+**Updated:** Phase 7 (Post-WASM Fetch)
 
 ## Task Dependencies
 
@@ -15,21 +15,21 @@ graph LR
         DOCS --> WT["Worktree Deleted"]
         WT --> PRCORR["PR Comment"]
         PRCORR --> CLI["Stellar CLI v27.1.0"]
+        CLI -->|"stellar contract fetch"| WASM["WASM Fetched + ABI Verified"]
     end
 
     subgraph "BLOCKED — Next Steps"
-        WASM["Fetch WASM"] --> CONTRACT["Deploy Contract"]
         KEYPAIR["Generate Keypair"] --> FUND["Fund Account"]
-        FUND --> CONTRACT
+        FUND --> CONTRACT["Deploy Contract"]
         CONTRACT --> ENV["Configure Testnet"]
         ENV --> MINT["Execute Mint"]
     end
 
-    CLI -->|"stellar contract fetch"| WASM
+    WASM -->|"deploy with constructor"| CONTRACT
     CLI -->|"stellar keys generate"| KEYPAIR
 
     style CLI fill:#90EE90
-    style WASM fill:#FFD700
+    style WASM fill:#90EE90
     style KEYPAIR fill:#FFB6C1
     style FUND fill:#FFB6C1
     style CONTRACT fill:#FFB6C1
