@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 16 (Assessment Complete — 24/24 PASS, Stages A-C Proposed)
+**Updated:** Phase 17 (Post-Mint Verified — 18/18 PASS, Token #0 Minted)
 
 ## Task Dependencies
 
@@ -48,11 +48,19 @@ graph LR
         DOCS16["16 Assessment Docs\n4 specs + 4 plans + 8 diagrams"]
     end
 
-    subgraph "BLOCKED — Next Stages"
-        READ["Stage A: Read Contract\nstellar contract read"]
-        SIM["Stage B: Simulation\nstellar invoke --sim-only"]
-        MINT["Stage C: One Mint\nControlled testnet mint"]
-        EXPLORER["Stage D: Integration\nFull test suite"]
+    subgraph "STAGES A-C — COMPLETE"
+        READ["Stage A: Read Contract\nConstructor VERIFIED"]
+        SIM["Stage B: Simulation\n--send=no SUCCESS"]
+        MINT["Stage C: One Mint\ntx 05e459cc...44b2"]
+        PMVERIFY["Post-Mint Verified\n18/18 PASS"]
+    end
+
+    subgraph "INTEGRATION — REQUIRES APPROVAL"
+        META["Metadata JSON Endpoint"]
+        RECON["Timeout Reconciliation"]
+        FILTER["Admin UI Network Filter"]
+        RPCTESTS["Real-RPC Integration Tests"]
+        PRODREADY["Production Readiness Review"]
     end
 
     KEYPAIR --> ROTATION
@@ -71,10 +79,18 @@ graph LR
     API_TEST --> ASSESS
     ASSESS --> SAFEGUARDS
     SAFEGUARDS --> DOCS16
-    DOCS16 -->|"Gate 1"| READ
-    READ -->|"Gate 2"| SIM
-    SIM -->|"Gate 3"| MINT
-    MINT -->|"Gate 4"| EXPLORER
+    DOCS16 --> READ
+    READ --> SIM
+    SIM --> MINT
+    MINT --> PMVERIFY
+    PMVERIFY --> META
+    PMVERIFY --> RECON
+    PMVERIFY --> FILTER
+    PMVERIFY --> RPCTESTS
+    META --> PRODREADY
+    RECON --> PRODREADY
+    FILTER --> PRODREADY
+    RPCTESTS --> PRODREADY
 
     style CLI fill:#90EE90
     style WASM fill:#90EE90
@@ -93,10 +109,15 @@ graph LR
     style ASSESS fill:#90EE90
     style SAFEGUARDS fill:#90EE90
     style DOCS16 fill:#90EE90
-    style READ fill:#FFD700
-    style SIM fill:#FFD700
-    style MINT fill:#FFB6C1
-    style EXPLORER fill:#FFB6C1
+    style READ fill:#90EE90
+    style SIM fill:#90EE90
+    style MINT fill:#90EE90
+    style PMVERIFY fill:#90EE90
+    style META fill:#FFD700
+    style RECON fill:#FFD700
+    style FILTER fill:#FFD700
+    style RPCTESTS fill:#FFD700
+    style PRODREADY fill:#FFB6C1
 ```
 
 ## Legend

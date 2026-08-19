@@ -25,10 +25,13 @@
 | TNS-010 | Configure testnet env vars | P2 | COMPLETE | — | `.env.testnet-nft` created, gitignored, no secrets, production unchanged |
 | TNS-010a | Verify testnet API runtime | P2 | COMPLETE | — | Health OK, NFT_STELLAR_NETWORK=testnet confirmed, port 3003, production lms-api=public |
 | TNS-010b | Repository assessment | P2 | COMPLETE | — | 6 safeguard categories assessed (all STRONG/ADEQUATE), 4 gaps identified (non-blocking), 24/24 test matrix PASS |
-| TNS-011 | Read contract state (Stage A) | P2 | BLOCKED | Approval | `stellar contract read` — zero risk, read-only |
-| TNS-011a | Simulate mint (Stage B) | P2 | BLOCKED | TNS-011 + Approval | `stellar contract invoke --sim-only` — zero risk |
-| TNS-011b | Execute one test mint (Stage C) | P2 | BLOCKED | TNS-011a + Approval | One controlled testnet mint |
-| TNS-012 | Verify on testnet explorer | P2 | BLOCKED | TNS-011b | Read-only check |
+| TNS-011 | Read contract state (Stage A) | P2 | COMPLETE | — | Constructor values VERIFIED on-chain: admin=GBNOP73G, base_uri, name=SCC |
+| TNS-011a | Simulate mint (Stage B) | P2 | COMPLETE | — | `--send=no` success, token_id=0, exit 0, no balance/ops change |
+| TNS-011b | Execute one test mint (Stage C) | P2 | COMPLETE | — | Tx: `05e459cc...44b2`; Ledger: 4228792; token_id=0; fee=349,292 stroops; balance delta=-0.0349292 XLM |
+| TNS-011c | Post-mint verification | P2 | COMPLETE | — | 18/18 on-chain checks VERIFIED; TokenIdCounter=1; TotalSupply=1; 4 ops total; production unchanged |
+| TNS-012 | Verify on testnet explorer | P2 | COMPLETE | — | stellar.expert/explorer/testnet/tx/05e459cc...44b2; Horizon cross-check PASS |
+| TNS-012a | Metadata endpoint check | P2 | NOT AVAILABLE | — | base_uri on-chain correct; HTTP returns SPA HTML, not NFT JSON; service not implemented |
+| TNS-012b | Integration readiness assessment | P2 | COMPLETE | — | 4 gaps: metadata endpoint, timeout reconciliation, admin UI filter, real-RPC tests |
 
 ## P3 — Cleanup
 
