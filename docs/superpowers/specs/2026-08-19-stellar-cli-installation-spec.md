@@ -1,10 +1,10 @@
 # Stellar CLI Installation Specification
 
 **Date:** 2026-08-19
-**Status:** BLOCKED — Requires installation approval
+**Status:** COMPLETE
 
 ## Problem Statement
-Testnet contract deployment and verification require the Stellar CLI (`stellar`), which is not currently installed on the server.
+Testnet contract deployment and verification require the Stellar CLI, which was not installed on the server.
 
 ## Goals
 - Install the Stellar CLI for testnet operations only
@@ -12,61 +12,88 @@ Testnet contract deployment and verification require the Stellar CLI (`stellar`)
 - Do not affect production services
 
 ## Non-Goals
-- Install Rust/Cargo toolchain
+- Install Rust/Cargo toolchain (not needed for pre-built binary)
 - Build contracts from source (separate step)
 - Configure production environment
 - Generate keypairs (separate approval)
 
-## Current State
-- `which stellar` = not found
-- `which soroban` = not found
-- `which rustc` = not found
-- `which cargo` = not found
-- OS: Ubuntu 24.04.4 LTS, x86_64
-- Node: v20.20.0
-- npm: 10.8.2
+## Solution
+Installed Stellar CLI v27.1.0 via official install script with `--user` flag.
 
-## Installation Options
+## Installation Details
 
-| Method | Pros | Cons | Recommendation |
-|--------|------|------|----------------|
-| Install script | Official, handles deps, no Rust prereq | Runs shell script from GitHub | PREFERRED |
-| Homebrew | Package-managed, easy update | brew may not be installed | SECONDARY |
-| cargo install | Full-featured, native binary | Requires Rust + build-essential | HEAVY |
-| Pre-built binary | Fast, no build deps | Manual updates, provenance | IF script fails |
+| Property | Value |
+|----------|-------|
+| Version | 27.1.0 |
+| Binary | /home/webadmin/.local/bin/stellar |
+| Installer | https://github.com/stellar/stellar-cli/raw/main/install.sh |
+| Installer SHA-256 | fc0dde4effffcd2859c1ec640967c398cc47e208dc1f55baf8aa1fc7cedcb12d |
+| Method | Official install script with --user flag |
+| Scope | User-local (~/.local/bin) |
+| Privileges | No sudo required |
+| Platform | x86_64-unknown-linux-gnu |
+| Dependencies installed | None (pre-built binary) |
+| Shell profile changes | None (PATH already included ~/.local/bin) |
 
-**Note:** Stellar CLI is NOT available via npm. The `@stellar/stellar-sdk` npm package is the JS SDK, not the CLI.
+## Installation Options Evaluated
 
-## Recommended Approach
-```bash
-# Official install script (least invasive, handles dependencies):
-curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
+| Method | Pros | Cons | Decision |
+|--------|------|------|----------|
+| Official install script --user | No sudo, user-local, official, handles deps | Remote script (mitigated by review) | SELECTED |
+| Official install script (default) | System-wide | Requires sudo | Rejected (unnecessary privilege) |
+| cargo install | Full-featured, native | Requires Rust toolchain install | Rejected (too invasive) |
+| Homebrew | Package-managed | brew not installed | Rejected (extra dependency) |
+| npm | Familiar stack | NOT AVAILABLE (no npm package for CLI) | Rejected (unavailable) |
 
-# Alternative with auto-installed dependencies:
-curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh -s -- --install-deps
+## Installer Review
 
-# Verify:
-stellar --version
+The 837-line installer was downloaded to a temp file, SHA-256 hashed, and fully reviewed before execution:
+- Does NOT read application secrets or env files
+- Does NOT upload local files
+- Does NOT modify the repository or shell profiles
+- Does NOT install Rust/Cargo without --install-deps flag
+- Does NOT generate keys, fund accounts, or deploy contracts
+- Downloads pre-built binary from GitHub Releases (HTTPS)
+- Cleans up temp directory on exit
+
+## CLI Capabilities Verified
+
+```
+stellar 27.1.0 (8e402ea28202950b272fbabc34caad4d2f64fe87)
+stellar-xdr 27.0.0
 ```
 
-Source: https://developers.stellar.org/docs/tools/cli/install-cli
+Key subcommands available:
+- `stellar contract fetch` — fetch WASM from deployed contracts
+- `stellar contract deploy` — deploy contracts to networks
+- `stellar contract invoke` — invoke contract functions
+- `stellar keys` — key generation and management
+- `stellar network` — network configuration
+
+## Rust/Cargo Status
+NOT INSTALLED — not needed for pre-built binary installation. Only required for building contracts from source (`stellar contract build`).
 
 ## Security
-- CLI handles keypair generation and transaction signing
+- CLI installed in user-local directory (no system-wide impact)
 - CLI must never be configured with production secrets
 - Testnet-only usage enforced by environment configuration
-- No production services affected by installation
-
-## Actors and Boundaries
-- Actor: Developer/CI performing testnet operations
-- Boundary: CLI installation only, no configuration changes
+- No production services affected
+- Rollback: `rm ~/.local/bin/stellar`
 
 ## Acceptance Criteria
-- [ ] `stellar --version` returns a version
-- [ ] No production services disrupted
-- [ ] No environment files modified
-- [ ] No keypairs generated (separate approval)
+- [x] `stellar --version` returns 27.1.0
+- [x] `stellar contract --help` shows fetch/deploy subcommands
+- [x] `stellar network --help` shows network management
+- [x] No production services disrupted
+- [x] No environment files modified
+- [x] No keypairs generated
+- [x] No sudo used
+- [x] PATH already includes ~/.local/bin
 
-## Explicit Approval Gates
-- Install Stellar CLI: REQUIRES APPROVAL
-- Method selection: REQUIRES APPROVAL
+## Explicit Approval Gates (Next Steps)
+- Generate testnet keypair: REQUIRES APPROVAL
+- Fund account via Friendbot: REQUIRES APPROVAL
+- Fetch contract WASM: REQUIRES APPROVAL
+- Deploy testnet contract: REQUIRES APPROVAL
+- Configure testnet environment: REQUIRES APPROVAL
+- Execute testnet mint: REQUIRES APPROVAL

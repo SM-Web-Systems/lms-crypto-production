@@ -1,7 +1,7 @@
 # Dependency Map
 
 **Date:** 2026-08-19
-**Updated:** Phase 5 (Testnet Tooling)
+**Updated:** Phase 6 (Post-CLI Installation)
 
 ## Task Dependencies
 
@@ -13,29 +13,23 @@ graph LR
         DEPLOY --> TESTS["Tests 1108/1108"]
         TESTS --> DOCS["Documentation"]
         DOCS --> WT["Worktree Deleted"]
-        WT --> PRCORR["PR Comment Posted"]
-        PRCORR --> PREFLIGHT["Testnet Preflight"]
+        WT --> PRCORR["PR Comment"]
+        PRCORR --> CLI["Stellar CLI v27.1.0"]
     end
 
-    subgraph "BLOCKED — Tooling"
-        CLI["Stellar CLI Install"] --> WASM_FETCH["Fetch WASM"]
-        CLI --> KEYPAIR["Generate Keypair"]
-    end
-
-    subgraph "BLOCKED — Testnet Pipeline"
-        KEYPAIR --> FUND["Friendbot Funding"]
-        WASM_FETCH --> CONTRACT["Deploy Contract"]
+    subgraph "BLOCKED — Next Steps"
+        WASM["Fetch WASM"] --> CONTRACT["Deploy Contract"]
+        KEYPAIR["Generate Keypair"] --> FUND["Fund Account"]
         FUND --> CONTRACT
-        CONTRACT --> ENV["Testnet Env Config"]
-        ENV --> MINT["Testnet Mint"]
+        CONTRACT --> ENV["Configure Testnet"]
+        ENV --> MINT["Execute Mint"]
     end
 
-    PREFLIGHT -.->|"next"| CLI
+    CLI -->|"stellar contract fetch"| WASM
+    CLI -->|"stellar keys generate"| KEYPAIR
 
-    style PRCORR fill:#90EE90
-    style PREFLIGHT fill:#90EE90
-    style CLI fill:#FFD700
-    style WASM_FETCH fill:#FFD700
+    style CLI fill:#90EE90
+    style WASM fill:#FFD700
     style KEYPAIR fill:#FFB6C1
     style FUND fill:#FFB6C1
     style CONTRACT fill:#FFB6C1
@@ -48,5 +42,5 @@ graph LR
 | Color | Meaning |
 |-------|---------|
 | Green | COMPLETE |
-| Yellow | BLOCKED (approval pending) |
-| Red | BLOCKED (multiple approvals needed) |
+| Yellow | BLOCKED (approval pending, read-only possible) |
+| Red | BLOCKED (multiple approvals + prerequisites needed) |

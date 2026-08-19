@@ -1,32 +1,33 @@
 # Testnet Tooling Loop Plan
 
 **Date:** 2026-08-19
+**Updated:** Post-CLI Installation
 
 ## Current State
 
 ```
 COMPLETE:
-  ✓ PR correction comment posted
-  ✓ CLI installation research
-  ✓ Read-only testnet preflight
-  ✓ Documentation created
+  ✓ PR #1 merged (b6cc879)
+  ✓ Production configured (NFT_STELLAR_NETWORK=public)
   ✓ Tests 1108/1108
+  ✓ PR correction comment posted
+  ✓ Stellar CLI installed (v27.1.0)
+  ✓ CLI verified (contract/network/keys subcommands)
 
 BLOCKED (each requires separate approval):
-  ✗ Install Stellar CLI
-  ✗ Investigate WASM provenance
+  ✗ Fetch contract WASM
   ✗ Generate testnet keypair
   ✗ Fund testnet account
   ✗ Deploy testnet contract
   ✗ Configure testnet environment
-  ✗ Execute test mint
+  ✗ Execute testnet mint
 ```
 
 ## Loop Behavior
 
 ### Allowed
 - Read-only Git status, branches, worktrees
-- Read-only PR/comment state verification
+- Check CLI version and help
 - Run tests/builds
 - Check /health and /healthz
 - Read-only source/tooling inspection
@@ -34,20 +35,19 @@ BLOCKED (each requires separate approval):
 - TODO status updates with evidence
 
 ### Forbidden
-- Automatic PR writes
-- Automatic commits/pushes
 - Key generation
-- Account funding
+- Friendbot calls
+- Contract fetch without approval
 - Contract deployment
 - Environment changes
 - NFT minting
 - Blockchain transactions
 - Financial operations
 - Secret rotation
-- Completion claims without evidence
+- Automatic commits/pushes
 
 ### Stop and request approval before
-- Installing host software
+- Fetching contract WASM (network query)
 - Generating keypairs
 - Funding accounts
 - Deploying contracts
@@ -57,6 +57,5 @@ BLOCKED (each requires separate approval):
 
 ## Exit Criteria
 1. All P1 tasks COMPLETE ✓
-2. CLI installation approved and executed
-3. WASM provenance verified
-4. Or: all testnet operations explicitly deferred
+2. Testnet pipeline approvals granted or deferred
+3. Final documentation committed and pushed
