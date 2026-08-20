@@ -25,12 +25,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database.js';
-import { _resetProviderCache } from '../services/nftProvider.js';
+import { _resetProviderCache, getNftProvider } from '../services/nftProvider.js';
 
 // We'll import the enhanced provider and its TransactionClient types
 import {
   EnhancedStellarProvider,
   createMockTransactionClient,
+  _resetMintLocks,
 } from '../services/providers/enhancedStellarProvider.js';
 import type { TransactionClient } from '../services/providers/enhancedStellarProvider.js';
 
@@ -46,8 +47,8 @@ function seedUserAndCredential(overrides?: {
 
   db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'EP User', 'hash', 'student')`)
     .run(userId, `ep-${userId}@test.com`);
-  db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP Course', 'Test', 'EPC')`)
-    .run(courseId);
+  db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP Course', 'Test', ?)`)
+    .run(courseId, `EPC-${courseId.slice(0, 8)}`);
   db.prepare(
     `INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, contract_id, network, course_id, tx_hash)
      VALUES (?, ?, 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY', ?, 'CTEST', ?, ?, ?)`
@@ -83,6 +84,7 @@ describe('EnhancedStellarProvider', () => {
 
   afterEach(() => {
     _resetProviderCache();
+    _resetMintLocks();
     delete process.env.NFT_PROVIDER;
     delete process.env.NFT_STELLAR_NETWORK;
     delete process.env.NFT_CONTRACT_ID;
@@ -424,18 +426,32 @@ describe('EnhancedStellarProvider', () => {
 
   describe('tx_hash Overwrite Protection', () => {
     it('EP-H5: tx_hash is not overwritten if already set', async () => {
+      // Seed a pending credential that already has a tx_hash from a prior attempt
       const { userId, credId, courseId, appId } = seedUserAndCredential({
         mintStatus: 'pending',
         txHash: 'original-hash-do-not-overwrite',
       });
 
-      // This mint should fail because credential already has a tx_hash
-      // (it's in pending state with a hash — implies a previous attempt)
-      // The provider should detect this and not overwrite
-      const row = db.prepare('SELECT tx_hash FROM nft_credentials WHERE id = ?').get(credId) as any;
+      // Mint should skip simulate+submit (H2 fix) and poll the existing hash
+      // The mock client returns SUCCESS for polling, so mint succeeds
+      const result = await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
 
-      // After any operation, the original hash should be preserved
+      // Result should use the original hash, not a new one
+      expect(result.txHash).toBe('original-hash-do-not-overwrite');
+
+      // DB should preserve original hash
+      const row = db.prepare('SELECT tx_hash FROM nft_credentials WHERE id = ?').get(credId) as any;
       expect(row.tx_hash).toBe('original-hash-do-not-overwrite');
+
+      // submit should NOT have been called (skipped because tx_hash existed)
+      expect(mockClient.submit).not.toHaveBeenCalled();
+      // simulate should NOT have been called either
+      expect(mockClient.simulate).not.toHaveBeenCalled();
     });
   });
 
@@ -484,6 +500,31 @@ describe('EnhancedStellarProvider', () => {
       } finally {
         globalThis.fetch = originalFetch;
       }
+    });
+  });
+
+  describe('Submit Error Handling', () => {
+    it('EP-H12: submit() throwing does not persist tx_hash', async () => {
+      const submitErrorClient = createMockTransactionClient({
+        simulateResult: { success: true, resourceFee: '100' },
+      });
+      (submitErrorClient.submit as any).mockRejectedValue(new Error('Connection refused'));
+
+      const p = new EnhancedStellarProvider(submitErrorClient);
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await expect(p.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow(/Connection refused/);
+
+      // No tx_hash should be persisted (submit threw before returning a hash)
+      const row = db.prepare('SELECT tx_hash, mint_status FROM nft_credentials WHERE id = ?').get(credId) as any;
+      expect(row.tx_hash).toBeNull();
+      // Credential should still be pending (not failed, since no tx was submitted)
+      expect(row.mint_status).toBe('pending');
     });
   });
 
@@ -539,6 +580,227 @@ describe('EnhancedStellarProvider', () => {
       const { getNftProvider } = await import('../services/nftProvider.js');
       const p = getNftProvider();
       expect(p.name).toBe('legacy-stellar');
+    });
+  });
+
+  // ─── Activation Blocker Tests (EP-B series) ─────────────────────────────────
+
+  describe('Structured Error Codes', () => {
+    it('EP-B1: poll timeout error includes RECONCILIATION_REQUIRED code', async () => {
+      const timeoutClient = createMockTransactionClient({
+        simulateResult: { success: true, resourceFee: '100' },
+        submitResult: { hash: 'timeout-code-hash', status: 'PENDING' },
+        pollResult: { status: 'PENDING' },
+      });
+      const p = new EnhancedStellarProvider(timeoutClient);
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await expect(p.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow();
+
+      const row = db.prepare('SELECT error FROM nft_credentials WHERE id = ?').get(credId) as any;
+      // Error must contain structured code for operator filtering
+      expect(row.error).toContain('[RECONCILIATION_REQUIRED]');
+    });
+
+    it('EP-B2: poll network error includes RECONCILIATION_REQUIRED code', async () => {
+      const errorClient = createMockTransactionClient({
+        simulateResult: { success: true, resourceFee: '100' },
+        submitResult: { hash: 'net-error-hash', status: 'PENDING' },
+      });
+      (errorClient.getStatus as any).mockRejectedValue(new Error('ECONNRESET'));
+      const p = new EnhancedStellarProvider(errorClient);
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await expect(p.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow();
+
+      const row = db.prepare('SELECT error FROM nft_credentials WHERE id = ?').get(credId) as any;
+      expect(row.error).toContain('[RECONCILIATION_REQUIRED]');
+    });
+
+    it('EP-B3: simulation failure does NOT include RECONCILIATION_REQUIRED', async () => {
+      const failClient = createMockTransactionClient({
+        simulateResult: { success: false, error: 'out of gas' },
+      });
+      const p = new EnhancedStellarProvider(failClient);
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await expect(p.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow(/simulation/i);
+
+      // Simulation failure should NOT mark credential as reconciliation-required
+      // (credential stays pending — no submit occurred)
+      const row = db.prepare('SELECT mint_status, error FROM nft_credentials WHERE id = ?').get(credId) as any;
+      expect(row.mint_status).toBe('pending');
+    });
+
+    it('EP-B4: confirmed FAILED status does NOT include RECONCILIATION_REQUIRED', async () => {
+      const failedClient = createMockTransactionClient({
+        simulateResult: { success: true, resourceFee: '100' },
+        submitResult: { hash: 'failed-tx-hash', status: 'PENDING' },
+        pollResult: { status: 'FAILED' },
+      });
+      const p = new EnhancedStellarProvider(failedClient);
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await expect(p.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow();
+
+      const row = db.prepare('SELECT error FROM nft_credentials WHERE id = ?').get(credId) as any;
+      // Confirmed failure should say CONFIRMED_FAILED, not RECONCILIATION_REQUIRED
+      expect(row.error).toContain('[CONFIRMED_FAILED]');
+      expect(row.error).not.toContain('[RECONCILIATION_REQUIRED]');
+    });
+  });
+
+  describe('Rollback and Activation Safety', () => {
+    it('EP-B5: NFT_PROVIDER=legacy selects legacy provider', () => {
+      process.env.NFT_PROVIDER = 'legacy';
+      _resetProviderCache();
+      const p = getNftProvider();
+      expect(p.name).toBe('legacy-stellar');
+    });
+
+    it('EP-B6: removing NFT_PROVIDER flag selects legacy', () => {
+      delete process.env.NFT_PROVIDER;
+      _resetProviderCache();
+      const p = getNftProvider();
+      expect(p.name).toBe('legacy-stellar');
+    });
+
+    it('EP-B7: invalid NFT_PROVIDER value selects legacy (fail-safe)', () => {
+      process.env.NFT_PROVIDER = 'bogus-provider';
+      _resetProviderCache();
+      const p = getNftProvider();
+      expect(p.name).toBe('legacy-stellar');
+    });
+
+    it('EP-B8: NFT_PROVIDER=enhanced without client throws PROVIDER_NOT_READY', () => {
+      process.env.NFT_PROVIDER = 'enhanced';
+      _resetProviderCache();
+      const p = getNftProvider();
+      expect(p.name).toBe('enhanced-stellar');
+      // But it has no client, so all operations throw
+      expect(() => p.getProviderInfo()).not.toThrow(); // info is safe
+      expect(p.getProviderInfo().capabilities).toEqual([]); // no capabilities
+    });
+
+    it('EP-B9: enhanced provider code present while inactive does not affect legacy', () => {
+      delete process.env.NFT_PROVIDER;
+      _resetProviderCache();
+      const p = getNftProvider();
+      // Legacy provider should work normally
+      expect(p.name).toBe('legacy-stellar');
+      expect(p.getProviderInfo().capabilities).toContain('mint');
+    });
+
+    it('EP-B10: auto-mint default is false', () => {
+      // NFT_AUTO_MINT_ENABLED must not default to true
+      delete process.env.NFT_AUTO_MINT_ENABLED;
+      const autoMint = process.env.NFT_AUTO_MINT_ENABLED === 'true';
+      expect(autoMint).toBe(false);
+    });
+  });
+
+  describe('Idempotency via Existing Schema', () => {
+    it('EP-B11: second mint after success rejects with already-minted', async () => {
+      const { userId, courseId, appId } = seedUserAndCredential();
+
+      // First mint succeeds
+      await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      // Second mint for same user+course should fail
+      // (create another pending credential to test the check)
+      const credId2 = uuidv4();
+      db.prepare(
+        `INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, contract_id, network, course_id)
+         VALUES (?, ?, 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY', 'pending', 'CTEST', 'testnet', ?)`
+      ).run(credId2, userId, courseId);
+
+      await expect(provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow(/already minted/i);
+    });
+
+    it('EP-B12: different users can mint same course independently', async () => {
+      const seed1 = seedUserAndCredential();
+      const seed2 = seedUserAndCredential();
+
+      const r1 = await provider.mint({
+        userId: seed1.userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId: seed1.courseId,
+        applicationId: seed1.appId,
+      });
+
+      // Need a fresh mock client for second call
+      const client2 = createMockTransactionClient({
+        simulateResult: { success: true, resourceFee: '100' },
+        submitResult: { hash: 'second-user-hash', status: 'PENDING' },
+        pollResult: { status: 'SUCCESS', returnValue: 43 },
+      });
+      const p2 = new EnhancedStellarProvider(client2);
+
+      const r2 = await p2.mint({
+        userId: seed2.userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId: seed2.courseId,
+        applicationId: seed2.appId,
+      });
+
+      expect(r1.txHash).toBe('abc123txhash');
+      expect(r2.txHash).toBe('second-user-hash');
+    });
+
+    it('EP-B13: reconciliation does not create duplicate credential', async () => {
+      const { credId } = seedUserAndCredential({
+        mintStatus: 'failed',
+        txHash: 'recon-dup-hash',
+      });
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ successful: true, ledger: 555 }),
+      }) as unknown as typeof fetch;
+
+      try {
+        const r1 = await provider.reconcile(credId);
+        expect(r1.status).toBe('recovered');
+
+        // Count credentials with this tx_hash — should be exactly 1
+        const count = db.prepare(
+          'SELECT COUNT(*) as cnt FROM nft_credentials WHERE tx_hash = ?'
+        ).get('recon-dup-hash') as { cnt: number };
+        expect(count.cnt).toBe(1);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });

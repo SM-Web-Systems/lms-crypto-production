@@ -92,17 +92,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ─── In-process concurrency lock ─────────────────────────────────────────────
-// Keyed on `mint:${userId}:${courseId}`. Sufficient for single-process SQLite.
-// NOT a distributed lock — document this limitation for multi-process deployment.
+// ─── In-process async mutex ──────────────────────────────────────────────────
+// Proper chaining mutex keyed on `mint:${userId}:${courseId}`.
+// Each new caller awaits the TAIL of the chain, ensuring serialization.
+// Sufficient for single-process SQLite. NOT a distributed lock.
 
-const _mintLocks = new Map<string, Promise<MintResult>>();
+const _mintLocks = new Map<string, Promise<void>>();
+
+/** Reset lock state — for tests only. */
+export function _resetMintLocks(): void {
+  _mintLocks.clear();
+}
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export class EnhancedStellarProvider implements NftProvider {
   readonly name = 'enhanced-stellar';
-  readonly version = '2.1.0';
+  readonly version = '2.2.0';
 
   private readonly client: TransactionClient | null;
 
@@ -126,36 +132,43 @@ export class EnhancedStellarProvider implements NftProvider {
       throw new Error('Invalid wallet address');
     }
 
-    // Concurrency guard: serialize mint requests per userId+courseId
+    // Async mutex: chain on the existing lock so callers serialize properly.
+    // Each caller awaits the previous promise before proceeding, preventing
+    // the TOCTOU race where two callers both read the Map before either sets it.
     const lockKey = `mint:${params.userId}:${params.courseId}`;
-    const existingLock = _mintLocks.get(lockKey);
-    if (existingLock) {
-      // Wait for the in-flight operation to complete, then re-check DB state
-      try { await existingLock; } catch { /* first attempt may have failed */ }
-      // Re-check: if now minted, reject as duplicate
+    const prev = _mintLocks.get(lockKey) ?? Promise.resolve();
+
+    let releaseLock: () => void;
+    const gate = new Promise<void>(resolve => { releaseLock = resolve; });
+    // Immediately register our gate so the next caller chains on us
+    _mintLocks.set(lockKey, gate);
+
+    try {
+      // Wait for any previous operation on this key to finish
+      await prev;
+
+      // After waiting, re-check DB state (previous call may have succeeded or failed)
       const nowMinted = db.prepare(
         'SELECT id FROM nft_credentials WHERE user_id = ? AND course_id = ? AND mint_status = ?'
       ).get(params.userId, params.courseId, 'minted');
       if (nowMinted) {
         throw new Error('Credential already minted for this user and course');
       }
-      // Re-check: if no pending credential remains, reject
       const stillPending = db.prepare(
         'SELECT id FROM nft_credentials WHERE user_id = ? AND course_id = ? AND mint_status = ?'
       ).get(params.userId, params.courseId, 'pending');
       if (!stillPending) {
         throw new Error('No pending credential found for this user and course');
       }
-    }
 
-    // Execute mint under lock
-    const mintPromise = this._doMint(params);
-    _mintLocks.set(lockKey, mintPromise);
-
-    try {
-      return await mintPromise;
+      return await this._doMint(params);
     } finally {
-      _mintLocks.delete(lockKey);
+      // Release the lock so the next waiter can proceed
+      releaseLock!();
+      // Clean up if we're the last in the chain
+      if (_mintLocks.get(lockKey) === gate) {
+        _mintLocks.delete(lockKey);
+      }
     }
   }
 
@@ -185,32 +198,38 @@ export class EnhancedStellarProvider implements NftProvider {
       throw new Error('No pending credential found for this user and course');
     }
 
-    // Step 1: Simulate
-    const simResult = await this.client!.simulate({
-      walletAddress: params.walletAddress,
-      contractId,
-      network,
-    });
+    // If a previous attempt left a tx_hash, skip simulate+submit and go
+    // directly to polling. This prevents double-submission (review finding H2).
+    let txHash: string;
 
-    if (!simResult.success) {
-      throw new Error(`Simulation failed: ${simResult.error || 'unknown error'}`);
-    }
-
-    // Step 2: Submit
-    const submitResult = await this.client!.submit({
-      walletAddress: params.walletAddress,
-      contractId,
-      network,
-    });
-
-    // Step 3: Persist tx_hash immediately after submit (early persistence)
-    // Guard: do not overwrite an existing tx_hash
     if (cred.tx_hash) {
-      // Previous attempt left a hash — preserve it
+      // Previous attempt left a hash — poll it instead of re-submitting
+      txHash = cred.tx_hash;
     } else {
+      // Step 1: Simulate
+      const simResult = await this.client!.simulate({
+        walletAddress: params.walletAddress,
+        contractId,
+        network,
+      });
+
+      if (!simResult.success) {
+        throw new Error(`Simulation failed: ${simResult.error || 'unknown error'}`);
+      }
+
+      // Step 2: Submit (exactly once)
+      const submitResult = await this.client!.submit({
+        walletAddress: params.walletAddress,
+        contractId,
+        network,
+      });
+
+      txHash = submitResult.hash;
+
+      // Step 3: Persist tx_hash immediately after submit (early persistence)
       db.prepare(
         'UPDATE nft_credentials SET tx_hash = ?, updated_at = datetime(\'now\') WHERE id = ? AND tx_hash IS NULL'
-      ).run(submitResult.hash, cred.id);
+      ).run(txHash, cred.id);
     }
 
     // Step 4: Bounded polling for confirmation
@@ -220,24 +239,32 @@ export class EnhancedStellarProvider implements NftProvider {
         if (attempt > 0) {
           await sleep(POLL_DELAYS_MS[attempt] ?? POLL_DELAYS_MS[POLL_DELAYS_MS.length - 1]);
         }
-        pollResult = await this.client!.getStatus(submitResult.hash);
+        pollResult = await this.client!.getStatus(txHash);
         if (pollResult.status === 'SUCCESS' || pollResult.status === 'FAILED') {
           break;
         }
       }
     } catch (pollError) {
-      // Poll threw (network error) — mark as failed with reconciliation hint
+      // Poll threw (network error) — status genuinely unknown, needs reconciliation
       db.prepare(
         'UPDATE nft_credentials SET mint_status = \'failed\', error = ?, updated_at = datetime(\'now\') WHERE id = ?'
-      ).run('Transaction status unknown — reconciliation required', cred.id);
+      ).run('[RECONCILIATION_REQUIRED] Transaction submitted but status unknown — poll error', cred.id);
       throw new Error('Transaction not confirmed — timeout or rejection');
     }
 
-    if (!pollResult || pollResult.status !== 'SUCCESS') {
-      // Mark as failed but keep tx_hash for reconciliation
+    if (!pollResult || pollResult.status === 'FAILED') {
+      // Poll confirmed the transaction failed on-chain — definitive failure
       db.prepare(
         'UPDATE nft_credentials SET mint_status = \'failed\', error = ?, updated_at = datetime(\'now\') WHERE id = ?'
-      ).run('Transaction status unknown — reconciliation required', cred.id);
+      ).run('[CONFIRMED_FAILED] Transaction failed on-chain', cred.id);
+      throw new Error('Transaction not confirmed — timeout or rejection');
+    }
+
+    if (pollResult.status !== 'SUCCESS') {
+      // Poll exhausted without definitive answer — needs reconciliation
+      db.prepare(
+        'UPDATE nft_credentials SET mint_status = \'failed\', error = ?, updated_at = datetime(\'now\') WHERE id = ?'
+      ).run('[RECONCILIATION_REQUIRED] Transaction submitted but status unknown — poll exhausted', cred.id);
       throw new Error('Transaction not confirmed — timeout or rejection');
     }
 
@@ -247,7 +274,7 @@ export class EnhancedStellarProvider implements NftProvider {
     ).run(pollResult.returnValue ?? null, cred.id);
 
     return {
-      txHash: submitResult.hash,
+      txHash,
       sorobanTokenId: pollResult.returnValue ?? null,
       network,
       provider: this.name,
