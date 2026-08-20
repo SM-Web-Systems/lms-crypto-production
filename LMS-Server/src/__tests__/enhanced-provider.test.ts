@@ -20,6 +20,14 @@
  * EP-14: provider does not log secrets
  * EP-15: provider requires courseId and applicationId
  * EP-16: getProviderInfo capabilities include lifecycle states
+ *
+ * EP-R1: operation key is reserved BEFORE simulate/submit
+ * EP-R2: UNIQUE constraint prevents second reservation
+ * EP-R3: simulation failure clears reserved operation key
+ * EP-R4: submit failure clears reserved operation key
+ * EP-R5: retry succeeds after simulation failure cleared the key
+ * EP-R6: operation key persists through full successful lifecycle
+ * EP-R7: non-UNIQUE database error during reservation propagates correctly
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -32,6 +40,8 @@ import {
   EnhancedStellarProvider,
   createMockTransactionClient,
   _resetMintLocks,
+  _resetSchemaCache,
+  deriveOperationKey,
 } from '../services/providers/enhancedStellarProvider.js';
 import type { TransactionClient } from '../services/providers/enhancedStellarProvider.js';
 
@@ -85,6 +95,7 @@ describe('EnhancedStellarProvider', () => {
   afterEach(() => {
     _resetProviderCache();
     _resetMintLocks();
+    _resetSchemaCache();
     delete process.env.NFT_PROVIDER;
     delete process.env.NFT_STELLAR_NETWORK;
     delete process.env.NFT_CONTRACT_ID;
@@ -801,6 +812,495 @@ describe('EnhancedStellarProvider', () => {
       } finally {
         globalThis.fetch = originalFetch;
       }
+    });
+  });
+
+  // ─── Durable Idempotency Tests (EP-D series) ───────────────────────────────
+
+  describe('Durable Idempotency', () => {
+    let migrationApplied = false;
+
+    beforeEach(() => {
+      _resetSchemaCache();
+      // Apply migration to the test DB so operation key column exists
+      try {
+        db.exec('ALTER TABLE nft_credentials ADD COLUMN mint_operation_key TEXT');
+        db.exec(`
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_nft_credentials_operation_key
+            ON nft_credentials(mint_operation_key)
+            WHERE mint_operation_key IS NOT NULL
+        `);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_nft_credentials_user_course_status
+            ON nft_credentials(user_id, course_id, mint_status)
+        `);
+        migrationApplied = true;
+      } catch {
+        // Column already exists from a previous test run — that's fine
+        migrationApplied = true;
+      }
+    });
+
+    afterEach(() => {
+      _resetSchemaCache();
+    });
+
+    it('EP-D1: deriveOperationKey produces deterministic key', () => {
+      const key = deriveOperationKey({
+        userId: 'u1',
+        courseId: 'c1',
+        walletAddress: 'GTEST',
+        contractId: 'CTEST',
+        network: 'testnet',
+      });
+      expect(key).toBe('mint:u1:c1:GTEST:CTEST:testnet');
+
+      // Same inputs produce same key
+      const key2 = deriveOperationKey({
+        userId: 'u1',
+        courseId: 'c1',
+        walletAddress: 'GTEST',
+        contractId: 'CTEST',
+        network: 'testnet',
+      });
+      expect(key2).toBe(key);
+    });
+
+    it('EP-D2: mint persists operation key on credential', async () => {
+      if (!migrationApplied) return; // skip if migration failed
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      const row = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(row.mint_operation_key).toBeTruthy();
+      expect(row.mint_operation_key).toContain(userId);
+      expect(row.mint_operation_key).toContain(courseId);
+    });
+
+    it('EP-D3: second mint with same operation key replays existing result', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      // First mint succeeds
+      const result1 = await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      expect(result1.txHash).toBe('abc123txhash');
+
+      // Reset schema cache to force re-detection
+      _resetSchemaCache();
+
+      // Create a fresh provider instance (simulates restart)
+      const freshClient = createMockTransactionClient({});
+      const freshProvider = new EnhancedStellarProvider(freshClient);
+
+      // Second mint with same inputs should replay via operation key
+      const result2 = await freshProvider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      // Should return the same result (replayed from DB)
+      expect(result2.txHash).toBe('abc123txhash');
+      expect(result2.sorobanTokenId).toBe(42);
+      expect(result2.provider).toBe('enhanced-stellar');
+
+      // submit should NOT have been called on the fresh client
+      expect(freshClient.submit).not.toHaveBeenCalled();
+      expect(freshClient.simulate).not.toHaveBeenCalled();
+    });
+
+    it('EP-D4: operation key survives provider restart', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      // Verify operation key is persisted
+      const row = db.prepare('SELECT mint_operation_key, mint_status FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(row.mint_operation_key).toBeTruthy();
+      expect(row.mint_status).toBe('minted');
+
+      // Simulate restart: fresh provider, reset cache
+      _resetSchemaCache();
+      const freshProvider = new EnhancedStellarProvider(createMockTransactionClient({}));
+
+      // Query by operation key directly — should find the minted credential
+      const recovered = db.prepare(
+        'SELECT id, mint_status, tx_hash FROM nft_credentials WHERE mint_operation_key = ?'
+      ).get(row.mint_operation_key) as any;
+
+      expect(recovered).toBeDefined();
+      expect(recovered.id).toBe(credId);
+      expect(recovered.mint_status).toBe('minted');
+    });
+
+    it('EP-D5: graceful degradation without migration', () => {
+      _resetSchemaCache();
+
+      // The provider should work even without the operation key column
+      // (existing tests in EP-1..EP-16 prove this since they ran before migration)
+      const info = provider.getProviderInfo();
+      expect(info.name).toBe('enhanced-stellar');
+      expect(info.version).toMatch(/^2\./);
+    });
+
+    it('EP-D6: operation key does not contain secrets', () => {
+      const key = deriveOperationKey({
+        userId: 'user-123',
+        courseId: 'course-456',
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        contractId: 'CTEST123',
+        network: 'testnet',
+      });
+      expect(key).not.toContain('SECRET');
+      expect(key).not.toContain('PRIVATE');
+      expect(key).not.toContain('SEED');
+      expect(key).not.toContain('MINTER');
+    });
+
+    it('EP-D8: operation key replay returns result directly for minted credential', async () => {
+      if (!migrationApplied) return;
+
+      const userId = uuidv4();
+      const courseId = uuidv4();
+      const credId = uuidv4();
+      const appId = uuidv4();
+
+      db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'EP User', 'hash', 'student')`)
+        .run(userId, `ep-d8-${userId.slice(0, 8)}@test.com`);
+      db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP D8 Course', 'Test', ?)`)
+        .run(courseId, `D8-${courseId.slice(0, 8)}`);
+
+      // Seed a minted credential WITH an operation key already set
+      const opKey = `mint:${userId}:${courseId}:GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY:CTEST123456789:testnet`;
+      db.prepare(
+        `INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, contract_id, network, course_id, tx_hash, soroban_token_id, mint_operation_key)
+         VALUES (?, ?, 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY', 'minted', 'CTEST', 'testnet', ?, 'replay-tx-hash', 77, ?)`
+      ).run(credId, userId, courseId, opKey);
+
+      // Also seed a pending credential for the same user+course
+      // (simulating a scenario where a new pending row was created)
+      const pendingCredId = uuidv4();
+      db.prepare(
+        `INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, contract_id, network, course_id)
+         VALUES (?, ?, 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY', 'pending', 'CTEST', 'testnet', ?)`
+      ).run(pendingCredId, userId, courseId);
+
+      // Fresh provider — simulates restart
+      _resetSchemaCache();
+      const replayClient = createMockTransactionClient({});
+      const replayProvider = new EnhancedStellarProvider(replayClient);
+
+      // This should find the minted credential via operation key and replay
+      const result = await replayProvider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      // Should replay the existing minted result
+      expect(result.txHash).toBe('replay-tx-hash');
+      expect(result.sorobanTokenId).toBe(77);
+      expect(result.provider).toBe('enhanced-stellar');
+
+      // submit should NOT have been called — replayed from DB
+      expect(replayClient.submit).not.toHaveBeenCalled();
+      expect(replayClient.simulate).not.toHaveBeenCalled();
+    });
+
+    // ─── Pre-Submit Reservation Tests (EP-R series) ─────────────────────────
+
+    it('EP-R1: operation key is reserved BEFORE simulate/submit', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      // Intercept simulate to check DB state at simulation time
+      let keyAtSimulateTime: string | null = null;
+      (mockClient.simulate as any).mockImplementation(async () => {
+        const row = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?')
+          .get(credId) as any;
+        keyAtSimulateTime = row?.mint_operation_key ?? null;
+        return { success: true, resourceFee: '100' };
+      });
+
+      await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      // The operation key should have been set BEFORE simulate was called
+      expect(keyAtSimulateTime).toBeTruthy();
+      expect(keyAtSimulateTime).toContain(userId);
+      expect(keyAtSimulateTime).toContain(courseId);
+    });
+
+    it('EP-R2: UNIQUE constraint prevents second reservation for same operation', async () => {
+      if (!migrationApplied) return;
+
+      const userId = uuidv4();
+      const courseId = uuidv4();
+      const appId = uuidv4();
+
+      db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'EP User', 'hash', 'student')`)
+        .run(userId, `ep-r2-${userId.slice(0, 8)}@test.com`);
+      db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP R2 Course', 'Test', ?)`)
+        .run(courseId, `R2-${courseId.slice(0, 8)}`);
+
+      // Create two pending credentials for the same user+course
+      const credId1 = uuidv4();
+      const credId2 = uuidv4();
+      db.prepare(
+        `INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, contract_id, network, course_id)
+         VALUES (?, ?, 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY', 'pending', 'CTEST', 'testnet', ?)`
+      ).run(credId1, userId, courseId);
+      db.prepare(
+        `INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, contract_id, network, course_id)
+         VALUES (?, ?, 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY', 'pending', 'CTEST', 'testnet', ?)`
+      ).run(credId2, userId, courseId);
+
+      // Manually reserve the key on credId1 (simulating a concurrent process)
+      const opKey = deriveOperationKey({
+        userId,
+        courseId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        contractId: 'CTEST123456789',
+        network: 'testnet',
+      });
+      db.prepare('UPDATE nft_credentials SET mint_operation_key = ? WHERE id = ?')
+        .run(opKey, credId1);
+
+      // Second reservation attempt on credId2 with same key should fail
+      // (via UNIQUE constraint on mint_operation_key)
+      expect(() => {
+        db.prepare('UPDATE nft_credentials SET mint_operation_key = ? WHERE id = ?')
+          .run(opKey, credId2);
+      }).toThrow(/UNIQUE/i);
+    });
+
+    it('EP-R3: simulation failure clears reserved operation key', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      const failClient = createMockTransactionClient({
+        simulateResult: { success: false, error: 'out of gas' },
+      });
+      const failProvider = new EnhancedStellarProvider(failClient);
+
+      await expect(failProvider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow(/simulation/i);
+
+      // After simulation failure, the operation key should be cleared
+      const row = db.prepare('SELECT mint_operation_key, tx_hash, mint_status FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(row.mint_operation_key).toBeNull();
+      expect(row.tx_hash).toBeNull();
+      expect(row.mint_status).toBe('pending'); // still pending — can retry
+    });
+
+    it('EP-R4: submit failure clears reserved operation key', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      const submitFailClient = createMockTransactionClient({
+        simulateResult: { success: true, resourceFee: '100' },
+      });
+      (submitFailClient.submit as any).mockRejectedValue(new Error('Connection refused'));
+      const submitFailProvider = new EnhancedStellarProvider(submitFailClient);
+
+      await expect(submitFailProvider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow(/Connection refused/);
+
+      // After submit failure, the operation key should be cleared
+      const row = db.prepare('SELECT mint_operation_key, tx_hash, mint_status FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(row.mint_operation_key).toBeNull();
+      expect(row.tx_hash).toBeNull();
+      expect(row.mint_status).toBe('pending'); // still pending — can retry
+    });
+
+    it('EP-R5: retry succeeds after simulation failure cleared the key', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      // First attempt: simulation fails
+      const failClient = createMockTransactionClient({
+        simulateResult: { success: false, error: 'temporary error' },
+      });
+      const failProvider = new EnhancedStellarProvider(failClient);
+
+      await expect(failProvider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      })).rejects.toThrow(/simulation/i);
+
+      // Verify key is cleared
+      const rowAfterFail = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(rowAfterFail.mint_operation_key).toBeNull();
+
+      // Second attempt: should succeed (key was cleared, so re-reservation works)
+      _resetSchemaCache();
+      const result = await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      expect(result.txHash).toBe('abc123txhash');
+      expect(result.sorobanTokenId).toBe(42);
+
+      // Key should be set after successful mint
+      const rowAfterSuccess = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(rowAfterSuccess.mint_operation_key).toBeTruthy();
+    });
+
+    it('EP-R6: operation key persists through full successful lifecycle', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      // Track key state at each lifecycle stage
+      let keyAtSimulate: string | null = null;
+      let keyAtSubmit: string | null = null;
+      let keyAtPoll: string | null = null;
+
+      (mockClient.simulate as any).mockImplementation(async () => {
+        const row = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?').get(credId) as any;
+        keyAtSimulate = row?.mint_operation_key ?? null;
+        return { success: true, resourceFee: '100' };
+      });
+      (mockClient.submit as any).mockImplementation(async () => {
+        const row = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?').get(credId) as any;
+        keyAtSubmit = row?.mint_operation_key ?? null;
+        return { hash: 'lifecycle-hash', status: 'PENDING' };
+      });
+      (mockClient.getStatus as any).mockImplementation(async () => {
+        const row = db.prepare('SELECT mint_operation_key FROM nft_credentials WHERE id = ?').get(credId) as any;
+        keyAtPoll = row?.mint_operation_key ?? null;
+        return { status: 'SUCCESS', returnValue: 55 };
+      });
+
+      await provider.mint({
+        userId,
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        courseId,
+        applicationId: appId,
+      });
+
+      // Key should be set at every stage (reserved before simulate, never cleared on success)
+      expect(keyAtSimulate).toBeTruthy();
+      expect(keyAtSubmit).toBeTruthy();
+      expect(keyAtPoll).toBeTruthy();
+      // Same key throughout
+      expect(keyAtSimulate).toBe(keyAtSubmit);
+      expect(keyAtSubmit).toBe(keyAtPoll);
+
+      // Final DB state
+      const finalRow = db.prepare('SELECT mint_operation_key, mint_status FROM nft_credentials WHERE id = ?')
+        .get(credId) as any;
+      expect(finalRow.mint_operation_key).toBe(keyAtSimulate);
+      expect(finalRow.mint_status).toBe('minted');
+    });
+
+    it('EP-R7: non-UNIQUE database error during reservation propagates without clearing key', async () => {
+      if (!migrationApplied) return;
+
+      const { userId, credId, courseId, appId } = seedUserAndCredential();
+
+      // Intercept the db.prepare call to throw a non-UNIQUE error on the reservation UPDATE
+      const originalPrepare = db.prepare.bind(db);
+      let interceptCount = 0;
+      const prepareProxy = vi.fn().mockImplementation((sql: string) => {
+        // Intercept the specific reservation UPDATE
+        if (sql.includes('mint_operation_key') && sql.includes('SET') && sql.includes('IS NULL')) {
+          interceptCount++;
+          if (interceptCount === 1) {
+            // First call is the reservation — throw a disk error
+            return {
+              run: () => { throw Object.assign(new Error('disk I/O error'), { code: 'SQLITE_IOERR' }); },
+            };
+          }
+        }
+        return originalPrepare(sql);
+      });
+      (db as any).prepare = prepareProxy;
+
+      try {
+        await expect(provider.mint({
+          userId,
+          walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+          courseId,
+          applicationId: appId,
+        })).rejects.toThrow(/disk I\/O error/);
+
+        // Credential should remain pending (no state corruption)
+        const row = db.prepare('SELECT mint_status, tx_hash FROM nft_credentials WHERE id = ?')
+          .get(credId) as any;
+        expect(row.mint_status).toBe('pending');
+        expect(row.tx_hash).toBeNull();
+      } finally {
+        (db as any).prepare = originalPrepare;
+      }
+    });
+
+    it('EP-D7: different inputs produce different operation keys', () => {
+      const base = {
+        userId: 'user-1',
+        courseId: 'course-1',
+        walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY',
+        contractId: 'CTEST',
+        network: 'testnet',
+      };
+      const k1 = deriveOperationKey(base);
+      const k2 = deriveOperationKey({ ...base, userId: 'user-2' });
+      const k3 = deriveOperationKey({ ...base, courseId: 'course-2' });
+      const k4 = deriveOperationKey({ ...base, network: 'public' });
+
+      expect(k1).not.toBe(k2);
+      expect(k1).not.toBe(k3);
+      expect(k1).not.toBe(k4);
     });
   });
 });

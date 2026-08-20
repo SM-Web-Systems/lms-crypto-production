@@ -36,8 +36,10 @@ The loop MUST stop before:
 - Enhanced provider disabled: YES (NFT_PROVIDER defaults to legacy)
 - Factory default: legacy-stellar
 - Auto-mint: disabled (NFT_AUTO_MINT_ENABLED=false)
-- Backend tests: 1176/1176 PASS
+- Backend tests: 1239/1239 PASS
 - Frontend tests: 206/206 PASS
-- Enhanced provider tests: 27/27 PASS
+- Enhanced provider tests: 56/56 PASS (EP-1..16, EP-H1..12, EP-B1..13, EP-D1..8, EP-R1..7)
+- Migration idempotency tests: 35/35 PASS
 - Secret scan: CLEAN
 - Git diff check: CLEAN
+- Provider version: 2.4.0 (pre-submit reservation hardening)
