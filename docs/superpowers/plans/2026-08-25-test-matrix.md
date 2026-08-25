@@ -26,9 +26,9 @@
 |----|------|----------|--------|
 | WF-1 | Workflow steps documented | Spec file exists and contains all phases | VERIFIED |
 | WF-2 | Loop structure documented | Loop spec defines cycle, stops, resumption | VERIFIED |
-| WF-3 | Test strategy documented | Test strategy spec covers all repos/suites | IN PROGRESS |
-| WF-4 | Review process documented | Review spec defines roles, independence, severity | IN PROGRESS |
-| WF-5 | Worktree strategy documented | Worktree spec defines naming, ownership, cleanup | IN PROGRESS |
+| WF-3 | Test strategy documented | Test strategy spec covers all repos/suites | VERIFIED |
+| WF-4 | Review process documented | Review spec defines roles, independence, severity | VERIFIED |
+| WF-5 | Worktree strategy documented | Worktree spec defines naming, ownership, cleanup | VERIFIED |
 | WF-6 | Approval gates documented | Approval gates doc lists all gates | VERIFIED |
 
 ### LOOP: Loop Mechanism Tests
@@ -48,7 +48,7 @@
 
 | ID | Test | Verifies | Status |
 |----|------|----------|--------|
-| REV-1 | Review process documented | Spec exists with roles and severity | IN PROGRESS |
+| REV-1 | Review process documented | Spec exists with roles and severity | VERIFIED |
 | REV-2 | Reviewer is independent | Reviewer ≠ implementer | NOT STARTED |
 | REV-3 | Findings are recorded | Review report with findings, severity | NOT STARTED |
 | REV-4 | Disposition is clear | Each finding has accept/fix/defer | NOT STARTED |

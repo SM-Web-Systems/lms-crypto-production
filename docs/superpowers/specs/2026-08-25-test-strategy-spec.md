@@ -1,6 +1,6 @@
 # Test Strategy Specification
 
-**Status:** Draft
+**Status:** ACTIVE
 **Date:** 2026-08-25
 
 ---

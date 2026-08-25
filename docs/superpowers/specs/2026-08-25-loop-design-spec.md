@@ -105,6 +105,8 @@ STOP — "All tasks complete. Awaiting approval."
 | `STOP_ON_UNAUTHORIZED_WRITE` | Write to unauthorized path |
 | `STOP_BEFORE_PRODUCTION_MIGRATION` | Migration gate reached |
 | `STOP_BEFORE_PROVIDER_ACTIVATION` | Provider activation gate reached |
+| `STOP_ON_CONTRACT_INVOCATION` | Contract call attempted |
+| `STOP_ON_MINT` | NFT mint attempted |
 
 ### Allowed Actions (Safe — No Approval Needed)
 

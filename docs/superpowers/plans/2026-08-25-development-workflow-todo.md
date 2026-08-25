@@ -14,19 +14,19 @@
 | TODO-005 | P0 | Brainstorm workflow design | Read-only | VERIFIED |
 | TODO-006 | P0 | Create workflow specification | Mutating (docs) | VERIFIED |
 | TODO-007 | P0 | Create loop design specification | Mutating (docs) | VERIFIED |
-| TODO-008 | P0 | Create test strategy specification | Mutating (docs) | IN PROGRESS |
-| TODO-009 | P0 | Create review process specification | Mutating (docs) | IN PROGRESS |
-| TODO-010 | P0 | Create worktree strategy specification | Mutating (docs) | IN PROGRESS |
+| TODO-008 | P0 | Create test strategy specification | Mutating (docs) | VERIFIED |
+| TODO-009 | P0 | Create review process specification | Mutating (docs) | VERIFIED |
+| TODO-010 | P0 | Create worktree strategy specification | Mutating (docs) | VERIFIED |
 | TODO-011 | P0 | Create implementation plan | Mutating (docs) | VERIFIED |
 | TODO-012 | P0 | Create TODO list | Mutating (docs) | VERIFIED |
-| TODO-013 | P1 | Create test matrix | Mutating (docs) | IN PROGRESS |
-| TODO-014 | P1 | Create decision log | Mutating (docs) | IN PROGRESS |
-| TODO-015 | P1 | Create approval gates document | Mutating (docs) | IN PROGRESS |
-| TODO-016 | P1 | Create Mermaid diagrams (7) | Mutating (docs) | IN PROGRESS |
-| TODO-017 | P1 | Create loop plan | Mutating (docs) | IN PROGRESS |
-| TODO-018 | P1 | Independent review | Read-only | NOT STARTED |
-| TODO-019 | P0 | Verification before completion | Read-only | NOT STARTED |
-| TODO-020 | P0 | Present approval matrix | Read-only | NOT STARTED |
+| TODO-013 | P1 | Create test matrix | Mutating (docs) | VERIFIED |
+| TODO-014 | P1 | Create decision log | Mutating (docs) | VERIFIED |
+| TODO-015 | P1 | Create approval gates document | Mutating (docs) | VERIFIED |
+| TODO-016 | P1 | Create Mermaid diagrams (7) | Mutating (docs) | VERIFIED |
+| TODO-017 | P1 | Create loop plan | Mutating (docs) | VERIFIED |
+| TODO-018 | P1 | Independent review | Read-only | VERIFIED |
+| TODO-019 | P0 | Verification before completion | Read-only | VERIFIED |
+| TODO-020 | P0 | Present approval matrix | Read-only | VERIFIED |
 
 ---
 
@@ -90,22 +90,25 @@
 - **Preconditions:** TODO-006 through TODO-017
 - **Classification:** Read-only
 - **Target:** All created artifacts
-- **Expected Evidence:** Review report
-- **Owner:** Review workstream
-- **Status:** NOT STARTED
+- **Expected Evidence:** Review report with 0 Critical, 1 Important (fixed), 5 Minor (fixed), 11 Info
+- **Owner:** Review workstream (independent subagent)
+- **Status:** VERIFIED
+- **Completion Criteria:** All Important/Minor findings addressed
 
 ### TODO-019: Verification Before Completion
 - **Preconditions:** TODO-018
 - **Classification:** Read-only
 - **Target:** All artifacts + production state
-- **Expected Evidence:** Every item classified VERIFIED/LIKELY/UNKNOWN/BLOCKED/NOT AVAILABLE
+- **Expected Evidence:** All items classified — see verification report below
 - **Owner:** Coordinator
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
+- **Completion Criteria:** All checks pass, production untouched
 
 ### TODO-020: Present Approval Matrix
 - **Preconditions:** TODO-019
 - **Classification:** Read-only
 - **Target:** Final response
-- **Expected Evidence:** Approval matrix with all gates
+- **Expected Evidence:** Approval matrix with all gates G1-G10
 - **Owner:** Coordinator
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
+- **Completion Criteria:** Matrix presented, awaiting commit approval

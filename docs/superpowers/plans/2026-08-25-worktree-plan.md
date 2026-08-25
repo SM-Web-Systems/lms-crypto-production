@@ -19,12 +19,12 @@ Worktrees are NOT needed when:
 ## Worktree Naming Convention
 
 ```
-worktree-{workstream}-{date}
+<workstream-type>-<date>-<short-description>
 ```
 
 Examples:
-- `worktree-workflow-specs-2026-08-25`
-- `worktree-feature-auth-2026-08-26`
+- `disc-2026-08-25-workflow-specs`
+- `impl-2026-08-26-auth-feature`
 
 ## File Ownership Rules
 

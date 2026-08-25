@@ -13,4 +13,7 @@ flowchart TD
     GATE -->|G5: Commit/Push| STOP5[STOP - Requires approval]
     GATE -->|G6: Restore| STOP6[STOP - NOT APPROVED]
     GATE -->|G7: Blockchain| STOP7[STOP - NOT APPROVED]
+    GATE -->|G8: Production .env| STOP8[STOP - NOT APPROVED]
+    GATE -->|G9: Auto-mint| STOP9[STOP - NOT APPROVED]
+    GATE -->|G10: Credential decryption| STOP10[STOP - NOT APPROVED]
 ```
