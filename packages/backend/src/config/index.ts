@@ -97,6 +97,10 @@ export const config = {
   // Comma-separated list of allowed callback URL prefixes
   SSO_CALLBACK_WHITELIST: (process.env.SSO_CALLBACK_WHITELIST || "").split(",").filter(Boolean),
 
+  // OAuth 2.1 multi-RP signing (ES256)
+  OAUTH_SIGNING_KEY: process.env.OAUTH_SIGNING_KEY || "",
+  OAUTH_SIGNING_KID: process.env.OAUTH_SIGNING_KID || "default-kid",
+
   // Platform fee
   PLATFORM_FEE_PERCENT: parseFloat(process.env.PLATFORM_FEE_PERCENT || "0.1"),
   PLATFORM_WALLET: process.env.PLATFORM_WALLET || "",
