@@ -74,3 +74,16 @@ in the worktree (9cc15b1). Main was found clean at 2d03ba3 (docs only).
 - Task 6 complete: `e1c9201` — OAuth routes (11 tests, largest task)
 - Task 7 complete: `90c64ae` — Legacy regression (6 tests)
 - **ALL 7 TASKS COMPLETE: 547/547 tests, 7 commits, main clean at 2d03ba3**
+
+### Session 3 — 2026-08-26 (cont.)
+
+- Independent security review completed: 14 findings (0 BLOCKER, 2 HIGH, 5 MEDIUM, 4 LOW, 3 NOTE)
+- SR-001 (HIGH): Fixed TOCTOU race in markTokenUsed with atomic UPDATE...RETURNING
+- SR-002 (HIGH): Added clearKeyCache() + JSDoc documenting restart requirement
+- SR-003 (MEDIUM): Added 20/min rate limit on POST /token
+- SR-007 (MEDIUM): Fixed redirect URL construction to use new URL()
+- SR-011 (LOW): Added grantTypes validation on /token
+- Security fixes committed: `33889f5`
+- Full suite: 547/547 PASS after fixes
+- Legacy SSO: 12/12 PASS unchanged
+- Security review document: `docs/superpowers/plans/2026-08-26-sso-multi-rp-security-review.md`

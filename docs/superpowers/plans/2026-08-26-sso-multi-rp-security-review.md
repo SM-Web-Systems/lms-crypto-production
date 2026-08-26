@@ -44,7 +44,7 @@ if (result.length === 0) {
 return { alreadyUsed: false, familyId: result[0].familyId };
 ```
 This makes the check-and-mark atomic at the database level.
-**Resolution:** _pending_
+**Resolution:** FIXED in `33889f5`. Replaced with atomic `UPDATE...WHERE usedAt IS NULL AND revokedAt IS NULL AND expiresAt > now() RETURNING familyId`. Falls back to `lookupToken()` for familyId on failure. Tests updated.
 
 ---
 
@@ -55,7 +55,7 @@ This makes the check-and-mark atomic at the database level.
 **Description:** `cachedPublicKeyPem` and `cachedJwk` are module-level variables set once and never cleared. If `OAUTH_SIGNING_KEY` is changed (key rotation), the old public key and JWK remain cached until the process restarts. The JWKS endpoint will continue serving the old public key. The `verifyOAuthToken()` function will continue verifying against the old public key.
 **Risk:** Key rotation requires a full process restart to take effect. If an operator rotates the key and expects immediate effect, tokens signed with the new key will be rejected by `verifyOAuthToken()` (which still uses the old cached public key), and the JWKS endpoint will still serve the old key. This is operationally dangerous — an operator may believe rotation worked when it did not.
 **Recommendation:** Either: (a) document explicitly that key rotation requires process restart, or (b) add a `clearKeyCache()` export and call it when env changes are detected, or (c) derive from `getPrivateKey()` on every call (minimal perf cost for EC keys). Option (a) is acceptable for v1 if documented clearly.
-**Resolution:** _pending_
+**Resolution:** FIXED in `33889f5`. Added `clearKeyCache()` export and JSDoc documenting restart requirement.
 
 ---
 
@@ -66,7 +66,7 @@ This makes the check-and-mark atomic at the database level.
 **Description:** The `POST /api/v1/oauth/token` endpoint has no rate limiting. An attacker with a valid `client_id` (which is not secret — it appears in URLs) could brute-force `client_secret` values.
 **Risk:** Credential stuffing against the token endpoint. The bcrypt comparison in `verifyClientSecret` provides some timing resistance (each attempt takes ~100ms), but without rate limiting an attacker can still make thousands of attempts per second across multiple connections.
 **Recommendation:** Apply a rate limiter to `/api/v1/oauth/token`, e.g., 20 requests per minute per IP (similar to the existing auth rate limits). The existing rate limiting infrastructure in the codebase (seen in `auth.ts`) can be reused.
-**Resolution:** _pending_
+**Resolution:** FIXED in `33889f5`. Added `config: { rateLimit: { max: 20, timeWindow: "1 minute" } }` to POST /token.
 
 ---
 
@@ -77,7 +77,7 @@ This makes the check-and-mark atomic at the database level.
 **Description:** The `GET /api/v1/oauth/authorize` endpoint requires `authMiddleware` (Bearer token), which limits abuse to authenticated users. However, there is no per-user rate limit, allowing an authenticated user to generate an unbounded number of authorization codes.
 **Risk:** A compromised user session could flood the `token_registry` table with auth code entries (5-minute TTL each). While not a direct credential attack, it creates unnecessary DB load and could be used for resource exhaustion.
 **Recommendation:** Apply a per-user rate limit (e.g., 30 requests per minute per userId). Lower priority than SR-003.
-**Resolution:** _pending_
+**Resolution:** ACCEPTED. Global 60/min rate limit covers /authorize. authMiddleware provides additional protection (Bearer token required).
 
 ---
 
@@ -91,7 +91,7 @@ This is technically correct behavior per the spec (PKCE is optional per-client).
 
 **Risk:** A client with `requirePkce=false` is vulnerable to authorization code interception attacks. An attacker who intercepts the auth code (e.g., via open redirect on the RP, browser history, or referrer leakage) can exchange it without PKCE proof.
 **Recommendation:** Consider making PKCE mandatory for all clients (remove the `requirePkce` toggle) per OAuth 2.1 which mandates PKCE. Alternatively, add a comment/warning in the admin UI when creating a client with `requirePkce=false`.
-**Resolution:** _pending_
+**Resolution:** ACCEPTED for v1. Default is `requirePkce=true`. No admin UI exists to set it to false. Can enforce unconditionally in a future hardening pass.
 
 ---
 
@@ -105,7 +105,7 @@ Currently this works because only S256 is accepted, but if `plain` method suppor
 
 **Risk:** Low immediate risk (S256 is the only accepted method). Future risk if code is modified to accept `plain` without corresponding exchange-side changes.
 **Recommendation:** Store `code_challenge_method` in `token_registry` alongside `code_challenge` for defense-in-depth. Verify the method at exchange time.
-**Resolution:** _pending_
+**Resolution:** ACCEPTED for v1. Only S256 is accepted at /authorize. Defense-in-depth improvement deferred.
 
 ---
 
@@ -123,7 +123,7 @@ However, this redirect is constructed via string concatenation rather than the s
 
 **Risk:** URL construction inconsistency. Unlikely to be exploitable since redirect_uris are admin-configured and exact-matched, but the inconsistent pattern is a maintenance hazard.
 **Recommendation:** Use `new URL(redirect_uri)` + `searchParams.set()` consistently, matching the pattern on line 115-117.
-**Resolution:** _pending_
+**Resolution:** FIXED in `33889f5`. Replaced string interpolation with `new URL()` + `searchParams.set()` for redirect construction.
 
 ---
 
@@ -151,7 +151,7 @@ const accessPayload = JSON.parse(
 This works correctly but bypasses the `jsonwebtoken` library's `decode()` function, which handles edge cases (e.g., padding, encoding variations).
 **Risk:** Very low. The token was just signed by the same process, so the format is guaranteed. However, using `jwt.decode()` would be more defensive.
 **Recommendation:** Use `jwt.decode(accessToken)` instead of manual base64 parsing.
-**Resolution:** _pending_
+**Resolution:** ACCEPTED for v1. Token was just signed by same process; format is guaranteed. Low-risk cosmetic improvement.
 
 ---
 
@@ -162,7 +162,7 @@ This works correctly but bypasses the `jsonwebtoken` library's `decode()` functi
 **Description:** The `cleanupExpiredTokens()` function is implemented and exported, and the spec says it should run as "a scheduled task (e.g., daily or hourly via Fastify onReady hook or cron)". However, no scheduler or cron job is wired in `server.ts` or anywhere else in the diff.
 **Risk:** The `token_registry` table will grow unboundedly. For each OAuth flow, 3 rows are inserted (auth_code + access + refresh). At moderate volume, this becomes a performance issue. The 7-day retention rule is never enforced.
 **Recommendation:** Wire `cleanupExpiredTokens()` into the existing Fastify `onReady` scheduler or add a setInterval (e.g., hourly). The spec's to-do list includes "Implement token_registry cleanup job with 7-day retention" which appears incomplete.
-**Resolution:** _pending_
+**Resolution:** ACCEPTED for v1. Cleanup function exists and is tested. Scheduler wiring deferred to deployment phase (cron or Fastify onReady).
 
 ---
 
@@ -173,7 +173,7 @@ This works correctly but bypasses the `jsonwebtoken` library's `decode()` functi
 **Description:** The `oauth_clients` table has a `grantTypes` field (e.g., `"authorization_code refresh_token"`), but the `/token` endpoint never checks whether the requested `grant_type` is in the client's allowed `grantTypes`. A client configured for `authorization_code` only could still perform `refresh_token` exchanges.
 **Risk:** A client intended to be restricted to one-time code exchange (no refresh) could obtain refresh tokens. This depends on admin intent when configuring the client.
 **Recommendation:** Add a check: `if (!client.grantTypes.split(" ").includes(grant_type)) return reply.status(400).send({ error: "unauthorized_client" });`
-**Resolution:** _pending_
+**Resolution:** FIXED in `33889f5`. Added `grantTypes.split(" ").includes(grant_type)` check before dispatch.
 
 ---
 
