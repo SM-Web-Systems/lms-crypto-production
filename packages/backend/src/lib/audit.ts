@@ -32,7 +32,9 @@ export type AuditAction =
   | "admin_deactivate"
   | "admin_reactivate"
   | "admin_billing_policy"
-  | "admin_reset_password";
+  | "admin_reset_password"
+  | "oauth_consent_granted"
+  | "oauth_consent_revoked";
 
 export async function auditLog(
   action: AuditAction,
