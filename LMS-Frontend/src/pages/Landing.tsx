@@ -14,39 +14,82 @@ import {
 
 import { LawyeredFloatDecor } from '@/components/landing/LawyeredFloatDecor';
 
+/**
+ * Course data synced from smwebsystems.com/courses (2026-08-26).
+ * Source of truth: SM-Web-System-Production/sm-web-systems-website/app/courses/data.ts
+ */
 const LEARNING_PATHS = [
   {
-    name: 'Stellar & Soroban',
-    level: 'Available now',
-    description: 'Structured weeks, materials, and outcomes inside the LMS — sign in to start.',
-    available: true,
-    href: '/login',
-    external: false,
-  },
-  {
-    name: 'Blockchain for Beginners',
-    level: 'Open companion site',
+    name: 'Introduction to Autonomous Robotics with Arduino Hands-On',
+    level: 'Beginner',
+    format: 'Cohort-based',
     description:
-      'Multi-format path with modules, media, and quizzes — aligned with how we teach on the web.',
-    available: true,
-    href: 'https://blockchain-vibe-coding.smwebsystems.com',
-    external: true,
+      'Learn the foundations of autonomous robotics using Arduino through hands-on practical sessions and guided experimentation.',
+    href: 'https://smwebsystems.com/courses/introduction-to-autonomous-robotics-arduino',
   },
   {
-    name: 'Ethereum & security',
-    level: 'Coming soon',
-    description: 'Crash courses and security-minded patterns for EVM — on the roadmap.',
-    available: false,
-    href: '#topics',
-    external: false,
+    name: 'Introduction to Electronics',
+    level: 'Beginner',
+    format: 'Self-paced',
+    description:
+      'Build foundational electronics knowledge for makers, robotics learners, and hardware-focused builders.',
+    href: 'https://smwebsystems.com/courses/introduction-to-electronics',
   },
   {
-    name: 'Solana & automation',
-    level: 'Coming soon',
-    description: 'On-chain programs and trading workflows — planned expansions.',
-    available: false,
-    href: '#topics',
-    external: false,
+    name: 'Stellar: The Vibe-Coding Crash Course',
+    level: 'Beginner to Intermediate',
+    format: 'Crash course',
+    description:
+      'A fast-track crash course for builders who want to start creating on Stellar using modern AI-assisted workflows.',
+    href: 'https://smwebsystems.com/courses/stellar-vibe-coding-crash-course',
+  },
+  {
+    name: 'Blockchain-Vibe-Coding: Stellar From Zero to dApp',
+    level: 'Intermediate',
+    format: 'Multi-module',
+    description:
+      'Go from first principles to building a full Stellar dApp with AI-assisted development, wallet integration, and production-minded workflows.',
+    href: 'https://smwebsystems.com/courses/blockchain-vibe-coding-stellar-zero-to-dapp',
+  },
+  {
+    name: 'Ethereum From Zero to Smart Contracts',
+    level: 'Beginner to Intermediate',
+    format: 'Crash course',
+    description:
+      'Learn Ethereum fundamentals and build toward smart contract development from the ground up.',
+    href: 'https://smwebsystems.com/courses/eth-crash-course',
+  },
+  {
+    name: 'Vibe Hack 101 — Learn How to Win Hackathons',
+    level: 'Beginner to Intermediate',
+    format: 'Workshop series',
+    description:
+      'Learn how to approach hackathons strategically, build quickly, collaborate effectively, and improve your chances of winning.',
+    href: 'https://smwebsystems.com/courses/vibe-hack-101',
+  },
+  {
+    name: 'Build on Stellar — Soroban Crash Course',
+    level: 'Intermediate',
+    format: 'Crash course',
+    description:
+      'Learn Soroban fundamentals and start building smart contracts in the Stellar ecosystem.',
+    href: 'https://smwebsystems.com/courses/soroban-crash-course',
+  },
+  {
+    name: 'Rust Crash Course — Programming Basics: Web3 & Smart Contract Development',
+    level: 'Beginner',
+    format: 'Crash course',
+    description:
+      'Learn Rust fundamentals through a practical course designed for future Web3 and smart contract developers.',
+    href: 'https://smwebsystems.com/courses/rust-crash-course',
+  },
+  {
+    name: 'Build on Stellar',
+    level: 'Beginner',
+    format: 'Multi-playlist',
+    description:
+      'A foundational Stellar learning track covering blockchain basics, Stellar consensus, and the core Stellar technology stack.',
+    href: 'https://smwebsystems.com/courses/build-on-stellar',
   },
 ] as const;
 
@@ -244,49 +287,32 @@ const Landing: React.FC = () => {
             <h2 className="text-2xl sm:text-4xl font-bold text-neutral-900 tracking-tight">Learning paths</h2>
           </div>
 
-          <div className="grid gap-4 sm:gap-5 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
             {LEARNING_PATHS.map((path) => (
               <div
                 key={path.name}
                 className="group flex flex-col rounded-2xl border border-neutral-200 bg-white p-6 sm:p-7 transition-colors hover:border-neutral-300"
               >
                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                      path.available
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
-                    }`}
-                  >
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
                     {path.level}
                   </span>
-                  {!path.available && (
-                    <span className="text-[10px] font-semibold uppercase text-neutral-400">Roadmap</span>
-                  )}
+                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-50 text-neutral-600 border border-neutral-200">
+                    {path.format}
+                  </span>
                 </div>
                 <h3 className="text-lg font-bold text-neutral-900 mb-2 group-hover:text-primary-dark transition-colors">
                   {path.name}
                 </h3>
                 <p className="text-neutral-600 text-sm leading-relaxed flex-1 mb-5">{path.description}</p>
-                {path.external ? (
-                  <a
-                    href={path.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm font-semibold text-accent-teal hover:text-accent-teal-hover mt-auto"
-                  >
-                    Companion site <ExternalLink className="w-3.5 h-3.5 ml-1" />
-                  </a>
-                ) : path.available ? (
-                  <Link
-                    to={path.href}
-                    className="inline-flex items-center text-sm font-semibold text-accent-teal hover:text-accent-teal-hover mt-auto"
-                  >
-                    Sign in to start <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-                  </Link>
-                ) : (
-                  <span className="text-sm text-neutral-400 mt-auto">Opening with your instructor soon</span>
-                )}
+                <a
+                  href={path.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm font-semibold text-accent-teal hover:text-accent-teal-hover mt-auto"
+                >
+                  View course <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                </a>
               </div>
             ))}
           </div>
@@ -354,12 +380,12 @@ const Landing: React.FC = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 items-start">
             <a
-              href="https://blockchain-vibe-coding.smwebsystems.com"
+              href="https://smwebsystems.com/courses"
               target="_blank"
               rel="noopener noreferrer"
               className="text-neutral-600 hover:text-neutral-900 inline-flex items-center gap-1 font-medium"
             >
-              Blockchain for Beginners <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+              All courses <ExternalLink className="w-3.5 h-3.5 opacity-60" />
             </a>
             <span>© {new Date().getFullYear()} SM Web Systems</span>
           </div>
