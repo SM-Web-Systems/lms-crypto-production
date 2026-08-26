@@ -1106,3 +1106,63 @@ export const systemConfig = pgTable("system_config", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text("updated_by"),
 });
+
+// ════════════════════════════════════════════
+// OAuth Clients — RP registry for multi-RP SSO
+// ════════════════════════════════════════════
+
+export const oauthClients = pgTable("oauth_clients", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  clientId: text("client_id").notNull().unique(),
+  clientSecretHash: text("client_secret_hash").notNull(),
+  clientName: text("client_name").notNull(),
+  redirectUris: text("redirect_uris").notNull(),  // JSON array of exact URIs
+  scopes: text("scopes").notNull().default("openid profile email"),
+  grantTypes: text("grant_types").notNull().default("authorization_code refresh_token"),
+  requirePkce: boolean("require_pkce").notNull().default(true),
+  accessTokenTtlSeconds: integer("access_token_ttl_seconds").notNull().default(900),
+  refreshTokenTtlSeconds: integer("refresh_token_ttl_seconds").notNull().default(2592000),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ════════════════════════════════════════════
+// Token Registry — JTI tracking with 7-day post-expiry retention
+// ════════════════════════════════════════════
+
+export const tokenRegistry = pgTable("token_registry", {
+  jti: text("jti").primaryKey(),
+  tokenType: text("token_type").notNull(),     // 'auth_code' | 'access' | 'refresh'
+  sub: text("sub").notNull(),
+  clientId: text("client_id").notNull(),
+  familyId: text("family_id"),
+  codeChallenge: text("code_challenge"),
+  redirectUri: text("redirect_uri"),
+  scope: text("scope"),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ════════════════════════════════════════════
+// Consent Records — per (user, RP) consent state
+// ════════════════════════════════════════════
+
+export const consentRecords = pgTable(
+  "consent_records",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: bigint("user_id", { mode: "number" }).notNull().references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    scopesGranted: text("scopes_granted").notNull(),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("idx_consent_user_client").on(table.userId, table.clientId),
+    index("idx_consent_client").on(table.clientId),
+  ]
+);

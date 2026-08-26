@@ -16,6 +16,7 @@ import { runTokenIndexer } from "./jobs/token-indexer";
 import { syncTomlImages } from "./lib/toml-sync.js";
 import { authRoutes } from "./routes/auth";
 import { ssoRoutes } from "./routes/sso";
+import { oauthRoutes } from "./routes/oauth";
 import { tenantRoutes } from "./routes/tenant";
 import { adminRoutes } from "./routes/admin";
 import { checkAndRunMonthlyMaintenance } from "./jobs/monthly-maintenance";
@@ -233,6 +234,7 @@ async function bootstrap() {
 
   app.register(authRoutes);
   app.register(ssoRoutes);
+  app.register(oauthRoutes);
   app.register(tenantRoutes);
   app.register(adminRoutes);
   app.register(twoFaRoutes);
