@@ -2,6 +2,11 @@ import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { config } from "../config";
 
+/**
+ * Key material cache. Derived from OAUTH_SIGNING_KEY at first use.
+ * IMPORTANT: Key rotation requires either a process restart or calling
+ * clearKeyCache() to force re-derivation from the (new) env var.
+ */
 let cachedPublicKeyPem: string | null = null;
 let cachedJwk: Record<string, unknown> | null = null;
 
@@ -45,6 +50,16 @@ export function verifyOAuthToken(token: string): jwt.JwtPayload {
   return jwt.verify(token, getPublicKeyPem(), {
     algorithms: ["ES256"],
   }) as jwt.JwtPayload;
+}
+
+/**
+ * Clear the cached public key and JWK. Call after rotating OAUTH_SIGNING_KEY
+ * to force re-derivation. In practice, key rotation should be done via
+ * process restart (update env var, then restart the container).
+ */
+export function clearKeyCache(): void {
+  cachedPublicKeyPem = null;
+  cachedJwk = null;
 }
 
 export function getJwks(): { keys: Record<string, unknown>[] } {

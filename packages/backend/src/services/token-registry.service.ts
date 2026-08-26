@@ -1,4 +1,4 @@
-import { eq, and, lt, isNull } from "drizzle-orm";
+import { eq, and, lt, gt, isNull } from "drizzle-orm";
 import { db, schema } from "../db";
 
 export interface TokenEntry {
@@ -31,30 +31,31 @@ export async function insertTokenEntry(entry: {
   await db.insert(schema.tokenRegistry).values(entry);
 }
 
+/**
+ * Atomically mark a token as used. Uses UPDATE...WHERE...RETURNING to avoid
+ * TOCTOU race conditions — the check and mark happen in a single SQL statement.
+ * If zero rows are returned, the token was already used, revoked, expired, or unknown.
+ */
 export async function markTokenUsed(jti: string): Promise<{ alreadyUsed: boolean; familyId?: string | null }> {
-  const rows = await db
-    .select()
-    .from(schema.tokenRegistry)
-    .where(eq(schema.tokenRegistry.jti, jti));
-
-  if (rows.length === 0) {
-    return { alreadyUsed: true };
-  }
-
-  const entry = rows[0];
-
-  // Already used, revoked, or expired = treat as replay
-  if (entry.usedAt || entry.revokedAt || new Date(entry.expiresAt) < new Date()) {
-    return { alreadyUsed: true, familyId: entry.familyId };
-  }
-
-  // Mark as used
-  await db
+  // Atomic: only succeeds if the token exists, is unused, unrevoked, and not expired
+  const result = await db
     .update(schema.tokenRegistry)
     .set({ usedAt: new Date() })
-    .where(eq(schema.tokenRegistry.jti, jti));
+    .where(and(
+      eq(schema.tokenRegistry.jti, jti),
+      isNull(schema.tokenRegistry.usedAt),
+      isNull(schema.tokenRegistry.revokedAt),
+      gt(schema.tokenRegistry.expiresAt, new Date()),
+    ))
+    .returning({ familyId: schema.tokenRegistry.familyId });
 
-  return { alreadyUsed: false, familyId: entry.familyId };
+  if (result.length > 0) {
+    return { alreadyUsed: false, familyId: result[0].familyId };
+  }
+
+  // Token was not atomically claimed — look up to get familyId for revocation
+  const entry = await lookupToken(jti);
+  return { alreadyUsed: true, familyId: entry?.familyId ?? null };
 }
 
 export async function revokeFamily(familyId: string): Promise<number> {

@@ -57,23 +57,34 @@ describe("Token Registry Service", () => {
     expect(mockDbInsert).toHaveBeenCalledTimes(1);
   });
 
-  it("TR-02: markTokenUsed returns alreadyUsed=false for unused token", async () => {
-    mockDbSelect.mockReturnValue({
-      from: () => ({
-        where: () => [{ jti: "abc", usedAt: null, revokedAt: null, familyId: "fam-1", expiresAt: new Date(Date.now() + 60000) }],
+  it("TR-02: markTokenUsed returns alreadyUsed=false for unused token (atomic UPDATE)", async () => {
+    // Atomic UPDATE...WHERE...RETURNING succeeds — token was unused, unrevoked, not expired
+    mockDbUpdate.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: () => [{ familyId: "fam-1" }],
+        }),
       }),
     });
-    mockDbUpdate.mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
 
     const result = await markTokenUsed("abc");
     expect(result.alreadyUsed).toBe(false);
     expect(result.familyId).toBe("fam-1");
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1);
   });
 
   it("TR-03: markTokenUsed returns alreadyUsed=true for already-used token", async () => {
+    // Atomic UPDATE returns 0 rows (token already used), then lookupToken finds it
+    mockDbUpdate.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: () => [],
+        }),
+      }),
+    });
     mockDbSelect.mockReturnValue({
       from: () => ({
-        where: () => [{ jti: "abc", usedAt: new Date(), revokedAt: null, familyId: "fam-1", expiresAt: new Date(Date.now() + 60000) }],
+        where: () => [{ jti: "abc", familyId: "fam-1" }],
       }),
     });
     const result = await markTokenUsed("abc");
@@ -82,9 +93,17 @@ describe("Token Registry Service", () => {
   });
 
   it("TR-04: markTokenUsed returns alreadyUsed=true for revoked token", async () => {
+    // Atomic UPDATE returns 0 rows (revokedAt is set), then lookupToken finds it
+    mockDbUpdate.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: () => [],
+        }),
+      }),
+    });
     mockDbSelect.mockReturnValue({
       from: () => ({
-        where: () => [{ jti: "abc", usedAt: null, revokedAt: new Date(), familyId: "fam-1", expiresAt: new Date(Date.now() + 60000) }],
+        where: () => [{ jti: "abc", familyId: "fam-1" }],
       }),
     });
     const result = await markTokenUsed("abc");
@@ -92,9 +111,17 @@ describe("Token Registry Service", () => {
   });
 
   it("TR-05: markTokenUsed returns alreadyUsed=true for expired token", async () => {
+    // Atomic UPDATE returns 0 rows (expiresAt < now), then lookupToken finds it
+    mockDbUpdate.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: () => [],
+        }),
+      }),
+    });
     mockDbSelect.mockReturnValue({
       from: () => ({
-        where: () => [{ jti: "abc", usedAt: null, revokedAt: null, familyId: "fam-1", expiresAt: new Date(Date.now() - 1000) }],
+        where: () => [{ jti: "abc", familyId: "fam-1" }],
       }),
     });
     const result = await markTokenUsed("abc");
@@ -102,6 +129,14 @@ describe("Token Registry Service", () => {
   });
 
   it("TR-06: markTokenUsed returns alreadyUsed=true for unknown jti", async () => {
+    // Atomic UPDATE returns 0 rows (no such jti), lookupToken also returns empty
+    mockDbUpdate.mockReturnValue({
+      set: () => ({
+        where: () => ({
+          returning: () => [],
+        }),
+      }),
+    });
     mockDbSelect.mockReturnValue({
       from: () => ({
         where: () => [],
@@ -109,6 +144,7 @@ describe("Token Registry Service", () => {
     });
     const result = await markTokenUsed("unknown");
     expect(result.alreadyUsed).toBe(true);
+    expect(result.familyId).toBeNull();
   });
 
   it("TR-07: revokeFamily calls update on all tokens with matching familyId", async () => {

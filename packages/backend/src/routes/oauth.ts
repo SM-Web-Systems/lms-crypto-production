@@ -66,9 +66,10 @@ export async function oauthRoutes(app: FastifyInstance) {
 
       // 3. Validate response_type
       if (response_type !== "code") {
-        return reply.redirect(
-          `${redirect_uri}?error=unsupported_response_type&state=${encodeURIComponent(state || "")}`,
-        );
+        const errUrl = new URL(redirect_uri);
+        errUrl.searchParams.set("error", "unsupported_response_type");
+        if (state) errUrl.searchParams.set("state", state);
+        return reply.redirect(errUrl.toString());
       }
 
       // 4. Validate PKCE
@@ -131,8 +132,8 @@ export async function oauthRoutes(app: FastifyInstance) {
     },
   );
 
-  // Token endpoint
-  app.post("/api/v1/oauth/token", async (request, reply) => {
+  // Token endpoint — tighter rate limit to resist client_secret brute-force
+  app.post("/api/v1/oauth/token", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = request.body as Record<string, string>;
     const { grant_type, client_id, client_secret } = body;
 
@@ -150,6 +151,11 @@ export async function oauthRoutes(app: FastifyInstance) {
     const secretValid = await verifyClientSecret(client, client_secret);
     if (!secretValid) {
       return reply.status(401).send({ error: "invalid_client" });
+    }
+
+    // Validate grant_type is allowed for this client
+    if (!grant_type || !client.grantTypes.split(" ").includes(grant_type)) {
+      return reply.status(400).send({ error: "unsupported_grant_type" });
     }
 
     if (grant_type === "authorization_code") {
