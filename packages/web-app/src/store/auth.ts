@@ -120,7 +120,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       loadProfile: async () => {
-        if (!getAccessToken()) return;
+        if (!getAccessToken()) {
+          set({ user: null, isAuthenticated: false, serverWallets: [], signingMode: "self" });
+          return;
+        }
         try {
           const res = await authApi.me();
           const mode = await fetchSigningMode();

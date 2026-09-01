@@ -43,3 +43,7 @@ tmp/
 # OS
 Thumbs.db
 .worktrees/
+
+# Claude Code / Superpowers local dirs
+.claude/
+.superpowers/

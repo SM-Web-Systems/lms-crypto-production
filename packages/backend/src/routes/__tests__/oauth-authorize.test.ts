@@ -33,6 +33,9 @@ vi.mock("../../middleware/auth", () => ({
     request.user = { userId: 1 };
   },
 }));
+vi.mock("../../lib/auth", () => ({
+  verifyAccessToken: () => ({ userId: 1, email: "test@example.com", type: "user" }),
+}));
 vi.mock("../../config", () => ({
   config: { OAUTH_SIGNING_KEY: "test", OAUTH_SIGNING_KID: "test" },
 }));
@@ -85,6 +88,29 @@ describe("/api/v1/oauth/authorize", () => {
     mockInsertTokenEntry.mockReset();
   });
 
+  it("AUTH-00: redirects to frontend consent page when no auth header", async () => {
+    const app = Fastify();
+    await app.register(oauthRoutes);
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/oauth/authorize",
+      query: {
+        client_id: "crm",
+        redirect_uri: "https://crm.example.com/callback",
+        response_type: "code",
+        scope: "openid",
+        state: "s1",
+        code_challenge: "abc",
+        code_challenge_method: "S256",
+      },
+    });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toContain("/oauth/authorize?");
+    expect(res.headers.location).not.toContain("/api/v1");
+  });
+
   it("AUTH-01: rejects unknown client_id with 400", async () => {
     mockGetClient.mockResolvedValue(null);
     const app = Fastify();
@@ -103,6 +129,7 @@ describe("/api/v1/oauth/authorize", () => {
         code_challenge: "abc",
         code_challenge_method: "S256",
       },
+      headers: { authorization: "Bearer mock-token" },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toContain("client");
@@ -127,6 +154,7 @@ describe("/api/v1/oauth/authorize", () => {
         code_challenge: "abc",
         code_challenge_method: "S256",
       },
+      headers: { authorization: "Bearer mock-token" },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error_description).toContain("redirect");
@@ -149,6 +177,7 @@ describe("/api/v1/oauth/authorize", () => {
         scope: "openid",
         state: "s1",
       },
+      headers: { authorization: "Bearer mock-token" },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error_description).toContain("PKCE");

@@ -87,3 +87,5 @@ in the worktree (9cc15b1). Main was found clean at 2d03ba3 (docs only).
 - Full suite: 547/547 PASS after fixes
 - Legacy SSO: 12/12 PASS unchanged
 - Security review document: `docs/superpowers/plans/2026-08-26-sso-multi-rp-security-review.md`
+- **MERGED to main:** `a23d424` (--no-ff merge commit)
+- Post-merge verification: 547/547 PASS on main

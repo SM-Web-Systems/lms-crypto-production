@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
 import { Turnstile } from "../components/Turnstile";
+import { consumePendingOAuth } from "./OAuthConsent";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -26,7 +27,13 @@ export default function LoginPage() {
     try {
       await login(email, password, turnstileToken, twoFaToken || undefined);
       toast.success(t("auth.welcomeMessage"));
-      navigate("/dashboard");
+      // Check for pending OAuth flow — redirect back to consent page instead of dashboard
+      const pendingOAuth = consumePendingOAuth();
+      if (pendingOAuth) {
+        navigate(`/oauth/authorize${pendingOAuth}`, { replace: true });
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       if (err.message?.startsWith("2FA_REQUIRED")) {
         const method = err.message.split(":")[1] || "totp";

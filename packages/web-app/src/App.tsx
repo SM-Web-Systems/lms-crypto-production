@@ -31,6 +31,8 @@ const AdminConsolePage = lazy(() => import("./pages/AdminConsole"));
 const AdminTenantDetailPage = lazy(() => import("./pages/AdminTenantDetail"));
 // NM-D3 — Admin staff list
 const AdminAdminsPage = lazy(() => import("./pages/AdminAdmins"));
+// OAuth consent page — shown when an RP redirects here for authorization
+const OAuthConsentPage = lazy(() => import("./pages/OAuthConsent"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -61,6 +63,8 @@ export default function App() {
           <Routes>
       {/* SSO entry point — must be outside AuthRoute so already-authenticated users pass through */}
       <Route path="/sso/login" element={<SsoLoginPage />} />
+      {/* OAuth consent — must be outside AuthRoute (handles own auth check) */}
+      <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
 
       {/* Public auth routes */}
       <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />

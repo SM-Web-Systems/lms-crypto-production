@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { FastifyInstance } from "fastify";
 import { authMiddleware } from "../middleware/auth";
+import { verifyAccessToken } from "../lib/auth";
 import {
   getClientByClientId,
   verifyClientSecret,
@@ -12,7 +13,7 @@ import {
   revokeFamily,
   lookupToken,
 } from "../services/token-registry.service";
-import { hasActiveConsent } from "../services/consent.service";
+import { hasActiveConsent, grantConsent } from "../services/consent.service";
 import { signOAuthToken, getJwks } from "../lib/oauth-signing";
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
@@ -24,12 +25,33 @@ export async function oauthRoutes(app: FastifyInstance) {
     return getJwks();
   });
 
-  // Authorization endpoint
+  // Authorization endpoint — no preHandler auth (handles both browser redirects and API calls)
   app.get(
     "/api/v1/oauth/authorize",
-    { preHandler: authMiddleware },
     async (request, reply) => {
       const q = request.query as Record<string, string>;
+      const authHeader = request.headers.authorization;
+
+      // If no Authorization header, this is a browser redirect from an RP.
+      // Redirect to the AW frontend consent page which handles login + consent UI.
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        const qs = new URLSearchParams(q).toString();
+        return reply.redirect(`/oauth/authorize?${qs}`);
+      }
+
+      // Verify Bearer token manually (same logic as authMiddleware)
+      let userId: number;
+      try {
+        const token = authHeader.slice(7);
+        const payload = verifyAccessToken(token);
+        if (payload.type === "admin") {
+          return reply.status(401).send({ error: "Invalid or expired token" });
+        }
+        userId = payload.userId;
+      } catch {
+        return reply.status(401).send({ error: "Invalid or expired token" });
+      }
+
       const {
         client_id,
         redirect_uri,
@@ -84,7 +106,6 @@ export async function oauthRoutes(app: FastifyInstance) {
       }
 
       // 5. Check consent
-      const userId = (request as any).user.userId;
       const requestedScope = scope || client.scopes;
       const consented = await hasActiveConsent(
         userId,
@@ -128,7 +149,49 @@ export async function oauthRoutes(app: FastifyInstance) {
       redirectUrl.searchParams.set("code", codeJti);
       if (state) redirectUrl.searchParams.set("state", state);
 
+      // If caller accepts JSON (SPA frontend), return URL instead of 302
+      const accept = request.headers.accept || "";
+      if (accept.includes("application/json")) {
+        return reply.status(200).send({ redirect_url: redirectUrl.toString() });
+      }
+
       return reply.redirect(redirectUrl.toString());
+    },
+  );
+
+  // Consent grant endpoint — authenticated users grant consent to an OAuth client
+  app.post(
+    "/api/v1/oauth/consent",
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const { client_id, scopes } = request.body as Record<string, string>;
+      const userId = (request as any).user.userId;
+
+      if (!client_id) {
+        return reply.status(400).send({
+          error: "invalid_request",
+          error_description: "client_id required",
+        });
+      }
+
+      const client = await getClientByClientId(client_id);
+      if (!client) {
+        return reply.status(400).send({
+          error: "invalid_client",
+          error_description: "Unknown client_id",
+        });
+      }
+
+      const grantedScopes = scopes || client.scopes;
+      await grantConsent(
+        userId,
+        client_id,
+        grantedScopes,
+        request.ip,
+        request.headers["user-agent"] || undefined,
+      );
+
+      return reply.status(200).send({ ok: true });
     },
   );
 

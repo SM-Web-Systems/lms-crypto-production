@@ -56,6 +56,9 @@ vi.mock("../../middleware/auth", () => ({
     request.user = { userId: 1 };
   },
 }));
+vi.mock("../../lib/auth", () => ({
+  verifyAccessToken: () => ({ userId: 1, email: "test@example.com", type: "user" }),
+}));
 vi.mock("../../config", () => ({
   config: {
     OAUTH_SIGNING_KEY: testKeyPair.privateKey,
