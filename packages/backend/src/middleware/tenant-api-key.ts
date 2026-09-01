@@ -53,9 +53,13 @@ interface RateLimitWindow {
 }
 
 /**
- * In-memory per-key rate limit windows.
+ * In-memory per-key rate limit windows (FIND-SSO-005).
  * Keyed by tenant_api_keys.id (DB-backed keys only).
- * Not shared across processes — for single-instance deployments.
+ *
+ * LIMITATION: Not shared across processes — effective only for
+ * single-instance deployments (current production architecture).
+ * For multi-instance scaling, migrate to Redis-backed rate limiting
+ * (e.g. @fastify/rate-limit with ioredis store).
  */
 const rateLimitWindows = new Map<number, RateLimitWindow>();
 

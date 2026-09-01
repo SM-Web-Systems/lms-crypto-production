@@ -42,6 +42,10 @@ if (process.env.SSO_SECRET === process.env.JWT_SECRET) {
   console.error("FATAL: SSO_SECRET must differ from JWT_SECRET");
   process.exit(1);
 }
+if (process.env.JWT_REFRESH_SECRET === process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_REFRESH_SECRET must differ from JWT_SECRET (token confusion risk)");
+  process.exit(1);
+}
 
 // Crash on empty critical secrets in production (P2-4-F2)
 if (process.env.NODE_ENV === "production") {
@@ -60,9 +64,11 @@ if (!process.env.STELLAR_NETWORK && process.env.NODE_ENV === "production") {
   console.warn("WARNING: STELLAR_NETWORK not set — defaulting to testnet. Set STELLAR_NETWORK=public for mainnet.");
 }
 
-// Warn if TURNSTILE_SECRET_KEY is empty in production (P2-4-F4)
+// Crash if TURNSTILE_SECRET_KEY is empty in production (FIND-SSO-008)
+// Without this, CAPTCHA is silently disabled, allowing bot registrations.
 if (!process.env.TURNSTILE_SECRET_KEY && process.env.NODE_ENV === "production") {
-  console.warn("WARNING: TURNSTILE_SECRET_KEY is empty — Turnstile verification will be non-functional.");
+  console.error("FATAL: TURNSTILE_SECRET_KEY must be set in production (CAPTCHA silently disabled otherwise)");
+  process.exit(1);
 }
 
 export const config = {

@@ -189,10 +189,7 @@ export async function authRoutes(app: FastifyInstance) {
           );
           await sendVerificationEmail(newUser.email!, verifyToken);
         } catch (err: any) {
-          console.error(
-            "[register] Failed to send verification email:",
-            err.message,
-          );
+          request.log.error({ err: err.message }, "[register] Failed to send verification email");
           // Non-fatal — user is still registered
         }
       }
@@ -956,7 +953,7 @@ export async function authRoutes(app: FastifyInstance) {
         const { sendPasswordResetEmail } = await import("../lib/email");
         await sendPasswordResetEmail(user.email!, resetToken);
       } catch (err: any) {
-        console.error("[forgot-password] Error:", err.message);
+        request.log.error({ err: err.message }, "[forgot-password] Error");
         // Still return success to prevent enumeration
       }
 
@@ -1056,7 +1053,7 @@ export async function authRoutes(app: FastifyInstance) {
           message: "Password reset successfully. Please log in.",
         };
       } catch (err: any) {
-        console.error("[reset-password] Error:", err.message);
+        request.log.error({ err: err.message }, "[reset-password] Error");
         return reply.status(500).send({ error: "Password reset failed" });
       }
     },
@@ -1137,7 +1134,7 @@ export async function authRoutes(app: FastifyInstance) {
 
         return { success: true, message: "Email verified successfully!" };
       } catch (err: any) {
-        console.error("[verify-email] Error:", err.message);
+        request.log.error({ err: err.message }, "[verify-email] Error");
         return reply.status(500).send({ error: "Verification failed" });
       }
     },
@@ -1207,7 +1204,7 @@ export async function authRoutes(app: FastifyInstance) {
         await sendVerificationEmail(user.email, verifyToken);
         return { success: true, message: "Verification email sent" };
       } catch (err: any) {
-        console.error("[resend-verification] Error:", err.message);
+        request.log.error({ err: err.message }, "[resend-verification] Error");
         return reply
           .status(500)
           .send({ error: "Failed to send verification email" });
@@ -1371,7 +1368,7 @@ export async function authRoutes(app: FastifyInstance) {
       const result = await sendSmsVerification(pv.phoneNumber);
       if (!result.success) {
         // Still return success to prevent enumeration
-        console.error("[auth] SMS forgot-password send failed:", result.error);
+        request.log.error({ err: result.error }, "[auth] SMS forgot-password send failed");
       }
       return {
         success: true,

@@ -12,6 +12,7 @@ export interface OAuthClient {
   grantTypes: string;
   requirePkce: boolean;
   accessTokenTtlSeconds: number;
+  idTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
   isActive: boolean;
   createdAt: Date | null;

@@ -1121,6 +1121,7 @@ export const oauthClients = pgTable("oauth_clients", {
   grantTypes: text("grant_types").notNull().default("authorization_code refresh_token"),
   requirePkce: boolean("require_pkce").notNull().default(true),
   accessTokenTtlSeconds: integer("access_token_ttl_seconds").notNull().default(900),
+  idTokenTtlSeconds: integer("id_token_ttl_seconds").notNull().default(3600),
   refreshTokenTtlSeconds: integer("refresh_token_ttl_seconds").notNull().default(2592000),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

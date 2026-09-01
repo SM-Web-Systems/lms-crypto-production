@@ -102,7 +102,7 @@ export async function ssoRoutes(app: FastifyInstance) {
           return false;
         }
       })) {
-        app.log.warn(`[sso/token] Rejected callback URL not in whitelist: ${callbackUrl}`);
+        app.log.warn(`[sso/token] Rejected callback URL not in whitelist: ${parsedCallback.origin}`);
         return reply.status(403).send({ error: "Callback URL not in SSO whitelist" });
       }
 

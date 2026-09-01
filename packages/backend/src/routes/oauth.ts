@@ -409,7 +409,7 @@ async function issueTokens(
     client.accessTokenTtlSeconds,
   );
 
-  // ID token
+  // ID token — uses dedicated TTL (defaults to 3600s if not set)
   const idToken = signOAuthToken(
     {
       sub,
@@ -418,7 +418,7 @@ async function issueTokens(
       email: user.email,
       email_verified: user.isEmailVerified ?? false,
     },
-    client.accessTokenTtlSeconds,
+    client.idTokenTtlSeconds ?? 3600,
   );
 
   // Refresh token (opaque JTI stored server-side)
