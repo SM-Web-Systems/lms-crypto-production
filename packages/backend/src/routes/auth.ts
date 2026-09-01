@@ -11,6 +11,7 @@ import {
   revokeAllUserTokens,
   validateStoredRefreshToken,
   verifyRefreshToken,
+  hashToken,
 } from "../lib/auth";
 import { authMiddleware } from "../middleware/auth";
 import { auditLog } from "../lib/audit";
@@ -945,12 +946,13 @@ export async function authRoutes(app: FastifyInstance) {
 
       try {
         const resetToken = randomBytes(32).toString("hex");
+        const resetTokenHash = hashToken(resetToken);
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
         await db.execute(
-          sql`INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (${user.id}, ${resetToken}, ${expiresAt})`,
+          sql`INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (${user.id}, ${resetTokenHash}, ${expiresAt})`,
         );
 
-        // Import and send password reset email
+        // Send the unhashed token to the user via email (they need the raw value)
         const { sendPasswordResetEmail } = await import("../lib/email");
         await sendPasswordResetEmail(user.email!, resetToken);
       } catch (err: any) {
@@ -1010,8 +1012,9 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       try {
+        const tokenHash = hashToken(token);
         const result = await db.execute(
-          sql`SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token = ${token} LIMIT 1`,
+          sql`SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token = ${tokenHash} LIMIT 1`,
         );
         const record = (result as any).rows?.[0] || (result as any)[0];
 

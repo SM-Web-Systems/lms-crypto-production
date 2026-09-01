@@ -89,17 +89,21 @@ vi.mock("../config", () => ({
   },
 }));
 
-vi.mock("../lib/auth", () => ({
-  hashPassword: vi.fn().mockResolvedValue("$2a$12$hashedpassword"),
-  verifyPassword: vi.fn().mockResolvedValue(true),
-  generateAccessToken: vi.fn().mockReturnValue("mock-access-token"),
-  generateRefreshToken: vi.fn().mockReturnValue("mock-refresh-token"),
-  storeRefreshToken: vi.fn().mockResolvedValue(undefined),
-  revokeRefreshToken: vi.fn().mockResolvedValue(undefined),
-  revokeAllUserTokens: vi.fn().mockResolvedValue(undefined),
-  validateStoredRefreshToken: vi.fn().mockResolvedValue(true),
-  verifyRefreshToken: vi.fn().mockReturnValue({ userId: 42, email: "user@example.com" }),
-}));
+vi.mock("../lib/auth", () => {
+  const crypto = require("crypto");
+  return {
+    hashPassword: vi.fn().mockResolvedValue("$2a$12$hashedpassword"),
+    verifyPassword: vi.fn().mockResolvedValue(true),
+    generateAccessToken: vi.fn().mockReturnValue("mock-access-token"),
+    generateRefreshToken: vi.fn().mockReturnValue("mock-refresh-token"),
+    storeRefreshToken: vi.fn().mockResolvedValue(undefined),
+    revokeRefreshToken: vi.fn().mockResolvedValue(undefined),
+    revokeAllUserTokens: vi.fn().mockResolvedValue(undefined),
+    validateStoredRefreshToken: vi.fn().mockResolvedValue(true),
+    verifyRefreshToken: vi.fn().mockReturnValue({ userId: 42, email: "user@example.com" }),
+    hashToken: (token: string) => crypto.createHash("sha256").update(token).digest("hex"),
+  };
+});
 
 // authMiddleware: by default injects request.user (authenticated)
 const mockAuthMiddlewareImpl = vi.fn().mockImplementation(async (request: any) => {
