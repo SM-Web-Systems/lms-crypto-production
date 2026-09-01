@@ -205,6 +205,22 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
     expect(res.status).toBe(401);
   });
 
+  // PAY-SEC-01: Timing-safe HMAC comparison (FIND-SEC-004)
+  it('PAY-SEC-01 — verifyWebhookSignature uses timing-safe comparison and rejects malformed hex', async () => {
+    const { verifyWebhookSignature } = await import('../services/paystackService.js');
+    const body = '{"event":"charge.success"}';
+    const validSig = makeWebhookSignature(body);
+
+    // Valid signature accepted
+    expect(verifyWebhookSignature(body, validSig)).toBe(true);
+    // Wrong signature rejected
+    expect(verifyWebhookSignature(body, 'a'.repeat(128))).toBe(false);
+    // Malformed hex (non-hex chars) rejected without throwing
+    expect(verifyWebhookSignature(body, 'not-valid-hex!@#')).toBe(false);
+    // Wrong length rejected
+    expect(verifyWebhookSignature(body, 'abcd')).toBe(false);
+  });
+
   // PAY-B16: Webhook duplicate event is idempotent
   it('PAY-B16 — webhook duplicate event is idempotent', async () => {
     const studentId = seedUser('student', 'b16-student');

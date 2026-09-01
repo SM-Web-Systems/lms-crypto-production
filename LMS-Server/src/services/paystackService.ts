@@ -103,7 +103,16 @@ export function verifyWebhookSignature(rawBody: string | Buffer, signature: stri
     .createHmac('sha512', PAYSTACK_SECRET_KEY)
     .update(rawBody)
     .digest('hex');
-  return hash === signature;
+  // Timing-safe comparison to prevent side-channel attacks (FIND-SEC-004)
+  const hashBuf = Buffer.from(hash, 'hex');
+  let sigBuf: Buffer;
+  try {
+    sigBuf = Buffer.from(signature, 'hex');
+  } catch {
+    return false;
+  }
+  if (hashBuf.length !== sigBuf.length) return false;
+  return crypto.timingSafeEqual(hashBuf, sigBuf);
 }
 
 /**
