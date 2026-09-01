@@ -1,6 +1,6 @@
 # Production Migration Readiness Specification
 
-- **Status:** DRAFT
+- **Status:** VERIFIED — READY FOR MIGRATION APPROVAL
 - **Date:** 2026-08-20
 - **Author:** Claude Code
 - **Related:** `001-add-mint-operation-key.sql`, `enhancedStellarProvider.ts`
@@ -119,9 +119,54 @@ The readiness check should verify both the column AND the index. If the column e
 | Partial migration (column without index) | Manual readiness check verifies index existence separately |
 | Migration applied in test but not production | Environment-specific verification in deploy checklist |
 
+## Production Assessment (2026-08-20)
+
+Production migration does not authorize enhanced-provider activation.
+No blockchain operation is part of migration verification.
+
+### Database Target
+- Engine: SQLite 3.45.1 (supports DROP COLUMN for rollback)
+- Location: Docker volume `lms-ammawallet_lms-data` → `/app/data/student_ms.db`
+- Journal: WAL mode
+- Busy timeout: 0 (default)
+- Container: `lms-api` (healthy, up 18h)
+
+### Current Schema (14 columns, no mint_operation_key)
+- mint_operation_key: **ABSENT** (confirmed via PRAGMA table_info)
+- Existing rows: 10 (all status=minted)
+- No pending credentials
+
+### Backup Verification
+- Method: SQLite `.backup` API (checkpoints WAL)
+- Backup: `pre_migration_20260820_172204/student_ms.db` (2.5MB)
+- Integrity: ok
+- Tables: 67
+- nft_credentials: 10 rows (all minted)
+- Restore tested: verified on disposable copy
+
+### Migration Rehearsal
+- Disposable copy: created from backup
+- Migration applied: exit code 0
+- Column added: position 15, TEXT, nullable
+- UNIQUE partial index: created and enforced
+- Composite index: created
+- Row count: preserved (10)
+- All rows: mint_operation_key IS NULL
+- Rollback: verified (DROP INDEX + DROP COLUMN)
+- Reapply: verified after rollback
+- Integrity: ok at every stage
+
+### Critical Finding
+The daily backup cron (`backup_lms_db.sh`) backs up the OLD `lms_server` bind mount DB, NOT the production `lms-api` Docker volume DB. This should be fixed separately.
+
 ## Required Approvals
 
-- [ ] Migration status verified in production database
-- [ ] UNIQUE index confirmed present and functional
-- [ ] Graceful degradation tested (column absent scenario)
+- [x] Migration status verified in production database (ABSENT)
+- [x] Backup created and verified
+- [x] Restore tested on disposable copy
+- [x] Migration rehearsed on disposable copy
+- [x] Rollback verified on disposable copy
+- [x] Graceful degradation tested (column absent scenario — 35 migration tests + EP-D5)
+- [ ] Independent review completed
+- [ ] Production migration approval granted
 - [ ] Deploy checklist updated with migration verification step
