@@ -3,12 +3,15 @@ import jwt from "jsonwebtoken";
 import { config } from "../config";
 
 /**
- * Key material cache. Derived from OAUTH_SIGNING_KEY at first use.
- * IMPORTANT: Key rotation requires either a process restart or calling
- * clearKeyCache() to force re-derivation from the (new) env var.
+ * Key material cache with 1-hour TTL (FIND-SSO-003).
+ * Derived from OAUTH_SIGNING_KEY at first use and auto-expires,
+ * so key rotation via env var update takes effect within 1 hour
+ * without a process restart.
  */
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 let cachedPublicKeyPem: string | null = null;
 let cachedJwk: Record<string, unknown> | null = null;
+let cachedAt: number = 0;
 
 function getPrivateKey(): string {
   if (!config.OAUTH_SIGNING_KEY) {
@@ -17,11 +20,17 @@ function getPrivateKey(): string {
   return config.OAUTH_SIGNING_KEY;
 }
 
+function isCacheExpired(): boolean {
+  return Date.now() - cachedAt > CACHE_TTL_MS;
+}
+
 function getPublicKeyPem(): string {
-  if (!cachedPublicKeyPem) {
+  if (!cachedPublicKeyPem || isCacheExpired()) {
     const privKey = crypto.createPrivateKey(getPrivateKey());
     const pubKey = crypto.createPublicKey(privKey);
     cachedPublicKeyPem = pubKey.export({ type: "spki", format: "pem" }) as string;
+    cachedJwk = null; // invalidate JWK when PEM refreshes
+    cachedAt = Date.now();
   }
   return cachedPublicKeyPem;
 }
@@ -60,6 +69,7 @@ export function verifyOAuthToken(token: string): jwt.JwtPayload {
 export function clearKeyCache(): void {
   cachedPublicKeyPem = null;
   cachedJwk = null;
+  cachedAt = 0;
 }
 
 export function getJwks(): { keys: Record<string, unknown>[] } {

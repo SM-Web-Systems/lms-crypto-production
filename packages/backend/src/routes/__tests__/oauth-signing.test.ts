@@ -16,7 +16,7 @@ const mockConfig = vi.hoisted(() => ({
 vi.mock("../../config", () => ({ config: mockConfig }));
 
 // Import AFTER mocks
-import { signOAuthToken, verifyOAuthToken, getJwks, getSigningKid } from "../../lib/oauth-signing";
+import { signOAuthToken, verifyOAuthToken, getJwks, getSigningKid, clearKeyCache } from "../../lib/oauth-signing";
 
 describe("OAuth ES256 Signing", () => {
   beforeEach(() => {
@@ -96,5 +96,41 @@ describe("JWKS Endpoint Output", () => {
 
   it("JWKS-02: getSigningKid returns the configured kid", () => {
     expect(getSigningKid()).toBe("test-kid-001");
+  });
+});
+
+describe("Key Cache TTL (FIND-SSO-003)", () => {
+  beforeEach(() => {
+    mockConfig.OAUTH_SIGNING_KEY = testKeyPair.privateKey;
+    clearKeyCache();
+  });
+
+  it("TTL-01: cache auto-expires after TTL, picks up new key material", () => {
+    // Sign with original key
+    const token1 = signOAuthToken({ sub: "1", aud: "x", iss: "ammawallet" }, 300);
+    expect(verifyOAuthToken(token1).sub).toBe("1");
+
+    // Simulate TTL expiry by advancing Date.now past the 1-hour window
+    const realNow = Date.now;
+    Date.now = () => realNow() + 61 * 60 * 1000; // 61 minutes later
+
+    // Generate a new key and set it in config
+    const newKeyPair = crypto.generateKeyPairSync("ec", {
+      namedCurve: "P-256",
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    mockConfig.OAUTH_SIGNING_KEY = newKeyPair.privateKey;
+
+    // New token should sign with the new key
+    const token2 = signOAuthToken({ sub: "2", aud: "x", iss: "ammawallet" }, 300);
+    const decoded = verifyOAuthToken(token2);
+    expect(decoded.sub).toBe("2");
+
+    // Old token should fail verification (different key)
+    expect(() => verifyOAuthToken(token1)).toThrow();
+
+    // Restore Date.now
+    Date.now = realNow;
   });
 });

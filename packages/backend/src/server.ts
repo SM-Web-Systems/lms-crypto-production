@@ -38,6 +38,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { authMiddleware } from "./middleware/auth";
 import { auditLog } from "./lib/audit";
 import { decryptSecret } from "./lib/decrypt-secret";
+import { cleanupExpiredTokens } from "./services/token-registry.service";
 
 const app = Fastify({
   bodyLimit: 1_048_576, // 1 MB max request body
@@ -2502,6 +2503,20 @@ async function bootstrap() {
         console.log("[cleanup] Purged audit logs older than 90 days");
       } catch (err: any) {
         console.error("[cleanup] audit log purge failed:", err.message);
+      }
+    },
+    24 * 60 * 60 * 1000,
+  ); // every 24 hours
+
+  // Purge expired OAuth token registry entries daily (FIND-SSO-004)
+  // Tokens are retained 7 days past expiry for incident investigation.
+  setInterval(
+    async () => {
+      try {
+        const count = await cleanupExpiredTokens();
+        console.log(`[cleanup] Purged ${count} expired token registry entries`);
+      } catch (err: any) {
+        console.error("[cleanup] token registry purge failed:", err.message);
       }
     },
     24 * 60 * 60 * 1000,
