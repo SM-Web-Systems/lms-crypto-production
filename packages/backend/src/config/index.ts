@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 // Validate critical secrets at startup
 // NOTE: Rotate JWT_SECRET and JWT_REFRESH_SECRET periodically.
 // When rotating, revoke all existing refresh tokens first.
@@ -98,7 +100,10 @@ export const config = {
   SSO_CALLBACK_WHITELIST: (process.env.SSO_CALLBACK_WHITELIST || "").split(",").filter(Boolean),
 
   // OAuth 2.1 multi-RP signing (ES256)
-  OAUTH_SIGNING_KEY: process.env.OAUTH_SIGNING_KEY || "",
+  // Prefer file-based secret (Docker secrets), fall back to env var for dev
+  OAUTH_SIGNING_KEY: process.env.OAUTH_SIGNING_KEY_FILE
+    ? fs.readFileSync(process.env.OAUTH_SIGNING_KEY_FILE, "utf8").trim()
+    : process.env.OAUTH_SIGNING_KEY || "",
   OAUTH_SIGNING_KID: process.env.OAUTH_SIGNING_KID || "default-kid",
 
   // Platform fee

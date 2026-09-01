@@ -18,6 +18,15 @@ import { signOAuthToken, getJwks } from "../lib/oauth-signing";
 import { db, schema } from "../db";
 import { eq } from "drizzle-orm";
 
+/**
+ * Validate that every requested scope is in the client's allowed scopes list.
+ * Returns the list of invalid scopes (empty = all valid).
+ */
+function getInvalidScopes(requested: string, allowed: string): string[] {
+  const allowedSet = new Set(allowed.split(" ").filter(Boolean));
+  return requested.split(" ").filter((s) => s && !allowedSet.has(s));
+}
+
 export async function oauthRoutes(app: FastifyInstance) {
   // JWKS endpoint (public, no auth)
   app.get("/api/v1/oauth/.well-known/jwks.json", async (_request, reply) => {
@@ -105,8 +114,17 @@ export async function oauthRoutes(app: FastifyInstance) {
         });
       }
 
-      // 5. Check consent
+      // 5. Validate scopes against client's allowed scopes
       const requestedScope = scope || client.scopes;
+      const invalidScopes = getInvalidScopes(requestedScope, client.scopes);
+      if (invalidScopes.length > 0) {
+        return reply.status(400).send({
+          error: "invalid_scope",
+          error_description: `Scopes not allowed for this client: ${invalidScopes.join(" ")}`,
+        });
+      }
+
+      // 6. Check consent
       const consented = await hasActiveConsent(
         userId,
         client_id,
@@ -183,6 +201,14 @@ export async function oauthRoutes(app: FastifyInstance) {
       }
 
       const grantedScopes = scopes || client.scopes;
+      const invalidScopes = getInvalidScopes(grantedScopes, client.scopes);
+      if (invalidScopes.length > 0) {
+        return reply.status(400).send({
+          error: "invalid_scope",
+          error_description: `Scopes not allowed for this client: ${invalidScopes.join(" ")}`,
+        });
+      }
+
       await grantConsent(
         userId,
         client_id,

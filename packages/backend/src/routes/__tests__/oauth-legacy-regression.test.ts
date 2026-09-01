@@ -5,13 +5,13 @@ import { join } from "node:path";
 describe("Legacy SSO flow regression", () => {
   const ssoSource = readFileSync(join(__dirname, "..", "sso.ts"), "utf-8");
 
-  it("LEGACY-01: sso.ts still contains usedJtis in-memory Set", () => {
-    expect(ssoSource).toContain("const usedJtis = new Set<string>()");
+  it("LEGACY-01: sso.ts uses DB-backed JTI blacklist (ssoUsedJtis table)", () => {
+    expect(ssoSource).toContain("consumeJti");
+    expect(ssoSource).toContain("ssoUsedJtis");
   });
 
-  it("LEGACY-02: sso.ts still contains 60-second cleanup timer", () => {
-    expect(ssoSource).toContain("usedJtis.clear()");
-    expect(ssoSource).toContain("60_000");
+  it("LEGACY-02: sso.ts has periodic JTI cleanup", () => {
+    expect(ssoSource).toContain("cleanupExpiredJtis");
   });
 
   it("LEGACY-03: sso.ts still uses SSO_SECRET for signing", () => {

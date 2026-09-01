@@ -211,6 +211,59 @@ describe("/api/v1/oauth/authorize", () => {
     expect(res.json().scopes).toContain("openid");
   });
 
+  it("AUTH-SCOPE-01: rejects scopes not in client's allowed scopes", async () => {
+    mockGetClient.mockResolvedValue(VALID_CLIENT); // scopes: "openid profile email"
+    mockValidateRedirectUri.mockReturnValue(true);
+    const app = Fastify();
+    await app.register(oauthRoutes);
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/oauth/authorize",
+      query: {
+        client_id: "crm",
+        redirect_uri: "https://crm.example.com/callback",
+        response_type: "code",
+        scope: "openid admin:write",
+        state: "s1",
+        code_challenge: "abc",
+        code_challenge_method: "S256",
+      },
+      headers: { authorization: "Bearer mock-token" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("invalid_scope");
+    expect(res.json().error_description).toContain("admin:write");
+  });
+
+  it("AUTH-SCOPE-02: allows valid subset of client's scopes", async () => {
+    mockGetClient.mockResolvedValue(VALID_CLIENT); // scopes: "openid profile email"
+    mockValidateRedirectUri.mockReturnValue(true);
+    mockHasActiveConsent.mockResolvedValue(false);
+    const app = Fastify();
+    await app.register(oauthRoutes);
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/oauth/authorize",
+      query: {
+        client_id: "crm",
+        redirect_uri: "https://crm.example.com/callback",
+        response_type: "code",
+        scope: "openid email",
+        state: "s1",
+        code_challenge: "abc",
+        code_challenge_method: "S256",
+      },
+      headers: { authorization: "Bearer mock-token" },
+    });
+    // Should reach consent check, not be rejected for scope
+    expect(res.statusCode).toBe(200);
+    expect(res.json().action).toBe("consent_required");
+  });
+
   it("AUTH-05: issues auth code redirect when consent exists", async () => {
     mockGetClient.mockResolvedValue(VALID_CLIENT);
     mockValidateRedirectUri.mockReturnValue(true);
@@ -239,5 +292,44 @@ describe("/api/v1/oauth/authorize", () => {
     expect(location).toContain("https://crm.example.com/callback");
     expect(location).toContain("code=");
     expect(location).toContain("state=s1");
+  });
+});
+
+describe("/api/v1/oauth/consent — scope validation", () => {
+  beforeEach(() => {
+    mockGetClient.mockReset();
+  });
+
+  it("CONSENT-SCOPE-01: rejects scopes not allowed for the client", async () => {
+    mockGetClient.mockResolvedValue(VALID_CLIENT); // scopes: "openid profile email"
+    const app = Fastify();
+    await app.register(oauthRoutes);
+    await app.ready();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/oauth/consent",
+      headers: { authorization: "Bearer mock-token" },
+      payload: { client_id: "crm", scopes: "openid admin:write" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("invalid_scope");
+    expect(res.json().error_description).toContain("admin:write");
+  });
+
+  it("CONSENT-SCOPE-02: accepts valid scopes", async () => {
+    mockGetClient.mockResolvedValue(VALID_CLIENT);
+    const app = Fastify();
+    await app.register(oauthRoutes);
+    await app.ready();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/oauth/consent",
+      headers: { authorization: "Bearer mock-token" },
+      payload: { client_id: "crm", scopes: "openid profile" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(true);
   });
 });

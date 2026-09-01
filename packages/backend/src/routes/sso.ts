@@ -7,23 +7,46 @@
  *   2. POST /api/v1/sso/verify — relying-party backend exchanges the assertion
  *      for user identity (server-to-server, x-api-key required).
  *
- * Replay prevention: JTI blacklist (in-memory Set, cleared every 60 s).
- * For multi-instance deployments this should be moved to Redis.
+ * Replay prevention: DB-backed JTI blacklist (sso_used_jtis table).
+ * Atomic INSERT ensures single-use across all instances.
  */
 
 import { FastifyInstance } from "fastify";
 import { db, schema } from "../db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
 import { requireTenantApiKey, requireScope } from "../middleware/tenant-api-key";
 import { config } from "../config";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
-// In-memory JTI blacklist (60 s assertions → clear every 60 s is safe).
-const usedJtis = new Set<string>();
-const cleanupTimer = setInterval(() => usedJtis.clear(), 60_000);
-cleanupTimer.unref(); // don't keep process alive
+/**
+ * Try to consume a JTI atomically. Returns true if the JTI was successfully
+ * inserted (first use), false if it already exists (replay).
+ */
+async function consumeJti(jti: string, expiresAt: Date): Promise<boolean> {
+  const result = await db
+    .insert(schema.ssoUsedJtis)
+    .values({ jti, expiresAt })
+    .onConflictDoNothing({ target: schema.ssoUsedJtis.jti })
+    .returning({ jti: schema.ssoUsedJtis.jti });
+  return result.length > 0;
+}
+
+/**
+ * Clean up expired JTI entries. Called periodically.
+ */
+async function cleanupExpiredJtis(): Promise<void> {
+  await db.delete(schema.ssoUsedJtis).where(
+    lt(schema.ssoUsedJtis.expiresAt, new Date()),
+  );
+}
+
+// Periodic cleanup — every 5 minutes, remove expired JTI rows
+const jtiCleanupTimer = setInterval(() => {
+  cleanupExpiredJtis().catch(() => {}); // best-effort
+}, 5 * 60_000);
+jtiCleanupTimer.unref();
 
 export async function ssoRoutes(app: FastifyInstance) {
   // ──────────────────────────────────────────────────────────────────────────
@@ -189,12 +212,13 @@ export async function ssoRoutes(app: FastifyInstance) {
           jti:                  string;
         };
 
-        // Replay prevention
-        if (usedJtis.has(payload.jti)) {
+        // Replay prevention — atomic INSERT (conflict = replay)
+        const expiresAt = new Date((payload.exp ?? 0) * 1000);
+        const isNew = await consumeJti(payload.jti, expiresAt);
+        if (!isNew) {
           app.log.warn(`[sso/verify] Replay attempt jti=${payload.jti}`);
           return reply.status(409).send({ error: "Assertion already used" });
         }
-        usedJtis.add(payload.jti);
 
         app.log.info(
           `[sso/verify] OK jti=${payload.jti} userId=${payload.sub}`,

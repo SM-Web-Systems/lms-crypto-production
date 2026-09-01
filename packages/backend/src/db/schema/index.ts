@@ -1166,3 +1166,14 @@ export const consentRecords = pgTable(
     index("idx_consent_client").on(table.clientId),
   ]
 );
+
+/**
+ * SSO JTI blacklist — prevents assertion replay across instances.
+ * Each row represents a consumed SSO assertion. The unique constraint on `jti`
+ * ensures atomic single-use enforcement via INSERT ... ON CONFLICT.
+ */
+export const ssoUsedJtis = pgTable("sso_used_jtis", {
+  jti: text("jti").primaryKey(),
+  usedAt: timestamp("used_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
