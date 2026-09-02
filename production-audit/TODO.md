@@ -69,7 +69,7 @@ Generated: 2026-09-01 | Last Updated: 2026-09-02
 
 | ID | Domain | Priority | Description | Status | Finding | Fix Effort |
 |----|--------|----------|-------------|--------|---------|------------|
-| FIX-014 | DATA | CRITICAL | Restore missing crontab entries for Amma, LMS, SM Web backups + minter-balance-check | PENDING | FIND-024-01/02/03/04 | ~10 min |
+| FIX-014 | DATA | CRITICAL | Restore missing crontab entries for Amma, LMS, SM Web backups + minter-balance-check | DONE | FIND-024-01/02/03/04 | ~10 min |
 | FIX-015 | STELLAR | HIGH | Add amount verification to Stellar payment monitor | PENDING | FIND-010a | ~30 min |
 | FIX-016 | AUTH | MEDIUM | Fix TOTP window inconsistency (window:2 → window:1 in auth.ts login) | PENDING | FIND-005-A | ~5 min |
 | FIX-017 | AUTH | MEDIUM | Use timingSafeCompare for static 2FA code in login flow | PENDING | FIND-005-B | ~5 min |

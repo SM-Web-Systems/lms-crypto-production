@@ -38,15 +38,15 @@ Generated: 2026-09-01 | Last Updated: 2026-09-02
 
 | Finding ID | Severity | System | Description | Location | Recommendation | Status |
 |-----------|----------|--------|-------------|----------|----------------|--------|
-| FIND-024-01 | CRITICAL | Infrastructure | Amma PostgreSQL backup cron entry missing. Last backup 2026-08-26 (7 days stale). Financial/wallet data at risk. | crontab | Immediately add: `30 3 * * * /home/webadmin/web-stack/backup_amma_db.sh >> /home/webadmin/logs/amma_db_backup.log 2>&1` | OPEN |
-| FIND-024-02 | CRITICAL | Infrastructure | LMS SQLite backup cron entry missing. Last backup 2026-08-26 (7 days stale). | crontab | Immediately add: `0 3 * * * /home/webadmin/web-stack/backup_lms_db.sh >> /home/webadmin/logs/lms_db_backup.log 2>&1` | OPEN |
+| FIND-024-01 | CRITICAL | Infrastructure | Amma PostgreSQL backup cron entry missing. Last backup 2026-08-26 (7 days stale). Financial/wallet data at risk. | crontab | Immediately add: `30 3 * * * /home/webadmin/web-stack/backup_amma_db.sh >> /home/webadmin/logs/amma_db_backup.log 2>&1` | RESOLVED |
+| FIND-024-02 | CRITICAL | Infrastructure | LMS SQLite backup cron entry missing. Last backup 2026-08-26 (7 days stale). | crontab | Immediately add: `0 3 * * * /home/webadmin/web-stack/backup_lms_db.sh >> /home/webadmin/logs/lms_db_backup.log 2>&1` | RESOLVED |
 
 ### HIGH (4)
 
 | Finding ID | Severity | System | Description | Location | Recommendation | Status |
 |-----------|----------|--------|-------------|----------|----------------|--------|
-| FIND-024-03 | HIGH | Infrastructure | SM Web Systems SQLite backup cron entry missing. Last backup 2026-08-26 (7 days stale). | crontab | Add: `15 3 * * * /home/webadmin/scripts/backup-sm-web-db.sh >> /home/webadmin/logs/sm-web-db-backup.log 2>&1` | OPEN |
-| FIND-024-04 | HIGH | Infrastructure | `minter-balance-check.sh` cron entry missing. NFT minter balance alerts not running. | crontab | Add: `0 */6 * * * /home/webadmin/scripts/minter-balance-check.sh >> /home/webadmin/logs/minter-balance.log 2>&1` | OPEN |
+| FIND-024-03 | HIGH | Infrastructure | SM Web Systems SQLite backup cron entry missing. Last backup 2026-08-26 (7 days stale). | crontab | Add: `15 3 * * * /home/webadmin/scripts/backup-sm-web-db.sh >> /home/webadmin/logs/sm-web-db-backup.log 2>&1` | RESOLVED |
+| FIND-024-04 | HIGH | Infrastructure | `minter-balance-check.sh` cron entry missing. NFT minter balance alerts not running. | crontab | Add: `0 */6 * * * /home/webadmin/scripts/minter-balance-check.sh >> /home/webadmin/logs/minter-balance.log 2>&1` | RESOLVED |
 | FIND-010a | HIGH | LMS | No amount verification for Stellar payments. Dust payment with correct memo auto-confirms full-price course. `receivedAmount` computed but never compared to `expectedCents`. | `stellarPaymentMonitor.ts:138-145` | Compare received amount vs expected. Reject payments below 99% tolerance. | OPEN |
 | FIND-008a | HIGH | LMS | Empty `encryptedSecret: ""` sent to AmmaWallet API during wallet creation. Wallet has no signing capability. | `walletService.ts:138` | Clarify design intent. If receive-only by design, document. Otherwise encrypt secret before sending. | OPEN |
 
