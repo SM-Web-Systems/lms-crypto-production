@@ -102,7 +102,14 @@ export class StellarPaymentMonitor {
       let url = `${HORIZON_URL}/accounts/${RECEIVING_WALLET}/payments?order=asc&limit=50`;
       if (this.cursor) url += `&cursor=${this.cursor}`;
 
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30_000);
+      let res: Response;
+      try {
+        res = await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
       if (!res.ok) {
         logger.error({ module: 'StellarPaymentMonitor', status: res.status }, 'Horizon returned error');
         return;
@@ -125,7 +132,14 @@ export class StellarPaymentMonitor {
 
         // Fetch transaction to get memo
         try {
-          const txRes = await fetch(`${HORIZON_URL}/transactions/${payment.transaction_hash}`);
+          const txController = new AbortController();
+          const txTimeout = setTimeout(() => txController.abort(), 30_000);
+          let txRes: Response;
+          try {
+            txRes = await fetch(`${HORIZON_URL}/transactions/${payment.transaction_hash}`, { signal: txController.signal });
+          } finally {
+            clearTimeout(txTimeout);
+          }
           if (!txRes.ok) continue;
           const tx = (await txRes.json()) as HorizonTransaction;
 
