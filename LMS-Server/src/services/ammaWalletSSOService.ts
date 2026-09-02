@@ -51,18 +51,43 @@ export function buildSsoInitiateUrl(lmsCallbackUrl: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// State validation
+// State validation — FIND-003a: JTI blacklist prevents replay within 5-min window
 // ─────────────────────────────────────────────────────────────────────────────
+
+// In-memory used-JTI set. Entries auto-expire after 6 minutes (> 5-min JWT TTL).
+// Single-instance deployment (documented requirement from FIND-SSO-001).
+const usedJtis = new Map<string, number>(); // jti → expiry timestamp (ms)
+const JTI_RETENTION_MS = 6 * 60 * 1000; // 6 minutes
+
+function cleanupExpiredJtis(): void {
+  const now = Date.now();
+  for (const [jti, expiry] of usedJtis) {
+    if (now > expiry) usedJtis.delete(jti);
+  }
+}
+
+// Cleanup every 2 minutes
+setInterval(cleanupExpiredJtis, 2 * 60 * 1000).unref();
 
 /**
  * Validate the state JWT returned in the callback.
- * Throws on invalid signature, expiry, or wrong purpose.
+ * Throws on invalid signature, expiry, wrong purpose, or replay (JTI reuse).
  */
 export function validateState(state: string): void {
-  const payload = jwt.verify(state, STATE_SECRET) as { purpose?: string };
+  const payload = jwt.verify(state, STATE_SECRET) as { purpose?: string; nonce?: string };
   if (payload.purpose !== "sso_state") {
     throw new Error("Invalid state token — wrong purpose");
   }
+
+  // FIND-003a: Prevent replay by tracking used nonces (acting as JTI)
+  const jti = payload.nonce;
+  if (!jti) {
+    throw new Error("Invalid state token — missing nonce");
+  }
+  if (usedJtis.has(jti)) {
+    throw new Error("State token already used — replay detected");
+  }
+  usedJtis.set(jti, Date.now() + JTI_RETENTION_MS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

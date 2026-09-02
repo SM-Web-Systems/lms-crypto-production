@@ -24,7 +24,7 @@ const transporter = SMTP_HOST
       secure: false,       // STARTTLS upgrade on port 587
       requireTLS: true,    // abort if server doesn't offer STARTTLS
       auth: { user: SMTP_USER, pass: SMTP_PASS },
-      tls: { rejectUnauthorized: false }, // internal Docker network — cert hostname mismatch is expected
+      tls: { servername: 'mail.smwebsystems.com' }, // FIND-027-01: proper TLS validation (CRM pattern)
     })
   : null;
 

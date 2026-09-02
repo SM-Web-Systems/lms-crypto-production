@@ -9,6 +9,7 @@
  *   the next register attempt returns 409 → handled as existing_account → banner shown. Natural path.
  */
 
+import crypto from 'crypto';
 import logger from '../utils/logger.js';
 
 const AMMA_WALLET_BASE = process.env.AMMA_WALLET_URL || "http://localhost:3001/";
@@ -55,6 +56,10 @@ export async function generateWalletAddress(
   const registerHeaders: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) registerHeaders["x-api-key"] = apiKey;
 
+  // FIND-008b: Generate a separate random password for AmmaWallet registration
+  // to avoid sharing the user's LMS password across systems.
+  const awPassword = crypto.randomBytes(32).toString('base64url');
+
   // Step 1: Register
   const ctrl1 = new AbortController();
   const timer1 = setTimeout(() => ctrl1.abort(), AMMA_TIMEOUT_MS);
@@ -64,7 +69,7 @@ export async function generateWalletAddress(
     res = await fetch(registerUrl, {
       method: "POST",
       headers: registerHeaders,
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password: awPassword }),
       signal: ctrl1.signal,
     });
     resText = await res.text();

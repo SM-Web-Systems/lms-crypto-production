@@ -10,7 +10,7 @@
 
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { v4 as uuidv4 } from 'uuid';
-import { queryOne, execute } from '../config/database.js';
+import { db, queryOne, execute } from '../config/database.js';
 import logger from '../utils/logger.js';
 
 const VALID_NETWORKS = ['public', 'testnet'] as const;
@@ -118,31 +118,42 @@ export async function mintCredentialForQuiz(params: {
   }
 
   try {
-    // Idempotency check
-    const existing = queryOne<NftCredentialRow>(
-      'SELECT id, mint_status FROM nft_credentials WHERE user_id = ? AND quiz_id = ?',
-      [userId, quizId]
-    );
+    // FIND-011a: Atomic idempotency check + INSERT inside a transaction
+    // to prevent TOCTOU race causing duplicate on-chain mints.
+    const ensureCredential = db.transaction(() => {
+      const existing = queryOne<NftCredentialRow>(
+        'SELECT id, mint_status FROM nft_credentials WHERE user_id = ? AND quiz_id = ?',
+        [userId, quizId]
+      );
 
-    if (existing?.mint_status === 'minted') {
+      if (existing?.mint_status === 'minted') {
+        return { credId: existing.id, alreadyMinted: true };
+      }
+
+      const credId = existing?.id ?? uuidv4();
+
+      if (!existing) {
+        execute(
+          `INSERT INTO nft_credentials (id, user_id, quiz_id, wallet_address, mint_status, contract_id, network)
+           VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+          [credId, userId, quizId, walletAddress, nftConfig.contractId, nftConfig.network]
+        );
+      } else {
+        execute(
+          `UPDATE nft_credentials SET mint_status = 'pending', error = NULL, updated_at = datetime('now')
+           WHERE id = ?`,
+          [credId]
+        );
+      }
+
+      return { credId, alreadyMinted: false };
+    });
+
+    const { credId, alreadyMinted } = ensureCredential();
+
+    if (alreadyMinted) {
       logger.info({ module: 'mint', userId, quizId }, 'Already minted');
       return;
-    }
-
-    const credId = existing?.id ?? uuidv4();
-
-    if (!existing) {
-      execute(
-        `INSERT INTO nft_credentials (id, user_id, quiz_id, wallet_address, mint_status, contract_id, network)
-         VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-        [credId, userId, quizId, walletAddress, nftConfig.contractId, nftConfig.network]
-      );
-    } else {
-      execute(
-        `UPDATE nft_credentials SET mint_status = 'pending', error = NULL, updated_at = datetime('now')
-         WHERE id = ?`,
-        [credId]
-      );
     }
 
     logger.info({ module: 'mint', userId, quizId, walletAddress }, 'Attempting mint');
