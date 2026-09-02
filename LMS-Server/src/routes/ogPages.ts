@@ -119,7 +119,7 @@ function render404Page(): string {
 </html>`;
 }
 
-router.get('/verify/:credentialId', (req: Request, res: Response): void => {
+router.get('/:credentialId', (req: Request, res: Response): void => {
   const { credentialId } = req.params;
 
   const row = queryOne<{

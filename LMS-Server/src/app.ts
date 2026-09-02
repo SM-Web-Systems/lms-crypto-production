@@ -237,7 +237,8 @@ app.get('/healthz', (_req, res) => {
 });
 
 // OG pages — dynamic Open Graph tags for certificate verification (Phase 25 C2)
-app.use(readLimiter, ogPagesRoutes);
+// Scoped to /verify to prevent readLimiter from applying to all routes (LOCKOUT-001).
+app.use('/verify', readLimiter, ogPagesRoutes);
 
 // API routes
 app.use('/api/v1/auth', authLimiter, authRoutes);
