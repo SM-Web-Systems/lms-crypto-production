@@ -142,14 +142,13 @@ function readWriteMax(): number {
 const authMax  = readAuthMax();
 const writeMax = readWriteMax();
 
-/** Tight limiter on auth routes (login / signup brute-force protection). */
-const SSO_PATHS = new Set(['/amma-login', '/amma-callback']);
+/** Tight limiter on auth write routes (login / signup brute-force protection). GET requests pass through (JWT is the gate). */
 const authLimiter = rateLimit({
   windowMs: RATE_WINDOW_MS,
   max: authMax,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'GET' && SSO_PATHS.has(req.path),
+  skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS',
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many login attempts, please try again later' } },
 });
 
