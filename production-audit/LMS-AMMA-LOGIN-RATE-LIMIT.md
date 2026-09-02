@@ -143,5 +143,23 @@ The `SSO_PATHS` constant becomes unused and can be removed.
 
 | File | Change |
 |---|---|
-| `LMS-Server/src/app.ts` | Line 146: Remove `SSO_PATHS` constant. Line 152: Replace skip function. |
-| `LMS-Server/src/__tests__/auth-ratelimit.test.ts` | New: Regression tests for GET exemption. |
+| `LMS-Server/src/app.ts` (repo) | Line 146: Remove `SSO_PATHS` constant. Line 152: Replace skip function. |
+| `LMS-Server/src/__tests__/auth-ratelimit.test.ts` (repo) | New: Regression tests for GET exemption. |
+| `/home/webadmin/web-stack/html/LMS-Server/src/app.ts` (Docker build context) | Line 101: Add skip function to authLimiter. |
+
+## 8. Deployment Note
+
+**Critical discovery:** The Docker build context for `lms-server` is `/home/webadmin/web-stack/html/LMS-Server/` (a separate, older copy of the codebase), NOT `/home/webadmin/web-stack/html/LMS-AmmaWallet/LMS-Server/` (the active repo). The fix had to be applied to both locations.
+
+The Docker build context version (`/html/LMS-Server/`) had an even worse variant of the bug: no skip function at all on authLimiter, meaning ALL requests (GET and POST) were counted against the 60/15min budget.
+
+## 9. Verification Results
+
+```
+GET /auth/me 429s: 0 / 70 (expected: 0)          ✓
+POST /auth/login 429s: 5 / 65 (expected: 5)      ✓
+First 429 at request: 61 (expected: 61)           ✓
+GET /auth/me after POST exhaustion: 0 / 10        ✓
+```
+
+All verification phases pass. Fix deployed and confirmed in production.
