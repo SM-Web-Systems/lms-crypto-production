@@ -1,0 +1,17 @@
+flowchart LR
+    DB[(billing_tenants\nname TEXT nullable\nslug TEXT not null)] --> S
+
+    S["billing.service.ts\ngetTenantBillingState()\nSELECT name, slug, …\ngetTenantBalanceSummary()\nreturns tenantName, tenantSlug"] --> R
+
+    R["admin.ts\nGET /api/v1/internal/tenants/:id/billing\nFastify schema:\ntenantName: type string or null\ntenantSlug: type string"] --> FE
+
+    FE["AdminTenantDetail.tsx\nTenantBilling interface:\ntenantName: string | null\ntenantSlug: string"] --> BC
+
+    BC{Breadcrumb fallback chain}
+    BC -- tenantName is non-null --> N1[Show tenantName\ne.g. AmmaWallet Internal]
+    BC -- tenantName is null AND tenantSlug set --> N2[Show tenantSlug\ne.g. ammawallet-internal]
+    BC -- both null/empty --> N3[Show Tenant #id\nfinal fallback]
+
+    N1 --> BRead[Breadcrumb: All tenants / TenantName]
+    N2 --> BRead
+    N3 --> BRead

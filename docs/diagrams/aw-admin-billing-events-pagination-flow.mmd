@@ -1,0 +1,25 @@
+flowchart TD
+    A([Page loads]) --> B[load() calls GET /billing]
+    B --> C{API response}
+
+    C -- success --> D[setData\nsetAllEvents = recentEvents first 20\nsetEventsHasMore\nsetEventsNextCursor = id of oldest row or null]
+    C -- error --> E[setError — page-level error banner]
+
+    D --> F{eventsHasMore?}
+    F -- false --> G[No Load older button shown\nall events displayed]
+    F -- true --> H[Load older button visible\ncursor = id of row 20]
+
+    H --> I([Admin clicks Load older])
+    I --> J[loadOlderEvents\nsetLoadingOlder true\nbutton disabled + spinner]
+    J --> K[GET /events?beforeId=cursor]
+    K --> L{API response}
+
+    L -- success --> M[setAllEvents prev append page.events\nsetEventsHasMore page.hasMore\nsetEventsNextCursor page.nextCursor\nsetLoadingOlder false]
+    L -- error --> N[setOlderError\nsetLoadingOlder false\nexisting rows preserved]
+
+    M --> O{page.hasMore?}
+    O -- true --> H
+    O -- false --> P[Button hidden\nall events now loaded]
+
+    N --> Q[Amber error message shown near button\nLoad older button still visible if eventsHasMore]
+    Q --> I

@@ -1,0 +1,29 @@
+flowchart TD
+    A([StudentDashboard mounts]) --> B{submissionsLoading?}
+
+    B -- true --> C[Return DashboardPageSkeleton\nvariant=student\naria-busy=true\nTitle bar + promo strip + 4 stat tiles + content block]
+    B -- false --> D{submissionsError?}
+
+    D -- truthy --> E[Return error banner\nCould not load your dashboard\nTry again button calls fetchSubmissions]
+    D -- false --> F[Render full dashboard]
+
+    F --> G[useEffect: load courses + progress + appStatus]
+    G --> H{coursesLoading?}
+
+    H -- true --> I[CertEligibilitySkeleton shown\nin-place inside Certificate eligibility section\nHeader + 2 fake course rows\naria-busy=true]
+    H -- false --> J{courses.length > 0?}
+
+    J -- false --> K[Section omitted entirely]
+    J -- true --> L[Render real eligibility rows]
+
+    L --> M{progressMap\[courseId\] loaded?}
+    M -- false --> N[Inline text: Loading progress…\nper-row fallback inside each course card]
+    M -- true --> O[Show lesson/quiz stats + progress bar]
+
+    subgraph Parallel loads
+        P1[lmsCredentials: null → loaded\nor error → lmsCredentialsError=true]
+        P2[nftBadges: null → loaded]
+        P3[quizCompletions: null → loaded]
+    end
+
+    F --> Parallel loads

@@ -1,0 +1,30 @@
+# Dependencies — rebuilt inside container via npm ci
+node_modules
+
+# Environment files — injected via Docker env_file, never baked into image
+.env
+.env.*
+
+# Git metadata
+.git
+.gitignore
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+vitest.config.*
+coverage/
+
+# Documentation
+*.md
+docs/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+*.tsbuildinfo

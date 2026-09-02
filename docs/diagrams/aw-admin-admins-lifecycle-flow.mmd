@@ -1,0 +1,36 @@
+flowchart TD
+    A([Page loads]) --> B[fetch GET /admins]
+    B --> C{response}
+    C -- error --> D[page-level error banner]
+    C -- success --> E[render admin table\ncurrentAdmin parsed from sessionStorage]
+
+    E --> F{currentAdmin.role?}
+    F -- super_admin --> G[Invite button visible\nDeactivate/Reactivate/Reset visible per row]
+    F -- platform_admin --> H[Invite button visible\nDeactivate/Reactivate visible per row\nReset hidden]
+    F -- other/missing --> I[read-only table]
+
+    G --> J([Invite admin])
+    J --> K[InviteModal opens\nname + email + role select + password]
+    K --> L[POST /admins]
+    L -- 201 --> M[setAdmins prepend new row\nclose modal]
+    L -- error --> N[inviteError in modal]
+
+    G --> O([Deactivate row])
+    H --> O
+    O --> P[ConfirmModal opens\naction=deactivate]
+    P --> Q[PATCH /admins/:id/deactivate]
+    Q -- 200 --> R[update row isActive=false in state]
+    Q -- error --> S[per-row actionError]
+
+    G --> T([Reactivate row])
+    H --> T
+    T --> U[ConfirmModal opens\naction=reactivate]
+    U --> V[PATCH /admins/:id/reactivate]
+    V -- 200 --> W[update row isActive=true in state]
+    V -- error --> X[per-row actionError]
+
+    G --> Y([Reset password])
+    Y --> Z[ResetPasswordModal opens]
+    Z --> AA[POST /admins/:id/reset-password\nbody: {newPassword}]
+    AA -- 200 --> BB[5s resetSuccess chip in row]
+    AA -- error --> CC[resetError in modal]

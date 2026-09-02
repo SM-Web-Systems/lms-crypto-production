@@ -1,0 +1,24 @@
+flowchart TD
+    A([Admin views Applications tab]) --> B[app.status === approved]
+    B --> C[Mint NFT button visible\nbg-violet-600, disabled if isActing]
+
+    C --> D([Admin clicks Mint NFT])
+    D --> E[handleMint sets mintModal = app\nno network call yet]
+    E --> F[Modal renders\nfixed overlay z-50\nbackdrop blur\nmax-w-md panel]
+
+    F --> G{Admin action}
+
+    G -- clicks Cancel or X button --> H[setMintModal null\nno state change\nno API call]
+    G -- clicks backdrop --> H
+    G -- presses Escape --> H
+
+    G -- clicks Mint NFT confirm --> I[submitMint called\nsetMintModal null first\nsetActionLoading appId]
+
+    I --> J[POST /api/v1/nft-applications/:courseId/:appId/mint]
+    J --> K{API response}
+
+    K -- success --> L[setApplications: merge updated app\nstatus becomes minted\ntxHash populated\nactionLoading cleared]
+    K -- error --> M[setActionError for row\nactionLoading cleared\nrow shows error text in red]
+
+    L --> N[Row now shows Minted badge\ntxHash link to stellar.expert]
+    M --> O[Row shows inline error\nMint NFT button still visible if re-attempt needed]

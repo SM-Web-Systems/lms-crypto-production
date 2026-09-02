@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Amma Wallet",
+    "slug": "amma-wallet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "ammawallet",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/icon-128.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e1a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ammawallet.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon-128.png",
+        "backgroundColor": "#0a0e1a"
+      },
+      "package": "com.ammawallet.app",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-local-authentication"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "89ad7ee8-3012-4a8a-89bf-00538c7c55df"
+      }
+    },
+    "owner": "chrissou78"
+  }
+}

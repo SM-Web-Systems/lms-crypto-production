@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Custom theme overrides */
+@theme {
+  --color-stellar-blue: #3e1bdb;
+  --color-stellar-purple: #7c3aed;
+  --color-stellar-dark: var(--theme-bg);
+  --color-stellar-card: var(--theme-card);
+  --color-stellar-border: var(--theme-border);
+  --color-stellar-text: var(--theme-text);
+  --color-stellar-muted: var(--theme-muted);
+  --color-stellar-success: #22c55e;
+  --color-stellar-danger: #ef4444;
+  --color-stellar-bg: var(--theme-bg);
+}
+
+/* Dark theme (default) */
+:root,
+[data-theme="dark"] {
+  --theme-bg: #0f0b1a;
+  --theme-card: #1a1425;
+  --theme-border: #2d2640;
+  --theme-text: #e2dff0;
+  --theme-muted: #8b83a3;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --theme-bg: #f5f3f7;
+  --theme-card: #ffffff;
+  --theme-border: #e2dff0;
+  --theme-text: #1a1425;
+  --theme-muted: #6b6580;
+}
+
+body {
+  @apply bg-stellar-dark text-stellar-text min-h-screen;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}

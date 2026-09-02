@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amma Wallet - Privacy Policy</title>
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #0a0e1a; color: #d1d5db; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.8; }
+    h1 { color: #fff; font-size: 2rem; margin-bottom: 8px; }
+    h2 { color: #93c5fd; font-size: 1.3rem; margin-top: 32px; }
+    h3 { color: #bfdbfe; font-size: 1.1rem; margin-top: 20px; }
+    p { margin: 12px 0; }
+    a { color: #60a5fa; }
+    .date { color: #6b7280; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { text-align: left; padding: 10px 12px; border: 1px solid #374151; }
+    th { background: #1f2937; color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Amma Wallet — Privacy Policy</h1>
+  <p class="date">Effective date: March 15, 2026 | Last updated: March 16, 2026</p>
+
+  <h2>1. Introduction</h2>
+  <p>Amma Wallet ("we", "our", "us") is a cryptocurrency wallet application that operates on the Stellar network. This privacy policy describes how we collect, process, store, and share user data across our web application (ammawallet.com), Chrome browser extension, and mobile application. By using any of our products, you agree to this policy.</p>
+
+  <h2>2. Data Collection</h2>
+  <p>We collect the following categories of user data:</p>
+
+  <table>
+    <tr><th>Data Type</th><th>What We Collect</th><th>Purpose</th></tr>
+    <tr><td>Account Information</td><td>Email address, first name, last name</td><td>Account creation and identification</td></tr>
+    <tr><td>Authentication Data</td><td>Password (stored as bcrypt hash only)</td><td>Secure login to your account</td></tr>
+    <tr><td>Wallet Data</td><td>Wallet name, public key, encrypted secret key</td><td>Wallet management and cross-device synchronization</td></tr>
+    <tr><td>User Preferences</td><td>Language preference, network selection (testnet/mainnet)</td><td>Personalized user experience</td></tr>
+  </table>
+
+  <p><strong>Data we do NOT collect:</strong> browsing history, location data, health information, personal communications, keystrokes, mouse movements, or any data from other websites or applications.</p>
+
+  <h2>3. Data Processing</h2>
+  <h3>3.1 Account Authentication</h3>
+  <p>When you register, your password is hashed using bcrypt before storage. We never store or process plaintext passwords. Authentication is managed via JSON Web Tokens (JWT) that expire after a set period.</p>
+
+  <h3>3.2 Wallet Encryption</h3>
+  <p>Your wallet secret key is encrypted on your device using AES-256-GCM encryption with a key derived from your PIN via PBKDF2 (600,000 iterations). Only the encrypted blob is transmitted to and stored on our server. We never have access to your unencrypted private key or your PIN. Decryption happens exclusively on your local device.</p>
+
+  <h3>3.3 Blockchain Interactions</h3>
+  <p>When you send transactions, swap tokens, or view balances, your browser or app communicates directly with public Stellar network endpoints. Transaction data is recorded on the public Stellar blockchain and is not stored on our servers.</p>
+
+  <h2>4. Data Storage</h2>
+  <h3>4.1 Server-Side Storage</h3>
+  <p>Your account information and encrypted wallet data are stored on a secure server located in a data center with physical and network security measures. The database uses PostgreSQL with encrypted connections.</p>
+
+  <h3>4.2 Client-Side Storage</h3>
+  <p>The Chrome extension stores authentication tokens and encrypted wallet data in the browser's local storage (chrome.storage API). The mobile app uses secure storage (iOS Keychain / Android Keystore) for secret keys. The web application uses browser localStorage for session tokens.</p>
+
+  <h3>4.3 Data Retention</h3>
+  <p>We retain your data for as long as your account is active. If you delete your account, all associated data (account information, wallet data, preferences) will be permanently removed from our servers within 30 days.</p>
+
+  <h2>5. Data Sharing</h2>
+  <p><strong>We do not sell, rent, or trade your personal information to any third party.</strong></p>
+  <p>We share data only with the following third-party services, solely to provide core wallet functionality:</p>
+
+  <table>
+    <tr><th>Service</th><th>Data Shared</th><th>Purpose</th></tr>
+    <tr><td>Stellar Horizon API (stellar.org)</td><td>Public key, transaction data</td><td>Blockchain interactions (balances, transactions, account info)</td></tr>
+    <tr><td>StellarExpert API (stellar.expert)</td><td>No user data — public token queries only</td><td>Token metadata, ratings, and market information</td></tr>
+    <tr><td>Stellar Friendbot (stellar.org)</td><td>Public key</td><td>Testnet account funding only</td></tr>
+  </table>
+
+  <p>No personal information (email, name, password, or encrypted keys) is ever shared with these services. Only your public wallet address is used for blockchain queries, which is inherently public on the Stellar network.</p>
+
+  <p>We do not use your data for:</p>
+  <p>— Advertising or marketing purposes<br>
+     — Credit assessment or lending decisions<br>
+     — Profiling or behavioral tracking<br>
+     — Any purpose unrelated to providing wallet functionality</p>
+
+  <h2>6. User Rights</h2>
+  <p>You have the right to:</p>
+  <p>— <strong>Access</strong> your personal data by viewing your account settings<br>
+     — <strong>Correct</strong> your personal data by updating your profile<br>
+     — <strong>Export</strong> your wallet secret key at any time to maintain control of your funds<br>
+     — <strong>Delete</strong> your account and all associated data by contacting us<br>
+     — <strong>Withdraw consent</strong> by ceasing use of our products and requesting account deletion</p>
+
+  <h2>7. Security</h2>
+  <p>We implement the following security measures: HTTPS encryption for all data in transit, bcrypt password hashing, AES-256-GCM client-side encryption of private keys, PBKDF2 key derivation with 600,000 iterations, JWT-based authentication with token expiration and refresh, and server-side firewall protection.</p>
+
+  <h2>8. Children's Privacy</h2>
+  <p>Amma Wallet is not intended for use by individuals under the age of 18. We do not knowingly collect data from minors.</p>
+
+  <h2>9. Changes to This Policy</h2>
+  <p>We may update this privacy policy from time to time. Changes will be posted on this page with an updated "Last updated" date. Continued use of our products after changes constitutes acceptance of the updated policy.</p>
+
+  <h2>10. Contact Us</h2>
+  <p>If you have questions about this privacy policy or wish to exercise your data rights, contact us at:</p>
+  <p>Email: <a href="mailto:contact@ammawallet.com">contact@ammawallet.com</a><br>
+     Website: <a href="https://ammawallet.com">https://ammawallet.com</a></p>
+</body>
+</html>

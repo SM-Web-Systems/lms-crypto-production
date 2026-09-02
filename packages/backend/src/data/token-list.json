@@ -1,0 +1,298 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-06-21",
+  "description": "Curated list of verified Stellar tokens for Amma Wallet. Contact support@ammawallet.com for listing requests.",
+  "listingFee": "Contact for pricing",
+  "schema": {
+    "code": "Asset code (e.g. USDC)",
+    "issuer": "Stellar public key of the issuer, or 'native' for XLM",
+    "name": "Human-readable name",
+    "domain": "Home domain from stellar.toml",
+    "icon": "URL to token icon (PNG/SVG, 128x128 recommended)",
+    "verified": "Manually verified by Amma Wallet team",
+    "category": "One of: native, stablecoin, wrapped, defi, yield, utility, payment, meme"
+  },
+  "mainnet": [
+    {
+      "code": "XLM",
+      "issuer": "native",
+      "name": "Stellar Lumens",
+      "domain": "stellar.org",
+      "icon": "https://ammawallet.com/assets/icons/XLM.png",
+      "verified": true,
+      "category": "native"
+    },
+    {
+      "code": "USDC",
+      "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      "name": "USD Coin",
+      "domain": "centre.io",
+      "icon": "https://ammawallet.com/assets/icons/USDC.png",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "EURC",
+      "issuer": "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y36DAVIZA67QLBVM7AHSQGE3",
+      "name": "Euro Coin",
+      "domain": "circle.com",
+      "icon": "https://ammawallet.com/assets/icons/EURC.png",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "yXLM",
+      "issuer": "GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55",
+      "name": "Ultra Stellar Yield XLM",
+      "domain": "ultracapital.xyz",
+      "icon": "https://ammawallet.com/assets/icons/yXLM.png",
+      "verified": true,
+      "category": "yield"
+    },
+    {
+      "code": "yUSDC",
+      "issuer": "GDGTVWSM4MGS4T7Z6W4RPWOCHE2I6FHFCYSUJUQL3DGREKEMQOJYQAQG",
+      "name": "Ultra Stellar Yield USDC",
+      "domain": "ultracapital.xyz",
+      "icon": "https://ammawallet.com/assets/icons/yUSDC.svg",
+      "verified": true,
+      "category": "yield"
+    },
+    {
+      "code": "BTC",
+      "issuer": "GDPJALI4AZKUURQKDKWI2GOZCBQZW5IWQMRQNQP6V5GKEOKNU5XHJVKP",
+      "name": "Bitcoin",
+      "domain": "ultracapital.xyz",
+      "icon": "https://ammawallet.com/assets/icons/BTC.png",
+      "verified": true,
+      "category": "wrapped"
+    },
+    {
+      "code": "ETH",
+      "issuer": "GDPJALI4AZKUURQKDKWI2GOZCBQZW5IWQMRQNQP6V5GKEOKNU5XHJVKP",
+      "name": "Ethereum",
+      "domain": "ultrastellar.com",
+      "icon": "https://ammawallet.com/assets/icons/ETH.png",
+      "verified": true,
+      "category": "wrapped"
+    },
+    {
+      "code": "AQUA",
+      "issuer": "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
+      "name": "Aquarius",
+      "domain": "aqua.network",
+      "icon": "https://ammawallet.com/assets/icons/AQUA.png",
+      "verified": true,
+      "category": "defi"
+    },
+    {
+      "code": "SHX",
+      "issuer": "GDSTRSHXHGJ7ZIVRBXEYE5Q74XUVCUSEZ6BIPR5JDS6OQURGAM6Q4YR4",
+      "name": "Stronghold SHX",
+      "domain": "stronghold.co",
+      "icon": "https://ammawallet.com/assets/icons/SHX.png",
+      "verified": true,
+      "category": "utility"
+    },
+    {
+      "code": "FIDR",
+      "issuer": "GBZQNUAGO4GS3GFJUKWUW5GDHDQTAM6WLSQYSGG53CBXBFQLY7SXFIR",
+      "name": "FidorPay",
+      "domain": "fidor.com",
+      "icon": "https://ammawallet.com/assets/icons/FIDR.svg",
+      "verified": true,
+      "category": "payment"
+    },
+    {
+      "code": "RMT",
+      "issuer": "GDEGOXPCHXWFYY234D2YNNFBY5QKWWCG6Y2WKYEN3AUL3CBEID4RMHMT",
+      "name": "SureRemit",
+      "domain": "sureremit.co",
+      "icon": "https://ammawallet.com/assets/icons/RMT.svg",
+      "verified": true,
+      "category": "payment"
+    },
+    {
+      "code": "MOBI",
+      "issuer": "GA6HCMBLTZS5VYYBCATRBRZ3BZJMAFUDKYYF6AH6MVCMGWMRDNSWJPIH",
+      "name": "Mobius",
+      "domain": "mobius.network",
+      "icon": "https://ammawallet.com/assets/icons/MOBI.png",
+      "verified": true,
+      "category": "utility"
+    },
+    {
+      "code": "CLPX",
+      "issuer": "GCNY5OXYSY4FKHOPT2SPOQZAOEIGXB5LBYW3HVU3OWSTQITS65M5RCNY",
+      "name": "CeloPeso",
+      "domain": "apay.io",
+      "icon": "https://ammawallet.com/assets/icons/CLPX.svg",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "ARST",
+      "issuer": "GCSAZVWXZKWS4XS223M5F54H2B6XPIIXZZGP7KEAIU6YSL4HDEZ2ARST",
+      "name": "ARS Token",
+      "domain": "apay.io",
+      "icon": "https://ammawallet.com/assets/icons/ARST.svg",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "BRLT",
+      "issuer": "GCHQ3F2BF5P74GYNS7TTBDTCZ5ZLSHEROOFQ6FFG5OQB35DP2BRLT2WN",
+      "name": "BRL Token",
+      "domain": "ntokens.com",
+      "icon": "https://ammawallet.com/assets/icons/BRLT.svg",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "NGNT",
+      "issuer": "GAWODAROMJ33V5YDFY3NPYTHVYQG7MJXVJ2ND3AOGIHYRWINES6ACCPD",
+      "name": "NGN Token",
+      "domain": "cowrie.exchange",
+      "icon": "https://ammawallet.com/assets/icons/NGNT.svg",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "EURT",
+      "issuer": "GAP5LETOV6YIE62YAM56STDANPRDO7ZFDBGSNHJQIYGGKSMOZAHOOS2S",
+      "name": "EUR Token (Tempo)",
+      "domain": "tempo.eu.com",
+      "icon": "https://ammawallet.com/assets/icons/EURT.svg",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "WXT",
+      "issuer": "GASBLVHS5FOABSDNW5SPPH3QRJYXY5JHA2AOA2QHH2FJLZBRDB6IVED4",
+      "name": "Wirex Token",
+      "domain": "wirexapp.com",
+      "icon": "https://ammawallet.com/assets/icons/WXT.svg",
+      "verified": true,
+      "category": "utility"
+    },
+    {
+      "code": "CNHT",
+      "issuer": "GCKFBEIYV2U22IO2BJ4KVJOIP7XPWQGQFKKFXR6LSMKJPJB6GHR33NI",
+      "name": "CNH Token",
+      "domain": "apay.io",
+      "icon": "https://ammawallet.com/assets/icons/CNHT.svg",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "VELO",
+      "issuer": "GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M",
+      "name": "Velo",
+      "domain": "velo.org",
+      "icon": "https://ammawallet.com/assets/icons/VELO.svg",
+      "verified": true,
+      "category": "defi"
+    },
+    {
+      "code": "LSP",
+      "issuer": "GAB7STHVD5BDH3EEYXPI3OM7PCS4V443PYB5FNT6CFGJVPDLMKDM24WN",
+      "name": "Lumenswap",
+      "domain": "lumenswap.io",
+      "icon": "https://ammawallet.com/assets/icons/LSP.svg",
+      "verified": true,
+      "category": "defi"
+    },
+    {
+      "code": "NUNA",
+      "issuer": "GDZURZR6RZKIQVOWZFWPVAUBMLLBQGXP2K5ACE4YGKSNUQMPEKFUNA46",
+      "name": "Nuna",
+      "domain": "nuna.io",
+      "icon": "https://ammawallet.com/assets/icons/NUNA.svg",
+      "verified": true,
+      "category": "utility"
+    },
+    {
+      "code": "FRED",
+      "issuer": "GD6XQ6PRYP2SOHBGBKUYWFG3AAGBSGDASQRYA5IWO3XBIH3UFREDGSCI",
+      "name": "FrederickEnergy",
+      "domain": "frederickenergy.com",
+      "icon": "https://ammawallet.com/assets/icons/FRED.svg",
+      "verified": true,
+      "category": "utility"
+    },
+    {
+      "code": "SSLX",
+      "issuer": "GBHFGY3ZNEJWLNO4LBUKL4CXKACDBRZRIMGKL2GRKIW3QLQJN3SSLXGZ",
+      "name": "SolarSellX",
+      "domain": "solarsellx.com",
+      "icon": "https://ammawallet.com/assets/icons/SSLX.svg",
+      "verified": true,
+      "category": "utility"
+    }
+  ],
+  "testnet": [
+    {
+      "code": "XLM",
+      "issuer": "native",
+      "name": "Stellar Lumens (Testnet)",
+      "domain": "stellar.org",
+      "icon": "https://ammawallet.com/assets/icons/XLM.png",
+      "verified": true,
+      "category": "native"
+    },
+    {
+      "code": "USDC",
+      "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+      "name": "USDC (Testnet)",
+      "domain": "circle.com",
+      "icon": "https://ammawallet.com/assets/icons/USDC.png",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "EURC",
+      "issuer": "GB3Q6QDZWAEQ6NNFTMHM7BUQPZELQX66BQAYYV7MPRU6CJQPTIAZ2SXQ",
+      "name": "EURC (Testnet)",
+      "domain": "circle.com",
+      "icon": "https://ammawallet.com/assets/icons/EURC.png",
+      "verified": true,
+      "category": "stablecoin"
+    },
+    {
+      "code": "yXLM",
+      "issuer": "GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55",
+      "name": "yXLM (Testnet)",
+      "domain": "ultracapital.xyz",
+      "icon": "https://ammawallet.com/assets/icons/yXLM.png",
+      "verified": true,
+      "category": "yield"
+    },
+    {
+      "code": "BTC",
+      "issuer": "GAUTUYY2THLF7SGITDFMXJVYH3LHDSMGEAKSBU267M2K7A3W543CKUEFT",
+      "name": "BTC (Testnet)",
+      "domain": "ultracapital.xyz",
+      "icon": "https://ammawallet.com/assets/icons/BTC.png",
+      "verified": true,
+      "category": "wrapped"
+    },
+    {
+      "code": "ETH",
+      "issuer": "GBFXOHVAS43OIWNIO7XLRJAHT3BICFEIKOJLZVXNT572MISM4I3DEPETH",
+      "name": "ETH (Testnet)",
+      "domain": "ultrastellar.com",
+      "icon": "https://ammawallet.com/assets/icons/ETH.png",
+      "verified": true,
+      "category": "wrapped"
+    },
+    {
+      "code": "AQUA",
+      "issuer": "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
+      "name": "Aquarius (Testnet)",
+      "domain": "aqua.network",
+      "icon": "https://ammawallet.com/assets/icons/AQUA.png",
+      "verified": true,
+      "category": "defi"
+    }
+  ]
+}

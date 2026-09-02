@@ -1,0 +1,12 @@
+# .github/workflows/preview.yml
+- name: Create Neon branch
+  uses: neondatabase/create-branch-action@v5
+  with:
+    project_id: ${{ secrets.NEON_PROJECT_ID }}
+    branch_name: preview/pr-${{ github.event.number }}
+    api_key: ${{ secrets.NEON_API_KEY }}
+
+- name: Run migrations on preview branch
+  run: npx drizzle-kit migrate
+  env:
+    DATABASE_URL_DIRECT: ${{ steps.create-branch.outputs.db_url }}

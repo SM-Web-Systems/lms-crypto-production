@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-stellar-bg: #0a0e1a;
+  --color-stellar-card: #111827;
+  --color-stellar-border: #1f2937;
+  --color-stellar-blue: #3b82f6;
+  --color-stellar-purple: #8b5cf6;
+  --color-stellar-muted: #6b7280;
+  --color-stellar-success: #10b981;
+  --color-stellar-danger: #ef4444;
+  --color-stellar-dark: #060910;
+}
+
+html, body, #root {
+  width: 380px;
+  height: 600px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--color-stellar-bg);
+  color: white;
+  font-family: "Inter", system-ui, sans-serif;
+}

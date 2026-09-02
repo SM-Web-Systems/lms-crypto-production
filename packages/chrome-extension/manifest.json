@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Amma Wallet",
+  "description": "A secure crypto wallet for sending, receiving, and swapping XLM and tokens on the Stellar network. Supports dApp integration via window.ammaWallet.",
+  "version": "1.3.0",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "Amma Wallet"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content-script.ts"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://ammawallet.com/*",
+    "https://horizon.stellar.org/*",
+    "https://horizon-testnet.stellar.org/*",
+    "https://soroban-testnet.stellar.org/*",
+    "https://soroban.stellar.org/*",
+    "https://api.stellar.expert/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inpage.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}
