@@ -135,23 +135,42 @@ export class StellarPaymentMonitor {
           const dbPayment = getPaymentByStellarMemo(tx.memo);
           if (!dbPayment || dbPayment.status !== 'pending') continue;
 
-          // Verify amount (with 0.01 tolerance for rounding)
+          // Verify amount — reject dust payments (FIND-010a)
           const receivedAmount = parseFloat(payment.amount);
-          const expectedCents = dbPayment.amount_cents;
+          const expectedAmount = (dbPayment as any).stellar_expected_amount as number | null;
 
-          // For XLM/USDC the amount in the payment record is in cents (USD).
-          // The Stellar amount is in the native unit. We store the expected XLM/USDC
-          // amount as amount_cents (which may be in XLM units * 100 for tracking).
-          // For simplicity, we trust the memo match and confirm.
+          if (expectedAmount != null && expectedAmount > 0) {
+            // Reject if received < 99% of expected (tolerance for rounding)
+            const minAcceptable = expectedAmount * 0.99;
+            if (receivedAmount < minAcceptable) {
+              logger.warn({
+                module: 'StellarPaymentMonitor',
+                paymentId: dbPayment.id,
+                txHash: payment.transaction_hash,
+                receivedAmount,
+                expectedAmount,
+                minAcceptable,
+              }, 'Payment amount too low — rejecting dust payment');
+              continue;
+            }
+          } else {
+            // No expected amount stored — log warning but still confirm
+            // (legacy payments created before this column was added)
+            logger.warn({
+              module: 'StellarPaymentMonitor',
+              paymentId: dbPayment.id,
+              receivedAmount,
+            }, 'No stellar_expected_amount stored — confirming without amount check');
+          }
 
           // Update with tx hash and confirm
           execute(
             "UPDATE payments SET stellar_tx_hash = ?, updated_at = datetime('now') WHERE id = ?",
             [payment.transaction_hash, dbPayment.id],
           );
-          confirmPayment(dbPayment.id, 'stellar-monitor', `Auto-confirmed via Stellar tx ${payment.transaction_hash}`);
+          confirmPayment(dbPayment.id, 'stellar-monitor', `Auto-confirmed via Stellar tx ${payment.transaction_hash} (received: ${receivedAmount})`);
 
-          logger.info({ module: 'StellarPaymentMonitor', paymentId: dbPayment.id, txHash: payment.transaction_hash }, 'Payment confirmed');
+          logger.info({ module: 'StellarPaymentMonitor', paymentId: dbPayment.id, txHash: payment.transaction_hash, receivedAmount, expectedAmount }, 'Payment confirmed');
         } catch (err) {
           logger.error({ module: 'StellarPaymentMonitor', txHash: payment.transaction_hash, err }, 'Error processing transaction');
         }

@@ -441,6 +441,7 @@ export interface Payment {
   paystack_access_code: string | null;
   stellar_tx_hash: string | null;
   stellar_memo: string | null;
+  stellar_expected_amount: number | null;
   created_at: string;
   updated_at: string;
 }

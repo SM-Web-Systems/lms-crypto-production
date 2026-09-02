@@ -937,6 +937,7 @@ function ensurePaystackColumns(): void {
   addCol('paystack_access_code', 'TEXT');
   addCol('stellar_tx_hash', 'TEXT');
   addCol('stellar_memo', 'TEXT');
+  addCol('stellar_expected_amount', 'REAL');
 
   // Add Stellar pricing columns to course_pricing
   const pricingCols = db.prepare("PRAGMA table_info('course_pricing')").all() as { name: string }[];

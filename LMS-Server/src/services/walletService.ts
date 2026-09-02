@@ -121,6 +121,12 @@ export async function generateWalletAddress(
   const keyPairRes = JSON.parse(keypairText) as KeypairResponse;
 
   // Step 3: Create wallet
+  // DESIGN NOTE (FIND-008a): encryptedSecret is intentionally empty.
+  // LMS wallets are receive-only (for NFT credential delivery). The LMS never signs
+  // Stellar transactions — all signing is handled by AmmaWallet's custodial infrastructure.
+  // The keypair secret from step 2 is discarded to avoid storing sensitive key material
+  // in the LMS database. If signing were needed, the secret would need to be encrypted
+  // with a user-provided PIN before storage.
   const ctrl3 = new AbortController();
   const timer3 = setTimeout(() => ctrl3.abort(), AMMA_TIMEOUT_MS);
   let walletAdditionRes: Response;
@@ -135,7 +141,7 @@ export async function generateWalletAddress(
       body: JSON.stringify({
         name: email,
         publicKey: keyPairRes.publicKey,
-        encryptedSecret: "",
+        encryptedSecret: "", // Intentionally empty — receive-only wallet (see DESIGN NOTE above)
         network: AMMA_NETWORK,
       }),
       signal: ctrl3.signal,

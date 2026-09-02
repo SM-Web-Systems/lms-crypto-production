@@ -172,13 +172,14 @@ export function createStellarPayment(
   amountCents: number,
   memo: string,
   method: 'stellar_xlm' | 'stellar_usdc' = 'stellar_xlm',
+  stellarExpectedAmount?: number,
 ): Payment {
   const id = uuidv4();
   execute(
     `INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency,
-     payment_method, status, stellar_memo, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'USD', ?, 'pending', ?, datetime('now'), datetime('now'))`,
-    [id, userId, courseId, applicationId, amountCents, method, memo],
+     payment_method, status, stellar_memo, stellar_expected_amount, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'USD', ?, 'pending', ?, ?, datetime('now'), datetime('now'))`,
+    [id, userId, courseId, applicationId, amountCents, method, memo, stellarExpectedAmount ?? null],
   );
   return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [id])!;
 }

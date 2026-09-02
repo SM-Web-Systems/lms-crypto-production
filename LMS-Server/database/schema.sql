@@ -378,6 +378,7 @@ CREATE TABLE IF NOT EXISTS payments (
   paystack_access_code TEXT,
   stellar_tx_hash TEXT,
   stellar_memo    TEXT,
+  stellar_expected_amount REAL,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );

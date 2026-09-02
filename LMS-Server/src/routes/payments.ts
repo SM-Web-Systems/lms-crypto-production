@@ -678,6 +678,7 @@ router.post(
       pricing.price_cents,
       memo,
       paymentCurrency as 'stellar_xlm' | 'stellar_usdc',
+      stellarAmount,
     );
 
     res.status(201).json({
