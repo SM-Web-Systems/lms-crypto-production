@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { ExternalLink, Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 
 // ── Approved GitHub content source ──────────────────────────────────────────
 
@@ -82,6 +82,29 @@ function sanitizeHtml(html: string): string {
   });
 }
 
+/**
+ * Post-process sanitized HTML to add accessible table wrappers
+ * and scope attributes. Operates on already-sanitized content only.
+ */
+function enhanceTablesInDom(container: HTMLElement): void {
+  const tables = container.querySelectorAll('table');
+  tables.forEach((table) => {
+    // Add scope="col" to header cells
+    table.querySelectorAll('thead th').forEach((th) => {
+      th.setAttribute('scope', 'col');
+    });
+
+    // Wrap table in accessible scroll container
+    const wrapper = document.createElement('div');
+    wrapper.className = 'lms-markdown-table-wrap';
+    wrapper.setAttribute('role', 'region');
+    wrapper.setAttribute('aria-label', 'Data table');
+    wrapper.setAttribute('tabindex', '0');
+    table.parentNode?.insertBefore(wrapper, table);
+    wrapper.appendChild(table);
+  });
+}
+
 interface MarkdownViewerProps {
   /** GitHub blob or raw URL to fetch markdown from */
   url: string;
@@ -102,9 +125,12 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadContent = () => {
+    setLoading(true);
+    setError(null);
+    setHtml(null);
 
     const rawUrl = toApprovedRawUrl(url);
     if (!rawUrl) {
@@ -112,6 +138,8 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       setLoading(false);
       return;
     }
+
+    let cancelled = false;
 
     (async () => {
       try {
@@ -129,7 +157,17 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     })();
 
     return () => { cancelled = true; };
-  }, [url]);
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadContent, [url]);
+
+  // Post-process DOM to wrap tables after HTML is set
+  useEffect(() => {
+    if (html && contentRef.current) {
+      enhanceTablesInDom(contentRef.current);
+    }
+  }, [html]);
 
   if (loading) {
     return (
@@ -144,15 +182,25 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     return (
       <div className="flex flex-col items-center gap-4 py-12 px-4" role="alert">
         <p className="text-sm text-red-600 font-medium">{error}</p>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-accent-teal font-medium hover:underline"
-        >
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-          Open source file
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={loadContent}
+            className="inline-flex items-center gap-2 text-sm text-accent-teal font-medium hover:underline"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            Retry
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm text-accent-teal font-medium hover:underline"
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            Open source file
+          </a>
+        </div>
       </div>
     );
   }
@@ -161,7 +209,8 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     <div className="px-4 py-6 sm:px-8 sm:py-8" aria-label={title}>
       {html && (
         <div
-          className="prose prose-sm sm:prose max-w-none prose-headings:text-primary-dark prose-a:text-accent-teal prose-code:bg-neutral-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-neutral-900 prose-pre:text-neutral-100"
+          ref={contentRef}
+          className="lms-markdown-content"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )}
