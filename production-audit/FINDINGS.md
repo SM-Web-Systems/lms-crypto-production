@@ -126,7 +126,7 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03 (v
 | INFO | 3 | 3 | 0 |
 | **Total** | **48** | **3** | **45** |
 
-> **AUDIT CLOSED 2026-09-03 (verified):** All CRITICAL (2), HIGH (6), MEDIUM (20), and LOW (17) findings VERIFIED_RESOLVED. 3 remaining items are INFO-severity observations (no action required). Deployment verified: LMS buildSha `622ce7c` matches HEAD, LMS API/web + CRM all healthy. FIND-003b (SSO), FIND-027-03 (rate-limit), FIND-026-04 (healthcheck), FIND-027-02 (email outbox) each verified with direct production evidence.
+> **AUDIT CLOSED 2026-09-03 (verified):** All CRITICAL (2), HIGH (6), MEDIUM (20), and LOW (17) findings VERIFIED_RESOLVED. 3 remaining items are INFO-severity observations (no action required). Final deployed LMS buildSha: `8241d1a` (matches repository HEAD). Intermediate verification SHA: `622ce7c`. LMS API/web + CRM + AmmaWallet all healthy. FIND-003b (SSO), FIND-027-03 (rate-limit), FIND-026-04 (healthcheck), FIND-027-02 (email outbox) each verified with direct production evidence. Full verified test suite: 2375/2375 (LMS 1270+227+14 E2E, CRM 277, AW 564+23). Residual caveats: LMS session JWTs omit iss/aud (accepted, single-deployment); CRM tracking limiter is in-memory (valid for single-container, requires shared store before horizontal scaling); 3 INFO observations are non-actionable.
 
 ## Priority Remediation Order (Session 2)
 
