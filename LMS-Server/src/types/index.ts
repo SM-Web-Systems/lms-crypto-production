@@ -226,6 +226,7 @@ export type CourseItem =
       url: string;
       description?: string;
       information?: string;
+      downloadUrl?: string;
     }
   | {
       id: string;
@@ -255,6 +256,7 @@ export type CourseItem =
       description?: string;
       information?: string;
       youtubeUrl?: string;
+      downloadUrl?: string;
     }
   | {
       id: string;

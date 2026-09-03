@@ -13,6 +13,7 @@ import {
   getOfficeOnlineEmbedUrl,
   isGoogleDriveUrl,
   youtubeWatchUrl,
+  youtubeEmbedUrl,
 } from '../utils/mediaUrl';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif']);
@@ -242,31 +243,45 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
             const url = item.type === 'video' ? item.url.trim() : ext!;
             const direct = isDirectVideoFileUrl(url);
             const iframeSrc = direct ? '' : getIframeVideoEmbedSrc(url);
-            return direct ? (
-              <div className="lms-video-stage w-full flex flex-col items-stretch rounded-lg overflow-hidden bg-black ring-1 ring-neutral-900/20">
-                <video
-                  controls
-                  preload="metadata"
-                  playsInline
-                  className="w-full max-h-[min(72vh,85dvh)] object-contain bg-black"
-                  src={url}
-                >
-                  Your browser does not support embedded video.
-                </video>
-              </div>
-            ) : (
-              <div
-                className="lms-video-stage w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20"
-                style={{ paddingBottom: '56.25%' }}
-              >
-                <iframe
-                  title={item.title}
-                  src={iframeSrc}
-                  className="lms-embed-iframe--video"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
+            const videoDlUrl = item.type === 'video' ? (item as { downloadUrl?: string }).downloadUrl : undefined;
+            return (
+              <>
+                {direct ? (
+                  <div className="lms-video-stage w-full flex flex-col items-stretch rounded-lg overflow-hidden bg-black ring-1 ring-neutral-900/20">
+                    <video
+                      controls
+                      preload="metadata"
+                      playsInline
+                      className="w-full max-h-[min(72vh,85dvh)] object-contain bg-black"
+                      src={url}
+                    >
+                      Your browser does not support embedded video.
+                    </video>
+                  </div>
+                ) : (
+                  <div
+                    className="lms-video-stage w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20"
+                    style={{ paddingBottom: '56.25%' }}
+                  >
+                    <iframe
+                      title={item.title}
+                      src={iframeSrc}
+                      className="lms-embed-iframe--video"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+                {videoDlUrl && (
+                  <div className="flex justify-center pt-4">
+                    <a href={videoDlUrl} download target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
+                      <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
+                      Download video (MP4)
+                    </a>
+                  </div>
+                )}
+              </>
             );
           })()
         ) : item.type === 'link' && ext && isDirectAudioFileUrl(ext) ? (
@@ -327,40 +342,53 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : item.type === 'audio' ? (
           (() => {
+            const ytEmbed = youtubeEmbedUrl(item.youtubeUrl);
             const ytWatch = youtubeWatchUrl(item.youtubeUrl);
-            return (
+            return ytEmbed ? (
+              <>
+                <div
+                  className="lms-video-stage w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20"
+                  style={{ paddingBottom: '56.25%' }}
+                >
+                  <iframe
+                    title={item.title}
+                    src={ytEmbed}
+                    className="lms-embed-iframe--video"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
+                  {ytWatch && (
+                    <a href={ytWatch} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors">
+                      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                      Listen on YouTube
+                    </a>
+                  )}
+                  {item.downloadUrl && (
+                    <a href={item.downloadUrl} download target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
+                      <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
+                      Download audio (MP3)
+                    </a>
+                  )}
+                </div>
+              </>
+            ) : (
               <div className="flex flex-col items-center gap-5 py-8 px-4">
                 <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
                   <Music className="h-8 w-8" aria-hidden />
                 </span>
                 <p className="text-base font-semibold text-neutral-800">{item.title}</p>
-                {item.url?.trim() ? (
-                  <>
-                    <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}
-                      onEnded={() => onItemComplete?.(item.id)}
-                      onTimeUpdate={handleTimeUpdate}
-                      onLoadedMetadata={(e) => {
-                        if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
-                      }}>
-                      Your browser does not support the audio element.
-                    </audio>
-                    <div className="flex flex-wrap items-center justify-center gap-4">
-                      <a href={item.url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-accent-teal font-medium hover:underline flex items-center gap-1">
-                        <ExternalLink className="h-3 w-3" aria-hidden />
-                        Download audio file
-                      </a>
-                      {ytWatch && (
-                        <a href={ytWatch} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-red-600 font-medium hover:underline flex items-center gap-1">
-                          <ExternalLink className="h-3 w-3" aria-hidden />
-                          Listen on YouTube
-                        </a>
-                      )}
-                    </div>
-                  </>
+                {item.downloadUrl ? (
+                  <a href={item.downloadUrl} download target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
+                    <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
+                    Download audio (MP3)
+                  </a>
                 ) : (
-                  <p className="text-sm text-neutral-500">No audio file is attached to this item.</p>
+                  <p className="text-sm text-neutral-500">No audio content is available for this item.</p>
                 )}
               </div>
             );

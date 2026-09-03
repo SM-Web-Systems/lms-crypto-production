@@ -15,6 +15,8 @@ export interface CourseItemVideo extends CourseItemBase {
   /** YouTube (watch or embed) URL, or a direct file URL e.g. .mp4 / .webm for native playback */
   url: string;
   description?: string;
+  /** Optional direct download URL (e.g. pinned GitHub MP4) shown as a clean download button. */
+  downloadUrl?: string;
 }
 
 export interface CourseItemLink extends CourseItemBase {
@@ -41,11 +43,13 @@ export interface CourseItemText extends CourseItemBase {
 
 export interface CourseItemAudio extends CourseItemBase {
   type: 'audio';
-  /** Direct audio URL (e.g. .mp3, .ogg, .wav) for native playback */
+  /** Legacy audio URL — retained for backward compatibility but not rendered as primary player. */
   url: string;
   description?: string;
-  /** Optional YouTube video ID for a "Listen on YouTube" action (does not replace native audio). */
+  /** YouTube video ID for the primary listening experience (embedded player). */
   youtubeUrl?: string;
+  /** Optional direct download URL (e.g. pinned GitHub MP3) shown as a clean download button. */
+  downloadUrl?: string;
 }
 
 export interface CourseItemQuiz extends CourseItemBase {
