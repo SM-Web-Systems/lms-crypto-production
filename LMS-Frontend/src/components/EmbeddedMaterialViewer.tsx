@@ -4,6 +4,7 @@ import InlineQuizTaker from './InlineQuizTaker';
 import InlineAssignmentForm from './InlineAssignmentForm';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
+import { MarkdownViewer, toApprovedRawUrl } from './MarkdownViewer';
 import {
   getIframeVideoEmbedSrc,
   isDirectVideoFileUrl,
@@ -12,7 +13,6 @@ import {
   isOfficePresentationUrl,
   getOfficeOnlineEmbedUrl,
   isGoogleDriveUrl,
-  youtubeWatchUrl,
   youtubeEmbedUrl,
 } from '../utils/mediaUrl';
 
@@ -338,12 +338,13 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               Powered by Microsoft Office Online · File must be publicly accessible
             </p>
           </div>
+        ) : item.type === 'text' && ext && toApprovedRawUrl(ext) ? (
+          <MarkdownViewer url={ext} title={item.title} />
         ) : (item.type === 'link' || item.type === 'text') && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : item.type === 'audio' ? (
           (() => {
             const ytEmbed = youtubeEmbedUrl(item.youtubeUrl);
-            const ytWatch = youtubeWatchUrl(item.youtubeUrl);
             return ytEmbed ? (
               <>
                 <div
@@ -358,22 +359,15 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                     allowFullScreen
                   />
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
-                  {ytWatch && (
-                    <a href={ytWatch} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors">
-                      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                      Listen on YouTube
-                    </a>
-                  )}
-                  {item.downloadUrl && (
+                {item.downloadUrl && (
+                  <div className="flex justify-center pt-4">
                     <a href={item.downloadUrl} download target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
                       <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
                       Download audio (MP3)
                     </a>
-                  )}
-                </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex flex-col items-center gap-5 py-8 px-4">

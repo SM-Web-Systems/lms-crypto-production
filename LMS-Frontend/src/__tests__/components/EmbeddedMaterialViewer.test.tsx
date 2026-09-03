@@ -15,8 +15,20 @@ vi.mock('../../components/PdfViewer', () => ({
   PdfViewerWithAuth: () => <div data-testid="pdf-viewer-auth" />,
 }));
 
+vi.mock('../../components/MarkdownViewer', () => ({
+  MarkdownViewer: ({ url, title }: { url: string; title: string }) => (
+    <div data-testid="markdown-viewer" data-url={url} data-title={title} />
+  ),
+  toApprovedRawUrl: (url: string) => {
+    if (url.includes('github.com/SM-Web-Systems/') || url.includes('raw.githubusercontent.com/SM-Web-Systems/')) {
+      return `https://raw.githubusercontent.com/SM-Web-Systems/blockchain-foundations-for-vibe-coding/b9fad25/${url.split('/').pop()}`;
+    }
+    return null;
+  },
+}));
+
 import { EmbeddedMaterialViewer } from '../../components/EmbeddedMaterialViewer';
-import type { CourseSection, CourseItemDownload, CourseItemAudio, CourseItemVideo } from '../../types/course';
+import type { CourseSection, CourseItemDownload, CourseItemAudio, CourseItemVideo, CourseItemText } from '../../types/course';
 
 const mockSection: CourseSection = {
   id: 's1',
@@ -402,7 +414,7 @@ describe('EmbeddedMaterialViewer — audio YouTube primary', () => {
     expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/RW1Q7lIExOM?rel=0');
   });
 
-  it('EMV-AYT-2: renders "Listen on YouTube" link with correct watch URL', () => {
+  it('EMV-AYT-2: does NOT render redundant "Listen on YouTube" button', () => {
     const item: CourseItemAudio = {
       id: 'bvc-1-audio',
       type: 'audio',
@@ -415,11 +427,8 @@ describe('EmbeddedMaterialViewer — audio YouTube primary', () => {
       <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
     );
 
-    const ytLink = screen.getByText('Listen on YouTube');
-    expect(ytLink).toBeInTheDocument();
-    expect(ytLink.closest('a')).toHaveAttribute('href', 'https://www.youtube.com/watch?v=RW1Q7lIExOM');
-    expect(ytLink.closest('a')).toHaveAttribute('target', '_blank');
-    expect(ytLink.closest('a')).toHaveAttribute('rel', 'noopener noreferrer');
+    // YouTube embed is already visible — no need for a separate "Listen on YouTube" link
+    expect(screen.queryByText('Listen on YouTube')).not.toBeInTheDocument();
   });
 
   it('EMV-AYT-3: does not render native MP3 player when youtubeUrl is set', () => {
@@ -573,5 +582,66 @@ describe('EmbeddedMaterialViewer — audio YouTube primary', () => {
     expect(container.querySelector('audio')).toBeNull();
     expect(screen.queryByText('Listen on YouTube')).not.toBeInTheDocument();
     expect(screen.getByText('Download audio (MP3)')).toBeInTheDocument();
+  });
+});
+
+// ── EMV-MD: Text item markdown rendering ────────────────────────────────────
+
+describe('EmbeddedMaterialViewer — text item markdown rendering', () => {
+  it('EMV-MD-1: renders MarkdownViewer for text item with approved GitHub URL', () => {
+    const item: CourseItemText = {
+      id: 'bvc-1-lesson',
+      type: 'text',
+      title: 'Lesson: Introduction to Blockchain',
+      url: 'https://github.com/SM-Web-Systems/vibe-coding-blockchain/blob/main/module-1-intro/content/lesson.md',
+      order: 2,
+    };
+
+    render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    const mdViewer = screen.getByTestId('markdown-viewer');
+    expect(mdViewer).toBeInTheDocument();
+    expect(mdViewer).toHaveAttribute('data-url', item.url);
+    expect(mdViewer).toHaveAttribute('data-title', item.title);
+    // No "Open resource" button
+    expect(screen.queryByText('Open resource')).not.toBeInTheDocument();
+  });
+
+  it('EMV-MD-2: falls back to ExternalResourceCard for non-approved text URL', () => {
+    const item: CourseItemText = {
+      id: 'ext-text',
+      type: 'text',
+      title: 'External Resource',
+      url: 'https://example.com/some-doc.md',
+      order: 1,
+    };
+
+    render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    // MarkdownViewer not rendered for non-approved URL
+    expect(screen.queryByTestId('markdown-viewer')).not.toBeInTheDocument();
+    // Falls back to ExternalResourceCard with "Open resource" button
+    expect(screen.getByText('Open resource')).toBeInTheDocument();
+  });
+
+  it('EMV-MD-3: renders MarkdownViewer for study guide text item', () => {
+    const item: CourseItemText = {
+      id: 'bvc-3-study-guide',
+      type: 'text',
+      title: 'Study Guide: Bitcoin & Cryptocurrencies',
+      url: 'https://github.com/SM-Web-Systems/vibe-coding-blockchain/blob/main/module-3-bitcoin/content/study-guide.md',
+      order: 3,
+    };
+
+    render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    expect(screen.getByTestId('markdown-viewer')).toBeInTheDocument();
+    expect(screen.queryByText('Open resource')).not.toBeInTheDocument();
   });
 });
