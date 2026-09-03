@@ -29,6 +29,16 @@ db.pragma('journal_mode = WAL');
 // (e.g., in-memory test DBs where schema.sql hasn't been loaded yet).
 db.pragma('foreign_keys = OFF');
 
+// Bootstrap: if this is a fresh file-based DB (no users table), load schema.sql to create all tables.
+// This makes E2E cold starts and new deployments work without running `npm run db:schema` manually.
+const hasUsersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+if (!hasUsersTable && DB_PATH !== ':memory:') {
+  const schemaPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../database/schema.sql');
+  if (fs.existsSync(schemaPath)) {
+    db.exec(fs.readFileSync(schemaPath, 'utf-8'));
+  }
+}
+
 /** A1 — Redesign Phase A: widen users.role CHECK to include 'lecturer'.
  *  SQLite cannot ALTER a CHECK constraint, so the table must be recreated.
  *  Called FIRST so all subsequent ensures operate on the updated users table. */
@@ -809,10 +819,14 @@ function ensurePaymentsTables(): void {
       currency        TEXT NOT NULL DEFAULT 'USD',
       payment_method  TEXT NOT NULL DEFAULT 'manual',
       status          TEXT NOT NULL DEFAULT 'pending'
-                        CHECK (status IN ('pending', 'confirmed', 'waived')),
+                        CHECK (status IN ('pending', 'confirmed', 'waived', 'failed', 'refunded')),
       confirmed_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
       confirmed_at    TEXT,
       notes           TEXT,
+      paystack_reference  TEXT,
+      paystack_access_code TEXT,
+      stellar_tx_hash TEXT,
+      stellar_memo    TEXT,
       created_at      TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -1812,7 +1826,21 @@ function migratePaymentsStatusCheck(): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    INSERT INTO payments SELECT * FROM payments_old;
+  `);
+  // Column-explicit INSERT: detect which columns exist in old table and copy accordingly
+  const oldCols = new Set(
+    (db.prepare("PRAGMA table_info('payments_old')").all() as { name: string }[]).map(c => c.name)
+  );
+  const allCols = [
+    'id', 'user_id', 'course_id', 'application_id', 'amount_cents', 'currency',
+    'payment_method', 'status', 'confirmed_by', 'confirmed_at', 'notes',
+    'paystack_reference', 'paystack_access_code', 'stellar_tx_hash', 'stellar_memo',
+    'created_at', 'updated_at',
+  ];
+  const selectExprs = allCols.map(c => oldCols.has(c) ? c : 'NULL');
+  db.exec(`
+    INSERT INTO payments (${allCols.join(', ')})
+    SELECT ${selectExprs.join(', ')} FROM payments_old;
     DROP TABLE payments_old;
     CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
     CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
