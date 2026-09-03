@@ -1,6 +1,6 @@
 # Production Audit — Findings Tracker
 
-Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03**
+Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03 (verified)**
 
 ## Severity Legend
 - **CRITICAL**: Exploitable now, potential for auth bypass, data loss, or financial loss
@@ -89,7 +89,7 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03**
 | FIND-006-B | INFO | AmmaWallet | `pbkdf2Sync` blocks event loop (~100-300ms). Rate limit of 5/15min mitigates. | `decrypt-secret.ts:22` | OPEN (observation) |
 | FIND-004-01 | INFO | CRM | Session cookie maxAge is 15 minutes with no sliding renewal. | `auth.ts:95-101` | OPEN (observation) |
 | FIND-027-05 | INFO | CRM | Team alert email subject includes unescaped lead name. Not HTML context but may display oddly. | `emailTemplates.ts:128` | OPEN (observation) |
-| FIND-027-02 | MEDIUM | CRM + LMS | No email retry for transient SMTP failures. Fire-and-forget with logging only. | emailService files | RESOLVED (CRM: emailRetryWorker.ts outbox+retry; LMS: emailRetryWorker.ts outbox+retry) |
+| FIND-027-02 | MEDIUM | CRM + LMS | No email retry for transient SMTP failures. Fire-and-forget with logging only. | emailService files | RESOLVED (verified 2026-09-03: outbox table in prod DB, retry worker running in both LMS+CRM containers, OUTBOX-1–8 tests cover insert/idempotency/sent/failed/retry/abandonment/claim-lock/integration) |
 | FIND-027-03 | LOW | CRM | Tracking pixel open endpoint has no rate limiting. Metrics inflation possible. | `email.ts:103,118` | RESOLVED (verified 2026-09-03: 120/min/IP in-memory limiter on open+click routes, 6 tests, single-container topology) |
 | FIND-027-04 | LOW | CRM | Campaign email recorded as 'sent' before sendMail() succeeds. Phantom delivery records. | `campaignService.ts:182-186` | RESOLVED (pending→sent pattern, marks sent after sendMail succeeds) |
 
@@ -126,7 +126,7 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03**
 | INFO | 3 | 3 | 0 |
 | **Total** | **48** | **3** | **45** |
 
-> **AUDIT CLOSED 2026-09-03:** All CRITICAL, HIGH, MEDIUM, and LOW findings resolved. 3 remaining items are INFO-severity observations (no action required). Deployment verified: LMS buildSha `be1c0ad` matches HEAD, all containers healthy.
+> **AUDIT CLOSED 2026-09-03 (verified):** All CRITICAL (2), HIGH (6), MEDIUM (20), and LOW (17) findings VERIFIED_RESOLVED. 3 remaining items are INFO-severity observations (no action required). Deployment verified: LMS buildSha `622ce7c` matches HEAD, LMS API/web + CRM all healthy. FIND-003b (SSO), FIND-027-03 (rate-limit), FIND-026-04 (healthcheck), FIND-027-02 (email outbox) each verified with direct production evidence.
 
 ## Priority Remediation Order (Session 2)
 
