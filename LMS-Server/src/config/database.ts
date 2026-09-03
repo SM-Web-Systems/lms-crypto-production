@@ -2097,6 +2097,30 @@ function ensureTenantSettingsRewardColumn(): void {
 }
 ensureTenantSettingsRewardColumn();
 
+function ensureEmailOutbox(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_outbox (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_type      TEXT NOT NULL,
+      recipient       TEXT NOT NULL,
+      subject         TEXT NOT NULL,
+      html_body       TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','sending','sent','failed','abandoned')),
+      retry_count     INTEGER NOT NULL DEFAULT 0,
+      max_retries     INTEGER NOT NULL DEFAULT 3,
+      error_message   TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      last_attempt_at TEXT,
+      abandoned_at    TEXT,
+      idempotency_key TEXT UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status);
+    CREATE INDEX IF NOT EXISTS idx_email_outbox_retry ON email_outbox(status, last_attempt_at);
+  `);
+}
+ensureEmailOutbox();
+
 // Re-enable foreign key checks after all module-level migrations complete.
 db.pragma('foreign_keys = ON');
 

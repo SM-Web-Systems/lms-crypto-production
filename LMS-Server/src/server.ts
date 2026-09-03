@@ -5,6 +5,7 @@ import app from './app.js';
 import { db, close } from './config/database.js';
 import logger from './utils/logger.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
+import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -28,6 +29,8 @@ function startServer() {
 
       // Start reward scheduler for outbox processing + auto-expiry
       startScheduler();
+      // Start email retry worker for durable delivery (FIND-027-02)
+      startEmailRetryWorker();
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to start server');
@@ -50,6 +53,7 @@ process.on('uncaughtException', (error) => {
 process.on('SIGINT', () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
+  stopEmailRetryWorker();
   close();
   process.exit(0);
 });
@@ -57,6 +61,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
+  stopEmailRetryWorker();
   close();
   process.exit(0);
 });

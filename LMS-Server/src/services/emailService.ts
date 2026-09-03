@@ -11,6 +11,7 @@
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 import { renderTemplate } from './emailTemplateService.js';
+import { db } from '../config/database.js';
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587', 10);
@@ -36,6 +37,47 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// ── Outbox helpers (durable email delivery — FIND-027-02) ────────────
+
+/** Insert an email into the outbox. Returns the row id (0 if duplicate idempotency key). */
+export function insertOutboxEntry(
+  emailType: string,
+  recipient: string,
+  subject: string,
+  htmlBody: string,
+  idempotencyKey?: string,
+): number {
+  const database = db;
+  const stmt = idempotencyKey
+    ? database.prepare(`
+        INSERT OR IGNORE INTO email_outbox (email_type, recipient, subject, html_body, idempotency_key)
+        VALUES (?, ?, ?, ?, ?)
+      `)
+    : database.prepare(`
+        INSERT INTO email_outbox (email_type, recipient, subject, html_body)
+        VALUES (?, ?, ?, ?)
+      `);
+  const args = idempotencyKey
+    ? [emailType, recipient, subject, htmlBody, idempotencyKey]
+    : [emailType, recipient, subject, htmlBody];
+  const result = stmt.run(...args);
+  return Number(result.lastInsertRowid);
+}
+
+export function markOutboxSent(id: number): void {
+  const database = db;
+  database.prepare(`
+    UPDATE email_outbox SET status = 'sent', last_attempt_at = datetime('now') WHERE id = ?
+  `).run(id);
+}
+
+export function markOutboxFailed(id: number, error: string): void {
+  const database = db;
+  database.prepare(`
+    UPDATE email_outbox SET status = 'failed', error_message = ?, last_attempt_at = datetime('now') WHERE id = ?
+  `).run(error, id);
 }
 
 const FROM_ADDRESS = process.env.EMAIL_FROM ?? 'LMS <onboarding@example.com>';
@@ -69,11 +111,19 @@ export async function sendEnrollmentEmail(opts: {
     <p>If you have questions, contact your administrator.</p>
   `.trim();
 
+  const outboxId = insertOutboxEntry('enrollment', to, subject, html);
   if (!transporter) {
+    markOutboxSent(outboxId);
     log(subject, to, `Enrolled in: ${courseName}. Login at ${FRONTEND_URL}/login`);
     return;
   }
-  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+  try {
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    markOutboxSent(outboxId);
+  } catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send enrollment email');
+  }
 }
 
 export async function sendPasswordResetEmail(opts: {
@@ -99,11 +149,19 @@ export async function sendPasswordResetEmail(opts: {
     <p>This link expires in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email — your password will not change.</p>
   `.trim();
 
+  const outboxId = insertOutboxEntry('password-reset', to, subject, html);
   if (!transporter) {
+    markOutboxSent(outboxId);
     log(subject, to, `Password reset URL (stdout fallback — set SMTP_HOST to send real emails):\n  ${resetUrl}`);
     return;
   }
-  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+  try {
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    markOutboxSent(outboxId);
+  } catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send password reset email');
+  }
 }
 
 export async function sendCourseInviteEmail(opts: {
@@ -130,11 +188,19 @@ export async function sendCourseInviteEmail(opts: {
     <p>This invitation link can be used once.</p>
   `.trim();
 
+  const outboxId = insertOutboxEntry('course-invitation', to, subject, html);
   if (!transporter) {
+    markOutboxSent(outboxId);
     log(subject, to, `Invite for: ${courseName}. Signup URL: ${signupUrl}`);
     return;
   }
-  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+  try {
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    markOutboxSent(outboxId);
+  } catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send course invite email');
+  }
 }
 
 export async function sendPaymentReminderEmail(opts: {
@@ -161,11 +227,19 @@ export async function sendPaymentReminderEmail(opts: {
     <p>If you have questions, contact your administrator.</p>
   `.trim();
 
+  const outboxId = insertOutboxEntry('cohort-payment-reminder', to, subject, html);
   if (!transporter) {
+    markOutboxSent(outboxId);
     log(subject, to, `Payment reminder for: ${courseName} (${cohortName})`);
     return;
   }
-  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+  try {
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    markOutboxSent(outboxId);
+  } catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send payment reminder email');
+  }
 }
 
 export async function sendCertificateMintedEmail(opts: {
@@ -179,9 +253,7 @@ export async function sendCertificateMintedEmail(opts: {
   const { to, name, courseName, credentialId, txHash, userId } = opts;
 
   // Respect notification preferences (nft_minted opt-out)
-  // Import db lazily to avoid circular initialization at module load time
-  const { db: database } = await import('../config/database.js');
-  const pref = database.prepare(
+  const pref = db.prepare(
     'SELECT enabled FROM notification_preferences WHERE user_id = ? AND type = ?'
   ).get(userId, 'nft_minted') as { enabled: number } | undefined;
   if (pref && pref.enabled === 0) return;
@@ -207,9 +279,17 @@ export async function sendCertificateMintedEmail(opts: {
     <p>— ${escapeHtml(LMS_NAME)}</p>
   `.trim();
 
+  const outboxId = insertOutboxEntry('certificate-minted', to, subject, html);
   if (!transporter) {
+    markOutboxSent(outboxId);
     log(subject, to, `Certificate minted for: ${courseName}. Verify: ${verifyUrl}`);
     return;
   }
-  await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+  try {
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    markOutboxSent(outboxId);
+  } catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send certificate minted email');
+  }
 }
