@@ -1,10 +1,24 @@
 import { db } from '../config/database.js';
+import fs from 'fs';
+import path from 'path';
+
+let _buildSha: string | undefined;
+function getBuildSha(): string {
+  if (_buildSha !== undefined) return _buildSha;
+  try {
+    _buildSha = fs.readFileSync(path.resolve(process.cwd(), 'BUILD_SHA'), 'utf-8').trim();
+  } catch {
+    _buildSha = 'unknown';
+  }
+  return _buildSha;
+}
 
 export interface HealthStatus {
   status: 'ok' | 'degraded';
   timestamp: string;
   uptime: number;
   version: string;
+  buildSha: string;
   checks: {
     db: { status: 'ok' | 'error'; latencyMs: number };
     memory: { heapUsedMB: number; heapTotalMB: number; rssMB: number };
@@ -30,6 +44,7 @@ export function getHealthStatus(): HealthStatus {
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
     version: process.env.npm_package_version || '1.0.0',
+    buildSha: getBuildSha(),
     checks: {
       db: { status: dbStatus, latencyMs: dbLatency },
       memory: {

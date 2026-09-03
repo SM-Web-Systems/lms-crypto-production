@@ -15,7 +15,10 @@
 
 services:
   api:
-    build: ./LMS-Server
+    build:
+      context: ./LMS-Server
+      args:
+        BUILD_SHA: ${BUILD_SHA:-unknown}
     container_name: lms-api
     env_file:
       - ./LMS-Server/.env

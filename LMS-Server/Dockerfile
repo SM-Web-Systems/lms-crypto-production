@@ -9,7 +9,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
+ARG BUILD_SHA=unknown
 COPY . .
+RUN echo "$BUILD_SHA" > /app/BUILD_SHA
 RUN npm run build
 
 RUN mkdir -p data uploads
