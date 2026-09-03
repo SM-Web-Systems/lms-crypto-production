@@ -99,6 +99,26 @@ The fix exists in the repository. The `lms-api` container (serving the domain wi
 
 ---
 
+## Soak Test — Final Verification
+
+- **Test date/time:** 2026-09-02 18:52–19:07 UTC
+- **Total duration:** 14.3 minutes
+- **Idle-window duration:** 10 minutes (1 request per minute)
+- **Active-usage duration:** ~4 minutes (7 routes per cycle, 10 cycles)
+- **Total requests:** 122
+- **Routes exercised:**
+  - GET /api/v1/auth/me: 71 requests
+  - GET /api/v1/courses: 10 requests
+  - GET /api/v1/forum/topics: 10 requests
+  - GET /health: 10 requests
+  - GET /api/v1/announcements: 10 requests
+  - GET /api/v1/auth/amma-login: 11 requests
+- **Unexpected 429 count:** 0
+- **Build SHA confirmed throughout:** YES (`32e4dd594f93819c0be7a83bad1079682561647d`)
+- **Result:** PASS
+
+---
+
 ## 6. Fix
 
 Rebuild and redeploy the `lms-api` container from the current repo source. No code changes needed — the fixes already exist in the codebase.

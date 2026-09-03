@@ -4,30 +4,60 @@
 
 | ID | System | Description | Priority | Status | Spec | Test | Evidence |
 |---|---|---|---|---|---|---|---|
-| LOCKOUT-001 | LMS | Scope readLimiter to /verify/* only | CRITICAL | DONE | API-LOCKOUT-01 | readlimiter-scope.test.ts | nginx logs 11:31 UTC, commit b56e18d |
-| LOCKOUT-002 | LMS | Update ogPages.ts route path | CRITICAL | DONE | API-LOCKOUT-01 | readlimiter-scope.test.ts | commit b56e18d |
-| LOCKOUT-003 | LMS | Add regression test: API routes not affected by readLimiter | HIGH | DONE | API-LOCKOUT-01 | LOCKOUT-LMS-001/002 | 3/3 pass |
-| LOCKOUT-004 | LMS | Verify ogPages still rate-limited after fix | MEDIUM | DONE | API-LOCKOUT-01 | Scoped mount verified | commit b56e18d |
-| LOCKOUT-005 | LMS | Deploy and verify production behavior | MEDIUM | DONE | API-LOCKOUT-01 | — | Container healthy, API 200 |
-| LOCKOUT-006 | LMS | Post-deploy verification | MEDIUM | DONE | — | — | See closure evidence below |
+| LOCKOUT-001 | LMS | Scope readLimiter to /verify/* only | CRITICAL | CLOSED | API-LOCKOUT-01 | readlimiter-scope.test.ts | commit b56e18d, soak test PASS |
+| LOCKOUT-002 | LMS | Update ogPages.ts route path | CRITICAL | CLOSED | API-LOCKOUT-01 | readlimiter-scope.test.ts | commit b56e18d |
+| LOCKOUT-003 | LMS | Add regression test: API routes not affected by readLimiter | HIGH | CLOSED | API-LOCKOUT-01 | LOCKOUT-LMS-001/002 | 3/3 pass |
+| LOCKOUT-004 | LMS | Verify ogPages still rate-limited after fix | MEDIUM | CLOSED | API-LOCKOUT-01 | Scoped mount verified | commit b56e18d |
+| LOCKOUT-005 | LMS | Deploy and verify production behavior | MEDIUM | CLOSED | API-LOCKOUT-01 | — | Both containers rebuilt, BUILD_SHA verified |
+| LOCKOUT-006 | LMS | Post-deploy verification | MEDIUM | CLOSED | — | — | Soak test PASS (14.3 min, 122 reqs, 0 429s) |
+| AUTH-RL | LMS | Exempt GET/HEAD/OPTIONS from authLimiter | HIGH | CLOSED | AMMA-LOGIN-RATE-LIMIT-01 | auth-ratelimit.test.ts (7 tests) | commit 6388edb, soak test PASS |
+| AUTH-RL-FOLLOWUP | LMS | Deploy fix to lms-api (stale container) | CRITICAL | CLOSED | FOLLOWUP | — | lms-api rebuilt, BUILD_SHA 32e4dd5 |
+| BUILD-SHA | LMS | Add build SHA verification to health endpoint | MEDIUM | CLOSED | DEPLOYMENT-TOPOLOGY | health-build-sha.test.ts (3 tests) | /health returns buildSha |
 
 ## Closure Evidence (2026-09-02)
 
+### Original Fix (LOCKOUT-001 + AUTH-RL)
+
 | Check | Result |
 |---|---|
-| HEAD SHA | b56e18daac39b93ebe03311c3fadb680c10d9743 |
-| b56e18d is ancestor of HEAD | YES (HEAD = b56e18d) |
-| Container `lms_server` status | Up, healthy (created 2026-09-02T13:20 UTC) |
-| Container `lms_frontend` status | Up, healthy |
-| `GET /` (LMS) | 200 |
-| `GET /` (AmmaWallet) | 200 |
-| `GET /verify/<test-id>` | 200 (OG page served) |
-| `GET /api/v1/auth/me` (unauthenticated) | 401 (not 429) |
-| Scoped limiter in app.ts | `app.use('/verify', readLimiter, ogPagesRoutes)` confirmed |
-| ogPages route | `router.get('/:credentialId', ...)` confirmed |
-| Regression tests | 3/3 pass (LOCKOUT-LMS-001/002) |
+| Fix commits | b56e18d (readLimiter scope), 6388edb (authLimiter GET skip) |
+| readLimiter in lms-api | `app.use('/verify', readLimiter, ogPagesRoutes)` confirmed |
+| authLimiter in lms-api | `skip: GET/HEAD/OPTIONS` confirmed, SSO_PATHS removed |
+| readLimiter in lms_server | `app.use('/verify', readLimiter, ogPagesRoutes)` confirmed |
+| authLimiter in lms_server | `skip: GET/HEAD/OPTIONS` confirmed |
+| Regression tests | 13/13 pass (3 lockout + 7 auth-ratelimit + 3 health-build-sha) |
+| Full backend suite | 1259/1259 pass |
 
-**Note:** HEAD is 6 first-parent commits ahead of origin/main (275 total including merge from amma-wallet-production). Push pending.
+### Follow-Up (Stale Deployment)
+
+| Check | Result |
+|---|---|
+| Root cause | STALE_DEPLOYMENT_COPY — lms-api container not rebuilt for 13 days |
+| lms-api rebuilt | YES — `docker compose build --no-cache api` |
+| lms_server rebuilt | YES — `docker compose build --no-cache lms-server` |
+| BUILD_SHA (lms-api) | `32e4dd594f93819c0be7a83bad1079682561647d` |
+| Health endpoint | buildSha field present and correct |
+
+### Soak Test (Final Verification)
+
+| Check | Result |
+|---|---|
+| Duration | 14.3 minutes (10 min idle + 4 min active) |
+| Total requests | 122 |
+| Unexpected 429s | 0 |
+| GET /auth/me | 71 requests, 0 429s |
+| GET /auth/amma-login | 11 requests, 0 429s |
+| BUILD_SHA consistent | YES throughout |
+| Result | **PASS** |
+
+### Deployment Topology
+
+| Check | Result |
+|---|---|
+| Topology documented | DEPLOYMENT-TOPOLOGY.md |
+| saplingx.com decision | INTENTIONAL (uses Clerk, not AmmaWallet SSO) |
+| Rebuild-both rule | Documented in DEPLOYMENT-TOPOLOGY.md |
+| Build SHA verification | Implemented in Dockerfile + healthCheckService |
 
 ## Deferred (Not Blocking)
 

@@ -1,6 +1,6 @@
 # Production Audit — Findings Tracker
 
-Generated: 2026-09-01 | Last Updated: 2026-09-02
+Generated: 2026-09-01 | Last Updated: 2026-09-03
 
 ## Severity Legend
 - **CRITICAL**: Exploitable now, potential for auth bypass, data loss, or financial loss
@@ -76,7 +76,7 @@ Generated: 2026-09-01 | Last Updated: 2026-09-02
 | FIND-007-A | LOW | AmmaWallet | Trustline list endpoint unauthenticated — Stellar data is public, but adds API scraping surface | `trustlines.ts:24` | Acceptable; Horizon is public. Consider tighter rate limit. | OPEN |
 | FIND-009-B | LOW | AmmaWallet | Stellar client getters create new objects per call — GC pressure under load | `stellar-client.ts:49` | Cache return value in constructor | OPEN |
 | FIND-015-A | LOW | AmmaWallet | Auto-suspension uses `parseFloat()` instead of `compareDecimalStrings()` for balance comparison | `auto-suspension.ts:185,308` | Use `compareDecimalStrings` for consistency | OPEN |
-| FIND-010b | LOW | LMS | No timeout on Horizon API fetch calls — could block poll indefinitely | `stellarPaymentMonitor.ts:105` | Add AbortController with 30s timeout | OPEN |
+| FIND-010b | LOW | LMS | No timeout on Horizon API fetch calls — could block poll indefinitely | `stellarPaymentMonitor.ts:105` | Add AbortController with 30s timeout | RESOLVED (commit 63eb598) |
 | FIND-003b | LOW | LMS | Role included in redirect URL fragment. Frontend must derive role from JWT, not URL. | `authController.ts:681` | Document as frontend contract | OPEN |
 | FIND-024-07 | LOW | Infrastructure | No SHA-256 sidecar for Amma and LMS backups (CRM and SM Web have them) | backup scripts | Add sidecar for consistency | OPEN |
 | FIND-026-04 | LOW | Infrastructure | LMS frontend healthcheck uses `nginx -t` (config syntax only), not HTTP readiness | `docker-compose.yml:109-124` | Change to `curl -f http://localhost/` | OPEN |
@@ -109,22 +109,22 @@ Generated: 2026-09-01 | Last Updated: 2026-09-02
 ### Session 2 (2026-09-02)
 | Severity | Count | Open | Resolved |
 |----------|-------|------|----------|
-| CRITICAL | 2 | 2 | 0 |
-| HIGH | 4 | 4 | 0 |
+| CRITICAL | 2 | 0 | 2 |
+| HIGH | 4 | 2 | 2 |
 | MEDIUM | 12 | 12 | 0 |
-| LOW | 10 | 10 | 0 |
+| LOW | 10 | 9 | 1 |
 | INFO | 4 | 4 | 0 |
-| **Total** | **32** | **32** | **0** |
+| **Total** | **32** | **27** | **5** |
 
 ### Combined
 | Severity | Count | Open | Resolved |
 |----------|-------|------|----------|
-| CRITICAL | 2 | 2 | 0 |
-| HIGH | 6 | 4 | 2 |
+| CRITICAL | 2 | 0 | 2 |
+| HIGH | 6 | 2 | 4 |
 | MEDIUM | 19 | 12 | 7 |
-| LOW | 15 | 10 | 5 |
+| LOW | 15 | 9 | 6 |
 | INFO | 4 | 4 | 0 |
-| **Total** | **46** | **32** | **14** |
+| **Total** | **46** | **27** | **19** |
 
 ## Priority Remediation Order (Session 2)
 
