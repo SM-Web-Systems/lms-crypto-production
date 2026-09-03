@@ -16,7 +16,7 @@ import { authenticate, requireCourseAccess } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
-import { findSectionForItem } from '../utils/courseHelpers.js';
+import { findSectionForItem, parseFlatSections } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
 import logger from '../utils/logger.js';
@@ -184,7 +184,7 @@ router.post(
       // Count total items in the course from sections JSON
       let totalItems = 0;
       try {
-        const sections: Array<{ items: unknown[] }> = JSON.parse(course.sections || '[]');
+        const sections = parseFlatSections(course.sections || '[]');
         for (const section of sections) {
           totalItems += section.items.length;
         }

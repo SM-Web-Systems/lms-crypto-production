@@ -303,12 +303,20 @@ export interface CourseSection {
   items: CourseItem[];
 }
 
+export interface CourseWeek {
+  id: string;
+  title: string;
+  order?: number;
+  sections: CourseSection[];
+}
+
 export interface Course {
   id: string;
   title: string;
   description?: string;
   courseCode: string;
   sections: CourseSection[];
+  weeks?: CourseWeek[];
   sponsorLabel?: string;
 }
 

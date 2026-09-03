@@ -1,19 +1,22 @@
 import api from './api';
 import type { ApiResponse } from '../types/api';
-import type { Course, CourseSection } from '../types/course';
+import type { Course, CourseSection, CourseWeek } from '../types/course';
 import { ApiRequestError, assertApiSuccess } from '../utils/apiError';
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown; sponsorLabel?: string }): Course {
+function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown; weeks?: unknown; sponsorLabel?: string }): Course {
+  const sections = Array.isArray(c.sections) ? c.sections as CourseSection[] : [];
+  const weeks = Array.isArray(c.weeks) ? c.weeks as CourseWeek[] : undefined;
   return {
     id: c.id,
     title: c.title,
     description: c.description,
     courseCode: c.courseCode,
-    sections: Array.isArray(c.sections) ? c.sections as Course['sections'] : [],
+    sections,
+    ...(weeks ? { weeks } : {}),
     ...(c.sponsorLabel ? { sponsorLabel: c.sponsorLabel } : {}),
   };
 }
@@ -60,15 +63,20 @@ export const courseService = {
   },
 
   async createCourse(course: Course): Promise<Course> {
-    const sections = this.toBackendSections(course);
-    const response = await api.post<ApiResponse<unknown>>('/courses', {
+    // Send weeks if available; otherwise fall back to flat sections for legacy courses
+    const payload: Record<string, unknown> = {
       id: course.id,
       title: course.title,
       description: course.description ?? null,
       courseCode: course.courseCode || course.id.replace(/\s+/g, '-').toUpperCase().slice(0, 32),
-      sections,
       sponsorLabel: course.sponsorLabel ?? null,
-    });
+    };
+    if (course.weeks && course.weeks.length > 0) {
+      payload.weeks = course.weeks;
+    } else {
+      payload.sections = this.toBackendSections(course);
+    }
+    const response = await api.post<ApiResponse<unknown>>('/courses', payload);
     const data = assertApiSuccess(response, 'Could not create the course.');
     if (data && typeof data === 'object' && 'id' in data) {
       return fromApiCourse(data as Parameters<typeof fromApiCourse>[0]);
@@ -77,14 +85,19 @@ export const courseService = {
   },
 
   async updateCourse(id: string, course: Course): Promise<Course> {
-    const sections = this.toBackendSections(course);
-    const response = await api.put<ApiResponse<unknown>>(`/courses/${id}`, {
+    // Send weeks if available; otherwise fall back to flat sections for legacy courses
+    const payload: Record<string, unknown> = {
       title: course.title,
       description: course.description ?? null,
       courseCode: course.courseCode,
-      sections,
       sponsorLabel: course.sponsorLabel ?? null,
-    });
+    };
+    if (course.weeks && course.weeks.length > 0) {
+      payload.weeks = course.weeks;
+    } else {
+      payload.sections = this.toBackendSections(course);
+    }
+    const response = await api.put<ApiResponse<unknown>>(`/courses/${id}`, payload);
     const data = assertApiSuccess(response, 'Could not save the course.');
     if (data && typeof data === 'object' && 'id' in data) {
       return fromApiCourse(data as Parameters<typeof fromApiCourse>[0]);
