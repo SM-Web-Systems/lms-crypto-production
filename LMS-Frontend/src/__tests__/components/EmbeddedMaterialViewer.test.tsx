@@ -16,7 +16,7 @@ vi.mock('../../components/PdfViewer', () => ({
 }));
 
 import { EmbeddedMaterialViewer } from '../../components/EmbeddedMaterialViewer';
-import type { CourseSection, CourseItemDownload } from '../../types/course';
+import type { CourseSection, CourseItemDownload, CourseItemAudio } from '../../types/course';
 
 const mockSection: CourseSection = {
   id: 's1',
@@ -267,5 +267,98 @@ describe('EmbeddedMaterialViewer — information field HTML rendering', () => {
     expect(link).not.toBeNull();
     expect(link!.getAttribute('rel')).toBe('noopener noreferrer');
     expect(link!.getAttribute('target')).toBe('_blank');
+  });
+});
+
+// ── EMV-AUDIO-YT: Audio YouTube link rendering ──────────────────────────────
+
+describe('EmbeddedMaterialViewer — audio YouTube link', () => {
+  it('EMV-AYT-1: renders "Listen on YouTube" link when youtubeUrl is set', () => {
+    const item: CourseItemAudio = {
+      id: 'bvc-1-audio',
+      type: 'audio',
+      title: 'Module 1 Audio Overview',
+      url: 'https://blockchain-vibe-coding.smwebsystems.com/module-1-intro/content/audio-overview.mp3',
+      youtubeUrl: 'RW1Q7lIExOM',
+    };
+
+    render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    const ytLink = screen.getByText('Listen on YouTube');
+    expect(ytLink).toBeInTheDocument();
+    expect(ytLink.closest('a')).toHaveAttribute('href', 'https://www.youtube.com/watch?v=RW1Q7lIExOM');
+    expect(ytLink.closest('a')).toHaveAttribute('target', '_blank');
+    expect(ytLink.closest('a')).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('EMV-AYT-2: does NOT render YouTube link when youtubeUrl is absent', () => {
+    const item: CourseItemAudio = {
+      id: 'generic-audio',
+      type: 'audio',
+      title: 'Generic Audio',
+      url: 'https://example.com/audio.mp3',
+    };
+
+    render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    expect(screen.queryByText('Listen on YouTube')).not.toBeInTheDocument();
+    expect(screen.getByText('Download audio file')).toBeInTheDocument();
+  });
+
+  it('EMV-AYT-3: native MP3 player is always rendered regardless of youtubeUrl', () => {
+    const item: CourseItemAudio = {
+      id: 'bvc-3-audio',
+      type: 'audio',
+      title: 'Module 3 Audio Overview',
+      url: 'https://blockchain-vibe-coding.smwebsystems.com/module-3-bitcoin/content/audio-overview.mp3',
+      youtubeUrl: 'yq-O8yV8d1A',
+    };
+
+    const { container } = render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    const audioEl = container.querySelector('audio');
+    expect(audioEl).not.toBeNull();
+    expect(audioEl!.getAttribute('src')).toBe(item.url);
+    expect(screen.getByText('Download audio file')).toBeInTheDocument();
+    expect(screen.getByText('Listen on YouTube')).toBeInTheDocument();
+  });
+
+  it('EMV-AYT-4: rejects invalid YouTube IDs (no link rendered)', () => {
+    const item: CourseItemAudio = {
+      id: 'bad-yt',
+      type: 'audio',
+      title: 'Bad YouTube ID',
+      url: 'https://example.com/audio.mp3',
+      youtubeUrl: '<script>alert(1)</script>',
+    };
+
+    render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    expect(screen.queryByText('Listen on YouTube')).not.toBeInTheDocument();
+    expect(screen.getByText('Download audio file')).toBeInTheDocument();
+  });
+
+  it('EMV-AYT-5: does not render YouTube iframe by default (link only)', () => {
+    const item: CourseItemAudio = {
+      id: 'bvc-5-audio',
+      type: 'audio',
+      title: 'Module 5 Audio Overview',
+      url: 'https://blockchain-vibe-coding.smwebsystems.com/module-5-defi-nfts/content/audio-overview.mp3',
+      youtubeUrl: 'uIr1AnwQY3Y',
+    };
+
+    const { container } = render(
+      <EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />,
+    );
+
+    expect(container.querySelector('iframe')).toBeNull();
   });
 });

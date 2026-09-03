@@ -254,6 +254,7 @@ export type CourseItem =
       url: string;
       description?: string;
       information?: string;
+      youtubeUrl?: string;
     }
   | {
       id: string;

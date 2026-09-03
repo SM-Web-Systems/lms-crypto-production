@@ -44,6 +44,8 @@ export interface CourseItemAudio extends CourseItemBase {
   /** Direct audio URL (e.g. .mp3, .ogg, .wav) for native playback */
   url: string;
   description?: string;
+  /** Optional YouTube video ID for a "Listen on YouTube" action (does not replace native audio). */
+  youtubeUrl?: string;
 }
 
 export interface CourseItemQuiz extends CourseItemBase {

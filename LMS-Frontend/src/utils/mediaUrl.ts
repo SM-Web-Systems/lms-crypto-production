@@ -55,6 +55,24 @@ export function extractYoutubeId(raw: string): string | null {
   return m2 ? m2[1] : null;
 }
 
+/** Validate a bare YouTube video ID (11 chars, alphanumeric + dash + underscore). */
+const YT_ID_RE = /^[a-zA-Z0-9_-]{6,12}$/;
+export function isValidYoutubeId(id: string | undefined | null): id is string {
+  return typeof id === 'string' && YT_ID_RE.test(id);
+}
+
+/** Build a YouTube watch URL from a validated ID. Returns null for invalid IDs. */
+export function youtubeWatchUrl(id: string | undefined | null): string | null {
+  if (!isValidYoutubeId(id)) return null;
+  return `https://www.youtube.com/watch?v=${id}`;
+}
+
+/** Build a YouTube embed URL from a validated ID. Returns null for invalid IDs. */
+export function youtubeEmbedUrl(id: string | undefined | null): string | null {
+  if (!isValidYoutubeId(id)) return null;
+  return `https://www.youtube.com/embed/${id}?rel=0`;
+}
+
 export function extractVimeoId(raw: string): string | null {
   try {
     const u = new URL(raw.trim());

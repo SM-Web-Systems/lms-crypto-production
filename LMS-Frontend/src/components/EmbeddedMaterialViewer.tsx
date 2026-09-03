@@ -12,6 +12,7 @@ import {
   isOfficePresentationUrl,
   getOfficeOnlineEmbedUrl,
   isGoogleDriveUrl,
+  youtubeWatchUrl,
 } from '../utils/mediaUrl';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif']);
@@ -325,31 +326,45 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
         ) : (item.type === 'link' || item.type === 'text') && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : item.type === 'audio' ? (
-          <div className="flex flex-col items-center gap-5 py-8 px-4">
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
-              <Music className="h-8 w-8" aria-hidden />
-            </span>
-            <p className="text-base font-semibold text-neutral-800">{item.title}</p>
-            {item.url?.trim() ? (
-              <>
-                <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}
-                  onEnded={() => onItemComplete?.(item.id)}
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={(e) => {
-                    if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
-                  }}>
-                  Your browser does not support the audio element.
-                </audio>
-                <a href={item.url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-accent-teal font-medium hover:underline flex items-center gap-1">
-                  <ExternalLink className="h-3 w-3" aria-hidden />
-                  Download audio file
-                </a>
-              </>
-            ) : (
-              <p className="text-sm text-neutral-500">No audio file is attached to this item.</p>
-            )}
-          </div>
+          (() => {
+            const ytWatch = youtubeWatchUrl(item.youtubeUrl);
+            return (
+              <div className="flex flex-col items-center gap-5 py-8 px-4">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+                  <Music className="h-8 w-8" aria-hidden />
+                </span>
+                <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                {item.url?.trim() ? (
+                  <>
+                    <audio controls preload="metadata" className="w-full max-w-lg" src={item.url}
+                      onEnded={() => onItemComplete?.(item.id)}
+                      onTimeUpdate={handleTimeUpdate}
+                      onLoadedMetadata={(e) => {
+                        if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
+                      }}>
+                      Your browser does not support the audio element.
+                    </audio>
+                    <div className="flex flex-wrap items-center justify-center gap-4">
+                      <a href={item.url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-accent-teal font-medium hover:underline flex items-center gap-1">
+                        <ExternalLink className="h-3 w-3" aria-hidden />
+                        Download audio file
+                      </a>
+                      {ytWatch && (
+                        <a href={ytWatch} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-red-600 font-medium hover:underline flex items-center gap-1">
+                          <ExternalLink className="h-3 w-3" aria-hidden />
+                          Listen on YouTube
+                        </a>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-neutral-500">No audio file is attached to this item.</p>
+                )}
+              </div>
+            );
+          })()
         ) : item.type === 'quiz' ? (
           (() => {
             const quizId = (item as { quizId?: string }).quizId?.trim();
