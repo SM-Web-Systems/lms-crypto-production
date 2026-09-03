@@ -128,6 +128,23 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03 (v
 
 > **AUDIT CLOSED 2026-09-03 (verified):** All CRITICAL (2), HIGH (6), MEDIUM (20), and LOW (17) findings VERIFIED_RESOLVED. 3 remaining items are INFO-severity observations (no action required). Final deployed LMS buildSha: `8241d1a` (matches repository HEAD). Intermediate verification SHA: `622ce7c`. LMS API/web + CRM + AmmaWallet all healthy. FIND-003b (SSO), FIND-027-03 (rate-limit), FIND-026-04 (healthcheck), FIND-027-02 (email outbox) each verified with direct production evidence. Full verified test suite: 2375/2375 (LMS 1270+227+14 E2E, CRM 277, AW 564+23). Residual caveats: LMS session JWTs omit iss/aud (accepted, single-deployment); CRM tracking limiter is in-memory (valid for single-container, requires shared store before horizontal scaling); 3 INFO observations are non-actionable.
 
+## Post-closure follow-up
+
+On 2026-09-03, cold-start E2E verification exposed an LMS database
+initialization defect. Commit `ba8ff13` corrected fresh file-based schema
+bootstrap and an unsafe payments migration (`SELECT *` replaced with
+column-explicit INSERT).
+
+This follow-up is separate from the original four findings closed under
+`audit-closure-2026-09-03`. It does not alter the original closure totals.
+
+Status: VERIFIED_DEPLOYED
+Commit: `ba8ff133547294cd62da607b7949c1043a42675e`
+Deployment build SHA: `ba8ff133547294cd62da607b7949c1043a42675e`
+Cold-start E2E: 14/14 PASS (fresh database, fresh server)
+
+---
+
 ## Priority Remediation Order (Session 2)
 
 ### Immediate (today)
