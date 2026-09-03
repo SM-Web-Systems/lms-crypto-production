@@ -2,13 +2,15 @@
  * SsoCallback — receives the LMS JWT from the AmmaWallet SSO redirect.
  *
  * The LMS backend redirects here after a successful SSO assertion exchange:
- *   /sso-callback#token=<lms-jwt>&role=<student|admin>
+ *   /sso-callback#token=<lms-jwt>
  *
  * This component:
- *   1. Reads the token and role from the URL hash fragment.
- *   2. Stores the token in localStorage (same key as normal login).
- *   3. Shows a brief "Wallet linked successfully" card for ~1.2 s.
- *   4. Hard-redirects to the appropriate dashboard, triggering AuthProvider
+ *   1. Reads the token from the URL hash fragment.
+ *   2. Decodes the role from the JWT payload (routing hint only — backend
+ *      validates on every API call).
+ *   3. Stores the token in localStorage (same key as normal login).
+ *   4. Shows a brief "Wallet linked successfully" card for ~1.2 s.
+ *   5. Hard-redirects to the appropriate dashboard, triggering AuthProvider
  *      to hydrate the session from the stored token.
  *
  * Using a hash fragment means the token is never sent to any server as a
@@ -26,11 +28,22 @@ const SsoCallback: React.FC = () => {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Parse hash fragment: #token=<jwt>&role=<role>
+    // Parse hash fragment: #token=<jwt>
     const hash = window.location.hash.slice(1); // remove leading '#'
     const params = new URLSearchParams(hash);
     const token = params.get('token');
-    const role  = params.get('role') as 'student' | 'admin' | null;
+
+    // Decode role from JWT payload (routing hint only — backend validates on every API call)
+    let role: string | null = null;
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          role = payload.role ?? null;
+        }
+      } catch { /* malformed JWT → role stays null → routes to /student */ }
+    }
 
     if (!token) {
       setError('SSO session data is missing. Please try signing in again.');

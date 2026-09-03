@@ -678,7 +678,7 @@ export async function ammaCallback(
     try { createSession(userId, token, req); } catch { /* best-effort */ }
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
-    const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}&role=${role}`;
+    const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}`;
     res.redirect(302, ssoCallbackUrl);
   } catch (error) {
     next(error);
