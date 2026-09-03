@@ -54,18 +54,18 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 
 | Finding ID | Severity | System | Description | Location | Recommendation | Status |
 |-----------|----------|--------|-------------|----------|----------------|--------|
-| FIND-005-A | MEDIUM | AmmaWallet | Login TOTP uses `window: 2` (150s) while 2FA routes use `window: 1` (90s). Wider attack window. | `auth.ts:416` | Change to `window: 1` | OPEN |
-| FIND-005-B | MEDIUM | AmmaWallet | Static 2FA code comparison during login uses `===` instead of `timingSafeCompare` | `auth.ts:448` | Use `timingSafeCompare(user.twoFaStaticCode, hashedInput)` | OPEN |
-| FIND-009-A | MEDIUM | AmmaWallet | SEP-10 auth trusts remote `network_passphrase` as fallback — compromised MoneyGram endpoint could force wrong network signing | `moneygram.ts:29` | Validate remote passphrase matches server config; reject if different | OPEN |
-| FIND-003a | MEDIUM | LMS | SSO state token replayable within 5-min window (no JTI blacklist). Mitigated by assertion single-use on AW side. | `ammaWalletSSOService.ts:61-66` | Add JTI claim + used-JTI tracking table | OPEN |
-| FIND-011a | MEDIUM | LMS | Quiz mint TOCTOU race — idempotency check + INSERT not in same db.transaction(). Duplicate on-chain mint possible. | `mintService.ts:98-231` | Wrap in `db.transaction()` with re-check, matching course mint pattern | OPEN |
-| FIND-008b | MEDIUM | LMS | User's plaintext password sent to AmmaWallet register endpoint — shared credential across systems | `walletService.ts:64-70` | Generate separate random password for AW registration | OPEN |
-| FIND-024-05 | MEDIUM | Infrastructure | Amma pg_dump integrity check is weak (PGDMP header only, no row-count verification) | `backup_amma_db.sh:47-53` | Add `pg_restore --list` verification via temp file | OPEN |
-| FIND-024-06 | MEDIUM | Infrastructure | No offsite backup copy for LMS, CRM, SM Web (only Amma has rclone) | backup scripts | Extend rclone offsite copy to all backup scripts | OPEN |
-| FIND-026-01 | MEDIUM | Infrastructure | nginx reverse proxy has no Docker healthcheck. Silent failure takes down entire stack. | `docker-compose.yml:1-28` | Add `nginx -t` or `curl` healthcheck | OPEN |
-| FIND-026-02 | MEDIUM | Infrastructure | MariaDB has no Docker healthcheck. Port 3306 also exposed to host. | `docker-compose.yml:52-64` | Add `healthcheck.sh --connect --innodb_initialized` | OPEN |
-| FIND-026-03 | MEDIUM | Infrastructure | mail-server has no Docker healthcheck. SMTP failures undetected. | `docker-compose.yml:45-50` | Add `nc -z localhost 587` healthcheck | OPEN |
-| FIND-027-01 | MEDIUM | LMS + AW | `tls: { rejectUnauthorized: false }` disables SMTP cert validation. MITM risk on email credentials. | LMS `emailService.ts:27`, AW `mailer.ts:12` | Use `tls: { servername: 'mail.smwebsystems.com' }` (CRM pattern) | OPEN |
+| FIND-005-A | MEDIUM | AmmaWallet | Login TOTP uses `window: 2` (150s) while 2FA routes use `window: 1` (90s). Wider attack window. | `auth.ts:416` | Change to `window: 1` | RESOLVED (auth.ts:417 now `window: 1`) |
+| FIND-005-B | MEDIUM | AmmaWallet | Static 2FA code comparison during login uses `===` instead of `timingSafeCompare` | `auth.ts:448` | Use `timingSafeCompare(user.twoFaStaticCode, hashedInput)` | RESOLVED (auth.ts:449,463 use timingSafeCompare) |
+| FIND-009-A | MEDIUM | AmmaWallet | SEP-10 auth trusts remote `network_passphrase` as fallback — compromised MoneyGram endpoint could force wrong network signing | `moneygram.ts:29` | Validate remote passphrase matches server config; reject if different | RESOLVED (moneygram.ts:24-35 validates against server config) |
+| FIND-003a | MEDIUM | LMS | SSO state token replayable within 5-min window (no JTI blacklist). Mitigated by assertion single-use on AW side. | `ammaWalletSSOService.ts:61-66` | Add JTI claim + used-JTI tracking table | RESOLVED (JTI blacklist with 6-min expiry, lines 57-90) |
+| FIND-011a | MEDIUM | LMS | Quiz mint TOCTOU race — idempotency check + INSERT not in same db.transaction(). Duplicate on-chain mint possible. | `mintService.ts:98-231` | Wrap in `db.transaction()` with re-check, matching course mint pattern | RESOLVED (wrapped in db.transaction(), lines 121-150) |
+| FIND-008b | MEDIUM | LMS | User's plaintext password sent to AmmaWallet register endpoint — shared credential across systems | `walletService.ts:64-70` | Generate separate random password for AW registration | RESOLVED (crypto.randomBytes(32), walletService.ts:59-61) |
+| FIND-024-05 | MEDIUM | Infrastructure | Amma pg_dump integrity check is weak (PGDMP header only, no row-count verification) | `backup_amma_db.sh:47-53` | Add `pg_restore --list` verification via temp file | RESOLVED (pg_restore --list + row-count verification) |
+| FIND-024-06 | MEDIUM | Infrastructure | No offsite backup copy for LMS, CRM, SM Web (only Amma has rclone) | backup scripts | Extend rclone offsite copy to all backup scripts | RESOLVED (rclone to amber-pangolin in all 3 scripts) |
+| FIND-026-01 | MEDIUM | Infrastructure | nginx reverse proxy has no Docker healthcheck. Silent failure takes down entire stack. | `docker-compose.yml:1-28` | Add `nginx -t` or `curl` healthcheck | RESOLVED (nginx -t healthcheck added) |
+| FIND-026-02 | MEDIUM | Infrastructure | MariaDB has no Docker healthcheck. Port 3306 also exposed to host. | `docker-compose.yml:52-64` | Add `healthcheck.sh --connect --innodb_initialized` | RESOLVED (healthcheck.sh --connect --innodb_initialized added) |
+| FIND-026-03 | MEDIUM | Infrastructure | mail-server has no Docker healthcheck. SMTP failures undetected. | `docker-compose.yml:45-50` | Add `nc -z localhost 587` healthcheck | RESOLVED (HTTP probe healthcheck on port 3001) |
+| FIND-027-01 | MEDIUM | LMS + AW | `tls: { rejectUnauthorized: false }` disables SMTP cert validation. MITM risk on email credentials. | LMS `emailService.ts:27`, AW `mailer.ts:12` | Use `tls: { servername: 'mail.smwebsystems.com' }` (CRM pattern) | RESOLVED (servername set in both LMS + AW) |
 
 ### LOW (10)
 
@@ -111,20 +111,20 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 |----------|-------|------|----------|
 | CRITICAL | 2 | 0 | 2 |
 | HIGH | 4 | 0 | 4 |
-| MEDIUM | 12 | 12 | 0 |
+| MEDIUM | 12 | 0 | 12 |
 | LOW | 10 | 9 | 1 |
 | INFO | 4 | 4 | 0 |
-| **Total** | **32** | **25** | **7** |
+| **Total** | **32** | **13** | **19** |
 
 ### Combined
 | Severity | Count | Open | Resolved |
 |----------|-------|------|----------|
 | CRITICAL | 2 | 0 | 2 |
 | HIGH | 6 | 0 | 6 |
-| MEDIUM | 19 | 12 | 7 |
+| MEDIUM | 19 | 0 | 19 |
 | LOW | 15 | 9 | 6 |
 | INFO | 4 | 4 | 0 |
-| **Total** | **46** | **25** | **21** |
+| **Total** | **46** | **13** | **33** |
 
 ## Priority Remediation Order (Session 2)
 
@@ -133,13 +133,13 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 2. ~~**FIND-010a** — Add Stellar payment amount verification~~ RESOLVED (commit 44dc375)
 
 ### Short-term (this week)
-3. **FIND-005-A/B/C** — Fix 2FA timing and comparison inconsistencies in login flow
-4. **FIND-009-A** — Validate SEP-10 network passphrase
-5. **FIND-011a** — Add transaction guard to quiz mint
-6. **FIND-027-01** — Enable SMTP TLS cert validation
+3. ~~**FIND-005-A/B/C** — Fix 2FA timing and comparison inconsistencies~~ RESOLVED
+4. ~~**FIND-009-A** — Validate SEP-10 network passphrase~~ RESOLVED
+5. ~~**FIND-011a** — Add transaction guard to quiz mint~~ RESOLVED
+6. ~~**FIND-027-01** — Enable SMTP TLS cert validation~~ RESOLVED
 
 ### Medium-term (1-2 weeks)
-7. **FIND-003a** — Add JTI blacklist to SSO state tokens
-8. **FIND-008a/b** — Clarify/fix wallet provisioning design
-9. **FIND-026-01/02/03** — Add Docker healthchecks to nginx, mariadb, mail-server
-10. **FIND-024-05/06/07** — Improve backup validation and offsite copies
+7. ~~**FIND-003a** — Add JTI blacklist to SSO state tokens~~ RESOLVED
+8. ~~**FIND-008a/b** — Clarify/fix wallet provisioning design~~ RESOLVED
+9. ~~**FIND-026-01/02/03** — Add Docker healthchecks to nginx, mariadb, mail-server~~ RESOLVED
+10. ~~**FIND-024-05/06/07** — Improve backup validation and offsite copies~~ RESOLVED (024-05/06; 024-07 LOW)
