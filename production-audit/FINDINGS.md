@@ -47,8 +47,8 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 |-----------|----------|--------|-------------|----------|----------------|--------|
 | FIND-024-03 | HIGH | Infrastructure | SM Web Systems SQLite backup cron entry missing. Last backup 2026-08-26 (7 days stale). | crontab | Add: `15 3 * * * /home/webadmin/scripts/backup-sm-web-db.sh >> /home/webadmin/logs/sm-web-db-backup.log 2>&1` | RESOLVED |
 | FIND-024-04 | HIGH | Infrastructure | `minter-balance-check.sh` cron entry missing. NFT minter balance alerts not running. | crontab | Add: `0 */6 * * * /home/webadmin/scripts/minter-balance-check.sh >> /home/webadmin/logs/minter-balance.log 2>&1` | RESOLVED |
-| FIND-010a | HIGH | LMS | No amount verification for Stellar payments. Dust payment with correct memo auto-confirms full-price course. `receivedAmount` computed but never compared to `expectedCents`. | `stellarPaymentMonitor.ts:138-145` | Compare received amount vs expected. Reject payments below 99% tolerance. | OPEN |
-| FIND-008a | HIGH | LMS | Empty `encryptedSecret: ""` sent to AmmaWallet API during wallet creation. Wallet has no signing capability. | `walletService.ts:138` | Clarify design intent. If receive-only by design, document. Otherwise encrypt secret before sending. | OPEN |
+| FIND-010a | HIGH | LMS | No amount verification for Stellar payments. Dust payment with correct memo auto-confirms full-price course. `receivedAmount` computed but never compared to `expectedCents`. | `stellarPaymentMonitor.ts:138-145` | Compare received amount vs expected. Reject payments below 99% tolerance. | RESOLVED (commit 44dc375) |
+| FIND-008a | HIGH | LMS | Empty `encryptedSecret: ""` sent to AmmaWallet API during wallet creation. Wallet has no signing capability. | `walletService.ts:138` | Clarify design intent. If receive-only by design, document. Otherwise encrypt secret before sending. | RESOLVED (commit 44dc375, receive-only by design) |
 
 ### MEDIUM (12)
 
@@ -110,27 +110,27 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 | Severity | Count | Open | Resolved |
 |----------|-------|------|----------|
 | CRITICAL | 2 | 0 | 2 |
-| HIGH | 4 | 2 | 2 |
+| HIGH | 4 | 0 | 4 |
 | MEDIUM | 12 | 12 | 0 |
 | LOW | 10 | 9 | 1 |
 | INFO | 4 | 4 | 0 |
-| **Total** | **32** | **27** | **5** |
+| **Total** | **32** | **25** | **7** |
 
 ### Combined
 | Severity | Count | Open | Resolved |
 |----------|-------|------|----------|
 | CRITICAL | 2 | 0 | 2 |
-| HIGH | 6 | 2 | 4 |
+| HIGH | 6 | 0 | 6 |
 | MEDIUM | 19 | 12 | 7 |
 | LOW | 15 | 9 | 6 |
 | INFO | 4 | 4 | 0 |
-| **Total** | **46** | **27** | **19** |
+| **Total** | **46** | **25** | **21** |
 
 ## Priority Remediation Order (Session 2)
 
 ### Immediate (today)
-1. **FIND-024-01/02/03/04** — Restore 4 missing crontab entries (backups + minter check). 7 days of unprotected data.
-2. **FIND-010a** — Add Stellar payment amount verification. Exploitable dust-payment attack vector.
+1. ~~**FIND-024-01/02/03/04** — Restore 4 missing crontab entries~~ RESOLVED
+2. ~~**FIND-010a** — Add Stellar payment amount verification~~ RESOLVED (commit 44dc375)
 
 ### Short-term (this week)
 3. **FIND-005-A/B/C** — Fix 2FA timing and comparison inconsistencies in login flow
