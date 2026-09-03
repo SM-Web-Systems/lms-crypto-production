@@ -1,6 +1,6 @@
 # Production Audit — Findings Tracker
 
-Generated: 2026-09-01 | Last Updated: 2026-09-03
+Generated: 2026-09-01 | Last Updated: 2026-09-03 | **AUDIT CLOSED: 2026-09-03**
 
 ## Severity Legend
 - **CRITICAL**: Exploitable now, potential for auth bypass, data loss, or financial loss
@@ -77,9 +77,9 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 | FIND-009-B | LOW | AmmaWallet | Stellar client getters create new objects per call — GC pressure under load | `stellar-client.ts:49` | Cache return value in constructor | RESOLVED (cached in _stellar/_account instance vars) |
 | FIND-015-A | LOW | AmmaWallet | Auto-suspension uses `parseFloat()` instead of `compareDecimalStrings()` for balance comparison | `auto-suspension.ts:185,308` | Use `compareDecimalStrings` for consistency | RESOLVED (compareDecimalStrings at lines 186,310) |
 | FIND-010b | LOW | LMS | No timeout on Horizon API fetch calls — could block poll indefinitely | `stellarPaymentMonitor.ts:105` | Add AbortController with 30s timeout | RESOLVED (commit 63eb598) |
-| FIND-003b | LOW | LMS | Role included in redirect URL fragment. Frontend must derive role from JWT, not URL. | `authController.ts:681` | Document as frontend contract | OPEN |
+| FIND-003b | LOW | LMS | Role included in redirect URL fragment. Frontend must derive role from JWT, not URL. | `authController.ts:681` | Document as frontend contract | RESOLVED (verified 2026-09-03: URL sends only #token=, role decoded from JWT as routing hint, DB-backed RBAC enforces authz) |
 | FIND-024-07 | LOW | Infrastructure | No SHA-256 sidecar for Amma and LMS backups (CRM and SM Web have them) | backup scripts | Add sidecar for consistency | RESOLVED (sha256sum sidecar in both scripts) |
-| FIND-026-04 | LOW | Infrastructure | LMS frontend healthcheck uses `nginx -t` (config syntax only), not HTTP readiness | `docker-compose.yml:109-124` | Change to `curl -f http://localhost/` | OPEN (web service has no healthcheck defined) |
+| FIND-026-04 | LOW | Infrastructure | LMS frontend healthcheck uses `nginx -t` (config syntax only), not HTTP readiness | `docker-compose.yml:61-64` | Change to `curl -f http://localhost/` | RESOLVED (verified 2026-09-03: wget --spider http://127.0.0.1/ healthcheck, container healthy) |
 | FIND-026-05 | LOW | Infrastructure | MariaDB port 3306 exposed to host network unnecessarily | `docker-compose.yml:52-64` | Change `ports` to `expose` if only internal access needed | RESOLVED (changed to expose:, FIND-026-05 comment) |
 
 ### INFO (3) + Misclassified (3, counted under actual severity above)
@@ -89,8 +89,8 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 | FIND-006-B | INFO | AmmaWallet | `pbkdf2Sync` blocks event loop (~100-300ms). Rate limit of 5/15min mitigates. | `decrypt-secret.ts:22` | OPEN (observation) |
 | FIND-004-01 | INFO | CRM | Session cookie maxAge is 15 minutes with no sliding renewal. | `auth.ts:95-101` | OPEN (observation) |
 | FIND-027-05 | INFO | CRM | Team alert email subject includes unescaped lead name. Not HTML context but may display oddly. | `emailTemplates.ts:128` | OPEN (observation) |
-| FIND-027-02 | MEDIUM | CRM + LMS | No email retry for transient SMTP failures. Fire-and-forget with logging only. | emailService files | OPEN (CRM RESOLVED via emailRetryWorker.ts; LMS still fire-and-forget) |
-| FIND-027-03 | LOW | CRM | Tracking pixel open endpoint has no rate limiting. Metrics inflation possible. | `email.ts:72-84` | OPEN |
+| FIND-027-02 | MEDIUM | CRM + LMS | No email retry for transient SMTP failures. Fire-and-forget with logging only. | emailService files | RESOLVED (CRM: emailRetryWorker.ts outbox+retry; LMS: emailRetryWorker.ts outbox+retry) |
+| FIND-027-03 | LOW | CRM | Tracking pixel open endpoint has no rate limiting. Metrics inflation possible. | `email.ts:103,118` | RESOLVED (verified 2026-09-03: 120/min/IP in-memory limiter on open+click routes, 6 tests, single-container topology) |
 | FIND-027-04 | LOW | CRM | Campaign email recorded as 'sent' before sendMail() succeeds. Phantom delivery records. | `campaignService.ts:182-186` | RESOLVED (pending→sent pattern, marks sent after sendMail succeeds) |
 
 ---
@@ -111,20 +111,22 @@ Generated: 2026-09-01 | Last Updated: 2026-09-03
 |----------|-------|------|----------|
 | CRITICAL | 2 | 0 | 2 |
 | HIGH | 4 | 0 | 4 |
-| MEDIUM | 13 | 1 | 12 |
-| LOW | 12 | 3 | 9 |
+| MEDIUM | 13 | 0 | 13 |
+| LOW | 12 | 0 | 12 |
 | INFO | 3 | 3 | 0 |
-| **Total** | **34** | **7** | **27** |
+| **Total** | **34** | **3** | **31** |
 
 ### Combined
 | Severity | Count | Open | Resolved |
 |----------|-------|------|----------|
 | CRITICAL | 2 | 0 | 2 |
 | HIGH | 6 | 0 | 6 |
-| MEDIUM | 20 | 1 | 19 |
-| LOW | 17 | 3 | 14 |
+| MEDIUM | 20 | 0 | 20 |
+| LOW | 17 | 0 | 17 |
 | INFO | 3 | 3 | 0 |
-| **Total** | **48** | **7** | **41** |
+| **Total** | **48** | **3** | **45** |
+
+> **AUDIT CLOSED 2026-09-03:** All CRITICAL, HIGH, MEDIUM, and LOW findings resolved. 3 remaining items are INFO-severity observations (no action required). Deployment verified: LMS buildSha `be1c0ad` matches HEAD, all containers healthy.
 
 ## Priority Remediation Order (Session 2)
 
