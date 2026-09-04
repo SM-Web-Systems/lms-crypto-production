@@ -7,6 +7,7 @@
 
 import { query, queryOne } from '../config/database.js';
 import { CourseCompletionRequirements, CourseSection } from '../types/index.js';
+import { parseFlatSections } from '../utils/courseHelpers.js';
 
 /** Defaults applied when no course_completion_requirements row exists. */
 const DEFAULT_REQS = {
@@ -73,7 +74,7 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
   ) ?? DEFAULT_REQS) as CourseCompletionRequirements;
 
   // 1. Count all lesson items from sections JSON
-  const sections: CourseSection[] = JSON.parse(course.sections || '[]');
+  const sections: CourseSection[] = parseFlatSections(course.sections || '[]');
   const allItems = sections.flatMap((s) => s.items);
   const totalLessonItems = allItems.length;
 

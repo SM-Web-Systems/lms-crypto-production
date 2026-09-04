@@ -226,6 +226,7 @@ export type CourseItem =
       url: string;
       description?: string;
       information?: string;
+      downloadUrl?: string;
     }
   | {
       id: string;
@@ -254,6 +255,8 @@ export type CourseItem =
       url: string;
       description?: string;
       information?: string;
+      youtubeUrl?: string;
+      downloadUrl?: string;
     }
   | {
       id: string;
@@ -303,12 +306,20 @@ export interface CourseSection {
   items: CourseItem[];
 }
 
+export interface CourseWeek {
+  id: string;
+  title: string;
+  order?: number;
+  sections: CourseSection[];
+}
+
 export interface Course {
   id: string;
   title: string;
   description?: string;
   courseCode: string;
   sections: CourseSection[];
+  weeks?: CourseWeek[];
   sponsorLabel?: string;
 }
 

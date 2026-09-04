@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { query, queryOne, execute } from '../config/database.js';
 import { hasPermission } from '../middleware/rbac.js';
-import { AuthRequest, Course, CourseSection, CourseItem, UserDirectoryItem, ErrorCodes } from '../types/index.js';
+import { AuthRequest, Course, CourseSection, CourseWeek, CourseItem, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDocumentFileUrl, deleteFile } from '../utils/fileUpload.js';
 import { createNotification } from '../services/notificationService.js';
@@ -29,13 +29,31 @@ function getUserCourseCodes(userId: string): string[] {
   return rows.map((r) => r.course_code);
 }
 
-function parseSections(sectionsJson: string): CourseSection[] {
+/**
+ * Detect whether the stored JSON is a CourseWeek[] (weeks format) or CourseSection[] (legacy).
+ * Weeks format: each element has a `sections` sub-array.
+ * Legacy format: each element has an `items` sub-array.
+ */
+function parseStoredJson(sectionsJson: string): { sections: CourseSection[]; weeks?: CourseWeek[] } {
   try {
-    const parsed = JSON.parse(sectionsJson || '[]') as CourseSection[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(sectionsJson || '[]');
+    if (!Array.isArray(parsed) || parsed.length === 0) return { sections: [] };
+    // Detect weeks format: first element has a `sections` property that is an array
+    if (parsed[0] && Array.isArray(parsed[0].sections)) {
+      const weeks = parsed as CourseWeek[];
+      const flatSections = weeks.flatMap((w) => w.sections ?? []);
+      return { sections: flatSections, weeks };
+    }
+    // Legacy flat sections format
+    return { sections: parsed as CourseSection[] };
   } catch {
-    return [];
+    return { sections: [] };
   }
+}
+
+/** Legacy helper: extract flat sections from stored JSON (works with both formats). */
+function parseSections(sectionsJson: string): CourseSection[] {
+  return parseStoredJson(sectionsJson).sections;
 }
 
 function ensurePdfFileUrls(sections: CourseSection[]): CourseSection[] {
@@ -50,14 +68,20 @@ function ensurePdfFileUrls(sections: CourseSection[]): CourseSection[] {
   }));
 }
 
+function ensurePdfFileUrlsWeeks(weeks: CourseWeek[]): CourseWeek[] {
+  return weeks.map((w) => ({ ...w, sections: ensurePdfFileUrls(w.sections) }));
+}
+
 function rowToCourse(row: CourseRow): Course {
-  const sections = ensurePdfFileUrls(parseSections(row.sections));
+  const { sections, weeks } = parseStoredJson(row.sections);
+  const fixedSections = ensurePdfFileUrls(sections);
   return {
     id: row.id,
     title: row.title,
     description: row.description ?? undefined,
     courseCode: row.course_code,
-    sections,
+    sections: fixedSections,
+    ...(weeks ? { weeks: ensurePdfFileUrlsWeeks(weeks) } : {}),
     ...(row.sponsor_label ? { sponsorLabel: row.sponsor_label } : {}),
   };
 }
@@ -164,11 +188,26 @@ function normalizeCourseCode(v: string): string {
   return String(v).trim().toUpperCase();
 }
 
-function validateCourseForCreate(body: unknown): { course: Course; errors: Array<{ field: string; message: string }> } {
+/** Resolve sections/weeks from body and return the JSON string to store in the DB column. */
+function resolveStoredSectionsJson(o: Record<string, unknown>): { storedJson: string; flatSections: CourseSection[] } {
+  const weeks = o?.weeks;
+  const sections = o?.sections;
+  if (Array.isArray(weeks) && weeks.length > 0) {
+    // Store as weeks format (CourseWeek[])
+    const weeksArr = weeks as CourseWeek[];
+    const flatSections = weeksArr.flatMap((w) => w.sections ?? []);
+    return { storedJson: JSON.stringify(weeksArr), flatSections };
+  }
+  const sectionsArray = Array.isArray(sections) ? (sections as CourseSection[]) : [];
+  return { storedJson: JSON.stringify(sectionsArray), flatSections: sectionsArray };
+}
+
+function validateCourseForCreate(body: unknown): { course: Course; storedJson: string; errors: Array<{ field: string; message: string }> } {
   const errors: Array<{ field: string; message: string }> = [];
   const o = body as Record<string, unknown>;
   const title = o?.title;
   const sections = o?.sections;
+  const weeks = o?.weeks;
   const courseCodeRaw = o?.courseCode;
 
   if (title === undefined || title === null || String(title).trim() === '') {
@@ -185,22 +224,25 @@ function validateCourseForCreate(body: unknown): { course: Course; errors: Array
   if (sections !== undefined && !Array.isArray(sections)) {
     errors.push({ field: 'sections', message: 'sections must be an array' });
   }
+  if (weeks !== undefined && !Array.isArray(weeks)) {
+    errors.push({ field: 'weeks', message: 'weeks must be an array' });
+  }
 
-  const sectionsArray = Array.isArray(sections) ? (sections as CourseSection[]) : [];
+  const { storedJson, flatSections } = resolveStoredSectionsJson(o);
   const courseCode = courseCodeRaw != null ? normalizeCourseCode(String(courseCodeRaw)) : '';
   const course: Course = {
     id: (o?.id ? String(o.id).trim() : '') || uuidv4(),
     title: title != null ? String(title).trim() : '',
     description: o?.description != null ? String(o.description).trim() : undefined,
     courseCode,
-    sections: sectionsArray,
+    sections: flatSections,
   };
-  return { course, errors };
+  return { course, storedJson, errors };
 }
 
 export async function createCourse(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { course, errors } = validateCourseForCreate(req.body);
+    const { course, storedJson, errors } = validateCourseForCreate(req.body);
     if (errors.length > 0) {
       throw new AppError('Validation failed', 400, ErrorCodes.VALIDATION_ERROR, errors);
     }
@@ -246,7 +288,7 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
 
     execute(
       'INSERT INTO courses (id, title, description, course_code, sections, sponsor_label, tenant_id, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [course.id, course.title, course.description ?? null, course.courseCode, JSON.stringify(course.sections), sponsorLabelVal, tenantId, approvalStatus]
+      [course.id, course.title, course.description ?? null, course.courseCode, storedJson, sponsorLabelVal, tenantId, approvalStatus]
     );
 
     const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [course.id]);
@@ -298,6 +340,9 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
     if (o.sections !== undefined && !Array.isArray(o.sections)) {
       errors.push({ field: 'sections', message: 'sections must be an array' });
     }
+    if (o.weeks !== undefined && !Array.isArray(o.weeks)) {
+      errors.push({ field: 'weeks', message: 'weeks must be an array' });
+    }
     if (errors.length > 0) {
       throw new AppError('Validation failed', 400, ErrorCodes.VALIDATION_ERROR, errors);
     }
@@ -312,7 +357,15 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
         throw new AppError('A course with this courseCode already exists', 400, ErrorCodes.DUPLICATE_ENTRY);
       }
     }
-    const sections = o.sections !== undefined ? (o.sections as CourseSection[]) : parseSections(existing.sections);
+
+    // Resolve what to store: prefer weeks if provided, else sections, else existing
+    let storedJson: string;
+    if (o.weeks !== undefined || o.sections !== undefined) {
+      storedJson = resolveStoredSectionsJson(o).storedJson;
+    } else {
+      storedJson = existing.sections;
+    }
+
     const sponsorLabel = o.sponsorLabel !== undefined
       ? (o.sponsorLabel != null && String(o.sponsorLabel).trim() !== '' ? String(o.sponsorLabel).trim() : null)
       : existing.sponsor_label;
@@ -321,7 +374,7 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
       title,
       description ?? null,
       courseCode,
-      JSON.stringify(sections),
+      storedJson,
       sponsorLabel,
       id,
     ]);
@@ -1289,8 +1342,14 @@ export function approveMaterial(req: AuthRequest, res: Response): void {
     return;
   }
 
-  const sections = JSON.parse(course.sections || '[]');
-  const section = sections.find((s: any) => s.id === material.section_id);
+  // Parse the raw stored JSON — may be weeks or flat sections format
+  const rawParsed = JSON.parse(course.sections || '[]');
+  const isWeeksFormat = Array.isArray(rawParsed) && rawParsed.length > 0 && Array.isArray(rawParsed[0]?.sections);
+  const flatSections = isWeeksFormat
+    ? (rawParsed as Array<{ sections: any[] }>).flatMap((w: any) => w.sections ?? [])
+    : rawParsed;
+
+  const section = flatSections.find((s: any) => s.id === material.section_id);
   if (!section) {
     res.status(400).json({ success: false, error: `Section '${material.section_id}' not found in course` });
     return;
@@ -1304,7 +1363,8 @@ export function approveMaterial(req: AuthRequest, res: Response): void {
     content: material.content,
   });
 
-  execute('UPDATE courses SET sections = ? WHERE id = ?', [JSON.stringify(sections), courseId]);
+  // Write back in the same format (weeks or flat) to preserve grouping
+  execute('UPDATE courses SET sections = ? WHERE id = ?', [JSON.stringify(rawParsed), courseId]);
   execute(
     "UPDATE course_material_submissions SET status = 'approved', reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?",
     [userId, materialId],
