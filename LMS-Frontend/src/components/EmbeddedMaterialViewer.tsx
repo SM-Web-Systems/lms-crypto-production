@@ -5,6 +5,7 @@ import InlineAssignmentForm from './InlineAssignmentForm';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
 import { MarkdownViewer, toApprovedRawUrl } from './MarkdownViewer';
+import { FlashcardDeck } from './FlashcardDeck';
 import {
   getIframeVideoEmbedSrc,
   isDirectVideoFileUrl,
@@ -15,6 +16,17 @@ import {
   isGoogleDriveUrl,
   youtubeEmbedUrl,
 } from '../utils/mediaUrl';
+
+/** Check if a URL points to an approved flashcards.md source */
+function isApprovedFlashcardUrl(url: string | null): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url.trim());
+    return u.pathname.endsWith('/flashcards.md') && toApprovedRawUrl(url) !== null;
+  } catch {
+    return false;
+  }
+}
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif']);
 
@@ -340,6 +352,8 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
           </div>
         ) : item.type === 'text' && ext && toApprovedRawUrl(ext) ? (
           <MarkdownViewer url={ext} title={item.title} />
+        ) : item.type === 'link' && ext && isApprovedFlashcardUrl(ext) ? (
+          <FlashcardDeck url={ext} title={item.title} itemId={item.id} />
         ) : (item.type === 'link' || item.type === 'text') && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : item.type === 'audio' ? (
