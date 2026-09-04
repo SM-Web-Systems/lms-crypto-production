@@ -6,6 +6,7 @@ import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
 import { MarkdownViewer, toApprovedRawUrl } from './MarkdownViewer';
 import { FlashcardDeck } from './FlashcardDeck';
+import { MindMapViewer, isApprovedMindMapUrl } from './MindMapViewer';
 import {
   getIframeVideoEmbedSrc,
   isDirectVideoFileUrl,
@@ -354,6 +355,8 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
           <MarkdownViewer url={ext} title={item.title} />
         ) : item.type === 'link' && ext && isApprovedFlashcardUrl(ext) ? (
           <FlashcardDeck url={ext} title={item.title} itemId={item.id} />
+        ) : item.type === 'link' && ext && isApprovedMindMapUrl(ext) ? (
+          <MindMapViewer url={ext} title={item.title} itemId={item.id} />
         ) : (item.type === 'link' || item.type === 'text') && ext ? (
           <ExternalResourceCard title={item.title} description={item.description} url={ext} />
         ) : item.type === 'audio' ? (
