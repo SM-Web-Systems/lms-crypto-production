@@ -207,6 +207,184 @@ describe('MarkdownViewer — rendering', () => {
   });
 });
 
+describe('MarkdownViewer — table alignment', () => {
+  it('MV-ALIGN-1: left-aligned column gets lms-md-align-left class', async () => {
+    mockFetchOk('| Left |\n| :--- |\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const th = container.querySelector('th')!;
+    expect(th.classList.contains('lms-md-align-left')).toBe(true);
+    const td = container.querySelector('td')!;
+    expect(td.classList.contains('lms-md-align-left')).toBe(true);
+  });
+
+  it('MV-ALIGN-2: center-aligned column gets lms-md-align-center class', async () => {
+    mockFetchOk('| Center |\n| :----: |\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const th = container.querySelector('th')!;
+    expect(th.classList.contains('lms-md-align-center')).toBe(true);
+    const td = container.querySelector('td')!;
+    expect(td.classList.contains('lms-md-align-center')).toBe(true);
+  });
+
+  it('MV-ALIGN-3: right-aligned column gets lms-md-align-right class', async () => {
+    mockFetchOk('| Right |\n| ----: |\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const th = container.querySelector('th')!;
+    expect(th.classList.contains('lms-md-align-right')).toBe(true);
+    const td = container.querySelector('td')!;
+    expect(td.classList.contains('lms-md-align-right')).toBe(true);
+  });
+
+  it('MV-ALIGN-4: unspecified alignment receives no alignment class', async () => {
+    mockFetchOk('| Default |\n| ------- |\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const th = container.querySelector('th')!;
+    expect(th.classList.contains('lms-md-align-left')).toBe(false);
+    expect(th.classList.contains('lms-md-align-center')).toBe(false);
+    expect(th.classList.contains('lms-md-align-right')).toBe(false);
+  });
+
+  it('MV-ALIGN-5: no arbitrary class names from markdown are retained', async () => {
+    mockFetchOk('| Left | Center | Right |\n| :--- | :----: | ----: |\n| a | b | c |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const cells = container.querySelectorAll('th, td');
+    const allowedClasses = ['lms-md-align-left', 'lms-md-align-center', 'lms-md-align-right'];
+    cells.forEach(cell => {
+      Array.from(cell.classList).forEach(cls => {
+        expect(allowedClasses).toContain(cls);
+      });
+    });
+  });
+
+  it('MV-ALIGN-6: no inline style attribute on table cells', async () => {
+    mockFetchOk('| Left | Center | Right |\n| :--- | :----: | ----: |\n| a | b | c |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const cells = container.querySelectorAll('th, td');
+    cells.forEach(cell => {
+      expect(cell.getAttribute('style')).toBeNull();
+    });
+  });
+
+  it('MV-ALIGN-7: align attribute is removed after class conversion', async () => {
+    mockFetchOk('| Left |\n| :--- |\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const cells = container.querySelectorAll('th, td');
+    cells.forEach(cell => {
+      expect(cell.getAttribute('align')).toBeNull();
+    });
+  });
+
+  it('MV-ALIGN-8: table headers retain scope="col" with alignment', async () => {
+    mockFetchOk('| Left | Right |\n| :--- | ----: |\n| a | b |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const ths = container.querySelectorAll('th');
+    ths.forEach(th => expect(th.getAttribute('scope')).toBe('col'));
+  });
+});
+
+describe('MarkdownViewer — mobile table scroll affordance', () => {
+  it('MV-SCROLL-1: table wrapper has data-scrolled-end attribute', async () => {
+    mockFetchOk('| Col |\n|-----|\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const wrap = container.querySelector('.lms-markdown-table-wrap')!;
+    // In test environment (no overflow), should be "true"
+    await waitFor(() => expect(wrap.getAttribute('data-scrolled-end')).toBe('true'));
+  });
+
+  it('MV-SCROLL-2: table wrapper remains keyboard focusable', async () => {
+    mockFetchOk('| Col |\n|-----|\n| val |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const wrap = container.querySelector('.lms-markdown-table-wrap')!;
+    expect(wrap.getAttribute('tabindex')).toBe('0');
+    expect(wrap.getAttribute('role')).toBe('region');
+  });
+});
+
+describe('MarkdownViewer — code copy button', () => {
+  it('MV-COPY-1: fenced code block has a copy button', async () => {
+    mockFetchOk('```\nconst x = 1;\n```');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('pre')).not.toBeNull());
+    await waitFor(() => expect(container.querySelector('.lms-markdown-copy-btn')).not.toBeNull());
+    const btn = container.querySelector('.lms-markdown-copy-btn')!;
+    expect(btn.getAttribute('aria-label')).toBe('Copy code');
+    expect(btn.textContent).toContain('Copy');
+  });
+
+  it('MV-COPY-2: copy button only appears for fenced code blocks, not inline code', async () => {
+    mockFetchOk('Use `inline` code only, no fenced block.');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-content')).not.toBeNull());
+    // No pre block → no copy button
+    expect(container.querySelector('.lms-markdown-copy-btn')).toBeNull();
+  });
+
+  it('MV-COPY-3: copy button is wrapped with code block preserving scroll', async () => {
+    mockFetchOk('```\nlong code line\n```');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-code-wrap')).not.toBeNull());
+    const wrap = container.querySelector('.lms-markdown-code-wrap')!;
+    expect(wrap.querySelector('pre')).not.toBeNull();
+    expect(wrap.querySelector('.lms-markdown-copy-btn')).not.toBeNull();
+  });
+
+  it('MV-COPY-4: clipboard error does not break rendering', async () => {
+    // Mock clipboard to reject
+    const mockClipboard = { writeText: vi.fn().mockRejectedValue(new Error('denied')) };
+    Object.defineProperty(navigator, 'clipboard', { value: mockClipboard, writable: true, configurable: true });
+
+    mockFetchOk('```\ncode\n```');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-copy-btn')).not.toBeNull());
+    const btn = container.querySelector('.lms-markdown-copy-btn') as HTMLButtonElement;
+    btn.click();
+    // Content still renders
+    expect(container.querySelector('pre')).not.toBeNull();
+    expect(container.querySelector('pre')!.textContent).toContain('code');
+  });
+});
+
+describe('MarkdownViewer — regression guards', () => {
+  it('MV-REG-1: table semantic tags survive sanitization', async () => {
+    mockFetchOk('| H |\n|---|\n| V |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('table')).not.toBeNull());
+    expect(container.querySelector('thead')).not.toBeNull();
+    expect(container.querySelector('tbody')).not.toBeNull();
+    expect(container.querySelector('tr')).not.toBeNull();
+  });
+
+  it('MV-REG-2: table inside accessible scroll wrapper', async () => {
+    mockFetchOk('| H |\n|---|\n| V |');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-table-wrap')).not.toBeNull());
+    const wrap = container.querySelector('.lms-markdown-table-wrap')!;
+    expect(wrap.querySelector('table')).not.toBeNull();
+    expect(wrap.getAttribute('aria-label')).toBe('Data table');
+  });
+
+  it('MV-REG-3: URL sanitization unchanged — javascript: still blocked', async () => {
+    mockFetchOk('[xss](javascript:alert(1))');
+    const { container } = render(<MarkdownViewer url={APPROVED_URL} title="Test" />);
+    await waitFor(() => expect(container.querySelector('.lms-markdown-content')).not.toBeNull());
+    const links = container.querySelectorAll('a');
+    links.forEach(link => {
+      const href = link.getAttribute('href') || '';
+      expect(href).not.toMatch(/^javascript:/i);
+    });
+  });
+});
+
 describe('MarkdownViewer — loading and error states', () => {
   it('MV-STATE-1: shows loading state', () => {
     mockFetchOk('# test');

@@ -75,20 +75,38 @@ function sanitizeHtml(html: string): string {
       'img', 'br', 'hr', 'span', 'div', 'dl', 'dt', 'dd',
       'sup', 'sub', 'del', 's',
     ],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'align'],
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'select', 'button'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'style'],
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
   });
 }
 
+/** Approved alignment class allowlist */
+const ALIGN_CLASSES: Record<string, string> = {
+  left: 'lms-md-align-left',
+  center: 'lms-md-align-center',
+  right: 'lms-md-align-right',
+};
+
 /**
- * Post-process sanitized HTML to add accessible table wrappers
- * and scope attributes. Operates on already-sanitized content only.
+ * Post-process sanitized HTML to add accessible table wrappers,
+ * scope attributes, and safe alignment classes.
+ * Operates on already-sanitized content only.
  */
 function enhanceTablesInDom(container: HTMLElement): void {
   const tables = container.querySelectorAll('table');
   tables.forEach((table) => {
+    // Convert align attributes to approved class names on th and td
+    table.querySelectorAll('th, td').forEach((cell) => {
+      const align = cell.getAttribute('align');
+      if (align && ALIGN_CLASSES[align]) {
+        cell.classList.add(ALIGN_CLASSES[align]);
+      }
+      // Remove raw align attribute regardless
+      cell.removeAttribute('align');
+    });
+
     // Add scope="col" to header cells
     table.querySelectorAll('thead th').forEach((th) => {
       th.setAttribute('scope', 'col');
@@ -102,6 +120,68 @@ function enhanceTablesInDom(container: HTMLElement): void {
     wrapper.setAttribute('tabindex', '0');
     table.parentNode?.insertBefore(wrapper, table);
     wrapper.appendChild(table);
+
+    // Track scroll position to hide/show right-edge gradient
+    const updateScrollEnd = () => {
+      const atEnd = wrapper.scrollLeft + wrapper.clientWidth >= wrapper.scrollWidth - 2;
+      const noOverflow = wrapper.scrollWidth <= wrapper.clientWidth;
+      wrapper.setAttribute('data-scrolled-end', String(atEnd || noOverflow));
+    };
+    wrapper.addEventListener('scroll', updateScrollEnd, { passive: true });
+    // Initial check after layout
+    requestAnimationFrame(updateScrollEnd);
+  });
+}
+
+/**
+ * Post-process sanitized HTML to add copy buttons to fenced code blocks.
+ * Operates on already-sanitized content only.
+ */
+function enhanceCodeBlocksInDom(container: HTMLElement): void {
+  const preBlocks = container.querySelectorAll('pre');
+  preBlocks.forEach((pre) => {
+    const codeEl = pre.querySelector('code');
+    if (!codeEl) return;
+
+    // Create wrapper for relative positioning
+    const wrapper = document.createElement('div');
+    wrapper.className = 'lms-markdown-code-wrap';
+    pre.parentNode?.insertBefore(wrapper, pre);
+    wrapper.appendChild(pre);
+
+    // Create copy button
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lms-markdown-copy-btn';
+    btn.setAttribute('aria-label', 'Copy code');
+    btn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+      '<span class="lms-markdown-copy-label">Copy</span>';
+
+    btn.addEventListener('click', () => {
+      const text = codeEl.textContent || '';
+      try {
+        navigator.clipboard.writeText(text).then(
+          () => {
+            btn.innerHTML =
+              '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>' +
+              '<span class="lms-markdown-copy-label">Copied</span>';
+            btn.classList.add('lms-markdown-copy-btn--success');
+            setTimeout(() => {
+              btn.innerHTML =
+                '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+                '<span class="lms-markdown-copy-label">Copy</span>';
+              btn.classList.remove('lms-markdown-copy-btn--success');
+            }, 2000);
+          },
+          () => { /* clipboard denied — button stays as-is */ },
+        );
+      } catch {
+        /* clipboard API unavailable — button stays as-is */
+      }
+    });
+
+    wrapper.appendChild(btn);
   });
 }
 
@@ -162,10 +242,11 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadContent, [url]);
 
-  // Post-process DOM to wrap tables after HTML is set
+  // Post-process DOM to wrap tables and enhance code blocks after HTML is set
   useEffect(() => {
     if (html && contentRef.current) {
       enhanceTablesInDom(contentRef.current);
+      enhanceCodeBlocksInDom(contentRef.current);
     }
   }, [html]);
 
