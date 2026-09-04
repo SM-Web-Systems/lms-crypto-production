@@ -25,10 +25,43 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
       // Reject tokens issued before the last password reset.
       // One indexed SELECT by PK — negligible cost on SQLite.
-      const row = queryOne<{ password_changed_at: string | null }>(
-        'SELECT password_changed_at FROM users WHERE id = ?',
+      const row = queryOne<{ password_changed_at: string | null; deletion_status: string | null }>(
+        'SELECT password_changed_at, deletion_status FROM users WHERE id = ?',
         [payload.userId],
       );
+
+      // Account deletion gate: finalized users are fully blocked.
+      // pending_deletion users are restricted to allowlisted paths.
+      if (row?.deletion_status === 'finalized') {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: ErrorCodes.FORBIDDEN,
+            message: 'This account has been deleted and is no longer accessible.',
+          },
+        });
+        return;
+      }
+      if (row?.deletion_status === 'pending_deletion') {
+        // Allowlist: deletion management + data export
+        const allowedPaths = [
+          '/api/v1/account/delete',
+          '/api/v1/data-export',
+        ];
+        const requestPath = req.originalUrl.split('?')[0];
+        const isAllowed = allowedPaths.some(p => requestPath.startsWith(p));
+        if (!isAllowed) {
+          res.status(403).json({
+            success: false,
+            error: {
+              code: ErrorCodes.FORBIDDEN,
+              message: 'Account is pending deletion. Only deletion management and data export are available.',
+            },
+          });
+          return;
+        }
+      }
+
       if (row?.password_changed_at) {
         const changedEpoch =
           new Date(row.password_changed_at.replace(' ', 'T') + 'Z').getTime() / 1000;
