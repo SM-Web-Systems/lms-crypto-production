@@ -124,10 +124,21 @@ Future performance work should aim for:
 Note: Thresholds are conservative initial values. Raise them as scores
 are baselined (target: Performance >= 90, Accessibility >= 95).
 
+## Bundle Size CI
+
+- **Tool:** [size-limit](https://github.com/ai/size-limit) with `@size-limit/file`
+- **Config:** `LMS-Frontend/package.json` → `"size-limit"` array
+- **CI step:** Runs after `vite build` in the frontend job
+- **Thresholds:**
+  - App entry (JS): <= 350 KB
+  - React vendor: <= 200 KB
+  - Styles (CSS): <= 100 KB
+- **Fails CI** if any threshold exceeded
+
 ## Future Work
 
 - [x] Add Lighthouse CI to GitHub Actions (requires Chrome in CI environment).
-- [ ] Set up automated bundle size tracking (e.g., `size-limit` or Vite build reporter).
-- [ ] Monitor for bundle size regressions on PRs.
+- [x] Set up automated bundle size tracking (e.g., `size-limit` or Vite build reporter).
+- [x] Monitor for bundle size regressions on PRs.
 - [ ] Profile AdminCourse and AdminDashboard chunks for potential splitting.
 - [ ] Evaluate tree-shaking of `lucide-react` icons (often a hidden bundle cost).
