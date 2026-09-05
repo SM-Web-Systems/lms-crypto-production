@@ -329,9 +329,22 @@ function collectUrlEntries(weeks: Week[]): UrlEntry[] {
       moduleIndex++;
       for (const item of section.items) {
         const source = `Module ${moduleIndex} "${item.title}" (${item.type})`;
-        if (item.url) entries.push({ url: item.url, source, category: categorizeUrl(item.url) });
-        if (item.downloadUrl) entries.push({ url: item.downloadUrl, source: `${source} [download]`, category: categorizeUrl(item.downloadUrl) });
-        if (item.fileUrl) entries.push({ url: item.fileUrl, source: `${source} [file]`, category: categorizeUrl(item.fileUrl) });
+        if (item.url) {
+          entries.push({ url: item.url, source, category: categorizeUrl(item.url) });
+        }
+        if (item.youtubeUrl && item.youtubeUrl !== item.url) {
+          // youtubeUrl may be a bare video ID (e.g. "RW1Q7lIExOM") or a full URL
+          const ytUrl = item.youtubeUrl.startsWith('http')
+            ? item.youtubeUrl
+            : `https://www.youtube.com/watch?v=${item.youtubeUrl}`;
+          entries.push({ url: ytUrl, source: `${source} [youtube]`, category: 'youtube' });
+        }
+        if (item.downloadUrl) {
+          entries.push({ url: item.downloadUrl, source: `${source} [download]`, category: categorizeUrl(item.downloadUrl) });
+        }
+        if (item.fileUrl) {
+          entries.push({ url: item.fileUrl, source: `${source} [file]`, category: categorizeUrl(item.fileUrl) });
+        }
       }
     }
   }
@@ -364,6 +377,7 @@ async function checkSingleUrl(url: string): Promise<{ ok: boolean; status?: numb
         headers: { Range: 'bytes=0-0' },
       });
       clearTimeout(timeout2);
+      await res2.body?.cancel();
       if (res2.ok || res2.status === 206) {
         return { ok: true, status: res2.status };
       }
@@ -389,16 +403,8 @@ async function checkUrlReachability(weeks: Week[]) {
 
   const uniqueUrls = [...urlToSources.keys()];
   const categoryCount = { youtube: 0, github: 0, other: 0 };
-  for (const entry of entries) {
-    if (!categoryCount[entry.category]) categoryCount[entry.category] = 0;
-  }
-  // Count unique URLs per category
-  const seen = new Set<string>();
-  for (const entry of entries) {
-    if (!seen.has(entry.url)) {
-      seen.add(entry.url);
-      categoryCount[entry.category]++;
-    }
+  for (const url of uniqueUrls) {
+    categoryCount[categorizeUrl(url)]++;
   }
 
   report('INFO', 'REACHABILITY', `Checking ${uniqueUrls.length} unique URLs (${categoryCount.youtube} YouTube, ${categoryCount.github} GitHub, ${categoryCount.other} other)...`);
