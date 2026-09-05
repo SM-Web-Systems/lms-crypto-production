@@ -1,6 +1,13 @@
 import { test, expect } from '../fixtures/auth';
 import { apiURL } from '../playwright.config';
-import { createHmac } from 'crypto';
+import {
+  sendWebhook,
+  sendChargeSuccess,
+  sendChargeFailed,
+  sendRefundProcessed,
+  sendDuplicateWebhook,
+  computeSignature,
+} from '../helpers/webhook-seeding';
 
 /**
  * E2E tests for payment flows (Paystack + Stellar).
@@ -115,67 +122,122 @@ test.describe('Webhook Security', () => {
   });
 
   test('webhook with valid signature but unknown reference returns 200', async ({ request }) => {
-    // In test env, PAYSTACK_SECRET_KEY defaults to empty string
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY || '';
-    const payload = JSON.stringify({
-      event: 'charge.success',
-      data: {
-        reference: 'lms-pay-unknown-ref-9999',
-        amount: 10000,
-        currency: 'ZAR',
-        status: 'success',
-      },
-    });
-
-    const signature = createHmac('sha512', paystackSecret)
-      .update(payload)
-      .digest('hex');
-
-    const res = await request.post(`${apiURL}/api/v1/webhooks/paystack`, {
-      data: payload,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-paystack-signature': signature,
-      },
-    });
+    const result = await sendChargeSuccess(
+      request, apiURL, 'lms-pay-unknown-ref-9999', 10000,
+    );
     // Webhook with valid sig but unknown ref: should return 200 (no-match, logged)
-    expect(res.status()).toBe(200);
+    expect(result.status).toBe(200);
   });
 
   test('duplicate webhook with same reference is handled idempotently', async ({ request }) => {
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY || '';
-    const payload = JSON.stringify({
-      event: 'charge.success',
+    const payload = {
+      event: 'charge.success' as const,
       data: {
         reference: 'lms-pay-idempotent-test-01',
         amount: 10000,
         currency: 'ZAR',
         status: 'success',
       },
-    });
-
-    const signature = createHmac('sha512', paystackSecret)
-      .update(payload)
-      .digest('hex');
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'x-paystack-signature': signature,
     };
 
-    // Send the same webhook twice
-    const res1 = await request.post(`${apiURL}/api/v1/webhooks/paystack`, {
-      data: payload,
-      headers,
-    });
-    const res2 = await request.post(`${apiURL}/api/v1/webhooks/paystack`, {
-      data: payload,
-      headers,
-    });
+    const { first, second } = await sendDuplicateWebhook(request, apiURL, payload);
 
     // Both should return 200 (idempotent — no error on duplicate)
-    expect(res1.status()).toBe(200);
-    expect(res2.status()).toBe(200);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
+});
+
+test.describe('Webhook Event Types', () => {
+  test('charge.success webhook is accepted', async ({ request }) => {
+    const result = await sendChargeSuccess(
+      request, apiURL, `e2e-charge-success-${Date.now()}`, 25000,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toHaveProperty('success', true);
+  });
+
+  test('charge.failed webhook is accepted', async ({ request }) => {
+    const result = await sendChargeFailed(
+      request, apiURL, `e2e-charge-failed-${Date.now()}`, 25000,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toHaveProperty('success', true);
+  });
+
+  test('refund.processed webhook is accepted', async ({ request }) => {
+    const result = await sendRefundProcessed(
+      request, apiURL, `e2e-refund-processed-${Date.now()}`, 25000,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toHaveProperty('success', true);
+  });
+
+  test('unknown event type is acknowledged', async ({ request }) => {
+    const result = await sendWebhook(request, apiURL, {
+      event: 'transfer.success',
+      data: {
+        reference: `e2e-unknown-event-${Date.now()}`,
+        amount: 5000,
+        currency: 'ZAR',
+        status: 'success',
+      },
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toHaveProperty('success', true);
+  });
+
+  test('webhook with empty reference in payload is handled', async ({ request }) => {
+    const result = await sendWebhook(request, apiURL, {
+      event: 'charge.success',
+      data: {
+        reference: '',
+        amount: 10000,
+        currency: 'ZAR',
+        status: 'success',
+      },
+    });
+    // Should return 200 (no matching payment for empty reference, but valid webhook)
+    expect(result.status).toBe(200);
+  });
+
+  test('webhook signature verification uses raw body', async ({ request }) => {
+    // Verify that the signature is computed over the exact raw body,
+    // not a re-serialized version (whitespace-sensitive)
+    const payloadStr = '{"event":"charge.success","data":{"reference":"e2e-raw-body-test","amount":10000,"currency":"ZAR","status":"success"}}';
+    const signature = computeSignature(payloadStr);
+
+    const res = await request.post(`${apiURL}/api/v1/webhooks/paystack`, {
+      data: payloadStr,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-paystack-signature': signature,
+      },
+    });
+    expect(res.status()).toBe(200);
+  });
+});
+
+test.describe('Webhook Idempotency', () => {
+  test('three identical webhooks are all accepted (idempotent)', async ({ request }) => {
+    const ref = `e2e-triple-${Date.now()}`;
+    const r1 = await sendChargeSuccess(request, apiURL, ref, 10000);
+    const r2 = await sendChargeSuccess(request, apiURL, ref, 10000);
+    const r3 = await sendChargeSuccess(request, apiURL, ref, 10000);
+
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+    expect(r3.status).toBe(200);
+  });
+
+  test('different event types for same reference are processed independently', async ({ request }) => {
+    const ref = `e2e-multi-event-${Date.now()}`;
+
+    const success = await sendChargeSuccess(request, apiURL, ref, 10000);
+    const failed = await sendChargeFailed(request, apiURL, ref, 10000);
+
+    expect(success.status).toBe(200);
+    expect(failed.status).toBe(200);
   });
 });
 
