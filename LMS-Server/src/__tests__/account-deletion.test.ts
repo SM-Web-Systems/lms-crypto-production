@@ -513,6 +513,52 @@ describe('Phase 4: Anonymization Service', () => {
     );
     expect(snapshot!.original_name).toBe('Jane Doe'); // original, not changed
   });
+
+  it('ANON-07: anonymizeUser deletes avatar file from disk', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const os = await import('os');
+    const { snapshotIdentity, anonymizeUser } = await import('../services/deletionService.js');
+    const user = createUser({ name: 'Avatar User', email: 'avatar@example.com' });
+
+    // Create a temp avatar file
+    const tmpDir = os.tmpdir();
+    const avatarPath = path.join(tmpDir, `test-avatar-${user.id}.jpg`);
+    fs.writeFileSync(avatarPath, 'fake-image-data');
+    expect(fs.existsSync(avatarPath)).toBe(true);
+
+    // Ensure user_profiles with avatar_path
+    db.exec(`CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id TEXT PRIMARY KEY REFERENCES users(id),
+      bio TEXT, phone TEXT, address TEXT, avatar_url TEXT, avatar_path TEXT,
+      date_of_birth TEXT, linkedin_url TEXT, twitter_url TEXT, website_url TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`);
+    db.prepare('INSERT OR REPLACE INTO user_profiles (user_id, avatar_path) VALUES (?, ?)').run(user.id, avatarPath);
+
+    snapshotIdentity(user.id);
+    anonymizeUser(user.id);
+
+    expect(fs.existsSync(avatarPath)).toBe(false);
+  });
+
+  it('ANON-08: anonymizeUser does not error when no avatar_path', async () => {
+    const { snapshotIdentity, anonymizeUser } = await import('../services/deletionService.js');
+    const user = createUser({ name: 'No Avatar', email: 'noavatar@example.com' });
+
+    db.exec(`CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id TEXT PRIMARY KEY REFERENCES users(id),
+      bio TEXT, phone TEXT, address TEXT, avatar_url TEXT, avatar_path TEXT,
+      date_of_birth TEXT, linkedin_url TEXT, twitter_url TEXT, website_url TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`);
+    db.prepare('INSERT OR REPLACE INTO user_profiles (user_id, bio) VALUES (?, ?)').run(user.id, 'Some bio');
+
+    snapshotIdentity(user.id);
+    expect(() => anonymizeUser(user.id)).not.toThrow();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────
