@@ -15,56 +15,104 @@ import { apiURL } from '../playwright.config';
  */
 
 test.describe('Payment Flow', () => {
-  test.skip('student can view course pricing', async ({ studentPage }) => {
-    // TODO: Navigate to a course with pricing enabled
-    // - Verify pricing information is displayed
-    // - Verify payment button is visible for unpaid courses
+  test('student can view course pricing', async ({ studentPage }) => {
+    // Fetch available courses to find one with pricing
+    const coursesRes = await studentPage.request.get(`${apiURL}/api/v1/courses`);
+    expect(coursesRes.ok()).toBeTruthy();
+    const coursesBody = await coursesRes.json();
+    const courses = coursesBody.data?.courses || coursesBody.data || [];
+
+    if (courses.length === 0) {
+      test.skip(true, 'No courses available in test environment');
+      return;
+    }
+
+    const courseId = courses[0].id;
+    const pricingRes = await studentPage.request.get(
+      `${apiURL}/api/v1/courses/${courseId}/pricing`,
+    );
+    expect(pricingRes.ok()).toBeTruthy();
+    const pricing = await pricingRes.json();
+    const data = pricing.data || pricing;
+
+    // Pricing response should include key fields
+    expect(data).toHaveProperty('priceCents');
+    expect(data).toHaveProperty('currency');
+    expect(typeof data.priceCents).toBe('number');
+    expect(data.priceCents).toBeGreaterThanOrEqual(0);
   });
 
   test.skip('successful Paystack checkout initiation', async ({ studentPage }) => {
-    // TODO: Initiate Paystack checkout for a paid course
-    // - Click payment button
-    // - Verify checkout redirect or modal appears
-    // - Verify payment reference is generated
+    // Requires a paid course with an application — skip until test data seeding is available.
+    // To implement:
+    // 1. Create/find an application for a paid course
+    // 2. POST /payments/checkout/paystack with applicationId
+    // 3. Verify response contains checkoutUrl, reference, accessCode
   });
 
   test.skip('payment confirmation updates enrollment', async ({ studentPage }) => {
-    // TODO: Simulate successful payment callback
-    // - Verify student enrollment status changes to active
-    // - Verify course content becomes accessible
+    // Requires simulating a Paystack webhook callback — skip until webhook mocking is available.
   });
 
   test.skip('failed payment shows error state', async ({ studentPage }) => {
-    // TODO: Simulate failed payment
-    // - Verify error message is displayed
-    // - Verify student is not enrolled
-    // - Verify retry option is available
+    // Requires a failed payment scenario — skip until test data seeding is available.
   });
 
   test.skip('duplicate webhook is handled idempotently', async ({ request }) => {
-    // TODO: Send Paystack webhook twice with same reference
-    // - First call should process the payment
-    // - Second call should return success without duplicate processing
-    // - Verify only one payment record exists
+    // Requires HMAC-signed webhook payloads — skip until webhook test helpers are available.
   });
 
   test.skip('expired payment session shows timeout', async ({ studentPage }) => {
-    // TODO: Simulate expired payment session
-    // - Verify timeout message is displayed
-    // - Verify student can initiate a new payment
+    // Requires payment session expiry simulation — skip until test infrastructure supports it.
   });
 });
 
 test.describe('Payment API', () => {
-  test.skip('payment history endpoint returns student payments', async ({ studentPage }) => {
-    // TODO: Verify GET /student/payments returns payment records
-    const response = await studentPage.request.get(`${apiURL}/api/v1/student/payments`);
-    expect([200, 401]).toContain(response.status());
+  test('payment history endpoint returns student payments', async ({ studentPage }) => {
+    const response = await studentPage.request.get(`${apiURL}/api/v1/payments/mine`);
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    const payments = body.data || [];
+
+    // Response should be an array (may be empty for a fresh test user)
+    expect(Array.isArray(payments)).toBe(true);
+
+    // If payments exist, validate structure
+    if (payments.length > 0) {
+      const payment = payments[0];
+      expect(payment).toHaveProperty('courseId');
+      expect(payment).toHaveProperty('status');
+      expect(payment).toHaveProperty('paymentMethod');
+      expect(payment).toHaveProperty('amountCents');
+    }
   });
 
-  test.skip('admin payment analytics endpoint returns summary', async ({ request }) => {
-    // TODO: Verify GET /analytics/payments returns admin analytics
-    // - Requires admin authentication
-    // - Verify response includes revenue, confirmed, pending, failed counts
+  test('admin payment analytics endpoint returns summary', async ({ adminPage }) => {
+    const response = await adminPage.request.get(`${apiURL}/api/v1/analytics/payments`);
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    const data = body.data || body;
+
+    // Analytics should include summary fields
+    expect(data).toHaveProperty('summary');
+    const summary = data.summary;
+    expect(summary).toHaveProperty('totalRevenue');
+    expect(summary).toHaveProperty('confirmed');
+    expect(summary).toHaveProperty('pending');
+    expect(summary).toHaveProperty('failed');
+  });
+
+  test('unauthenticated request to payments is rejected', async ({ page }) => {
+    // Ensure payment endpoints require authentication
+    const response = await page.request.get(`${apiURL}/api/v1/payments/mine`);
+    expect(response.status()).toBe(401);
+  });
+
+  test('student cannot access admin payment list', async ({ studentPage }) => {
+    const response = await studentPage.request.get(`${apiURL}/api/v1/admin/payments`);
+    // Should be 403 (forbidden) or 401 depending on RBAC implementation
+    expect([401, 403]).toContain(response.status());
   });
 });
