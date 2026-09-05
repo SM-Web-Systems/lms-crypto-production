@@ -4,6 +4,7 @@
  */
 
 import { randomBytes } from 'crypto';
+import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { auditLog } from './auditService.js';
@@ -75,6 +76,20 @@ export function anonymizeUser(userId: string): void {
     "SELECT name FROM sqlite_master WHERE type='table' AND name='user_profiles'"
   );
   if (hasProfiles) {
+    // Delete avatar file from disk before clearing the path
+    const hasAvatarPath = queryOne<{ name: string }>(
+      "SELECT name FROM pragma_table_info('user_profiles') WHERE name = 'avatar_path'"
+    );
+    if (hasAvatarPath) {
+      const profile = queryOne<{ avatar_path: string | null }>(
+        'SELECT avatar_path FROM user_profiles WHERE user_id = ?',
+        [userId]
+      );
+      if (profile?.avatar_path) {
+        try { fs.unlinkSync(profile.avatar_path); } catch { /* file may already be gone */ }
+      }
+    }
+
     execute(
       `UPDATE user_profiles SET
          bio = NULL, phone = NULL, address = NULL, avatar_url = NULL,

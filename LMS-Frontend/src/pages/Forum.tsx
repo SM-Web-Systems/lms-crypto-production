@@ -180,7 +180,7 @@ const Forum: React.FC = () => {
 
   // ── Thread view ──────────────────────────────────────────────────────────────
   if (selectedTopic) {
-    const author = selectedTopic.author ?? { name: 'Unknown', role: 'student' };
+    const author = selectedTopic.author ?? { name: 'Unknown', role: 'student', isDeleted: false };
     return (
       <div>
         {/* Channel breadcrumb */}
@@ -222,7 +222,7 @@ const Forum: React.FC = () => {
               <Card key={post.id}>
                 <CardContent className="p-4">
                   <PostAuthor
-                    author={post.author ?? { name: 'Unknown', role: 'student' }}
+                    author={post.author ?? { name: 'Unknown', role: 'student', isDeleted: false }}
                     createdAt={post.createdAt}
                   />
                   <div className="mt-3 text-neutral-700 whitespace-pre-wrap">{post.body}</div>
@@ -457,7 +457,10 @@ const Forum: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-neutral-800 truncate">{topic.title}</h3>
                   <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
-                    <span className="flex items-center gap-1">
+                    <span
+                      className={`flex items-center gap-1${topic.author?.isDeleted ? ' italic text-neutral-400' : ''}`}
+                      title={topic.author?.isDeleted ? 'This user has deleted their account' : undefined}
+                    >
                       <User className="h-3.5 w-3" />
                       {topic.author?.name ?? 'Unknown'}
                     </span>
@@ -540,15 +543,21 @@ function PostAuthor({
   author,
   createdAt,
 }: {
-  author: { name?: string; role?: string };
+  author: { name?: string; role?: string; isDeleted?: boolean };
   createdAt: string;
 }) {
   const name = author?.name ?? 'Unknown';
   const role = author?.role ?? '';
+  const deleted = author?.isDeleted === true;
   return (
     <div className="flex items-center gap-2 text-sm text-neutral-500">
-      <span className="font-medium text-neutral-700">{name}</span>
-      {role && <><span>·</span><span className="capitalize">{role}</span></>}
+      <span
+        className={deleted ? 'italic text-neutral-400' : 'font-medium text-neutral-700'}
+        title={deleted ? 'This user has deleted their account' : undefined}
+      >
+        {name}
+      </span>
+      {role && !deleted && <><span>·</span><span className="capitalize">{role}</span></>}
       <span>·</span>
       <time dateTime={createdAt}>{formatDate(createdAt)}</time>
     </div>

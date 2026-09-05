@@ -3,8 +3,9 @@
 export interface ForumAuthor {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   role: 'student' | 'admin';
+  isDeleted?: boolean;
 }
 
 export interface ForumTopic {
