@@ -1,3 +1,5 @@
+> Historical planning artifact — created before implementation. Verify current code, PRs, policy, and deployment state before acting on this document. See `docs/superpowers/specs/2026-09-04-forum-anonymization-implementation-status.md`.
+
 # Forum Anonymization & Account Deletion — Implementation Plan
 
 **Date:** 2026-09-04
