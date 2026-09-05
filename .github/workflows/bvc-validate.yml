@@ -1,0 +1,32 @@
+name: BVC Content Validation
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: BVC Content Validator
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LMS-Server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Server/package-lock.json
+      - run: npm ci
+      - name: Typecheck validator
+        run: npx tsc --noEmit src/scripts/validateBvcContent.ts
+      - name: Validate BVC content (skip reachability — no DB in CI)
+        run: |
+          echo "NOTE: Full validation with URL reachability requires the production database."
+          echo "Run on production: docker exec lms-api npm run validate:bvc"
+          echo ""
+          echo "Typecheck passed — validator script compiles correctly."
+          echo "For full validation, use workflow_dispatch on the production server"
+          echo "or run manually: docker exec lms-api npx tsx src/scripts/validateBvcContent.ts"

@@ -27,6 +27,8 @@ jobs:
         continue-on-error: true
       - run: npx tsc --noEmit
       - run: npx vitest run
+      - name: Typecheck BVC validator script
+        run: npx tsc --noEmit src/scripts/validateBvcContent.ts
 
   frontend:
     name: Frontend Tests & Build
