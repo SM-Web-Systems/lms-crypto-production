@@ -6,8 +6,37 @@ import { db, close } from './config/database.js';
 import logger from './utils/logger.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
 import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
+import { processExpiredDeletions } from './services/deletionService.js';
 
 const PORT = process.env.PORT || 3001;
+
+let deletionSchedulerInterval: ReturnType<typeof setInterval> | null = null;
+const DELETION_SCHEDULER_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function startDeletionScheduler() {
+  // Run once on startup, then every 24 hours
+  try {
+    const count = processExpiredDeletions();
+    if (count > 0) logger.info({ count }, 'Deletion scheduler: finalized expired accounts on startup');
+  } catch (err) {
+    logger.error({ err }, 'Deletion scheduler startup run failed');
+  }
+  deletionSchedulerInterval = setInterval(() => {
+    try {
+      const count = processExpiredDeletions();
+      if (count > 0) logger.info({ count }, 'Deletion scheduler: finalized expired accounts');
+    } catch (err) {
+      logger.error({ err }, 'Deletion scheduler run failed');
+    }
+  }, DELETION_SCHEDULER_INTERVAL_MS);
+}
+
+function stopDeletionScheduler() {
+  if (deletionSchedulerInterval) {
+    clearInterval(deletionSchedulerInterval);
+    deletionSchedulerInterval = null;
+  }
+}
 
 function startServer() {
   try {
@@ -31,6 +60,8 @@ function startServer() {
       startScheduler();
       // Start email retry worker for durable delivery (FIND-027-02)
       startEmailRetryWorker();
+      // Start deletion finalization scheduler — runs daily (24h interval)
+      startDeletionScheduler();
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to start server');
@@ -54,6 +85,7 @@ process.on('SIGINT', () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
   stopEmailRetryWorker();
+  stopDeletionScheduler();
   close();
   process.exit(0);
 });
@@ -62,6 +94,7 @@ process.on('SIGTERM', () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
   stopEmailRetryWorker();
+  stopDeletionScheduler();
   close();
   process.exit(0);
 });
