@@ -1,0 +1,79 @@
+name: Lighthouse
+
+on:
+  schedule:
+    - cron: '0 6 * * 2' # Weekly on Tuesday at 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    name: Lighthouse Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd LMS-Frontend && npm ci
+
+      - name: Build frontend
+        run: cd LMS-Frontend && npx vite build
+
+      - name: Start preview server
+        run: cd LMS-Frontend && npx vite preview --port 4173 &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:4173 --timeout 15000
+
+      - name: Install Lighthouse
+        run: npm install -g lighthouse
+
+      - name: Run Lighthouse — Login page
+        run: |
+          lighthouse http://localhost:4173/ \
+            --chrome-flags="--headless --no-sandbox --disable-gpu" \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --output=json --output=html \
+            --output-path=./lighthouse-login
+
+      - name: Check thresholds
+        run: |
+          node -e "
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('./lighthouse-login.report.json', 'utf8'));
+            const cats = report.categories;
+            const scores = {
+              performance: Math.round(cats.performance.score * 100),
+              accessibility: Math.round(cats.accessibility.score * 100),
+              'best-practices': Math.round(cats['best-practices'].score * 100),
+              seo: Math.round(cats.seo.score * 100),
+            };
+            console.log('Lighthouse Scores:');
+            Object.entries(scores).forEach(([k, v]) => console.log('  ' + k + ': ' + v));
+
+            const thresholds = { performance: 70, accessibility: 80, 'best-practices': 80, seo: 80 };
+            let failed = false;
+            Object.entries(thresholds).forEach(([k, min]) => {
+              if (scores[k] < min) {
+                console.error('FAIL: ' + k + ' score ' + scores[k] + ' < ' + min);
+                failed = true;
+              }
+            });
+            if (failed) process.exit(1);
+            console.log('All thresholds passed.');
+          "
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: |
+            lighthouse-login.report.json
+            lighthouse-login.report.html
+          retention-days: 30

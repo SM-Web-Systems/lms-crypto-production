@@ -108,9 +108,25 @@ Future performance work should aim for:
 5. **No Chrome on production server** prevents Lighthouse audits. Recommend adding Lighthouse CI in GitHub Actions.
 6. **Server-side TTFB is excellent** — all endpoints respond under 70ms from same-host. The SPA shell (`/`) serves in 40ms.
 
+## Lighthouse CI
+
+- **Workflow:** `.github/workflows/lighthouse.yml`
+- **Schedule:** Weekly automated runs (Tuesday 6 AM UTC)
+- **Trigger:** Manual workflow dispatch
+- **Target:** Login page (SPA shell at `localhost:4173` via `vite preview`)
+- **Thresholds:**
+  - Performance: >= 70
+  - Accessibility: >= 80
+  - Best Practices: >= 80
+  - SEO: >= 80
+- **Artifacts:** JSON + HTML reports retained 30 days
+
+Note: Thresholds are conservative initial values. Raise them as scores
+are baselined (target: Performance >= 90, Accessibility >= 95).
+
 ## Future Work
 
-- [ ] Add Lighthouse CI to GitHub Actions (requires Chrome in CI environment).
+- [x] Add Lighthouse CI to GitHub Actions (requires Chrome in CI environment).
 - [ ] Set up automated bundle size tracking (e.g., `size-limit` or Vite build reporter).
 - [ ] Monitor for bundle size regressions on PRs.
 - [ ] Profile AdminCourse and AdminDashboard chunks for potential splitting.
