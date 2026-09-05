@@ -2,11 +2,19 @@ import { db } from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 
+const BUILD_SHA_PATTERN = /^[0-9a-f]{7,64}$/;
+
+export function validateBuildSha(raw: string | undefined): string {
+  if (!raw || !BUILD_SHA_PATTERN.test(raw)) return 'unknown';
+  return raw;
+}
+
 let _buildSha: string | undefined;
 function getBuildSha(): string {
   if (_buildSha !== undefined) return _buildSha;
   try {
-    _buildSha = fs.readFileSync(path.resolve(process.cwd(), 'BUILD_SHA'), 'utf-8').trim();
+    const raw = fs.readFileSync(path.resolve(process.cwd(), 'BUILD_SHA'), 'utf-8').trim();
+    _buildSha = validateBuildSha(raw);
   } catch {
     _buildSha = 'unknown';
   }

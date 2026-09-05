@@ -51,6 +51,20 @@ check         "Readiness endpoint"  "$BASE_URL/healthz"   "200"
 check_json    "Readiness status"    "$BASE_URL/healthz"   ".ready"  "true"
 check         "Courses API"         "$BASE_URL/api/v1/courses" "200"
 
+# Build SHA — verify the field is present (non-empty string)
+build_sha=$(curl -s --max-time 5 "$BASE_URL/health" 2>/dev/null | node -e "
+  let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+    try{const v=JSON.parse(d).buildSha;console.log(typeof v==='string'&&v.length>0?'present':'missing')}catch{console.log('missing')}
+  })
+" 2>/dev/null) || build_sha="missing"
+if [ "$build_sha" = "present" ]; then
+  echo "  PASS  Build SHA present"
+  pass=$((pass + 1))
+else
+  echo "  FAIL  Build SHA missing from health response"
+  fail=$((fail + 1))
+fi
+
 echo ""
 echo "==> Results: $pass passed, $fail failed"
 

@@ -72,3 +72,44 @@ docker compose up --build
 ## Vite local config
 
 - **`LMS-Frontend/vite.config.ts`** is committed with **`server.host`**, **`preview`**, and **`allowedHosts`** (plus optional **`VITE_DEV_ALLOWED_HOSTS`**). Avoid maintaining a second, unpushed copy of this file so `git pull` stays clean.
+
+## Build SHA Traceability
+
+Every Docker build can embed a git commit SHA so that running containers are traceable back to source code.
+
+### How it works
+
+1. **`BUILD_SHA`** is passed as a Docker build arg to both `api` and `web` services.
+2. The **API** writes it to `/app/BUILD_SHA` at build time; `healthCheckService.ts` reads and validates it (lowercase hex, 7–64 chars). Invalid values fall back to `"unknown"`.
+3. The **frontend** receives it as `VITE_BUILD_SHA` at Vite build time; the Admin Dashboard displays both API and frontend SHAs.
+
+### Build commands
+
+```bash
+# Both services with SHA
+BUILD_SHA=$(git rev-parse HEAD) docker compose build api web
+
+# API only
+BUILD_SHA=$(git rev-parse HEAD) docker compose build api && docker compose up -d --no-deps api
+
+# Web only
+BUILD_SHA=$(git rev-parse HEAD) docker compose build web && docker compose up -d --no-deps web
+```
+
+The deploy script (`scripts/deploy.sh`) resolves `BUILD_SHA` automatically from `git rev-parse HEAD`.
+
+### Verify
+
+```bash
+# API build SHA
+curl -s https://lms.smwebsystems.com/api/v1/health | jq -r .buildSha
+
+# Frontend build SHA — visible in the Admin Dashboard system info footer
+```
+
+### Responding to `"unknown"` buildSha
+
+If the health endpoint returns `"unknown"`:
+1. The container was built without `BUILD_SHA` (e.g. `docker compose build` without exporting the var).
+2. Rebuild: `BUILD_SHA=$(git rev-parse HEAD) docker compose build api && docker compose up -d --no-deps api`
+3. Verify: `curl -s http://127.0.0.1:3001/health | jq -r .buildSha`

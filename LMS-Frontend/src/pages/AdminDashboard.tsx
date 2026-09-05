@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
+import { validateBuildSha, getShortSha } from '../utils/buildInfo';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import {
@@ -80,6 +81,16 @@ const AdminDashboard: React.FC = () => {
   const [courseAnalytics, setCourseAnalytics] = useState<CourseAnalytics[]>([]);
   useEffect(() => {
     analyticsService.getCourseAnalytics().then(setCourseAnalytics).catch(() => {});
+  }, []);
+
+  const frontendSha = validateBuildSha(import.meta.env.VITE_BUILD_SHA);
+  const [apiBuildSha, setApiBuildSha] = useState<string>('unknown');
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+    fetch(`${apiBase}/health`)
+      .then((r) => r.json())
+      .then((data) => setApiBuildSha(validateBuildSha(data?.buildSha)))
+      .catch(() => {});
   }, []);
 
   const pendingSubmissions = submissions.filter((s) => s.status === 'pending').length;
@@ -535,6 +546,13 @@ const AdminDashboard: React.FC = () => {
           </div>
         </Card>
       )}
+
+      {/* System Info */}
+      <div data-testid="system-info" className="mt-4 border-t border-neutral-200/60 pt-4">
+        <p className="text-xs text-neutral-400 font-mono">
+          API: {getShortSha(apiBuildSha)} · Frontend: {getShortSha(frontendSha)}
+        </p>
+      </div>
     </div>
   );
 };
