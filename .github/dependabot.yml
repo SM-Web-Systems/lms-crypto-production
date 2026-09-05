@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/LMS-Server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: "increase"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  - package-ecosystem: "npm"
+    directory: "/LMS-Frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: "increase"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  - package-ecosystem: "npm"
+    directory: "/e2e"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    versioning-strategy: "increase"
+    labels:
+      - "dependencies"
+      - "automated"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "automated"

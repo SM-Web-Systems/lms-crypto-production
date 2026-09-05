@@ -22,6 +22,9 @@ jobs:
           cache: npm
           cache-dependency-path: LMS-Server/package-lock.json
       - run: npm ci
+      - name: Audit backend dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: true
       - run: npx tsc --noEmit
       - run: npx vitest run
 
@@ -39,6 +42,9 @@ jobs:
           cache: npm
           cache-dependency-path: LMS-Frontend/package-lock.json
       - run: npm ci
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: true
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx vite build
