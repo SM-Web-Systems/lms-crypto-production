@@ -3,6 +3,7 @@
 **Feature:** Account deletion with 30-day grace period, forum anonymization, compliance access
 **Branch:** `feat/account-deletion-forum-anonymization`
 **Base:** `2491bd5`
+**PR link:** https://github.com/SM-Web-Systems/lms-crypto-production/pull/3
 
 ---
 
