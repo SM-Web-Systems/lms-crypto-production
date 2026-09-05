@@ -102,3 +102,27 @@ Save follow-up plan document to `docs/superpowers/plans/`.
 - `cd LMS-Server && npx vitest run` — all backend tests pass
 - `cd LMS-Frontend && npx vitest run` — all frontend tests pass
 - `cd e2e && npx playwright test account-deletion` — E2E specs pass
+
+---
+
+## Deployment Record (2026-09-05)
+
+| Field | Value |
+|---|---|
+| PR | https://github.com/SM-Web-Systems/lms-crypto-production/pull/4 |
+| Merge SHA | `1ebba89f95f753bf1f0973814a1fd8e818c23eea` |
+| Deploy SHA | `1ebba89f95f753bf1f0973814a1fd8e818c23eea` |
+| Health | `lms.smwebsystems.com/api/v1/health` returns `buildSha: 1ebba89...`, status: ok |
+
+### Post-deploy verification
+
+| Check | Status | Notes |
+|---|---|---|
+| Frontend styling | VERIFIED | `Forum-_hTUBBIF.js` contains `italic text-neutral-400` and tooltip text |
+| Avatar cleanup | VERIFIED | `fs.unlinkSync` present in deployed `deletionService.ts`; ANON-07/08 tests pass |
+| E2E specs | VERIFIED | `account-deletion.spec.ts` on main (7 scenarios) |
+| Follow-up plan doc | VERIFIED | Present on main at `docs/superpowers/plans/` |
+| Backend tests | 1314/1314 | 0 failures |
+| Frontend tests | 2/2 new | PostAuthor DA-01/DA-02 passing |
+| TypeScript | Clean | 0 errors |
+| Error logs | Clean | No error spikes post-deploy |
