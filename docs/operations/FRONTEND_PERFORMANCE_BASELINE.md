@@ -2,16 +2,31 @@
 
 ## Context
 
-- Recorded on: 2026-09-05
-- Repository SHA: be8dce2
-- Deployed web build SHA: f63124cfb5bf2ee952029af4bf9f394dd1f34c15
+- Recorded on: 2026-09-05 (bundle sizes), updated 2026-09-05 (TTFB metrics)
+- Repository SHA: 311d8e6 (deployed)
+- Deployed web build SHA: 311d8e6
 - Build tool: Vite (code-split output)
 - Frontend framework: React 18 + TypeScript
 
+## Server-Side Response Metrics
+
+Measured from production server using curl (same-host, minimal network latency).
+Recorded: 2026-09-05T17:48:03Z.
+
+| Endpoint | TTFB | Total | Size | Status |
+|----------|------|-------|------|--------|
+| `/` (SPA shell) | 40ms | 40ms | 1.5 KB | 200 |
+| `/api/v1/health` | 63ms | 63ms | 293 B | 200 |
+| `/api/v1/courses` (unauth) | 69ms | 69ms | 101 B | 401 |
+| `vendor-react-CdyKF4gv.js` | 52ms | 54ms | 159 KB | 200 |
+
+All TTFB values under 70ms (same-host). External client latency will add network RTT.
+
 ## Lighthouse Scores
 
-Lighthouse requires Chrome/Chromium which is not available on the production server.
-Run locally or in CI against the deployed frontend.
+**Status: Blocked** — No Chrome/Chromium available on production server.
+
+To record Lighthouse scores, run from a machine with Chrome:
 
 ```bash
 npx lighthouse https://lms.smwebsystems.com \
@@ -20,13 +35,15 @@ npx lighthouse https://lms.smwebsystems.com \
   --output=json --output-path=lighthouse-report.json
 ```
 
+Or add Lighthouse CI to GitHub Actions (see Future Work).
+
 | Page | Performance | Accessibility | Best Practices | SEO |
 |------|-------------|---------------|----------------|-----|
-| Login (`/`) | TBD | TBD | TBD | TBD |
-| Student Dashboard (`/student`) | TBD | TBD | TBD | TBD |
-| Course Viewer (`/student/course/:id`) | TBD | TBD | TBD | TBD |
-| Quiz (`/student/quizzes`) | TBD | TBD | TBD | TBD |
-| Admin Dashboard (`/admin`) | TBD | TBD | TBD | TBD |
+| Login (`/`) | — | — | — | — |
+| Student Dashboard (`/student`) | — | — | — | — |
+| Course Viewer (`/student/course/:id`) | — | — | — | — |
+| Quiz (`/student/quizzes`) | — | — | — | — |
+| Admin Dashboard (`/admin`) | — | — | — | — |
 
 ## Bundle Sizes
 
@@ -77,8 +94,9 @@ Future performance work should aim for:
 |--------|---------|--------|
 | Initial load (gzip) | 107 KB | < 120 KB (maintain) |
 | Total bundle (gzip) | 288 KB | < 350 KB |
-| Lighthouse Performance | TBD | >= 90 |
-| Lighthouse Accessibility | TBD | >= 95 |
+| API TTFB (same-host) | 63 ms | < 100 ms |
+| Lighthouse Performance | — (no Chrome) | >= 90 |
+| Lighthouse Accessibility | — (no Chrome) | >= 95 |
 | Largest route chunk (raw) | 67.5 KB | < 80 KB |
 
 ## Observations
@@ -88,6 +106,7 @@ Future performance work should aim for:
 3. **CSS is well-compressed** (94.2 KB raw -> 14.5 KB gzip, 84% compression).
 4. **AdminCourse and AdminDashboard are the heaviest route chunks** (~63-68 KB raw each). These are admin-only routes loaded on demand.
 5. **No Chrome on production server** prevents Lighthouse audits. Recommend adding Lighthouse CI in GitHub Actions.
+6. **Server-side TTFB is excellent** — all endpoints respond under 70ms from same-host. The SPA shell (`/`) serves in 40ms.
 
 ## Future Work
 
