@@ -54,6 +54,7 @@ services:
         VITE_API_BASE_URL: /api/v1
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?Set VITE_CLERK_PUBLISHABLE_KEY in LMS-AmmaWallet/.env (placeholder value is fine)}
         VITE_AMMA_WALLET_URL: https://ammawallet.com/
+        BUILD_SHA: ${BUILD_SHA:-unknown}
     container_name: lms-web
     expose:
       - "80"

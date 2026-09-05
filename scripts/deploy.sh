@@ -29,9 +29,16 @@ run() {
 cd "$DEPLOY_DIR"
 mkdir -p "$STATE_DIR"
 
+BUILD_SHA="$(git -C "$DEPLOY_DIR" rev-parse HEAD 2>/dev/null || echo 'unknown')"
+export BUILD_SHA
+
 log "==> LMS Deploy starting"
 log "    Directory: $DEPLOY_DIR"
 log "    Timeout:   ${TIMEOUT}s"
+log "    Build SHA: $BUILD_SHA"
+if [ -n "$(git -C "$DEPLOY_DIR" status --porcelain 2>/dev/null)" ]; then
+  log "    WARNING: Working tree is dirty"
+fi
 [ -n "$DRY_RUN" ] && log "    DRY RUN MODE"
 
 # --- Pre-deploy checks ---
@@ -145,9 +152,24 @@ else
   fi
 fi
 
+# --- Build SHA verification ---
+if [ -z "$DRY_RUN" ] && [ "$BUILD_SHA" != "unknown" ]; then
+  actual_sha=$(curl -s http://127.0.0.1:3001/health | node -e "
+    let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+      try{console.log(JSON.parse(d).buildSha||'ERROR')}catch{console.log('ERROR')}
+    })
+  " 2>/dev/null) || actual_sha="ERROR"
+  if [ "$actual_sha" = "$BUILD_SHA" ]; then
+    log "    Build SHA verified: $actual_sha"
+  else
+    log "    WARNING: Build SHA mismatch (expected=$BUILD_SHA, actual=$actual_sha)"
+  fi
+fi
+
 # --- Success ---
 log "==> Deploy SUCCESSFUL"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY SUCCESS" >> "$LOG_FILE"
+branch=$(git -C "$DEPLOY_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY SUCCESS sha=$BUILD_SHA branch=$branch services=api,web" >> "$LOG_FILE"
 
 # Prune old images
 run docker image prune -f --filter "until=24h" 2>/dev/null || true

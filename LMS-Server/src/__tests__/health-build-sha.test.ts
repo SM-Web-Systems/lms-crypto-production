@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getHealthStatus } from '../services/healthCheckService.js';
+import { getHealthStatus, validateBuildSha } from '../services/healthCheckService.js';
 
 describe('HEALTH-BUILD-SHA — health endpoint includes build SHA', () => {
   it('HEALTH-BUILD-SHA-001: getHealthStatus() includes a buildSha field', () => {
@@ -33,5 +33,32 @@ describe('HEALTH-BUILD-SHA — health endpoint includes build SHA', () => {
     expect(health).toHaveProperty('checks');
     expect(health.checks).toHaveProperty('db');
     expect(health.checks).toHaveProperty('memory');
+  });
+
+  it('HEALTH-BUILD-SHA-004: invalid BUILD_SHA values are sanitized to "unknown"', () => {
+    expect(validateBuildSha('')).toBe('unknown');
+    expect(validateBuildSha(undefined)).toBe('unknown');
+    expect(validateBuildSha('not-a-sha')).toBe('unknown');
+    expect(validateBuildSha('abc')).toBe('unknown'); // too short
+    expect(validateBuildSha('<script>alert(1)</script>')).toBe('unknown');
+  });
+
+  it('HEALTH-BUILD-SHA-005: valid 40-char hex SHA passes validation', () => {
+    const sha40 = 'a'.repeat(40);
+    expect(validateBuildSha(sha40)).toBe(sha40);
+    expect(validateBuildSha('abc123def456789012345678901234567890abcd')).toBe('abc123def456789012345678901234567890abcd');
+  });
+
+  it('HEALTH-BUILD-SHA-006: valid 7-char short SHA passes validation', () => {
+    expect(validateBuildSha('abc123f')).toBe('abc123f');
+    expect(validateBuildSha('0000000')).toBe('0000000');
+  });
+
+  it('HEALTH-BUILD-SHA-007: SHA with uppercase, spaces, or metacharacters returns "unknown"', () => {
+    expect(validateBuildSha('ABC123F')).toBe('unknown');
+    expect(validateBuildSha('abc123f ')).toBe('unknown');
+    expect(validateBuildSha(' abc123f')).toBe('unknown');
+    expect(validateBuildSha('abc 123')).toBe('unknown');
+    expect(validateBuildSha('abc;rm -rf /')).toBe('unknown');
   });
 });
