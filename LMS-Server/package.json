@@ -21,7 +21,8 @@
     "db:migrate-course-code": "tsx src/scripts/migrateCourseCodeAccess.ts",
     "db:migrate-clerk": "tsx src/scripts/migrateClerkUserId.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "validate:bvc": "tsx src/scripts/validateBvcContent.ts"
   },
   "keywords": [
     "student",
