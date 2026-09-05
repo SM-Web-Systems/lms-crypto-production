@@ -308,49 +308,146 @@ function validateMediaUrls(weeks: Week[]) {
   }
 }
 
-async function checkUrlReachability(weeks: Week[]) {
-  const urls = new Set<string>();
+interface UrlEntry {
+  url: string;
+  source: string; // "Module 3 'Lesson Title' (video)"
+  category: 'youtube' | 'github' | 'other';
+}
+
+function categorizeUrl(url: string): UrlEntry['category'] {
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('github.com') || url.includes('raw.githubusercontent.com')) return 'github';
+  return 'other';
+}
+
+function collectUrlEntries(weeks: Week[]): UrlEntry[] {
+  const entries: UrlEntry[] = [];
+  let moduleIndex = 0;
 
   for (const week of weeks) {
     for (const section of week.sections) {
+      moduleIndex++;
       for (const item of section.items) {
-        if (item.url) urls.add(item.url);
-        if (item.downloadUrl) urls.add(item.downloadUrl);
-        if (item.fileUrl) urls.add(item.fileUrl);
+        const source = `Module ${moduleIndex} "${item.title}" (${item.type})`;
+        if (item.url) {
+          entries.push({ url: item.url, source, category: categorizeUrl(item.url) });
+        }
+        if (item.youtubeUrl && item.youtubeUrl !== item.url) {
+          // youtubeUrl may be a bare video ID (e.g. "RW1Q7lIExOM") or a full URL
+          const ytUrl = item.youtubeUrl.startsWith('http')
+            ? item.youtubeUrl
+            : `https://www.youtube.com/watch?v=${item.youtubeUrl}`;
+          entries.push({ url: ytUrl, source: `${source} [youtube]`, category: 'youtube' });
+        }
+        if (item.downloadUrl) {
+          entries.push({ url: item.downloadUrl, source: `${source} [download]`, category: categorizeUrl(item.downloadUrl) });
+        }
+        if (item.fileUrl) {
+          entries.push({ url: item.fileUrl, source: `${source} [file]`, category: categorizeUrl(item.fileUrl) });
+        }
       }
     }
   }
 
-  report('INFO', 'REACHABILITY', `Checking ${urls.size} unique URLs (HEAD requests)...`);
+  return entries;
+}
 
+async function checkSingleUrl(url: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const res = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+
+    if (res.ok || res.status === 405) {
+      return { ok: true, status: res.status };
+    }
+    // Retry with GET for servers that reject HEAD (e.g. some GitHub raw URLs)
+    if (res.status === 403 || res.status === 404) {
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 10_000);
+      const res2 = await fetch(url, {
+        method: 'GET',
+        signal: controller2.signal,
+        redirect: 'follow',
+        headers: { Range: 'bytes=0-0' },
+      });
+      clearTimeout(timeout2);
+      await res2.body?.cancel();
+      if (res2.ok || res2.status === 206) {
+        return { ok: true, status: res2.status };
+      }
+      return { ok: false, status: res2.status };
+    }
+    return { ok: false, status: res.status };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+async function checkUrlReachability(weeks: Week[]) {
+  const entries = collectUrlEntries(weeks);
+
+  // Deduplicate URLs while preserving all source references
+  const urlToSources = new Map<string, string[]>();
+  for (const entry of entries) {
+    const sources = urlToSources.get(entry.url) || [];
+    sources.push(entry.source);
+    urlToSources.set(entry.url, sources);
+  }
+
+  const uniqueUrls = [...urlToSources.keys()];
+  const categoryCount = { youtube: 0, github: 0, other: 0 };
+  for (const url of uniqueUrls) {
+    categoryCount[categorizeUrl(url)]++;
+  }
+
+  report('INFO', 'REACHABILITY', `Checking ${uniqueUrls.length} unique URLs (${categoryCount.youtube} YouTube, ${categoryCount.github} GitHub, ${categoryCount.other} other)...`);
+
+  // Check with concurrency limit of 5
+  const CONCURRENCY = 5;
   let reachable = 0;
   let unreachable = 0;
+  const broken: { url: string; sources: string[]; status?: number; error?: string }[] = [];
 
-  for (const url of urls) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-      const res = await fetch(url, {
-        method: 'HEAD',
-        signal: controller.signal,
-        redirect: 'follow',
-      });
-      clearTimeout(timeout);
+  for (let i = 0; i < uniqueUrls.length; i += CONCURRENCY) {
+    const batch = uniqueUrls.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(url => checkSingleUrl(url).then(r => ({ url, ...r }))));
 
-      if (res.ok || res.status === 405) {
+    for (const result of results) {
+      if (result.ok) {
         reachable++;
       } else {
-        report('WARN', 'REACHABILITY', `HTTP ${res.status} — ${url}`);
         unreachable++;
+        broken.push({
+          url: result.url,
+          sources: urlToSources.get(result.url) || [],
+          status: result.status,
+          error: result.error,
+        });
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      report('WARN', 'REACHABILITY', `Unreachable — ${url}: ${msg}`);
-      unreachable++;
+    }
+  }
+
+  // Report broken URLs with full context
+  for (const b of broken) {
+    const category = categorizeUrl(b.url);
+    const reason = b.error ? b.error : `HTTP ${b.status}`;
+    report('WARN', 'REACHABILITY', `[${category.toUpperCase()}] ${reason} — ${b.url}`);
+    for (const src of b.sources) {
+      report('WARN', 'REACHABILITY', `  ↳ used by: ${src}`);
     }
   }
 
   report('INFO', 'REACHABILITY', `Reachable: ${reachable}, Unreachable: ${unreachable}`);
+  if (broken.length > 0) {
+    report('INFO', 'REACHABILITY', `Broken URL summary: ${broken.length} URLs affecting ${broken.reduce((s, b) => s + b.sources.length, 0)} course items`);
+  }
 }
 
 function validateQuizzes(db: Database.Database, weeks: Week[]) {
