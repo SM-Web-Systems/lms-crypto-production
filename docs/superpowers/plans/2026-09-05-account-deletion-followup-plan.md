@@ -1,5 +1,7 @@
 # Account Deletion Follow-up — Implementation Plan
 
+**PR:** https://github.com/SM-Web-Systems/lms-crypto-production/pull/4
+
 ## Context
 
 Account deletion & forum anonymization shipped in PR #3 (merged 2026-09-05, deployed as `96d2e8c`). Four items were intentionally deferred:
