@@ -22,17 +22,17 @@ Example response: `{"status":"ok","timestamp":"..."}`.
 - **`FRONTEND_URL`** — CORS allowlist (comma-separated origins). Docker compose sets this for the API container.
 - **`TRUST_PROXY`** — Set `1` or `true` behind nginx / a load balancer so rate limits use the real client IP (`X-Forwarded-For`).
 - **`API_RATE_LIMIT_MAX`** / **`AUTH_RATE_LIMIT_MAX`** — Optional overrides (requests per IP per 15 minutes). See `LMS-Server/.env.example`.
-- **Clerk / JWT / DB** — As required by your auth and DB setup; **never commit** real `.env` (already in `LMS-Server/.gitignore`).
+- **`JWT_SECRET`** — Required for JWT authentication; app refuses to start without it. **Never commit** real `.env` (already in `LMS-Server/.gitignore`).
 
 ### LMS-Frontend
 
 - Copy **`LMS-Frontend/.env.example`** → **`.env`** locally.
-- **Browser-exposed** vars must be prefixed with `VITE_` only. Do **not** put `CLERK_SECRET_KEY` (or any secret) in the frontend env file; that belongs on the server.
+- **Browser-exposed** vars must be prefixed with `VITE_` only. Do **not** put any secret (JWT keys, API keys) in the frontend env file; secrets belong on the server.
 - **`VITE_DEV_ALLOWED_HOSTS`** — Optional comma-separated extra hosts for `vite` dev/preview (e.g. tunnel domains). See `.env.example`.
 
 ### Docker Compose (repo root)
 
-- **`LMS-final/.env`** (or `--env-file`) — Used for **build args** such as `VITE_CLERK_PUBLISHABLE_KEY`. See `.env.docker.example`.
+- **`LMS-final/.env`** (or `--env-file`) — Used for **build args** (e.g. `VITE_API_BASE_URL`, `BUILD_SHA`). See `.env.docker.example`.
 - **`LMS-Server/.env`** — Mounted into the `api` service via `env_file`.
 
 ## Docker Compose (`docker-compose.yml`)
@@ -46,11 +46,11 @@ Typical bring-up from repo root:
 docker compose up --build
 ```
 
-## Git and secrets (PAT / Clerk)
+## Git and secrets (PAT / JWT)
 
 - **Personal access tokens**: store in a team vault (e.g. Bitwarden, cloud secrets manager). Do not paste into shell history or committed files. **Rotate** any token that may have leaked.
 - **Git remotes**: use HTTPS + PAT or SSH keys per org policy; review who has access when someone leaves.
-- **Clerk**: rotate keys from the Clerk dashboard if a publishable or secret key was exposed; update server and build-time `VITE_*` values as needed.
+- **JWT secrets**: rotate `JWT_SECRET` by updating the server `.env` and restarting the API container. All existing sessions will be invalidated.
 
 ## `node_modules` ownership (host vs container)
 
