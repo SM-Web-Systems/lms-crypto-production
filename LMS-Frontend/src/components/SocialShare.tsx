@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Linkedin, Twitter, Link, Check } from 'lucide-react';
+import { Briefcase, AtSign, Link, Check } from 'lucide-react';
 
 interface SocialShareProps {
   url: string;
@@ -40,11 +40,11 @@ const SocialShare: React.FC<SocialShareProps> = ({ url, title, compact = false }
   return (
     <div className={compact ? 'flex items-center gap-3' : 'flex items-center justify-center gap-3 pt-4'}>
       <button type="button" onClick={shareOnLinkedIn} className={btnClass} aria-label="Share on LinkedIn">
-        <Linkedin className={iconSize} aria-hidden />
+        <Briefcase className={iconSize} aria-hidden />
         {!compact && 'LinkedIn'}
       </button>
       <button type="button" onClick={shareOnTwitter} className={btnClass} aria-label="Share on Twitter">
-        <Twitter className={iconSize} aria-hidden />
+        <AtSign className={iconSize} aria-hidden />
         {!compact && 'Twitter'}
       </button>
       <button type="button" onClick={copyLink} className={btnClass} aria-label="Copy link">

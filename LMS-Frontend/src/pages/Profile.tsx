@@ -8,7 +8,7 @@ import { Button } from '../components/Button';
 import Input, { TextArea } from '../components/Input';
 import {
   User, CheckCircle, Loader2, ArrowLeft, MessageCircle, AlertCircle,
-  Camera, Plus, Trash2, ExternalLink, Globe, Linkedin, Github, Twitter,
+  Camera, Plus, Trash2, ExternalLink, Globe, Briefcase, Code, AtSign,
   Phone, Send,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
@@ -381,13 +381,13 @@ const Profile: React.FC = () => {
                     />
                   ) : null}
                   {viewedProfile.linkedinUrl ? (
-                    <SocialLink href={viewedProfile.linkedinUrl ?? ''} icon={<Linkedin className="h-4 w-4" />} label="LinkedIn" />
+                    <SocialLink href={viewedProfile.linkedinUrl ?? ''} icon={<Briefcase className="h-4 w-4" />} label="LinkedIn" />
                   ) : null}
                   {viewedProfile.githubUrl ? (
-                    <SocialLink href={viewedProfile.githubUrl ?? ''} icon={<Github className="h-4 w-4" />} label="GitHub" />
+                    <SocialLink href={viewedProfile.githubUrl ?? ''} icon={<Code className="h-4 w-4" />} label="GitHub" />
                   ) : null}
                   {viewedProfile.twitterUrl ? (
-                    <SocialLink href={viewedProfile.twitterUrl ?? ''} icon={<Twitter className="h-4 w-4" />} label="Twitter / X" />
+                    <SocialLink href={viewedProfile.twitterUrl ?? ''} icon={<AtSign className="h-4 w-4" />} label="Twitter / X" />
                   ) : null}
                   {viewedProfile.websiteUrl ? (
                     <SocialLink href={viewedProfile.websiteUrl ?? ''} icon={<Globe className="h-4 w-4" />} label={viewedProfile.websiteUrl ?? ''} />
@@ -416,21 +416,21 @@ const Profile: React.FC = () => {
                   />
                   <SocialField
                     label="LinkedIn / CV"
-                    icon={<Linkedin className="h-4 w-4" />}
+                    icon={<Briefcase className="h-4 w-4" />}
                     value={linkedinUrl}
                     onChange={setLinkedinUrl}
                     placeholder="linkedin.com/in/yourname"
                   />
                   <SocialField
                     label="GitHub"
-                    icon={<Github className="h-4 w-4" />}
+                    icon={<Code className="h-4 w-4" />}
                     value={githubUrl}
                     onChange={setGithubUrl}
                     placeholder="github.com/yourname"
                   />
                   <SocialField
                     label="Twitter / X"
-                    icon={<Twitter className="h-4 w-4" />}
+                    icon={<AtSign className="h-4 w-4" />}
                     value={twitterUrl}
                     onChange={setTwitterUrl}
                     placeholder="x.com/yourname"

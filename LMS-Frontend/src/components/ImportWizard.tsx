@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from './Button';
-import { X, Upload, FileSpreadsheet, FolderOpen, Loader2, AlertTriangle, Trash2, ChevronRight, ChevronLeft, Check, Github } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, FolderOpen, Loader2, AlertTriangle, Trash2, ChevronRight, ChevronLeft, Check, Code } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 import { toastSuccess } from '../utils/toastBus';
 
@@ -626,7 +626,7 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
                     source === 'github' ? 'border-blue-500 bg-blue-50' : 'hover:border-blue-400 hover:bg-blue-50'
                   }`}
                 >
-                  <Github className="h-8 w-8 text-neutral-600 mb-2" />
+                  <Code className="h-8 w-8 text-neutral-600 mb-2" />
                   <div className="font-medium text-neutral-800">GitHub Repository</div>
                   <p className="text-xs text-neutral-500 mt-1">Import from a public repo</p>
                 </button>
@@ -688,7 +688,7 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
                     {githubLoading ? (
                       <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Fetching...</>
                     ) : (
-                      <><Github className="h-4 w-4 mr-1" /> Fetch</>
+                      <><Code className="h-4 w-4 mr-1" /> Fetch</>
                     )}
                   </Button>
                 </div>
