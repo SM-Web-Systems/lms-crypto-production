@@ -31,7 +31,7 @@ function toAuthor(u: User): ForumAuthor {
   return {
     id: u.id,
     name: u.name,
-    email: u.email,
+    email: u.email ?? null,
     role: u.role,
   };
 }
@@ -44,12 +44,14 @@ function rowToTopic(row: {
   author_id: string;
   created_at: string;
   updated_at: string;
-  author_name: string;
-  author_email: string;
-  author_role: string;
+  author_name: string | null;
+  author_email: string | null;
+  author_role: string | null;
+  author_deletion_status: string | null;
   post_count: number;
   last_post_at: string | null;
 }): ForumTopicResponse {
+  const isDeleted = row.author_deletion_status === 'finalized';
   return {
     id: row.id,
     title: row.title,
@@ -57,9 +59,10 @@ function rowToTopic(row: {
     courseId: row.course_id ?? null,
     author: {
       id: row.author_id,
-      name: row.author_name,
-      email: row.author_email,
-      role: row.author_role as ForumAuthor['role'],
+      name: isDeleted ? 'Deleted User' : (row.author_name ?? 'Unknown'),
+      email: isDeleted ? null : (row.author_email ?? null),
+      role: (row.author_role ?? 'student') as ForumAuthor['role'],
+      ...(isDeleted ? { isDeleted: true } : {}),
     },
     createdAt: toISO(row.created_at)!,
     updatedAt: toISO(row.updated_at) ?? undefined,
@@ -75,19 +78,22 @@ function rowToPost(row: {
   author_id: string;
   created_at: string;
   updated_at: string;
-  author_name: string;
-  author_email: string;
-  author_role: string;
+  author_name: string | null;
+  author_email: string | null;
+  author_role: string | null;
+  author_deletion_status: string | null;
 }): ForumPostResponse {
+  const isDeleted = row.author_deletion_status === 'finalized';
   return {
     id: row.id,
     topicId: row.topic_id,
     body: row.body,
     author: {
       id: row.author_id,
-      name: row.author_name,
-      email: row.author_email,
-      role: row.author_role as ForumAuthor['role'],
+      name: isDeleted ? 'Deleted User' : (row.author_name ?? 'Unknown'),
+      email: isDeleted ? null : (row.author_email ?? null),
+      role: (row.author_role ?? 'student') as ForumAuthor['role'],
+      ...(isDeleted ? { isDeleted: true } : {}),
     },
     createdAt: toISO(row.created_at)!,
     updatedAt: toISO(row.updated_at) ?? undefined,
@@ -112,18 +118,20 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
       author_id: string;
       created_at: string;
       updated_at: string;
-      author_name: string;
-      author_email: string;
-      author_role: string;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
     }>(
       `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.deletion_status AS author_deletion_status,
               (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count,
               (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id) AS last_post_at
        FROM forum_topics t
-       JOIN users u ON t.author_id = u.id
+       LEFT JOIN users u ON t.author_id = u.id
        WHERE ${filterGeneral ? 't.course_id IS NULL' : 't.course_id = ?'}
        ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id), t.updated_at) DESC
        LIMIT ? OFFSET ?`,
@@ -152,18 +160,20 @@ export async function getTopic(req: AuthRequest, res: Response, next: NextFuncti
       author_id: string;
       created_at: string;
       updated_at: string;
-      author_name: string;
-      author_email: string;
-      author_role: string;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
     }>(
       `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.deletion_status AS author_deletion_status,
               (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count,
               (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id) AS last_post_at
        FROM forum_topics t
-       JOIN users u ON t.author_id = u.id
+       LEFT JOIN users u ON t.author_id = u.id
        WHERE t.id = ?`,
       [id]
     );
@@ -201,14 +211,16 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       author_id: string;
       created_at: string;
       updated_at: string;
-      author_name: string;
-      author_email: string;
-      author_role: string;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      author_deletion_status: string | null;
     }>(
       `SELECT p.id, p.topic_id, p.body, p.author_id, p.created_at, p.updated_at,
-              u.name AS author_name, u.email AS author_email, u.role AS author_role
+              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.deletion_status AS author_deletion_status
        FROM forum_posts p
-       JOIN users u ON p.author_id = u.id
+       LEFT JOIN users u ON p.author_id = u.id
        WHERE p.topic_id = ?
        ORDER BY p.created_at ASC
        LIMIT ? OFFSET ?`,

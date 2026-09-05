@@ -76,6 +76,24 @@ export function assembleExport(exportId: string, userId: string): void {
       );
       archive.append(JSON.stringify(notifications, null, 2), { name: 'notifications.json' });
 
+      // Forum topics (if forum tables exist)
+      const hasForumTopics = queryOne<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='forum_topics'"
+      );
+      if (hasForumTopics) {
+        const forumTopics = query<Record<string, unknown>>(
+          'SELECT id, title, body, course_id, created_at, updated_at FROM forum_topics WHERE author_id = ? ORDER BY created_at',
+          [userId],
+        );
+        archive.append(JSON.stringify(forumTopics, null, 2), { name: 'forum-topics.json' });
+
+        const forumPosts = query<Record<string, unknown>>(
+          'SELECT id, topic_id, body, created_at, updated_at FROM forum_posts WHERE author_id = ? ORDER BY created_at',
+          [userId],
+        );
+        archive.append(JSON.stringify(forumPosts, null, 2), { name: 'forum-posts.json' });
+      }
+
       archive.finalize();
     } catch (err) {
       execute(

@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS users (
   password_reset_expires_at TEXT,
   password_changed_at TEXT,
   reward_balance_legacy_real REAL DEFAULT 0,
+  -- Account deletion columns
+  deletion_status TEXT DEFAULT NULL CHECK (deletion_status IN ('pending_deletion', 'finalized', 'legal_hold')),
+  deletion_requested_at TEXT DEFAULT NULL,
+  deletion_finalized_at TEXT DEFAULT NULL,
+  deletion_requested_by TEXT DEFAULT NULL,
+  legal_hold_reason TEXT DEFAULT NULL,
+  legal_hold_placed_at TEXT DEFAULT NULL,
+  legal_hold_review_date TEXT DEFAULT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -918,3 +926,52 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_email_outbox_status ON email_outbox(status);
 CREATE INDEX IF NOT EXISTS idx_email_outbox_retry ON email_outbox(status, last_attempt_at);
+
+-- Account Deletion & Forum Anonymization tables
+
+CREATE TABLE IF NOT EXISTS deleted_user_identities (
+  user_id TEXT PRIMARY KEY REFERENCES users(id),
+  original_name TEXT NOT NULL,
+  original_email TEXT NOT NULL,
+  original_wallet_address TEXT,
+  original_auth_provider TEXT,
+  original_ammawallet_user_id TEXT,
+  snapshot_at TEXT NOT NULL DEFAULT (datetime('now')),
+  retention_expires_at TEXT NOT NULL,
+  access_count INTEGER DEFAULT 0,
+  last_accessed_at TEXT,
+  last_accessed_by TEXT,
+  last_access_reason TEXT
+);
+
+CREATE TABLE IF NOT EXISTS deletion_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'cancelled', 'finalizing', 'finalized', 'blocked_legal_hold', 'blocked_dispute')),
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  cancel_token_hash TEXT,
+  grace_period_ends_at TEXT NOT NULL,
+  finalized_at TEXT,
+  cancelled_at TEXT,
+  blocked_reason TEXT,
+  dry_run_result TEXT,
+  finalization_log TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_requests_user ON deletion_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_deletion_requests_status ON deletion_requests(status);
+CREATE INDEX IF NOT EXISTS idx_deletion_requests_grace ON deletion_requests(grace_period_ends_at);
+
+CREATE TABLE IF NOT EXISTS identity_access_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  target_user_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  fields_accessed TEXT NOT NULL,
+  outcome TEXT NOT NULL DEFAULT 'viewed',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_identity_access_log_target ON identity_access_log(target_user_id);
+CREATE INDEX IF NOT EXISTS idx_identity_access_log_actor ON identity_access_log(actor_id);

@@ -1246,6 +1246,8 @@ export function seedRbacData(): void {
     ['perm_session_manage_own', 'session.manage_own', 'session', 'Manage Own Sessions'],
     ['perm_session_manage_any', 'session.manage_any', 'session', 'Manage Any User Sessions'],
     ['perm_impact_report', 'impact_report.read', 'reporting', 'View Impact Reports'],
+    // privacy (1)
+    ['perm_privacy_view_deleted', 'privacy.view_deleted_identity', 'privacy', 'View Deleted User Identity'],
   ];
 
   const insertPerm = db.prepare(
@@ -2148,6 +2150,87 @@ function ensureEmailOutbox(): void {
   `);
 }
 ensureEmailOutbox();
+
+// ─── Account Deletion & Forum Anonymization ──────────────────────────────────
+
+function ensureDeletionColumns(): void {
+  const hasUsers = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    .get();
+  if (!hasUsers) return;
+
+  const cols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+  const colNames = new Set(cols.map((c) => c.name));
+
+  const newCols: Array<[string, string]> = [
+    ['deletion_status', "TEXT DEFAULT NULL CHECK (deletion_status IN ('pending_deletion', 'finalized', 'legal_hold'))"],
+    ['deletion_requested_at', 'TEXT DEFAULT NULL'],
+    ['deletion_finalized_at', 'TEXT DEFAULT NULL'],
+    ['deletion_requested_by', 'TEXT DEFAULT NULL'],
+    ['legal_hold_reason', 'TEXT DEFAULT NULL'],
+    ['legal_hold_placed_at', 'TEXT DEFAULT NULL'],
+    ['legal_hold_review_date', 'TEXT DEFAULT NULL'],
+  ];
+
+  for (const [name, def] of newCols) {
+    if (!colNames.has(name)) {
+      db.exec(`ALTER TABLE users ADD COLUMN ${name} ${def}`);
+    }
+  }
+}
+ensureDeletionColumns();
+
+function ensureDeletionTables(): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS deleted_user_identities (
+      user_id TEXT PRIMARY KEY REFERENCES users(id),
+      original_name TEXT NOT NULL,
+      original_email TEXT NOT NULL,
+      original_wallet_address TEXT,
+      original_auth_provider TEXT,
+      original_ammawallet_user_id TEXT,
+      snapshot_at TEXT NOT NULL DEFAULT (datetime('now')),
+      retention_expires_at TEXT NOT NULL,
+      access_count INTEGER DEFAULT 0,
+      last_accessed_at TEXT,
+      last_accessed_by TEXT,
+      last_access_reason TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS deletion_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'cancelled', 'finalizing', 'finalized', 'blocked_legal_hold', 'blocked_dispute')),
+      requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+      cancel_token_hash TEXT,
+      grace_period_ends_at TEXT NOT NULL,
+      finalized_at TEXT,
+      cancelled_at TEXT,
+      blocked_reason TEXT,
+      dry_run_result TEXT,
+      finalization_log TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_deletion_requests_user ON deletion_requests(user_id);
+    CREATE INDEX IF NOT EXISTS idx_deletion_requests_status ON deletion_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_deletion_requests_grace ON deletion_requests(grace_period_ends_at);
+
+    CREATE TABLE IF NOT EXISTS identity_access_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_user_id TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      fields_accessed TEXT NOT NULL,
+      outcome TEXT NOT NULL DEFAULT 'viewed',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_identity_access_log_target ON identity_access_log(target_user_id);
+    CREATE INDEX IF NOT EXISTS idx_identity_access_log_actor ON identity_access_log(actor_id);
+  `);
+}
+ensureDeletionTables();
 
 // Re-enable foreign key checks after all module-level migrations complete.
 db.pragma('foreign_keys = ON');

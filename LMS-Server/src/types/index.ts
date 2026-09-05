@@ -190,8 +190,9 @@ export interface CourseDocumentResponse {
 export interface ForumAuthor {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   role: UserRole;
+  isDeleted?: boolean;
 }
 
 export interface ForumTopicResponse {
