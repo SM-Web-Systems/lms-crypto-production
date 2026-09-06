@@ -336,8 +336,28 @@ export interface MessageResponse {
   id: string;
   conversationId: string;
   senderId: string;
-  body: string;
+  body: string | null;
   createdAt: string;
+  isDeleted?: boolean;
+}
+
+export interface AdminMessageResponse extends MessageResponse {
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  deletionType?: string | null;
+  senderName?: string;
+  senderEmail?: string;
+  originalSenderName?: string | null;
+  originalSenderEmail?: string | null;
+}
+
+export interface AdminConversationResponse {
+  id: string;
+  participantIds: [string, string];
+  participantNames: [string, string];
+  updatedAt: string;
+  messageCount: number;
+  deletedMessageCount: number;
 }
 
 // Course members & user directory (BACKEND_UPDATE_REQUIREMENTS)
@@ -555,6 +575,7 @@ export const ErrorCodes = {
   COHORT_EMPTY:        "COHORT_EMPTY",
   COHORT_ALREADY_PAID: "COHORT_ALREADY_PAID",
   RATE_LIMITED:        "RATE_LIMITED",
+  ALREADY_DELETED:     "ALREADY_DELETED",
 } as const;
 
 // Extend Express Request with requestId for request tracing

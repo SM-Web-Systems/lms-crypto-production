@@ -60,12 +60,13 @@ describe('A1: Supporter-Student → Super-Student Rename', () => {
 });
 
 describe('A2: New Permissions + Role Mappings', () => {
-  it('A2-PERM-1: 90 permissions exist after seedRbacData()', () => {
+  it('A2-PERM-1: 93 permissions exist after seedRbacData()', () => {
     const count = queryOne<{ cnt: number }>('SELECT COUNT(*) as cnt FROM permissions');
     // Original: 64, Phase A adds 15 = 79, Reward granular adds 7 = 86, R13 adds reward.release = 87
     // N15 adds reward.refund_review + reward.refund_resolve = 89
     // Account deletion adds privacy.view_deleted_identity = 90
-    expect(count!.cnt).toBe(90);
+    // DM soft-delete adds message.delete_own + message.delete_any + message.view_deleted = 93
+    expect(count!.cnt).toBe(93);
   });
 
   it('A2-PERM-2: role_parent has student_wallet.read_assigned + write_assigned', () => {

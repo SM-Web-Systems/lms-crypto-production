@@ -7,8 +7,14 @@ import {
   postMessage,
   getUnreadCount,
   markConversationRead,
+  deleteMessage,
+  adminDeleteMessage,
+  adminGetConversations,
+  adminGetConversationMessages,
+  adminGetMessage,
 } from '../controllers/messagesController.js';
 import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 
 const router = Router();
 
@@ -137,5 +143,98 @@ router.post('/conversations/:id/messages', postMessage);
  *       200: { description: Conversation marked as read }
  */
 router.post('/conversations/:id/read', markConversationRead);
+
+// ── User self-delete ────────────────────────────────────────────
+
+/**
+ * @openapi
+ * /messages/messages/{messageId}:
+ *   delete:
+ *     tags: [Messages]
+ *     summary: Delete own message (soft-delete)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Message deleted }
+ *       403: { description: Not authorized }
+ *       404: { description: Not found }
+ *       409: { description: Already deleted }
+ */
+router.delete('/messages/:messageId', deleteMessage);
+
+// ── Admin endpoints ─────────────────────────────────────────────
+
+/**
+ * @openapi
+ * /messages/admin/messages/{messageId}:
+ *   delete:
+ *     tags: [Messages Admin]
+ *     summary: Admin delete any message (soft-delete)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Message deleted }
+ *       403: { description: Forbidden }
+ *       409: { description: Already deleted }
+ */
+router.delete('/admin/messages/:messageId', requirePermission('message.delete_any'), adminDeleteMessage);
+
+/**
+ * @openapi
+ * /messages/admin/conversations:
+ *   get:
+ *     tags: [Messages Admin]
+ *     summary: Admin list all conversations with message and deleted-message counts
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: List of all conversations with counts }
+ *       403: { description: Forbidden }
+ */
+router.get('/admin/conversations', requirePermission('message.view_deleted'), adminGetConversations);
+
+/**
+ * @openapi
+ * /messages/admin/conversations/{conversationId}/messages:
+ *   get:
+ *     tags: [Messages Admin]
+ *     summary: Admin view all messages in conversation (including deleted content)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: conversationId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Full message list with deletion metadata }
+ *       403: { description: Forbidden }
+ */
+router.get('/admin/conversations/:conversationId/messages', requirePermission('message.view_deleted'), adminGetConversationMessages);
+
+/**
+ * @openapi
+ * /messages/admin/messages/{messageId}:
+ *   get:
+ *     tags: [Messages Admin]
+ *     summary: Admin view single message (including deleted content)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Full message details }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
+ */
+router.get('/admin/messages/:messageId', requirePermission('message.view_deleted'), adminGetMessage);
 
 export default router;

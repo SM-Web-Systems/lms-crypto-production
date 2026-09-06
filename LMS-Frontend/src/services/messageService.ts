@@ -43,6 +43,11 @@ export const messageService = {
     return assertApiSuccess(res, 'Could not send your message.');
   },
 
+  async deleteMessage(messageId: string): Promise<void> {
+    const res = await api.delete<ApiResponse<{ deleted: boolean }>>(`/messages/messages/${messageId}`);
+    assertApiSuccess(res, 'Could not delete message.');
+  },
+
   async getUnreadCount(): Promise<number> {
     try {
       const res = await api.get<ApiResponse<{ count: number }>>('/messages/unread-count');

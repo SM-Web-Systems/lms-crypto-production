@@ -34,6 +34,7 @@ import { PaymentAnalyticsPanel } from '../components/PaymentAnalyticsPanel';
 import { TenantAdminPanel } from '../components/TenantAdminPanel';
 import { EmailTemplatePanel } from '../components/EmailTemplatePanel';
 import { BroadcastPanel } from '../components/BroadcastPanel';
+import { MessageAuditPanel } from '../components/MessageAuditPanel';
 import { CohortInsightsPanel } from '../components/CohortInsightsPanel';
 import { SponsorROIPanel } from '../components/SponsorROIPanel';
 import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
@@ -493,6 +494,8 @@ const AdminDashboard: React.FC = () => {
       <EmailTemplatePanel />
 
       <BroadcastPanel />
+
+      <MessageAuditPanel />
 
       {/* Course Analytics */}
       {courseAnalytics.length > 0 && (

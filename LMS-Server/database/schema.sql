@@ -197,12 +197,17 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
   conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT DEFAULT NULL,
+  deleted_by TEXT DEFAULT NULL,
+  deletion_type TEXT DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversations_user1 ON conversations(user1_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user2 ON conversations(user2_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_deleted ON conversation_messages(is_deleted);
 
 -- Quizzes (admin-managed; completions per user)
 CREATE TABLE IF NOT EXISTS quizzes (

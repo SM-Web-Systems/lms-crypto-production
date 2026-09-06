@@ -46,6 +46,7 @@ vi.mock('../../components/EmailTemplatePanel', () => ({ EmailTemplatePanel: () =
 vi.mock('../../components/BroadcastPanel', () => ({ BroadcastPanel: () => null }));
 vi.mock('../../components/CohortInsightsPanel', () => ({ CohortInsightsPanel: () => null }));
 vi.mock('../../components/SponsorROIPanel', () => ({ SponsorROIPanel: () => null }));
+vi.mock('../../components/MessageAuditPanel', () => ({ MessageAuditPanel: () => null }));
 
 // Mock fetch for health endpoint
 const mockFetch = vi.fn().mockResolvedValue({

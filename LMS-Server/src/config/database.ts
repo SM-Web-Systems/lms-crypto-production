@@ -1248,6 +1248,10 @@ export function seedRbacData(): void {
     ['perm_impact_report', 'impact_report.read', 'reporting', 'View Impact Reports'],
     // privacy (1)
     ['perm_privacy_view_deleted', 'privacy.view_deleted_identity', 'privacy', 'View Deleted User Identity'],
+    // messaging (3)
+    ['perm_message_delete_own', 'message.delete_own', 'messaging', 'Delete Own Messages'],
+    ['perm_message_delete_any', 'message.delete_any', 'messaging', 'Delete Any Message'],
+    ['perm_message_view_deleted', 'message.view_deleted', 'messaging', 'View Deleted Messages'],
   ];
 
   const insertPerm = db.prepare(
@@ -1268,6 +1272,7 @@ export function seedRbacData(): void {
       'perm_forum_view', 'perm_forum_post',
       'perm_reward_view_own', 'perm_reward_view_assigned',
       'perm_session_manage_own',
+      'perm_message_delete_own',
     ],
     role_supporter_student: [
       'perm_course_view', 'perm_course_enroll', 'perm_course_submit', 'perm_course_grade_pending',
@@ -1278,6 +1283,7 @@ export function seedRbacData(): void {
       'perm_forum_view', 'perm_forum_post',
       'perm_reward_view_own', 'perm_reward_view_assigned',
       'perm_perks_access', 'perm_session_manage_own',
+      'perm_message_delete_own',
     ],
     role_parent: [
       'perm_course_view',
@@ -1351,6 +1357,7 @@ export function seedRbacData(): void {
       'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
       'perm_reward_view_own',
       'perm_session_manage_own',
+      'perm_message_delete_own',
     ],
     role_ta: [
       'perm_course_view', 'perm_course_grade_pending',
@@ -1358,6 +1365,7 @@ export function seedRbacData(): void {
       'perm_quiz_view', 'perm_announcement_view', 'perm_document_view',
       'perm_forum_view', 'perm_forum_post',
       'perm_session_manage_own',
+      'perm_message_delete_own',
     ],
     role_admin: [
       // course: all
@@ -1401,6 +1409,8 @@ export function seedRbacData(): void {
       'perm_session_manage_own', 'perm_session_manage_any',
       'perm_student_view_assigned', 'perm_student_login_history',
       'perm_group_create', 'perm_group_manage',
+      // messaging
+      'perm_message_delete_own', 'perm_message_delete_any', 'perm_message_view_deleted',
     ],
     role_admin2: [
       // course: all
@@ -1447,6 +1457,8 @@ export function seedRbacData(): void {
       'perm_session_manage_own', 'perm_session_manage_any',
       'perm_student_view_assigned', 'perm_student_login_history',
       'perm_group_create', 'perm_group_manage',
+      // messaging
+      'perm_message_delete_own', 'perm_message_delete_any', 'perm_message_view_deleted',
     ],
     role_super_admin: [
       // All 61 permissions
@@ -1484,6 +1496,10 @@ export function seedRbacData(): void {
       'perm_reward_setup', 'perm_perks_access', 'perm_user_suspend',
       'perm_system_config', 'perm_session_manage_own', 'perm_session_manage_any',
       'perm_impact_report',
+      // messaging
+      'perm_message_delete_own', 'perm_message_delete_any', 'perm_message_view_deleted',
+      // privacy
+      'perm_privacy_view_deleted',
     ],
     // custom-user role: minimal default permissions
     role_custom: [
@@ -2179,6 +2195,21 @@ function ensureDeletionColumns(): void {
   }
 }
 ensureDeletionColumns();
+
+function ensureMessageSoftDeleteColumns(): void {
+  const cols = (db.prepare('PRAGMA table_info(conversation_messages)').all() as { name: string }[])
+    .map(c => c.name);
+  if (!cols.includes('is_deleted')) {
+    db.exec(`
+      ALTER TABLE conversation_messages ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE conversation_messages ADD COLUMN deleted_at TEXT DEFAULT NULL;
+      ALTER TABLE conversation_messages ADD COLUMN deleted_by TEXT DEFAULT NULL;
+      ALTER TABLE conversation_messages ADD COLUMN deletion_type TEXT DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_messages_deleted ON conversation_messages(is_deleted);
+    `);
+  }
+}
+ensureMessageSoftDeleteColumns();
 
 function ensureDeletionTables(): void {
   db.exec(`
