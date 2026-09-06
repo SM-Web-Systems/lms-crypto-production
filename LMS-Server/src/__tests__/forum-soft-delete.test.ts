@@ -479,3 +479,183 @@ describe('Phase 3: Moderator Delete', () => {
     expect(res.status).toBe(409);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 4: Tombstone Rendering
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 4: Tombstone Rendering', () => {
+  let author: ReturnType<typeof createUser>;
+  let viewer: ReturnType<typeof createUser>;
+  let authorToken: string;
+  let viewerToken: string;
+
+  beforeEach(() => {
+    author = createUser({ name: 'Author' });
+    viewer = createUser({ name: 'Viewer' });
+    authorToken = makeToken({ userId: author.id, email: author.email, role: author.role as any });
+    viewerToken = makeToken({ userId: viewer.id, email: viewer.email, role: viewer.role as any });
+  });
+
+  it('TOMB-F01: deleted topic shows null title/body + isDeleted in topic list', async () => {
+    const topicId = createTopic(author.id, { title: 'Secret Title', body: 'Secret Body' });
+    const liveTopicId = createTopic(author.id, { title: 'Visible Topic', body: 'Visible Body' });
+
+    // Delete the first topic
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .get('/api/v1/forum/topics')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    const topics = res.body.data.topics;
+    expect(topics.length).toBeGreaterThanOrEqual(2);
+
+    const deleted = topics.find((t: any) => t.id === topicId);
+    expect(deleted).toBeTruthy();
+    expect(deleted.title).toBeNull();
+    expect(deleted.body).toBeNull();
+    expect(deleted.isDeleted).toBe(true);
+
+    const live = topics.find((t: any) => t.id === liveTopicId);
+    expect(live.title).toBe('Visible Topic');
+    expect(live.body).toBe('Visible Body');
+    expect(live.isDeleted).toBeUndefined();
+  });
+
+  it('TOMB-F02: deleted post shows null body + isDeleted in post list', async () => {
+    const topicId = createTopic(author.id);
+    const post1Id = createPost(topicId, author.id, { body: 'Visible reply' });
+    const post2Id = createPost(topicId, author.id, { body: 'Secret reply' });
+
+    await request(app)
+      .delete(`/api/v1/forum/posts/${post2Id}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .get(`/api/v1/forum/topics/${topicId}/posts`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    const posts = res.body.data.posts;
+
+    const visible = posts.find((p: any) => p.id === post1Id);
+    expect(visible.body).toBe('Visible reply');
+    expect(visible.isDeleted).toBeUndefined();
+
+    const deleted = posts.find((p: any) => p.id === post2Id);
+    expect(deleted.body).toBeNull();
+    expect(deleted.isDeleted).toBe(true);
+  });
+
+  it('TOMB-F03: normal users do NOT see deletion metadata', async () => {
+    const topicId = createTopic(author.id);
+    const postId = createPost(topicId, author.id, { body: 'No metadata leak' });
+
+    await request(app)
+      .delete(`/api/v1/forum/posts/${postId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .get(`/api/v1/forum/topics/${topicId}/posts`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    const post = res.body.data.posts.find((p: any) => p.id === postId);
+    expect(post.deletedAt).toBeUndefined();
+    expect(post.deletedBy).toBeUndefined();
+  });
+
+  it('TOMB-F04: normal GET for deleted topic returns 404', async () => {
+    const topicId = createTopic(author.id);
+
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .get(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('TOMB-F05: postCount excludes deleted posts', async () => {
+    const topicId = createTopic(author.id);
+    createPost(topicId, author.id, { body: 'Live post' });
+    const deletedPostId = createPost(topicId, author.id, { body: 'Dead post' });
+
+    // Soft-delete one post
+    db.prepare(
+      `UPDATE forum_posts SET is_deleted = 1, deleted_at = datetime('now'),
+       deleted_by = ?, deletion_type = 'self_delete' WHERE id = ?`
+    ).run(author.id, deletedPostId);
+
+    const res = await request(app)
+      .get('/api/v1/forum/topics')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    const topic = res.body.data.topics.find((t: any) => t.id === topicId);
+    expect(topic.postCount).toBe(1); // Only 1 live post
+  });
+
+  it('TOMB-F05b: non-deleted topics retain prior response shape', async () => {
+    const topicId = createTopic(author.id, { title: 'Normal Topic', body: 'Normal Body' });
+
+    const res = await request(app)
+      .get(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.title).toBe('Normal Topic');
+    expect(res.body.data.body).toBe('Normal Body');
+    expect(res.body.data.isDeleted).toBeUndefined();
+    expect(res.body.data.deletionType).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 5: Reply Blocking
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 5: Reply Blocking', () => {
+  let author: ReturnType<typeof createUser>;
+  let replier: ReturnType<typeof createUser>;
+  let authorToken: string;
+  let replierToken: string;
+
+  beforeEach(() => {
+    author = createUser({ name: 'Author' });
+    replier = createUser({ name: 'Replier' });
+    authorToken = makeToken({ userId: author.id, email: author.email, role: author.role as any });
+    replierToken = makeToken({ userId: replier.id, email: replier.email, role: replier.role as any });
+  });
+
+  it('BLOCK-F01: POST to deleted topic returns 403', async () => {
+    const topicId = createTopic(author.id);
+
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .post(`/api/v1/forum/topics/${topicId}/posts`)
+      .set('Authorization', `Bearer ${replierToken}`)
+      .send({ body: 'Trying to reply' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('BLOCK-F01b: POST to non-deleted topic still works', async () => {
+    const topicId = createTopic(author.id);
+
+    const res = await request(app)
+      .post(`/api/v1/forum/topics/${topicId}/posts`)
+      .set('Authorization', `Bearer ${replierToken}`)
+      .send({ body: 'Valid reply' });
+
+    expect(res.status).toBe(201);
+  });
+});

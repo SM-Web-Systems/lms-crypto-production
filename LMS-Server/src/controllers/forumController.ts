@@ -39,8 +39,8 @@ function toAuthor(u: User): ForumAuthor {
 
 function rowToTopic(row: {
   id: string;
-  title: string;
-  body: string;
+  title: string | null;
+  body: string | null;
   course_id?: string | null;
   author_id: string;
   created_at: string;
@@ -113,8 +113,8 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
 
     const rows = query<{
       id: string;
-      title: string;
-      body: string;
+      title: string | null;
+      body: string | null;
       course_id: string | null;
       author_id: string;
       created_at: string;
@@ -125,21 +125,34 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
       author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
+      is_deleted: number;
+      deletion_type: string | null;
     }>(
-      `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
+      `SELECT t.id,
+              CASE WHEN t.is_deleted = 1 THEN NULL ELSE t.title END AS title,
+              CASE WHEN t.is_deleted = 1 THEN NULL ELSE t.body END AS body,
+              t.course_id, t.author_id, t.created_at, t.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
               u.deletion_status AS author_deletion_status,
-              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count,
-              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id) AS last_post_at
+              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS post_count,
+              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS last_post_at,
+              t.is_deleted, t.deletion_type
        FROM forum_topics t
        LEFT JOIN users u ON t.author_id = u.id
        WHERE ${filterGeneral ? 't.course_id IS NULL' : 't.course_id = ?'}
-       ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id), t.updated_at) DESC
+       ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0), t.updated_at) DESC
        LIMIT ? OFFSET ?`,
       filterGeneral ? [limit, offset] : [rawCourseId, limit, offset]
     );
 
-    const topics = rows.map(rowToTopic);
+    const topics = rows.map(row => {
+      const topic = rowToTopic(row);
+      if (row.is_deleted === 1) {
+        return { ...topic, isDeleted: true as const, deletionType: row.deletion_type ?? undefined };
+      }
+      return topic;
+    });
+
     res.json({
       success: true,
       data: { topics },
@@ -167,19 +180,21 @@ export async function getTopic(req: AuthRequest, res: Response, next: NextFuncti
       author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
+      is_deleted: number;
     }>(
       `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
               u.deletion_status AS author_deletion_status,
-              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count,
-              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id) AS last_post_at
+              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS post_count,
+              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS last_post_at,
+              t.is_deleted
        FROM forum_topics t
        LEFT JOIN users u ON t.author_id = u.id
        WHERE t.id = ?`,
       [id]
     );
 
-    if (!row) {
+    if (!row || row.is_deleted === 1) {
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
     }
 
@@ -196,7 +211,10 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
   try {
     const { topicId } = req.params;
 
-    const topicExists = queryOne<{ id: string }>('SELECT id FROM forum_topics WHERE id = ?', [topicId]);
+    const topicExists = queryOne<{ id: string; is_deleted: number }>(
+      'SELECT id, is_deleted FROM forum_topics WHERE id = ?',
+      [topicId]
+    );
     if (!topicExists) {
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
     }
@@ -208,7 +226,7 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
     const rows = query<{
       id: string;
       topic_id: string;
-      body: string;
+      body: string | null;
       author_id: string;
       created_at: string;
       updated_at: string;
@@ -216,10 +234,14 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       author_email: string | null;
       author_role: string | null;
       author_deletion_status: string | null;
+      is_deleted: number;
     }>(
-      `SELECT p.id, p.topic_id, p.body, p.author_id, p.created_at, p.updated_at,
+      `SELECT p.id, p.topic_id,
+              CASE WHEN p.is_deleted = 1 THEN NULL ELSE p.body END AS body,
+              p.author_id, p.created_at, p.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
-              u.deletion_status AS author_deletion_status
+              u.deletion_status AS author_deletion_status,
+              p.is_deleted
        FROM forum_posts p
        LEFT JOIN users u ON p.author_id = u.id
        WHERE p.topic_id = ?
@@ -228,9 +250,17 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       [topicId, limit, offset]
     );
 
+    const posts = rows.map(row => {
+      const post = rowToPost(row as any);
+      if (row.is_deleted === 1) {
+        return { ...post, isDeleted: true as const };
+      }
+      return post;
+    });
+
     res.json({
       success: true,
-      data: { posts: rows.map(rowToPost) },
+      data: { posts },
     });
   } catch (error) {
     next(error);
@@ -334,9 +364,15 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
     const { topicId } = req.params;
     const { body } = req.body;
 
-    const topicExists = queryOne<{ id: string }>('SELECT id FROM forum_topics WHERE id = ?', [topicId]);
+    const topicExists = queryOne<{ id: string; is_deleted: number }>(
+      'SELECT id, is_deleted FROM forum_topics WHERE id = ?',
+      [topicId]
+    );
     if (!topicExists) {
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (topicExists.is_deleted === 1) {
+      throw new AppError('Cannot reply to a removed topic', 403, ErrorCodes.FORBIDDEN);
     }
 
     const errors: Array<{ field: string; message: string }> = [];
