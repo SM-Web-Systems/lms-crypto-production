@@ -9,7 +9,8 @@ import type { Conversation, Message } from '../types/message';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { TextArea } from '../components/Input';
-import { MessageCircle, Send, Plus, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { MessageCircle, Send, Plus, ArrowLeft, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
 function initials(name: string): string {
@@ -39,6 +40,10 @@ const Messages: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -179,6 +184,27 @@ const Messages: React.FC = () => {
       setActionError(getErrorMessage(e, 'Could not send your message.'));
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || !selectedConversation) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await messageService.deleteMessage(deleteTarget);
+      // Update local state: mark the message as deleted
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === deleteTarget ? { ...m, body: null, isDeleted: true } : m
+        )
+      );
+      setDeleteTarget(null);
+    } catch (e) {
+      setActionError(getErrorMessage(e, 'Could not delete message. Please try again.'));
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -398,21 +424,49 @@ const Messages: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 bg-neutral-50/40 bg-[length:24px_24px] bg-[linear-gradient(to_right,rgb(15_26_31/0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgb(15_26_31/0.03)_1px,transparent_1px)]">
                   {messages.map((m) => {
                     const mine = m.senderId === userId;
+
+                    // Tombstone for deleted messages
+                    if (m.isDeleted) {
+                      return (
+                        <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                          <div className="max-w-[min(100%,28rem)] rounded-2xl px-4 py-2.5 bg-neutral-100 border border-neutral-200/60 border-dashed" data-testid="message-tombstone">
+                            <p className="text-sm italic text-neutral-400">This message was deleted</p>
+                            <p className="text-[11px] mt-1 tabular-nums text-neutral-400">
+                              {formatTime(m.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                      <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'} group`}>
                         <div
-                          className={`max-w-[min(100%,28rem)] rounded-2xl px-4 py-2.5 shadow-sm ${
+                          className={`max-w-[min(100%,28rem)] rounded-2xl px-4 py-2.5 shadow-sm relative ${
                             mine
                               ? 'rounded-br-md bg-accent-teal text-white'
                               : 'rounded-bl-md bg-white text-neutral-800 border border-neutral-200/90 ring-1 ring-neutral-900/[0.04]'
                           }`}
                         >
                           <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.body}</p>
-                          <p
-                            className={`text-[11px] mt-1.5 tabular-nums ${mine ? 'text-white/75' : 'text-neutral-500'}`}
-                          >
-                            {formatTime(m.createdAt)}
-                          </p>
+                          <div className={`flex items-center gap-2 mt-1.5 ${mine ? 'justify-end' : ''}`}>
+                            <p
+                              className={`text-[11px] tabular-nums ${mine ? 'text-white/75' : 'text-neutral-500'}`}
+                            >
+                              {formatTime(m.createdAt)}
+                            </p>
+                            {mine && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(m.id)}
+                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 focus:bg-white/20"
+                                aria-label="Delete message"
+                                title="Delete message"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-white/70" aria-hidden />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -469,6 +523,17 @@ const Messages: React.FC = () => {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        title="Delete message?"
+        description="This will hide the message for everyone. It cannot be recovered in the conversation view."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };
