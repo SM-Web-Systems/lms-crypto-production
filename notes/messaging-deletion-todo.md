@@ -1,7 +1,7 @@
 # Messaging Deletion — Living TODO Checklist
 
 **Created:** 2026-09-06
-**Status:** Phase 1 (DM Soft-Delete) — Complete (Loop 4), PR Ready
+**Status:** Phase 1 (DM Soft-Delete) — DEPLOYED to production (Loop 6)
 
 ---
 
@@ -125,9 +125,9 @@
 - [x] TypeScript check passes (no errors)
 - [x] Security: no path for normal user to see deleted content (verified via DEL-13)
 - [x] Rate limiting on DELETE endpoint (covered by existing writeLimiter 300/15min)
-- [ ] Manual test: delete message, verify tombstone in both participants' views
-- [ ] Manual test: admin audit view shows original content
-- [ ] Performance: verify index on is_deleted is used in query plans
+- [x] Manual test: delete message, verify tombstone in both participants' views (smoke test 2026-09-06)
+- [ ] Manual test: admin audit view shows original content (admin uses SSO — needs browser test)
+- [x] Performance: verify index on is_deleted is used in query plans (idx_messages_deleted confirmed)
 
 ### Deploy Readiness (Loop 4) ✅
 - [x] Deploy notes written (`notes/messaging-deploy-notes.md`)
@@ -136,6 +136,21 @@
 - [x] Monitoring guidance documented
 - [x] Admin training notes written
 - [x] PR preparation complete
+
+### Production Deploy (Loop 6) ✅
+- [x] PR #39 merged to `main` (2026-09-06T13:19:44Z)
+- [x] Deployed commit: `3cfb1faa696488b893c356527a16b87b84dd33b6`
+- [x] Build SHA verified via `/api/v1/health`
+- [x] Schema migration confirmed: 4 columns + index on `conversation_messages`
+- [x] RBAC permissions seeded: `message.delete_own`, `message.delete_any`, `message.view_deleted`
+- [x] Smoke test: send DM, delete, tombstone visible to both participants (body=null, isDeleted=true)
+- [x] Smoke test: deletion metadata NOT exposed to normal users
+- [x] Smoke test: double-delete returns 409
+- [x] Auth gate: unauthenticated requests return 401 on all admin endpoints
+- [x] RBAC gate: non-admin gets 403 on admin endpoints
+- [x] Audit log: `message.deleted` entry confirmed in production DB
+- [ ] Browser test: admin audit panel via SSO (mukhtar.meer@smwebsystems.com)
+- **Issues:** None. Deploy was clean.
 
 ---
 
