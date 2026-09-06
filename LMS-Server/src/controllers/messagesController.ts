@@ -1,8 +1,9 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
-import { AuthRequest, ConversationResponse, MessageResponse, ErrorCodes } from '../types/index.js';
+import { AuthRequest, ConversationResponse, MessageResponse, AdminMessageResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { auditLog } from '../services/auditService.js';
 
 /** Escape HTML special characters to prevent stored XSS. */
 function escapeHtml(str: string): string {
@@ -173,8 +174,13 @@ export async function getMessages(req: AuthRequest, res: Response, next: NextFun
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-    const rows = query<{ id: string; conversation_id: string; sender_id: string; body: string; created_at: string }>(
-      'SELECT id, conversation_id, sender_id, body, created_at FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
+    const rows = query<{ id: string; conversation_id: string; sender_id: string; body: string; created_at: string; is_deleted: number }>(
+      `SELECT id, conversation_id, sender_id,
+              CASE WHEN is_deleted = 1 THEN NULL ELSE body END AS body,
+              created_at, is_deleted
+       FROM conversation_messages
+       WHERE conversation_id = ?
+       ORDER BY created_at ASC LIMIT ? OFFSET ?`,
       [conversationId, limit, offset]
     );
 
@@ -184,6 +190,7 @@ export async function getMessages(req: AuthRequest, res: Response, next: NextFun
       senderId: r.sender_id,
       body: r.body,
       createdAt: toISO(r.created_at),
+      isDeleted: r.is_deleted === 1,
     }));
 
     res.json({
@@ -342,6 +349,207 @@ export async function postMessage(req: AuthRequest, res: Response, next: NextFun
       success: true,
       data: message,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteMessage(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { messageId } = req.params;
+
+    const msg = queryOne<{ id: string; conversation_id: string; sender_id: string; is_deleted: number; body: string }>(
+      'SELECT id, conversation_id, sender_id, is_deleted, body FROM conversation_messages WHERE id = ?',
+      [messageId]
+    );
+
+    if (!msg) {
+      throw new AppError('Message not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (msg.is_deleted === 1) {
+      throw new AppError('Message already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    // Check the user is a participant in the conversation
+    const conv = queryOne<{ user1_id: string; user2_id: string }>(
+      'SELECT user1_id, user2_id FROM conversations WHERE id = ?',
+      [msg.conversation_id]
+    );
+
+    if (!conv || !assertParticipant(conv, userId)) {
+      throw new AppError('Not authorized to delete this message', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    // Only the sender can self-delete
+    if (msg.sender_id !== userId) {
+      throw new AppError('Not authorized to delete this message', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    execute(
+      `UPDATE conversation_messages
+       SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?, deletion_type = 'self_delete'
+       WHERE id = ? AND is_deleted = 0`,
+      [userId, messageId]
+    );
+
+    auditLog({
+      action: 'message.deleted',
+      actorId: userId,
+      targetId: messageId,
+      details: JSON.stringify({
+        conversation_id: msg.conversation_id,
+        body_length: msg.body.length,
+        deletion_type: 'self_delete',
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminDeleteMessage(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const adminId = req.user?.userId;
+    if (!adminId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { messageId } = req.params;
+
+    const msg = queryOne<{ id: string; conversation_id: string; sender_id: string; is_deleted: number; body: string }>(
+      'SELECT id, conversation_id, sender_id, is_deleted, body FROM conversation_messages WHERE id = ?',
+      [messageId]
+    );
+
+    if (!msg) {
+      throw new AppError('Message not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (msg.is_deleted === 1) {
+      throw new AppError('Message already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    execute(
+      `UPDATE conversation_messages
+       SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?, deletion_type = 'admin_delete'
+       WHERE id = ? AND is_deleted = 0`,
+      [adminId, messageId]
+    );
+
+    auditLog({
+      action: 'message.admin_deleted',
+      actorId: adminId,
+      targetId: messageId,
+      details: JSON.stringify({
+        conversation_id: msg.conversation_id,
+        sender_id: msg.sender_id,
+        body_preview: msg.body.slice(0, 100),
+        deletion_type: 'admin_delete',
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminGetConversationMessages(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { conversationId } = req.params;
+
+    const rows = query<{
+      id: string; conversation_id: string; sender_id: string; body: string;
+      created_at: string; is_deleted: number; deleted_at: string | null;
+      deleted_by: string | null; deletion_type: string | null;
+      sender_name: string | null; sender_email: string | null;
+      original_name: string | null; original_email: string | null;
+    }>(
+      `SELECT cm.id, cm.conversation_id, cm.sender_id, cm.body, cm.created_at,
+              cm.is_deleted, cm.deleted_at, cm.deleted_by, cm.deletion_type,
+              u.name AS sender_name, u.email AS sender_email,
+              du.original_name, du.original_email
+       FROM conversation_messages cm
+       LEFT JOIN users u ON u.id = cm.sender_id
+       LEFT JOIN deleted_user_identities du ON du.user_id = cm.sender_id
+       WHERE cm.conversation_id = ?
+       ORDER BY cm.created_at ASC`,
+      [conversationId]
+    );
+
+    const messages: AdminMessageResponse[] = rows.map((r) => ({
+      id: r.id,
+      conversationId: r.conversation_id,
+      senderId: r.sender_id,
+      body: r.body,
+      createdAt: toISO(r.created_at),
+      isDeleted: r.is_deleted === 1,
+      deletedAt: r.deleted_at,
+      deletedBy: r.deleted_by,
+      deletionType: r.deletion_type,
+      senderName: r.sender_name ?? undefined,
+      senderEmail: r.sender_email ?? undefined,
+      originalSenderName: r.original_name,
+      originalSenderEmail: r.original_email,
+    }));
+
+    res.json({ success: true, data: { messages } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminGetMessage(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { messageId } = req.params;
+
+    const row = queryOne<{
+      id: string; conversation_id: string; sender_id: string; body: string;
+      created_at: string; is_deleted: number; deleted_at: string | null;
+      deleted_by: string | null; deletion_type: string | null;
+      sender_name: string | null; sender_email: string | null;
+      original_name: string | null; original_email: string | null;
+    }>(
+      `SELECT cm.id, cm.conversation_id, cm.sender_id, cm.body, cm.created_at,
+              cm.is_deleted, cm.deleted_at, cm.deleted_by, cm.deletion_type,
+              u.name AS sender_name, u.email AS sender_email,
+              du.original_name, du.original_email
+       FROM conversation_messages cm
+       LEFT JOIN users u ON u.id = cm.sender_id
+       LEFT JOIN deleted_user_identities du ON du.user_id = cm.sender_id
+       WHERE cm.id = ?`,
+      [messageId]
+    );
+
+    if (!row) {
+      throw new AppError('Message not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const message: AdminMessageResponse = {
+      id: row.id,
+      conversationId: row.conversation_id,
+      senderId: row.sender_id,
+      body: row.body,
+      createdAt: toISO(row.created_at),
+      isDeleted: row.is_deleted === 1,
+      deletedAt: row.deleted_at,
+      deletedBy: row.deleted_by,
+      deletionType: row.deletion_type,
+      senderName: row.sender_name ?? undefined,
+      senderEmail: row.sender_email ?? undefined,
+      originalSenderName: row.original_name,
+      originalSenderEmail: row.original_email,
+    };
+
+    res.json({ success: true, data: { message } });
   } catch (error) {
     next(error);
   }
