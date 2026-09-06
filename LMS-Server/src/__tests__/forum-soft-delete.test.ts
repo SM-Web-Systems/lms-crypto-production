@@ -138,3 +138,222 @@ describe('Phase 1: Schema & Migration', () => {
     expect(perm!.name).toBe('forum.view_deleted');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 2: User Self-Delete
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 2: User Self-Delete', () => {
+  let author: ReturnType<typeof createUser>;
+  let other: ReturnType<typeof createUser>;
+  let authorToken: string;
+  let otherToken: string;
+
+  beforeEach(() => {
+    author = createUser({ name: 'Author' });
+    other = createUser({ name: 'Other' });
+    authorToken = makeToken({ userId: author.id, email: author.email, role: author.role as any });
+    otherToken = makeToken({ userId: other.id, email: other.email, role: other.role as any });
+  });
+
+  it('DEL-F01: author can delete their own topic', async () => {
+    const topicId = createTopic(author.id, { title: 'My Topic', body: 'My body' });
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.deleted).toBe(true);
+
+    const row = db.prepare('SELECT is_deleted, deleted_at, deleted_by, deletion_type FROM forum_topics WHERE id = ?').get(topicId) as any;
+    expect(row.is_deleted).toBe(1);
+    expect(row.deleted_at).toBeTruthy();
+    expect(row.deleted_by).toBe(author.id);
+    expect(row.deletion_type).toBe('self_delete');
+  });
+
+  it('DEL-F02: author can delete their own post', async () => {
+    const topicId = createTopic(other.id);
+    const postId = createPost(topicId, author.id, { body: 'My reply' });
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/posts/${postId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.deleted).toBe(true);
+
+    const row = db.prepare('SELECT is_deleted, deleted_at, deleted_by, deletion_type FROM forum_posts WHERE id = ?').get(postId) as any;
+    expect(row.is_deleted).toBe(1);
+    expect(row.deleted_at).toBeTruthy();
+    expect(row.deleted_by).toBe(author.id);
+    expect(row.deletion_type).toBe('self_delete');
+  });
+
+  it('DEL-F03: non-author cannot delete another user\'s topic', async () => {
+    const topicId = createTopic(author.id);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${otherToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('DEL-F04: non-author cannot delete another user\'s post', async () => {
+    const topicId = createTopic(author.id);
+    const postId = createPost(topicId, author.id);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/posts/${postId}`)
+      .set('Authorization', `Bearer ${otherToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('DEL-F05: deleting already-deleted topic returns 409', async () => {
+    const topicId = createTopic(author.id);
+
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    expect(res.status).toBe(409);
+  });
+
+  it('DEL-F06: deleting non-existent topic returns 404', async () => {
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${uuidv4()}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('DEL-F07: unauthenticated delete returns 401', async () => {
+    const topicId = createTopic(author.id);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('DEL-F08: topic self-delete cascades to all posts', async () => {
+    const topicId = createTopic(author.id);
+    const post1Id = createPost(topicId, other.id, { body: 'Reply 1' });
+    const post2Id = createPost(topicId, other.id, { body: 'Reply 2' });
+    const post3Id = createPost(topicId, author.id, { body: 'Reply 3' });
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.cascadedPosts).toBe(3);
+
+    // Verify all posts are soft-deleted with topic_cascade
+    for (const postId of [post1Id, post2Id, post3Id]) {
+      const row = db.prepare('SELECT is_deleted, deleted_by, deletion_type FROM forum_posts WHERE id = ?').get(postId) as any;
+      expect(row.is_deleted).toBe(1);
+      expect(row.deleted_by).toBe(author.id);
+      expect(row.deletion_type).toBe('topic_cascade');
+    }
+  });
+
+  it('DEL-F08b: topic cascade only affects non-deleted posts', async () => {
+    const topicId = createTopic(author.id);
+    const post1Id = createPost(topicId, author.id, { body: 'Already deleted' });
+    const post2Id = createPost(topicId, other.id, { body: 'Still live' });
+
+    // Pre-delete post1
+    db.prepare(
+      `UPDATE forum_posts SET is_deleted = 1, deleted_at = datetime('now'),
+       deleted_by = ?, deletion_type = 'self_delete' WHERE id = ?`
+    ).run(author.id, post1Id);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.cascadedPosts).toBe(1); // Only post2 cascaded
+
+    // post1 retains its original deletion_type
+    const row1 = db.prepare('SELECT deletion_type FROM forum_posts WHERE id = ?').get(post1Id) as any;
+    expect(row1.deletion_type).toBe('self_delete');
+  });
+
+  it('DEL-F08c: original body is preserved in DB after soft-delete', async () => {
+    const topicId = createTopic(author.id, { title: 'Preserve Title', body: 'Preserve Body' });
+
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const row = db.prepare('SELECT title, body FROM forum_topics WHERE id = ?').get(topicId) as any;
+    expect(row.title).toBe('Preserve Title');
+    expect(row.body).toBe('Preserve Body');
+  });
+
+  it('DEL-F08d: audit log entry created on topic self-delete', async () => {
+    const topicId = createTopic(author.id, { title: 'Audit Me' });
+
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const audit = db.prepare(
+      `SELECT action, actor_id, target_id, details FROM audit_log
+       WHERE action = 'forum_topic.deleted' AND target_id = ?`
+    ).get(topicId) as any;
+
+    expect(audit).toBeTruthy();
+    expect(audit.actor_id).toBe(author.id);
+    const details = JSON.parse(audit.details);
+    expect(details.deletion_type).toBe('self_delete');
+    expect(details.title_length).toBe('Audit Me'.length);
+    // Must NOT contain raw title or body
+    expect(details.title).toBeUndefined();
+    expect(details.body).toBeUndefined();
+  });
+
+  it('DEL-F08e: audit log entry created on post self-delete', async () => {
+    const topicId = createTopic(other.id);
+    const postId = createPost(topicId, author.id, { body: 'Audit post' });
+
+    await request(app)
+      .delete(`/api/v1/forum/posts/${postId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const audit = db.prepare(
+      `SELECT action, actor_id, target_id, details FROM audit_log
+       WHERE action = 'forum_post.deleted' AND target_id = ?`
+    ).get(postId) as any;
+
+    expect(audit).toBeTruthy();
+    expect(audit.actor_id).toBe(author.id);
+    const details = JSON.parse(audit.details);
+    expect(details.deletion_type).toBe('self_delete');
+    expect(details.topic_id).toBe(topicId);
+    expect(details.body_length).toBe('Audit post'.length);
+  });
+
+  it('DEL-F08f: deleting a post does not affect parent topic', async () => {
+    const topicId = createTopic(author.id);
+    const postId = createPost(topicId, author.id);
+
+    await request(app)
+      .delete(`/api/v1/forum/posts/${postId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const topic = db.prepare('SELECT is_deleted FROM forum_topics WHERE id = ?').get(topicId) as any;
+    expect(topic.is_deleted).toBe(0);
+  });
+});

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, execute } from '../config/database.js';
+import { query, queryOne, execute, db } from '../config/database.js';
 import {
   AuthRequest,
   ForumTopicResponse,
@@ -10,6 +10,7 @@ import {
   ErrorCodes,
 } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { auditLog } from '../services/auditService.js';
 
 /** Escape HTML special characters to prevent stored XSS. */
 function escapeHtml(str: string): string {
@@ -386,6 +387,125 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
       success: true,
       data: post,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteTopic(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const topic = queryOne<{ id: string; author_id: string; is_deleted: number; title: string; body: string; course_id: string | null }>(
+      'SELECT id, author_id, is_deleted, title, body, course_id FROM forum_topics WHERE id = ?',
+      [id]
+    );
+
+    if (!topic) {
+      throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (topic.is_deleted === 1) {
+      throw new AppError('Topic already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    if (topic.author_id !== userId) {
+      throw new AppError('Not authorized to delete this topic', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    const now = new Date().toISOString();
+
+    // Transactional: soft-delete topic + cascade posts
+    const txn = db.transaction(() => {
+      execute(
+        `UPDATE forum_topics
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'self_delete'
+         WHERE id = ? AND is_deleted = 0`,
+        [now, userId, id]
+      );
+
+      const result = db.prepare(
+        `UPDATE forum_posts
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'topic_cascade'
+         WHERE topic_id = ? AND is_deleted = 0`
+      ).run(now, userId, id);
+
+      return result.changes;
+    });
+
+    const cascadedPosts = txn();
+
+    auditLog({
+      action: 'forum_topic.deleted',
+      actorId: userId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'self_delete',
+        course_id: topic.course_id,
+        author_id: topic.author_id,
+        title_length: topic.title.length,
+        body_length: topic.body.length,
+        cascaded_posts: cascadedPosts,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true, cascadedPosts } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deletePost(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const post = queryOne<{ id: string; author_id: string; is_deleted: number; body: string; topic_id: string }>(
+      'SELECT id, author_id, is_deleted, body, topic_id FROM forum_posts WHERE id = ?',
+      [id]
+    );
+
+    if (!post) {
+      throw new AppError('Post not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (post.is_deleted === 1) {
+      throw new AppError('Post already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    if (post.author_id !== userId) {
+      throw new AppError('Not authorized to delete this post', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    execute(
+      `UPDATE forum_posts
+       SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?, deletion_type = 'self_delete'
+       WHERE id = ? AND is_deleted = 0`,
+      [userId, id]
+    );
+
+    auditLog({
+      action: 'forum_post.deleted',
+      actorId: userId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'self_delete',
+        topic_id: post.topic_id,
+        author_id: post.author_id,
+        body_length: post.body.length,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true } });
   } catch (error) {
     next(error);
   }

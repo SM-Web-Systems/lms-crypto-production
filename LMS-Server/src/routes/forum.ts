@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getTopics, getTopic, getPosts, createTopic, createPost } from '../controllers/forumController.js';
+import { getTopics, getTopic, getPosts, createTopic, createPost, deleteTopic, deletePost } from '../controllers/forumController.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
@@ -96,5 +96,43 @@ router.post('/topics', createTopic);
  *       201: { description: Post created }
  */
 router.post('/topics/:topicId/posts', createPost);
+/**
+ * @openapi
+ * /forum/topics/{id}:
+ *   delete:
+ *     tags: [Forum]
+ *     summary: Delete own topic (soft-delete with cascade)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Topic deleted }
+ *       403: { description: Not authorized }
+ *       404: { description: Not found }
+ *       409: { description: Already deleted }
+ */
+router.delete('/topics/:id', deleteTopic);
+/**
+ * @openapi
+ * /forum/posts/{id}:
+ *   delete:
+ *     tags: [Forum]
+ *     summary: Delete own post (soft-delete)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Post deleted }
+ *       403: { description: Not authorized }
+ *       404: { description: Not found }
+ *       409: { description: Already deleted }
+ */
+router.delete('/posts/:id', deletePost);
 
 export default router;
