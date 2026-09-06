@@ -1,7 +1,7 @@
 # Messaging Deletion — Living TODO Checklist
 
 **Created:** 2026-09-06
-**Status:** Phase 1 (DM Soft-Delete) — Frontend + E2E Complete (Loop 3)
+**Status:** Phase 1 (DM Soft-Delete) — Complete (Loop 4), PR Ready
 
 ---
 
@@ -97,11 +97,11 @@
 - [x] Do not show delete button on already-deleted messages
 - [x] `data-testid="message-tombstone"` for test targeting
 
-### Frontend — Admin Audit UI (Loop 3)
-- [ ] Admin conversation viewer showing full content of deleted messages (deferred — backend endpoints ready)
-- [ ] Red "DELETED" badge on deleted messages
-- [ ] Show deletion metadata (who, when, type)
-- [ ] Show original sender identity (from deleted_user_identities if account anonymized)
+### Frontend — Admin Audit UI (Loop 4) ✅
+- [x] Admin conversation viewer showing full content of deleted messages
+- [x] Red "DELETED" badge on deleted messages
+- [x] Show deletion metadata (who, when, type)
+- [x] Show original sender identity (from deleted_user_identities if account anonymized)
 
 ### Frontend Tests (Loop 3) ✅ — 8/8 passing
 - [x] FE-01: Delete button shown on own messages, hidden on received messages
@@ -115,6 +115,10 @@
 - [x] E2E-01: Sender deletes message → re-fetch shows tombstone (body=null, isDeleted=true)
 - [x] E2E-02: Cannot delete another user's message (403)
 
+### E2E Tests — Admin Audit (Loop 4) ✅ — 2 specs written
+- [x] E2E-ADMIN-01: Admin views deleted message content and metadata
+- [x] E2E-ADMIN-02: Non-admin cannot access audit view
+
 ### Verification & Hardening
 - [x] All backend tests pass (1360/1360)
 - [x] All frontend tests pass (390/390, including 8 new)
@@ -124,6 +128,14 @@
 - [ ] Manual test: delete message, verify tombstone in both participants' views
 - [ ] Manual test: admin audit view shows original content
 - [ ] Performance: verify index on is_deleted is used in query plans
+
+### Deploy Readiness (Loop 4) ✅
+- [x] Deploy notes written (`notes/messaging-deploy-notes.md`)
+- [x] Migration is automatic (ensureMessageSoftDeleteColumns + seedRbacData)
+- [x] Rollback plan documented
+- [x] Monitoring guidance documented
+- [x] Admin training notes written
+- [x] PR preparation complete
 
 ---
 
