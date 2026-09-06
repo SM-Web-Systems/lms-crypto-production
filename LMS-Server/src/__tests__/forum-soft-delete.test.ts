@@ -659,3 +659,111 @@ describe('Phase 5: Reply Blocking', () => {
     expect(res.status).toBe(201);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 6: Admin Audit View
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 6: Admin Audit View', () => {
+  let author: ReturnType<typeof createUser>;
+  let authorToken: string;
+
+  beforeEach(() => {
+    author = createUser({ name: 'Author' });
+    authorToken = makeToken({ userId: author.id, email: author.email, role: author.role as any });
+  });
+
+  it('AUDIT-F01: admin can list all topics with full deleted content', async () => {
+    const admin = makeModeratorWithPerms();
+    const topicId = createTopic(author.id, { title: 'Deleted Title', body: 'Deleted Body' });
+    const liveTopicId = createTopic(author.id, { title: 'Live Title', body: 'Live Body' });
+
+    // Delete the first topic
+    await request(app)
+      .delete(`/api/v1/forum/topics/${topicId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .get('/api/v1/forum/admin/topics')
+      .set('Authorization', `Bearer ${admin.token}`);
+
+    expect(res.status).toBe(200);
+    const topics = res.body.data.topics;
+
+    const deletedTopic = topics.find((t: any) => t.id === topicId);
+    expect(deletedTopic).toBeTruthy();
+    expect(deletedTopic.title).toBe('Deleted Title');
+    expect(deletedTopic.body).toBe('Deleted Body');
+    expect(deletedTopic.isDeleted).toBe(true);
+    expect(deletedTopic.deletedAt).toBeTruthy();
+    expect(deletedTopic.deletedBy).toBe(author.id);
+    expect(deletedTopic.deletionType).toBe('self_delete');
+
+    const liveTopic = topics.find((t: any) => t.id === liveTopicId);
+    expect(liveTopic.title).toBe('Live Title');
+    expect(liveTopic.isDeleted).toBe(false);
+  });
+
+  it('AUDIT-F02: admin can view posts with full content and metadata', async () => {
+    const admin = makeModeratorWithPerms();
+    const topicId = createTopic(author.id);
+    const postId = createPost(topicId, author.id, { body: 'Secret Reply' });
+
+    await request(app)
+      .delete(`/api/v1/forum/posts/${postId}`)
+      .set('Authorization', `Bearer ${authorToken}`);
+
+    const res = await request(app)
+      .get(`/api/v1/forum/admin/topics/${topicId}/posts`)
+      .set('Authorization', `Bearer ${admin.token}`);
+
+    expect(res.status).toBe(200);
+    const post = res.body.data.posts.find((p: any) => p.id === postId);
+    expect(post.body).toBe('Secret Reply');
+    expect(post.isDeleted).toBe(true);
+    expect(post.deletedAt).toBeTruthy();
+    expect(post.deletedBy).toBe(author.id);
+    expect(post.deletionType).toBe('self_delete');
+  });
+
+  it('AUDIT-F03: non-admin cannot access audit endpoints', async () => {
+    const student = createUser({ name: 'Student' });
+    const studentToken = makeToken({ userId: student.id, email: student.email, role: 'student' as any });
+
+    const res = await request(app)
+      .get('/api/v1/forum/admin/topics')
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('AUDIT-F04: admin view recovers identity for anonymized users', async () => {
+    const admin = makeModeratorWithPerms();
+    const topicId = createTopic(author.id, { title: 'Before Anon', body: 'Content' });
+
+    // Snapshot identity then anonymize
+    db.prepare(
+      `INSERT INTO deleted_user_identities (user_id, original_name, original_email, snapshot_at, retention_expires_at)
+       VALUES (?, ?, ?, datetime('now'), datetime('now', '+7 years'))`
+    ).run(author.id, author.name, author.email);
+
+    db.prepare(`UPDATE users SET name = 'Deleted User', email = 'deleted@deleted.local', deletion_status = 'finalized' WHERE id = ?`)
+      .run(author.id);
+
+    // Soft-delete the topic
+    db.prepare(
+      `UPDATE forum_topics SET is_deleted = 1, deleted_at = datetime('now'),
+       deleted_by = ?, deletion_type = 'self_delete' WHERE id = ?`
+    ).run(author.id, topicId);
+
+    const res = await request(app)
+      .get('/api/v1/forum/admin/topics')
+      .set('Authorization', `Bearer ${admin.token}`);
+
+    const topic = res.body.data.topics.find((t: any) => t.id === topicId);
+    expect(topic.title).toBe('Before Anon');
+    expect(topic.senderName).toBe('Deleted User');
+    expect(topic.originalSenderName).toBe(author.name);
+    expect(topic.originalSenderEmail).toBe(author.email);
+  });
+});

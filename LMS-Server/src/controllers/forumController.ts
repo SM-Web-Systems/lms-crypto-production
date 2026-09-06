@@ -656,3 +656,132 @@ export async function adminDeletePost(req: AuthRequest, res: Response, next: Nex
     next(error);
   }
 }
+
+export async function adminGetTopics(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const rows = query<{
+      id: string;
+      title: string;
+      body: string;
+      course_id: string | null;
+      author_id: string;
+      created_at: string;
+      updated_at: string;
+      is_deleted: number;
+      deleted_at: string | null;
+      deleted_by: string | null;
+      deletion_type: string | null;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      original_name: string | null;
+      original_email: string | null;
+      post_count: number;
+    }>(
+      `SELECT t.id, t.title, t.body, t.course_id, t.author_id,
+              t.created_at, t.updated_at,
+              t.is_deleted, t.deleted_at, t.deleted_by, t.deletion_type,
+              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              dui.original_name, dui.original_email,
+              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count
+       FROM forum_topics t
+       LEFT JOIN users u ON t.author_id = u.id
+       LEFT JOIN deleted_user_identities dui ON t.author_id = dui.user_id
+       ORDER BY t.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+
+    const topics = rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      courseId: row.course_id ?? null,
+      authorId: row.author_id,
+      senderName: row.author_name ?? 'Unknown',
+      senderEmail: row.author_email ?? null,
+      ...(row.original_name != null ? { originalSenderName: row.original_name } : {}),
+      ...(row.original_email != null ? { originalSenderEmail: row.original_email } : {}),
+      createdAt: toISO(row.created_at)!,
+      updatedAt: toISO(row.updated_at) ?? undefined,
+      isDeleted: row.is_deleted === 1,
+      ...(row.deleted_at != null ? { deletedAt: toISO(row.deleted_at) } : {}),
+      ...(row.deleted_by != null ? { deletedBy: row.deleted_by } : {}),
+      ...(row.deletion_type != null ? { deletionType: row.deletion_type } : {}),
+      postCount: row.post_count,
+    }));
+
+    res.json({ success: true, data: { topics } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminGetPosts(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { topicId } = req.params;
+
+    const topicExists = queryOne<{ id: string }>('SELECT id FROM forum_topics WHERE id = ?', [topicId]);
+    if (!topicExists) {
+      throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const rows = query<{
+      id: string;
+      topic_id: string;
+      body: string;
+      author_id: string;
+      created_at: string;
+      updated_at: string;
+      is_deleted: number;
+      deleted_at: string | null;
+      deleted_by: string | null;
+      deletion_type: string | null;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      original_name: string | null;
+      original_email: string | null;
+    }>(
+      `SELECT p.id, p.topic_id, p.body, p.author_id,
+              p.created_at, p.updated_at,
+              p.is_deleted, p.deleted_at, p.deleted_by, p.deletion_type,
+              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              dui.original_name, dui.original_email
+       FROM forum_posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       LEFT JOIN deleted_user_identities dui ON p.author_id = dui.user_id
+       WHERE p.topic_id = ?
+       ORDER BY p.created_at ASC
+       LIMIT ? OFFSET ?`,
+      [topicId, limit, offset]
+    );
+
+    const posts = rows.map(row => ({
+      id: row.id,
+      topicId: row.topic_id,
+      body: row.body,
+      authorId: row.author_id,
+      senderName: row.author_name ?? 'Unknown',
+      senderEmail: row.author_email ?? null,
+      ...(row.original_name != null ? { originalSenderName: row.original_name } : {}),
+      ...(row.original_email != null ? { originalSenderEmail: row.original_email } : {}),
+      createdAt: toISO(row.created_at)!,
+      updatedAt: toISO(row.updated_at) ?? undefined,
+      isDeleted: row.is_deleted === 1,
+      ...(row.deleted_at != null ? { deletedAt: toISO(row.deleted_at) } : {}),
+      ...(row.deleted_by != null ? { deletedBy: row.deleted_by } : {}),
+      ...(row.deletion_type != null ? { deletionType: row.deletion_type } : {}),
+    }));
+
+    res.json({ success: true, data: { posts } });
+  } catch (error) {
+    next(error);
+  }
+}
