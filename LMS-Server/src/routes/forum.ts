@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { getTopics, getTopic, getPosts, createTopic, createPost, deleteTopic, deletePost } from '../controllers/forumController.js';
+import { getTopics, getTopic, getPosts, createTopic, createPost, deleteTopic, deletePost, adminDeleteTopic, adminDeletePost } from '../controllers/forumController.js';
 import { authenticate } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
 
 const router = Router();
 
@@ -134,5 +135,43 @@ router.delete('/topics/:id', deleteTopic);
  *       409: { description: Already deleted }
  */
 router.delete('/posts/:id', deletePost);
+/**
+ * @openapi
+ * /forum/admin/topics/{id}:
+ *   delete:
+ *     tags: [Forum Admin]
+ *     summary: Moderator/admin delete topic (soft-delete with cascade)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Topic deleted }
+ *       403: { description: Not authorized }
+ *       404: { description: Not found }
+ *       409: { description: Already deleted }
+ */
+router.delete('/admin/topics/:id', requirePermission('forum.moderate'), adminDeleteTopic);
+/**
+ * @openapi
+ * /forum/admin/posts/{id}:
+ *   delete:
+ *     tags: [Forum Admin]
+ *     summary: Moderator/admin delete post (soft-delete)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Post deleted }
+ *       403: { description: Not authorized }
+ *       404: { description: Not found }
+ *       409: { description: Already deleted }
+ */
+router.delete('/admin/posts/:id', requirePermission('forum.moderate'), adminDeletePost);
 
 export default router;

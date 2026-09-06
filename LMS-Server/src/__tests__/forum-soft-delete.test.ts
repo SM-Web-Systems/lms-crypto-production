@@ -357,3 +357,125 @@ describe('Phase 2: User Self-Delete', () => {
     expect(topic.is_deleted).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 3: Moderator Delete
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 3: Moderator Delete', () => {
+  let author: ReturnType<typeof createUser>;
+  let authorToken: string;
+
+  beforeEach(() => {
+    author = createUser({ name: 'Author' });
+    authorToken = makeToken({ userId: author.id, email: author.email, role: author.role as any });
+  });
+
+  it('MOD-F01: moderator can delete any topic', async () => {
+    const mod = makeModeratorWithPerms();
+    const topicId = createTopic(author.id, { title: 'Remove Me', body: 'Bad content' });
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/admin/topics/${topicId}`)
+      .set('Authorization', `Bearer ${mod.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.deleted).toBe(true);
+
+    const row = db.prepare('SELECT is_deleted, deleted_by, deletion_type FROM forum_topics WHERE id = ?').get(topicId) as any;
+    expect(row.is_deleted).toBe(1);
+    expect(row.deleted_by).toBe(mod.id);
+    expect(row.deletion_type).toBe('moderator_delete');
+  });
+
+  it('MOD-F02: moderator can delete any post', async () => {
+    const mod = makeModeratorWithPerms();
+    const topicId = createTopic(author.id);
+    const postId = createPost(topicId, author.id, { body: 'Offensive reply' });
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/admin/posts/${postId}`)
+      .set('Authorization', `Bearer ${mod.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.deleted).toBe(true);
+
+    const row = db.prepare('SELECT is_deleted, deleted_by, deletion_type FROM forum_posts WHERE id = ?').get(postId) as any;
+    expect(row.is_deleted).toBe(1);
+    expect(row.deleted_by).toBe(mod.id);
+    expect(row.deletion_type).toBe('moderator_delete');
+  });
+
+  it('MOD-F03: non-moderator cannot use admin delete endpoints', async () => {
+    const student = createUser({ name: 'Student' });
+    const studentToken = makeToken({ userId: student.id, email: student.email, role: 'student' as any });
+    const topicId = createTopic(author.id);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/admin/topics/${topicId}`)
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('MOD-F04: moderator topic delete cascades to all posts', async () => {
+    const mod = makeModeratorWithPerms();
+    const topicId = createTopic(author.id);
+    const post1Id = createPost(topicId, author.id, { body: 'Reply 1' });
+    const post2Id = createPost(topicId, author.id, { body: 'Reply 2' });
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/admin/topics/${topicId}`)
+      .set('Authorization', `Bearer ${mod.token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.cascadedPosts).toBe(2);
+
+    for (const postId of [post1Id, post2Id]) {
+      const row = db.prepare('SELECT is_deleted, deleted_by, deletion_type FROM forum_posts WHERE id = ?').get(postId) as any;
+      expect(row.is_deleted).toBe(1);
+      expect(row.deleted_by).toBe(mod.id);
+      expect(row.deletion_type).toBe('topic_cascade');
+    }
+  });
+
+  it('MOD-F05: moderator delete creates audit log with body_length', async () => {
+    const mod = makeModeratorWithPerms();
+    const topicId = createTopic(author.id, { title: 'Audit This', body: 'Bad content here' });
+
+    await request(app)
+      .delete(`/api/v1/forum/admin/topics/${topicId}`)
+      .set('Authorization', `Bearer ${mod.token}`);
+
+    const audit = db.prepare(
+      `SELECT action, actor_id, target_id, details FROM audit_log
+       WHERE action = 'forum_topic.moderated' AND target_id = ?`
+    ).get(topicId) as any;
+
+    expect(audit).toBeTruthy();
+    expect(audit.actor_id).toBe(mod.id);
+    const details = JSON.parse(audit.details);
+    expect(details.deletion_type).toBe('moderator_delete');
+    expect(details.author_id).toBe(author.id);
+    expect(details.title_length).toBe('Audit This'.length);
+    expect(details.body_length).toBe('Bad content here'.length);
+    // Must NOT contain raw content
+    expect(details.title).toBeUndefined();
+    expect(details.body).toBeUndefined();
+  });
+
+  it('MOD-F06: moderator deleting already-deleted topic returns 409', async () => {
+    const mod = makeModeratorWithPerms();
+    const topicId = createTopic(author.id);
+
+    await request(app)
+      .delete(`/api/v1/forum/admin/topics/${topicId}`)
+      .set('Authorization', `Bearer ${mod.token}`);
+
+    const res = await request(app)
+      .delete(`/api/v1/forum/admin/topics/${topicId}`)
+      .set('Authorization', `Bearer ${mod.token}`);
+
+    expect(res.status).toBe(409);
+  });
+});

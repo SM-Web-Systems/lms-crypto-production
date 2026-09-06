@@ -510,3 +510,113 @@ export async function deletePost(req: AuthRequest, res: Response, next: NextFunc
     next(error);
   }
 }
+
+export async function adminDeleteTopic(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const topic = queryOne<{ id: string; author_id: string; is_deleted: number; title: string; body: string; course_id: string | null }>(
+      'SELECT id, author_id, is_deleted, title, body, course_id FROM forum_topics WHERE id = ?',
+      [id]
+    );
+
+    if (!topic) {
+      throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (topic.is_deleted === 1) {
+      throw new AppError('Topic already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    const now = new Date().toISOString();
+
+    const txn = db.transaction(() => {
+      execute(
+        `UPDATE forum_topics
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'moderator_delete'
+         WHERE id = ? AND is_deleted = 0`,
+        [now, actorId, id]
+      );
+
+      const result = db.prepare(
+        `UPDATE forum_posts
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'topic_cascade'
+         WHERE topic_id = ? AND is_deleted = 0`
+      ).run(now, actorId, id);
+
+      return result.changes;
+    });
+
+    const cascadedPosts = txn();
+
+    auditLog({
+      action: 'forum_topic.moderated',
+      actorId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'moderator_delete',
+        course_id: topic.course_id,
+        author_id: topic.author_id,
+        title_length: topic.title.length,
+        body_length: topic.body.length,
+        cascaded_posts: cascadedPosts,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true, cascadedPosts } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminDeletePost(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const post = queryOne<{ id: string; author_id: string; is_deleted: number; body: string; topic_id: string }>(
+      'SELECT id, author_id, is_deleted, body, topic_id FROM forum_posts WHERE id = ?',
+      [id]
+    );
+
+    if (!post) {
+      throw new AppError('Post not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (post.is_deleted === 1) {
+      throw new AppError('Post already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    execute(
+      `UPDATE forum_posts
+       SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?, deletion_type = 'moderator_delete'
+       WHERE id = ? AND is_deleted = 0`,
+      [actorId, id]
+    );
+
+    auditLog({
+      action: 'forum_post.moderated',
+      actorId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'moderator_delete',
+        topic_id: post.topic_id,
+        author_id: post.author_id,
+        body_length: post.body.length,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
