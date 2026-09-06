@@ -1,9 +1,19 @@
 # Forum Soft-Delete — Living TODO Checklist
 
 **Created:** 2026-09-06
-**Status:** Loop 8 (Design) — In Progress
+**Status:** Loop 9 (Backend Implementation) — COMPLETE
 **Spec:** `docs/forum/specs/02-forum-soft-delete.md`
 **Branch:** `feat/forum-soft-delete`
+
+---
+
+## Loop 9 Verification Results (2026-09-06)
+
+- **Forum tests:** 38/38 pass (`forum-soft-delete.test.ts`, Phases 1–7)
+- **Full backend suite:** 1401/1401 pass (150 test files)
+- **TypeScript typecheck:** PASS (`npx tsc --noEmit` — no errors)
+- **Build:** PASS (`npm run build` — no errors)
+- **Commits:** tasks 1–6 complete on branch `feat/forum-soft-delete`
 
 ---
 
@@ -19,67 +29,68 @@
 - [ ] User review and approval of design
 
 ### Schema & Migrations (Loop 9)
-- [ ] Add `is_deleted` (INTEGER NOT NULL DEFAULT 0) to `forum_topics`
-- [ ] Add `deleted_at` (TEXT DEFAULT NULL) to `forum_topics`
-- [ ] Add `deleted_by` (TEXT DEFAULT NULL) to `forum_topics`
-- [ ] Add `deletion_type` (TEXT DEFAULT NULL) to `forum_topics`
-- [ ] Add `is_deleted` (INTEGER NOT NULL DEFAULT 0) to `forum_posts`
-- [ ] Add `deleted_at` (TEXT DEFAULT NULL) to `forum_posts`
-- [ ] Add `deleted_by` (TEXT DEFAULT NULL) to `forum_posts`
-- [ ] Add `deletion_type` (TEXT DEFAULT NULL) to `forum_posts`
-- [ ] Add index `idx_forum_topics_deleted` on `forum_topics(is_deleted)`
-- [ ] Add index `idx_forum_posts_deleted` on `forum_posts(is_deleted)`
-- [ ] Update `schema.sql` for fresh installs
-- [ ] Add `ensureForumSoftDeleteColumns()` migration in `database.ts`
-- [ ] Verify backward compat (existing rows get defaults)
+- [x] Add `is_deleted` (INTEGER NOT NULL DEFAULT 0) to `forum_topics`
+- [x] Add `deleted_at` (TEXT DEFAULT NULL) to `forum_topics`
+- [x] Add `deleted_by` (TEXT DEFAULT NULL) to `forum_topics`
+- [x] Add `deletion_type` (TEXT DEFAULT NULL) to `forum_topics`
+- [x] Add `is_deleted` (INTEGER NOT NULL DEFAULT 0) to `forum_posts`
+- [x] Add `deleted_at` (TEXT DEFAULT NULL) to `forum_posts`
+- [x] Add `deleted_by` (TEXT DEFAULT NULL) to `forum_posts`
+- [x] Add `deletion_type` (TEXT DEFAULT NULL) to `forum_posts`
+- [x] Add index `idx_forum_topics_deleted` on `forum_topics(is_deleted)`
+- [x] Add index `idx_forum_posts_deleted` on `forum_posts(is_deleted)`
+- [x] Update `schema.sql` for fresh installs
+- [x] Add `ensureForumSoftDeleteColumns()` migration in `database.ts`
+- [x] Verify backward compat (existing rows get defaults)
 
 ### RBAC (Loop 9)
-- [ ] Add `forum.view_deleted` permission
-- [ ] Assign `forum.view_deleted` to admin, admin2, super_admin
-- [ ] Confirm `forum.moderate` is assigned to instructor, admin, admin2, super_admin
+- [x] Add `forum.view_deleted` permission
+- [x] Assign `forum.view_deleted` to admin, admin2, super_admin
+- [x] Confirm `forum.moderate` is assigned to instructor, admin, admin2, super_admin
 
 ### Backend — User Delete Endpoints (Loop 9)
-- [ ] `DELETE /forum/topics/:id` — author self-delete
-- [ ] Validate: topic exists, author_id = current user, is_deleted = 0
-- [ ] Soft-cascade: mark all non-deleted posts as deleted (deletion_type='topic_cascade')
-- [ ] Audit log: action='forum_topic.deleted'
-- [ ] Return 200 with `{ deleted: true, cascadedPosts: N }`
-- [ ] Error cases: 404, 403, 409, 401
-- [ ] `DELETE /forum/posts/:id` — author self-delete
-- [ ] Validate: post exists, author_id = current user, is_deleted = 0
-- [ ] Audit log: action='forum_post.deleted'
-- [ ] Return 200 with `{ deleted: true }`
-- [ ] Error cases: 404, 403, 409, 401
+- [x] `DELETE /forum/topics/:id` — author self-delete
+- [x] Validate: topic exists, author_id = current user, is_deleted = 0
+- [x] Soft-cascade: mark all non-deleted posts as deleted (deletion_type='topic_cascade')
+- [x] Audit log: action='forum_topic.deleted'
+- [x] Return 200 with `{ deleted: true, cascadedPosts: N }`
+- [x] Error cases: 404, 403, 409, 401
+- [x] `DELETE /forum/posts/:id` — author self-delete
+- [x] Validate: post exists, author_id = current user, is_deleted = 0
+- [x] Audit log: action='forum_post.deleted'
+- [x] Return 200 with `{ deleted: true }`
+- [x] Error cases: 404, 403, 409, 401
 
 ### Backend — Moderator Delete Endpoints (Loop 9)
-- [ ] `DELETE /forum/admin/topics/:id` — moderator/admin delete (RBAC: `forum.moderate`)
-- [ ] Soft-cascade same as user delete, deletion_type='moderator_delete'
-- [ ] Audit log: action='forum_topic.moderated' with body_preview, author_id
-- [ ] `DELETE /forum/admin/posts/:id` — moderator/admin delete (RBAC: `forum.moderate`)
-- [ ] Audit log: action='forum_post.moderated' with body_preview, author_id
+- [x] `DELETE /forum/admin/topics/:id` — moderator/admin delete (RBAC: `forum.moderate`)
+- [x] Soft-cascade same as user delete, deletion_type='moderator_delete'
+- [x] Audit log: action='forum_topic.moderated' with body_preview, author_id
+- [x] `DELETE /forum/admin/posts/:id` — moderator/admin delete (RBAC: `forum.moderate`)
+- [x] Audit log: action='forum_post.moderated' with body_preview, author_id
 
 ### Backend — Query Updates (Loop 9)
-- [ ] Update `getTopics()` to use CASE expression (null title/body when is_deleted=1)
-- [ ] Include `isDeleted` flag in topic response
-- [ ] Update `getTopic()` — return 404 for deleted topics (normal users)
-- [ ] Update `getPosts()` to use CASE expression (null body when is_deleted=1)
-- [ ] Include `isDeleted` flag in post response
-- [ ] Update `postCount` subquery to exclude deleted posts
-- [ ] Do NOT expose deletion metadata to normal users
-- [ ] Block replies to deleted topics (403 in `createPost`)
+- [x] Update `getTopics()` to use CASE expression (null title/body when is_deleted=1)
+- [x] Include `isDeleted` flag in topic response
+- [x] Update `getTopic()` — return 404 for deleted topics (normal users)
+- [x] Update `getPosts()` to use CASE expression (null body when is_deleted=1)
+- [x] Include `isDeleted` flag in post response
+- [x] Update `postCount` subquery to exclude deleted posts
+- [x] Do NOT expose deletion metadata to normal users
+- [x] Block replies to deleted topics (403 in `createPost`)
 
 ### Backend — Admin Audit Endpoints (Loop 9)
-- [ ] `GET /forum/admin/topics` — full content + deletion metadata (RBAC: `forum.view_deleted`)
-- [ ] `GET /forum/admin/topics/:topicId/posts` — full content + metadata (RBAC: `forum.view_deleted`)
-- [ ] JOIN with `deleted_user_identities` for anonymized author recovery
+- [x] `GET /forum/admin/topics` — full content + deletion metadata (RBAC: `forum.view_deleted`)
+- [x] `GET /forum/admin/topics/:topicId/posts` — full content + metadata (RBAC: `forum.view_deleted`)
+- [x] JOIN with `deleted_user_identities` for anonymized author recovery
 
 ### Backend Tests (Loop 9)
-- [ ] SCH-F01–F04: Schema migration verification
-- [ ] DEL-F01–F08: User self-delete (topic, post, cascade, errors)
-- [ ] MOD-F01–F06: Moderator delete (topic, post, cascade, errors)
-- [ ] TOMB-F01–F05: Tombstone rendering (null content, no metadata, postCount)
-- [ ] BLOCK-F01: Reply blocking on deleted topic
-- [ ] AUDIT-F01–F04: Admin audit view (full content, metadata, RBAC, identity recovery)
+- [x] SCH-F01–F04: Schema migration verification
+- [x] DEL-F01–F08: User self-delete (topic, post, cascade, errors)
+- [x] MOD-F01–F06: Moderator delete (topic, post, cascade, errors)
+- [x] TOMB-F01–F05: Tombstone rendering (null content, no metadata, postCount)
+- [x] BLOCK-F01: Reply blocking on deleted topic
+- [x] AUDIT-F01–F04: Admin audit view (full content, metadata, RBAC, identity recovery)
+- [x] REG-F01–F03: Regression (pagination, XSS escaping, account anonymization)
 
 ### Frontend — Delete UX (Loop 10)
 - [ ] Add delete button (Trash2 icon) on own topics, visible on hover or in thread view
