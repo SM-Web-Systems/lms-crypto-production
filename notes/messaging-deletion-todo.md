@@ -149,8 +149,21 @@
 - [x] Auth gate: unauthenticated requests return 401 on all admin endpoints
 - [x] RBAC gate: non-admin gets 403 on admin endpoints
 - [x] Audit log: `message.deleted` entry confirmed in production DB
-- [ ] Browser test: admin audit panel via SSO (mukhtar.meer@smwebsystems.com)
+- [x] Admin audit panel verified in production bundle (AdminDashboard chunk contains: "Message audit", "Deleted User", "deletedMessageCount", admin API paths)
+- [x] Backend admin endpoints verified via API (401 unauth, 403 non-admin, data shape correct)
+- [ ] Browser test: admin audit panel via SSO (mukhtar.meer@smwebsystems.com) — requires manual SSO login
 - **Issues:** None. Deploy was clean.
+- **Note:** Pre-existing RBAC gap — if a user is promoted from student to admin via SSO auto-promote, `user_roles` is not updated until next container restart (when `migrateUsersToRbac()` runs). First-time admin users are unaffected (INSERT trigger handles them). This is NOT introduced by this feature.
+
+### Feature Complete ✅
+- **Deployed commit:** `3cfb1faa696488b893c356527a16b87b84dd33b6`
+- **Deploy date:** 2026-09-06T13:21Z
+- **Final verification date:** 2026-09-06
+- **Status:** Phase 1 DM Soft-Delete is fully deployed and verified. All automated gates pass. One manual browser check (admin audit via SSO) remains — admin endpoints are confirmed working via API; the browser test depends on first admin SSO login.
+- **Non-blocking follow-ups:**
+  - RBAC role promotion gap (pre-existing, not introduced by this feature)
+  - Admin N+1 query in `adminGetConversations` (acceptable at current scale, add pagination if >10k conversations)
+  - 15 pre-existing backend test failures in NFT provider tests (unrelated)
 
 ---
 
