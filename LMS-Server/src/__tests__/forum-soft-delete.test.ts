@@ -519,6 +519,9 @@ describe('Phase 4: Tombstone Rendering', () => {
     expect(deleted.title).toBeNull();
     expect(deleted.body).toBeNull();
     expect(deleted.isDeleted).toBe(true);
+    expect(deleted.deletionType).toBeUndefined();
+    expect(deleted.deletedAt).toBeUndefined();
+    expect(deleted.deletedBy).toBeUndefined();
 
     const live = topics.find((t: any) => t.id === liveTopicId);
     expect(live.title).toBe('Visible Topic');

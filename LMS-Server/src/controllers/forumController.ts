@@ -148,7 +148,7 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
     const topics = rows.map(row => {
       const topic = rowToTopic(row);
       if (row.is_deleted === 1) {
-        return { ...topic, isDeleted: true as const, deletionType: row.deletion_type ?? undefined };
+        return { ...topic, isDeleted: true as const };
       }
       return topic;
     });
