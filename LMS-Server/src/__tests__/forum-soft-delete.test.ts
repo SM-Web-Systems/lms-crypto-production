@@ -767,3 +767,61 @@ describe('Phase 6: Admin Audit View', () => {
     expect(topic.originalSenderEmail).toBe(author.email);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 7: Regression
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 7: Regression', () => {
+  let user: ReturnType<typeof createUser>;
+  let userToken: string;
+
+  beforeEach(() => {
+    user = createUser({ name: 'Regression User' });
+    userToken = makeToken({ userId: user.id, email: user.email, role: user.role as any });
+  });
+
+  it('REG-F01: pagination still works on topic list', async () => {
+    for (let i = 0; i < 5; i++) {
+      createTopic(user.id, { title: `Topic ${i}`, body: `Body ${i}` });
+    }
+
+    const res = await request(app)
+      .get('/api/v1/forum/topics?limit=2&offset=0')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.topics).toHaveLength(2);
+  });
+
+  it('REG-F02: existing XSS escaping preserved', async () => {
+    const res = await request(app)
+      .post('/api/v1/forum/topics')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ title: '<script>alert(1)</script>', body: 'Safe body' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.title).not.toContain('<script>');
+    expect(res.body.data.title).toContain('&lt;script&gt;');
+  });
+
+  it('REG-F03: deleted-user account anonymization still works', async () => {
+    const topicId = createTopic(user.id, { title: 'Anon Test', body: 'Body' });
+
+    // Simulate account deletion
+    db.prepare(`UPDATE users SET name = 'Deleted User', email = 'deleted@deleted.local', deletion_status = 'finalized' WHERE id = ?`)
+      .run(user.id);
+
+    const viewer = createUser({ name: 'Viewer' });
+    const viewerToken = makeToken({ userId: viewer.id, email: viewer.email, role: viewer.role as any });
+
+    const res = await request(app)
+      .get('/api/v1/forum/topics')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    const topic = res.body.data.topics.find((t: any) => t.id === topicId);
+    expect(topic.author.name).toBe('Deleted User');
+    expect(topic.author.email).toBeNull();
+    expect(topic.author.isDeleted).toBe(true);
+  });
+});
