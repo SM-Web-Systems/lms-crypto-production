@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
-import { AuthRequest, ConversationResponse, MessageResponse, AdminMessageResponse, ErrorCodes } from '../types/index.js';
+import { AuthRequest, ConversationResponse, MessageResponse, AdminMessageResponse, AdminConversationResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditLog } from '../services/auditService.js';
 
@@ -457,6 +457,40 @@ export async function adminDeleteMessage(req: AuthRequest, res: Response, next: 
     });
 
     res.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminGetConversations(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const rows = query<{
+      id: string; user1_id: string; user2_id: string; updated_at: string;
+      message_count: number; deleted_count: number;
+    }>(
+      `SELECT c.id, c.user1_id, c.user2_id, c.updated_at,
+              COUNT(cm.id) AS message_count,
+              SUM(CASE WHEN cm.is_deleted = 1 THEN 1 ELSE 0 END) AS deleted_count
+       FROM conversations c
+       LEFT JOIN conversation_messages cm ON cm.conversation_id = c.id
+       GROUP BY c.id
+       ORDER BY c.updated_at DESC`
+    );
+
+    const conversations: AdminConversationResponse[] = rows.map((r) => {
+      const u1 = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [r.user1_id]);
+      const u2 = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [r.user2_id]);
+      return {
+        id: r.id,
+        participantIds: [r.user1_id, r.user2_id],
+        participantNames: [u1?.name ?? 'Deleted User', u2?.name ?? 'Deleted User'],
+        updatedAt: toISO(r.updated_at),
+        messageCount: r.message_count ?? 0,
+        deletedMessageCount: r.deleted_count ?? 0,
+      };
+    });
+
+    res.json({ success: true, data: { conversations } });
   } catch (error) {
     next(error);
   }

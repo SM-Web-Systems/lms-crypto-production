@@ -9,6 +9,7 @@ import {
   markConversationRead,
   deleteMessage,
   adminDeleteMessage,
+  adminGetConversations,
   adminGetConversationMessages,
   adminGetMessage,
 } from '../controllers/messagesController.js';
@@ -185,6 +186,19 @@ router.delete('/messages/:messageId', deleteMessage);
  *       409: { description: Already deleted }
  */
 router.delete('/admin/messages/:messageId', requirePermission('message.delete_any'), adminDeleteMessage);
+
+/**
+ * @openapi
+ * /messages/admin/conversations:
+ *   get:
+ *     tags: [Messages Admin]
+ *     summary: Admin list all conversations with message and deleted-message counts
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: List of all conversations with counts }
+ *       403: { description: Forbidden }
+ */
+router.get('/admin/conversations', requirePermission('message.view_deleted'), adminGetConversations);
 
 /**
  * @openapi

@@ -7,6 +7,7 @@
  * Phase 4: User-facing query with tombstones (DEL-11 through DEL-14)
  * Phase 5: Admin audit view (DEL-15 through DEL-18)
  * Phase 6: Integration / edge cases (INT-01 through INT-06)
+ * Phase 7: Admin conversation list (ADM-LIST-01 through ADM-LIST-03)
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -673,5 +674,56 @@ describe('Phase 6: Integration & Edge Cases', () => {
     expect(res.body.data.message.body).toBe('audit single');
     expect(res.body.data.message.isDeleted).toBe(true);
     expect(res.body.data.message.deletedBy).toBe(sender.id);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 7: Admin Conversation List
+// ─────────────────────────────────────────────────────────────────
+
+describe('Phase 7: Admin conversation list', () => {
+  let adminToken: string;
+  let aliceToken: string;
+  let convId: string;
+
+  beforeEach(() => {
+    const admin = makeAdminWithMessagePerms();
+    adminToken = admin.token;
+
+    const alice = createUser({ name: 'Alice' });
+    aliceToken = makeToken({ userId: alice.id, email: alice.email, role: alice.role as any });
+
+    const bob = createUser({ name: 'Bob' });
+    convId = createConversation(alice.id, bob.id);
+    createMessage(convId, alice.id, 'hello');
+    createMessage(convId, bob.id, 'world');
+  });
+
+  it('ADM-LIST-01: admin can list all conversations with counts', async () => {
+    const res = await request(app)
+      .get('/api/v1/messages/admin/conversations')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.conversations).toBeInstanceOf(Array);
+    // Should include the conversation from earlier tests
+    const conv = res.body.data.conversations.find((c: any) => c.id === convId);
+    expect(conv).toBeTruthy();
+    expect(conv.participantIds).toHaveLength(2);
+    expect(conv.participantNames).toHaveLength(2);
+    expect(typeof conv.messageCount).toBe('number');
+    expect(typeof conv.deletedMessageCount).toBe('number');
+  });
+
+  it('ADM-LIST-02: non-admin cannot list conversations (403)', async () => {
+    const res = await request(app)
+      .get('/api/v1/messages/admin/conversations')
+      .set('Authorization', `Bearer ${aliceToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('ADM-LIST-03: unauthenticated request returns 401', async () => {
+    const res = await request(app)
+      .get('/api/v1/messages/admin/conversations');
+    expect(res.status).toBe(401);
   });
 });

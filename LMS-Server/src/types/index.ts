@@ -351,6 +351,15 @@ export interface AdminMessageResponse extends MessageResponse {
   originalSenderEmail?: string | null;
 }
 
+export interface AdminConversationResponse {
+  id: string;
+  participantIds: [string, string];
+  participantNames: [string, string];
+  updatedAt: string;
+  messageCount: number;
+  deletedMessageCount: number;
+}
+
 // Course members & user directory (BACKEND_UPDATE_REQUIREMENTS)
 export interface UserDirectoryItem {
   id: string;
