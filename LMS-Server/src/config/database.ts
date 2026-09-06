@@ -1205,6 +1205,7 @@ export function seedRbacData(): void {
     ['perm_forum_view', 'forum.view', 'forum', 'View Forum'],
     ['perm_forum_post', 'forum.post', 'forum', 'Post in Forum'],
     ['perm_forum_moderate', 'forum.moderate', 'forum', 'Moderate Forum'],
+    ['perm_forum_view_deleted', 'forum.view_deleted', 'forum', 'View Deleted Forum Content'],
     // reward (11)
     ['perm_reward_view_own', 'reward.view_own', 'reward', 'View Own Rewards'],
     ['perm_reward_give', 'reward.give', 'reward', 'Give Rewards (deprecated)'],
@@ -1390,7 +1391,7 @@ export function seedRbacData(): void {
       // document: all
       'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
       // forum: all
-      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate', 'perm_forum_view_deleted',
       // reward: all
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
@@ -1438,7 +1439,7 @@ export function seedRbacData(): void {
       // document: all
       'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
       // forum: all
-      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate', 'perm_forum_view_deleted',
       // reward: all
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
@@ -1477,7 +1478,7 @@ export function seedRbacData(): void {
       'perm_quiz_view', 'perm_quiz_create', 'perm_quiz_manage', 'perm_quiz_submit', 'perm_quiz_view_analytics',
       'perm_announcement_view', 'perm_announcement_create', 'perm_announcement_manage', 'perm_announcement_delete',
       'perm_document_view', 'perm_document_upload', 'perm_document_manage', 'perm_document_delete',
-      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate',
+      'perm_forum_view', 'perm_forum_post', 'perm_forum_moderate', 'perm_forum_view_deleted',
       'perm_reward_view_own', 'perm_reward_create', 'perm_reward_fund',
       'perm_reward_activate', 'perm_reward_approve', 'perm_reward_cancel',
       'perm_reward_view_assigned', 'perm_reward_release', 'perm_reward_refund', 'perm_reward_manage',
@@ -2210,6 +2211,32 @@ function ensureMessageSoftDeleteColumns(): void {
   }
 }
 ensureMessageSoftDeleteColumns();
+
+function ensureForumSoftDeleteColumns(): void {
+  const topicCols = (db.prepare('PRAGMA table_info(forum_topics)').all() as { name: string }[])
+    .map(c => c.name);
+  if (!topicCols.includes('is_deleted')) {
+    db.exec(`
+      ALTER TABLE forum_topics ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE forum_topics ADD COLUMN deleted_at TEXT DEFAULT NULL;
+      ALTER TABLE forum_topics ADD COLUMN deleted_by TEXT DEFAULT NULL;
+      ALTER TABLE forum_topics ADD COLUMN deletion_type TEXT DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_forum_topics_deleted ON forum_topics(is_deleted);
+    `);
+  }
+  const postCols = (db.prepare('PRAGMA table_info(forum_posts)').all() as { name: string }[])
+    .map(c => c.name);
+  if (!postCols.includes('is_deleted')) {
+    db.exec(`
+      ALTER TABLE forum_posts ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE forum_posts ADD COLUMN deleted_at TEXT DEFAULT NULL;
+      ALTER TABLE forum_posts ADD COLUMN deleted_by TEXT DEFAULT NULL;
+      ALTER TABLE forum_posts ADD COLUMN deletion_type TEXT DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_forum_posts_deleted ON forum_posts(is_deleted);
+    `);
+  }
+}
+ensureForumSoftDeleteColumns();
 
 function ensureDeletionTables(): void {
   db.exec(`

@@ -197,8 +197,8 @@ export interface ForumAuthor {
 
 export interface ForumTopicResponse {
   id: string;
-  title: string;
-  body: string;
+  title: string | null;
+  body: string | null;
   /** null / undefined = General channel */
   courseId?: string | null;
   author: ForumAuthor;
@@ -206,15 +206,19 @@ export interface ForumTopicResponse {
   updatedAt?: string;
   postCount: number;
   lastPostAt?: string | null;
+  isDeleted?: boolean;
+  deletionType?: string;
 }
 
 export interface ForumPostResponse {
   id: string;
   topicId: string;
-  body: string;
+  body: string | null;
   author: ForumAuthor;
   createdAt: string;
   updatedAt?: string;
+  isDeleted?: boolean;
+  deletionType?: string;
 }
 
 // Course API Types (BACKEND_UPDATE_REQUIREMENTS)
