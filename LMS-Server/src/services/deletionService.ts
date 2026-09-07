@@ -44,6 +44,40 @@ export function snapshotIdentity(userId: string): void {
   );
 }
 
+// ── Forum Content Soft-Delete ────────────────────────────────────
+
+/**
+ * Soft-delete all forum topics and posts authored by a user.
+ * Used during account finalization to remove content from public view
+ * while preserving it in DB for admin audit.
+ *
+ * Idempotent: only affects rows where is_deleted = 0.
+ * Does NOT affect other users' content.
+ *
+ * Ref: docs/phase3/specs/01-account-deletion-forum.md
+ */
+export function softDeleteForumContentForUser(userId: string): { topicsDeleted: number; postsDeleted: number } {
+  const now = new Date().toISOString();
+  const actor = 'system:account_deletion';
+
+  const topicResult = db.prepare(
+    `UPDATE forum_topics
+     SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'account_deletion'
+     WHERE author_id = ? AND is_deleted = 0`
+  ).run(now, actor, userId);
+
+  const postResult = db.prepare(
+    `UPDATE forum_posts
+     SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'account_deletion'
+     WHERE author_id = ? AND is_deleted = 0`
+  ).run(now, actor, userId);
+
+  return {
+    topicsDeleted: topicResult.changes,
+    postsDeleted: postResult.changes,
+  };
+}
+
 // ── Anonymization ────────────────────────────────────────────────
 
 /**
@@ -110,6 +144,23 @@ export function anonymizeUser(userId: string): void {
       "UPDATE email_outbox SET recipient = ? WHERE recipient = ?",
       [anonEmail, snapshot.original_email]
     );
+  }
+
+  // Soft-delete forum content (best-effort — does not block finalization)
+  // Ref: docs/phase3/specs/01-account-deletion-forum.md
+  try {
+    const forumResult = softDeleteForumContentForUser(userId);
+    if (forumResult.topicsDeleted > 0 || forumResult.postsDeleted > 0) {
+      auditLog({
+        action: 'account_deletion.forum_content_removed',
+        actorId: 'system',
+        targetId: userId,
+        details: JSON.stringify(forumResult),
+      });
+    }
+  } catch (err) {
+    // Log but don't block finalization
+    console.error(`[deletionService] Failed to soft-delete forum content for user ${userId}:`, err);
   }
 
   // Revoke all active sessions
