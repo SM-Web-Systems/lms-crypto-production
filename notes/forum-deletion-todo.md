@@ -144,8 +144,8 @@
 - [x] TypeScript check passes
 - [x] Security: no path for normal user to see deleted content (code review PASS — 8/8 checks)
 - [x] Rate limiting on DELETE endpoints (covered by existing writeLimiter)
-- [ ] Manual test: delete topic, verify tombstone and cascade (pending live stack)
-- [ ] Manual test: moderator delete post (pending live stack)
+- [x] Manual test: delete topic, verify tombstone and cascade (PASS — smoke test 2026-09-07)
+- [ ] Manual test: moderator delete post (deferred — needs moderator account)
 - [x] Performance: verify indexes used in query plans (idx_forum_topics_deleted, idx_forum_posts_deleted)
 
 ### Deploy Readiness (Loop 11)
@@ -153,8 +153,22 @@
 - [x] Migration is automatic (ensureForumSoftDeleteColumns, idempotent)
 - [x] Rollback plan documented
 - [x] PR preparation complete — PR #40 created
-- [ ] User approval for merge
-- [ ] Production deploy
+- [x] User approval for merge (2026-09-07)
+- [x] Production deploy — merged `c8052db`, deployed 2026-09-07 08:10 UTC
+
+### Production Deploy Notes (2026-09-07)
+
+- **Merge commit:** `c8052dbfc191fddf47276896a987bdd144be9625`
+- **Build SHA confirmed:** matches health endpoint
+- **Migrations applied:** forum_topics + forum_posts soft-delete columns, `forum.view_deleted` permission (94 total)
+- **Data integrity:** 13 users, 4 courses, 10 NFTs — all intact
+- **Smoke test results:**
+  - Create topic + reply: PASS
+  - Self-delete reply → tombstone (isDeleted=true, body=null): PASS
+  - Self-delete topic → tombstone + cascade: PASS
+  - Reply to deleted topic → 403: PASS
+  - Error logs: 0 errors post-deploy
+- **Pre-deploy backup:** `student_ms.db.pre-forum-deploy-20260907` in Docker volume
 
 ---
 
