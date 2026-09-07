@@ -2,10 +2,42 @@
 
 **Priority:** HIGH — implement before starting new feature work
 **Ref:** `notes/incident-2026-09-07-db-reset.md`
+**Status:** ALL 5 ITEMS COMPLETE (2026-09-07)
+
+### Pre-hardening baseline (2026-09-07)
+
+| Table | Count |
+|---|---|
+| users | 15 (13 real + 2 smoke-test) |
+| courses | 4 |
+| nft_credentials | 10 |
+| lesson_completions | 47 |
+| forum_topics | 2 |
+| forum_posts | 3 |
+
+### Implementation Summary
+
+| # | Item | Status | Files Changed |
+|---|------|--------|---------------|
+| 1 | Cold-start bootstrap guard | DONE | `LMS-Server/src/config/database.ts`, `LMS-Server/src/__tests__/cold-start-guard.test.ts` (3 tests) |
+| 2 | Pre-deploy DB backup | DONE | `scripts/deploy.sh` (backup_db function) |
+| 3 | Post-deploy row-count validation | DONE | `scripts/deploy.sh` (verify_data function) |
+| 4 | Backup script row-count guard | DONE | `/home/webadmin/web-stack/backup_lms_db.sh` |
+| 5 | Monitoring script + cron | DONE | `/home/webadmin/scripts/lms-data-check.sh`, cron every 6h |
+
+### Post-hardening verification (2026-09-07)
+- Row counts unchanged (15/4/10/47/2/3)
+- Cold-start guard tests: 3/3 PASS
+- Deploy dry-run: all steps in correct order
+- Monitoring script: produces CSV history + log, exit 0
+
+### Test data policy
+- Smoke-test accounts (forum-smoke-*.test.com) kept indefinitely
+- Periodic cleanup may be considered monthly, never automated
 
 ---
 
-## 1. Harden Cold-Start Bootstrap (CRITICAL)
+## 1. Harden Cold-Start Bootstrap (CRITICAL) — DONE
 
 **Problem:** `database.ts` loads `schema.sql` when it can't find the `users` table, even on an existing production DB with WAL corruption or checkpoint failure.
 

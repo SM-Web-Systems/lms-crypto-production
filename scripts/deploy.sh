@@ -26,6 +26,99 @@ run() {
   fi
 }
 
+DB_VOLUME_PATH="/var/lib/docker/volumes/lms-ammawallet_lms-data/_data/student_ms.db"
+BACKUP_DIR="/home/webadmin/backups/lms-ammawallet-db"
+
+# --- Pre-deploy DB backup (Hardening Item 2, Incident 2026-09-06) ---
+backup_db() {
+  log "==> Creating pre-deploy DB backup"
+  mkdir -p "$BACKUP_DIR"
+  local ts
+  ts=$(date +%Y%m%d_%H%M%S)
+  local backup_file="$BACKUP_DIR/pre-deploy_${ts}.db"
+
+  if [ -n "$DRY_RUN" ]; then
+    log "DRY RUN: would backup $DB_VOLUME_PATH → $backup_file"
+    return 0
+  fi
+
+  if ! sudo test -f "$DB_VOLUME_PATH"; then
+    log "WARNING: DB not found at $DB_VOLUME_PATH — skipping backup (first deploy?)"
+    return 0
+  fi
+
+  # Use SQLite .backup for WAL-safe snapshot
+  sudo sqlite3 "$DB_VOLUME_PATH" ".backup '$backup_file'" || {
+    log "ERROR: Pre-deploy DB backup failed. Aborting deploy."
+    exit 1
+  }
+  sudo chown webadmin:webadmin "$backup_file"
+  chmod 600 "$backup_file"
+
+  local size
+  size=$(stat -c%s "$backup_file" 2>/dev/null || echo 0)
+  if [ "$size" -lt 4096 ]; then
+    log "ERROR: Pre-deploy backup is suspiciously small (${size} bytes). Aborting deploy."
+    exit 1
+  fi
+
+  log "    Backup: $backup_file ($size bytes)"
+  echo "$backup_file" > "$STATE_DIR/pre-deploy-backup.txt"
+}
+
+# --- Post-deploy data validation (Hardening Item 3, Incident 2026-09-06) ---
+# Minimum thresholds based on known production baseline (Sep 2026)
+MIN_USERS=10
+MIN_COURSES=3
+MIN_NFTS=5
+
+verify_data() {
+  log "==> Verifying data integrity (row-count check)"
+
+  if [ -n "$DRY_RUN" ]; then
+    log "DRY RUN: would verify row counts"
+    return 0
+  fi
+
+  local counts
+  counts=$(docker exec lms-api node -e "
+    const Database = require('better-sqlite3');
+    const db = new Database('/app/data/student_ms.db', { readonly: true });
+    const r = {};
+    for (const t of ['users','courses','nft_credentials']) {
+      r[t] = db.prepare('SELECT COUNT(*) as c FROM '+t).get().c;
+    }
+    console.log(JSON.stringify(r));
+    db.close();
+  " 2>/dev/null) || counts=""
+
+  if [ -z "$counts" ]; then
+    log "WARNING: Could not query row counts (container not ready?). Skipping data check."
+    return 0
+  fi
+
+  local users courses nfts
+  users=$(echo "$counts" | python3 -c "import sys,json; print(json.load(sys.stdin)['users'])" 2>/dev/null) || users=0
+  courses=$(echo "$counts" | python3 -c "import sys,json; print(json.load(sys.stdin)['courses'])" 2>/dev/null) || courses=0
+  nfts=$(echo "$counts" | python3 -c "import sys,json; print(json.load(sys.stdin)['nft_credentials'])" 2>/dev/null) || nfts=0
+
+  log "    Row counts: users=$users courses=$courses nft_credentials=$nfts"
+
+  if [ "$users" -lt "$MIN_USERS" ] || [ "$courses" -lt "$MIN_COURSES" ] || [ "$nfts" -lt "$MIN_NFTS" ]; then
+    log "CRITICAL: Data integrity check FAILED! Counts below thresholds (min: users=$MIN_USERS courses=$MIN_COURSES nfts=$MIN_NFTS)"
+    local pre_deploy_backup
+    pre_deploy_backup=$(cat "$STATE_DIR/pre-deploy-backup.txt" 2>/dev/null || echo "")
+    if [ -n "$pre_deploy_backup" ] && [ -f "$pre_deploy_backup" ]; then
+      log "    Pre-deploy backup available at: $pre_deploy_backup"
+      log "    MANUAL RESTORE REQUIRED — review before restoring."
+    fi
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — data integrity check: users=$users courses=$courses nfts=$nfts" >> "$LOG_FILE"
+    exit 1
+  fi
+
+  log "    Data integrity OK"
+}
+
 cd "$DEPLOY_DIR"
 mkdir -p "$STATE_DIR"
 
@@ -62,6 +155,9 @@ if [ "$avail_mb" -lt 500 ]; then
   exit 1
 fi
 log "    Disk: ${avail_mb}MB available"
+
+# --- Pre-deploy DB backup ---
+backup_db
 
 # --- Save current state ---
 log "==> Saving current image state"
@@ -151,6 +247,9 @@ else
     exit 1
   fi
 fi
+
+# --- Post-deploy data validation ---
+verify_data
 
 # --- Build SHA verification ---
 if [ -z "$DRY_RUN" ] && [ "$BUILD_SHA" != "unknown" ]; then

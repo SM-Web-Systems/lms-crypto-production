@@ -1,8 +1,9 @@
 # Incident: LMS Production DB Reset — 2026-09-07
 
-**Status:** CLOSED
+**Status:** CLOSED + HARDENED
 **Severity:** HIGH (data loss — all courses, NFTs, user profiles)
 **Duration:** ~18 hours (Sep 6 13:21 → Sep 7 07:46 UTC)
+**Hardening:** 5 items implemented 2026-09-07. See `notes/lms-hardening-plan.md`.
 
 ---
 

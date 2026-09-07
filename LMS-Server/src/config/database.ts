@@ -31,8 +31,24 @@ db.pragma('foreign_keys = OFF');
 
 // Bootstrap: if this is a fresh file-based DB (no users table), load schema.sql to create all tables.
 // This makes E2E cold starts and new deployments work without running `npm run db:schema` manually.
+//
+// GUARD (Incident 2026-09-06): If the DB file is >4KB or a WAL journal exists, this is NOT a fresh DB.
+// Refuse to bootstrap — the DB likely has data that wasn't visible due to WAL checkpoint failure.
+// See: notes/incident-2026-09-07-db-reset.md
 const hasUsersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
 if (!hasUsersTable && DB_PATH !== ':memory:') {
+  const dbStats = fs.statSync(DB_PATH);
+  const walPath = DB_PATH + '-wal';
+  const hasWal = fs.existsSync(walPath);
+
+  if (dbStats.size > 4096 || hasWal) {
+    const msg = `FATAL: DB file exists (${dbStats.size} bytes, WAL=${hasWal}) but users table not found. ` +
+      `Refusing to bootstrap schema.sql on a non-empty DB. Manual intervention required. ` +
+      `See notes/incident-2026-09-07-db-reset.md`;
+    console.error(msg);
+    throw new Error(msg);
+  }
+
   const schemaPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../database/schema.sql');
   if (fs.existsSync(schemaPath)) {
     db.exec(fs.readFileSync(schemaPath, 'utf-8'));
