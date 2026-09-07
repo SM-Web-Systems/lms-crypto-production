@@ -124,14 +124,17 @@ export function anonymizeUser(userId: string): void {
       }
     }
 
-    execute(
-      `UPDATE user_profiles SET
-         bio = NULL, phone = NULL, address = NULL, avatar_url = NULL,
-         date_of_birth = NULL, linkedin_url = NULL, twitter_url = NULL,
-         website_url = NULL
-       WHERE user_id = ?`,
-      [userId]
+    // Dynamically NULL-out all profile columns except user_id and updated_at
+    const profileCols = query<{ name: string }>(
+      "SELECT name FROM pragma_table_info('user_profiles') WHERE name NOT IN ('user_id', 'updated_at')"
     );
+    if (profileCols.length > 0) {
+      const setClauses = profileCols.map(c => `${c.name} = NULL`).join(', ');
+      execute(
+        `UPDATE user_profiles SET ${setClauses} WHERE user_id = ?`,
+        [userId]
+      );
+    }
   }
 
   // Anonymize email_outbox — replace recipient matching original email
