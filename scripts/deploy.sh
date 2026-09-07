@@ -199,7 +199,7 @@ while [ "$elapsed" -lt "$TIMEOUT" ]; do
     log "DRY RUN: skipping health wait"
     break
   fi
-  if curl -sf http://127.0.0.1:3001/health > /dev/null 2>&1; then
+  if curl -sf https://lms.smwebsystems.com/api/v1/health > /dev/null 2>&1; then
     log "    API healthy after ${elapsed}s"
     break
   fi
@@ -253,7 +253,7 @@ verify_data
 
 # --- Build SHA verification ---
 if [ -z "$DRY_RUN" ] && [ "$BUILD_SHA" != "unknown" ]; then
-  actual_sha=$(curl -s http://127.0.0.1:3001/health | node -e "
+  actual_sha=$(curl -s https://lms.smwebsystems.com/api/v1/health | node -e "
     let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
       try{console.log(JSON.parse(d).buildSha||'ERROR')}catch{console.log('ERROR')}
     })
