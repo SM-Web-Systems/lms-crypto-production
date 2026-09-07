@@ -1,7 +1,7 @@
 # Forum Soft-Delete — Living TODO Checklist
 
 **Created:** 2026-09-06
-**Status:** Loop 9 (Backend Implementation) — COMPLETE
+**Status:** Loop 10 (Frontend + E2E) — COMPLETE
 **Spec:** `docs/forum/specs/02-forum-soft-delete.md`
 **Branch:** `feat/forum-soft-delete`
 
@@ -14,6 +14,21 @@
 - **TypeScript typecheck:** PASS (`npx tsc --noEmit` — no errors)
 - **Build:** PASS (`npm run build` — no errors)
 - **Commits:** tasks 1–6 complete on branch `feat/forum-soft-delete`
+
+---
+
+## Loop 10 Verification Results (2026-09-07)
+
+- **Backend tests:** 1401/1401 pass (150 test files)
+- **Frontend tests:** 402/402 pass (43 test files) — includes 6 new forum soft-delete tests (FE-F01–F06)
+- **Backend typecheck:** PASS (`npx tsc --noEmit`)
+- **Frontend typecheck:** PASS (`npx tsc --noEmit`)
+- **Frontend build:** PASS (`npm run build` — 7.56s)
+- **E2E typecheck:** PASS (`npx tsc --noEmit` in e2e/)
+- **E2E execution:** Not run against live stack (no dev stack available). Specs compile cleanly. Pending live-stack execution in Loop 11.
+- **Stray debug logs:** None (grep clean on Forum.tsx)
+- **Files changed (Loop 10):** 6 files, +720/-65 lines
+- **Commits:** 4 (bef740a, c87b6ad, 9e6a92d, e2fba36)
 
 ---
 
@@ -93,40 +108,40 @@
 - [x] REG-F01–F03: Regression (pagination, XSS escaping, account anonymization)
 
 ### Frontend — Delete UX (Loop 10)
-- [ ] Add delete button (Trash2 icon) on own topics, visible on hover or in thread view
-- [ ] Add delete button on own posts
-- [ ] Confirmation dialog: "Delete this topic?" / "Delete this reply?"
-- [ ] Call DELETE endpoint on confirm
-- [ ] Optimistic UI update to tombstone on success
-- [ ] Error banner on failure
-- [ ] Moderator: show delete button on all topics/posts for users with forum.moderate
+- [x] Add delete button (Trash2 icon) on own topics, visible on hover or in thread view
+- [x] Add delete button on own posts
+- [x] Confirmation dialog: "Delete this topic?" / "Delete this reply?"
+- [x] Call DELETE endpoint on confirm
+- [x] Optimistic UI update to tombstone on success
+- [x] Error banner on failure
+- [x] Moderator: show delete button on all topics/posts for users with forum.moderate
 
 ### Frontend — Tombstone Rendering (Loop 10)
-- [ ] Detect `isDeleted` flag in topic list
-- [ ] Render topic tombstone: "[This topic was removed]" (gray, italic, no title/body)
-- [ ] Detect `isDeleted` flag in post list
-- [ ] Render post tombstone: "[This reply was removed]" (gray, italic, no body)
-- [ ] Do not show delete button on already-deleted items
-- [ ] `data-testid="topic-tombstone"` and `data-testid="post-tombstone"`
+- [x] Detect `isDeleted` flag in topic list
+- [x] Render topic tombstone: "[This topic was removed]" (gray, italic, no title/body)
+- [x] Detect `isDeleted` flag in post list
+- [x] Render post tombstone: "[This reply was removed]" (gray, italic, no body)
+- [x] Do not show delete button on already-deleted items
+- [x] `data-testid="topic-tombstone"` and `data-testid="post-tombstone"`
 
 ### Frontend Tests (Loop 10)
-- [ ] FE-F01: Delete button shown on own topics/posts, hidden on others'
-- [ ] FE-F02: Confirmation dialog cancel does nothing
-- [ ] FE-F03: Confirming delete calls API and renders tombstone
-- [ ] FE-F04: Error handling on failed delete
-- [ ] FE-F05: Pre-deleted topics/posts render tombstones
-- [ ] FE-F06: No delete button on tombstones
+- [x] FE-F01: Delete button shown on own topics/posts, hidden on others'
+- [x] FE-F02: Confirmation dialog cancel does nothing
+- [x] FE-F03: Confirming delete calls API and renders tombstone
+- [x] FE-F04: Error handling on failed delete
+- [x] FE-F05: Pre-deleted topics/posts render tombstones
+- [x] FE-F06: No delete button on tombstones
 
 ### E2E Tests (Loop 10)
-- [ ] E2E-F01: Author deletes own topic → re-fetch shows tombstone
-- [ ] E2E-F02: Cannot delete another user's topic (403)
-- [ ] E2E-F03: Moderator deletes post → re-fetch shows tombstone
-- [ ] E2E-F04: Reply to deleted topic fails (403)
+- [x] E2E-F01: Author deletes own topic → re-fetch shows tombstone
+- [x] E2E-F02: Cannot delete another user's topic (403)
+- [x] E2E-F03: Moderator deletes post → re-fetch shows tombstone
+- [x] E2E-F04: Reply to deleted topic fails (403)
 
 ### Verification & Hardening (Loop 11)
-- [ ] All backend tests pass
-- [ ] All frontend tests pass
-- [ ] TypeScript check passes
+- [x] All backend tests pass
+- [x] All frontend tests pass
+- [x] TypeScript check passes
 - [ ] Security: no path for normal user to see deleted content
 - [ ] Rate limiting on DELETE endpoints (covered by existing writeLimiter)
 - [ ] Manual test: delete topic, verify tombstone and cascade
