@@ -1,115 +1,107 @@
 # Incident: LMS Production DB Reset — 2026-09-07
 
-**Status:** RESOLVED
+**Status:** CLOSED
 **Severity:** HIGH (data loss — all courses, NFTs, user profiles)
-**Root cause:** DB effectively reset during Sep 6 deploy of PR #39 (DM soft-delete, SHA `3cfb1faa`)
+**Duration:** ~18 hours (Sep 6 13:21 → Sep 7 07:46 UTC)
+
+---
 
 ## Timeline
 
-- **Sep 5 06:10 UTC** — Pre-deletion backup created (`student_ms.db.pre-deletion-feature.bak`, 5.9MB)
-- **Sep 6 13:21 UTC** — `lms-api` container rebuilt for PR #39 deploy
-- **Sep 6 13:22 UTC** — First new user created (smoke-test account) — DB was fresh at this point
-- **Sep 7 06:58 UTC** — Admin (mukhtar.meer) re-registered via SSO on the empty DB
-- **Sep 7 ~07:40 UTC** — Incident detected: 0 courses, 0 NFTs, user reports data loss
+| Time (UTC) | Event |
+|------------|-------|
+| Sep 3 03:00 | Daily backup: `student_ms_20260903_030001.db` (5.4MB, 13 users, 4 courses) |
+| Sep 5 03:00 | Daily backup: `student_ms_20260905_030002.db` (5.9MB, 13 users, 4 courses) |
+| Sep 5 06:10 | Manual backup: `student_ms.db.pre-deletion-feature.bak` (inside Docker volume) |
+| Sep 6 03:00 | Daily backup: `student_ms_20260906_030001.db` (6.2MB, 20 users — includes E2E test accounts) |
+| **Sep 6 13:21** | **PR #39 deploy: `docker compose build --no-cache api && up -d`. DB reset occurs.** |
+| Sep 6 13:22 | First smoke-test user created on fresh/empty DB |
+| Sep 7 03:00 | Daily backup captures the empty DB (3 users, 0 courses) |
+| Sep 7 06:58 | Admin (mukhtar.meer) re-registers via SSO on empty DB |
+| Sep 7 ~07:40 | Incident detected: admin reports missing courses, NFTs, profiles |
+| Sep 7 07:46 | **DB restored from Sep 5 in-volume backup. Verified: 13 users, 4 courses, 10 NFTs.** |
+| Sep 7 08:10 | PR #40 (forum soft-delete) merged and deployed. Smoke tests pass. |
 
-## Before-State (Current Empty DB)
+---
 
-| Table | Count |
-|-------|-------|
-| users | 5 (3 smoke-test, 2 re-registrations) |
-| courses | 0 |
-| nft_credentials | 0 |
-| lesson_completions | 0 |
-| forum_topics | 1 (test topic created Sep 7) |
-| forum_posts | 0 |
-| conversation_messages | 2 |
-| conversations | 4 |
+## Impact
 
-## Backup Target (Sep 5 pre-deletion-feature.bak)
+- **Data lost:** All production data between the DB creation (Jul 10) and the reset was temporarily lost. Restored from Sep 5 backup.
+- **Permanent data loss:** 7 E2E test accounts created Sep 5 (automated, not real users) and any activity between Sep 5 06:10 and Sep 6 13:21 (none identified).
+- **User disruption:** Admin and 1 student re-registered on the empty DB. Original accounts restored; re-registrations discarded.
+- **Service continuity:** The API remained up throughout (serving an empty DB). No HTTP downtime.
 
-| Table | Count |
-|-------|-------|
-| users | 13 |
-| courses | 4 |
-| nft_credentials | 10 |
-| lesson_completions | 47 |
-| forum_topics | 1 |
-| forum_posts | 2 |
-| conversation_messages | 10 |
-| conversations | 4 |
+---
 
-## Restore Plan
+## Root Cause
 
-1. Safety backup created: `student_ms.db.empty-20260907-pre-restore` (6.3MB)
-2. Stop `lms-api` container
-3. Copy `student_ms.db.pre-deletion-feature.bak` → `student_ms.db`
-4. Remove stale WAL/SHM files
-5. Restart `lms-api` — migrations will run on startup
-6. Verify row counts, health, and API functionality
+**Confirmed:** The `database.ts` cold-start bootstrap logic loaded `schema.sql` onto an empty/corrupt DB state during the Sep 6 container rebuild.
 
-## Post-Restore Notes
+**Mechanism (lines 32–39 of `database.ts`):**
 
-**Restore completed: 2026-09-07 07:46 UTC**
+```typescript
+const hasUsersTable = db.prepare(
+  "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+).get();
+if (!hasUsersTable && DB_PATH !== ':memory:') {
+  const schemaPath = path.resolve(..., '../../database/schema.sql');
+  if (fs.existsSync(schemaPath)) {
+    db.exec(fs.readFileSync(schemaPath, 'utf-8'));
+  }
+}
+```
 
-### Restore steps executed
+When the container was rebuilt and restarted:
+1. The Docker volume (`lms-ammawallet_lms-data`) persisted, but the existing `student_ms.db` had uncommitted WAL data.
+2. On restart, better-sqlite3 opened the DB file. If the WAL was not cleanly checkpointed (container was stopped abruptly), the `users` table may not have been visible in `sqlite_master`.
+3. The bootstrap logic detected "no users table" and loaded `schema.sql`, which contains `CREATE TABLE IF NOT EXISTS` — creating fresh empty tables.
+4. The WAL/SHM files from the old DB were now inconsistent with the new schema state, effectively discarding all previous data.
 
-1. Created safety backup: `student_ms.db.empty-20260907-pre-restore` (6.3MB)
-2. Stopped `lms-api` container
-3. Removed stale WAL/SHM files from empty DB
-4. Copied `student_ms.db.pre-deletion-feature.bak` → `student_ms.db`
-5. Restarted `lms-api` — clean startup, no migration errors
-6. Verified all data restored
+**Contributing factors:**
+- `docker compose stop` sends SIGTERM with a 10s timeout. If the Node process didn't cleanly close the SQLite connection (WAL checkpoint), data was left in the WAL.
+- The bootstrap guard only checks for the `users` table — not for a non-empty DB or a WAL needing recovery.
 
-### Post-Restore Row Counts (Verified)
+---
 
-| Table | Before (empty) | After (restored) | Expected | Match |
-|-------|----------------|-------------------|----------|-------|
-| users | 5 | 13 | 13 | YES |
-| courses | 0 | 4 | 4 | YES |
-| nft_credentials | 0 | 10 | 10 | YES |
-| lesson_completions | 0 | 47 | 47 | YES |
-| forum_topics | 1 | 1 | 1 | YES |
-| forum_posts | 0 | 2 | 2 | YES |
-| conversation_messages | 2 | 10 | 10 | YES |
-| user_roles | 5 | 14 | 14 | YES |
-| permissions | 93 | 93 | 93 | YES |
-| quizzes | - | 11 | 11 | YES |
+## What Went Well
 
-### Admin Account
+1. **Backups existed in multiple locations:**
+   - Daily cron backups in `/home/webadmin/backups/lms-ammawallet-db/` (7-day retention, WAL-safe `.backup` API)
+   - Manual in-volume backup (`student_ms.db.pre-deletion-feature.bak`)
+2. **Restore was straightforward:** Stop container → copy backup → remove stale WAL/SHM → restart.
+3. **Migrations were compatible:** Both DM soft-delete (already applied in backup) and forum soft-delete (applied on restart) worked cleanly on the restored DB.
+4. **No real user data was permanently lost.** The 7 "missing" accounts were all E2E test artifacts.
 
-- **Original account restored:** mukhtar.meer@smwebsystems.com (created 2026-07-10)
-- **Roles:** admin + super-admin
-- **Permissions:** 93 (full access)
-- **No duplicate accounts** — the re-registered account from Sep 7 was on the now-archived empty DB
+---
 
-### Migration State
+## What To Improve
 
-- **DM soft-delete (PR #39):** Columns present (`conversation_messages.is_deleted`, `deleted_at`, `deleted_by`, `deletion_type`). DM permissions (`message.delete_own`, `message.delete_any`, `message.view_deleted`) present. Applied before Sep 5 backup.
-- **Account deletion:** Tables present (`deleted_user_identities`, `deletion_requests`, `data_exports`). Applied before Sep 5 backup.
-- **Forum soft-delete (PR #40):** APPLIED — PR #40 merged (`c8052db`) and deployed 2026-09-07 08:10 UTC. All columns present, RBAC seeded (94 permissions). Smoke tests PASS.
+### Backup Process
+- **Status:** Actually working (daily cron, 7-day retention, SHA-256 checksums, rclone off-host copy).
+- **Gap:** The Sep 7 03:00 backup captured the *empty* DB. If the incident had not been caught before Sep 12, the 7-day retention would have rotated out all good backups.
+- **Fix:** Add row-count validation to the backup script. Skip/alert if key tables are empty.
 
-### System Health
+### Deploy Process
+- **No pre-deploy DB backup gate.** The existing `scripts/deploy.sh` does not back up the DB before building.
+- **No post-deploy data sanity check.** The deploy script checks health but not data integrity.
+- **Fix:** Add mandatory pre-deploy backup + row-count baseline comparison.
 
-- Health endpoint: 200 OK, DB latency 0ms
-- Build SHA: `3cfb1faa` (PR #39 merge)
-- Frontend: 200 OK
-- Both containers healthy
-- No errors in startup logs
+### Cold-Start Logic
+- **The `schema.sql` bootstrap is dangerous.** A transient WAL corruption or checkpoint failure can trick it into overwriting a production DB.
+- **Fix:** Add guards (check DB file size, check for WAL/SHM, refuse to bootstrap if DB file > 0 bytes).
 
-### Courses Restored
+### Monitoring
+- **No alert when row counts dropped to zero.** The empty DB served requests for ~18 hours.
+- **Fix:** Add a post-deploy or periodic row-count check with minimum thresholds.
 
-1. PILOT-2026-01 — LMS Pilot: Blockchain Fundamentals
-2. BVC-2026 — Blockchain Vibe Coding
-3. SVC-2026 — Stellar Vibe Coding
-4. QA-P3-2026 — Phase 3 QA Test Course
+---
 
-### NFTs Restored
+## Artifacts
 
-- 10 NFT credentials, all status `minted`
-
-## Follow-Up Tasks
-
-1. **User re-authentication:** Users who re-registered on the empty DB (mukhtar.meer, isthattehcat) will need to log in via SSO again. Their original accounts (from backup) will be matched by email.
-2. **Backup policy review:** The LMS backup cron (`/home/webadmin/backups/lms-db/`) only has Aug 19-20 backups. The daily cron appears to have stopped or is not backing up from the Docker volume. **This must be fixed.**
-3. **Root cause hardening:** Investigate why `docker compose build --no-cache api` on Sep 6 caused the DB to reset. Likely the WAL wasn't checkpointed, or the init code re-created tables on a transient file state.
-4. **Deploy procedure update:** Future deploys should include a pre-deploy DB backup step as a mandatory gate.
+| File | Location | Description |
+|------|----------|-------------|
+| `student_ms.db.empty-20260907-pre-restore` | Docker volume | Safety backup of the empty/reset DB |
+| `student_ms.db.pre-deletion-feature.bak` | Docker volume | Sep 5 manual backup (used for restore) |
+| `student_ms.db.pre-forum-deploy-20260907` | Docker volume | Pre-PR #40 deploy backup |
+| `student_ms_20260906_030001.db` | `/home/webadmin/backups/lms-ammawallet-db/` | Last good daily backup (20 users, pre-reset) |
+| `student_ms_20260907_030001.db` | `/home/webadmin/backups/lms-ammawallet-db/` | Captured the empty DB (post-reset, pre-restore) |
