@@ -1,8 +1,8 @@
 # Phase 3 — Account Deletion + Forum Integration TODO
 
 **Spec:** `docs/phase3/specs/01-account-deletion-forum.md`
-**Branch:** `feat/phase3-account-deletion-forum`
-**Status:** Loop 15 complete (E2E), ready for Loop 16 (PR + deploy)
+**Branch:** `feat/phase3-account-deletion-forum` (merged)
+**Status:** DEPLOYED — 2026-09-07
 
 ---
 
@@ -43,13 +43,24 @@
   - [x] E2E-ADF-04: Forum content by pending-deletion user still visible to others
 - [x] All 4 E2E tests passing, no regressions in existing E2E suite
 - [x] Full backend suite: 1413/1413 passing
-- [ ] Manual browser QA (deferred — no frontend UI to test; all behavior is API-only)
 
-## Loop 16 — PR + Deploy
-- [ ] Final code review pass (security, PII, RBAC, audit)
-- [ ] Write deploy notes: `notes/phase3-deploy-notes.md`
-- [ ] Prepare PR with spec links + test results
-- [ ] Await approval before merge
+## Loop 16 — PR + Deploy (DONE)
+- [x] Final code review pass (security, PII, RBAC, audit)
+- [x] PR #41 created and merged: https://github.com/SM-Web-Systems/lms-crypto-production/pull/41
+  - Merge commit: `414dc26`
+- [x] Post-merge fixes (committed directly to main):
+  - `31a236b`: fix user_profiles anonymization (dynamic column detection)
+  - `cfa2405`: fix deploy health check URL (port 3001 not mapped to host)
+- [x] Production deploy: `cfa2405` deployed 2026-09-07 ~13:35 UTC
+- [x] Smoke test PASSED:
+  - Created test user with forum topic + reply
+  - Deleted account → finalized via docker exec
+  - Tombstones confirmed: `title: null`, `body: null`, `isDeleted: true`, `author: "Deleted User"`
+  - Single topic returns 404
+  - Admin audit view: full content visible with `deletion_type = 'account_deletion'`
+  - Audit event logged: `account_deletion.forum_content_removed` with correct counts
+  - Identity snapshot preserved: original name + email
+- [x] Data integrity: 17/4/10/47/3/4 (baseline +2 smoke users, +1 topic, +1 post)
 
 ---
 
@@ -67,3 +78,8 @@
 - **Risk:** LOW — additive UPDATE only, no schema changes, no API changes.
 - **Rollback:** Simple SQL to restore soft-deleted content by `deletion_type = 'account_deletion'`.
 - **Blast radius:** Only affects `anonymizeUser()` path. Existing forum/deletion features untouched.
+
+## Issues Found During Deploy
+
+1. **Deploy script health check** — `http://127.0.0.1:3001/health` not reachable from host (port not mapped). Fixed to `https://lms.smwebsystems.com/api/v1/health`.
+2. **user_profiles schema mismatch** — `anonymizeUser()` referenced columns (`bio`, `phone`, `address`, `avatar_url`, `date_of_birth`) that don't exist in production (actual: `avatar_path`, `whatsapp`, `telegram`, etc.). Fixed with dynamic column detection via `pragma_table_info`.
