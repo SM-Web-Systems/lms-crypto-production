@@ -44,4 +44,9 @@ export const forumService = {
     const res = await api.delete<ApiResponse<unknown>>(`/forum/topics/${id}`);
     assertApiOk(res, 'Could not delete the topic.');
   },
+
+  async deletePost(id: string): Promise<void> {
+    const res = await api.delete<ApiResponse<unknown>>(`/forum/posts/${id}`);
+    assertApiOk(res, 'Could not delete the reply.');
+  },
 };
