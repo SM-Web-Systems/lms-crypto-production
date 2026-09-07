@@ -142,18 +142,19 @@
 - [x] All backend tests pass
 - [x] All frontend tests pass
 - [x] TypeScript check passes
-- [ ] Security: no path for normal user to see deleted content
-- [ ] Rate limiting on DELETE endpoints (covered by existing writeLimiter)
-- [ ] Manual test: delete topic, verify tombstone and cascade
-- [ ] Manual test: moderator delete post
-- [ ] Performance: verify indexes used in query plans
+- [x] Security: no path for normal user to see deleted content (code review PASS — 8/8 checks)
+- [x] Rate limiting on DELETE endpoints (covered by existing writeLimiter)
+- [ ] Manual test: delete topic, verify tombstone and cascade (pending live stack)
+- [ ] Manual test: moderator delete post (pending live stack)
+- [x] Performance: verify indexes used in query plans (idx_forum_topics_deleted, idx_forum_posts_deleted)
 
 ### Deploy Readiness (Loop 11)
-- [ ] Deploy notes written (`notes/forum-deploy-notes.md`)
-- [ ] Migration is automatic
-- [ ] Rollback plan documented
-- [ ] PR preparation complete
+- [x] Deploy notes written (`notes/forum-deploy-notes.md`)
+- [x] Migration is automatic (ensureForumSoftDeleteColumns, idempotent)
+- [x] Rollback plan documented
+- [x] PR preparation complete — PR #40 created
 - [ ] User approval for merge
+- [ ] Production deploy
 
 ---
 
