@@ -97,6 +97,24 @@ When the container was rebuilt and restarted:
 
 ---
 
+## Post-Incident Feature Work
+
+All feature work below was completed after the 5 hardening items were in place. No further data incidents occurred during any of these deploys.
+
+| PR | Feature | Deployed |
+|----|---------|----------|
+| #39 | DM soft-delete with tombstones + admin audit | 2026-09-06 (triggered incident) |
+| #40 | Forum soft-delete with tombstones + admin audit | 2026-09-07 (post-restore) |
+| #41 | Account deletion → forum integration (Phase 3) | 2026-09-07 `cfa2405` |
+
+Post-merge fixes applied directly to main:
+- `31a236b`: Dynamic column detection for `user_profiles` anonymization
+- `cfa2405`: Deploy health check URL fix (port not mapped to host)
+
+Hardening proved effective: the pre-deploy backup in `deploy.sh` created a snapshot before each deploy, and the cold-start guard would have prevented a repeat of the original incident.
+
+---
+
 ## Artifacts
 
 | File | Location | Description |
