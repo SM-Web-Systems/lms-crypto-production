@@ -19,6 +19,7 @@ export interface ForumTopic {
   updatedAt?: string;
   postCount: number; // denormalized for list view
   lastPostAt?: string; // ISO, for sorting
+  isDeleted?: boolean;
 }
 
 export interface ForumPost {
@@ -28,6 +29,7 @@ export interface ForumPost {
   author: ForumAuthor;
   createdAt: string;
   updatedAt?: string;
+  isDeleted?: boolean;
 }
 
 export interface CreateTopicData {

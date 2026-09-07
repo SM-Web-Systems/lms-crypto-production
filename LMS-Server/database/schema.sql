@@ -112,6 +112,10 @@ CREATE TABLE IF NOT EXISTS forum_topics (
   body TEXT NOT NULL,
   author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   course_id TEXT NULL REFERENCES courses(id) ON DELETE SET NULL,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT DEFAULT NULL,
+  deleted_by TEXT DEFAULT NULL,
+  deletion_type TEXT DEFAULT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -121,14 +125,20 @@ CREATE TABLE IF NOT EXISTS forum_posts (
   topic_id TEXT NOT NULL REFERENCES forum_topics(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
   author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT DEFAULT NULL,
+  deleted_by TEXT DEFAULT NULL,
+  deletion_type TEXT DEFAULT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_forum_topics_author ON forum_topics(author_id);
 CREATE INDEX IF NOT EXISTS idx_forum_topics_course_id ON forum_topics(course_id);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_deleted ON forum_topics(is_deleted);
 CREATE INDEX IF NOT EXISTS idx_forum_posts_topic ON forum_posts(topic_id);
 CREATE INDEX IF NOT EXISTS idx_forum_posts_author ON forum_posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_deleted ON forum_posts(is_deleted);
 
 -- Phase 20 C1: Multi-Tenant Architecture
 CREATE TABLE IF NOT EXISTS tenants (

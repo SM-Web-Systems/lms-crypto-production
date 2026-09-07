@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, execute } from '../config/database.js';
+import { query, queryOne, execute, db } from '../config/database.js';
 import {
   AuthRequest,
   ForumTopicResponse,
@@ -10,6 +10,7 @@ import {
   ErrorCodes,
 } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { auditLog } from '../services/auditService.js';
 
 /** Escape HTML special characters to prevent stored XSS. */
 function escapeHtml(str: string): string {
@@ -38,8 +39,8 @@ function toAuthor(u: User): ForumAuthor {
 
 function rowToTopic(row: {
   id: string;
-  title: string;
-  body: string;
+  title: string | null;
+  body: string | null;
   course_id?: string | null;
   author_id: string;
   created_at: string;
@@ -112,8 +113,8 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
 
     const rows = query<{
       id: string;
-      title: string;
-      body: string;
+      title: string | null;
+      body: string | null;
       course_id: string | null;
       author_id: string;
       created_at: string;
@@ -124,21 +125,34 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
       author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
+      is_deleted: number;
+      deletion_type: string | null;
     }>(
-      `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
+      `SELECT t.id,
+              CASE WHEN t.is_deleted = 1 THEN NULL ELSE t.title END AS title,
+              CASE WHEN t.is_deleted = 1 THEN NULL ELSE t.body END AS body,
+              t.course_id, t.author_id, t.created_at, t.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
               u.deletion_status AS author_deletion_status,
-              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count,
-              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id) AS last_post_at
+              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS post_count,
+              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS last_post_at,
+              t.is_deleted, t.deletion_type
        FROM forum_topics t
        LEFT JOIN users u ON t.author_id = u.id
        WHERE ${filterGeneral ? 't.course_id IS NULL' : 't.course_id = ?'}
-       ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id), t.updated_at) DESC
+       ORDER BY COALESCE((SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0), t.updated_at) DESC
        LIMIT ? OFFSET ?`,
       filterGeneral ? [limit, offset] : [rawCourseId, limit, offset]
     );
 
-    const topics = rows.map(rowToTopic);
+    const topics = rows.map(row => {
+      const topic = rowToTopic(row);
+      if (row.is_deleted === 1) {
+        return { ...topic, isDeleted: true as const };
+      }
+      return topic;
+    });
+
     res.json({
       success: true,
       data: { topics },
@@ -166,19 +180,21 @@ export async function getTopic(req: AuthRequest, res: Response, next: NextFuncti
       author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
+      is_deleted: number;
     }>(
       `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
               u.deletion_status AS author_deletion_status,
-              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count,
-              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id) AS last_post_at
+              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS post_count,
+              (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS last_post_at,
+              t.is_deleted
        FROM forum_topics t
        LEFT JOIN users u ON t.author_id = u.id
        WHERE t.id = ?`,
       [id]
     );
 
-    if (!row) {
+    if (!row || row.is_deleted === 1) {
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
     }
 
@@ -195,7 +211,10 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
   try {
     const { topicId } = req.params;
 
-    const topicExists = queryOne<{ id: string }>('SELECT id FROM forum_topics WHERE id = ?', [topicId]);
+    const topicExists = queryOne<{ id: string; is_deleted: number }>(
+      'SELECT id, is_deleted FROM forum_topics WHERE id = ?',
+      [topicId]
+    );
     if (!topicExists) {
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
     }
@@ -207,7 +226,7 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
     const rows = query<{
       id: string;
       topic_id: string;
-      body: string;
+      body: string | null;
       author_id: string;
       created_at: string;
       updated_at: string;
@@ -215,10 +234,14 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       author_email: string | null;
       author_role: string | null;
       author_deletion_status: string | null;
+      is_deleted: number;
     }>(
-      `SELECT p.id, p.topic_id, p.body, p.author_id, p.created_at, p.updated_at,
+      `SELECT p.id, p.topic_id,
+              CASE WHEN p.is_deleted = 1 THEN NULL ELSE p.body END AS body,
+              p.author_id, p.created_at, p.updated_at,
               u.name AS author_name, u.email AS author_email, u.role AS author_role,
-              u.deletion_status AS author_deletion_status
+              u.deletion_status AS author_deletion_status,
+              p.is_deleted
        FROM forum_posts p
        LEFT JOIN users u ON p.author_id = u.id
        WHERE p.topic_id = ?
@@ -227,9 +250,17 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       [topicId, limit, offset]
     );
 
+    const posts = rows.map(row => {
+      const post = rowToPost(row as any);
+      if (row.is_deleted === 1) {
+        return { ...post, isDeleted: true as const };
+      }
+      return post;
+    });
+
     res.json({
       success: true,
-      data: { posts: rows.map(rowToPost) },
+      data: { posts },
     });
   } catch (error) {
     next(error);
@@ -333,9 +364,15 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
     const { topicId } = req.params;
     const { body } = req.body;
 
-    const topicExists = queryOne<{ id: string }>('SELECT id FROM forum_topics WHERE id = ?', [topicId]);
+    const topicExists = queryOne<{ id: string; is_deleted: number }>(
+      'SELECT id, is_deleted FROM forum_topics WHERE id = ?',
+      [topicId]
+    );
     if (!topicExists) {
       throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (topicExists.is_deleted === 1) {
+      throw new AppError('Cannot reply to a removed topic', 403, ErrorCodes.FORBIDDEN);
     }
 
     const errors: Array<{ field: string; message: string }> = [];
@@ -386,6 +423,364 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
       success: true,
       data: post,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteTopic(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const topic = queryOne<{ id: string; author_id: string; is_deleted: number; title: string; body: string; course_id: string | null }>(
+      'SELECT id, author_id, is_deleted, title, body, course_id FROM forum_topics WHERE id = ?',
+      [id]
+    );
+
+    if (!topic) {
+      throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (topic.is_deleted === 1) {
+      throw new AppError('Topic already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    if (topic.author_id !== userId) {
+      throw new AppError('Not authorized to delete this topic', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    const now = new Date().toISOString();
+
+    // Transactional: soft-delete topic + cascade posts
+    const txn = db.transaction(() => {
+      execute(
+        `UPDATE forum_topics
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'self_delete'
+         WHERE id = ? AND is_deleted = 0`,
+        [now, userId, id]
+      );
+
+      const result = db.prepare(
+        `UPDATE forum_posts
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'topic_cascade'
+         WHERE topic_id = ? AND is_deleted = 0`
+      ).run(now, userId, id);
+
+      return result.changes;
+    });
+
+    const cascadedPosts = txn();
+
+    auditLog({
+      action: 'forum_topic.deleted',
+      actorId: userId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'self_delete',
+        course_id: topic.course_id,
+        author_id: topic.author_id,
+        title_length: topic.title.length,
+        body_length: topic.body.length,
+        cascaded_posts: cascadedPosts,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true, cascadedPosts } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deletePost(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const post = queryOne<{ id: string; author_id: string; is_deleted: number; body: string; topic_id: string }>(
+      'SELECT id, author_id, is_deleted, body, topic_id FROM forum_posts WHERE id = ?',
+      [id]
+    );
+
+    if (!post) {
+      throw new AppError('Post not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (post.is_deleted === 1) {
+      throw new AppError('Post already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    if (post.author_id !== userId) {
+      throw new AppError('Not authorized to delete this post', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    execute(
+      `UPDATE forum_posts
+       SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?, deletion_type = 'self_delete'
+       WHERE id = ? AND is_deleted = 0`,
+      [userId, id]
+    );
+
+    auditLog({
+      action: 'forum_post.deleted',
+      actorId: userId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'self_delete',
+        topic_id: post.topic_id,
+        author_id: post.author_id,
+        body_length: post.body.length,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminDeleteTopic(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const topic = queryOne<{ id: string; author_id: string; is_deleted: number; title: string; body: string; course_id: string | null }>(
+      'SELECT id, author_id, is_deleted, title, body, course_id FROM forum_topics WHERE id = ?',
+      [id]
+    );
+
+    if (!topic) {
+      throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (topic.is_deleted === 1) {
+      throw new AppError('Topic already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    const now = new Date().toISOString();
+
+    const txn = db.transaction(() => {
+      execute(
+        `UPDATE forum_topics
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'moderator_delete'
+         WHERE id = ? AND is_deleted = 0`,
+        [now, actorId, id]
+      );
+
+      const result = db.prepare(
+        `UPDATE forum_posts
+         SET is_deleted = 1, deleted_at = ?, deleted_by = ?, deletion_type = 'topic_cascade'
+         WHERE topic_id = ? AND is_deleted = 0`
+      ).run(now, actorId, id);
+
+      return result.changes;
+    });
+
+    const cascadedPosts = txn();
+
+    auditLog({
+      action: 'forum_topic.moderated',
+      actorId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'moderator_delete',
+        course_id: topic.course_id,
+        author_id: topic.author_id,
+        title_length: topic.title.length,
+        body_length: topic.body.length,
+        cascaded_posts: cascadedPosts,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true, cascadedPosts } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminDeletePost(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const actorId = req.user?.userId;
+    if (!actorId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
+    const { id } = req.params;
+
+    const post = queryOne<{ id: string; author_id: string; is_deleted: number; body: string; topic_id: string }>(
+      'SELECT id, author_id, is_deleted, body, topic_id FROM forum_posts WHERE id = ?',
+      [id]
+    );
+
+    if (!post) {
+      throw new AppError('Post not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (post.is_deleted === 1) {
+      throw new AppError('Post already deleted', 409, ErrorCodes.ALREADY_DELETED);
+    }
+
+    execute(
+      `UPDATE forum_posts
+       SET is_deleted = 1, deleted_at = datetime('now'), deleted_by = ?, deletion_type = 'moderator_delete'
+       WHERE id = ? AND is_deleted = 0`,
+      [actorId, id]
+    );
+
+    auditLog({
+      action: 'forum_post.moderated',
+      actorId,
+      targetId: id,
+      details: JSON.stringify({
+        deletion_type: 'moderator_delete',
+        topic_id: post.topic_id,
+        author_id: post.author_id,
+        body_length: post.body.length,
+      }),
+    });
+
+    res.json({ success: true, data: { deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminGetTopics(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const rows = query<{
+      id: string;
+      title: string;
+      body: string;
+      course_id: string | null;
+      author_id: string;
+      created_at: string;
+      updated_at: string;
+      is_deleted: number;
+      deleted_at: string | null;
+      deleted_by: string | null;
+      deletion_type: string | null;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      original_name: string | null;
+      original_email: string | null;
+      post_count: number;
+    }>(
+      `SELECT t.id, t.title, t.body, t.course_id, t.author_id,
+              t.created_at, t.updated_at,
+              t.is_deleted, t.deleted_at, t.deleted_by, t.deletion_type,
+              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              dui.original_name, dui.original_email,
+              (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count
+       FROM forum_topics t
+       LEFT JOIN users u ON t.author_id = u.id
+       LEFT JOIN deleted_user_identities dui ON t.author_id = dui.user_id
+       ORDER BY t.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+
+    const topics = rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      courseId: row.course_id ?? null,
+      authorId: row.author_id,
+      senderName: row.author_name ?? 'Unknown',
+      senderEmail: row.author_email ?? null,
+      ...(row.original_name != null ? { originalSenderName: row.original_name } : {}),
+      ...(row.original_email != null ? { originalSenderEmail: row.original_email } : {}),
+      createdAt: toISO(row.created_at)!,
+      updatedAt: toISO(row.updated_at) ?? undefined,
+      isDeleted: row.is_deleted === 1,
+      ...(row.deleted_at != null ? { deletedAt: toISO(row.deleted_at) } : {}),
+      ...(row.deleted_by != null ? { deletedBy: row.deleted_by } : {}),
+      ...(row.deletion_type != null ? { deletionType: row.deletion_type } : {}),
+      postCount: row.post_count,
+    }));
+
+    res.json({ success: true, data: { topics } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminGetPosts(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { topicId } = req.params;
+
+    const topicExists = queryOne<{ id: string }>('SELECT id FROM forum_topics WHERE id = ?', [topicId]);
+    if (!topicExists) {
+      throw new AppError('Topic not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const rows = query<{
+      id: string;
+      topic_id: string;
+      body: string;
+      author_id: string;
+      created_at: string;
+      updated_at: string;
+      is_deleted: number;
+      deleted_at: string | null;
+      deleted_by: string | null;
+      deletion_type: string | null;
+      author_name: string | null;
+      author_email: string | null;
+      author_role: string | null;
+      original_name: string | null;
+      original_email: string | null;
+    }>(
+      `SELECT p.id, p.topic_id, p.body, p.author_id,
+              p.created_at, p.updated_at,
+              p.is_deleted, p.deleted_at, p.deleted_by, p.deletion_type,
+              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              dui.original_name, dui.original_email
+       FROM forum_posts p
+       LEFT JOIN users u ON p.author_id = u.id
+       LEFT JOIN deleted_user_identities dui ON p.author_id = dui.user_id
+       WHERE p.topic_id = ?
+       ORDER BY p.created_at ASC
+       LIMIT ? OFFSET ?`,
+      [topicId, limit, offset]
+    );
+
+    const posts = rows.map(row => ({
+      id: row.id,
+      topicId: row.topic_id,
+      body: row.body,
+      authorId: row.author_id,
+      senderName: row.author_name ?? 'Unknown',
+      senderEmail: row.author_email ?? null,
+      ...(row.original_name != null ? { originalSenderName: row.original_name } : {}),
+      ...(row.original_email != null ? { originalSenderEmail: row.original_email } : {}),
+      createdAt: toISO(row.created_at)!,
+      updatedAt: toISO(row.updated_at) ?? undefined,
+      isDeleted: row.is_deleted === 1,
+      ...(row.deleted_at != null ? { deletedAt: toISO(row.deleted_at) } : {}),
+      ...(row.deleted_by != null ? { deletedBy: row.deleted_by } : {}),
+      ...(row.deletion_type != null ? { deletionType: row.deletion_type } : {}),
+    }));
+
+    res.json({ success: true, data: { posts } });
   } catch (error) {
     next(error);
   }

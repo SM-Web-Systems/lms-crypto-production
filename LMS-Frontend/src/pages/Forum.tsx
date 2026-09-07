@@ -19,8 +19,10 @@ import {
   AlertCircle,
   BookOpen,
   Globe,
+  Trash2,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 // Channel type: 'general' or a course id
 type ChannelId = 'general' | string;
@@ -51,6 +53,11 @@ const Forum: React.FC = () => {
   const [newBody, setNewBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [newTopicError, setNewTopicError] = useState<string | null>(null);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'topic' | 'post'; id: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Load available courses (used to build channel tabs)
   useEffect(() => {
@@ -157,6 +164,36 @@ const Forum: React.FC = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      if (deleteTarget.type === 'topic') {
+        await forumService.deleteTopic(deleteTarget.id);
+        // If we're viewing this topic, go back to list
+        if (selectedTopic?.id === deleteTarget.id) {
+          setSelectedTopic(null);
+          setPosts([]);
+        }
+        await loadTopics(activeChannel);
+      } else {
+        await forumService.deletePost(deleteTarget.id);
+        // Refresh posts in current thread
+        if (selectedTopic) {
+          const updatedPosts = await forumService.getPosts(selectedTopic.id);
+          setPosts(Array.isArray(updatedPosts) ? updatedPosts : []);
+          await loadTopics(activeChannel);
+        }
+      }
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(getErrorMessage(err, 'Could not delete. Please try again.'));
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const openTopic = (topic: ForumTopic) => {
     setSelectedTopic(topic);
     setThreadError(null);
@@ -196,9 +233,34 @@ const Forum: React.FC = () => {
           </Button>
           <Card>
             <CardContent className="p-6">
-              <h1 className="text-2xl font-bold text-neutral-800 mb-2">{selectedTopic.title}</h1>
-              <PostAuthor author={author} createdAt={selectedTopic.createdAt} />
-              <div className="mt-4 text-neutral-700 whitespace-pre-wrap">{selectedTopic.body}</div>
+              {selectedTopic.isDeleted ? (
+                <div data-testid="topic-tombstone">
+                  <p className="text-base italic text-neutral-400">This topic has been removed.</p>
+                  <PostAuthor author={author} createdAt={selectedTopic.createdAt} />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <h1 className="text-2xl font-bold text-neutral-800 mb-2">{selectedTopic.title}</h1>
+                    {user && selectedTopic.author?.id === user.id && (
+                      <button
+                        type="button"
+                        data-testid={`delete-topic-${selectedTopic.id}`}
+                        className="p-1.5 rounded text-neutral-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                        title="Delete topic"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteTarget({ type: 'topic', id: selectedTopic.id });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <PostAuthor author={author} createdAt={selectedTopic.createdAt} />
+                  <div className="mt-4 text-neutral-700 whitespace-pre-wrap">{selectedTopic.body}</div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -218,42 +280,106 @@ const Forum: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4 mb-8">
-            {posts.map((post) => (
-              <Card key={post.id}>
-                <CardContent className="p-4">
-                  <PostAuthor
-                    author={post.author ?? { name: 'Unknown', role: 'student', isDeleted: false }}
-                    createdAt={post.createdAt}
-                  />
-                  <div className="mt-3 text-neutral-700 whitespace-pre-wrap">{post.body}</div>
-                </CardContent>
-              </Card>
-            ))}
+            {posts.map((post) =>
+              post.isDeleted ? (
+                <Card key={post.id} data-testid="post-tombstone">
+                  <CardContent className="p-4">
+                    <p className="text-sm italic text-neutral-400">This reply was removed</p>
+                    <div className="mt-1 text-sm text-neutral-400">
+                      <time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card key={post.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <PostAuthor
+                        author={post.author ?? { name: 'Unknown', role: 'student', isDeleted: false }}
+                        createdAt={post.createdAt}
+                      />
+                      {user && post.author?.id === user.id && (
+                        <button
+                          type="button"
+                          data-testid={`delete-post-${post.id}`}
+                          className="p-1.5 rounded text-neutral-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          title="Delete reply"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteTarget({ type: 'post', id: post.id });
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-3 text-neutral-700 whitespace-pre-wrap">{post.body}</div>
+                  </CardContent>
+                </Card>
+              )
+            )}
           </div>
         )}
 
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-medium text-neutral-800 mb-3">Add a reply</h3>
-            <form onSubmit={handleReply} className="space-y-3">
-              <TextArea
-                placeholder="Write your reply..."
-                value={replyBody}
-                onChange={(e) => setReplyBody(e.target.value)}
-                rows={4}
-                required
-              />
-              <Button type="submit" disabled={submitting || !replyBody.trim()}>
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Reply
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        {selectedTopic.isDeleted ? (
+          <Card>
+            <CardContent className="p-4 text-center text-sm text-neutral-400 italic">
+              Replies are disabled — this topic has been removed.
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="font-medium text-neutral-800 mb-3">Add a reply</h3>
+              <form onSubmit={handleReply} className="space-y-3">
+                <TextArea
+                  placeholder="Write your reply..."
+                  value={replyBody}
+                  onChange={(e) => setReplyBody(e.target.value)}
+                  rows={4}
+                  required
+                />
+                <Button type="submit" disabled={submitting || !replyBody.trim()}>
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  Reply
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Delete error banner */}
+        {deleteError && (
+          <div className="mt-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{deleteError}</span>
+          </div>
+        )}
+
+        {/* Delete confirmation dialog */}
+        <ConfirmDialog
+          isOpen={deleteTarget !== null}
+          title={deleteTarget?.type === 'topic' ? 'Delete this topic?' : 'Delete this reply?'}
+          description={
+            deleteTarget?.type === 'topic'
+              ? 'This will remove the topic and all replies from the forum. Original content will remain visible only to admins for audit purposes.'
+              : 'This reply will be removed from the forum. Admins can still see the original content for audit purposes.'
+          }
+          confirmLabel="Delete"
+          confirmVariant="danger"
+          loading={deleteLoading}
+          onConfirm={handleDelete}
+          onCancel={() => {
+            if (!deleteLoading) {
+              setDeleteTarget(null);
+              setDeleteError(null);
+            }
+          }}
+        />
       </div>
     );
   }
@@ -447,39 +573,99 @@ const Forum: React.FC = () => {
         </Card>
       ) : (
         <div className="space-y-3">
-          {topics.map((topic) => (
-            <Card
-              key={topic.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => openTopic(topic)}
-            >
-              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-neutral-800 truncate">{topic.title}</h3>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
-                    <span
-                      className={`flex items-center gap-1${topic.author?.isDeleted ? ' italic text-neutral-400' : ''}`}
-                      title={topic.author?.isDeleted ? 'This user has deleted their account' : undefined}
-                    >
-                      <User className="h-3.5 w-3" />
-                      {topic.author?.name ?? 'Unknown'}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="h-3.5 w-3" />
-                      {topic.postCount} {topic.postCount === 1 ? 'reply' : 'replies'}
-                    </span>
+          {topics.map((topic) =>
+            topic.isDeleted ? (
+              <Card key={topic.id} data-testid="topic-tombstone">
+                <CardContent className="p-4">
+                  <p className="text-sm italic text-neutral-400">This topic was removed</p>
+                  <div className="flex items-center gap-4 mt-1 text-sm text-neutral-400">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3" />
-                      {formatDate(topic.lastPostAt || topic.createdAt)}
+                      {formatDate(topic.createdAt)}
                     </span>
                   </div>
-                </div>
-                <span className="text-accent-teal text-sm font-medium shrink-0">View →</span>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card
+                key={topic.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => openTopic(topic)}
+              >
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-neutral-800 truncate">{topic.title}</h3>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-neutral-500">
+                      <span
+                        className={`flex items-center gap-1${topic.author?.isDeleted ? ' italic text-neutral-400' : ''}`}
+                        title={topic.author?.isDeleted ? 'This user has deleted their account' : undefined}
+                      >
+                        <User className="h-3.5 w-3" />
+                        {topic.author?.name ?? 'Unknown'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageSquare className="h-3.5 w-3" />
+                        {topic.postCount} {topic.postCount === 1 ? 'reply' : 'replies'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3" />
+                        {formatDate(topic.lastPostAt || topic.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {user && topic.author?.id === user.id && (
+                      <button
+                        type="button"
+                        data-testid={`delete-topic-${topic.id}`}
+                        className="p-1.5 rounded text-neutral-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete topic"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteError(null);
+                          setDeleteTarget({ type: 'topic', id: topic.id });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    <span className="text-accent-teal text-sm font-medium">View →</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          )}
         </div>
       )}
+
+      {/* Delete error banner */}
+      {deleteError && (
+        <div className="mt-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{deleteError}</span>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        title={deleteTarget?.type === 'topic' ? 'Delete this topic?' : 'Delete this reply?'}
+        description={
+          deleteTarget?.type === 'topic'
+            ? 'This will remove the topic and all replies from the forum. Original content will remain visible only to admins for audit purposes.'
+            : 'This reply will be removed from the forum. Admins can still see the original content for audit purposes.'
+        }
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={deleteLoading}
+        onConfirm={handleDelete}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+      />
     </div>
   );
 };

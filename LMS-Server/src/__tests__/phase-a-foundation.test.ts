@@ -66,7 +66,8 @@ describe('A2: New Permissions + Role Mappings', () => {
     // N15 adds reward.refund_review + reward.refund_resolve = 89
     // Account deletion adds privacy.view_deleted_identity = 90
     // DM soft-delete adds message.delete_own + message.delete_any + message.view_deleted = 93
-    expect(count!.cnt).toBe(93);
+    // Forum soft-delete adds forum.view_deleted = 94
+    expect(count!.cnt).toBe(94);
   });
 
   it('A2-PERM-2: role_parent has student_wallet.read_assigned + write_assigned', () => {
