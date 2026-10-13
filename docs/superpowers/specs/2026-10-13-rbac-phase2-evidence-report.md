@@ -2,9 +2,20 @@
 
 **Branch**: `assess/rbac-instawards-d2`
 **Baseline SHA**: `470b634`
-**Phase 1 PR**: #58 (open for human review)
+**PR**: [#58](https://github.com/SM-Web-Systems/lms-crypto-production/pull/58) (open for human review — Phase 1 + Phase 2)
 **Date**: 2026-10-13
-**Status**: VERIFIED
+**Status**: VERIFIED — pushed to remote
+
+### Phase 2 Commits (pushed)
+
+| SHA | Message |
+|-----|---------|
+| `7e79a83` | fix(rbac): expand UserRole type and add privilege-escalation guard to patchUserRole |
+| `6d674ac` | docs(rbac): document JWT role-claim staleness as accepted policy (KB-01) |
+| `5c52510` | fix(rbac): correct permission count from 60/76/80 to verified 94 |
+| `94230f0` | docs(rbac): record Phase 2 verification and implementation evidence |
+
+PR #58 now contains 9 commits total (5 Phase 1 + 4 Phase 2).
 
 ---
 
