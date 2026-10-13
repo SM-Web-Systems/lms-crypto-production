@@ -240,14 +240,14 @@ describe('C2 — PATCH /users/:id/role', () => {
     expect(res.body.data.role).toBe('student');
   });
 
-  it('admin promotes student to admin', async () => {
+  it('admin cannot promote student to admin (equal privilege) → 403', async () => {
+    // WI-02: admin (level 80) cannot assign admin (level 80) — escalation guard
     const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
     const res = await request(app)
       .patch(`/api/v1/users/${ids.studentId}/role`)
       .set('Authorization', `Bearer ${token}`)
       .send({ role: 'admin' });
-    expect(res.status).toBe(200);
-    expect(res.body.data.role).toBe('admin');
+    expect(res.status).toBe(403);
   });
 
   it('returns 400 for invalid role value', async () => {

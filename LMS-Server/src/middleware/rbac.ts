@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { query, queryOne } from '../config/database.js';
-import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { AuthRequest, ErrorCodes, UserRole } from '../types/index.js';
 
 // Augment AuthRequest for per-request permission/role caching
 declare module '../types/index.js' {
@@ -27,9 +27,10 @@ export function getUserPermissions(userId: string): string[] {
 }
 
 /**
- * Fetch all role names for a user.
+ * Fetch all RBAC role names for a user.
+ * Returns values from the `roles.name` column (matches the UserRole union type).
  */
-export function getUserRoles(userId: string): string[] {
+export function getUserRoles(userId: string): UserRole[] {
   const rows = query<{ name: string }>(
     `SELECT r.name
      FROM roles r
@@ -37,7 +38,7 @@ export function getUserRoles(userId: string): string[] {
      WHERE ur.user_id = ?`,
     [userId],
   );
-  return rows.map((r) => r.name);
+  return rows.map((r) => r.name as UserRole);
 }
 
 /**

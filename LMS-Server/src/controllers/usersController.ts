@@ -1,8 +1,38 @@
 import { Response, NextFunction } from 'express';
 import { query, queryOne, execute } from '../config/database.js';
-import { AuthRequest, UserDirectoryItem, ErrorCodes, UserRole } from '../types/index.js';
+import { AuthRequest, UserDirectoryItem, ErrorCodes, LegacyRole } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditLog } from '../services/auditService.js';
+import { getUserRoles } from '../middleware/rbac.js';
+
+/**
+ * Privilege levels for legacy roles, aligned with the RBAC hierarchy in rbac.ts.
+ * Used by patchUserRole() to enforce escalation guards on the legacy users.role column.
+ */
+const LEGACY_ROLE_PRIVILEGE: Record<string, number> = {
+  'student': 10,
+  'lecturer': 70,  // maps to RBAC 'instructor' (level 70)
+  'admin': 80,     // maps to RBAC 'admin' (level 80)
+};
+
+/**
+ * RBAC role-name → privilege level (same as rbac.ts ROLE_PRIVILEGE_LEVEL).
+ * Duplicated here to avoid circular dependency with the routes layer.
+ */
+const ROLE_PRIVILEGE_LEVEL: Record<string, number> = {
+  'super-admin': 100,
+  'admin-2': 90,
+  'admin': 80,
+  'instructor': 70,
+  'sponsor': 60,
+  'employer': 50,
+  'teacher': 50,
+  'parent': 50,
+  'super-student': 20,
+  'teaching-assistant': 15,
+  'student': 10,
+  'custom-user': 10,
+};
 
 function getUserCourseCodes(userId: string): string[] {
   const rows = query<{ course_code: string }>(
@@ -163,8 +193,8 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
     const { role } = req.body ?? {};
     const callerId = req.user?.userId;
 
-    const validRoles: UserRole[] = ['student', 'lecturer', 'admin'];
-    if (!role || !validRoles.includes(role as UserRole)) {
+    const validRoles: LegacyRole[] = ['student', 'lecturer', 'admin'];
+    if (!role || !validRoles.includes(role as LegacyRole)) {
       throw new AppError(
         `role must be one of: ${validRoles.join(', ')}`,
         400,
@@ -174,6 +204,19 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
 
     if (id === callerId) {
       throw new AppError('Cannot change your own role', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+
+    // WI-02: Privilege-escalation guard — caller cannot assign a legacy role
+    // whose privilege level is >= their own highest RBAC privilege level.
+    const callerRoles = getUserRoles(callerId!);
+    const callerLevel = Math.max(0, ...callerRoles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
+    const targetLevel = LEGACY_ROLE_PRIVILEGE[role] ?? 0;
+    if (targetLevel >= callerLevel) {
+      throw new AppError(
+        'Cannot assign a role with equal or higher privilege than your own',
+        403,
+        ErrorCodes.FORBIDDEN,
+      );
     }
 
     const user = queryOne<{ id: string; email: string; role: string }>(
