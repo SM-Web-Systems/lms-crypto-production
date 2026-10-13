@@ -2214,6 +2214,8 @@ function ensureDeletionColumns(): void {
 ensureDeletionColumns();
 
 function ensureMessageSoftDeleteColumns(): void {
+  const hasTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_messages'").get();
+  if (!hasTable) return;
   const cols = (db.prepare('PRAGMA table_info(conversation_messages)').all() as { name: string }[])
     .map(c => c.name);
   if (!cols.includes('is_deleted')) {
@@ -2229,6 +2231,8 @@ function ensureMessageSoftDeleteColumns(): void {
 ensureMessageSoftDeleteColumns();
 
 function ensureForumSoftDeleteColumns(): void {
+  const hasTopics = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='forum_topics'").get();
+  if (!hasTopics) return;
   const topicCols = (db.prepare('PRAGMA table_info(forum_topics)').all() as { name: string }[])
     .map(c => c.name);
   if (!topicCols.includes('is_deleted')) {
@@ -2240,6 +2244,8 @@ function ensureForumSoftDeleteColumns(): void {
       CREATE INDEX IF NOT EXISTS idx_forum_topics_deleted ON forum_topics(is_deleted);
     `);
   }
+  const hasPosts = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='forum_posts'").get();
+  if (!hasPosts) return;
   const postCols = (db.prepare('PRAGMA table_info(forum_posts)').all() as { name: string }[])
     .map(c => c.name);
   if (!postCols.includes('is_deleted')) {
