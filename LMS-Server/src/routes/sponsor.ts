@@ -10,6 +10,8 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { query } from '../config/database.js';
+import { validateScope } from '../services/rewards/rewardScopeService.js';
+import type { ScopeType } from '../services/rewards/rewardTypes.js';
 import {
   createReward,
   fundReward,
@@ -317,6 +319,17 @@ router.get(
       res.status(404).json({ success: false, error: { message: 'Reward not found' } });
       return;
     }
+
+    // WI-04: Ownership check — admin (reward.manage) bypasses; otherwise verify scope.
+    // Uses req._permissions cache populated by requirePermission above.
+    const userId = req.user!.userId;
+    if (!req._permissions!.has('reward.manage')) {
+      if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
+        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        return;
+      }
+    }
+
     res.json({ success: true, data: reward });
   },
 );
@@ -327,6 +340,19 @@ router.get(
   authenticate,
   requirePermission('reward.view_assigned'),
   (req: AuthRequest, res: Response): void => {
+    const reward = getReward(req.params.id);
+    if (!reward) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+    // WI-04: Ownership check — same pattern as GET /sponsor/rewards/:id
+    const userId = req.user!.userId;
+    if (!req._permissions!.has('reward.manage')) {
+      if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
+        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        return;
+      }
+    }
     const allocations = getRewardAllocations(req.params.id);
     res.json({ success: true, data: allocations });
   },
@@ -338,6 +364,19 @@ router.get(
   authenticate,
   requirePermission('reward.view_assigned'),
   (req: AuthRequest, res: Response): void => {
+    const reward = getReward(req.params.id);
+    if (!reward) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+    // WI-04: Ownership check — same pattern as GET /sponsor/rewards/:id
+    const userId = req.user!.userId;
+    if (!req._permissions!.has('reward.manage')) {
+      if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
+        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        return;
+      }
+    }
     const transactions = getRewardTransactions(req.params.id);
     res.json({ success: true, data: transactions });
   },
