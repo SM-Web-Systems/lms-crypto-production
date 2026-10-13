@@ -14,7 +14,8 @@
  */
 
 import { Router, Response } from 'express';
-import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireCourseScope } from '../middleware/rbac.js';
 import { queryOne, query } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
@@ -103,7 +104,7 @@ router.get(
 router.get(
   '/courses/:courseId/progress/all',
   authenticate,
-  requireCourseAccess,
+  requireCourseScope,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const { courseId } = req.params;
 
@@ -157,7 +158,7 @@ router.get(
 router.get(
   '/courses/:courseId/students/:userId/progress',
   authenticate,
-  requireCourseAccess,
+  requireCourseScope,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const { courseId, userId } = req.params;
 

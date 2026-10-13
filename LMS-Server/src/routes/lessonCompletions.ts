@@ -12,7 +12,8 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireCourseScope } from '../middleware/rbac.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
@@ -252,7 +253,7 @@ router.post(
   '/courses/:courseId/students/:userId/lessons/:itemId/complete',
   authenticate,
   requirePermission('course.grade'),
-  requireCourseAccess,
+  requireCourseScope,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;
     const { courseId, userId, itemId } = req.params;

@@ -126,7 +126,12 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
  *  - lecturer: passes only if assigned to req.params.courseId in course_lecturers
  *  - student: always 403
  *
- *  Must be used after authenticate(). Expects req.params.courseId. */
+ *  Must be used after authenticate(). Expects req.params.courseId.
+ *
+ *  @deprecated Use requireCourseScope from middleware/rbac.ts instead.
+ *  This function checks the legacy users.role column (JWT claim) rather than
+ *  RBAC permissions, causing users with RBAC instructor role but legacy
+ *  role='student' to be incorrectly denied. See D-01 / WI-01. */
 export function requireCourseAccess(req: AuthRequest, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({
