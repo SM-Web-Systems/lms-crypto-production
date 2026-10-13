@@ -623,20 +623,19 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
   }
 }
 
-/** Phase 1 Course-Centric IA: GET /courses/:courseId/submissions */
+/** Phase 1 Course-Centric IA: GET /courses/:courseId/submissions
+ *
+ * Guarded by requireCourseScope middleware which enforces:
+ *   - Admin (course.delete) → bypass
+ *   - Instructor (course.manage + assigned) → pass
+ *   - TA (course.grade_pending + assigned) → pass
+ *   - All others → 403 before reaching this handler
+ *
+ * Since all callers are authorized staff, show all submissions for the course.
+ */
 export async function getCourseSubmissions(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { courseId } = req.params;
-    const userRole = req.user?.role;
-    const isAdmin = userRole === 'admin';
-    const isLecturer = userRole === 'lecturer';
-    let userStudentId = req.user?.studentId;
-
-    // Resolve studentId if missing
-    if (!isAdmin && !isLecturer && !userStudentId && userRole === 'student' && req.user?.userId) {
-      const student = queryOne<Student>('SELECT id FROM students WHERE user_id = ?', [req.user.userId]);
-      userStudentId = student?.id;
-    }
 
     // Verify course exists
     const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
@@ -644,28 +643,14 @@ export async function getCourseSubmissions(req: AuthRequest, res: Response, next
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    const conditions: string[] = ['s.course_id = ?'];
-    const params: unknown[] = [courseId];
-
-    if (!isAdmin && !isLecturer) {
-      if (!userStudentId) {
-        res.json({ success: true, data: { submissions: [] } });
-        return;
-      }
-      conditions.push('s.student_id = ?');
-      params.push(userStudentId);
-    }
-
-    const whereClause = 'WHERE ' + conditions.join(' AND ');
-
     const submissions = query<Submission & { student_name: string; reviewer_name: string }>(
       `SELECT s.*, st.name as student_name, u.name as reviewer_name
        FROM submissions s
        LEFT JOIN students st ON s.student_id = st.id
        LEFT JOIN users u ON s.reviewed_by_id = u.id
-       ${whereClause}
+       WHERE s.course_id = ?
        ORDER BY s.submitted_at DESC`,
-      params
+      [courseId]
     );
 
     res.json({
