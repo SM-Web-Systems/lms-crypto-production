@@ -1155,7 +1155,7 @@ export function seedRbacData(): void {
     "UPDATE roles SET name = 'super-student', label = 'Super Student' WHERE id = 'role_supporter_student' AND name = 'supporter-student'"
   ).run();
 
-  // Seed 60 permissions (idempotent)
+  // Seed 94 permissions across 21 categories (idempotent)
   const perms: Array<[string, string, string, string]> = [
     // course (9)
     ['perm_course_view', 'course.view', 'course', 'View Courses'],
@@ -1217,7 +1217,7 @@ export function seedRbacData(): void {
     ['perm_document_upload', 'document.upload', 'document', 'Upload Documents'],
     ['perm_document_manage', 'document.manage', 'document', 'Manage Documents'],
     ['perm_document_delete', 'document.delete', 'document', 'Delete Documents'],
-    // forum (3)
+    // forum (4)
     ['perm_forum_view', 'forum.view', 'forum', 'View Forum'],
     ['perm_forum_post', 'forum.post', 'forum', 'Post in Forum'],
     ['perm_forum_moderate', 'forum.moderate', 'forum', 'Moderate Forum'],
@@ -1245,7 +1245,7 @@ export function seedRbacData(): void {
     ['perm_email_manage', 'email.manage', 'email', 'Manage Email Templates'],
     // notification (1)
     ['perm_notification_broadcast', 'notification.broadcast', 'notification', 'Broadcast Notifications'],
-    // Phase A: 15 new permissions (61 → 76)
+    // Phase A: 17 new permissions (73 → 90)
     ['perm_course_approve', 'course.approve', 'course', 'Approve Course Publication'],
     ['perm_student_view_assigned', 'student.view_assigned', 'user', 'View Assigned Students'],
     ['perm_student_login_history', 'student.login_history', 'user', 'View Student Login History'],
@@ -1478,7 +1478,7 @@ export function seedRbacData(): void {
       'perm_message_delete_own', 'perm_message_delete_any', 'perm_message_view_deleted',
     ],
     role_super_admin: [
-      // All 61 permissions
+      // All 93 permissions (94 total minus deprecated reward.give)
       'perm_course_view', 'perm_course_create', 'perm_course_manage', 'perm_course_delete',
       'perm_course_enroll', 'perm_course_enroll_others', 'perm_course_submit',
       'perm_course_grade', 'perm_course_grade_pending',
@@ -1506,7 +1506,7 @@ export function seedRbacData(): void {
       'perm_email_manage',
       // notification
       'perm_notification_broadcast',
-      // Phase A: all 15 new permissions
+      // Phase A + privacy/messaging permissions
       'perm_course_approve', 'perm_student_view_assigned', 'perm_student_login_history',
       'perm_student_wallet_read', 'perm_student_wallet_write',
       'perm_billing_pay_student', 'perm_group_create', 'perm_group_manage',
