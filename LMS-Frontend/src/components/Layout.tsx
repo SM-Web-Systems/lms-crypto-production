@@ -25,6 +25,7 @@ import {
   Wallet,
   PenTool,
   Gift,
+  Shield,
 } from 'lucide-react';
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
@@ -82,6 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Resources', path: '/admin/documents', icon: BookOpen },
       { name: 'Certificates', path: '/admin/certificates', icon: Award },
       { name: 'Sponsor Portal', path: '/admin/sponsor', icon: Tag },
+      { name: 'User Roles', path: '/admin/users', icon: Shield },
       { name: 'Forum', path: '/admin/forum', icon: MessageCircle },
       { name: 'Messages', path: '/admin/messages', icon: Mail },
       { name: 'Course members', path: '/admin/course-members', icon: UserCircle },
