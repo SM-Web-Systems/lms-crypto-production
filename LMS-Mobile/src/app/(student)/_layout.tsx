@@ -78,12 +78,20 @@ export default function StudentTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="certificates"
+        options={{
+          title: 'Certificates',
+          tabBarIcon: ({ color, size }) => <Ionicons name="ribbon-outline" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
         }}
       />
+      <Tabs.Screen name="certificate-detail" options={{ href: null, title: 'Certificate' }} />
       <Tabs.Screen name="quizzes" options={{ href: null, title: 'Quizzes' }} />
       <Tabs.Screen name="forum" options={{ href: null, title: 'Forum' }} />
       <Tabs.Screen name="documents" options={{ href: null, title: 'Resources' }} />
