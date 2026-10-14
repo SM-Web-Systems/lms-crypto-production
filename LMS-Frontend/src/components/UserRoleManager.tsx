@@ -351,6 +351,17 @@ export function UserRoleManager() {
                     </div>
                   )}
 
+                  {/* Legacy role vs RBAC role explanation */}
+                  {rolesState === 'data' && (
+                    <div className="flex gap-2 p-3 bg-neutral-50 border border-neutral-200 rounded text-xs text-neutral-600">
+                      <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                      <p>
+                        Legacy Role and RBAC roles are separate. RBAC roles control API permissions;
+                        the Legacy Role column reflects the user&apos;s legacy account role.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Assign role */}
                   {rolesState === 'data' && (
                     <div>
