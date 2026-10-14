@@ -308,4 +308,85 @@ describe('UserRoleManager', () => {
       screen.getByText(/the backend enforces role privilege boundaries/i),
     ).toBeTruthy();
   });
+
+  // ── Regression tests: contract alignment ────────────────────────────────
+
+  // REG-01: Mock fixtures use the actual backend response shape (role_id, role_name, role_label)
+  it('REG-01: mock fixtures use the documented backend contract shape', () => {
+    // The BOB_ROLES fixture must have the same fields returned by
+    // GET /admin/users/:id/roles after the SQL alias fix.
+    for (const role of BOB_ROLES) {
+      expect(role).toHaveProperty('role_id');
+      expect(role).toHaveProperty('role_name');
+      expect(role).toHaveProperty('role_label');
+      expect(role).toHaveProperty('granted_at');
+      // Must NOT have the old un-aliased field names
+      expect(role).not.toHaveProperty('id');
+      expect(role).not.toHaveProperty('name');
+      expect(role).not.toHaveProperty('label');
+    }
+  });
+
+  // REG-02: Role labels render using role_label, not a raw label or name
+  it('REG-02: current roles render using role_label from the contract', async () => {
+    // Use a fixture with a distinctive label different from the name
+    const distinctRoles = [
+      { role_id: 'r2', role_name: 'student', role_label: 'Student', granted_at: '2026-02-01' },
+      { role_id: 'r4', role_name: 'content-reviewer', role_label: 'Content Reviewer', granted_at: '2026-06-01' },
+    ];
+    (rbacService.getUserRoles as Mock).mockResolvedValue(distinctRoles);
+
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('Bob Student')).toBeTruthy());
+
+    const bobRow = screen.getByText('Bob Student').closest('tr')!;
+    await user.click(within(bobRow).getByRole('button', { name: /manage roles/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Content Reviewer')).toBeTruthy();
+    });
+    // The raw role name "content-reviewer" should NOT appear as a visible label
+    expect(screen.queryByText('content-reviewer')).toBeNull();
+  });
+
+  // REG-03: Remove sends role_id (not id or undefined) to the backend
+  it('REG-03: remove sends role_id from contract, not undefined', async () => {
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('Bob Student')).toBeTruthy());
+
+    const bobRow = screen.getByText('Bob Student').closest('tr')!;
+    await user.click(within(bobRow).getByRole('button', { name: /manage roles/i }));
+    await waitFor(() => expect(rbacService.getUserRoles).toHaveBeenCalledWith('u2'));
+
+    const removeBtn = screen.getByRole('button', { name: /remove.*student/i });
+    await user.click(removeBtn);
+    const confirmBtn = screen.getByRole('button', { name: /confirm/i });
+    await user.click(confirmBtn);
+
+    // The second argument must be the role_id string, never undefined
+    expect(rbacService.removeUserRole).toHaveBeenCalledWith('u2', 'r2');
+    const callArgs = (rbacService.removeUserRole as Mock).mock.calls[0];
+    expect(callArgs[1]).toBe('r2');
+    expect(callArgs[1]).not.toBeUndefined();
+  });
+
+  // REG-04: Legacy-role vs RBAC-role explanation note is visible
+  it('REG-04: legacy-role vs RBAC-role explanation is displayed', async () => {
+    const user = userEvent.setup();
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('Bob Student')).toBeTruthy());
+
+    const bobRow = screen.getByText('Bob Student').closest('tr')!;
+    await user.click(within(bobRow).getByRole('button', { name: /manage roles/i }));
+    await waitFor(() => expect(rbacService.getUserRoles).toHaveBeenCalledWith('u2'));
+
+    // Should display the legacy vs RBAC explanation note
+    await waitFor(() => {
+      expect(
+        screen.getByText(/legacy role.*rbac/i) || screen.getByText(/rbac.*legacy/i),
+      ).toBeTruthy();
+    });
+  });
 });
