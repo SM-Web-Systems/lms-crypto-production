@@ -92,39 +92,6 @@ export function requirePermission(...permissions: string[]) {
   };
 }
 
-/**
- * Middleware: require the authenticated user to have at least one of the specified roles.
- * Uses per-request caching.
- */
-export function requireAnyRole(...roles: string[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: { code: ErrorCodes.UNAUTHORIZED, message: 'Authentication required' },
-      });
-      return;
-    }
-
-    // Per-request cache
-    if (!req._roles) {
-      req._roles = getUserRoles(req.user.userId);
-    }
-
-    if (!hasAnyRole(req._roles, roles)) {
-      res.status(403).json({
-        success: false,
-        error: {
-          code: ErrorCodes.FORBIDDEN,
-          message: 'You do not have permission to access this resource',
-        },
-      });
-      return;
-    }
-
-    next();
-  };
-}
 
 /**
  * RBAC-aware replacement for legacy requireCourseAccess.
