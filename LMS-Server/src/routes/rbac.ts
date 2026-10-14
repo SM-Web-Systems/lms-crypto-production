@@ -415,8 +415,9 @@ router.get(
   authenticate,
   requirePermission('user.assign_role'),
   (req: AuthRequest, res: Response) => {
-    const roles = query<{ id: string; name: string; label: string }>(
-      `SELECT r.id, r.name, r.label
+    const roles = query<{ role_id: string; role_name: string; role_label: string; granted_at: string }>(
+      `SELECT r.id AS role_id, r.name AS role_name, r.label AS role_label,
+              ur.created_at AS granted_at
        FROM roles r
        JOIN user_roles ur ON r.id = ur.role_id
        WHERE ur.user_id = ?`,
