@@ -12,6 +12,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import SsoCallback from './pages/SsoCallback';
 import CertificateVerification from './pages/CertificateVerification';
+import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
 import { resolveClosestRole } from './utils/resolveClosestRole';
@@ -429,6 +430,17 @@ function App() {
                 <ProtectedRoute allowedRole="admin">
                   <Layout>
                     <SponsorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute allowedRole="admin">
+                  <Layout>
+                    <UserRoleManager />
                   </Layout>
                 </ProtectedRoute>
               }
