@@ -4,6 +4,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission, getUserRoles } from '../middleware/rbac.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { auditLog } from '../services/auditService.js';
 
 const router = Router();
 
@@ -107,6 +108,13 @@ router.post(
       [id, name, label, description ?? null, req.user!.userId],
     );
 
+    auditLog({
+      action: 'rbac.role_created',
+      actorId: req.user!.userId,
+      targetId: id,
+      details: `name=${name} label=${label}`,
+    });
+
     res.status(201).json({ success: true, data: { id, name, label } });
   },
 );
@@ -163,6 +171,13 @@ router.put(
     if (label) execute('UPDATE roles SET label = ? WHERE id = ?', [label, req.params.id]);
     if (description !== undefined) execute('UPDATE roles SET description = ? WHERE id = ?', [description, req.params.id]);
 
+    auditLog({
+      action: 'rbac.role_updated',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `label=${label ?? '(unchanged)'} description=${description !== undefined ? '(set)' : '(unchanged)'}`,
+    });
+
     res.json({ success: true, data: { id: req.params.id } });
   },
 );
@@ -189,8 +204,8 @@ router.delete(
   authenticate,
   requirePermission('system.manage_roles'),
   (req: AuthRequest, res: Response) => {
-    const role = queryOne<{ id: string; is_system: number }>(
-      'SELECT id, is_system FROM roles WHERE id = ?', [req.params.id],
+    const role = queryOne<{ id: string; name: string; is_system: number }>(
+      'SELECT id, name, is_system FROM roles WHERE id = ?', [req.params.id],
     );
     if (!role) {
       res.status(404).json({
@@ -208,6 +223,14 @@ router.delete(
     }
 
     execute('DELETE FROM roles WHERE id = ?', [req.params.id]);
+
+    auditLog({
+      action: 'rbac.role_deleted',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `name=${role.name}`,
+    });
+
     res.json({ success: true, message: 'Role deleted' });
   },
 );
@@ -358,6 +381,13 @@ router.put(
       execute('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)', [req.params.id, pid]);
     }
 
+    auditLog({
+      action: 'rbac.permissions_updated',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `role=${role.name} permissionCount=${permissionIds.length}`,
+    });
+
     res.json({ success: true, message: 'Permissions updated' });
   },
 );
@@ -483,6 +513,13 @@ router.post(
       [req.params.id, roleId, req.user!.userId],
     );
 
+    auditLog({
+      action: 'rbac.role_assigned',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `roleId=${roleId} roleName=${role.name}`,
+    });
+
     res.status(201).json({ success: true, message: 'Role assigned' });
   },
 );
@@ -522,6 +559,11 @@ router.delete(
       return;
     }
 
+    // Look up role name before deletion for audit trail
+    const removedRole = queryOne<{ name: string }>(
+      'SELECT r.name FROM roles r WHERE r.id = ?', [req.params.roleId],
+    );
+
     const changes = execute(
       'DELETE FROM user_roles WHERE user_id = ? AND role_id = ?',
       [req.params.id, req.params.roleId],
@@ -534,6 +576,13 @@ router.delete(
       });
       return;
     }
+
+    auditLog({
+      action: 'rbac.role_removed',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `roleId=${req.params.roleId} roleName=${removedRole?.name ?? 'unknown'}`,
+    });
 
     res.json({ success: true, message: 'Role removed' });
   },

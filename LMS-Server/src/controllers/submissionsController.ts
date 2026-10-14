@@ -16,8 +16,22 @@ function safeName(raw: string): string {
 }
 
 /** Returns true if the lecturer (by userId) is assigned to at least one course
- *  that the given student (by students.id) is enrolled in. */
-function isLecturerForStudent(lecturerUserId: string, studentId: string): boolean {
+ *  that the given student (by students.id) is enrolled in.
+ *  When courseId is provided, the check is scoped to that specific course
+ *  to prevent the cross-course gap (D-14). */
+function isLecturerForStudent(lecturerUserId: string, studentId: string, courseId?: string): boolean {
+  if (courseId) {
+    // Course-scoped check: verify the lecturer teaches the specific course
+    const row = queryOne<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt
+       FROM course_lecturers cl
+       WHERE cl.course_id = ? AND cl.user_id = ?`,
+      [courseId, lecturerUserId],
+    );
+    return (row?.cnt ?? 0) > 0;
+  }
+  // Fallback: broad check (used by getSubmission, downloadSubmission, reviewSubmission
+  // which don't filter by course)
   const row = queryOne<{ cnt: number }>(
     `SELECT COUNT(*) as cnt
      FROM students st
@@ -185,7 +199,7 @@ export async function getSubmission(req: AuthRequest, res: Response, next: NextF
 
     if (!isAdmin) {
       if (isLecturer && lecturerUserId) {
-        if (!isLecturerForStudent(lecturerUserId, submission.student_id)) {
+        if (!isLecturerForStudent(lecturerUserId, submission.student_id, submission.course_id ?? undefined)) {
           throw new AppError('You do not have permission to view this submission', 403, ErrorCodes.FORBIDDEN);
         }
       } else if (submission.student_id !== userStudentId) {
@@ -405,7 +419,8 @@ export async function deleteSubmission(req: AuthRequest, res: Response, next: Ne
     // Check permissions
     if (!isAdmin) {
       if (isLecturer && lecturerUserId) {
-        if (!isLecturerForStudent(lecturerUserId, existing.student_id)) {
+        // D-14 fix: scope the lecturer check to the submission's course
+        if (!isLecturerForStudent(lecturerUserId, existing.student_id, existing.course_id ?? undefined)) {
           throw new AppError('You do not have permission to delete this submission', 403, ErrorCodes.FORBIDDEN);
         }
       } else if (existing.student_id !== userStudentId) {
@@ -453,7 +468,7 @@ export async function downloadSubmission(req: AuthRequest, res: Response, next: 
     // Check permissions
     if (!isAdmin) {
       if (isLecturer && lecturerUserId) {
-        if (!isLecturerForStudent(lecturerUserId, submission.student_id)) {
+        if (!isLecturerForStudent(lecturerUserId, submission.student_id, submission.course_id ?? undefined)) {
           throw new AppError('You do not have permission to download this file', 403, ErrorCodes.FORBIDDEN);
         }
       } else if (submission.student_id !== userStudentId) {
@@ -509,7 +524,7 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
 
     // Lecturers can only review submissions from students in their assigned courses
     if (isLecturer && reviewerUserId) {
-      if (!isLecturerForStudent(reviewerUserId, existing.student_id)) {
+      if (!isLecturerForStudent(reviewerUserId, existing.student_id, existing.course_id ?? undefined)) {
         throw new AppError(
           'You do not have permission to review this submission',
           403,
@@ -623,20 +638,19 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
   }
 }
 
-/** Phase 1 Course-Centric IA: GET /courses/:courseId/submissions */
+/** Phase 1 Course-Centric IA: GET /courses/:courseId/submissions
+ *
+ * Guarded by requireCourseScope middleware which enforces:
+ *   - Admin (course.delete) → bypass
+ *   - Instructor (course.manage + assigned) → pass
+ *   - TA (course.grade_pending + assigned) → pass
+ *   - All others → 403 before reaching this handler
+ *
+ * Since all callers are authorized staff, show all submissions for the course.
+ */
 export async function getCourseSubmissions(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { courseId } = req.params;
-    const userRole = req.user?.role;
-    const isAdmin = userRole === 'admin';
-    const isLecturer = userRole === 'lecturer';
-    let userStudentId = req.user?.studentId;
-
-    // Resolve studentId if missing
-    if (!isAdmin && !isLecturer && !userStudentId && userRole === 'student' && req.user?.userId) {
-      const student = queryOne<Student>('SELECT id FROM students WHERE user_id = ?', [req.user.userId]);
-      userStudentId = student?.id;
-    }
 
     // Verify course exists
     const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
@@ -644,28 +658,14 @@ export async function getCourseSubmissions(req: AuthRequest, res: Response, next
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    const conditions: string[] = ['s.course_id = ?'];
-    const params: unknown[] = [courseId];
-
-    if (!isAdmin && !isLecturer) {
-      if (!userStudentId) {
-        res.json({ success: true, data: { submissions: [] } });
-        return;
-      }
-      conditions.push('s.student_id = ?');
-      params.push(userStudentId);
-    }
-
-    const whereClause = 'WHERE ' + conditions.join(' AND ');
-
     const submissions = query<Submission & { student_name: string; reviewer_name: string }>(
       `SELECT s.*, st.name as student_name, u.name as reviewer_name
        FROM submissions s
        LEFT JOIN students st ON s.student_id = st.id
        LEFT JOIN users u ON s.reviewed_by_id = u.id
-       ${whereClause}
+       WHERE s.course_id = ?
        ORDER BY s.submitted_at DESC`,
-      params
+      [courseId]
     );
 
     res.json({

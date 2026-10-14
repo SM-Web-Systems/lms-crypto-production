@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
-import { query } from '../config/database.js';
-import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { query, queryOne } from '../config/database.js';
+import { AuthRequest, ErrorCodes, UserRole } from '../types/index.js';
 
 // Augment AuthRequest for per-request permission/role caching
 declare module '../types/index.js' {
@@ -27,9 +27,10 @@ export function getUserPermissions(userId: string): string[] {
 }
 
 /**
- * Fetch all role names for a user.
+ * Fetch all RBAC role names for a user.
+ * Returns values from the `roles.name` column (matches the UserRole union type).
  */
-export function getUserRoles(userId: string): string[] {
+export function getUserRoles(userId: string): UserRole[] {
   const rows = query<{ name: string }>(
     `SELECT r.name
      FROM roles r
@@ -37,7 +38,7 @@ export function getUserRoles(userId: string): string[] {
      WHERE ur.user_id = ?`,
     [userId],
   );
-  return rows.map((r) => r.name);
+  return rows.map((r) => r.name as UserRole);
 }
 
 /**
@@ -91,36 +92,78 @@ export function requirePermission(...permissions: string[]) {
   };
 }
 
+
 /**
- * Middleware: require the authenticated user to have at least one of the specified roles.
- * Uses per-request caching.
+ * RBAC-aware replacement for legacy requireCourseAccess.
+ *
+ * Checks RBAC permissions (not legacy users.role) to determine course access:
+ *   1. course.delete permission → admin-tier bypass (all courses).
+ *      Only admin/admin-2/super-admin hold course.delete.
+ *   2. course.manage permission + course_lecturers assignment → instructor scope
+ *   3. course.grade_pending permission + course_tas assignment → TA scope
+ *   4. Otherwise → 403
+ *
+ * Expects req.params.courseId to be set. Must be used after authenticate().
+ *
+ * @see WI-01 in 2026-10-13-rbac-developer-spec.md
  */
-export function requireAnyRole(...roles: string[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        error: { code: ErrorCodes.UNAUTHORIZED, message: 'Authentication required' },
-      });
-      return;
-    }
+export function requireCourseScope(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      error: { code: ErrorCodes.UNAUTHORIZED, message: 'Authentication required' },
+    });
+    return;
+  }
 
-    // Per-request cache
-    if (!req._roles) {
-      req._roles = getUserRoles(req.user.userId);
-    }
+  const courseId = req.params.courseId;
+  if (!courseId) {
+    res.status(400).json({
+      success: false,
+      error: { code: ErrorCodes.VALIDATION_ERROR, message: 'courseId param required' },
+    });
+    return;
+  }
 
-    if (!hasAnyRole(req._roles, roles)) {
-      res.status(403).json({
-        success: false,
-        error: {
-          code: ErrorCodes.FORBIDDEN,
-          message: 'You do not have permission to access this resource',
-        },
-      });
-      return;
-    }
+  // Per-request cache
+  if (!req._permissions) {
+    const permList = getUserPermissions(req.user.userId);
+    req._permissions = new Set(permList);
+  }
 
+  // 1. Admin-tier bypass: course.delete is held only by admin/admin-2/super-admin
+  if (req._permissions.has('course.delete')) {
     next();
-  };
+    return;
+  }
+
+  // 2. Instructor: course.manage grants access to assigned courses only
+  if (req._permissions.has('course.manage')) {
+    const assigned = queryOne<{ course_id: string }>(
+      'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
+      [courseId, req.user.userId],
+    );
+    if (assigned) {
+      next();
+      return;
+    }
+  }
+
+  // 3. TA: course.grade_pending grants access to assigned courses only
+  if (req._permissions.has('course.grade_pending')) {
+    const assigned = queryOne<{ course_id: string }>(
+      'SELECT course_id FROM course_tas WHERE course_id = ? AND user_id = ?',
+      [courseId, req.user.userId],
+    );
+    if (assigned) {
+      next();
+      return;
+    }
+  }
+
+  // 4. No matching permission or assignment — deny
+  res.status(403).json({
+    success: false,
+    error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this course' },
+  });
 }

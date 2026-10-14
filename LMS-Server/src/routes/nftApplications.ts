@@ -13,7 +13,8 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireCourseScope } from '../middleware/rbac.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { mintCredential } from '../services/mintService.js';
@@ -517,7 +518,7 @@ router.get(
 router.post(
   '/courses/:courseId/completions/applications/:appId/recommend',
   authenticate,
-  requireCourseAccess,
+  requireCourseScope,
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
     const { recommendation, notes } = req.body as { recommendation: string; notes?: string };

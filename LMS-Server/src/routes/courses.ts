@@ -25,7 +25,7 @@ import {
 } from '../controllers/coursesController.js';
 import { getCourseSubmissions } from '../controllers/submissionsController.js';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { requirePermission, requireCourseScope } from '../middleware/rbac.js';
 import { uploadZip } from '../utils/fileUpload.js';
 
 const router = Router();
@@ -121,7 +121,7 @@ router.delete('/:id/members/:userId', requirePermission('course.enroll_others'),
  *     responses:
  *       200: { description: Course submissions }
  */
-router.get('/:courseId/submissions', getCourseSubmissions);
+router.get('/:courseId/submissions', requireCourseScope, getCourseSubmissions);
 // Lecturer assignment — Phase C (registered before /:id to avoid param collision)
 /**
  * @openapi

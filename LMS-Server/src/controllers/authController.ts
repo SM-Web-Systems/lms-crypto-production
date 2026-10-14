@@ -4,7 +4,7 @@ import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { query, queryOne, execute, createSession } from "../config/database.js";
 import { generateToken } from "../config/jwt.js";
-import { AuthRequest, User, ErrorCodes, Student, UserRole } from "../types/index.js";
+import { AuthRequest, User, ErrorCodes, Student, LegacyRole } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { createUserWallet } from "../services/walletService.js";
 import { getUserRoles } from "../middleware/rbac.js";
@@ -265,7 +265,7 @@ export async function register(
       );
     }
 
-    const role: UserRole = isAdminEmail(email) ? "admin" : isLecturerEmail(email) ? "lecturer" : "student";
+    const role: LegacyRole = isAdminEmail(email) ? "admin" : isLecturerEmail(email) ? "lecturer" : "student";
     const userId = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -593,7 +593,7 @@ export async function ammaCallback(
       [email],
     );
 
-    const role: UserRole = isAdminEmail(email) ? 'admin' : isLecturerEmail(email) ? 'lecturer' : (user?.role ?? 'student');
+    const role: LegacyRole = isAdminEmail(email) ? 'admin' : isLecturerEmail(email) ? 'lecturer' : (user?.role ?? 'student');
     let userId: string;
     let studentId: string | undefined;
 
@@ -690,7 +690,7 @@ export async function createUser(
   name: string,
   email: string,
   password: string,
-  role: UserRole,
+  role: LegacyRole,
 ): Promise<User> {
   const id = uuidv4();
   const passwordHash = await bcrypt.hash(password, 10);
