@@ -12,7 +12,9 @@
     "prebuild:android": "expo prebuild --platform android --clean",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:android:production": "eas build --platform android --profile production",
-    "submit:android": "eas submit --platform android --profile production"
+    "submit:android": "eas submit --platform android --profile production",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -22,6 +24,7 @@
     "clsx": "^2.1.1",
     "expo": "~54.0.34",
     "expo-build-properties": "~1.0.10",
+    "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
     "expo-document-picker": "~14.0.8",
@@ -53,8 +56,12 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^12.9.0",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
     "eas-cli": "^16.3.2",
+    "jest-expo": "^54.0.18",
+    "react-test-renderer": "^19.1.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2"
   }
