@@ -134,6 +134,20 @@ describe('CertificateDetailScreen', () => {
     });
   });
 
+  it('action buttons have accessible roles', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
+
+    render(<CertificateDetailScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('View on Stellar')).toBeTruthy();
+    });
+
+    // Button component already sets accessibilityRole="button"
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
+  });
+
   it('shows error on network failure', async () => {
     mockCredentialService.fetchMyCredentials.mockRejectedValueOnce(
       new Error('Network Error')

@@ -58,8 +58,12 @@ function CertificateCard({
   credential: MyCredential;
   onPress: () => void;
 }) {
+  const title = credential.courseTitle ?? 'Certificate';
   return (
-    <Pressable onPress={onPress}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}>
       <Card className="active:opacity-90">
         <View className="flex-row items-start gap-3">
           <View className="h-11 w-11 items-center justify-center rounded-xl bg-primary-50">
@@ -67,7 +71,7 @@ function CertificateCard({
           </View>
           <View className="flex-1">
             <Text className="text-base font-semibold text-neutral-900" numberOfLines={2}>
-              {credential.courseTitle ?? 'Certificate'}
+              {title}
             </Text>
             {credential.courseCode ? (
               <Text className="mt-0.5 text-xs text-neutral-500">{credential.courseCode}</Text>

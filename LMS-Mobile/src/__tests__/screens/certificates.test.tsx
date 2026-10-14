@@ -141,6 +141,20 @@ describe('CertificatesScreen', () => {
     });
   });
 
+  it('certificate cards have accessible button role', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
+    mockWalletService.fetchWalletStatus.mockResolvedValueOnce(LINKED_WALLET);
+
+    render(<CertificatesScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Blockchain 101')).toBeTruthy();
+    });
+
+    const button = screen.getByRole('button', { name: /blockchain 101/i });
+    expect(button).toBeTruthy();
+  });
+
   it('handles wallet fetch failure gracefully', async () => {
     mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
     mockWalletService.fetchWalletStatus.mockRejectedValueOnce(
