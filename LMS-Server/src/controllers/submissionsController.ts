@@ -16,8 +16,22 @@ function safeName(raw: string): string {
 }
 
 /** Returns true if the lecturer (by userId) is assigned to at least one course
- *  that the given student (by students.id) is enrolled in. */
-function isLecturerForStudent(lecturerUserId: string, studentId: string): boolean {
+ *  that the given student (by students.id) is enrolled in.
+ *  When courseId is provided, the check is scoped to that specific course
+ *  to prevent the cross-course gap (D-14). */
+function isLecturerForStudent(lecturerUserId: string, studentId: string, courseId?: string): boolean {
+  if (courseId) {
+    // Course-scoped check: verify the lecturer teaches the specific course
+    const row = queryOne<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt
+       FROM course_lecturers cl
+       WHERE cl.course_id = ? AND cl.user_id = ?`,
+      [courseId, lecturerUserId],
+    );
+    return (row?.cnt ?? 0) > 0;
+  }
+  // Fallback: broad check (used by getSubmission, downloadSubmission, reviewSubmission
+  // which don't filter by course)
   const row = queryOne<{ cnt: number }>(
     `SELECT COUNT(*) as cnt
      FROM students st
@@ -185,7 +199,7 @@ export async function getSubmission(req: AuthRequest, res: Response, next: NextF
 
     if (!isAdmin) {
       if (isLecturer && lecturerUserId) {
-        if (!isLecturerForStudent(lecturerUserId, submission.student_id)) {
+        if (!isLecturerForStudent(lecturerUserId, submission.student_id, submission.course_id ?? undefined)) {
           throw new AppError('You do not have permission to view this submission', 403, ErrorCodes.FORBIDDEN);
         }
       } else if (submission.student_id !== userStudentId) {
@@ -405,7 +419,8 @@ export async function deleteSubmission(req: AuthRequest, res: Response, next: Ne
     // Check permissions
     if (!isAdmin) {
       if (isLecturer && lecturerUserId) {
-        if (!isLecturerForStudent(lecturerUserId, existing.student_id)) {
+        // D-14 fix: scope the lecturer check to the submission's course
+        if (!isLecturerForStudent(lecturerUserId, existing.student_id, existing.course_id ?? undefined)) {
           throw new AppError('You do not have permission to delete this submission', 403, ErrorCodes.FORBIDDEN);
         }
       } else if (existing.student_id !== userStudentId) {
@@ -453,7 +468,7 @@ export async function downloadSubmission(req: AuthRequest, res: Response, next: 
     // Check permissions
     if (!isAdmin) {
       if (isLecturer && lecturerUserId) {
-        if (!isLecturerForStudent(lecturerUserId, submission.student_id)) {
+        if (!isLecturerForStudent(lecturerUserId, submission.student_id, submission.course_id ?? undefined)) {
           throw new AppError('You do not have permission to download this file', 403, ErrorCodes.FORBIDDEN);
         }
       } else if (submission.student_id !== userStudentId) {
@@ -509,7 +524,7 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
 
     // Lecturers can only review submissions from students in their assigned courses
     if (isLecturer && reviewerUserId) {
-      if (!isLecturerForStudent(reviewerUserId, existing.student_id)) {
+      if (!isLecturerForStudent(reviewerUserId, existing.student_id, existing.course_id ?? undefined)) {
         throw new AppError(
           'You do not have permission to review this submission',
           403,
