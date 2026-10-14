@@ -123,15 +123,10 @@ Each test maps to a D2 acceptance criterion from the scope reference.
 | `rbac-sponsor-isolation.test.ts` | Cross-sponsor data isolation | WI-04 | 11 | Phase 1 PASS |
 | `rbac-user-role.test.ts` | patchUserRole escalation guards | WI-02 | 15 | Phase 2 PASS |
 
-### New Test Files Needed (Phase 3 — not yet approved)
+### New Test Files — Phase 3 (Implemented)
 
-| File | Coverage | WI |
-|------|----------|----|
-| `rbac-audit-coverage.test.ts` | Audit log entries for RBAC ops | WI-05 |
-| `rbac-user-lookup-scope.test.ts` | User lookup scoping for lecturers | WI-11 |
-
-### Existing Test Files to Expand
-
-| File | Additional Coverage | WI |
-|------|--------------------|----|
-| `submission-delete-rbac.test.ts` | Cross-course lecturer, admin, student ownership, reviewed-submission block | WI-12 |
+| File | Coverage | WI | Tests | Status |
+|------|----------|----|-------|--------|
+| `rbac-audit.test.ts` | Audit log entries for all 6 RBAC mutations | WI-05 | 8 | Phase 3 PASS |
+| `user-lookup-scope.test.ts` | User lookup RBAC scoping (admin/instructor/sponsor/student/TA) | WI-11 | 10 | Phase 3 PASS |
+| `submission-delete-auth.test.ts` | DELETE /submissions/:id authorization + cross-course gap fix | WI-12 | 10 | Phase 3 PASS |

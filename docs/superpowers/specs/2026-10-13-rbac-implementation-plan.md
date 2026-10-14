@@ -2,7 +2,7 @@
 
 > **Session:** RBAC Assessment for Instawards D2
 > **Date:** 2026-10-13
-> **Status:** DRAFT — awaiting approval before execution
+> **Status:** Phase 1–3 IMPLEMENTED
 
 ---
 
@@ -143,14 +143,16 @@
 - [x] **Phase 2.1:** `UserRole` type expanded, `LegacyRole` added, escalation guard in `patchUserRole()` (WI-02: 15 tests)
 - [x] **Phase 2.2:** JWT staleness documented as accepted policy (WI-03: `KNOWN_BEHAVIORS.md`, `jwt.ts` JSDoc)
 - [x] **Phase 2.3:** Permission count corrected to 94, documentation aligned (WI-06: code comments, test, spec, matrix)
-- [ ] **Phase 3.1:** Audit log coverage verified/fixed (WI-05) — NOT APPROVED
-- [ ] **Phase 3.2:** Dead code cleaned up (WI-07) — NOT APPROVED
-- [ ] **Phase 3.3:** `GET /users/:id` scoped (WI-11) — NOT APPROVED
-- [ ] **Phase 3.4:** `isLecturerForStudent()` cross-course gap fixed (WI-12) — NOT APPROVED
+- [x] **Phase 3.1:** Audit log coverage verified/fixed (WI-05) — IMPLEMENTED (8 tests in `rbac-audit.test.ts`)
+- [x] **Phase 3.2:** Dead code cleaned up (WI-07) — IMPLEMENTED (removed `requireAnyRole()`, `hasAnyRole` retained)
+- [x] **Phase 3.3:** `GET /users/:id` scoped (WI-11) — IMPLEMENTED (10 tests in `user-lookup-scope.test.ts`)
+- [x] **Phase 3.4:** `isLecturerForStudent()` cross-course gap fixed (WI-12) — IMPLEMENTED (10 tests in `submission-delete-auth.test.ts`)
 - [x] ~~**Phase 3 (old):** WI-09, WI-10~~ — CLOSED (already handled)
 - [x] **Phase 2 POST-FLIGHT:** Full test suite passes (156 files, 1,462 tests, 0 failures)
 - [x] **Phase 2 POST-FLIGHT:** No new TypeScript errors (`tsc --noEmit` → 0 errors)
 - [x] **Phase 2 POST-FLIGHT:** Build clean (`npm run build` → 0 errors)
+- [x] **Phase 3 POST-FLIGHT:** Full test suite passes (159 files, 1,490 tests, 0 failures)
+- [x] **Phase 3 POST-FLIGHT:** No new TypeScript errors (`tsc --noEmit` → 0 errors)
 - [ ] **DEFERRED:** Manual UI role-management testing (requires admin UI, not yet built)
 
 ---
