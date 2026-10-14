@@ -2,10 +2,51 @@
 
 **PR:** [SM-Web-Systems/lms-crypto-production#61](https://github.com/SM-Web-Systems/lms-crypto-production/pull/61)
 **Branch:** `feat/mobile-certificates-batch1` -> `main`
-**Commits:** `ff2aac2` (Batch 1 implementation), `43384bd` (accessibility fix)
+**Commits:** `ff2aac2` (Batch 1 implementation), `43384bd` (accessibility fix), `c0beb11` (docs)
+**Merge SHA:** `76d6ecb49d22a4e72e22cc5b252f103d519e0d64`
 **Review status:** Code review APPROVED with non-blocking suggestions
-**PR state:** OPEN, UNMERGED, UNDEPLOYED
+**PR state:** MERGED (2026-10-14T21:32:34Z)
 **Automated checks:** 38/38 tests pass, TypeScript zero errors, CI Frontend pass
+
+### Deployment Record
+
+| Field | Value |
+|-------|-------|
+| Deployment timestamp | 2026-10-14 23:33:42 – 23:34:20 UTC+2 |
+| Previous deployed SHA | `3ff00bd` (smoke-test fix) |
+| New deployed SHA | `76d6ecb49d22a4e72e22cc5b252f103d519e0d64` |
+| Pre-deploy DB backup | `/home/webadmin/backups/lms-ammawallet-db/pre-deploy_20261014_233342.db` (15,028,224 bytes) |
+| Additional backup | `/home/webadmin/web-stack/html/LMS-AmmaWallet/backups/student_ms-pre-deploy-20261014_233329.db` (15M) |
+| Build SHA verified | `76d6ecb49d22a4e72e22cc5b252f103d519e0d64` matches `/api/v1/health` |
+| API health | ok (healthy after 4s) |
+| DB status | ok |
+| Data integrity | users=18, courses=4, nft_credentials=10 (above thresholds) |
+| RBAC roles | 12 roles unchanged, 1 admin account (expected) |
+
+### Smoke Test Results
+
+```
+==> LMS Smoke Tests
+    Base URL: https://lms.smwebsystems.com/api/v1
+
+  PASS  Health endpoint (200)
+  PASS  Health status (ok)
+  PASS  DB readiness (ok)
+  PASS  Courses API (401 — auth required)
+  PASS  Build SHA present
+
+==> Results: 5 passed, 0 failed
+Exit code: 0
+```
+
+### Deployment Safety Confirmation
+
+- No NFT minting, mainnet transaction, or mutating credential/wallet operation occurred
+- No app-store release (Google Play or Apple App Store) was created
+- No EAS production mobile build was created
+- No RBAC roles, permissions, or seed data were changed
+- No AmmaWallet containers or configuration were modified
+- Device verification remains required before Deliverable 1 is considered fully complete
 
 ---
 
