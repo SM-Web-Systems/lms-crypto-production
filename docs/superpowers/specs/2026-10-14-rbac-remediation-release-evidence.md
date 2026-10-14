@@ -60,6 +60,20 @@ The deploy script's built-in smoke tests (`scripts/smoke-test.sh`) reported fail
 
 ## Limitations and Follow-ups
 
-- **Smoke test localhost issue**: `scripts/smoke-test.sh` uses `SMOKE_BASE_URL` defaulting to `localhost:3001`. Since the API container only exposes port 3001 internally (no host port mapping), this always fails when run from the host. Fix: set `SMOKE_BASE_URL=https://lms.smwebsystems.com/api/v1` or add a host port mapping.
+- **Smoke test localhost issue**: Resolved — see follow-up below.
 - **Duplicate role assignment**: Assigning an already-held role returns success (idempotent) rather than a conflict error. The frontend dropdown filtering prevents this in practice, but the API could return 409 for clarity.
 - **Deliverable 1 and Deliverable 3**: Remain not started. This release covers Deliverable 2 only.
+
+## Follow-up: Smoke Test Localhost Fix
+
+| Field | Value |
+|-------|-------|
+| Issue | `scripts/smoke-test.sh` defaulted to `http://localhost:3001`, unreachable because Docker only exposes port 3001 internally |
+| Commit | `3825951` — `fix(smoke-test): support configurable API base URL` |
+| Pushed to | `origin/main` on 2026-10-14 |
+| Default `SMOKE_BASE_URL` | `https://lms.smwebsystems.com/api/v1` |
+| Local override | `SMOKE_BASE_URL=http://localhost:3001/api/v1 ./scripts/smoke-test.sh` |
+| Production smoke test | 5/5 passed |
+| Verification suite | 12/12 passed (`scripts/smoke-test-verify.sh`) |
+| Application redeployment | Not required — deployed SHA remains `bdc103d0f54dd03f2a7b3b9097fe2c1bf7a9d0e8` |
+| Production mutation | None |
