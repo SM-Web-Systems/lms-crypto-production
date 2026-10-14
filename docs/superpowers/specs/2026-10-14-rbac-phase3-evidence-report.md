@@ -3,7 +3,7 @@
 > **Session:** RBAC Assessment for Instawards D2  
 > **Date:** 2026-10-14  
 > **Baseline:** PR #58 (`c52e4c4` — Phase 1 + Phase 2)  
-> **Status:** IMPLEMENTED (local commits, not pushed)
+> **Status:** IMPLEMENTED and PUSHED to `origin/assess/rbac-instawards-d2`
 
 ---
 
@@ -267,12 +267,21 @@ are performed.
 
 ---
 
-## 9. Proposed Commit Titles
+## 9. Pushed Commits
 
-1. `fix(rbac): add audit logging to all RBAC mutation endpoints (WI-05)`
-2. `chore(rbac): remove unused requireAnyRole() dead code (WI-07)`
-3. `fix(rbac): scope GET /users/:id by RBAC permissions (WI-11)`
-4. `fix(rbac): close cross-course lecturer gap and authorize DELETE /submissions/:id (WI-12)`
+| # | SHA | Message |
+|---|-----|---------|
+| 1 | `11d26db` | fix(rbac): add audit logging to all RBAC mutation endpoints (WI-05) |
+| 2 | `e6a84d0` | chore(rbac): remove unused requireAnyRole() dead code (WI-07) |
+| 3 | `d61e598` | fix(rbac): scope GET /users/:id by RBAC permissions (WI-11) |
+| 4 | `62290d1` | fix(rbac): close cross-course lecturer gap and authorize DELETE /submissions/:id (WI-12) |
+| 5 | `4e86615` | docs(rbac): record Phase 3 verification and implementation evidence |
+
+**PR:** https://github.com/SM-Web-Systems/lms-crypto-production/pull/58  
+**Total PR commits:** 15 (Phase 1: 5, Phase 2: 5, Phase 3: 5)  
+**CI status at push time:** Backend Tests pending, Frontend Tests & Build pending  
+**CI limitation:** No wait performed; CI uses GitHub Actions runners and results
+will be visible on the PR checks tab.
 
 ---
 
