@@ -3,7 +3,7 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, UserDirectoryItem, ErrorCodes, LegacyRole } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditLog } from '../services/auditService.js';
-import { getUserRoles } from '../middleware/rbac.js';
+import { getUserRoles, getUserPermissions } from '../middleware/rbac.js';
 
 /**
  * Privilege levels for legacy roles, aligned with the RBAC hierarchy in rbac.ts.
@@ -69,6 +69,11 @@ export async function getMyCourses(req: AuthRequest, res: Response, next: NextFu
 export async function getUser(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
+    const callerId = req.user?.userId;
+    if (!callerId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
     const row = queryOne<{ id: string; name: string; email: string; role: string }>(
       'SELECT id, name, email, role FROM users WHERE id = ?',
       [id]
@@ -76,22 +81,69 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (!row) {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
-    // LMS-USER-001: Students may only look up their own profile
-    const caller = req.user;
-    if (caller?.role === 'student' && caller.userId !== id) {
+
+    // Self-access: always allowed, full profile
+    if (callerId === id) {
+      res.json({
+        success: true,
+        data: { id: row.id, displayName: row.name, email: row.email, role: row.role },
+      });
+      return;
+    }
+
+    // RBAC-based access for viewing other users' profiles
+    const callerPerms = new Set(getUserPermissions(callerId));
+
+    // Admin (user.manage): full access with email
+    if (callerPerms.has('user.manage')) {
+      res.json({
+        success: true,
+        data: { id: row.id, displayName: row.name, email: row.email, role: row.role },
+      });
+      return;
+    }
+
+    // Instructor (user.view_all, no user.manage): course-scoped, limited fields
+    if (callerPerms.has('user.view_all')) {
+      const inScope = queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt
+         FROM user_course_codes ucc
+         JOIN courses c ON c.course_code = ucc.course_code
+         JOIN course_lecturers cl ON cl.course_id = c.id
+         WHERE ucc.user_id = ? AND cl.user_id = ?`,
+        [id, callerId],
+      );
+      if ((inScope?.cnt ?? 0) > 0) {
+        res.json({
+          success: true,
+          data: { id: row.id, displayName: row.name, role: row.role },
+        });
+        return;
+      }
       throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
     }
-    // Only expose email to the user themselves or admins
-    const exposedEmail = caller?.userId === id || caller?.role === 'admin' ? row.email : undefined;
-    res.json({
-      success: true,
-      data: {
-        id: row.id,
-        displayName: row.name,
-        email: exposedEmail,
-        role: row.role,
-      },
-    });
+
+    // Sponsor (student.view_assigned): cohort-scoped, limited fields
+    if (callerPerms.has('student.view_assigned')) {
+      const inCohort = queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt
+         FROM cohort_members cm
+         JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+         WHERE cm.user_id = ? AND sc.sponsor_user_id = ?`,
+        [id, callerId],
+      );
+      if ((inCohort?.cnt ?? 0) > 0) {
+        res.json({
+          success: true,
+          data: { id: row.id, displayName: row.name, role: row.role },
+        });
+        return;
+      }
+      throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    // All other roles: denied
+    throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
   } catch (error) {
     next(error);
   }
