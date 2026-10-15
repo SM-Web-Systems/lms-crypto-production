@@ -6,7 +6,7 @@ import { CohortManagement } from '../components/CohortManagement';
 import { RewardDashboard } from '../components/RewardDashboard';
 import { analyticsService, type CourseAnalytics, type SponsorStudent } from '../services/analyticsService';
 import { cohortService } from '../services/cohortService';
-import { sponsorService, type ImpactReport, type SponsorBilling } from '../services/sponsorService';
+import { sponsorService, type ImpactReport, type SponsorBilling, type DateRange } from '../services/sponsorService';
 import { getErrorMessage } from '../utils/apiError';
 import {
   RefreshCw,
@@ -25,6 +25,8 @@ import {
   CreditCard,
   CheckCircle,
   Clock,
+  TrendingDown,
+  Filter,
 } from 'lucide-react';
 
 interface SponsorGroup {
@@ -63,18 +65,85 @@ function truncateWallet(address: string | null): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+// ─── Date Range Filter ────────────────────────────────────────────────────
+
+const DateRangeFilter: React.FC<{
+  onApply: (range: DateRange) => void;
+  onClear: () => void;
+}> = ({ onApply, onClear }) => {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const handleApply = () => {
+    setValidationError(null);
+    if (from && to && from > to) {
+      setValidationError('"From" must be before "To".');
+      return;
+    }
+    const range: DateRange = {};
+    if (from) range.from = from;
+    if (to) range.to = to;
+    onApply(range);
+  };
+
+  const handleClear = () => {
+    setFrom('');
+    setTo('');
+    setValidationError(null);
+    onClear();
+  };
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div>
+        <label htmlFor="filter-from" className="block text-xs text-neutral-500 mb-1">From</label>
+        <input
+          id="filter-from"
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          className="rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div>
+        <label htmlFor="filter-to" className="block text-xs text-neutral-500 mb-1">To</label>
+        <input
+          id="filter-to"
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          className="rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <Button variant="outline" size="sm" onClick={handleApply} aria-label="Apply date filter">
+        <Filter className="h-3.5 w-3.5 mr-1" aria-hidden />
+        Apply
+      </Button>
+      <Button variant="outline" size="sm" onClick={handleClear} aria-label="Clear date filter">
+        Clear
+      </Button>
+      {validationError && (
+        <p className="text-xs text-red-600 w-full">{validationError}</p>
+      )}
+    </div>
+  );
+};
+
 // ─── Impact Report Tab ─────────────────────────────────────────────────────
 
 const ImpactReportTab: React.FC = () => {
   const [impact, setImpact] = useState<ImpactReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
-  const loadImpact = useCallback(async () => {
+  const loadImpact = useCallback(async (range?: DateRange) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await sponsorService.getImpactReport();
+      const data = await sponsorService.getImpactReport(range);
       setImpact(data);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load impact report.'));
@@ -85,30 +154,72 @@ const ImpactReportTab: React.FC = () => {
 
   useEffect(() => { loadImpact(); }, [loadImpact]);
 
-  if (loading) return <div className="py-12 text-center text-neutral-500 text-sm">Loading impact report…</div>;
+  const handleDateApply = useCallback((range: DateRange) => {
+    setDateRange(range);
+    loadImpact(range);
+  }, [loadImpact]);
+
+  const handleDateClear = useCallback(() => {
+    setDateRange(undefined);
+    loadImpact();
+  }, [loadImpact]);
+
+  const handleExportCsv = useCallback(async () => {
+    setExportingCsv(true);
+    try {
+      await sponsorService.exportImpactCsv(dateRange);
+    } catch (e) {
+      setError(getErrorMessage(e, 'CSV export failed.'));
+    } finally {
+      setExportingCsv(false);
+    }
+  }, [dateRange]);
+
+  if (loading) return (
+    <div className="space-y-4">
+      <DateRangeFilter onApply={handleDateApply} onClear={handleDateClear} />
+      <div className="py-12 text-center text-neutral-500 text-sm">Loading impact report…</div>
+    </div>
+  );
 
   if (error) return (
     <div className="space-y-3">
+      <DateRangeFilter onApply={handleDateApply} onClear={handleDateClear} />
       <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900">
         <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
         <p className="text-sm">{error}</p>
       </div>
-      <Button variant="outline" size="sm" onClick={loadImpact}>Try again</Button>
+      <Button variant="outline" size="sm" onClick={() => loadImpact(dateRange)}>Try again</Button>
     </div>
   );
 
   if (!impact || impact.cohorts.length === 0) return (
-    <div className="py-12 text-center">
-      <BarChart2 className="h-10 w-10 text-neutral-300 mx-auto mb-3" aria-hidden />
-      <p className="text-neutral-500 text-sm">No cohort data yet. Create a cohort to see impact metrics.</p>
+    <div className="space-y-4">
+      <DateRangeFilter onApply={handleDateApply} onClear={handleDateClear} />
+      <div className="py-12 text-center">
+        <BarChart2 className="h-10 w-10 text-neutral-300 mx-auto mb-3" aria-hidden />
+        <p className="text-neutral-500 text-sm">No cohort data yet. Create a cohort to see impact metrics.</p>
+      </div>
     </div>
   );
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-neutral-600">
-        Completion and certification metrics across your sponsored cohorts.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="text-sm text-neutral-600">
+          Completion and certification metrics across your sponsored cohorts.
+        </p>
+        <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={exportingCsv} aria-label="Export impact report as CSV">
+          {exportingCsv ? (
+            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" aria-hidden />
+          ) : (
+            <Download className="h-4 w-4 mr-1.5" aria-hidden />
+          )}
+          Export Impact CSV
+        </Button>
+      </div>
+
+      <DateRangeFilter onApply={handleDateApply} onClear={handleDateClear} />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -182,6 +293,50 @@ const ImpactReportTab: React.FC = () => {
           </table>
         </div>
       </Card>
+
+      {/* Drop-off analysis */}
+      <Card className="overflow-hidden shadow-card ring-1 ring-neutral-900/[0.04]">
+        <div className="border-b border-neutral-200/90 bg-gradient-to-r from-neutral-50 via-white to-primary-50/30 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4 text-orange-500" aria-hidden />
+            <CardTitle className="border-0 p-0 text-neutral-900 text-sm">Drop-off Analysis</CardTitle>
+          </div>
+        </div>
+        {impact.dropOff && impact.dropOff.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-100 text-left text-xs text-neutral-500 uppercase tracking-wide">
+                  <th className="px-4 py-2.5 font-medium">Course</th>
+                  <th className="px-4 py-2.5 font-medium">Lesson Item</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Completions</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Total Members</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {impact.dropOff.map((d) => (
+                  <tr key={`${d.courseId}-${d.itemId}`} className="hover:bg-neutral-50/60 transition-colors">
+                    <td className="px-4 py-3 font-medium text-neutral-900">{d.courseName}</td>
+                    <td className="px-4 py-3 text-neutral-700 font-mono text-xs">{d.itemId}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{d.completions}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{d.totalMembers}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      <span className={`font-medium ${d.completionRate < 30 ? 'text-red-600' : d.completionRate < 60 ? 'text-orange-600' : 'text-neutral-700'}`}>
+                        {d.completionRate}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-5 py-6 text-center text-neutral-500 text-sm">
+            No drop-off data available for your cohorts.
+          </div>
+        )}
+      </Card>
     </div>
   );
 };
@@ -200,12 +355,13 @@ const BillingTab: React.FC = () => {
   const [billing, setBilling] = useState<SponsorBilling | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [billingDateRange, setBillingDateRange] = useState<DateRange | undefined>(undefined);
 
-  const loadBilling = useCallback(async () => {
+  const loadBilling = useCallback(async (range?: DateRange) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await sponsorService.getBilling();
+      const data = await sponsorService.getBilling(range);
       setBilling(data);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load billing history.'));
@@ -216,22 +372,41 @@ const BillingTab: React.FC = () => {
 
   useEffect(() => { loadBilling(); }, [loadBilling]);
 
-  if (loading) return <div className="py-12 text-center text-neutral-500 text-sm">Loading billing history…</div>;
+  const handleBillingDateApply = useCallback((range: DateRange) => {
+    setBillingDateRange(range);
+    loadBilling(range);
+  }, [loadBilling]);
+
+  const handleBillingDateClear = useCallback(() => {
+    setBillingDateRange(undefined);
+    loadBilling();
+  }, [loadBilling]);
+
+  if (loading) return (
+    <div className="space-y-4">
+      <DateRangeFilter onApply={handleBillingDateApply} onClear={handleBillingDateClear} />
+      <div className="py-12 text-center text-neutral-500 text-sm">Loading billing history…</div>
+    </div>
+  );
 
   if (error) return (
     <div className="space-y-3">
+      <DateRangeFilter onApply={handleBillingDateApply} onClear={handleBillingDateClear} />
       <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900">
         <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
         <p className="text-sm">{error}</p>
       </div>
-      <Button variant="outline" size="sm" onClick={loadBilling}>Try again</Button>
+      <Button variant="outline" size="sm" onClick={() => loadBilling(billingDateRange)}>Try again</Button>
     </div>
   );
 
   if (!billing || billing.payments.length === 0) return (
-    <div className="py-12 text-center">
-      <CreditCard className="h-10 w-10 text-neutral-300 mx-auto mb-3" aria-hidden />
-      <p className="text-neutral-500 text-sm">No payment history. Payments will appear here when cohort payments are created.</p>
+    <div className="space-y-4">
+      <DateRangeFilter onApply={handleBillingDateApply} onClear={handleBillingDateClear} />
+      <div className="py-12 text-center">
+        <CreditCard className="h-10 w-10 text-neutral-300 mx-auto mb-3" aria-hidden />
+        <p className="text-neutral-500 text-sm">No payment history. Payments will appear here when cohort payments are created.</p>
+      </div>
     </div>
   );
 
@@ -240,6 +415,8 @@ const BillingTab: React.FC = () => {
       <p className="text-sm text-neutral-600">
         Payment history for your sponsored cohorts. All amounts are read-only.
       </p>
+
+      <DateRangeFilter onApply={handleBillingDateApply} onClear={handleBillingDateClear} />
 
       <Card className="overflow-hidden shadow-card ring-1 ring-neutral-900/[0.04]">
         <div className="border-b border-neutral-200/90 bg-gradient-to-r from-neutral-50 via-white to-primary-50/30 px-5 py-3">
@@ -402,26 +579,41 @@ const SponsorDashboard: React.FC = () => {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 border-b border-neutral-200">
+      <div className="flex gap-1 border-b border-neutral-200" role="tablist">
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('overview')}
+          aria-label="Sponsor Overview tab"
+          aria-selected={activeTab === 'overview'}
+          role="tab"
         >Sponsor Overview</button>
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'cohorts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('cohorts')}
+          aria-label="Cohorts tab"
+          aria-selected={activeTab === 'cohorts'}
+          role="tab"
         >Cohorts</button>
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'rewards' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('rewards')}
+          aria-label="Rewards tab"
+          aria-selected={activeTab === 'rewards'}
+          role="tab"
         >Rewards</button>
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'impact' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('impact')}
+          aria-label="Impact Report tab"
+          aria-selected={activeTab === 'impact'}
+          role="tab"
         >Impact Report</button>
         <button
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'billing' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('billing')}
+          aria-label="Billing tab"
+          aria-selected={activeTab === 'billing'}
+          role="tab"
         >Billing</button>
       </div>
 
@@ -573,6 +765,8 @@ const SponsorDashboard: React.FC = () => {
                               onClick={() => toggleRow(c.courseId)}
                               role="button"
                               tabIndex={0}
+                              aria-expanded={isExpanded}
+                              aria-label={c.courseName}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault();

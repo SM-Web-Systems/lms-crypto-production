@@ -11,6 +11,16 @@ export interface SponsorDashboardData {
   cohorts: Array<{ id: string; name: string; course_id: string; status: string; member_count: number }>;
 }
 
+export interface DropOffItem {
+  courseId: string;
+  courseName: string;
+  itemId: string;
+  sectionId: string;
+  completions: number;
+  totalMembers: number;
+  completionRate: number;
+}
+
 export interface ImpactReport {
   totalMembers: number;
   totalCompleted: number;
@@ -23,6 +33,12 @@ export interface ImpactReport {
     completedCount: number;
     certificateCount: number;
   }>;
+  dropOff?: DropOffItem[];
+}
+
+export interface DateRange {
+  from?: string;
+  to?: string;
 }
 
 export interface SponsorBilling {
@@ -39,6 +55,16 @@ export interface SponsorBilling {
 }
 
 // Raw backend response shapes (snake_case from SQL)
+interface DropOffRaw {
+  courseId: string;
+  courseName: string;
+  itemId: string;
+  sectionId: string;
+  completions: number;
+  totalMembers: number;
+  completionRate: number;
+}
+
 interface ImpactReportRaw {
   totalMembers: number;
   totalCompleted: number;
@@ -51,6 +77,7 @@ interface ImpactReportRaw {
     completed_count: number;
     certificate_count: number;
   }>;
+  dropOff?: DropOffRaw[];
 }
 
 interface BillingRaw {
@@ -72,8 +99,11 @@ export const sponsorService = {
     return res.data.data;
   },
 
-  async getImpactReport(): Promise<ImpactReport> {
-    const res = await api.get<{ success: boolean; data: ImpactReportRaw }>('/sponsor/impact-report');
+  async getImpactReport(dateRange?: DateRange): Promise<ImpactReport> {
+    const params: Record<string, string> = {};
+    if (dateRange?.from) params.from = dateRange.from;
+    if (dateRange?.to) params.to = dateRange.to;
+    const res = await api.get<{ success: boolean; data: ImpactReportRaw }>('/sponsor/impact-report', { params });
     const raw = res.data.data;
     return {
       totalMembers: raw.totalMembers,
@@ -87,11 +117,32 @@ export const sponsorService = {
         completedCount: c.completed_count,
         certificateCount: c.certificate_count,
       })),
+      dropOff: raw.dropOff ?? [],
     };
   },
 
-  async getBilling(): Promise<SponsorBilling> {
-    const res = await api.get<{ success: boolean; data: BillingRaw }>('/sponsor/billing');
+  async exportImpactCsv(dateRange?: DateRange): Promise<void> {
+    const params: Record<string, string> = { format: 'csv' };
+    if (dateRange?.from) params.from = dateRange.from;
+    if (dateRange?.to) params.to = dateRange.to;
+    const response = await api.get('/sponsor/impact-report', { params, responseType: 'blob' });
+    const blob = new Blob([response.data as BlobPart], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `impact-report-${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  async getBilling(dateRange?: DateRange): Promise<SponsorBilling> {
+    const params: Record<string, string> = {};
+    if (dateRange?.from) params.from = dateRange.from;
+    if (dateRange?.to) params.to = dateRange.to;
+    const res = await api.get<{ success: boolean; data: BillingRaw }>('/sponsor/billing', { params });
     const raw = res.data.data;
     return {
       payments: raw.payments.map((p) => ({
