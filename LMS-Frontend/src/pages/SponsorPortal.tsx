@@ -1,8 +1,16 @@
+/**
+ * @deprecated This component is not wired into any route. All sponsor-role
+ * users are served by {@link SponsorDashboard} at `/sponsor` and
+ * `/admin/sponsor`. Do not wire this component into routes.
+ * Removal planned for a later cleanup batch.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/useAuth';
 import { sponsorService, type SponsorDashboardData, type ImpactReport } from '../services/sponsorService';
 import { BarChart2, Users, BookOpen } from 'lucide-react';
 
+/** @deprecated Use SponsorDashboard instead. See module-level JSDoc. */
 const SponsorPortal: React.FC = () => {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<SponsorDashboardData | null>(null);
@@ -60,7 +68,7 @@ const SponsorPortal: React.FC = () => {
             <BarChart2 className="w-5 h-5 text-purple-600" />
             <h3 className="font-semibold text-gray-700">Completion Rate</h3>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{impact?.totalStudents && impact.totalStudents > 0 ? Math.round((impact.completedCount / impact.totalStudents) * 100) : 0}%</p>
+          <p className="text-3xl font-bold text-gray-900">{impact?.totalMembers && impact.totalMembers > 0 ? Math.round((impact.totalCompleted / impact.totalMembers) * 100) : 0}%</p>
         </div>
       </div>
     </div>
