@@ -9,7 +9,7 @@ import { Router, type Response, type Request, type NextFunction } from 'express'
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
 import logger from '../utils/logger.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { requirePermission, hasPermission } from '../middleware/rbac.js';
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
@@ -732,7 +732,7 @@ router.get(
       return;
     }
 
-    if (payment.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+    if (payment.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
       res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
       return;
     }
@@ -834,7 +834,7 @@ router.get(
         'SELECT user_id FROM payments WHERE id = ?',
         [req.params.paymentId],
       );
-      if (paymentOwner!.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+      if (paymentOwner!.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
         res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
         return;
       }
@@ -1025,8 +1025,8 @@ router.get(
       return;
     }
 
-    // Owner or admin only
-    if (badge.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+    // Owner or user with billing.view_all permission
+    if (badge.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
       res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
       return;
     }
@@ -1087,7 +1087,7 @@ router.get(
       return;
     }
 
-    if (badge.user_id !== req.user!.userId && req.user!.role !== 'admin') {
+    if (badge.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
       res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
       return;
     }
