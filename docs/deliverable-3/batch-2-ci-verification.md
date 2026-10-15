@@ -29,10 +29,22 @@
 
 | Field | Value |
 |---|---|
-| **Head SHA** | `e6b3f936dbeab62f3cb55ad9c39107dd23cab9c3` |
+| **Head SHA** | `04075fb1efcf6e976d87185d6c8090cd10c67810` |
 | **State** | OPEN, review requested |
 | **Review requested** | `clschalkwyk`, `smwebsystems` |
 | **Reviews received** | None |
+
+### Latest CI Run (head SHA `04075fb`)
+
+| CI Check | Status | Run URL |
+|---|---|---|
+| Backend Tests | **SUCCESS** | [Run 38743128737](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38743128737) |
+| Frontend Tests & Build | **SUCCESS** | [Run 38743128737](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38743128737) |
+| E2E Tests | **FAILURE** | [Run 38743128737](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38743128737) |
+
+**E2E result:** 30 passed, 28 failed — identical to PR #63, 0 Batch 2 regressions.
+
+### Previous CI Run (head SHA `e6b3f93`)
 
 | CI Check | Status | Run URL |
 |---|---|---|
@@ -149,6 +161,7 @@ No fixes were needed for PR #64 CI. All failures are pre-existing and identical 
 |---|---|
 | `2951b86` | `feat(sponsor): Deliverable 3 Batch 2 — date filters, drop-off analysis, CSV export, accessibility` |
 | `e6b3f93` | `docs(release): add regression checklist, manual test pack, and evidence package` |
+| `04075fb` | `docs(sponsor): record Batch 2 CI verification and merge order` |
 
 ---
 
