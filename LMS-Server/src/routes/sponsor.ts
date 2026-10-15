@@ -29,6 +29,18 @@ import { RewardError } from '../services/rewards/rewardErrors.js';
 
 const router = Router();
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseSponsorDateRange(req: AuthRequest, res: Response): { from: string | null; to: string | null } | 'error' {
+  const rawFrom = typeof req.query.from === 'string' && req.query.from ? req.query.from : null;
+  const rawTo = typeof req.query.to === 'string' && req.query.to ? req.query.to : null;
+  if ((rawFrom && !ISO_DATE_RE.test(rawFrom)) || (rawTo && !ISO_DATE_RE.test(rawTo))) {
+    res.status(400).json({ success: false, error: { message: 'Invalid date format. Use YYYY-MM-DD.' } });
+    return 'error';
+  }
+  return { from: rawFrom, to: rawTo ? rawTo + ' 23:59:59' : null };
+}
+
 // GET /sponsor/dashboard — own cohort stats
 router.get(
   '/sponsor/dashboard',
@@ -74,6 +86,20 @@ router.get(
   requirePermission('impact_report.read'),
   (req: AuthRequest, res: Response): void => {
     const userId = req.user!.userId;
+    const range = parseSponsorDateRange(req, res);
+    if (range === 'error') return;
+
+    // Build parameterized date filter for cohort created_at
+    const params: unknown[] = [userId];
+    let dateClause = '';
+    if (range.from) {
+      dateClause += ' AND sc.created_at >= ?';
+      params.push(range.from);
+    }
+    if (range.to) {
+      dateClause += ' AND sc.created_at <= ?';
+      params.push(range.to);
+    }
 
     // Aggregate: total members, completed count, certificate count
     const stats = query<{
@@ -93,8 +119,8 @@ router.get(
           JOIN course_nft_applications cna ON cna.id = cm.application_id
           WHERE cm.cohort_id = sc.id AND cna.status = 'minted') AS certificate_count
        FROM sponsor_cohorts sc
-       WHERE sc.sponsor_user_id = ?`,
-      [userId],
+       WHERE sc.sponsor_user_id = ?${dateClause}`,
+      params,
     );
 
     const totalMembers = stats.reduce((sum, s) => sum + s.member_count, 0);
@@ -104,6 +130,54 @@ router.get(
       ? Math.round((totalCompleted / totalMembers) * 100)
       : 0;
 
+    // Sponsor-scoped drop-off: lesson items with lowest completion among sponsor's cohort members
+    const dropOff = query<{
+      course_id: string;
+      course_name: string;
+      item_id: string;
+      section_id: string;
+      completions: number;
+      total_members: number;
+    }>(
+      `SELECT lc.course_id, c.title AS course_name, lc.item_id, lc.section_id,
+              COUNT(*) AS completions,
+              (SELECT COUNT(*) FROM cohort_members cm2
+               JOIN sponsor_cohorts sc2 ON sc2.id = cm2.cohort_id
+               WHERE sc2.sponsor_user_id = ? AND sc2.course_id = lc.course_id) AS total_members
+       FROM lesson_completions lc
+       JOIN courses c ON c.id = lc.course_id
+       JOIN cohort_members cm ON cm.user_id = lc.user_id
+       JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id AND sc.sponsor_user_id = ?
+       GROUP BY lc.course_id, lc.item_id
+       HAVING total_members > 0
+       ORDER BY (CAST(completions AS REAL) / total_members) ASC
+       LIMIT 10`,
+      [userId, userId],
+    );
+
+    const dropOffData = dropOff.map((r) => ({
+      courseId: r.course_id,
+      courseName: r.course_name,
+      itemId: r.item_id,
+      sectionId: r.section_id,
+      completions: r.completions,
+      totalMembers: r.total_members,
+      completionRate: r.total_members > 0 ? Math.round((r.completions / r.total_members) * 100) : 0,
+    }));
+
+    // CSV export
+    if (req.query.format === 'csv') {
+      const header = 'Cohort,Members,Completed,Certificates,Rate %\n';
+      const rows = stats.map((s) => {
+        const rate = s.member_count > 0 ? Math.round((s.completed_count / s.member_count) * 100) : 0;
+        return `"${String(s.cohort_name).replace(/"/g, '""')}",${s.member_count},${s.completed_count},${s.certificate_count},${rate}`;
+      }).join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="impact-report.csv"');
+      res.send(header + rows);
+      return;
+    }
+
     res.json({
       success: true,
       data: {
@@ -112,6 +186,7 @@ router.get(
         totalCertificates,
         completionPct,
         cohorts: stats,
+        dropOff: dropOffData,
       },
     });
   },
@@ -124,6 +199,19 @@ router.get(
   requirePermission('billing.view_own'),
   (req: AuthRequest, res: Response): void => {
     const userId = req.user!.userId;
+    const range = parseSponsorDateRange(req, res);
+    if (range === 'error') return;
+
+    const billingParams: unknown[] = [userId];
+    let billingDateClause = '';
+    if (range.from) {
+      billingDateClause += ' AND created_at >= ?';
+      billingParams.push(range.from);
+    }
+    if (range.to) {
+      billingDateClause += ' AND created_at <= ?';
+      billingParams.push(range.to);
+    }
 
     const payments = query<{
       id: string;
@@ -136,9 +224,9 @@ router.get(
     }>(
       `SELECT id, course_id, amount_cents, currency, payment_method, status, created_at
        FROM payments
-       WHERE user_id = ?
+       WHERE user_id = ?${billingDateClause}
        ORDER BY created_at DESC`,
-      [userId],
+      billingParams,
     );
 
     res.json({

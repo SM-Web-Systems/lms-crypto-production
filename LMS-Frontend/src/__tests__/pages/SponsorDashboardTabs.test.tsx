@@ -109,14 +109,14 @@ describe('SponsorDashboard — Batch 1 Tabs', () => {
   it('D3B1-01: renders Impact Report tab button', async () => {
     renderWithRoute('/sponsor');
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /impact/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /impact/i })).toBeInTheDocument();
     });
   });
 
   it('D3B1-02: renders Billing tab button', async () => {
     renderWithRoute('/sponsor');
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /billing/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /billing/i })).toBeInTheDocument();
     });
   });
 
