@@ -1,7 +1,8 @@
 # Final Evidence Package
 
 **Created:** 2026-10-15
-**Status:** In progress — awaiting human verification and final approval
+**Updated:** 2026-10-15
+**Status:** Deployed to production — awaiting human manual regression testing and final approval
 
 ---
 
@@ -67,14 +68,16 @@
 
 ## Deliverable 3 — Sponsor Portal UI Completion
 
-### Batch 1 Status: PR open, awaiting human review
+### Batch 1 Status: Merged and deployed
 
 | Item | Evidence |
 |---|---|
-| **PR** | [#63](https://github.com/SM-Web-Systems/lms-crypto-production/pull/63) — OPEN, ready for review |
+| **PR** | [#63](https://github.com/SM-Web-Systems/lms-crypto-production/pull/63) — MERGED |
 | **Branch** | `feat/deliverable-3-batch1` → `main` |
-| **Head SHA** | `2cb1195` |
-| **Review requested** | `clschalkwyk`, `smwebsystems` (2026-10-15) |
+| **Merge SHA** | `a275ee7` |
+| **Merged at** | 2026-10-15T14:32:13Z |
+| **Deployed SHA** | `a275ee741e8f2394ccfd231573a048a6e2b970b1` |
+| **AI review** | PASS (13/13 checks) |
 
 #### Batch 1 Features
 
@@ -96,13 +99,16 @@
 | TypeScript | — | 0 errors |
 | New tests | 21 | ALL PASS |
 
-### Batch 2 Status: Draft PR, awaiting Batch 1 merge
+### Batch 2 Status: Merged and deployed
 
 | Item | Evidence |
 |---|---|
-| **PR** | [#64](https://github.com/SM-Web-Systems/lms-crypto-production/pull/64) — DRAFT |
+| **PR** | [#64](https://github.com/SM-Web-Systems/lms-crypto-production/pull/64) — MERGED |
 | **Branch** | `feat/deliverable-3-batch2` → `main` |
-| **Head SHA** | `2951b86` |
+| **Merge SHA** | `b73d084` |
+| **Merged at** | 2026-10-15T14:45:57Z |
+| **Deployed SHA** | `b73d084f23afd37ed88e2df94e39bc3df3a7588d` |
+| **AI review** | PASS (16/16 checks) |
 
 #### Batch 2 Features
 
@@ -143,8 +149,8 @@
 | PR | Title | State | Branch |
 |---|---|---|---|
 | [#61](https://github.com/SM-Web-Systems/lms-crypto-production/pull/61) | D1 Batch 1 — Mobile certificates | Merged | `feat/mobile-certificates-batch1` |
-| [#63](https://github.com/SM-Web-Systems/lms-crypto-production/pull/63) | D3 Batch 1 — Sponsor Impact, Billing, RBAC | Open (review requested) | `feat/deliverable-3-batch1` |
-| [#64](https://github.com/SM-Web-Systems/lms-crypto-production/pull/64) | D3 Batch 2 — Date filters, drop-off, CSV | Draft | `feat/deliverable-3-batch2` |
+| [#63](https://github.com/SM-Web-Systems/lms-crypto-production/pull/63) | D3 Batch 1 — Sponsor Impact, Billing, RBAC | Merged | `feat/deliverable-3-batch1` |
+| [#64](https://github.com/SM-Web-Systems/lms-crypto-production/pull/64) | D3 Batch 2 — Date filters, drop-off, CSV | Merged | `feat/deliverable-3-batch2` |
 
 ---
 
@@ -155,9 +161,12 @@
 | D1 Batch 1 | `76d6ecb` | Merge commit (deployed) |
 | D1 Batch 1 | `ff2aac2` | Feature implementation |
 | D1 Batch 1 | `43384bd` | Accessibility fix |
-| D3 Batch 1 | `2cb1195` | Review tracking (head) |
+| D3 Batch 1 | `a275ee7` | Merge commit (deployed) |
+| D3 Batch 1 | `2cb1195` | Feature head |
 | D3 Batch 1 | `ee86e3a` | E2E backlog doc |
-| D3 Batch 2 | `2951b86` | Feature implementation (head) |
+| D3 Batch 2 | `b73d084` | Merge commit (deployed) |
+| D3 Batch 2 | `2951b86` | Feature implementation |
+| D3 Batch 2 | `e6b3f93` | Release documentation |
 
 ---
 
@@ -166,7 +175,46 @@
 | Environment | SHA | Date | Deliverables |
 |---|---|---|---|
 | Production | `76d6ecb` | 2026-10-11 | D1 Batch 1 + D2 RBAC |
-| Staging | — | — | Not yet deployed |
+| Production | `a275ee7` | 2026-10-15 14:32 UTC | D3 Batch 1 |
+| Production | `b73d084` | 2026-10-15 14:46 UTC | D3 Batch 2 (current) |
+
+## Smoke Test Results
+
+### Batch 1 Deploy (SHA `a275ee7`)
+
+| Check | Result |
+|---|---|
+| Health endpoint (200) | PASS |
+| Health status (ok) | PASS |
+| DB readiness (ok) | PASS |
+| Courses API (401) | PASS |
+| Build SHA present | PASS |
+| **Exit code** | **0** |
+
+### Batch 2 Deploy (SHA `b73d084`)
+
+| Check | Result |
+|---|---|
+| Health endpoint (200) | PASS |
+| Health status (ok) | PASS |
+| DB readiness (ok) | PASS |
+| Courses API (401) | PASS |
+| Build SHA present | PASS |
+| **Exit code** | **0** |
+
+## Pre-Deploy Backups
+
+| Backup | Path (inside lms-api container) | Timestamp |
+|---|---|---|
+| Before D3 Batch 1 | `/app/data/student_ms.db.pre-d3b1-20261015_163321` | 2026-10-15 16:33 |
+| Before D3 Batch 2 | `/app/data/student_ms.db.pre-d3b2-20261015_164619` | 2026-10-15 16:46 |
+
+## CI Run URLs
+
+| PR | Run | Backend | Frontend | E2E |
+|---|---|---|---|---|
+| #63 | [38727975187](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38727975187) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
+| #64 | [38752836602](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752836602) | SUCCESS | SUCCESS | FAILURE (27 pre-existing) |
 
 ---
 
@@ -213,19 +261,20 @@ See `docs/release/cross-deliverable-regression-checklist.md` for automated check
 
 | Approver | Role | Date | Decision | Notes |
 |---|---|---|---|---|
-| | Repository owner | | Pending | |
-| | Code reviewer | | Pending | PR #63 review |
-| | Manual tester | | Pending | Test pack execution |
+| | Repository owner | | Pending | Manual regression testing |
+| | Code reviewer | | Pending | Post-deployment verification |
+| | Manual tester | | Pending | Test pack execution on production |
 
 ---
 
 ## Confirmations
 
-- No production mutation or mainnet action occurred during development
+- No NFT minting, mainnet transaction, or mutating credential/billing action occurred
 - No secrets, tokens, passwords, or personal data exposed or committed
 - No AmmaWallet modifications
 - No RBAC role, permission, hierarchy, or seed-data changes
 - No NFT minting, reward releases, payments, or disputes triggered
 - No billing mutation endpoints created
 - Deliverable 1 remains pending human device verification
-- Deliverable 3 remains partially complete (Batch 1 awaiting review, Batch 2 in draft)
+- Deliverable 3 Batch 1 and Batch 2 are merged and deployed to production
+- Manual regression testing is pending (human responsibility)

@@ -132,3 +132,15 @@ are present.
 - Frontend: 428/428 tests pass
 - TypeScript (FE + BE): 0 errors
 - No new lint regressions
+
+## Merge and Deployment
+
+| Field | Value |
+|---|---|
+| **PR** | #63 |
+| **AI Review** | PASS (13/13 checks) |
+| **Merge SHA** | `a275ee741e8f2394ccfd231573a048a6e2b970b1` |
+| **Merged at** | 2026-10-15T14:32:13Z |
+| **Deployed SHA** | `a275ee741e8f2394ccfd231573a048a6e2b970b1` |
+| **Smoke test** | 5/5 PASS, exit code 0 |
+| **Backup** | `student_ms.db.pre-d3b1-20261015_163321` |

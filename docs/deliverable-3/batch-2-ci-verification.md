@@ -142,8 +142,7 @@ After both PRs are merged, human testers must execute:
 | D1 demo video | Human | Physical device recording |
 | D1 EAS build | Human | Requires separate approval |
 | D1 device verification | Human | Physical device required |
-| D3 staging deployment | Human | Deploy merged `main` to staging |
-| D3 manual regression | Human | Test pack execution on staging |
+| D3 manual regression | Human | Test pack execution on production |
 | D3 demo video | Human | Screen recording of sponsor portal |
 | Human sign-off | Repo owner, code reviewer, manual tester | All above complete |
 
@@ -165,15 +164,31 @@ No fixes were needed for PR #64 CI. All failures are pre-existing and identical 
 
 ---
 
+## Merge and Deployment
+
+| PR | AI Review | Merge SHA | Merged At | Deployed SHA | Smoke Test |
+|---|---|---|---|---|---|
+| #63 | PASS (13/13) | `a275ee7` | 2026-10-15T14:32:13Z | `a275ee7` | 5/5 PASS |
+| #64 | PASS (16/16) | `b73d084` | 2026-10-15T14:45:57Z | `b73d084` | 5/5 PASS |
+
+### Backups
+
+| Backup | Path | Timestamp |
+|---|---|---|
+| Before D3 Batch 1 | `/app/data/student_ms.db.pre-d3b1-20261015_163321` | 2026-10-15 16:33 |
+| Before D3 Batch 2 | `/app/data/student_ms.db.pre-d3b2-20261015_164619` | 2026-10-15 16:46 |
+
+---
+
 ## Confirmations
 
-- PR #63 remains OPEN and unmerged
-- PR #64 remains OPEN and unmerged
-- No production deployment occurred
-- No production mutation or mainnet action occurred
+- PR #63 merged at 2026-10-15T14:32:13Z (SHA `a275ee7`)
+- PR #64 merged at 2026-10-15T14:45:57Z (SHA `b73d084`)
+- Both deployed to production with passing smoke tests
+- No NFT minting, mainnet transaction, or mutating credential/billing action occurred
 - No secrets, tokens, passwords, or personal data exposed
 - No AmmaWallet modifications
 - No RBAC role, permission, hierarchy, or seed-data changes
 - No NFT minting, reward releases, payments, or disputes triggered
 - Deliverable 1 remains pending human device verification
-- Deliverable 3 remains pending human review, merge, deployment, and manual regression testing
+- Deliverable 3 is deployed; manual regression testing is pending (human responsibility)
