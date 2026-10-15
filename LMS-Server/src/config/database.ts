@@ -35,14 +35,16 @@ db.pragma('foreign_keys = OFF');
 // GUARD (Incident 2026-09-06): If the DB file is >4KB or a WAL journal exists, this is NOT a fresh DB.
 // Refuse to bootstrap — the DB likely has data that wasn't visible due to WAL checkpoint failure.
 // See: notes/incident-2026-09-07-db-reset.md
+//
+// NOTE: Capture WAL state BEFORE the SELECT query. In WAL mode, even a read-only
+// SELECT creates the -wal file as a side effect, which would cause the guard to
+// self-trigger on a genuinely fresh database.
+const _preQueryWalExists = DB_PATH !== ':memory:' && fs.existsSync(DB_PATH + '-wal');
+const _preQueryDbSize = DB_PATH !== ':memory:' ? fs.statSync(DB_PATH).size : 0;
 const hasUsersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
 if (!hasUsersTable && DB_PATH !== ':memory:') {
-  const dbStats = fs.statSync(DB_PATH);
-  const walPath = DB_PATH + '-wal';
-  const hasWal = fs.existsSync(walPath);
-
-  if (dbStats.size > 4096 || hasWal) {
-    const msg = `FATAL: DB file exists (${dbStats.size} bytes, WAL=${hasWal}) but users table not found. ` +
+  if (_preQueryDbSize > 4096 || _preQueryWalExists) {
+    const msg = `FATAL: DB file exists (${_preQueryDbSize} bytes, WAL=${_preQueryWalExists}) but users table not found. ` +
       `Refusing to bootstrap schema.sql on a non-empty DB. Manual intervention required. ` +
       `See notes/incident-2026-09-07-db-reset.md`;
     console.error(msg);

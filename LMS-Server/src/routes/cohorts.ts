@@ -494,7 +494,7 @@ router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('
     // Phase 23 C3: Emit cohort_invited notifications (best-effort)
     try {
       const cohortInfo = queryOne<{ name: string }>(
-        'SELECT name FROM cohorts WHERE id = ?',
+        'SELECT name FROM sponsor_cohorts WHERE id = ?',
         [req.params.cohortId]
       );
       for (const email of emails) {

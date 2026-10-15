@@ -28,7 +28,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx vitest run
       - name: Typecheck BVC validator script
-        run: npx tsc --noEmit src/scripts/validateBvcContent.ts
+        run: npx tsc --noEmit --esModuleInterop --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck src/scripts/validateBvcContent.ts
 
   frontend:
     name: Frontend Tests & Build
@@ -78,6 +78,8 @@ jobs:
           NODE_ENV: test
           PORT: '3001'
           JWT_SECRET: e2e-test-jwt-secret-do-not-use-in-production
+          DATABASE_PATH: /tmp/lms-e2e-${{ github.run_id }}.db
+          ADMIN_EMAILS: admin@test.com
       - name: Build and serve frontend
         run: |
           cd LMS-Frontend && npx vite build
