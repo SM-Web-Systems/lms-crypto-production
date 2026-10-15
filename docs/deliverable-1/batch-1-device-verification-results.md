@@ -1,7 +1,13 @@
-# Deliverable 1 Batch 1 — Device Verification Results
+# Deliverable 1 Batch 1 — Automated Verification Results
+
+> **This document records automated and code-level verification only.**
+> None of the scenarios below have been device-verified on a physical
+> mobile device or emulator. See
+> [`batch-1-human-verification-handoff.md`](batch-1-human-verification-handoff.md)
+> for the complete handoff to a human reviewer.
 
 **Date:** 2026-10-15
-**Verifier:** Automated (Claude Code) + Human reviewer required
+**Verifier:** Automated (Claude Code) — human reviewer required
 **PR:** [SM-Web-Systems/lms-crypto-production#61](https://github.com/SM-Web-Systems/lms-crypto-production/pull/61) — MERGED
 **Deployed SHA:** `76d6ecb49d22a4e72e22cc5b252f103d519e0d64`
 **Evidence commit:** `2c8e38f`
@@ -91,7 +97,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Sign-in screen with SM Web Systems branding. Student authenticates and lands on Dashboard. |
 | **Actual** | Sign-in screen renders correctly in Expo web mode: SM logo, "SM Web Systems / Learning Management" heading, Email and Password fields with placeholders, teal "Sign in" button, "New here? Create an account" link. Auth gate correctly redirects unauthenticated users to sign-in. |
-| **Pass/Fail** | **PASS** (sign-in UI). Authenticated dashboard requires device with Expo Go. |
+| **Pass/Fail** | **PASS (web-only)** — sign-in UI confirmed. Auth completion and dashboard NOT device-verified. |
 | **Evidence** | `evidence/TEST-1a-sign-in-screen.png`, `evidence/TEST-1b-credentials-entered.png` |
 | **Notes** | `expo-secure-store` exports empty object on web (by design), so token persistence requires native device. Automated tests verify login flow via mocked auth. |
 
@@ -101,7 +107,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Course tab loads with enrolled course cards showing title and progress. |
 | **Actual** | Expo web mode redirects to sign-in (no native token storage). Code review confirms: `/(student)/course` renders course cards via `courseService.fetchMyCourses()`. Tab icon is `book-outline`. |
-| **Pass/Fail** | **PASS** (code-verified). Requires device verification. |
+| **Pass/Fail** | **PASS (code-reviewed only)** — logic confirmed, NOT device-verified. |
 | **Evidence** | Code: `src/app/(student)/course.tsx`, Tab layout: `src/app/(student)/_layout.tsx` |
 | **Notes** | Tab bar shows 6 tabs: Dashboard, Course, Submissions, Messages, Certificates, Profile. |
 
@@ -111,7 +117,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Tapping a course card opens content viewer. Materials (video, PDF, link) render correctly. |
 | **Actual** | Code review confirms course detail navigation via expo-router `push`. Material types rendered via WebView (links/PDFs) or expo-video (videos). |
-| **Pass/Fail** | **PASS** (code-verified). Requires device verification. |
+| **Pass/Fail** | **PASS (code-reviewed only)** — logic confirmed, NOT device-verified. |
 | **Evidence** | Code: `src/app/(student)/course.tsx` |
 | **Notes** | Deep link: `/(student)/course?id={courseId}` |
 
@@ -121,7 +127,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Certificates tab visible between Messages and Profile. Shows wallet status banner (green linked / amber unlinked). |
 | **Actual** | Code review and test suite confirm: Tab renders with `ribbon-outline` icon. `WalletBanner` component shows green border/bg for `linked` status with truncated wallet address, amber border/bg for `none`/`existing_account` with "Link your wallet on the web dashboard" message. Returns null if wallet fetch fails. |
-| **Pass/Fail** | **PASS** (test-verified: 38/38 tests pass including wallet banner states) |
+| **Pass/Fail** | **PASS (unit-tested)** — 38/38 tests pass including wallet banner states. NOT device-verified. |
 | **Evidence** | Tests: `certificates.test.tsx` lines covering "Wallet linked" and "Wallet not linked" scenarios |
 | **Notes** | Wallet status fetched via `GET /wallet/status`. Failure is silently suppressed (no banner shown). |
 
@@ -131,7 +137,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Certificate cards show course title, code, issued date, network. Count label (e.g., "1 certificate"). Tapping navigates to detail. |
 | **Actual** | Test suite verifies: `CertificateCard` renders with course title (2-line limit), course code, formatted date with calendar icon, network name. Count label uses correct pluralization. Cards have `accessibilityRole="button"` and `aria-label`. Navigation to `/(student)/certificate-detail?id={credentialId}`. |
-| **Pass/Fail** | **PASS** (test-verified) |
+| **Pass/Fail** | **PASS (unit-tested)** — NOT device-verified. |
 | **Evidence** | Tests: `certificates.test.tsx` — card rendering, navigation, count label, accessibility |
 | **Notes** | Cards styled with teal ribbon icon in 44x44 circle, chevron-forward indicator. |
 
@@ -141,7 +147,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Detail screen shows Credential ID, Wallet Address, Network, Transaction Hash (truncated), Token ID, Contract (truncated), Quiz (if present). NO private keys, seeds, or balances. |
 | **Actual** | Code review and tests confirm all metadata fields render via `DetailRow` component. Transaction hash truncated as `{first 12}...{last 8}`. Contract ID truncated as `{first 8}...{last 6}`. Token ID shown as `#{sorobanTokenId}`. `DetailRow` returns null for falsy values. **No private keys, seed phrases, XLM balances, or secret values in code.** JWT stored in `expo-secure-store` (encrypted native storage), never displayed. |
-| **Pass/Fail** | **PASS** (test-verified + code-reviewed for security) |
+| **Pass/Fail** | **PASS (unit-tested + code-reviewed)** — NOT device-verified. |
 | **Evidence** | Tests: `certificate-detail.test.tsx` — metadata display, truncation, null handling. Code: `src/app/(student)/certificate-detail.tsx` |
 | **Notes** | No `xlmBalance` field in mobile `WalletStatus` type (excluded by design, Known Limitation #7). |
 
@@ -151,7 +157,7 @@ screens or services.
 |-------|-------|
 | **Expected** | "View on Stellar" opens external browser to `stellar.expert`. "Copy Verification Link" copies URL to clipboard. "Download PDF" triggers share sheet. |
 | **Actual** | Code review and tests confirm: (1) `View on Stellar` button uses `Linking.openURL()` with URL `https://stellar.expert/explorer/{public|testnet}/tx/{txHash}`. Only shown when `txHash` is truthy. (2) `Copy Verification Link` copies `https://lms.smwebsystems.com/verify/{credentialId}` via `Clipboard.setStringAsync()`, shows Alert "Copied". (3) `Download PDF` downloads to `${documentDirectory}/certificate-{id}.pdf` via `FileSystem.downloadAsync()`, then `Sharing.shareAsync()` opens native share sheet. All three buttons have `accessibilityRole="button"`. |
-| **Pass/Fail** | **PASS** (test-verified) |
+| **Pass/Fail** | **PASS (unit-tested with mocked native APIs)** — Linking, Clipboard, FileSystem, Sharing are mocked in tests. Native behavior NOT device-verified. |
 | **Evidence** | Tests: `certificate-detail.test.tsx` — Stellar URL, clipboard, download, share. Code: `src/services/credentialService.ts` |
 | **Notes** | Missing txHash: "View on Stellar" button not shown, Alert if forced. PDF requires network access. |
 
@@ -165,7 +171,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Ribbon icon, "No certificates yet", "Complete courses and quizzes to earn NFT certificates." Count shows "0 certificates". |
 | **Actual** | Test suite verifies: `EmptyState` component renders with `ribbon-outline` icon (48px), title "No certificates yet", message "Complete courses and quizzes to earn NFT certificates." Count label shows "0 certificates". |
-| **Pass/Fail** | **PASS** (test-verified) |
+| **Pass/Fail** | **PASS (unit-tested)** — NOT device-verified. |
 | **Evidence** | Tests: `certificates.test.tsx` — empty state rendering |
 | **Notes** | Empty state shown when `credentials.length === 0`. |
 
@@ -175,7 +181,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Error banner with "Could not load your certificates." and "Try again" button. App does not crash. |
 | **Actual** | Code review and tests confirm: Network errors caught, converted via `getErrorMessage(e, 'Could not load your certificates.')`. `ErrorBanner` renders with error text and "Try again" button that calls `loadData()`. Specific error messages for: network unreachable ("Unable to reach the server..."), timeout ("The request took too long..."), 500 ("Something went wrong on our end..."). App remains stable. |
-| **Pass/Fail** | **PASS** (test-verified) |
+| **Pass/Fail** | **PASS (unit-tested)** — NOT device-verified. |
 | **Evidence** | Tests: `certificates.test.tsx` — network error state. Code: `src/utils/apiError.ts` |
 | **Notes** | Wallet status failure silently suppressed (banner not shown, certificates still load). |
 
@@ -185,7 +191,7 @@ screens or services.
 |-------|-------|
 | **Expected** | App handles 401 gracefully — redirects to sign-in or shows error banner. No crash or raw error. |
 | **Actual** | Expo web screenshots confirm: unauthenticated access to `/(student)/certificates` correctly redirects to `/(auth)/sign-in`. Auth gate in `_layout.tsx` checks `isAuthenticated` and returns `<Redirect href="/(auth)/sign-in" />`. Error message for 401: "Please sign in again to continue." AuthContext clears token on invalid session. |
-| **Pass/Fail** | **PASS** (web-verified + code-reviewed) |
+| **Pass/Fail** | **PASS (web-only + code-reviewed)** — auth gate confirmed in Expo web. NOT device-verified on native app. |
 | **Evidence** | `evidence/TEST-N3-unauthorized.png`, Code: `src/app/(student)/_layout.tsx`, `src/context/AuthContext.tsx` |
 | **Notes** | Session expiry tested by clearing storage and navigating. Redirect is clean (no flash of content). |
 
@@ -195,7 +201,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Amber banner: warning icon, "Wallet not linked", "Link your wallet on the web dashboard to receive certificates." No XLM balance shown. |
 | **Actual** | Test suite verifies: When `walletLinkingStatus` is `'none'` or `'existing_account'`, `WalletBanner` renders amber variant with `border-amber-200`, `bg-amber-50`, `warning-outline` icon, "Wallet not linked" title, and linking message. `isWalletLinked()` returns false for both. No `xlmBalance` field in mobile `WalletStatus` type. |
-| **Pass/Fail** | **PASS** (test-verified) |
+| **Pass/Fail** | **PASS (unit-tested)** — NOT device-verified. |
 | **Evidence** | Tests: `certificates.test.tsx` — wallet not linked banner. Tests: `walletService.test.ts` — isWalletLinked logic. |
 | **Notes** | `walletService.isWalletLinked()` is a pure function: only `'linked'` returns true. |
 
@@ -205,7 +211,7 @@ screens or services.
 |-------|-------|
 | **Expected** | Refresh spinner with teal tint. Data reloads. No duplication. |
 | **Actual** | Code review confirms: `ScrollView` wraps `RefreshControl` with `refreshing` state and `tintColor={brand.accent.teal}`. On refresh: `setRefreshing(true)` -> `loadData()` -> `setRefreshing(false)`. Loading state NOT shown during refresh (preserves current view). `loadData()` replaces state entirely (no append/duplicate). |
-| **Pass/Fail** | **PASS** (code-verified — native gesture, cannot test in web/headless) |
+| **Pass/Fail** | **PASS (code-reviewed only)** — native gesture, NOT testable in web/headless. NOT device-verified. |
 | **Evidence** | Code: `src/app/(student)/certificates.tsx` lines 38-45 |
 | **Notes** | Pull-to-refresh is a native gesture. Verified via code review; requires device for visual confirmation. |
 
@@ -213,22 +219,27 @@ screens or services.
 
 ## Summary
 
-| Scenario | Status | Verification Method |
-|----------|--------|-------------------|
-| TEST-1: Sign-in | **PASS** | Web screenshot + code review |
-| TEST-2: Courses tab | **PASS** | Code-verified (requires device) |
-| TEST-3: Course content | **PASS** | Code-verified (requires device) |
-| TEST-4: Certificates tab | **PASS** | Test-verified (38/38) |
-| TEST-5: Certificate list/detail | **PASS** | Test-verified (38/38) |
-| TEST-6: Detail metadata/safety | **PASS** | Test-verified + security code review |
-| TEST-7: Actions (Stellar/Copy/PDF) | **PASS** | Test-verified (38/38) |
-| TEST-N1: Empty state | **PASS** | Test-verified (38/38) |
-| TEST-N2: Network error | **PASS** | Test-verified (38/38) |
-| TEST-N3: Unauthorized | **PASS** | Web screenshot + code review |
-| TEST-N4: Wallet unlinked | **PASS** | Test-verified (38/38) |
-| TEST-N5: Pull-to-refresh | **PASS** | Code-verified (native gesture) |
+> **0 of 12 scenarios are device-verified.** All results below are from
+> automated tests, web-only screenshots, or code review. Device
+> verification requires a human reviewer. See
+> [`batch-1-human-verification-handoff.md`](batch-1-human-verification-handoff.md).
 
-**Result: 12/12 scenarios PASS**
+| Scenario | Automated Status | Verification Method | Device-Verified? |
+|----------|-----------------|-------------------|-----------------|
+| TEST-1: Sign-in | PASS (UI only) | Web screenshot + code review | **No** — auth completion untested |
+| TEST-2: Courses tab | PASS (logic) | Code-reviewed only | **No** — no visual evidence |
+| TEST-3: Course content | PASS (logic) | Code-reviewed only | **No** — no visual evidence |
+| TEST-4: Certificates tab | PASS (logic) | Unit tests (38/38) | **No** — not tested on device |
+| TEST-5: Certificate list/detail | PASS (logic) | Unit tests (38/38) | **No** — not tested on device |
+| TEST-6: Detail metadata/safety | PASS (logic + security) | Unit tests + code review | **No** — not tested on device |
+| TEST-7: Actions (Stellar/Copy/PDF) | PASS (logic) | Unit tests (mocked native APIs) | **No** — native APIs untested |
+| TEST-N1: Empty state | PASS (logic) | Unit tests (38/38) | **No** — not tested on device |
+| TEST-N2: Network error | PASS (logic) | Unit tests (38/38) | **No** — not tested on device |
+| TEST-N3: Unauthorized | PASS (redirect) | Web screenshot + code review | **No** — web-only evidence |
+| TEST-N4: Wallet unlinked | PASS (logic) | Unit tests (38/38) | **No** — not tested on device |
+| TEST-N5: Pull-to-refresh | PASS (logic) | Code-reviewed only | **No** — native gesture untested |
+
+**Result: 12/12 automated PASS, 0/12 device-verified**
 
 ---
 
@@ -264,15 +275,16 @@ screens or services.
 
 ## Remaining Items for Human Reviewer
 
-- [ ] Run Expo Go on a physical device or emulator
-- [ ] Sign in with a valid test student account
-- [ ] Capture screenshots of authenticated screens (Dashboard, Courses, Certificates)
-- [ ] Capture certificate detail with metadata fields visible
-- [ ] Verify "View on Stellar" opens external browser
-- [ ] Verify "Copy Verification Link" copies correct URL
-- [ ] Verify "Download PDF" triggers share sheet
-- [ ] Record demo video covering full student journey
-- [ ] Sign off on human reviewer fields
+> **Full instructions:** See
+> [`batch-1-human-verification-handoff.md`](batch-1-human-verification-handoff.md)
+> for the complete physical-device test script, demo video recording
+> instructions, and reviewer sign-off form.
+
+- [ ] Device-verify all 12 scenarios on a physical device or emulator
+- [ ] Capture authenticated screen screenshots (Dashboard, Courses, Certificates, Detail)
+- [ ] Capture error/empty/unlinked wallet state screenshots
+- [ ] Record demo video (5-10 min, see handoff document for scene script)
+- [ ] Complete reviewer sign-off in the handoff document
 
 ---
 
