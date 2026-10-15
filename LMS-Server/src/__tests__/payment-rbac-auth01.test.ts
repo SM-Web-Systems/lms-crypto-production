@@ -82,7 +82,7 @@ describe('AUTH-01 — Payment status RBAC', () => {
     assignRbacRole(ownerId, 'role_student');
     const courseId = seedCourse('PS1');
     const { paymentId } = seedPayment(ownerId, courseId);
-    const token = makeToken({ userId: ownerId, role: 'student' });
+    const token = makeToken({ userId: ownerId, email: 'auth01-owner-ps@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/payments/${paymentId}/status`)
@@ -99,7 +99,7 @@ describe('AUTH-01 — Payment status RBAC', () => {
     assignRbacRole(adminId, 'role_admin');
     const courseId = seedCourse('PS2');
     const { paymentId } = seedPayment(ownerId, courseId);
-    const adminToken = makeToken({ userId: adminId, role: 'admin' });
+    const adminToken = makeToken({ userId: adminId, email: 'auth01-admin-ps2@test.com', role: 'admin' });
 
     const res = await request(app)
       .get(`/api/v1/payments/${paymentId}/status`)
@@ -116,7 +116,7 @@ describe('AUTH-01 — Payment status RBAC', () => {
     assignRbacRole(otherId, 'role_student');
     const courseId = seedCourse('PS3');
     const { paymentId } = seedPayment(ownerId, courseId);
-    const otherToken = makeToken({ userId: otherId, role: 'student' });
+    const otherToken = makeToken({ userId: otherId, email: 'auth01-other-ps3@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/payments/${paymentId}/status`)
@@ -134,7 +134,7 @@ describe('AUTH-01 — Receipt RBAC', () => {
     assignRbacRole(ownerId, 'role_student');
     const courseId = seedCourse('RC1');
     const { paymentId } = seedPayment(ownerId, courseId, 'confirmed');
-    const token = makeToken({ userId: ownerId, role: 'student' });
+    const token = makeToken({ userId: ownerId, email: 'auth01-owner-rc@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/payments/${paymentId}/receipt`)
@@ -151,7 +151,7 @@ describe('AUTH-01 — Receipt RBAC', () => {
     assignRbacRole(adminId, 'role_admin');
     const courseId = seedCourse('RC2');
     const { paymentId } = seedPayment(ownerId, courseId, 'confirmed');
-    const adminToken = makeToken({ userId: adminId, role: 'admin' });
+    const adminToken = makeToken({ userId: adminId, email: 'auth01-admin-rc2@test.com', role: 'admin' });
 
     const res = await request(app)
       .get(`/api/v1/payments/${paymentId}/receipt`)
@@ -168,7 +168,7 @@ describe('AUTH-01 — Receipt RBAC', () => {
     assignRbacRole(otherId, 'role_student');
     const courseId = seedCourse('RC3');
     const { paymentId } = seedPayment(ownerId, courseId, 'confirmed');
-    const otherToken = makeToken({ userId: otherId, role: 'student' });
+    const otherToken = makeToken({ userId: otherId, email: 'auth01-other-rc3@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/payments/${paymentId}/receipt`)
@@ -187,7 +187,7 @@ describe('AUTH-01 — Badge view RBAC', () => {
     const courseId = seedCourse('BV1');
     const { appId } = seedPayment(ownerId, courseId);
     const badgeId = seedBadge(ownerId, courseId, appId);
-    const token = makeToken({ userId: ownerId, role: 'student' });
+    const token = makeToken({ userId: ownerId, email: 'auth01-owner-bv@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/badges/${badgeId}`)
@@ -205,7 +205,7 @@ describe('AUTH-01 — Badge view RBAC', () => {
     const courseId = seedCourse('BV2');
     const { appId } = seedPayment(ownerId, courseId);
     const badgeId = seedBadge(ownerId, courseId, appId);
-    const adminToken = makeToken({ userId: adminId, role: 'admin' });
+    const adminToken = makeToken({ userId: adminId, email: 'auth01-admin-bv2@test.com', role: 'admin' });
 
     const res = await request(app)
       .get(`/api/v1/badges/${badgeId}`)
@@ -223,7 +223,7 @@ describe('AUTH-01 — Badge view RBAC', () => {
     const courseId = seedCourse('BV3');
     const { appId } = seedPayment(ownerId, courseId);
     const badgeId = seedBadge(ownerId, courseId, appId);
-    const otherToken = makeToken({ userId: otherId, role: 'student' });
+    const otherToken = makeToken({ userId: otherId, email: 'auth01-other-bv3@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/badges/${badgeId}`)
@@ -242,7 +242,7 @@ describe('AUTH-01 — Badge download RBAC', () => {
     const courseId = seedCourse('BD1');
     const { appId } = seedPayment(ownerId, courseId);
     const badgeId = seedBadge(ownerId, courseId, appId);
-    const token = makeToken({ userId: ownerId, role: 'student' });
+    const token = makeToken({ userId: ownerId, email: 'auth01-owner-bd@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/badges/${badgeId}/download`)
@@ -260,7 +260,7 @@ describe('AUTH-01 — Badge download RBAC', () => {
     const courseId = seedCourse('BD2');
     const { appId } = seedPayment(ownerId, courseId);
     const badgeId = seedBadge(ownerId, courseId, appId);
-    const adminToken = makeToken({ userId: adminId, role: 'admin' });
+    const adminToken = makeToken({ userId: adminId, email: 'auth01-admin-bd2@test.com', role: 'admin' });
 
     const res = await request(app)
       .get(`/api/v1/badges/${badgeId}/download`)
@@ -278,7 +278,7 @@ describe('AUTH-01 — Badge download RBAC', () => {
     const courseId = seedCourse('BD3');
     const { appId } = seedPayment(ownerId, courseId);
     const badgeId = seedBadge(ownerId, courseId, appId);
-    const otherToken = makeToken({ userId: otherId, role: 'student' });
+    const otherToken = makeToken({ userId: otherId, email: 'auth01-other-bd3@test.com', role: 'student' });
 
     const res = await request(app)
       .get(`/api/v1/badges/${badgeId}/download`)
