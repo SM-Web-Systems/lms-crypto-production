@@ -135,8 +135,8 @@
 
 | Metric | Value |
 |---|---|
-| **Passing** | 32/58 |
-| **Pre-existing failures** | 26 |
+| **Passing** | 30/58 |
+| **Pre-existing failures** | 28 |
 | **Batch 1 regressions** | 0 |
 | **Batch 2 regressions** | 0 |
 | **E2E merge gate** | Non-blocking for D3 Batch 1 (Option A) |
@@ -214,7 +214,8 @@
 | PR | Run | Backend | Frontend | E2E |
 |---|---|---|---|---|
 | #63 | [38727975187](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38727975187) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
-| #64 | [38752836602](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752836602) | SUCCESS | SUCCESS | FAILURE (27 pre-existing) |
+| #64 | [38752836602](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752836602) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
+| #64 (final) | [38752846236](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752846236) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
 
 ---
 
@@ -249,7 +250,7 @@ See `docs/release/cross-deliverable-regression-checklist.md` for automated check
 
 1. **Deliverable 1 mobile app link**: EAS production build not yet created (requires separate approval)
 2. **Deliverable 1 demo video**: Requires human recording on physical device
-3. **E2E suite**: 26 pre-existing failures unrelated to any deliverable — tracked in maintenance backlog
+3. **E2E suite**: 28 pre-existing failures unrelated to any deliverable — tracked in maintenance backlog
 4. **Sponsor test account**: Must be manually created and assigned `role_sponsor` before testing
 5. **Date filter UI**: Uses native HTML date inputs (appearance varies by browser/OS)
 6. **Drop-off analysis**: Shows lesson item IDs (not human-readable lesson titles) — improvement deferred
@@ -267,6 +268,30 @@ See `docs/release/cross-deliverable-regression-checklist.md` for automated check
 
 ---
 
+## Batch 2 Post-Deploy Verification (2026-10-15T15:06Z)
+
+| Check | Result |
+|---|---|
+| Health endpoint (200) | PASS |
+| Health status (ok) | PASS |
+| DB readiness (ok) | PASS |
+| Courses API (401 unauthenticated) | PASS |
+| Build SHA matches `b73d084` | PASS |
+| Smoke test exit code | 0 |
+| Sponsor impact-report returns 401 | PASS |
+| Sponsor drop-off-analysis returns 401 | PASS |
+| Sponsor export/csv returns 401 | PASS |
+| Sponsor billing returns 401 (read-only, GET only) | PASS |
+| SponsorPortal removed from routing | PASS |
+| Date filter params (`from`/`to`) in backend | PASS |
+| Drop-off analysis in SponsorDashboard | PASS |
+| CSV export in sponsorService | PASS |
+| RBAC `requirePermission` on all sponsor routes | PASS |
+| No unintended elevated roles | PASS |
+| E2E failures (28) are pre-existing, 0 Batch 2 regressions | PASS |
+
+---
+
 ## Confirmations
 
 - No NFT minting, mainnet transaction, or mutating credential/billing action occurred
@@ -275,6 +300,7 @@ See `docs/release/cross-deliverable-regression-checklist.md` for automated check
 - No RBAC role, permission, hierarchy, or seed-data changes
 - No NFT minting, reward releases, payments, or disputes triggered
 - No billing mutation endpoints created
+- No app-store release (Google Play or Apple App Store) was created
 - Deliverable 1 remains pending human device verification
 - Deliverable 3 Batch 1 and Batch 2 are merged and deployed to production
 - Manual regression testing is pending (human responsibility)

@@ -11,9 +11,8 @@
 | Field | Value |
 |---|---|
 | **Head SHA** | `2cb1195066d3cdc64c81ff20b9378b67fbf8fb45` |
-| **State** | OPEN, awaiting human review |
-| **Review requested** | `clschalkwyk`, `smwebsystems` |
-| **Reviews received** | None |
+| **State** | MERGED at 2026-10-15T14:32:13Z |
+| **Merge SHA** | `a275ee741e8f2394ccfd231573a048a6e2b970b1` |
 
 | CI Check | Status | Run URL |
 |---|---|---|
@@ -29,12 +28,21 @@
 
 | Field | Value |
 |---|---|
-| **Head SHA** | `04075fb1efcf6e976d87185d6c8090cd10c67810` |
-| **State** | OPEN, review requested |
-| **Review requested** | `clschalkwyk`, `smwebsystems` |
-| **Reviews received** | None |
+| **Head SHA** | `bfa03cf393e672ef40ddf7283b7b854d9b117347` |
+| **State** | MERGED at 2026-10-15T14:45:57Z |
+| **Merge SHA** | `b73d084f23afd37ed88e2df94e39bc3df3a7588d` |
 
-### Latest CI Run (head SHA `04075fb`)
+### Final CI Run (head SHA `bfa03cf`, after merging main)
+
+| CI Check | Status | Run URL |
+|---|---|---|
+| Backend Tests | **SUCCESS** | [Run 38752846236](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752846236) |
+| Frontend Tests & Build | **SUCCESS** | [Run 38752846236](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752846236) |
+| E2E Tests | **FAILURE** | [Run 38752846236](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752846236) |
+
+**E2E result:** 30 passed, 28 failed — identical to PR #63, 0 Batch 2 regressions.
+
+### CI Run (head SHA `04075fb`)
 
 | CI Check | Status | Run URL |
 |---|---|---|
