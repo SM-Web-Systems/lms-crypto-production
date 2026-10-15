@@ -6,7 +6,8 @@
 |---|---|---|
 | `2d1e05e` (original push) | — | Backend FAIL, Frontend PASS, E2E skipped |
 | `01b883a` | BVC typecheck flags | Backend PASS, Frontend PASS, E2E FAIL |
-| *(this commit)* | E2E in-memory DB | Pending |
+| `c8496d6` | E2E `:memory:` (insufficient) | Backend PASS, Frontend PASS, E2E FAIL (no schema) |
+| *(this commit)* | Guard fix + temp DB path + ADMIN_EMAILS | Pending |
 
 ## Issue 1: Backend Tests — BVC Typecheck Step
 
@@ -28,7 +29,7 @@ so the standalone file typecheck works without relying on tsconfig auto-detectio
 - https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38696109928 — Backend PASS
 - https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38696116111 — Backend PASS
 
-## Issue 2: E2E Tests — Database Bootstrap Guard
+## Issue 2: E2E Tests — Database Bootstrap Guard Self-Trigger
 
 **Failed step**: `Wait for services` (timeout after backend crash)
 **Backend error**:
@@ -37,12 +38,13 @@ FATAL: DB file exists (4096 bytes, WAL=true) but users table not found.
 Refusing to bootstrap schema.sql on a non-empty DB.
 ```
 
-**Root cause**: The E2E backend starts with `NODE_ENV=test` but without
-`VITEST=true` or `DATABASE_PATH`. The database path falls through to
-`./data/student_ms.db` (a file-based database). The bootstrap guard in
-`database.ts` checks for an existing WAL file as a corruption indicator, but
-the guard's own `SELECT FROM sqlite_master` query creates the WAL file in WAL
-mode, causing the guard to self-trigger on a brand-new database.
+**Root cause**: The bootstrap guard in `database.ts` runs a `SELECT FROM
+sqlite_master` query to check if the `users` table exists. In WAL journal mode,
+even a read-only SELECT creates the `-wal` file as a side effect. The guard
+then checks `fs.existsSync(walPath)` — finding the WAL file *it just created*
+— and concludes the database is corrupt, refusing to bootstrap. This is a
+self-triggering bug: the guard's own observation creates the condition it
+detects.
 
 **Reproduction** (local):
 ```javascript
@@ -50,7 +52,7 @@ const db = new Database('/tmp/fresh.db');
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = OFF');
 // WAL file does NOT exist yet
-const q = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+const q = db.prepare("SELECT ... FROM sqlite_master ...").get();
 // WAL file NOW exists — the SELECT created it
 fs.existsSync('/tmp/fresh.db-wal') // true
 ```
@@ -59,30 +61,53 @@ fs.existsSync('/tmp/fresh.db-wal') // true
 Backend Tests job failed first (due to Issue 1). Once Backend Tests passed,
 E2E ran for the first time and hit this latent bug.
 
-**Fix**: Set `DATABASE_PATH: ':memory:'` in the E2E job's `Start backend` env
-block. This uses the same in-memory database mechanism that vitest uses, avoids
-the file-based bootstrap guard entirely, and is the correct configuration for
-ephemeral CI test runs. The safety guard for file-based databases is preserved
-unchanged.
+### Fix (three parts)
 
-**Rationale for CI-only fix**: The self-triggering guard is a latent bug in
-`database.ts`, but fixing it would be an application-behavior change outside
-Batch 1 scope. The CI fix is narrower: configure the E2E environment correctly
-(like vitest is already configured) so the file-based code path is never
-exercised in CI.
+1. **Guard fix** (`database.ts`): Capture WAL file existence and DB file size
+   *before* the SELECT query, so the guard checks the pre-query state rather
+   than detecting its own side effects. The guard remains fully intact for
+   genuine corruption cases (pre-existing WAL from a crashed checkpoint, or
+   a DB file larger than one page).
+
+2. **CI env** (`ci.yml`): Set `DATABASE_PATH` to a unique ephemeral temp file
+   per run (`/tmp/lms-e2e-${{ github.run_id }}.db`) so the E2E backend gets a
+   clean database. Add `ADMIN_EMAILS: admin@test.com` so the E2E admin test
+   user receives the admin role on registration.
+
+3. **`:memory:` approach was insufficient**: Using `:memory:` as DATABASE_PATH
+   bypasses the bootstrap entirely (`DB_PATH !== ':memory:'` guard), leaving
+   the in-memory DB with no tables. The vitest setup calls `_resetForTests()`
+   to load the schema, but the server startup path does not.
+
+## Issue 3: E2E Test Registration 500 (CI run 38699892093)
+
+After fixing the guard self-trigger with `:memory:`, the backend started
+successfully but user registration returned 500. Root cause: `:memory:`
+databases skip schema bootstrap in `database.ts`, so no tables exist. The
+temp-file approach (Issue 2 fix) uses the normal file-based bootstrap path,
+which loads `schema.sql` correctly.
 
 ## Sponsor Cohorts Fix Unaffected
 
 The `sponsor_cohorts` notification fix (`ab83537`) was not altered during CI
-remediation. Both CI failures were pre-existing infrastructure issues unrelated
+remediation. All CI failures were pre-existing infrastructure issues unrelated
 to the Batch 1 application changes.
 
 ## CI Run URLs
 
-| Run | Backend | Frontend | E2E |
-|---|---|---|---|
-| 38694156784 | FAIL (BVC) | PASS | skipped |
-| 38694221177 | FAIL (BVC) | PASS | skipped |
-| 38696109928 | PASS | PASS | FAIL (DB guard) |
-| 38696116111 | PASS | PASS | FAIL (DB guard) |
-| *(pending)* | — | — | — |
+| Run | Backend | Frontend | E2E | Notes |
+|---|---|---|---|---|
+| 38694156784 | FAIL (BVC) | PASS | skipped | Original push |
+| 38694221177 | FAIL (BVC) | PASS | skipped | Duplicate trigger |
+| 38696109928 | PASS | PASS | FAIL (guard) | After BVC fix |
+| 38696116111 | PASS | PASS | FAIL (guard) | Duplicate trigger |
+| 38699892093 | PASS | PASS | FAIL (no tables) | After `:memory:` attempt |
+| 38699899032 | PASS | PASS | FAIL (no tables) | Duplicate trigger |
+| *(pending)* | — | — | — | After guard fix + temp DB |
+
+## Local Verification
+
+- Backend: 1,508/1,508 tests pass (including SAF-1 through SAF-7)
+- Frontend: 428/428 tests pass
+- TypeScript (FE + BE): 0 errors
+- No new lint regressions

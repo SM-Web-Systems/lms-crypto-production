@@ -78,7 +78,8 @@ jobs:
           NODE_ENV: test
           PORT: '3001'
           JWT_SECRET: e2e-test-jwt-secret-do-not-use-in-production
-          DATABASE_PATH: ':memory:'
+          DATABASE_PATH: /tmp/lms-e2e-${{ github.run_id }}.db
+          ADMIN_EMAILS: admin@test.com
       - name: Build and serve frontend
         run: |
           cd LMS-Frontend && npx vite build
