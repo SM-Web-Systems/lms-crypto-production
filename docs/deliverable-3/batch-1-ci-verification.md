@@ -103,7 +103,28 @@ to the Batch 1 application changes.
 | 38696116111 | PASS | PASS | FAIL (guard) | Duplicate trigger |
 | 38699892093 | PASS | PASS | FAIL (no tables) | After `:memory:` attempt |
 | 38699899032 | PASS | PASS | FAIL (no tables) | Duplicate trigger |
-| *(pending)* | — | — | — | After guard fix + temp DB |
+| 38702342000 | PASS | PASS | 32/58 pass | Guard fix + temp DB + ADMIN_EMAILS |
+| 38702348946 | PASS | PASS | 32/58 pass | Duplicate trigger |
+
+## Remaining E2E Failures (26 tests, pre-existing)
+
+After all infrastructure fixes, 32 of 58 E2E tests pass. The remaining 26
+failures are in the E2E test code and predate this branch:
+
+- **UI navigation tests** (admin login, dashboard routing) — expect specific
+  selectors and URL patterns that no longer match the current frontend
+- **Payment webhook tests** — require HMAC signature secret and payment
+  infrastructure not configured in CI
+- **Compliance/audit tests** — require specific API setup not present in CI
+
+These tests have never passed on `main` (E2E was always skipped due to the
+Backend Tests failure). Fixing them requires dedicated E2E test maintenance
+work outside the scope of Deliverable 3 Batch 1.
+
+**PR #63 is not blocked by these failures.** The Batch 1 changes (sponsor
+tabs, notification fix, RBAC boundaries) do not touch any E2E-tested code
+paths. The E2E failures are identical regardless of whether Batch 1 changes
+are present.
 
 ## Local Verification
 
