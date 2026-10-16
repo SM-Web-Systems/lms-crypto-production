@@ -3,7 +3,7 @@
 **PR:** https://github.com/SM-Web-Systems/lms-crypto-production/pull/66
 **Branch:** `fix/e2e-stabilization`
 **Base:** `main`
-**HEAD SHA:** `0bb3d59c0105bf8bf21cb1848b0cf5607483ff43` (+ documentation commits)
+**HEAD SHA:** `eac5688` (RC-2 context-level auth fix)
 **Status:** Draft — do not merge until all criteria are met.
 **Date:** 2026-10-16
 
@@ -39,11 +39,19 @@ not propagate it to Playwright's `page.request` API context. Since the
 backend uses Bearer token auth (no session cookies), all `page.request`
 calls were unauthenticated and received 401.
 
-**Fix:** Added `page.setExtraHTTPHeaders({ Authorization: ... })` after
-login in `e2e/fixtures/auth.ts`. Playwright merges this with the
-existing `Accept: application/json` header.
+**Fix (v1):** Initial attempt used `page.setExtraHTTPHeaders()` after
+login (`a9cc371`). This only affects browser-level requests, NOT
+Playwright's `APIRequestContext` (`page.request`). All 8 tests still
+received 401 in CI.
 
-**Commit:** `a9cc371 test(e2e): authenticate Playwright API requests`
+**Fix (v2):** Login via the standalone `request` fixture, then create
+browser contexts with `extraHTTPHeaders` at creation time. Context-level
+headers are inherited by `page.request`, ensuring all API calls include
+the JWT.
+
+**Commits:**
+- `a9cc371 test(e2e): authenticate Playwright API requests` (v1)
+- `eac5688 fix(e2e): set JWT at context level so page.request inherits auth` (v2)
 
 ### RC-3: Missing `PAYSTACK_SECRET_KEY` in E2E (10 tests)
 
@@ -97,7 +105,7 @@ The security assertion is preserved: only a role holding
 | File | Change |
 |------|--------|
 | `.github/workflows/ci.yml` | Added env vars: `VITE_API_BASE_URL`, `PAYSTACK_SECRET_KEY` (via secret), `DATABASE_PATH`, updated `ADMIN_EMAILS` |
-| `e2e/fixtures/auth.ts` | Added `setExtraHTTPHeaders()` for JWT propagation |
+| `e2e/fixtures/auth.ts` | Login via standalone `request` fixture; set JWT at context creation (v1 used `setExtraHTTPHeaders`, v2 uses context-level `extraHTTPHeaders`) |
 | `e2e/playwright.config.ts` | Added `DATABASE_PATH`, `PAYSTACK_SECRET_KEY`, updated `ADMIN_EMAILS` for local webServer |
 | `e2e/global-setup.ts` | Added `superadmin@test.com` user, sqlite3 RBAC role promotion |
 | `e2e/tests/message-admin-audit.spec.ts` | Fixed password: `admin123` to `password123` |
@@ -139,8 +147,8 @@ of the secret.
 
 ## Reviewer Checklist
 
-- [ ] **Code review:** Each of the 5 implementation commits is small and
-      focused on a single root cause
+- [ ] **Code review:** Each of the 6 implementation commits is small and
+      focused on a single root cause (RC-2 has two commits: v1 and v2 fix)
 - [ ] **No product code changed:** Only E2E test files, CI workflow, and
       documentation modified
 - [ ] **No RBAC modifications:** Roles, permissions, hierarchy, and seed
@@ -211,10 +219,11 @@ If this PR causes unexpected regressions after merge:
   dev machines. If `sqlite3` is unavailable, global-setup logs a
   warning and E2E-COMP-02 self-skips via the existing login guard.
 
-- **`setExtraHTTPHeaders` is page-scoped:** The JWT header set in RC-2
-  applies to all requests from that page context. This is correct for
-  the current test structure (one user per page). If future tests need
-  multiple users on the same page, the fixture would need adjustment.
+- **Context-level `extraHTTPHeaders` is context-scoped:** The JWT header
+  set at `browser.newContext({ extraHTTPHeaders })` in RC-2 applies to all
+  browser-level and `page.request` calls from that context. This is correct
+  for the current test structure (one user per context). If future tests
+  need multiple users on the same context, the fixture would need adjustment.
 
 - **Local webhook tests require env var:** Running webhook E2E tests
   locally requires `PAYSTACK_SECRET_KEY` in the shell environment. See
