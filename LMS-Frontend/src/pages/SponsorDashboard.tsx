@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
@@ -485,6 +485,31 @@ const SponsorDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'cohorts' | 'rewards' | 'impact' | 'billing'>(getInitialTab(location.pathname));
   const [spendingReport, setSpendingReport] = useState<{ totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> } | null>(null);
 
+  // Tab keyboard navigation (WCAG 2.1 AA)
+  type TabId = 'overview' | 'cohorts' | 'rewards' | 'impact' | 'billing';
+  const TAB_ORDER: TabId[] = ['overview', 'cohorts', 'rewards', 'impact', 'billing'];
+  const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>({ overview: null, cohorts: null, rewards: null, impact: null, billing: null });
+
+  const handleTabKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const idx = TAB_ORDER.indexOf(activeTab);
+    let nextIdx = idx;
+    if (e.key === 'ArrowRight') {
+      nextIdx = (idx + 1) % TAB_ORDER.length;
+    } else if (e.key === 'ArrowLeft') {
+      nextIdx = (idx - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+    } else if (e.key === 'Home') {
+      nextIdx = 0;
+    } else if (e.key === 'End') {
+      nextIdx = TAB_ORDER.length - 1;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    const nextTab = TAB_ORDER[nextIdx];
+    setActiveTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
+  }, [activeTab]);
+
   // Drill-down state: expanded courseId → student list
   const [expanded, setExpanded] = useState<Record<string, SponsorStudent[] | 'loading'>>({});
 
@@ -579,50 +604,74 @@ const SponsorDashboard: React.FC = () => {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 border-b border-neutral-200" role="tablist">
+      <div className="flex gap-1 border-b border-neutral-200" role="tablist" onKeyDown={handleTabKeyDown}>
         <button
+          ref={(el) => { tabRefs.current.overview = el; }}
+          id="tab-overview"
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('overview')}
           aria-label="Sponsor Overview tab"
           aria-selected={activeTab === 'overview'}
+          aria-controls="tabpanel-overview"
+          tabIndex={activeTab === 'overview' ? 0 : -1}
           role="tab"
         >Sponsor Overview</button>
         <button
+          ref={(el) => { tabRefs.current.cohorts = el; }}
+          id="tab-cohorts"
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'cohorts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('cohorts')}
           aria-label="Cohorts tab"
           aria-selected={activeTab === 'cohorts'}
+          aria-controls="tabpanel-cohorts"
+          tabIndex={activeTab === 'cohorts' ? 0 : -1}
           role="tab"
         >Cohorts</button>
         <button
+          ref={(el) => { tabRefs.current.rewards = el; }}
+          id="tab-rewards"
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'rewards' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('rewards')}
           aria-label="Rewards tab"
           aria-selected={activeTab === 'rewards'}
+          aria-controls="tabpanel-rewards"
+          tabIndex={activeTab === 'rewards' ? 0 : -1}
           role="tab"
         >Rewards</button>
         <button
+          ref={(el) => { tabRefs.current.impact = el; }}
+          id="tab-impact"
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'impact' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('impact')}
           aria-label="Impact Report tab"
           aria-selected={activeTab === 'impact'}
+          aria-controls="tabpanel-impact"
+          tabIndex={activeTab === 'impact' ? 0 : -1}
           role="tab"
         >Impact Report</button>
         <button
+          ref={(el) => { tabRefs.current.billing = el; }}
+          id="tab-billing"
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'billing' ? 'border-blue-600 text-blue-600' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}
           onClick={() => setActiveTab('billing')}
           aria-label="Billing tab"
           aria-selected={activeTab === 'billing'}
+          aria-controls="tabpanel-billing"
+          tabIndex={activeTab === 'billing' ? 0 : -1}
           role="tab"
         >Billing</button>
       </div>
 
       {activeTab === 'impact' ? (
-        <ImpactReportTab />
+        <div role="tabpanel" id="tabpanel-impact" aria-labelledby="tab-impact" tabIndex={0}>
+          <ImpactReportTab />
+        </div>
       ) : activeTab === 'billing' ? (
-        <BillingTab />
+        <div role="tabpanel" id="tabpanel-billing" aria-labelledby="tab-billing" tabIndex={0}>
+          <BillingTab />
+        </div>
       ) : activeTab === 'rewards' ? (
-        <div>
+        <div role="tabpanel" id="tabpanel-rewards" aria-labelledby="tab-rewards" tabIndex={0}><div>
           <p className="text-sm text-neutral-600 mb-4">
             Manage rewards for your sponsored cohorts. Select a cohort to view and create rewards.
           </p>
@@ -641,9 +690,9 @@ const SponsorDashboard: React.FC = () => {
           ) : (
             <p className="text-neutral-500 text-sm py-8 text-center">No cohorts found. Create a cohort first.</p>
           )}
-        </div>
+        </div></div>
       ) : activeTab === 'cohorts' ? (
-        <div>
+        <div role="tabpanel" id="tabpanel-cohorts" aria-labelledby="tab-cohorts" tabIndex={0}><div>
           {spendingReport && (
             <div className="grid grid-cols-2 gap-3 mb-4" data-testid="spending-summary">
               <Card className="shadow-sm">
@@ -667,8 +716,8 @@ const SponsorDashboard: React.FC = () => {
             </div>
           )}
           <CohortManagement courses={courses.map((c) => ({ id: c.courseId, title: c.courseName, tiersEnabled: c.tiersEnabled ?? 'both' }))} />
-        </div>
-      ) : (<>
+        </div></div>
+      ) : (<div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview" tabIndex={0}><>
 
       {error && (
         <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900">
@@ -853,7 +902,7 @@ const SponsorDashboard: React.FC = () => {
         </div>
       )}
 
-      </>)}
+      </></div>)}
     </div>
   );
 };

@@ -218,6 +218,6 @@ Note: E2E-COMP-02 appears as "skip" in some runs where the admin login doesn't r
 
 ## Verification Method
 
-1. **CI log analysis:** Compared results across CI run IDs `38758173756` (main), `38797157282`, `38798417934`, `38799983907`, `38801561972` (audit-p1 branch). Same 28 tests fail consistently.
+1. **CI log analysis:** Compared results across CI run IDs `38754326686` (main, `b73d084`), `38754979331` (main, `1b2ab01`), `38758173756` (main, `2f0b6ab`), `38797157282`, `38798417934`, `38799983907`, `38801561972` (audit-p1 branch). Same 27-28 tests fail consistently (1-test variation is a flaky boundary test).
 2. **Local reproduction:** Ran `npx playwright test --trace on --retries 0` from `e2e/` directory. Confirmed 30 failures (28 CI failures + 2 extra from local DB issue). Captured traces, screenshots, and error context for all failures.
 3. **Source code audit:** Read all 12 spec files, `fixtures/auth.ts`, `helpers/webhook-seeding.ts`, `global-setup.ts`, `playwright.config.ts`, CI workflow, backend auth/webhook/deletion routes, and RBAC seed data.

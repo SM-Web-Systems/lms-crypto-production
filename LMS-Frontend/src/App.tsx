@@ -15,6 +15,7 @@ import CertificateVerification from './pages/CertificateVerification';
 import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { resolveClosestRole } from './utils/resolveClosestRole';
 import type { UserRole } from './types/api';
 
@@ -149,6 +150,7 @@ function App() {
       <ToastProvider>
         <AuthProvider>
           <DataProvider>
+            <ErrorBoundary>
             <Suspense fallback={<LoadingScreen />}>
             <Routes>
             <Route path="/login/*" element={<LoginRoute />} />
@@ -753,6 +755,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             </Suspense>
+            </ErrorBoundary>
           </DataProvider>
         </AuthProvider>
       </ToastProvider>
