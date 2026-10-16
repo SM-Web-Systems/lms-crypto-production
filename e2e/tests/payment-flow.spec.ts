@@ -272,10 +272,10 @@ test.describe('Payment API', () => {
     // Analytics should include summary fields
     expect(data).toHaveProperty('summary');
     const summary = data.summary;
-    expect(summary).toHaveProperty('totalRevenue');
-    expect(summary).toHaveProperty('confirmed');
-    expect(summary).toHaveProperty('pending');
-    expect(summary).toHaveProperty('failed');
+    expect(summary).toHaveProperty('totalRevenueCents');
+    expect(summary).toHaveProperty('confirmedPayments');
+    expect(summary).toHaveProperty('pendingPayments');
+    expect(summary).toHaveProperty('failedPayments');
   });
 
   test('unauthenticated request to payments is rejected', async ({ page }) => {
