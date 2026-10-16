@@ -233,19 +233,18 @@ describe('EmbeddedMaterialViewer — information field HTML rendering', () => {
     expect(screen.getByText('This is plain text with no HTML tags.')).toBeInTheDocument();
   });
 
-  it('SEC-MD-1: script tags in information are not rendered', () => {
+  it('SEC-XSS-01a: script tags in information field are stripped by DOMPurify', () => {
     const item: CourseItemDownload = {
-      id: 'sec-1',
+      id: 'sec-xss-1',
       type: 'download',
-      title: 'Secure Notes',
+      title: 'XSS Test Script',
       order: 1,
-      documentId: 'doc-sec-1',
+      documentId: 'doc-xss-1',
       fileName: 'notes.md',
-      // DOMPurify would strip this on the backend, but test frontend doesn't re-inject
-      information: '<p>Safe content</p>',
+      information: '<p>Safe content</p><script>alert("xss")</script>',
     };
 
-    render(
+    const { container } = render(
       <EmbeddedMaterialViewer
         section={mockSection}
         item={item}
@@ -254,6 +253,86 @@ describe('EmbeddedMaterialViewer — information field HTML rendering', () => {
     );
 
     expect(screen.getByText('Safe content')).toBeInTheDocument();
+    expect(container.querySelector('script')).toBeNull();
+  });
+
+  it('SEC-XSS-01b: event handler attributes in information field are stripped by DOMPurify', () => {
+    const item: CourseItemDownload = {
+      id: 'sec-xss-2',
+      type: 'download',
+      title: 'XSS Test Event Handler',
+      order: 1,
+      documentId: 'doc-xss-2',
+      fileName: 'notes.md',
+      information: '<img src="x" onerror="alert(1)"><p>Legitimate text</p>',
+    };
+
+    const { container } = render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    expect(screen.getByText('Legitimate text')).toBeInTheDocument();
+    // The img tag should be preserved but onerror must be stripped
+    const img = container.querySelector('img');
+    if (img) {
+      expect(img.getAttribute('onerror')).toBeNull();
+    }
+  });
+
+  it('SEC-XSS-01c: iframe tags in information field are stripped by DOMPurify', () => {
+    const item: CourseItemDownload = {
+      id: 'sec-xss-3',
+      type: 'download',
+      title: 'XSS Test Iframe',
+      order: 1,
+      documentId: 'doc-xss-3',
+      fileName: 'notes.md',
+      information: '<p>Content</p><iframe src="https://evil.com"></iframe>',
+    };
+
+    const { container } = render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    expect(screen.getByText('Content')).toBeInTheDocument();
+    // iframe must be stripped — it's in FORBID_TAGS
+    expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('SEC-XSS-01d: legitimate block HTML in information field is preserved after sanitization', () => {
+    const item: CourseItemDownload = {
+      id: 'sec-xss-4',
+      type: 'download',
+      title: 'Legitimate HTML',
+      order: 1,
+      documentId: 'doc-xss-4',
+      fileName: 'notes.md',
+      information: '<h2>Title</h2><p><strong>Bold</strong> and <em>italic</em></p><ul><li>Item 1</li></ul><a href="https://example.com" target="_blank">Link</a>',
+    };
+
+    const { container } = render(
+      <EmbeddedMaterialViewer
+        section={mockSection}
+        item={item}
+        onClose={mockOnClose}
+      />,
+    );
+
+    expect(screen.getByText('Title')).toBeInTheDocument();
+    expect(screen.getByText('Bold')).toBeInTheDocument();
+    expect(screen.getByText('Item 1')).toBeInTheDocument();
+    expect(container.querySelector('h2')).not.toBeNull();
+    expect(container.querySelector('strong')).not.toBeNull();
+    expect(container.querySelector('ul')).not.toBeNull();
+    expect(container.querySelector('a[href="https://example.com"]')).not.toBeNull();
   });
 
   it('SEC-LINK-1: links in information have rel="noopener noreferrer"', () => {
