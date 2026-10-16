@@ -21,6 +21,11 @@ async function loginViaAPI(
   const token = body.data.token;
   expect(token).toBeTruthy();
 
+  // Propagate JWT to page.request API context (merges with existing extraHTTPHeaders)
+  await page.setExtraHTTPHeaders({
+    Authorization: `Bearer ${token}`,
+  });
+
   // Inject the token into localStorage before navigating
   await page.goto(baseURL);
   await page.evaluate((t: string) => {
