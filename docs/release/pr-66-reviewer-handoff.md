@@ -3,9 +3,9 @@
 **PR:** https://github.com/SM-Web-Systems/lms-crypto-production/pull/66
 **Branch:** `fix/e2e-stabilization`
 **Base:** `main`
-**HEAD SHA:** `eac5688` (RC-2 context-level auth fix)
+**HEAD SHA:** `2054247` (merge-from-main + post-merge validation)
 **Status:** Draft — do not merge until all criteria are met.
-**Date:** 2026-10-16
+**Date:** 2026-10-16 (updated after merge-from-main)
 
 ---
 
@@ -119,29 +119,90 @@ The security assertion is preserved: only a role holding
 
 ## Test Evidence
 
-### Local Validation (2026-10-16)
+### Merge-from-Main (2026-10-16)
+
+PR #65 (`fix/audit-remediation-p1`) was merged to `main` at
+`38b4b9ad39620052cb63de2f44910cd32139940c`. This branch integrated
+those changes via:
+
+**Merge commit:** `20542478767cc5c7da4b2c12cccbaf8aaac8673f`
+
+**Conflict resolution:** One add/add conflict in
+`docs/release/e2e-stabilization-plan.md`. Resolved by keeping the
+PR #66 actionable implementation plan. The PR #65 overview version's
+unique CI run evidence (runs `38754326686`, `38754979331`) was preserved
+in `e2e-failure-triage.md`.
+
+**PR #65 security fixes preserved after merge:**
+- EmbeddedMaterialViewer DOMPurify sanitization
+- EmailTemplatePanel DOMPurify sanitization
+- payments.ts RBAC `billing.view_all` guards
+- App.tsx ErrorBoundary
+- SponsorDashboard ARIA tabs
+- seed-account verification documentation
+
+**PR #66 E2E fixes preserved after merge:**
+- `VITE_API_BASE_URL` CI configuration
+- Playwright context-level authentication
+- E2E Paystack secret reference (test-only, via `secrets.E2E_PAYSTACK_SECRET_KEY`)
+- Admin password fixture correction
+- Super-admin deleted-identity test correction
+- Analytics property-name correction
+
+### Local Validation (2026-10-16, post-merge)
 
 | Check | Result | Notes |
 |-------|--------|-------|
 | Backend TypeScript | PASS | `tsc --noEmit` exit 0 |
 | Frontend TypeScript | PASS | `tsc --noEmit` exit 0 |
 | E2E TypeScript | PASS | `tsc --noEmit` exit 0 |
-| Backend unit tests | PASS | 1518/1518 passed, 163 files |
-| Frontend unit tests | PASS | 439/439 passed, 46 files |
+| Backend unit tests | PASS | 1531/1531 passed, 164 files |
+| Frontend unit tests | PASS | 450/450 passed, 47 files |
 | Frontend build | PASS | `vite build` exit 0 |
 | E2E tests (local) | NOT RUN | Chromium not installed on this machine |
 
+### CI Validation (2026-10-16, post-merge)
+
+**CI Run:** https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38935550810
+
+| Job | Result | Duration |
+|-----|--------|----------|
+| Backend Tests | PASS | 2m42s |
+| Frontend Tests & Build | PASS | 44s |
+| E2E Tests | 47 passed, 1 skipped, 10 failed | 1m33s |
+
 ### E2E Validation Status
 
-**Status: BLOCKED_ON_SECRET**
+**Status: 47/58 PASS — 10 failures blocked exclusively on `E2E_PAYSTACK_SECRET_KEY`**
 
-E2E tests cannot be validated until:
-1. `E2E_PAYSTACK_SECRET_KEY` is configured in GitHub Actions secrets
-2. CI runs the full E2E job
+All 18 formerly failing non-webhook tests now pass:
+- RC-1 (8 tests): `VITE_API_BASE_URL` fix — all pass
+- RC-2 (8 tests): context-level JWT auth fix — all pass
+- RC-4 (1 test): admin password correction — passes
+- RC-5 (1 test): super-admin deleted-identity test — passes
 
-Without the secret, 10 webhook tests (RC-3) will fail. The remaining
-18 fixed tests (RC-1, RC-2, RC-4, RC-5) are expected to pass regardless
-of the secret.
+The 10 remaining failures are all Paystack webhook tests (RC-3) that
+require `E2E_PAYSTACK_SECRET_KEY` to be configured as a GitHub Actions
+repository secret:
+
+| # | Test | Line |
+|---|------|------|
+| 1 | webhook with valid signature but unknown reference returns 200 | 124 |
+| 2 | duplicate webhook with same reference is handled idempotently | 132 |
+| 3 | charge.success webhook is accepted | 152 |
+| 4 | charge.failed webhook is accepted | 160 |
+| 5 | refund.processed webhook is accepted | 168 |
+| 6 | unknown event type is acknowledged | 176 |
+| 7 | webhook with empty reference in payload is handled | 190 |
+| 8 | webhook signature verification uses raw body | 204 |
+| 9 | three identical webhooks are all accepted (idempotent) | 222 |
+| 10 | different event types for same reference are processed independently | 233 |
+
+All 10 are in `payment-flow.spec.ts` and fail because the backend's
+`verifyWebhookSignature()` short-circuits when `PAYSTACK_SECRET_KEY` is
+empty. Once `E2E_PAYSTACK_SECRET_KEY` is configured, these will pass.
+
+No non-webhook E2E regressions. No merge-resolution regressions.
 
 ---
 
