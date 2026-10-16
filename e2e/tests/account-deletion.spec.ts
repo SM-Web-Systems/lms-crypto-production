@@ -196,10 +196,11 @@ test.describe('Compliance Identity Access', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('E2E-COMP-02: admin can access deleted-identities endpoint', async ({ request }) => {
-    // Login as admin (seeded by global setup)
+  test('E2E-COMP-02: super-admin can access deleted-identities endpoint', async ({ request }) => {
+    // Login as super-admin (seeded by global setup with super-admin RBAC role).
+    // Only super-admin holds privacy.view_deleted_identity; admin does not.
     const loginRes = await request.post(`${API}/auth/login`, {
-      data: { email: 'admin@test.com', password: 'password123' },
+      data: { email: 'superadmin@test.com', password: 'password123' },
     });
 
     if (!loginRes.ok()) {
@@ -208,14 +209,14 @@ test.describe('Compliance Identity Access', () => {
     }
 
     const body = await loginRes.json();
-    const adminToken = body.data?.token ?? body.token;
+    const superAdminToken = body.data?.token ?? body.token;
 
     // Try to access a non-existent deleted identity — should get 404 (not 403)
     const res = await request.get(`${API}/admin/deleted-identities/nonexistent-user-id`, {
-      headers: authHeaders(adminToken),
+      headers: authHeaders(superAdminToken),
     });
 
-    // Admin should not get 403 — either 200 (found) or 404 (not found)
+    // Super-admin should not get 403 — either 200 (found) or 404 (not found)
     expect(res.status()).not.toBe(403);
   });
 });

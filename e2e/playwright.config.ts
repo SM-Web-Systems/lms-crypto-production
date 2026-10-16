@@ -42,7 +42,9 @@ export default defineConfig({
         NODE_ENV: 'test',
         PORT: '3001',
         JWT_SECRET: 'e2e-test-jwt-secret-do-not-use-in-production',
-        ADMIN_EMAILS: 'admin@test.com',
+        ADMIN_EMAILS: 'admin@test.com,superadmin@test.com',
+        DATABASE_PATH: '/tmp/lms-e2e-local.db',
+        PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
       },
     },
     {
