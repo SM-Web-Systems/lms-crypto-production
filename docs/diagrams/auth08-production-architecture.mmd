@@ -1,0 +1,47 @@
+%% AUTH-08: Production Architecture (verified post-deployment)
+%% Client → Reverse proxy → LMS frontend/API → Database and persistent volumes
+
+graph LR
+    subgraph CLIENTS["Clients"]
+        BROWSER["Browser<br/>lms.smwebsystems.com"]
+    end
+
+    subgraph HOST["Production Host (Ubuntu, UTC+2)"]
+        subgraph NGINX["nginx reverse proxy<br/>(web-stack_default network)"]
+            PROXY["nginx :80/:443"]
+        end
+
+        subgraph COMPOSE["docker-compose (lms-ammawallet)"]
+            API["lms-api<br/>node:22-bookworm-slim<br/>Port 3001 internal<br/>SHA: 0dd2385"]
+            WEB["lms-web<br/>nginx:alpine<br/>Port 80 internal"]
+        end
+
+        subgraph STORAGE["Persistent Volumes"]
+            DB["lms-ammawallet_lms-data<br/>student_ms.db (16 MB)<br/>SQLite + WAL"]
+            UPLOADS["lms-ammawallet_lms-uploads<br/>avatars, documents,<br/>imports, submissions"]
+        end
+
+        BACKUPS["~/backups/lms-ammawallet-db/<br/>Pre-deploy snapshots<br/>(chmod 600)"]
+    end
+
+    subgraph EXTERNAL["External Services"]
+        PAYSTACK["Paystack<br/>Payment webhooks"]
+        STELLAR["Stellar Soroban<br/>NFT credentials"]
+        STALWART["Stalwart<br/>SMTP :587"]
+    end
+
+    BROWSER -->|HTTPS| PROXY
+    PROXY -->|"/api/* → :3001"| API
+    PROXY -->|"/ → :80"| WEB
+    PAYSTACK -->|"POST /webhook"| PROXY
+    API --> DB
+    API --> UPLOADS
+    API -->|RPC| STELLAR
+    API -->|SMTP| STALWART
+    DB -.->|".backup"| BACKUPS
+    WEB -.->|depends_on<br/>service_healthy| API
+
+    style API fill:#4a9,stroke:#2a7
+    style WEB fill:#49a,stroke:#27a
+    style DB fill:#fa4,stroke:#c82
+    style UPLOADS fill:#fa4,stroke:#c82

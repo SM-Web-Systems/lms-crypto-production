@@ -1,0 +1,38 @@
+%% AUTH-08: Deployment Lifecycle
+%% Code review → CI → Backup → Build → Deployment → Smoke tests → Monitoring
+
+flowchart LR
+    subgraph DEV["Development"]
+        CODE["Code change"] --> PR["Pull Request"]
+        PR --> REVIEW["Code Review"]
+        REVIEW --> MERGE["Merge to main"]
+    end
+
+    subgraph CI["CI Pipeline (GitHub Actions)"]
+        MERGE --> BACKEND["Backend tests<br/>1,597 tests"]
+        MERGE --> FRONTEND["Frontend tests<br/>450 tests + build"]
+        BACKEND --> E2E["E2E tests<br/>68 tests"]
+        FRONTEND --> E2E
+    end
+
+    subgraph DEPLOY["Production Deploy (scripts/deploy.sh)"]
+        E2E --> PRECHECKS["Pre-checks<br/>docker, disk, git"]
+        PRECHECKS --> BACKUP["DB backup<br/>sqlite3 .backup"]
+        BACKUP --> SAVE_STATE["Save image IDs<br/>for rollback"]
+        SAVE_STATE --> BUILD["docker compose<br/>build"]
+        BUILD --> DEPLOY_API["Restart API<br/>--no-deps api"]
+        DEPLOY_API --> HEALTH["Health wait<br/>60s timeout"]
+        HEALTH --> DEPLOY_WEB["Restart Web<br/>--no-deps web"]
+        DEPLOY_WEB --> SMOKE["Smoke tests<br/>5 checks"]
+        SMOKE --> VERIFY["Data integrity<br/>row count check"]
+        VERIFY --> SHA_CHECK["Build SHA<br/>verification"]
+    end
+
+    subgraph MONITOR["Post-Deploy"]
+        SHA_CHECK --> LOGS["Log monitoring<br/>403s, 500s, errors"]
+        LOGS --> STABILITY["24h stability<br/>window"]
+    end
+
+    style BACKUP fill:#fa4,stroke:#c82
+    style SMOKE fill:#4a9,stroke:#2a7
+    style STABILITY fill:#6af,stroke:#28a

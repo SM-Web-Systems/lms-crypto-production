@@ -1,0 +1,51 @@
+%% AUTH-08: Authorization Architecture
+%% Authentication → RBAC → Sponsor cohort ownership → Billing/cohort access → Response
+
+flowchart TD
+    REQ["HTTP Request"] --> JWT["JWT Validation<br/>(authenticate middleware)"]
+    JWT -->|Invalid/missing| R401["401 Unauthorized"]
+    JWT -->|Valid| RBAC["RBAC Permission Check<br/>(requirePermission middleware)"]
+    RBAC -->|No permission| R403_RBAC["403 Forbidden<br/>(role insufficient)"]
+    RBAC -->|Has permission| ROUTE["Route Handler"]
+
+    ROUTE --> TIER{"isAdminTier(req)?<br/>Has course.delete?"}
+
+    TIER -->|YES| ADMIN["Admin Path<br/>Unrestricted access"]
+    ADMIN --> QUERY_ALL["Full query<br/>(no filters)"]
+    QUERY_ALL --> R200_ADMIN["200 OK<br/>(all data)"]
+
+    TIER -->|NO| SPONSOR["Sponsor Path"]
+
+    subgraph AUTH02["AUTH-02: Billing Scope"]
+        SPONSOR --> COHORT_IDS["getAuthorizedCohortIds<br/>(paymentService.ts)"]
+        COHORT_IDS --> FILTER["Filter by<br/>sponsor's cohorts"]
+    end
+
+    subgraph AUTH03["AUTH-03: Cohort Ownership"]
+        SPONSOR --> OWNER["getCohortOwner(cohortId)<br/>(cohorts.ts)"]
+        OWNER --> MATCH{"sponsor_user_id<br/>== req.user.userId?"}
+        MATCH -->|NO| R403_OWN["403 Forbidden<br/>(not owner)"]
+        MATCH -->|YES| QUERY_OWNED["Owned cohort query"]
+    end
+
+    FILTER --> R200_SCOPED["200 OK<br/>(scoped data)"]
+    QUERY_OWNED --> R200_OWNED["200 OK<br/>(owned data)"]
+
+    subgraph ENDPOINTS["Protected Endpoints"]
+        direction LR
+        E1["GET /admin/payments"]
+        E2["GET /payments/:id/status"]
+        E3["GET /badges/:id"]
+        E4["GET /admin/cohorts"]
+        E5["GET /admin/cohorts/:id"]
+        E6["POST /admin/cohorts/:id/pay"]
+    end
+
+    style R401 fill:#f66,stroke:#900
+    style R403_RBAC fill:#f66,stroke:#900
+    style R403_OWN fill:#f66,stroke:#900
+    style R200_ADMIN fill:#6f6,stroke:#090
+    style R200_SCOPED fill:#6f6,stroke:#090
+    style R200_OWNED fill:#6f6,stroke:#090
+    style AUTH02 fill:#e8f4fd,stroke:#4a9
+    style AUTH03 fill:#fde8e8,stroke:#a44

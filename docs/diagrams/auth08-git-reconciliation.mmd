@@ -1,0 +1,43 @@
+%% AUTH-08: Git Reconciliation
+%% Production SHA → Local commits → Security review → Remote synchronization
+
+flowchart TD
+    REMOTE["origin/main<br/>cad179a"]
+
+    subgraph LOCAL["Local main (ahead 3)"]
+        C1["5465237<br/>fix(deploy): hardening"]
+        C2["0dd2385<br/>docs: assessment + specs<br/>⬅ DEPLOYED SHA"]
+        C3["535ac1a<br/>docs: deploy report<br/>⬅ LOCAL HEAD"]
+    end
+
+    REMOTE --> C1
+    C1 --> C2
+    C2 --> C3
+
+    PROD["Production API<br/>buildSha: 0dd2385"]
+
+    C2 -.->|"Image built from<br/>this commit"| PROD
+
+    subgraph AUDIT["Pre-Push Audit"]
+        SEC["Secret scan<br/>PASS: 0 secrets"]
+        CHAIN["Ancestry check<br/>PASS: linear chain"]
+        CONTENT["Content review<br/>PASS: infra + docs only"]
+    end
+
+    C3 --> AUDIT
+
+    subgraph SYNC["Synchronization"]
+        FF["git push origin main<br/>(fast-forward)"]
+        CI_RUN["CI triggers<br/>backend + frontend + E2E"]
+        VERIFY["Verify remote HEAD<br/>= 535ac1a"]
+    end
+
+    AUDIT --> FF
+    FF --> CI_RUN
+    CI_RUN --> VERIFY
+
+    style REMOTE fill:#aaa,stroke:#666
+    style PROD fill:#4a9,stroke:#2a7
+    style C2 fill:#ff9,stroke:#990
+    style C3 fill:#9cf,stroke:#69a
+    style SEC fill:#6f6,stroke:#090
