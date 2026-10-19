@@ -108,5 +108,5 @@
 | ID | Task | Status | Evidence |
 |----|------|--------|----------|
 | 12.1 | Create stability report | PASS | `AUTH-09-production-stability-and-security-report.md` |
-| 12.2 | Commit documentation | TODO | |
-| 12.3 | Push to remote | TODO | |
+| 12.2 | Commit documentation | PASS | `0806ee3` |
+| 12.3 | Push to remote | PASS | `ff39ccb..0806ee3 main -> main` |
