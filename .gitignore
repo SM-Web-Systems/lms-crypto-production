@@ -36,6 +36,9 @@ logs/
 pids/
 *.pid
 
+# Deploy state (image IDs, backup paths, deploy log)
+.deploy-state/
+
 # Temp / scratch
 tmp/
 *.tmp

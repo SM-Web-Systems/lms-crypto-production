@@ -93,14 +93,15 @@ verify_data() {
   " 2>/dev/null) || counts=""
 
   if [ -z "$counts" ]; then
-    log "WARNING: Could not query row counts (container not ready?). Skipping data check."
-    return 0
+    log "ERROR: Could not query row counts — data integrity check cannot run."
+    log "    The container may have crashed or the database may be inaccessible."
+    return 1
   fi
 
   local users courses nfts
-  users=$(echo "$counts" | python3 -c "import sys,json; print(json.load(sys.stdin)['users'])" 2>/dev/null) || users=0
-  courses=$(echo "$counts" | python3 -c "import sys,json; print(json.load(sys.stdin)['courses'])" 2>/dev/null) || courses=0
-  nfts=$(echo "$counts" | python3 -c "import sys,json; print(json.load(sys.stdin)['nft_credentials'])" 2>/dev/null) || nfts=0
+  users=$(echo "$counts" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).users)}catch{console.log(0)}})" 2>/dev/null) || users=0
+  courses=$(echo "$counts" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).courses)}catch{console.log(0)}})" 2>/dev/null) || courses=0
+  nfts=$(echo "$counts" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).nft_credentials)}catch{console.log(0)}})" 2>/dev/null) || nfts=0
 
   log "    Row counts: users=$users courses=$courses nft_credentials=$nfts"
 
@@ -159,28 +160,32 @@ log "    Disk: ${avail_mb}MB available"
 # --- Pre-deploy DB backup ---
 backup_db
 
-# --- Save current state ---
+# --- Save current state (skip during dry run to preserve rollback state) ---
 log "==> Saving current image state"
 
-project_name=$(docker compose config --format json 2>/dev/null | node -e "
-  let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
-    console.log(JSON.parse(d).name || 'lms-ammawallet')
-  })
-" 2>/dev/null) || project_name="lms-ammawallet"
-
-api_image=$(docker inspect --format='{{.Image}}' lms-api 2>/dev/null) || api_image=""
-web_image=$(docker inspect --format='{{.Image}}' lms-web 2>/dev/null) || web_image=""
-
-if [ -n "$api_image" ] && [ -n "$web_image" ]; then
-  echo "api=$api_image" > "$STATE_DIR/previous-images.txt"
-  echo "web=$web_image" >> "$STATE_DIR/previous-images.txt"
-  log "    Saved: api=$api_image"
-  log "    Saved: web=$web_image"
-  CAN_ROLLBACK="1"
+if [ -n "$DRY_RUN" ]; then
+  log "DRY RUN: skipping image state capture (preserving existing rollback state)"
 else
-  log "    WARNING: Could not capture current image IDs (first deploy?)"
-  echo "api=" > "$STATE_DIR/previous-images.txt"
-  echo "web=" >> "$STATE_DIR/previous-images.txt"
+  project_name=$(docker compose config --format json 2>/dev/null | node -e "
+    let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+      console.log(JSON.parse(d).name || 'lms-ammawallet')
+    })
+  " 2>/dev/null) || project_name="lms-ammawallet"
+
+  api_image=$(docker inspect --format='{{.Image}}' lms-api 2>/dev/null) || api_image=""
+  web_image=$(docker inspect --format='{{.Image}}' lms-web 2>/dev/null) || web_image=""
+
+  if [ -n "$api_image" ] && [ -n "$web_image" ]; then
+    echo "api=$api_image" > "$STATE_DIR/previous-images.txt"
+    echo "web=$web_image" >> "$STATE_DIR/previous-images.txt"
+    log "    Saved: api=$api_image"
+    log "    Saved: web=$web_image"
+    CAN_ROLLBACK="1"
+  else
+    log "    WARNING: Could not capture current image IDs (first deploy?)"
+    echo "api=" > "$STATE_DIR/previous-images.txt"
+    echo "web=" >> "$STATE_DIR/previous-images.txt"
+  fi
 fi
 
 # --- Build ---
@@ -261,7 +266,8 @@ if [ -z "$DRY_RUN" ] && [ "$BUILD_SHA" != "unknown" ]; then
   if [ "$actual_sha" = "$BUILD_SHA" ]; then
     log "    Build SHA verified: $actual_sha"
   else
-    log "    WARNING: Build SHA mismatch (expected=$BUILD_SHA, actual=$actual_sha)"
+    log "ERROR: Build SHA mismatch (expected=$BUILD_SHA, actual=$actual_sha)"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY WARNING — SHA mismatch expected=$BUILD_SHA actual=$actual_sha" >> "$LOG_FILE"
   fi
 fi
 
