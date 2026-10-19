@@ -1,0 +1,43 @@
+%% AUTH-09: TDD and Independent Review Workflow
+%% For infrastructure hardening changes
+
+flowchart TD
+    SPEC["Developer Specification<br/>AUTH-09-infrastructure-hardening-spec.md"]
+    SPEC --> BRANCH["Create feature branch<br/>fix/auth-09-infrastructure-hardening"]
+
+    BRANCH --> WRITE_TEST["Write failing test<br/>(bash test or vitest)"]
+    WRITE_TEST --> CONFIRM_FAIL["Run test<br/>Confirm RED (expected failure)"]
+    CONFIRM_FAIL --> IMPLEMENT["Implement smallest fix<br/>(Ponytail principle)"]
+    IMPLEMENT --> RUN_TEST["Run test<br/>Confirm GREEN"]
+
+    RUN_TEST -->|FAIL| IMPLEMENT
+    RUN_TEST -->|PASS| TARGETED["Run targeted tests"]
+    TARGETED --> INTEGRATION["Run integration tests"]
+    INTEGRATION --> FULL_SUITE["Full regression suite<br/>1,597 + 450 tests"]
+
+    FULL_SUITE --> REVIEW["Independent code review<br/>(subagent)"]
+    REVIEW -->|"Issues found"| FIX["Fix findings"]
+    FIX --> RUN_TEST
+    REVIEW -->|"Approved"| PR["Create PR"]
+
+    PR --> CI["CI Pipeline<br/>backend + frontend + e2e"]
+    CI -->|FAIL| FIX_CI["Fix CI failure"]
+    FIX_CI --> PR
+    CI -->|PASS| SECURITY_REVIEW["Security review<br/>(subagent)"]
+    SECURITY_REVIEW -->|PASS| MERGE["Merge to main"]
+    SECURITY_REVIEW -->|ISSUES| FIX
+
+    MERGE --> VERIFY["Verify no production impact<br/>(read-only checks)"]
+
+    subgraph SCOPE["AUTH-09 Approved Scope"]
+        direction LR
+        SC1["rollback.sh health URL"]
+        SC2["deploy.sh SHA exit"]
+        SC3["Script tests"]
+        SC4["Documentation updates"]
+    end
+
+    style CONFIRM_FAIL fill:#f96,stroke:#c60
+    style RUN_TEST fill:#6f6,stroke:#090
+    style MERGE fill:#6f6,stroke:#090
+    style CI fill:#6af,stroke:#28a
