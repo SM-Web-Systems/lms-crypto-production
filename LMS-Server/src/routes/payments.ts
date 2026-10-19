@@ -9,7 +9,7 @@ import { Router, type Response, type Request, type NextFunction } from 'express'
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
 import logger from '../utils/logger.js';
-import { requirePermission, hasPermission } from '../middleware/rbac.js';
+import { requirePermission, hasPermission, getUserPermissions } from '../middleware/rbac.js';
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
@@ -28,6 +28,9 @@ import {
   refundPayment,
   getStudentPayments,
   recordWebhookEvent,
+  isSponsorScopedPayment,
+  listPaymentsForSponsor,
+  isSponsorScopedBadge,
 } from '../services/paymentService.js';
 import { getTiersEnabled, getBadge } from '../services/badgeService.js';
 import {
@@ -399,7 +402,12 @@ router.get(
   requirePermission('billing.view_all'),
   (req: AuthRequest, res: Response): void => {
     const { status, courseId } = req.query as { status?: string; courseId?: string };
-    const payments = listPayments({ status, courseId });
+
+    // AUTH-02: Admin-tier bypass (billing.confirm held only by admin/admin-2/super-admin).
+    const isAdminTier = req._permissions!.has('billing.confirm');
+    const payments = isAdminTier
+      ? listPayments({ status, courseId })
+      : listPaymentsForSponsor(req.user!.userId, { status, courseId });
 
     res.json({
       success: true,
@@ -732,9 +740,20 @@ router.get(
       return;
     }
 
-    if (payment.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
-      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
-      return;
+    // AUTH-02: owner OR scoped billing access
+    const isOwner = payment.user_id === req.user!.userId;
+    if (!isOwner) {
+      if (!req._permissions) {
+        req._permissions = new Set(getUserPermissions(req.user!.userId));
+      }
+      if (!req._permissions.has('billing.view_all')) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
+      if (!req._permissions.has('billing.confirm') && !isSponsorScopedPayment(req.user!.userId, req.params.paymentId)) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
     }
 
     res.json({
@@ -829,14 +848,24 @@ router.get(
         return;
       }
 
-      // Owner or admin only
+      // AUTH-02: owner OR scoped billing access
       const paymentOwner = queryOne<{ user_id: string }>(
         'SELECT user_id FROM payments WHERE id = ?',
         [req.params.paymentId],
       );
-      if (paymentOwner!.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
-        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
-        return;
+      const isOwner = paymentOwner!.user_id === req.user!.userId;
+      if (!isOwner) {
+        if (!req._permissions) {
+          req._permissions = new Set(getUserPermissions(req.user!.userId));
+        }
+        if (!req._permissions.has('billing.view_all')) {
+          res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+          return;
+        }
+        if (!req._permissions.has('billing.confirm') && !isSponsorScopedPayment(req.user!.userId, req.params.paymentId)) {
+          res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+          return;
+        }
       }
 
       // Only confirmed or waived payments get receipts
@@ -1025,10 +1054,20 @@ router.get(
       return;
     }
 
-    // Owner or user with billing.view_all permission
-    if (badge.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
-      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
-      return;
+    // AUTH-02: owner OR scoped billing access
+    const isOwner = badge.user_id === req.user!.userId;
+    if (!isOwner) {
+      if (!req._permissions) {
+        req._permissions = new Set(getUserPermissions(req.user!.userId));
+      }
+      if (!req._permissions.has('billing.view_all')) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
+      if (!req._permissions.has('billing.confirm') && !isSponsorScopedBadge(req.user!.userId, badgeId)) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
     }
 
     res.json({
@@ -1087,9 +1126,20 @@ router.get(
       return;
     }
 
-    if (badge.user_id !== req.user!.userId && !hasPermission(req.user!.userId, 'billing.view_all')) {
-      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
-      return;
+    // AUTH-02: owner OR scoped billing access
+    const isOwner = badge.user_id === req.user!.userId;
+    if (!isOwner) {
+      if (!req._permissions) {
+        req._permissions = new Set(getUserPermissions(req.user!.userId));
+      }
+      if (!req._permissions.has('billing.view_all')) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
+      if (!req._permissions.has('billing.confirm') && !isSponsorScopedBadge(req.user!.userId, badgeId)) {
+        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized' } });
+        return;
+      }
     }
 
     res.setHeader('Content-Type', 'image/svg+xml');
