@@ -94,19 +94,19 @@
 ## Phase 10 — Independent Review
 | ID | Task | Status | Evidence |
 |----|------|--------|----------|
-| 10.1 | Code review (subagent) | TODO | |
-| 10.2 | Security review (subagent) | TODO | |
+| 10.1 | Code review (subagent) | PASS | APPROVED — all changes correct, minimal, safe |
+| 10.2 | Security review (subagent) | PASS | APPROVED — HTTPS default, no injection, no false success |
 
 ## Phase 11 — PR and Merge
 | ID | Task | Status | Evidence |
 |----|------|--------|----------|
-| 11.1 | Create PR | TODO | |
-| 11.2 | CI passes | TODO | |
-| 11.3 | Merge | TODO | |
+| 11.1 | Create PR | PASS | PR #75 |
+| 11.2 | CI passes | PASS | Backend 2m49s, Frontend 54s, E2E 1m8s — all pass |
+| 11.3 | Merge | PASS | Merge commit `ff39ccb` |
 
 ## Phase 12 — Final Documentation
 | ID | Task | Status | Evidence |
 |----|------|--------|----------|
-| 12.1 | Create stability report | TODO | |
+| 12.1 | Create stability report | PASS | `AUTH-09-production-stability-and-security-report.md` |
 | 12.2 | Commit documentation | TODO | |
 | 12.3 | Push to remote | TODO | |
