@@ -1,8 +1,8 @@
 # Final Evidence Package
 
 **Created:** 2026-10-15
-**Updated:** 2026-10-15
-**Status:** Deployed to production — awaiting human manual regression testing and final approval
+**Updated:** 2026-10-19
+**Status:** Deployed to production — security remediation and E2E stabilization live
 
 ---
 
@@ -131,16 +131,80 @@
 
 ---
 
+## Security Remediation (PR #65)
+
+### Status: Merged and deployed
+
+| Item | Evidence |
+|---|---|
+| **PR** | [#65](https://github.com/SM-Web-Systems/lms-crypto-production/pull/65) — MERGED |
+| **Branch** | `fix/audit-remediation-p1` → `main` |
+| **Merge SHA** | `38b4b9ad39620052cb63de2f44910cd32139940c` |
+| **Merged at** | 2026-10-17T06:32:06Z |
+| **Deployed SHA** | `6bb2df3f5ffa741bc99dbd2e17c4e9a180740847` (included in combined deploy) |
+| **AI review** | PASS |
+
+#### Findings Remediated
+
+| Finding | Severity | Fix | File |
+|---|---|---|---|
+| XSS-01 | High | DOMPurify sanitization on course content HTML | `EmbeddedMaterialViewer.tsx` |
+| XSS-02 | Medium | DOMPurify sanitization on email template preview | `EmailTemplatePanel.tsx` |
+| AUTH-01 | High | RBAC `requirePermission`/`hasPermission` replacing JWT role-string checks | `payments.ts` |
+| UI-01 | Medium | ErrorBoundary at React app root | `App.tsx` |
+| A11Y-01 | Low | WCAG-compliant ARIA tab navigation | `SponsorDashboard.tsx` |
+| CFG-01 | Medium | Seed-account verification documentation | `seed-account-verification.md` |
+
+#### Residual: AUTH-02
+
+Sponsors with `billing.view_all` have platform-wide payment/receipt/badge
+visibility. No cohort-scoped sponsor billing access yet. Tracked in
+`docs/release/AUTH-02-cohort-scoped-billing.md`.
+
+---
+
+## E2E Stabilization (PR #66)
+
+### Status: Merged and deployed
+
+| Item | Evidence |
+|---|---|
+| **PR** | [#66](https://github.com/SM-Web-Systems/lms-crypto-production/pull/66) — MERGED |
+| **Branch** | `fix/e2e-stabilization` → `main` |
+| **Merge SHA** | `6bb2df3f5ffa741bc99dbd2e17c4e9a180740847` |
+| **Merged at** | 2026-10-19T05:32:57Z |
+| **Deployed SHA** | `6bb2df3f5ffa741bc99dbd2e17c4e9a180740847` |
+| **AI review** | PASS |
+
+#### Root Causes Fixed
+
+| RC | Tests Fixed | Fix |
+|---|---|---|
+| RC-1 | 8 | `VITE_API_BASE_URL` added to CI frontend build |
+| RC-2 | 8 | Playwright context-level JWT auth propagation |
+| RC-3 | 10 | `E2E_PAYSTACK_SECRET_KEY` repository secret + CI env |
+| RC-4 | 1 | Admin password fixture corrected |
+| RC-5 | 1 | Super-admin user for deleted-identity permission test |
+
+#### E2E Result
+
+| Metric | Before | After |
+|---|---|---|
+| Passing | 30/58 | 57/58 |
+| Failing | 28 | 0 |
+| Skipped | 0 | 1 (course-pricing fixture) |
+| Pass rate | 52% | 98% |
+
+---
+
 ## E2E Status
 
 | Metric | Value |
 |---|---|
-| **Passing** | 30/58 |
-| **Pre-existing failures** | 28 |
-| **Batch 1 regressions** | 0 |
-| **Batch 2 regressions** | 0 |
-| **E2E merge gate** | Non-blocking for D3 Batch 1 (Option A) |
-| **Maintenance backlog** | `docs/deliverable-3/e2e-maintenance-backlog.md` |
+| **Passing** | 57/58 |
+| **Failures** | 0 |
+| **Skipped** | 1 (course-pricing fixture — expected) |
+| **CI Run** | [39205135370](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/39205135370) |
 
 ---
 
@@ -151,6 +215,8 @@
 | [#61](https://github.com/SM-Web-Systems/lms-crypto-production/pull/61) | D1 Batch 1 — Mobile certificates | Merged | `feat/mobile-certificates-batch1` |
 | [#63](https://github.com/SM-Web-Systems/lms-crypto-production/pull/63) | D3 Batch 1 — Sponsor Impact, Billing, RBAC | Merged | `feat/deliverable-3-batch1` |
 | [#64](https://github.com/SM-Web-Systems/lms-crypto-production/pull/64) | D3 Batch 2 — Date filters, drop-off, CSV | Merged | `feat/deliverable-3-batch2` |
+| [#65](https://github.com/SM-Web-Systems/lms-crypto-production/pull/65) | Security remediation P1 | Merged | `fix/audit-remediation-p1` |
+| [#66](https://github.com/SM-Web-Systems/lms-crypto-production/pull/66) | E2E stabilization | Merged | `fix/e2e-stabilization` |
 
 ---
 
@@ -167,6 +233,8 @@
 | D3 Batch 2 | `b73d084` | Merge commit (deployed) |
 | D3 Batch 2 | `2951b86` | Feature implementation |
 | D3 Batch 2 | `e6b3f93` | Release documentation |
+| Security P1 | `38b4b9a` | Merge commit (PR #65) |
+| E2E Stabilization | `6bb2df3` | Merge commit (PR #66, deployed) |
 
 ---
 
@@ -176,7 +244,8 @@
 |---|---|---|---|
 | Production | `76d6ecb` | 2026-10-11 | D1 Batch 1 + D2 RBAC |
 | Production | `a275ee7` | 2026-10-15 14:32 UTC | D3 Batch 1 |
-| Production | `b73d084` | 2026-10-15 14:46 UTC | D3 Batch 2 (current) |
+| Production | `b73d084` | 2026-10-15 14:46 UTC | D3 Batch 2 |
+| Production | `6bb2df3` | 2026-10-19 07:55 UTC | Security P1 + E2E Stabilization (current) |
 
 ## Smoke Test Results
 
@@ -204,10 +273,11 @@
 
 ## Pre-Deploy Backups
 
-| Backup | Path (inside lms-api container) | Timestamp |
-|---|---|---|
-| Before D3 Batch 1 | `/app/data/student_ms.db.pre-d3b1-20261015_163321` | 2026-10-15 16:33 |
-| Before D3 Batch 2 | `/app/data/student_ms.db.pre-d3b2-20261015_164619` | 2026-10-15 16:46 |
+| Backup | Path | Timestamp | Size |
+|---|---|---|---|
+| Before D3 Batch 1 | `/app/data/student_ms.db.pre-d3b1-20261015_163321` (container) | 2026-10-15 16:33 | — |
+| Before D3 Batch 2 | `/app/data/student_ms.db.pre-d3b2-20261015_164619` (container) | 2026-10-15 16:46 | — |
+| Before Security+E2E | `/home/webadmin/backups/lms-ammawallet-db/pre-deploy_20261019_075458.db` (host) | 2026-10-19 07:54 | 16,044,032 bytes |
 
 ## CI Run URLs
 
@@ -216,6 +286,9 @@
 | #63 | [38727975187](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38727975187) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
 | #64 | [38752836602](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752836602) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
 | #64 (final) | [38752846236](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38752846236) | SUCCESS | SUCCESS | FAILURE (28 pre-existing) |
+| #65 | [39010267559](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/39010267559) | SUCCESS | SUCCESS | — |
+| #66 | [38936276101](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38936276101) | SUCCESS | SUCCESS | SUCCESS (57/0/1) |
+| main (`6bb2df3`) | [39205135370](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/39205135370) | SUCCESS | SUCCESS | SUCCESS (57/0/1) |
 
 ---
 
@@ -250,7 +323,7 @@ See `docs/release/cross-deliverable-regression-checklist.md` for automated check
 
 1. **Deliverable 1 mobile app link**: EAS production build not yet created (requires separate approval)
 2. **Deliverable 1 demo video**: Requires human recording on physical device
-3. **E2E suite**: 28 pre-existing failures unrelated to any deliverable — tracked in maintenance backlog
+3. **E2E suite**: Stabilized — 57 pass, 0 fail, 1 expected skip (PR #66)
 4. **Sponsor test account**: Must be manually created and assigned `role_sponsor` before testing
 5. **Date filter UI**: Uses native HTML date inputs (appearance varies by browser/OS)
 6. **Drop-off analysis**: Shows lesson item IDs (not human-readable lesson titles) — improvement deferred
@@ -265,6 +338,37 @@ See `docs/release/cross-deliverable-regression-checklist.md` for automated check
 | | Repository owner | | Pending | Manual regression testing |
 | | Code reviewer | | Pending | Post-deployment verification |
 | | Manual tester | | Pending | Test pack execution on production |
+
+---
+
+### Security + E2E Deploy (SHA `6bb2df3`)
+
+| Check | Result |
+|---|---|
+| Health endpoint (200) | PASS |
+| Health status (ok) | PASS |
+| DB readiness (ok) | PASS |
+| Courses API (401) | PASS |
+| Build SHA present | PASS |
+| **Exit code** | **0** |
+
+---
+
+## Security + E2E Post-Deploy Verification (2026-10-19T05:55Z)
+
+| Check | Result |
+|---|---|
+| Health endpoint (200) | PASS |
+| Health status (ok) | PASS |
+| DB readiness (ok) | PASS |
+| Courses API (401 unauthenticated) | PASS |
+| Build SHA matches `6bb2df3f5ffa741bc99dbd2e17c4e9a180740847` | PASS |
+| API healthy after deploy | 4 seconds |
+| Data integrity (users=18, courses=4, nfts=10) | PASS |
+| lms-api container | Up, healthy |
+| lms-web container | Up, healthy |
+| Smoke test exit code | 0 |
+| Rollback images saved | PASS |
 
 ---
 
