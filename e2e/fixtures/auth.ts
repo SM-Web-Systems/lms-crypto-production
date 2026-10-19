@@ -4,6 +4,8 @@ import { apiURL } from '../playwright.config';
 interface AuthFixtures {
   adminPage: Page;
   studentPage: Page;
+  sponsorAPage: Page;
+  sponsorBPage: Page;
 }
 
 async function getAuthToken(
@@ -42,6 +44,38 @@ export const test = base.extend<AuthFixtures>({
   studentPage: async ({ browser, baseURL, request }, use) => {
     const token = await getAuthToken(request, 'student@test.com', 'password123');
     // Set extraHTTPHeaders at context level so page.request inherits the JWT
+    const context = await browser.newContext({
+      extraHTTPHeaders: {
+        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const page = await context.newPage();
+    await page.goto(baseURL!);
+    await page.evaluate((t: string) => {
+      localStorage.setItem('lms_token', t);
+    }, token);
+    await use(page);
+    await context.close();
+  },
+  sponsorAPage: async ({ browser, baseURL, request }, use) => {
+    const token = await getAuthToken(request, 'sponsor-a@test.com', 'password123');
+    const context = await browser.newContext({
+      extraHTTPHeaders: {
+        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const page = await context.newPage();
+    await page.goto(baseURL!);
+    await page.evaluate((t: string) => {
+      localStorage.setItem('lms_token', t);
+    }, token);
+    await use(page);
+    await context.close();
+  },
+  sponsorBPage: async ({ browser, baseURL, request }, use) => {
+    const token = await getAuthToken(request, 'sponsor-b@test.com', 'password123');
     const context = await browser.newContext({
       extraHTTPHeaders: {
         'Accept': 'application/json',
