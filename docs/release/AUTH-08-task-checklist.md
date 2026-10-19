@@ -105,5 +105,5 @@
 | ID | Task | Status | Evidence |
 |----|------|--------|----------|
 | 12.1 | Create stability report | PASS | `AUTH-08-post-deployment-stability-report.md` |
-| 12.2 | Commit documentation | TODO | |
-| 12.3 | Synchronize to remote | TODO | |
+| 12.2 | Commit documentation | PASS | `e67125e` — 12 files, +1,033 lines |
+| 12.3 | Synchronize to remote | PASS | `535ac1a..e67125e main -> main` |
