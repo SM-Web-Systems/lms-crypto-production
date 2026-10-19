@@ -143,7 +143,7 @@ export function createCohort(params: {
   };
 }
 
-export function listCohorts(filters?: { courseId?: string }): SponsorCohortSummary[] {
+export function listCohorts(filters?: { courseId?: string; sponsorUserId?: string }): SponsorCohortSummary[] {
   let sql = `
     SELECT sc.id, sc.name, sc.course_id, c.title as course_name,
            sc.selected_tier, sc.status, sc.payment_id, sc.created_at,
@@ -156,9 +156,17 @@ export function listCohorts(filters?: { courseId?: string }): SponsorCohortSumma
     LEFT JOIN payments p ON p.id = sc.payment_id
   `;
   const params: string[] = [];
+  const conditions: string[] = [];
   if (filters?.courseId) {
-    sql += ' WHERE sc.course_id = ?';
+    conditions.push('sc.course_id = ?');
     params.push(filters.courseId);
+  }
+  if (filters?.sponsorUserId) {
+    conditions.push('sc.sponsor_user_id = ?');
+    params.push(filters.sponsorUserId);
+  }
+  if (conditions.length > 0) {
+    sql += ' WHERE ' + conditions.join(' AND ');
   }
   sql += ' ORDER BY sc.created_at DESC';
 
