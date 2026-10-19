@@ -97,7 +97,7 @@ Both discriminators are held by exactly the same three roles and absent from all
 
 | Suite | Files | Tests | Result |
 |-------|-------|-------|--------|
-| Backend (all) | 166 | (pending final count) | PASS |
+| Backend (all) | 167 | 1597 | PASS |
 | AUTH-02 tests | 1 | 26 | PASS |
 | AUTH-03 tests | 1 | 26 | PASS |
 | AUTH-04 cross-module | 1 | 14 | PASS |
