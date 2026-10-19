@@ -4,7 +4,7 @@
 
 import { Router, type Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { requirePermission, getUserPermissions } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
 import { queryOne } from '../config/database.js';
@@ -25,6 +25,30 @@ import {
 } from '../services/cohortService.js';
 
 const router = Router();
+
+/**
+ * Check if the requesting user is an admin-tier actor.
+ * Uses `course.delete` as the admin-tier discriminator — only admin, admin-2,
+ * and super-admin hold this permission. Same pattern as requireCourseScope.
+ */
+function isAdminTier(req: AuthRequest): boolean {
+  if (!req._permissions) {
+    req._permissions = new Set(getUserPermissions(req.user!.userId));
+  }
+  return req._permissions.has('course.delete');
+}
+
+/**
+ * Verify cohort ownership for sponsor-tier users.
+ * Returns the cohort's sponsor_user_id if the cohort exists, or null if not found.
+ */
+function getCohortOwner(cohortId: string): string | null {
+  const row = queryOne<{ sponsor_user_id: string }>(
+    'SELECT sponsor_user_id FROM sponsor_cohorts WHERE id = ?',
+    [cohortId],
+  );
+  return row ? row.sponsor_user_id : null;
+}
 
 // POST /admin/cohorts — create cohort
 /**
@@ -131,7 +155,12 @@ router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), 
  */
 router.get('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
   const courseId = req.query.courseId as string | undefined;
-  const cohorts = listCohorts(courseId ? { courseId } : undefined);
+  const filters: { courseId?: string; sponsorUserId?: string } = {};
+  if (courseId) filters.courseId = courseId;
+  if (!isAdminTier(req)) {
+    filters.sponsorUserId = req.user!.userId;
+  }
+  const cohorts = listCohorts(Object.keys(filters).length > 0 ? filters : undefined);
   res.json({ success: true, data: { cohorts, total: cohorts.length } });
 });
 
@@ -149,7 +178,8 @@ router.get('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (
  *         description: Aggregated sponsor spending report across all cohorts
  */
 router.get('/admin/cohorts/spending-report', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
-  const report = getSpendingReport();
+  const sponsorUserId = isAdminTier(req) ? undefined : req.user!.userId;
+  const report = getSpendingReport(sponsorUserId);
   res.json({ success: true, data: report });
 });
 
@@ -176,6 +206,15 @@ router.get('/admin/cohorts/spending-report', authenticate, requirePermission('co
  *         description: Cohort not found
  */
 router.get('/admin/cohorts/:cohortId', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   const result = getCohort(req.params.cohortId);
   if (!result) {
     res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
@@ -222,6 +261,15 @@ router.get('/admin/cohorts/:cohortId', authenticate, requirePermission('cohort.m
  *         description: Cohort not found
  */
 router.post('/admin/cohorts/:cohortId/members', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   const { userIds } = req.body;
   if (!Array.isArray(userIds) || userIds.length === 0) {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'userIds array is required' } });
@@ -268,6 +316,15 @@ router.post('/admin/cohorts/:cohortId/members', authenticate, requirePermission(
  *         description: Member not found in cohort
  */
 router.delete('/admin/cohorts/:cohortId/members/:userId', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   const removed = removeMember(req.params.cohortId, req.params.userId);
   if (!removed) {
     res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Member not found in cohort' } });
@@ -301,6 +358,15 @@ router.delete('/admin/cohorts/:cohortId/members/:userId', authenticate, requireP
  *         description: Cohort not found
  */
 router.post('/admin/cohorts/:cohortId/apply', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   try {
     const result = bulkApply(req.params.cohortId, req.user!.userId);
     res.json({ success: true, data: result });
@@ -342,6 +408,15 @@ router.post('/admin/cohorts/:cohortId/apply', authenticate, requirePermission('c
  *         description: Cohort payment already processed
  */
 router.post('/admin/cohorts/:cohortId/pay', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   try {
     const result = bulkPay(req.params.cohortId, req.user!.userId);
     res.status(201).json({ success: true, data: result });
@@ -398,6 +473,15 @@ router.post('/admin/cohorts/:cohortId/pay', authenticate, requirePermission('coh
  *         description: Invalid status value or invalid transition
  */
 router.patch('/admin/cohorts/:cohortId/status', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   const { status, reason } = req.body;
   if (!status || (status !== 'active' && status !== 'completed')) {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: "status must be 'active' or 'completed'" } });
@@ -440,6 +524,15 @@ router.patch('/admin/cohorts/:cohortId/status', authenticate, requirePermission(
  *         description: Chronological log of all status transitions for the cohort
  */
 router.get('/admin/cohorts/:cohortId/status-log', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   const log = getStatusLog(req.params.cohortId);
   res.json({ success: true, data: { log } });
 });
@@ -483,6 +576,15 @@ router.get('/admin/cohorts/:cohortId/status-log', authenticate, requirePermissio
  *         description: Cohort not found
  */
 router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   const { emails } = req.body;
   if (!Array.isArray(emails) || emails.length === 0) {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'emails array is required' } });
@@ -545,6 +647,15 @@ router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('
  *         description: Cohort not found
  */
 router.post('/admin/cohorts/:cohortId/send-reminder', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
   try {
     const result = sendPaymentReminders(req.params.cohortId);
     res.json({ success: true, data: result });
