@@ -1,0 +1,57 @@
+%% AUTH-07: Network Topology
+%% Shows how requests flow from the internet to containers and between Docker networks.
+
+flowchart LR
+    subgraph INTERNET["Internet"]
+        CLIENT["Browser / API Client"]
+    end
+
+    subgraph HOST["Production Host"]
+        subgraph NGINX_NET["web-stack_default network"]
+            NGINX["nginx reverse proxy<br/>:80 / :443"]
+            LMS_API["lms-api<br/>:3001"]
+            LMS_WEB["lms-web<br/>:80"]
+        end
+
+        subgraph COMPOSE_NET["lms-ammawallet_default network"]
+            LMS_API2["lms-api"]
+            LMS_WEB2["lms-web"]
+        end
+
+        subgraph MAIL_NET["stalwart_bridge network"]
+            LMS_API3["lms-api"]
+            STALWART["stalwart<br/>mail server"]
+        end
+    end
+
+    CLIENT -->|"HTTPS :443<br/>lms.smwebsystems.com"| NGINX
+
+    NGINX -->|"proxy_pass /api/*<br/>→ lms-api:3001"| LMS_API
+    NGINX -->|"proxy_pass /<br/>→ lms-web:80"| LMS_WEB
+
+    LMS_API2 <-->|"internal API<br/>(compose default)"| LMS_WEB2
+
+    LMS_API3 <-->|"SMTP/IMAP<br/>(stalwart bridge)"| STALWART
+
+    %% Note: same containers on multiple networks
+    LMS_API -..- LMS_API2
+    LMS_API2 -..- LMS_API3
+    LMS_WEB -..- LMS_WEB2
+
+    subgraph HEALTH["Health Check Paths"]
+        direction TB
+        HC1["Container healthcheck<br/>node fetch http://127.0.0.1:3001/health"]
+        HC2["deploy.sh health wait<br/>curl https://lms.smwebsystems.com/api/v1/health"]
+        HC3["smoke-test.sh<br/>curl $SMOKE_BASE_URL/health"]
+        HC4["rollback.sh<br/>curl http://127.0.0.1:3001/health"]
+    end
+
+    HC1 -.->|internal| LMS_API
+    HC2 -.->|via nginx| NGINX
+    HC3 -.->|configurable| NGINX
+    HC4 -.->|direct| LMS_API
+
+    style NGINX fill:#aaa,stroke:#666
+    style LMS_API fill:#4a9,stroke:#2a7
+    style LMS_WEB fill:#49a,stroke:#27a
+    style CLIENT fill:#ddd,stroke:#999

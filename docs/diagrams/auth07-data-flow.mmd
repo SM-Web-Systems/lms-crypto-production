@@ -1,0 +1,55 @@
+%% AUTH-07: Authorization Data Flow
+%% Shows how sponsor authorization decisions flow through the AUTH-02/AUTH-03 changes.
+
+flowchart TD
+    REQ["HTTP Request<br/>(with JWT)"] --> AUTH_MW["authenticate middleware<br/>Validates JWT, sets req.user"]
+    AUTH_MW --> RBAC_MW["requirePermission middleware<br/>Checks role → permission"]
+
+    RBAC_MW --> ROUTE["Route Handler<br/>(payments.ts / cohorts.ts)"]
+
+    ROUTE --> IS_ADMIN{"isAdminTier(req)?<br/>Has course.delete<br/>permission?"}
+
+    IS_ADMIN -- YES --> ADMIN_PATH["Admin Path<br/>Full unrestricted access<br/>No ownership check"]
+    ADMIN_PATH --> DB_QUERY["Database Query<br/>(unfiltered)"]
+
+    IS_ADMIN -- NO --> SPONSOR_PATH["Sponsor Path<br/>Ownership check required"]
+
+    subgraph AUTH02["AUTH-02: Billing Scope"]
+        SPONSOR_PATH --> GET_COHORTS["getAuthorizedCohortIds<br/>(paymentService.ts)"]
+        GET_COHORTS --> COHORT_IDS["SELECT id FROM sponsor_cohorts<br/>WHERE sponsor_user_id = ?"]
+        COHORT_IDS --> FILTER["Filter results to<br/>authorized cohorts only"]
+    end
+
+    subgraph AUTH03["AUTH-03: Cohort Ownership"]
+        SPONSOR_PATH --> GET_OWNER["getCohortOwner(cohortId)<br/>(cohorts.ts)"]
+        GET_OWNER --> OWNER_CHECK{"sponsor_user_id<br/>== req.user.userId?"}
+        OWNER_CHECK -- NO --> DENY["403 Forbidden<br/>Not authorized"]
+        OWNER_CHECK -- YES --> ALLOW["Proceed with<br/>owned cohort"]
+    end
+
+    FILTER --> DB_QUERY_FILTERED["Database Query<br/>(filtered by cohort IDs)"]
+    ALLOW --> DB_QUERY_OWNED["Database Query<br/>(single owned cohort)"]
+
+    DB_QUERY --> RESPONSE["200 Response<br/>(full data)"]
+    DB_QUERY_FILTERED --> RESPONSE_FILTERED["200 Response<br/>(scoped data)"]
+    DB_QUERY_OWNED --> RESPONSE_OWNED["200 Response<br/>(owned data)"]
+
+    subgraph AFFECTED["Affected Endpoints"]
+        direction LR
+        EP1["GET /admin/payments"]
+        EP2["GET /payments/:id/status"]
+        EP3["GET /payments/:id/receipt"]
+        EP4["GET /badges/:id"]
+        EP5["GET /admin/cohorts"]
+        EP6["GET /admin/cohorts/:id"]
+        EP7["POST /admin/cohorts/:id/pay"]
+        EP8["PUT /admin/cohorts/:id"]
+        EP9["DELETE /admin/cohorts/:id"]
+        EP10["POST /admin/cohorts/:id/members"]
+    end
+
+    style DENY fill:#f66,stroke:#900
+    style ADMIN_PATH fill:#6f6,stroke:#090
+    style ALLOW fill:#6f6,stroke:#090
+    style AUTH02 fill:#e8f4fd,stroke:#4a9
+    style AUTH03 fill:#fde8e8,stroke:#a44
