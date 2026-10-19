@@ -5,7 +5,7 @@
 **Base:** `main`
 **HEAD SHA:** `2054247` (merge-from-main + post-merge validation)
 **Status:** Draft — do not merge until all criteria are met.
-**Date:** 2026-10-16 (updated after merge-from-main)
+**Date:** 2026-10-19 (updated after E2E_PAYSTACK_SECRET_KEY configuration)
 
 ---
 
@@ -67,9 +67,9 @@ empty, rejecting all webhook requests with 401.
 
 **Commit:** `08737b1 test(e2e): provide E2E Paystack webhook test configuration`
 
-**Action required:** The GitHub Actions secret `E2E_PAYSTACK_SECRET_KEY`
-must be configured before these 10 tests can pass. See
-[e2e-ci-secret-setup.md](e2e-ci-secret-setup.md).
+**Resolved:** The GitHub Actions repository secret `E2E_PAYSTACK_SECRET_KEY`
+was configured on 2026-10-19. All 10 webhook tests now pass. See
+[e2e-ci-secret-setup.md](e2e-ci-secret-setup.md) for local setup.
 
 ### RC-4: Password mismatch in `loginAsAdmin()` (1 test)
 
@@ -161,7 +161,7 @@ in `e2e-failure-triage.md`.
 | Frontend build | PASS | `vite build` exit 0 |
 | E2E tests (local) | NOT RUN | Chromium not installed on this machine |
 
-### CI Validation (2026-10-16, post-merge)
+### CI Validation (2026-10-16, post-merge, pre-secret)
 
 **CI Run:** https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38935550810
 
@@ -171,38 +171,58 @@ in `e2e-failure-triage.md`.
 | Frontend Tests & Build | PASS | 44s |
 | E2E Tests | 47 passed, 1 skipped, 10 failed | 1m33s |
 
+### CI Validation (2026-10-19, post-secret-configuration)
+
+**CI Run:** https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38936276101
+
+| Job | Result | Duration |
+|-----|--------|----------|
+| Backend Tests | PASS | 4m15s |
+| Frontend Tests & Build | PASS | 1m5s |
+| E2E Tests | **57 passed, 1 skipped, 0 failed** | 57s |
+
+All 10 previously failing Paystack webhook tests now pass.
+The single skip remains the course-pricing test (`payment-flow.spec.ts:26`)
+due to an empty E2E course fixture — this is pre-existing and expected.
+
 ### E2E Validation Status
 
-**Status: 47/58 PASS — 10 failures blocked exclusively on `E2E_PAYSTACK_SECRET_KEY`**
+**Status: 57/58 PASS — ALL E2E TESTS GREEN**
 
-All 18 formerly failing non-webhook tests now pass:
+All 28 formerly failing tests now pass after the 5 root-cause fixes and
+secret configuration:
+
 - RC-1 (8 tests): `VITE_API_BASE_URL` fix — all pass
 - RC-2 (8 tests): context-level JWT auth fix — all pass
+- RC-3 (10 tests): `E2E_PAYSTACK_SECRET_KEY` configured — all pass
 - RC-4 (1 test): admin password correction — passes
 - RC-5 (1 test): super-admin deleted-identity test — passes
 
-The 10 remaining failures are all Paystack webhook tests (RC-3) that
-require `E2E_PAYSTACK_SECRET_KEY` to be configured as a GitHub Actions
-repository secret:
+The 10 Paystack webhook tests that were blocked on the missing secret now
+pass after `E2E_PAYSTACK_SECRET_KEY` was configured as a repository secret
+on 2026-10-19:
 
-| # | Test | Line |
-|---|------|------|
-| 1 | webhook with valid signature but unknown reference returns 200 | 124 |
-| 2 | duplicate webhook with same reference is handled idempotently | 132 |
-| 3 | charge.success webhook is accepted | 152 |
-| 4 | charge.failed webhook is accepted | 160 |
-| 5 | refund.processed webhook is accepted | 168 |
-| 6 | unknown event type is acknowledged | 176 |
-| 7 | webhook with empty reference in payload is handled | 190 |
-| 8 | webhook signature verification uses raw body | 204 |
-| 9 | three identical webhooks are all accepted (idempotent) | 222 |
-| 10 | different event types for same reference are processed independently | 233 |
+| # | Test | Line | Status |
+|---|------|------|--------|
+| 1 | webhook with valid signature but unknown reference returns 200 | 124 | PASS |
+| 2 | duplicate webhook with same reference is handled idempotently | 132 | PASS |
+| 3 | charge.success webhook is accepted | 152 | PASS |
+| 4 | charge.failed webhook is accepted | 160 | PASS |
+| 5 | refund.processed webhook is accepted | 168 | PASS |
+| 6 | unknown event type is acknowledged | 176 | PASS |
+| 7 | webhook with empty reference in payload is handled | 190 | PASS |
+| 8 | webhook signature verification uses raw body | 204 | PASS |
+| 9 | three identical webhooks are all accepted (idempotent) | 222 | PASS |
+| 10 | different event types for same reference are processed independently | 233 | PASS |
 
-All 10 are in `payment-flow.spec.ts` and fail because the backend's
-`verifyWebhookSignature()` short-circuits when `PAYSTACK_SECRET_KEY` is
-empty. Once `E2E_PAYSTACK_SECRET_KEY` is configured, these will pass.
+**Confirmed on 2026-10-19:**
+- CI Run: https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/38936276101
+- No test was deleted, improperly skipped, or weakened
+- No assertion was modified, loosened, or removed
+- No `test.skip()` was added to any webhook test
+- The only skip is the pre-existing course-pricing guard (`payment-flow.spec.ts:26`)
 
-No non-webhook E2E regressions. No merge-resolution regressions.
+No E2E regressions. No merge-resolution regressions.
 
 ---
 
