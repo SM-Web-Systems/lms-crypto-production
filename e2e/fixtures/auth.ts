@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { apiURL } from '../playwright.config';
 
 interface AuthFixtures {
@@ -6,37 +6,53 @@ interface AuthFixtures {
   studentPage: Page;
 }
 
-async function loginViaAPI(
-  page: Page,
+async function getAuthToken(
+  request: APIRequestContext,
   email: string,
   password: string,
-  baseURL: string,
-): Promise<void> {
-  // Hit the login API directly to get a JWT
-  const response = await page.request.post(`${apiURL}/api/v1/auth/login`, {
+): Promise<string> {
+  const response = await request.post(`${apiURL}/api/v1/auth/login`, {
     data: { email, password },
   });
   expect(response.ok()).toBeTruthy();
   const body = await response.json();
   const token = body.data.token;
   expect(token).toBeTruthy();
-
-  // Inject the token into localStorage before navigating
-  await page.goto(baseURL);
-  await page.evaluate((t: string) => {
-    localStorage.setItem('lms_token', t);
-  }, token);
+  return token;
 }
 
 export const test = base.extend<AuthFixtures>({
-  adminPage: async ({ page, baseURL }, use) => {
-    await loginViaAPI(page, 'admin@test.com', 'password123', baseURL!);
-    await use(page);
-  },
-  studentPage: async ({ browser, baseURL }, use) => {
-    const context = await browser.newContext();
+  adminPage: async ({ browser, baseURL, request }, use) => {
+    const token = await getAuthToken(request, 'admin@test.com', 'password123');
+    // Set extraHTTPHeaders at context level so page.request inherits the JWT
+    const context = await browser.newContext({
+      extraHTTPHeaders: {
+        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
     const page = await context.newPage();
-    await loginViaAPI(page, 'student@test.com', 'password123', baseURL!);
+    await page.goto(baseURL!);
+    await page.evaluate((t: string) => {
+      localStorage.setItem('lms_token', t);
+    }, token);
+    await use(page);
+    await context.close();
+  },
+  studentPage: async ({ browser, baseURL, request }, use) => {
+    const token = await getAuthToken(request, 'student@test.com', 'password123');
+    // Set extraHTTPHeaders at context level so page.request inherits the JWT
+    const context = await browser.newContext({
+      extraHTTPHeaders: {
+        'Accept': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const page = await context.newPage();
+    await page.goto(baseURL!);
+    await page.evaluate((t: string) => {
+      localStorage.setItem('lms_token', t);
+    }, token);
     await use(page);
     await context.close();
   },
