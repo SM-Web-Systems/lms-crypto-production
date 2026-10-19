@@ -1,8 +1,9 @@
 # COHORT-IDOR Remediation Specification
 
 **Severity:** HIGH
-**Status:** OPEN — requires separate PR
+**Status:** RESOLVED — AUTH-03 (PR #72, commit `827f263`)
 **Discovered:** 2026-10-19 during AUTH-02 security review (PR #71)
+**Resolved:** 2026-10-19 via AUTH-03 sponsor cohort ownership enforcement
 **Scope:** `LMS-Server/src/routes/cohorts.ts` — all 12 routes
 
 ---
@@ -235,3 +236,23 @@ cd ../e2e && npx tsc --noEmit               # E2E types unaffected
 - AUTH-02 (PR #71) should be merged first — establishes the `billing.confirm` discriminator pattern
 - No database migration required
 - No new permissions or roles required
+
+---
+
+## 11. Resolution
+
+**Resolved by:** AUTH-03 — Sponsor Cohort Ownership Enforcement (PR #72, merge commit `827f263`)
+
+AUTH-03 implemented the ownership checks described in Section 4 of this spec. All 10 vulnerable endpoints now call `getCohortOwner(cohortId)` and verify `sponsor_user_id === req.user.userId` before allowing access. Admin-tier users bypass via `isAdminTier()` (checks `course.delete` permission).
+
+**Verification:**
+- 26 AUTH-03 unit tests cover ownership enforcement across all endpoints
+- 14 AUTH-04 integration tests verify cross-module authorization
+- AUTH-08 independent code review confirmed all controls (2026-10-19)
+- AUTH-09 assessment re-verified `getCohortOwner` calls at 10 locations in `cohorts.ts`
+
+**Code references (cohorts.ts):**
+- `getCohortOwner()`: line 45
+- `isAdminTier()`: line 34
+- List filter (`sponsorUserId`): line 181
+- Ownership checks: lines 214, 269, 324, 366, 416, 481, 532, 584, 655

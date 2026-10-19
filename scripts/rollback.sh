@@ -9,6 +9,7 @@ STATE_DIR="$DEPLOY_DIR/.deploy-state"
 PREV_FILE="$STATE_DIR/previous-images.txt"
 LOG_FILE="$STATE_DIR/deploy-log.txt"
 TIMEOUT="${DEPLOY_TIMEOUT:-60}"
+HEALTH_URL="${HEALTH_URL:-https://lms.smwebsystems.com/api/v1/health}"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
@@ -51,7 +52,7 @@ docker compose up -d --no-deps api web
 log "Waiting for API health..."
 elapsed=0
 while [ "$elapsed" -lt "$TIMEOUT" ]; do
-  if curl -sf http://127.0.0.1:3001/health > /dev/null 2>&1; then
+  if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
     log "API healthy after rollback (${elapsed}s)"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ROLLBACK SUCCESS" >> "$LOG_FILE"
     exit 0

@@ -267,7 +267,8 @@ if [ -z "$DRY_RUN" ] && [ "$BUILD_SHA" != "unknown" ]; then
     log "    Build SHA verified: $actual_sha"
   else
     log "ERROR: Build SHA mismatch (expected=$BUILD_SHA, actual=$actual_sha)"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY WARNING — SHA mismatch expected=$BUILD_SHA actual=$actual_sha" >> "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEPLOY FAILED — SHA mismatch expected=$BUILD_SHA actual=$actual_sha" >> "$LOG_FILE"
+    exit 1
   fi
 fi
 
