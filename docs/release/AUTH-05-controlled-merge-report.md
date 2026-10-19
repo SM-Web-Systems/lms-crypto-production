@@ -31,7 +31,10 @@
 | CI | Backend PASS, Frontend PASS, E2E PASS |
 | Reviews | 0 comments, 0 reviews |
 | Mergeability | MERGEABLE / CLEAN |
-| Merge status | **NOT MERGED — AWAITING APPROVAL** |
+| Merge status | **MERGED** |
+| Merge commit | `827f263f3672b6286203412a445b3ea618b44179` |
+| Merged at | 2026-10-19T11:05:54Z |
+| Merged by | sourmuffins (Mukhtar Meer) |
 
 ### PR #71 — AUTH-02: Cohort-Scoped Sponsor Billing
 
@@ -61,7 +64,7 @@
 
 | PR | Merge SHA | Merged At |
 |----|-----------|-----------|
-| #72 | _pending approval_ | — |
+| #72 | `827f263` | 2026-10-19T11:05:54Z |
 | #71 | _pending approval_ | — |
 
 ---
@@ -80,9 +83,22 @@
 | Frontend | Integration candidate | 47 | 450 | PASS |
 | Frontend build | Integration candidate | — | — | PASS (18.88s) |
 
-### Post-Merge Validation
+### Post-Merge Validation (PR #72 — merge commit `827f263`)
 
-_Not yet executed — awaiting merge approval._
+| Suite | Scope | Files | Tests | Result |
+|-------|-------|-------|-------|--------|
+| AUTH-03 tests | Post-merge main | 1 | 26 | PASS |
+| RBAC + cohort + sponsor subset | Clean DB | 5 | 72 | PASS |
+| Frontend tests | Post-merge main | 47 | 450 | PASS |
+| Frontend build | Post-merge main | — | — | PASS (21.22s) |
+| Backend TypeScript check | Post-merge main | — | — | PASS |
+| E2E health smoke | Isolated server | 1 | 4 | PASS |
+| GitHub CI (merge commit) | Backend | — | — | SUCCESS |
+| GitHub CI (merge commit) | Frontend & Build | — | — | SUCCESS |
+| GitHub CI (merge commit) | E2E | — | — | SUCCESS |
+| Full backend (clean DB) | Post-merge worktree | 165 | 1,557 | PASS |
+
+**Note:** Running full suite in main repo without explicit `DATABASE_PATH` produced 11 file failures (57 tests) due to the test runner interacting with the production DB file at `data/student_ms.db`. These same tests pass in clean environments (worktrees with isolated DB, CI, explicit `DATABASE_PATH`). This is a pre-existing environment issue, not a regression from PR #72. The authoritative result is the clean-DB worktree run: **165 files, 1,557 tests, all PASS.**
 
 ---
 
@@ -187,19 +203,19 @@ git push origin main
 | State | SHA | Delta from Current Prod |
 |-------|-----|------------------------|
 | Current production | `6bb2df3` | — |
-| Current main HEAD | `a43cd34` | +2 commits (docs only) |
-| After PR #72 merge | _pending_ | +5 commits (3 auth03 + 2 docs) |
+| Pre-merge main HEAD | `a43cd34` | +2 commits (docs only) |
+| After PR #72 merge | `827f263` | +5 commits (3 auth03 + 2 docs) |
 | After PR #71 merge | _pending_ | +10 commits (5 auth02 + 3 auth03 + 2 docs) |
 
 ---
 
 ## 13. Final Release Recommendation
 
-**Status: BLOCKED — Awaiting human merge approval for PR #72, then PR #71.**
+**Status: PR #72 MERGED — Awaiting human merge approval for PR #71.**
 
-Both PRs are technically ready to merge. All automated checks pass. Security review is complete. The system cannot be declared production-release ready until:
+PR #72 has been merged and post-merge validation confirms no regressions. The system cannot be declared production-release ready until:
 
-1. PR #72 is merged and post-merge validation passes
+1. ~~PR #72 is merged and post-merge validation passes~~ DONE
 2. PR #71 is merged and combined post-merge validation passes
 3. CI on final main HEAD confirms all green
 4. AUTH-04 cross-module test PR is merged
