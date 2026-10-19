@@ -260,3 +260,103 @@ export function recordWebhookEvent(
     return false;
   }
 }
+
+// ─── AUTH-02: Cohort-scoped sponsor billing access ──────────────────────────
+
+/**
+ * Check if a payment is visible to a sponsor.
+ * Returns true if:
+ *   (a) The payment belongs to a student who is in one of the sponsor's cohorts
+ *       AND the payment's course matches the cohort's course, OR
+ *   (b) The payment is the sponsor's own bulk cohort payment (sponsor_cohorts.payment_id).
+ */
+export function isSponsorScopedPayment(sponsorUserId: string, paymentId: string): boolean {
+  const memberMatch = queryOne<{ id: string }>(
+    `SELECT p.id
+     FROM payments p
+     JOIN cohort_members cm ON cm.user_id = p.user_id
+     JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+                             AND sc.course_id = p.course_id
+     WHERE p.id = ?
+       AND sc.sponsor_user_id = ?
+     LIMIT 1`,
+    [paymentId, sponsorUserId],
+  );
+  if (memberMatch) return true;
+
+  const bulkMatch = queryOne<{ id: string }>(
+    `SELECT sc.id
+     FROM sponsor_cohorts sc
+     WHERE sc.payment_id = ?
+       AND sc.sponsor_user_id = ?
+     LIMIT 1`,
+    [paymentId, sponsorUserId],
+  );
+  return !!bulkMatch;
+}
+
+/**
+ * Filtered variant of listPayments for sponsor users.
+ * Returns only payments belonging to the sponsor's cohort members
+ * (same course context) plus the sponsor's own bulk cohort payments.
+ */
+export function listPaymentsForSponsor(
+  sponsorUserId: string,
+  filters?: { status?: string; courseId?: string },
+): PaymentWithDetails[] {
+  let sql = `
+    SELECT DISTINCT p.*, u.name AS user_name, u.email AS user_email,
+           c.title AS course_name, cb.name AS confirmed_by_name
+    FROM payments p
+    LEFT JOIN users u ON u.id = p.user_id
+    LEFT JOIN courses c ON c.id = p.course_id
+    LEFT JOIN users cb ON cb.id = p.confirmed_by
+    WHERE (
+      EXISTS (
+        SELECT 1 FROM cohort_members cm
+        JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+                                AND sc.course_id = p.course_id
+        WHERE cm.user_id = p.user_id
+          AND sc.sponsor_user_id = ?
+      )
+      OR EXISTS (
+        SELECT 1 FROM sponsor_cohorts sc2
+        WHERE sc2.payment_id = p.id
+          AND sc2.sponsor_user_id = ?
+      )
+    )
+  `;
+  const params: unknown[] = [sponsorUserId, sponsorUserId];
+
+  if (filters?.status) {
+    sql += ' AND p.status = ?';
+    params.push(filters.status);
+  }
+  if (filters?.courseId) {
+    sql += ' AND p.course_id = ?';
+    params.push(filters.courseId);
+  }
+
+  sql += ' ORDER BY p.created_at DESC';
+  return query<PaymentWithDetails>(sql, params);
+}
+
+/**
+ * Check if a badge is visible to a sponsor.
+ * Returns true if the badge's user is a member of one of the sponsor's cohorts
+ * AND the badge's course matches the cohort's course.
+ */
+export function isSponsorScopedBadge(sponsorUserId: string, badgeId: string): boolean {
+  const match = queryOne<{ id: string }>(
+    `SELECT cb.id
+     FROM certificate_badges cb
+     JOIN cohort_members cm ON cm.user_id = cb.user_id
+     JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+                             AND sc.course_id = cb.course_id
+     WHERE cb.id = ?
+       AND sc.sponsor_user_id = ?
+     LIMIT 1`,
+    [badgeId, sponsorUserId],
+  );
+  return !!match;
+}
