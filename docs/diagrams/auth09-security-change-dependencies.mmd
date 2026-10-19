@@ -1,0 +1,41 @@
+%% AUTH-09: Security Change Dependency Graph
+%% Which changes can be made safely vs. require production migration
+
+flowchart TD
+    subgraph SAFE["Safe to Merge (No Production Impact)"]
+        FIX_RB["Fix rollback.sh<br/>health check URL<br/>SEC-INFRA-04"]
+        FIX_SHA["Fix deploy.sh<br/>SHA mismatch exit<br/>SEC-INFRA-06"]
+        DOC_IDOR["Update COHORT-IDOR<br/>spec to RESOLVED<br/>SEC-INFRA-07"]
+        TESTS["Add script tests<br/>rollback + deploy"]
+    end
+
+    subgraph NEEDS_COMPAT["Requires Isolated Compatibility Testing"]
+        NON_ROOT["Non-root container<br/>SEC-INFRA-01"]
+        READ_ONLY["Read-only filesystem<br/>SEC-INFRA-02"]
+    end
+
+    subgraph NEEDS_MIGRATION["Requires Production Migration Plan"]
+        SECRETS["Secret delivery change<br/>SEC-INFRA-03"]
+    end
+
+    FIX_RB --> TESTS
+    FIX_SHA --> TESTS
+
+    NON_ROOT -->|"requires"| VOL_CHOWN["Volume ownership<br/>chown to node:node"]
+    NON_ROOT -->|"requires"| ENTRY_TEST["Entrypoint as non-root<br/>DB init test"]
+    NON_ROOT -->|"blocks"| READ_ONLY
+
+    READ_ONLY -->|"requires"| TMPFS["tmpfs for /tmp"]
+    READ_ONLY -->|"requires"| VOL_WRITE["Verify volume write"]
+
+    SECRETS -->|"requires"| APP_CHANGE["App code: read from<br/>files or env"]
+    SECRETS -->|"requires"| COMPOSE_CHANGE["Compose: secrets section"]
+    SECRETS -->|"requires"| ROTATION["Credential rotation plan"]
+
+    style FIX_RB fill:#6f6,stroke:#090
+    style FIX_SHA fill:#6f6,stroke:#090
+    style DOC_IDOR fill:#6f6,stroke:#090
+    style TESTS fill:#6f6,stroke:#090
+    style NON_ROOT fill:#ff9,stroke:#cc0
+    style READ_ONLY fill:#ff9,stroke:#cc0
+    style SECRETS fill:#f96,stroke:#c60

@@ -1,0 +1,40 @@
+%% AUTH-09: Deployment and Rollback Decision Tree
+%% deploy.sh flow with SEC-INFRA-04 and SEC-INFRA-06 annotated
+
+flowchart TD
+    START["deploy.sh start"] --> CHECKS["Pre-deploy checks<br/>docker, disk space"]
+    CHECKS -->|FAIL| ABORT1["exit 1"]
+    CHECKS -->|PASS| BACKUP["backup_db()<br/>SQLite .backup"]
+    BACKUP -->|FAIL| ABORT2["exit 1<br/>(backup failed)"]
+    BACKUP -->|PASS| SAVE_STATE["Save current image IDs<br/>previous-images.txt"]
+    SAVE_STATE --> BUILD["docker compose build"]
+    BUILD --> DEPLOY_API["docker compose up -d api"]
+    DEPLOY_API --> HEALTH{"Health check<br/>lms.smwebsystems.com<br/>/api/v1/health"}
+
+    HEALTH -->|"Timeout (60s)"| ROLLBACK_H["Auto-rollback<br/>rollback.sh"]
+    HEALTH -->|"200 OK"| DEPLOY_WEB["docker compose up -d web"]
+    DEPLOY_WEB --> SMOKE["smoke-test.sh<br/>5 checks"]
+    SMOKE -->|FAIL| ROLLBACK_S["Auto-rollback<br/>rollback.sh"]
+    SMOKE -->|PASS| VERIFY_DATA["verify_data()<br/>Row count check"]
+    VERIFY_DATA -->|FAIL| ABORT3["exit 1<br/>(manual restore needed)"]
+    VERIFY_DATA -->|PASS| SHA_CHECK{"Build SHA<br/>matches health?"}
+
+    SHA_CHECK -->|"MISMATCH"| SHA_WARN["SEC-INFRA-06<br/>Logs ERROR but<br/>DOES NOT EXIT"]
+    SHA_CHECK -->|"MATCH"| SUCCESS["Deploy SUCCESSFUL"]
+    SHA_WARN --> SUCCESS
+
+    ROLLBACK_H --> RB_SCRIPT["rollback.sh"]
+    ROLLBACK_S --> RB_SCRIPT
+
+    RB_SCRIPT --> RB_TAG["Tag previous images"]
+    RB_TAG --> RB_UP["docker compose up -d"]
+    RB_UP --> RB_HEALTH{"SEC-INFRA-04<br/>curl 127.0.0.1:3001<br/>(UNREACHABLE)"}
+    RB_HEALTH -->|"Always timeout"| RB_FAIL["ROLLBACK FAILED<br/>(false negative)"]
+
+    style SHA_WARN fill:#f96,stroke:#c60
+    style RB_HEALTH fill:#f66,stroke:#900
+    style RB_FAIL fill:#f66,stroke:#900
+    style SUCCESS fill:#6f6,stroke:#090
+    style ABORT1 fill:#f66,stroke:#900
+    style ABORT2 fill:#f66,stroke:#900
+    style ABORT3 fill:#f66,stroke:#900
