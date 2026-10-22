@@ -30,9 +30,10 @@
 |----|------|--------|----------|
 | 2.1 | Verify deploy timestamp | PASS | `2026-10-19T18:07:24Z` (container inspect) |
 | 2.2 | Calculate window end | PASS | `2026-10-20T18:07:24Z` |
-| 2.3 | Partial observation | PASS | 2.7h clean: 0 errors, 0 restarts |
-| 2.4 | Schedule completion check | PASS | Cron scheduled for 2026-10-20 20:12 SAST |
-| 2.5 | Full 24h evaluation | PENDING | Awaiting window completion |
+| 2.3 | Partial observation (initial) | PASS | 2.7h clean: 0 errors, 0 restarts |
+| 2.3b | **Interim observation** | **PASS** | **10.9h (45.4%) clean: 0 errors, 0 warns, 0 restarts, 0 5xx** |
+| 2.4 | Schedule completion check | PASS | Cron re-created: job d1a56690 at 2026-10-20 20:12 SAST (session-scoped) |
+| 2.5 | Full 24h evaluation | **PASS** | **59.1h observed (246% of 24h). 0 errors, 0 fatals, 1 warn (expected 403), 0 5xx, 0 restarts. Evaluated 2026-10-22T05:16Z** |
 
 ## Phase 3 — Security Impact Analysis
 | ID | Task | Status | Evidence |

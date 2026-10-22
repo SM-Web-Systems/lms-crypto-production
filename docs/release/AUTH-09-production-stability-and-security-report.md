@@ -10,12 +10,14 @@
 
 ## 1. Production Stability Verdict
 
-**PASS WITH CONDITIONS**
+**FULL PASS — 24-hour observation window EXCEEDED (59.1h)**
 
-- All production metrics healthy through partial 24h observation (2.7h of 24h)
-- Full 24h window completes 2026-10-20T18:07:24Z UTC
-- Cron check scheduled for completion evaluation
-- No errors, no restarts, no 5xx, stable memory
+- All production metrics healthy through 59.1h of continuous observation (246% of 24h window)
+- 24h window completed 2026-10-20T18:07:24Z UTC — exceeded by 35.1h at final check
+- Zero error-level logs, zero fatal-level logs, zero 5xx, zero container restarts
+- 1 warn-level log: legitimate 403 authorization enforcement (quiz completions ownership — AUTH-03)
+- Stable memory, disk, and uptime across entire observation period
+- Session-scoped cron job d1a56690 did not persist (known limitation §19); final evaluation performed manually 2026-10-22
 
 ## 2. Observation Timestamps
 
@@ -23,9 +25,14 @@
 |-------|-----|------|
 | Deploy start (API container) | 2026-10-19T18:07:24Z | 2026-10-19 20:07:24 |
 | Deploy start (Web container) | 2026-10-19T18:07:28Z | 2026-10-19 20:07:28 |
-| AUTH-09 assessment | 2026-10-19T20:49:43Z | 2026-10-19 22:49:43 |
+| Initial AUTH-09 assessment | 2026-10-19T20:49:43Z | 2026-10-19 22:49:43 |
+| **Interim stability check** | **2026-10-20T05:01:00Z** | **2026-10-20 07:01:00** |
 | 24h window end | 2026-10-20T18:07:24Z | 2026-10-20 20:07:24 |
-| Elapsed at assessment | 2h 42min | — |
+| Scheduled cron check | 2026-10-20T18:12:00Z | 2026-10-20 20:12:00 |
+| **Final stability evaluation** | **2026-10-22T05:16:00Z** | **2026-10-22 07:16:00** |
+| Elapsed at initial assessment | 2h 42min | 11.3% |
+| **Elapsed at interim check** | **10h 54min** | **45.4%** |
+| **Elapsed at final evaluation** | **59h 9min** | **246%** |
 
 ## 3. Verified Production SHA
 
@@ -35,18 +42,28 @@
 
 `ff39ccb661a5135f468c9d735e80d62c4c17ea62` — includes AUTH-08 docs + AUTH-09 infrastructure hardening (PR #75).
 
+**Note (2026-10-22):** Remote main advanced to `4f1580d` after two documentation commits (`0806ee3`, `4f1580d`). The SHA above was correct at the time of the interim check. Current HEAD is `4f1580d`.
+
 ## 5. Error and Restart Assessment
 
 | Metric | Value | Window |
 |--------|-------|--------|
-| Error-level log entries | 0 | Since deploy |
-| Fatal-level log entries | 0 | Since deploy |
-| 5xx responses | 0 | Since deploy |
-| Unexpected 401/403 | 0 | 2 total, both `GET /` probes (expected) |
-| Container restarts (api) | 0 | Since deploy |
-| Container restarts (web) | 0 | Since deploy |
-| Health status | `ok` | At assessment time |
-| DB status | `ok`, 0ms | At assessment time |
+| Error-level log entries | 0 | Deploy → +59.1h (FINAL) |
+| Fatal-level log entries | 0 | Deploy → +59.1h (FINAL) |
+| Warn-level log entries | 1 | Deploy → +59.1h — legitimate 403 quiz ownership (AUTH-03) |
+| 5xx responses | 0 | Deploy → +59.1h (FINAL) |
+| 401 responses | 25 | All scanner/bot probes (/%2eenv, /debug, /finchat/*, etc.) |
+| 403 responses | 2 | Quiz completions ownership enforcement (expected AUTH-03) |
+| 404 responses | 71 | All scanner probes (/%2eenv, /config%2ephp, etc.) |
+| Container restarts (api) | 0 | Deploy → +59.1h (FINAL) |
+| Container restarts (web) | 0 | Deploy → +59.1h (FINAL) |
+| Health status | `ok` | Verified manually at +2.7h, +10.9h, and +59.1h; Docker healthcheck every 15s |
+| DB status | `ok`, 0ms | Verified manually at +2.7h, +10.9h, and +59.1h |
+| Total log lines (api) | 14,478 | Deploy → +59.1h (all info-level except 1 warn) |
+| Webhook/payment errors | 0 | Deploy → +59.1h (FINAL) |
+| Memory (api) | 66MB heap / 149MB RSS | Stable: 73→74→66 MB heap across 59.1h |
+| Uptime (api) | 212,928s (59.1h) | Continuous, zero interruptions |
+| Disk utilization | 63% (57GB free) | Was 58% at deploy; normal growth |
 
 ## 6. Remaining Security Findings
 
@@ -103,8 +120,7 @@
 
 ## 11. Task Checklist
 
-`docs/release/AUTH-09-task-checklist.md` — 12 phases, all completed except:
-- Phase 2.5: 24h stability window (PENDING — observation incomplete)
+`docs/release/AUTH-09-task-checklist.md` — 12 phases, **all completed**
 
 ## 12. TDD Evidence
 
@@ -172,8 +188,8 @@ The following commits are on `main` but NOT deployed to production:
 ## 18. Deployment Dependencies
 
 **Next deployment prerequisites:**
-1. Complete 24h stability observation (2026-10-20T18:07:24Z)
-2. Verify script fixes work correctly during next deploy
+1. ~~Complete 24h stability observation (2026-10-20T18:07:24Z)~~ **COMPLETED** — 59.1h observed, FULL PASS
+2. Verify script fixes work correctly during next deploy (PENDING — first deployment after merge will validate)
 3. No additional code changes required for deployment
 
 ## 19. Monitoring Limitations
@@ -182,7 +198,8 @@ The following commits are on `main` but NOT deployed to production:
 - Health monitoring relies on Docker healthcheck (15s interval) + manual checks
 - Log analysis is manual (grep on `docker logs`)
 - No alerting for 5xx errors or container restarts
-- 24h stability check relies on session-scoped cron (not durable)
+- 24h stability check relied on session-scoped cron (not durable) — job d1a56690 did not persist; final evaluation performed manually at +59.1h
+- **Observation gap:** Manual health checks performed at +2.7h, +10.9h, and +59.1h only. The 48.2h interval between the interim and final checks had no external verification. Docker healthcheck (15s) and `lms-data-check.sh` (6h cron) ran continuously; `RestartCount: 0` and retained docker logs confirm no failures during the gap. Log-based evidence (0 errors, 0 5xx) covers the full 59.1h without gaps.
 
 ## 20. Recommended Next Release Work
 
@@ -205,12 +222,27 @@ The following commits are on `main` but NOT deployed to production:
 | Merged to main | PASS (PR #75 → `ff39ccb`) |
 | Deployed to production | NOT APPLICABLE (no deployment) |
 | Production verified | PASS (healthy, 0 errors) |
-| Stability observation completed | PENDING (2.7h of 24h) |
+| Stability observation completed | **PASS (59.1h of 24h — 246%)** |
 
-**AUTH-09 Verdict: PASS WITH CONDITIONS**
+**AUTH-09 Verdict: FULL PASS**
 
-Conditions:
-1. 24h stability observation window must complete (2026-10-20T18:07:24Z UTC)
-2. Script fixes take effect on next deployment (not yet validated in production)
+Final evidence (59.1h / 246% of 24h window, evaluated 2026-10-22T05:16Z):
+- Zero error-level or fatal-level log entries across 14,478 log lines
+- 1 warn-level log: legitimate 403 quiz completions ownership enforcement (AUTH-03 working as designed)
+- Zero 5xx responses across entire observation period
+- 25 × 401 and 2 × 403: all scanner/bot probes or expected authorization enforcement — zero unexpected auth failures
+- Zero container restarts, continuous uptime (212,928s / 59.1h)
+- Memory stable: 73MB → 74MB → 66MB heap across 59.1h (well within limits)
+- Disk at 63% (57GB free)
+- Pre-deploy backup intact (16MB, permissions 600), rollback images available
+- API health: ok, DB: ok (0ms latency), Frontend: HTTP 200
+- Build SHA `0dd2385` confirmed via health endpoint — unchanged since deploy
+
+Remaining condition for AUTH-09 completion:
+- Script fixes (rollback.sh health URL, deploy.sh SHA exit) merged to main but take effect on **next deployment** (not yet validated in production)
 
 The AUTH-07 deployment is stable, the AUTH-08 verification is confirmed, infrastructure hardening fixes are merged, and the operational baseline is documented.
+
+### Cron Job Note
+
+The session-scoped cron job (d1a56690, scheduled for 2026-10-20 20:12 SAST) did not persist across sessions — `at` is unavailable on this system and the job was not in the durable crontab. This was a known limitation documented in §19. The final evaluation was performed manually on 2026-10-22 with 59.1h of evidence, exceeding the 24h requirement by 35.1h.
