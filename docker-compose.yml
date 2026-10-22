@@ -24,6 +24,11 @@ services:
       - ./LMS-Server/.env
     environment:
       FRONTEND_URL: ${FRONTEND_URL:-https://lms.smwebsystems.com}
+    # SEC-INFRA-02: Read-only root filesystem (AUTH-10)
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /home/node/.npm:size=16m
     volumes:
       - lms-data:/app/data
       - lms-uploads:/app/uploads

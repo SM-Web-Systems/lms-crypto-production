@@ -21,5 +21,12 @@ EXPOSE 3001
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# SEC-INFRA-01: Run as non-root user (AUTH-10)
+# The node user (uid=1000) is provided by the base image.
+# Volume directories must be owned by node for SQLite WAL/SHM and uploads.
+RUN mkdir -p /home/node/.npm && \
+    chown -R node:node /app/data /app/uploads /home/node
+USER node
+
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]
