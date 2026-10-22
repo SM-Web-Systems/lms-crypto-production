@@ -1,0 +1,72 @@
+flowchart TB
+    subgraph CURRENT["CURRENT STATE — Runs as root"]
+        direction TB
+        C_DOCKER["Dockerfile"]
+        C_USER["USER: root uid=0"]
+        C_VOLS["Volume ownership: root:root"]
+        C_DATA["/app/data — root-owned"]
+        C_UPLOADS["/app/uploads — root-owned"]
+        C_ENTRY["docker-entrypoint.sh\nRuns as root"]
+
+        C_DOCKER --> C_USER
+        C_USER --> C_VOLS
+        C_VOLS --> C_DATA
+        C_VOLS --> C_UPLOADS
+        C_USER --> C_ENTRY
+    end
+
+    subgraph PROPOSED["PROPOSED STATE — Runs as node"]
+        direction TB
+        P_DOCKER["Dockerfile Changes"]
+        P_CHOWN["RUN chown -R node:node /app"]
+        P_USER["USER node uid=1000"]
+        P_VOLS["Volume ownership: node:node"]
+        P_DATA["/app/data — node-owned"]
+        P_UPLOADS["/app/uploads — node-owned"]
+        P_ENTRY["docker-entrypoint.sh\nRuns as node"]
+
+        P_DOCKER --> P_CHOWN
+        P_CHOWN --> P_USER
+        P_USER --> P_VOLS
+        P_VOLS --> P_DATA
+        P_VOLS --> P_UPLOADS
+        P_USER --> P_ENTRY
+    end
+
+    subgraph UNCHANGED["UNCHANGED Components"]
+        U_IMAGE["Base image: node:22-bookworm-slim"]
+        U_PORT["Expose 3001 — no published ports"]
+        U_HEALTH["Healthcheck: fetch /health"]
+        U_NETWORKS["Networks: default, web-stack_default, stalwart_bridge"]
+        U_FRONTEND["lms-web: nginx:alpine — unaffected"]
+        U_PROXY["nginx_server: TLS proxy — unaffected"]
+    end
+
+    subgraph MIGRATION["Migration Steps"]
+        M1["1. Pre-migration volume chown\ndocker run --rm -v lms-data:/data\nbusybox chown -R 1000:1000 /data"]
+        M2["2. Pre-migration volume chown\ndocker run --rm -v lms-uploads:/uploads\nbusybox chown -R 1000:1000 /uploads"]
+        M3["3. Build new image with USER node"]
+        M4["4. Deploy with docker compose up"]
+        M5["5. Healthcheck validates"]
+
+        M1 --> M2 --> M3 --> M4 --> M5
+    end
+
+    subgraph AFFECTED["Affected Paths in Container"]
+        A1["/app/data/lms.db — must be writable by node"]
+        A2["/app/data/lms.db-wal — must be writable by node"]
+        A3["/app/data/lms.db-shm — must be writable by node"]
+        A4["/app/uploads/avatars — must be writable by node"]
+        A5["/app/uploads/docs — must be writable by node"]
+        A6["/app/uploads/imports — must be writable by node"]
+        A7["/app/uploads/submissions — must be writable by node"]
+    end
+
+    CURRENT -->|"transforms to"| PROPOSED
+    PROPOSED --- UNCHANGED
+
+    style CURRENT fill:#ffebee,stroke:#c62828
+    style PROPOSED fill:#e8f5e9,stroke:#2e7d32
+    style UNCHANGED fill:#e3f2fd,stroke:#1565c0
+    style MIGRATION fill:#fff3e0,stroke:#ef6c00
+    style AFFECTED fill:#f3e5f5,stroke:#7b1fa2

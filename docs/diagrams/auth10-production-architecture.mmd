@@ -1,0 +1,72 @@
+flowchart TB
+    subgraph EXTERNAL["External Access"]
+        USER["Browser / Client"]
+    end
+
+    subgraph PROXY["nginx_server — TLS Termination"]
+        NGINX_PROXY["nginx_server\nTLS termination\nReverse proxy"]
+    end
+
+    subgraph NET_WEB["Network: web-stack_default"]
+        direction TB
+        NGINX_PROXY
+        LMS_API
+        LMS_WEB
+    end
+
+    subgraph CONTAINERS["Docker Containers"]
+        subgraph API["lms-api"]
+            LMS_API["lms-api:3001\nnode:22-bookworm-slim\nRuns as root uid=0\nnode user uid=1000 available"]
+            ENTRYPOINT["docker-entrypoint.sh\n1. Check DB exists\n2. initDb.ts if missing\n3. node dist/server.js"]
+            HEALTHCHECK["Healthcheck\n15s interval\nfetch 127.0.0.1:3001/health"]
+        end
+
+        subgraph WEB["lms-web"]
+            LMS_WEB["lms-web:80\nnginx:alpine\nMulti-stage build\nStatic files only"]
+        end
+    end
+
+    subgraph VOLUMES["Docker Volumes"]
+        VOL_DATA["lms-data\n/app/data\nSQLite + WAL + SHM"]
+        VOL_UPLOADS["lms-uploads\n/app/uploads\navatars, docs,\nimports, submissions"]
+    end
+
+    subgraph NETWORKS["Docker Networks"]
+        NET_DEFAULT["default\nbridge"]
+        NET_WEBSTACK["web-stack_default\nnginx proxy network"]
+        NET_MAIL["stalwart_bridge\nmail network"]
+    end
+
+    subgraph SECRETS["Secrets"]
+        ENV_FILE[".env file\nenv_file directive\nAccepted risk"]
+    end
+
+    subgraph CRON["Host Cron Jobs"]
+        DATA_CHECK["lms-data-check.sh\nEvery 6h\nHealth + row counts + CSV"]
+        DISK_ALERT["disk_alert.sh\nEvery 1h\n75 percent threshold"]
+    end
+
+    USER -->|"HTTPS"| NGINX_PROXY
+    NGINX_PROXY -->|"proxy_pass :3001"| LMS_API
+    NGINX_PROXY -->|"proxy_pass :80"| LMS_WEB
+
+    LMS_API --- VOL_DATA
+    LMS_API --- VOL_UPLOADS
+    LMS_API --- NET_DEFAULT
+    LMS_API --- NET_WEBSTACK
+    LMS_API --- NET_MAIL
+
+    LMS_WEB --- NET_WEBSTACK
+
+    ENV_FILE -.->|"env_file"| LMS_API
+
+    DATA_CHECK -.->|"docker exec"| LMS_API
+    DISK_ALERT -.->|"df check"| VOLUMES
+
+    style EXTERNAL fill:#e1f5fe,stroke:#0288d1
+    style PROXY fill:#fff3e0,stroke:#f57c00
+    style API fill:#fce4ec,stroke:#c62828
+    style WEB fill:#e8f5e9,stroke:#2e7d32
+    style VOLUMES fill:#f3e5f5,stroke:#7b1fa2
+    style CRON fill:#fff9c4,stroke:#f9a825
+    style SECRETS fill:#ffebee,stroke:#b71c1c
