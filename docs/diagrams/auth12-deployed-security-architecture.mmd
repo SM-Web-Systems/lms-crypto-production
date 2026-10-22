@@ -1,0 +1,85 @@
+flowchart TB
+    subgraph INTERNET["Internet"]
+        CLIENT["Client Browser / Mobile"]
+    end
+
+    subgraph HOST["Production Host"]
+        direction TB
+
+        subgraph NGINX["nginx_server (web-stack)"]
+            NG["Reverse Proxy\nTLS termination\nPort 80/443"]
+        end
+
+        subgraph LMS_STACK["LMS Stack (lms-ammawallet)"]
+            direction TB
+
+            subgraph API_CONTAINER["lms-api (hardened)"]
+                direction TB
+                API_SEC["SEC-INFRA-01: USER node (uid=1000)\nSEC-INFRA-02: read_only: true\nNo new process privileges"]
+                API_PROC["Node.js Process\nPID 1 as node:node\nPort 3001 (internal)"]
+                API_HEALTH["Healthcheck\nfetch http://127.0.0.1:3001/health\nInterval: 15s, Retries: 5"]
+            end
+
+            subgraph API_FS["API Filesystem Mounts"]
+                direction TB
+                FS_RO["/app — READ ONLY\nApplication code\nnode_modules, dist/"]
+                FS_DATA["/app/data — Named Volume\nlms-data (node:node)\nstudent_ms.db + WAL + SHM"]
+                FS_UPLOADS["/app/uploads — Named Volume\nlms-uploads (node:node)\navatars/ documents/ imports/ submissions/"]
+                FS_TMP["/tmp — tmpfs 64MB\nEphemeral scratch"]
+                FS_NPM["/home/node/.npm — tmpfs 16MB\nEphemeral npm cache"]
+            end
+
+            subgraph WEB_CONTAINER["lms-web (unchanged)"]
+                WEB["nginx static server\nFrontend assets\nPort 80 (internal)"]
+            end
+        end
+
+        subgraph MONITORING["Durable Monitoring"]
+            direction TB
+            MON_HEALTH["lms-health-monitor.sh\nCron */5 * * * *\n7 health dimensions"]
+            MON_DEADMAN["lms-deadman-check.sh\nCron */15 * * * *\nHeartbeat staleness"]
+            MON_HB["Heartbeat File\n/home/webadmin/logs/\nlms-monitor-heartbeat"]
+            MON_CSV["CSV History\n/home/webadmin/logs/\nlms-health-monitor.csv"]
+        end
+
+        subgraph BACKUP["Backup Infrastructure"]
+            direction TB
+            BK_DAILY["Daily Backup 03:00\nsqlite3 .backup\nWAL-consistent"]
+            BK_MEDIA["Media Backup 03:45\nbackup-media.sh"]
+            BK_ROLLBACK["Rollback Images\npre-auth11-rollback tags\nPrevious root-running images"]
+        end
+    end
+
+    subgraph EMAIL["Email Alerting"]
+        MSMTP["msmtp → mail.smwebsystems.com:465\nTLS encrypted\nAlert: mukhtar.meer@smwebsystems.com"]
+    end
+
+    CLIENT -->|"HTTPS"| NG
+    NG -->|"proxy_pass /api/"| API_PROC
+    NG -->|"proxy_pass /"| WEB
+
+    API_PROC --> FS_DATA
+    API_PROC --> FS_UPLOADS
+    API_PROC --> FS_TMP
+
+    MON_HEALTH -->|"writes"| MON_HB
+    MON_HEALTH -->|"appends"| MON_CSV
+    MON_DEADMAN -->|"reads mtime"| MON_HB
+    MON_HEALTH -->|"on failure"| MSMTP
+    MON_DEADMAN -->|"on stale"| MSMTP
+
+    BK_DAILY -->|"reads"| FS_DATA
+    BK_ROLLBACK -.->|"restores"| API_CONTAINER
+
+    style INTERNET fill:#e3f2fd,stroke:#1565c0
+    style API_CONTAINER fill:#e8f5e9,stroke:#2e7d32
+    style API_FS fill:#fff9c4,stroke:#f9a825
+    style WEB_CONTAINER fill:#f3e5f5,stroke:#7b1fa2
+    style MONITORING fill:#fff3e0,stroke:#ef6c00
+    style BACKUP fill:#e0f2f1,stroke:#00695c
+    style EMAIL fill:#fce4ec,stroke:#c62828
+    style FS_RO fill:#ffcdd2,stroke:#b71c1c
+    style FS_DATA fill:#c8e6c9,stroke:#2e7d32
+    style FS_UPLOADS fill:#c8e6c9,stroke:#2e7d32
+    style FS_TMP fill:#e1f5fe,stroke:#0277bd
+    style FS_NPM fill:#e1f5fe,stroke:#0277bd
