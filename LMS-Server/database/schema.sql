@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_reset_token TEXT,
   password_reset_expires_at TEXT,
   password_changed_at TEXT,
+  authorization_version INTEGER NOT NULL DEFAULT 0,
   reward_balance_legacy_real REAL DEFAULT 0,
   -- Account deletion columns
   deletion_status TEXT DEFAULT NULL CHECK (deletion_status IN ('pending_deletion', 'finalized', 'legal_hold')),

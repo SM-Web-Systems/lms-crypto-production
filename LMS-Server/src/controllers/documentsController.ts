@@ -1,5 +1,7 @@
 import { Response, NextFunction } from 'express';
 import path from 'path';
+import { getUserPermissions } from '../middleware/rbac.js';
+import { canAccessCourse } from '../services/courseAccessService.js';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
@@ -43,27 +45,10 @@ function parseCourseIdsFromBody(raw: unknown): string | null {
   return arr.length > 0 ? JSON.stringify(arr) : null;
 }
 
-function getUserCourseCodes(userId: string): string[] {
-  const rows = query<{ course_code: string }>(
-    'SELECT course_code FROM user_course_codes WHERE user_id = ?',
-    [userId]
-  );
-  return rows.map((r) => r.course_code);
-}
-
-function userCanAccessDocument(
-  docCourseIds: string[],
-  userCourseCodes: string[],
-  isAdmin: boolean
-): boolean {
-  if (isAdmin) return true;
-  if (docCourseIds.length === 0) return true;
-  const codesForDocCourses = query<{ course_code: string }>(
-    `SELECT course_code FROM courses WHERE id IN (${docCourseIds.map(() => '?').join(',')})`,
-    docCourseIds
-  );
-  const codesSet = new Set(codesForDocCourses.map((r) => r.course_code));
-  return userCourseCodes.some((c) => codesSet.has(c));
+function userCanAccessDocument(docCourseIds: string[], userId: string): boolean {
+  const permissions = new Set(getUserPermissions(userId));
+  if (!permissions.has('document.view')) return false;
+  return !docCourseIds.length || docCourseIds.some(id => canAccessCourse(userId, id, permissions));
 }
 
 // Default categories
@@ -103,7 +88,6 @@ export async function getDocuments(req: AuthRequest, res: Response, next: NextFu
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const category = req.query.category as string;
     const search = req.query.search as string;
-    const isAdmin = req.user?.role === 'admin';
     const userId = req.user?.userId;
 
     const conditions: string[] = [];
@@ -127,11 +111,10 @@ export async function getDocuments(req: AuthRequest, res: Response, next: NextFu
       params
     );
 
-    if (!isAdmin && userId) {
-      const userCodes = getUserCourseCodes(userId);
+    if (userId) {
       allDocs = allDocs.filter((d) => {
         const docCourseIds = parseCourseIds(d.course_ids);
-        return userCanAccessDocument(docCourseIds, userCodes, false);
+        return userCanAccessDocument(docCourseIds, userId);
       });
     }
 
@@ -159,7 +142,6 @@ export async function getDocuments(req: AuthRequest, res: Response, next: NextFu
 export async function getDocument(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const isAdmin = req.user?.role === 'admin';
     const userId = req.user?.userId;
 
     const document = queryOne<CourseDocument & { uploader_name: string }>(
@@ -174,10 +156,9 @@ export async function getDocument(req: AuthRequest, res: Response, next: NextFun
       throw new AppError('Document not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    if (!isAdmin && userId) {
+    if (userId) {
       const docCourseIds = parseCourseIds(document.course_ids);
-      const userCodes = getUserCourseCodes(userId);
-      if (!userCanAccessDocument(docCourseIds, userCodes, false)) {
+      if (!userCanAccessDocument(docCourseIds, userId)) {
         throw new AppError('You do not have access to this document', 403, ErrorCodes.FORBIDDEN);
       }
     }
@@ -400,7 +381,6 @@ export async function deleteDocument(req: AuthRequest, res: Response, next: Next
 export async function downloadDocument(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const isAdmin = req.user?.role === 'admin';
     const userId = req.user?.userId;
 
     const document = queryOne<CourseDocument>(
@@ -412,10 +392,9 @@ export async function downloadDocument(req: AuthRequest, res: Response, next: Ne
       throw new AppError('Document not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    if (!isAdmin && userId) {
+    if (userId) {
       const docCourseIds = parseCourseIds(document.course_ids);
-      const userCodes = getUserCourseCodes(userId);
-      if (!userCanAccessDocument(docCourseIds, userCodes, false)) {
+      if (!userCanAccessDocument(docCourseIds, userId)) {
         throw new AppError('You do not have access to this document', 403, ErrorCodes.FORBIDDEN);
       }
     }

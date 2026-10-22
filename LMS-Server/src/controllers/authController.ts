@@ -2,12 +2,14 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { query, queryOne, execute, createSession } from "../config/database.js";
+import { db, query, queryOne, execute, createSession, hashToken } from "../config/database.js";
+import { invalidateAuthorization } from '../services/roleSecurityService.js';
 import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student, LegacyRole } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { createUserWallet } from "../services/walletService.js";
 import { getUserRoles } from "../middleware/rbac.js";
+import { getAuthorizationContext } from '../services/authorizationService.js';
 import { sendPasswordResetEmail } from "../services/emailService.js";
 import {
   buildSsoInitiateUrl,
@@ -31,7 +33,7 @@ function recordLoginHistory(userId: string, req: Request, authMethod: 'local' | 
   }
 }
 
-/** Emails (comma-separated in ADMIN_EMAILS) that should be granted admin automatically. */
+/** Initial administrator provisioning for new accounts only. */
 function isAdminEmail(email: string): boolean {
   const raw = process.env.ADMIN_EMAILS?.trim();
   if (!raw) return false;
@@ -44,7 +46,7 @@ function isAdminEmail(email: string): boolean {
   return set.has(email.toLowerCase());
 }
 
-/** Emails (comma-separated in LECTURER_EMAILS) promoted to lecturer on login/register. */
+/** Initial lecturer provisioning for new accounts only. */
 function isLecturerEmail(email: string): boolean {
   const raw = process.env.LECTURER_EMAILS?.trim();
   if (!raw) return false;
@@ -133,21 +135,9 @@ export async function login(
       );
     }
 
-    // Auto-promote listed admin/lecturer emails so the role stays in sync on each login.
-    let role = user.role;
-    if (role !== "admin" && isAdminEmail(user.email)) {
-      execute(
-        "UPDATE users SET role = 'admin', updated_at = datetime('now') WHERE id = ?",
-        [user.id],
-      );
-      role = "admin";
-    } else if (role === "student" && isLecturerEmail(user.email)) {
-      execute(
-        "UPDATE users SET role = 'lecturer', updated_at = datetime('now') WHERE id = ?",
-        [user.id],
-      );
-      role = "lecturer";
-    }
+    // Existing accounts are governed by role management, not provisioning lists.
+    // Reapplying ADMIN_EMAILS here would undo an intentional demotion on login.
+    const role = user.role;
 
     // Get studentId if user is a student
     let studentId: string | undefined;
@@ -198,7 +188,8 @@ export async function login(
           role,
           walletAddress: user.walletAddress,
           walletLinkingStatus: user.wallet_linking_status,
-          courseCodes: getUserCourseCodes(user.id)
+          courseCodes: getUserCourseCodes(user.id),
+          ...getAuthorizationContext(user.id),
         },
       },
     });
@@ -325,6 +316,7 @@ export async function register(
           walletAddress,
           walletLinkingStatus,
           courseCodes: getUserCourseCodes(userId),
+          ...getAuthorizationContext(userId),
         },
       },
     });
@@ -333,8 +325,12 @@ export async function register(
   }
 }
 
-export async function logout(_req: AuthRequest, res: Response): Promise<void> {
-  // For stateless JWT, logout is handled client-side
+export async function logout(req: AuthRequest, res: Response): Promise<void> {
+  const token = req.headers.authorization!.slice(7);
+  const expiresAt = new Date((req.user!.exp ?? Math.floor(Date.now() / 1000) + 86400) * 1000).toISOString();
+  execute(`INSERT INTO active_sessions (id,user_id,token_hash,expires_at,revoked_at)
+    VALUES (?,?,?,?,datetime('now')) ON CONFLICT(token_hash) DO UPDATE SET revoked_at = datetime('now')`,
+    [uuidv4(),req.user!.userId,hashToken(token),expiresAt]);
   res.json({
     success: true,
     message: "Logged out successfully",
@@ -356,20 +352,13 @@ export async function getMe(
     }
 
     const user = queryOne<User>(
-      "SELECT id, name, email, role, walletAddress, wallet_linking_status FROM users WHERE id = ?",
+      "SELECT id, name, email, role, walletAddress, wallet_linking_status, deletion_status FROM users WHERE id = ?",
       [req.user.userId],
     );
 
     if (!user) {
       throw new AppError("User not found", 404, ErrorCodes.NOT_FOUND);
     }
-
-    // Derive admin tier from RBAC roles for frontend UI differentiation
-    const rbacRoles = getUserRoles(user.id);
-    let adminTier: string | null = null;
-    if (rbacRoles.includes('super-admin')) adminTier = 'super-admin';
-    else if (rbacRoles.includes('admin-2')) adminTier = 'admin-2';
-    else if (rbacRoles.includes('admin')) adminTier = 'admin';
 
     res.json({
       success: true,
@@ -381,8 +370,7 @@ export async function getMe(
         walletAddress: user.walletAddress,
         walletLinkingStatus: user.wallet_linking_status,
         courseCodes: getUserCourseCodes(user.id),
-        rbacRoles,
-        adminTier,
+        ...getAuthorizationContext(user.id),
       },
     });
   } catch (error) {
@@ -494,16 +482,20 @@ export async function resetPassword(
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    execute(
-      `UPDATE users SET
+    db.transaction(() => {
+      execute(
+        `UPDATE users SET
          password_hash = ?,
          password_reset_token = NULL,
          password_reset_expires_at = NULL,
          password_changed_at = datetime('now'),
          updated_at = datetime('now')
        WHERE id = ?`,
-      [passwordHash, user.id],
-    );
+        [passwordHash, user.id],
+      );
+      // Versions also invalidate tokens issued in the same second as this reset.
+      invalidateAuthorization(user.id);
+    })();
 
     res.json({
       success: true,
@@ -593,7 +585,7 @@ export async function ammaCallback(
       [email],
     );
 
-    const role: LegacyRole = isAdminEmail(email) ? 'admin' : isLecturerEmail(email) ? 'lecturer' : (user?.role ?? 'student');
+    const role: LegacyRole = user?.role ?? (isAdminEmail(email) ? 'admin' : isLecturerEmail(email) ? 'lecturer' : 'student');
     let userId: string;
     let studentId: string | undefined;
 
@@ -621,14 +613,6 @@ export async function ammaCallback(
              updated_at         = datetime('now')
            WHERE id = ?`,
           [ammaUser.userId, userId],
-        );
-      }
-
-      // Auto-promote to admin/lecturer if email matches ADMIN_EMAILS / LECTURER_EMAILS
-      if (role !== user.role) {
-        execute(
-          "UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?",
-          [role, userId],
         );
       }
 

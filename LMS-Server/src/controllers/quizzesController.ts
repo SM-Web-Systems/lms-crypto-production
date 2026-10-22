@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { getUserPermissions } from '../middleware/rbac.js';
+import { canAccessCourse } from '../services/courseAccessService.js';
+import { searchDirectoryScope } from '../services/searchScopeService.js';
 import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
 import { findQuizItemInCourse } from '../utils/courseHelpers.js';
 import logger from '../utils/logger.js';
@@ -30,6 +33,27 @@ interface QuizRow {
   questions: string;
   created_at: string;
   updated_at: string;
+}
+
+function canReadQuiz(userId: string, row: QuizRow): boolean {
+  const permissions = new Set(getUserPermissions(userId));
+  return permissions.has('quiz.view') && (!row.course_id || (permissions.has('course.view') && canAccessCourse(userId,row.course_id,permissions)));
+}
+function canReadAnswerKeys(userId: string, row: QuizRow): boolean {
+  const permissions = new Set(getUserPermissions(userId));
+  return permissions.has('quiz.manage') && (row.course_id ? canAccessCourse(userId,row.course_id,permissions,'manage') : permissions.has('course.delete'));
+}
+
+function canReadCompletion(actorId: string, targetId: string, quizId: string): boolean {
+  if (actorId === targetId) return true;
+  const permissions = new Set(getUserPermissions(actorId));
+  if (!permissions.has('quiz.view_analytics')) return false;
+  const quiz = queryOne<QuizRow>('SELECT * FROM quizzes WHERE id = ?', [quizId]);
+  if (!quiz) return false;
+  if (quiz.course_id) return canAccessCourse(actorId, quiz.course_id, permissions, 'staff');
+  if (!permissions.has('course.delete')) return false;
+  const scope = searchDirectoryScope(actorId, permissions);
+  return !!queryOne('SELECT u.id FROM users u WHERE u.id = ? AND ' + scope.sql, [targetId, ...scope.params]);
 }
 
 interface QuizCompletionRow {
@@ -168,11 +192,11 @@ function validateQuestions(questions: unknown): QuizQuestion[] {
 export async function listQuizzes(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const rows = query<QuizRow>('SELECT * FROM quizzes ORDER BY updated_at DESC');
-    const role = (_req as AuthRequest).user?.role;
-    const quizzes = rows.map(rowToQuiz);
+    const userId = _req.user!.userId;
+    const quizzes = rows.filter(row => canReadQuiz(userId,row)).map(row => canReadAnswerKeys(userId,row) ? rowToQuiz(row) : stripAnswerKeys(rowToQuiz(row)));
     res.json({
       success: true,
-      data: { quizzes: role === 'admin' || role === 'lecturer' ? quizzes : quizzes.map(stripAnswerKeys) },
+      data: { quizzes },
     });
   } catch (error) {
     next(error);
@@ -186,11 +210,11 @@ export async function getQuiz(req: AuthRequest, res: Response, next: NextFunctio
     if (!row) {
       throw new AppError('Quiz not found', 404, ErrorCodes.NOT_FOUND);
     }
-    const role = req.user?.role;
+    if (!canReadQuiz(req.user!.userId,row)) throw new AppError('You do not have access to this quiz',403,ErrorCodes.FORBIDDEN);
     const quiz = rowToQuiz(row);
     res.json({
       success: true,
-      data: role === 'admin' || role === 'lecturer' ? quiz : stripAnswerKeys(quiz),
+      data: canReadAnswerKeys(req.user!.userId,row) ? quiz : stripAnswerKeys(quiz),
     });
   } catch (error) {
     next(error);
@@ -341,9 +365,7 @@ export async function getCompletionsForUser(req: AuthRequest, res: Response, nex
       throw new AppError('userId query parameter is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
-    // Students can only query their own completions
-    const role = req.user?.role;
-    if (role === 'student' && userId.trim() !== req.user?.userId) {
+    if (userId.trim() !== req.user!.userId && !getUserPermissions(req.user!.userId).includes('quiz.view_analytics')) {
       throw new AppError('You can only view your own quiz completions', 403, ErrorCodes.FORBIDDEN);
     }
 
@@ -354,7 +376,7 @@ export async function getCompletionsForUser(req: AuthRequest, res: Response, nex
 
     res.json({
       success: true,
-      data: { completions: rows.map(rowToCompletion) },
+      data: { completions: rows.filter(row => canReadCompletion(req.user!.userId, userId.trim(), row.quiz_id)).map(rowToCompletion) },
     });
   } catch (error) {
     next(error);
@@ -369,10 +391,8 @@ export async function getCompletion(req: AuthRequest, res: Response, next: NextF
       throw new AppError('userId query parameter is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
-    // Students can only query their own completions
-    const role = req.user?.role;
-    if (role === 'student' && userId.trim() !== req.user?.userId) {
-      throw new AppError('You can only view your own quiz completions', 403, ErrorCodes.FORBIDDEN);
+    if (!canReadCompletion(req.user!.userId, userId.trim(), quizId)) {
+      throw new AppError('You cannot view these quiz completions', 403, ErrorCodes.FORBIDDEN);
     }
 
     const row = queryOne<QuizCompletionRow>(
@@ -433,8 +453,10 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
           const match = findQuizItemInCourse(course.sections, quizId);
           if (match) {
             execute(
-              `INSERT OR IGNORE INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by)
-               VALUES (?, ?, ?, ?, ?, NULL)`,
+              `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+               VALUES (?, ?, ?, ?, ?, NULL, 100)
+               ON CONFLICT (user_id, course_id, item_id) DO UPDATE SET
+                 completed_at = COALESCE(lesson_completions.completed_at, datetime('now')), progress_pct = 100`,
               [uuidv4(), userId, quiz.course_id, match.itemId, match.sectionId]
             );
           }
@@ -495,9 +517,9 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
 }
 
 /** Admin-only: structured answer-key export for all quizzes. */
-export async function getAnswerKeys(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function getAnswerKeys(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const rows = query<QuizRow>('SELECT * FROM quizzes ORDER BY title ASC');
+    const rows = query<QuizRow>('SELECT * FROM quizzes ORDER BY title ASC').filter(row => canReadAnswerKeys(req.user!.userId, row));
     const courseIds = [...new Set(rows.map((r) => r.course_id).filter(Boolean))] as string[];
     const courseTitles: Record<string, string> = {};
     for (const cid of courseIds) {

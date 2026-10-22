@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { queryOne } from '../config/database.js';
+import { getAuthorizationContext } from '../services/authorizationService.js';
 import {
   createDeletionRequest,
   cancelDeletionRequest,
@@ -44,7 +45,7 @@ router.post('/delete', (req: AuthRequest, res: Response, next: NextFunction) => 
     if (!userId) throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
 
     // Admins cannot self-delete
-    if (req.user?.role === 'admin') {
+    if (getAuthorizationContext(userId).workspaces.includes('admin')) {
       throw new AppError('Administrators cannot delete their own accounts', 403, ErrorCodes.FORBIDDEN);
     }
 

@@ -5,24 +5,14 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission, getUserRoles } from '../middleware/rbac.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { auditLog } from '../services/auditService.js';
+import { revokeUserRole, ROLE_PRIVILEGE_LEVEL, assertCanModifyUser, getRoleManagementOptions } from '../services/roleSecurityService.js';
 
 const router = Router();
 
-// Privilege hierarchy for escalation guards
-const ROLE_PRIVILEGE_LEVEL: Record<string, number> = {
-  'super-admin': 100,
-  'admin-2': 90,
-  'admin': 80,
-  'instructor': 70,
-  'sponsor': 60,
-  'employer': 50,
-  'teacher': 50,
-  'parent': 50,
-  'super-student': 20,
-  'teaching-assistant': 15,
-  'student': 10,
-  'custom-user': 10,
-};
+router.get('/users/:id/role-options', authenticate, requirePermission('user.assign_role'), (req: AuthRequest, res: Response, next) => {
+  try { res.json({success: true, data: getRoleManagementOptions(req.user!.userId, req.params.id)}); }
+  catch (error) { next(error); }
+});
 
 function getHighestPrivilegeLevel(roles: string[]): number {
   return Math.max(0, ...roles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
@@ -496,6 +486,17 @@ router.post(
       return;
     }
 
+    // The target-user boundary must match the options shown by the admin UI.
+    if (!queryOne('SELECT id FROM users WHERE id = ?', [req.params.id])) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'User not found' } });
+      return;
+    }
+    try { assertCanModifyUser(req.user!.userId, req.params.id); }
+    catch {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Cannot modify roles of a user with equal or higher privilege' } });
+      return;
+    }
+
     // ESC-1/ESC-2: Cannot assign a role higher than your own
     const assignerRoles = getUserRoles(req.user!.userId);
     const assignerLevel = getHighestPrivilegeLevel(assignerRoles);
@@ -550,7 +551,7 @@ router.delete(
   '/users/:id/roles/:roleId',
   authenticate,
   requirePermission('user.assign_role'),
-  (req: AuthRequest, res: Response) => {
+  (req: AuthRequest, res: Response, next) => {
     // ESC-5: Cannot modify own roles
     if (req.params.id === req.user!.userId) {
       res.status(403).json({
@@ -560,21 +561,11 @@ router.delete(
       return;
     }
 
-    // Look up role name before deletion for audit trail
-    const removedRole = queryOne<{ name: string }>(
-      'SELECT r.name FROM roles r WHERE r.id = ?', [req.params.roleId],
-    );
-
-    const changes = execute(
-      'DELETE FROM user_roles WHERE user_id = ? AND role_id = ?',
-      [req.params.id, req.params.roleId],
-    );
-
-    if (changes === 0) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'User role assignment not found' },
-      });
+    let removedRole: string;
+    try {
+      removedRole = revokeUserRole(req.user!.userId, req.params.id, req.params.roleId);
+    } catch (error) {
+      next(error);
       return;
     }
 
@@ -582,7 +573,7 @@ router.delete(
       action: 'rbac.role_removed',
       actorId: req.user!.userId,
       targetId: req.params.id,
-      details: `roleId=${req.params.roleId} roleName=${removedRole?.name ?? 'unknown'}`,
+      details: `roleId=${req.params.roleId} roleName=${removedRole}`,
     });
 
     res.json({ success: true, message: 'Role removed' });

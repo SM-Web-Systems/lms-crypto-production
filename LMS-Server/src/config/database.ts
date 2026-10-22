@@ -112,6 +112,7 @@ function ensureLecturerRole(): void {
   db.pragma('foreign_keys = ON');
 }
 ensureLecturerRole();
+ensureAuthorizationVersionColumn();
 
 /** A1-fix — repair stale "_users_old" FK references caused by ensureLecturerRole().
  *  SQLite ≥3.26.0 auto-rewrote FK text in 13 tables when "ALTER TABLE users RENAME TO _users_old"
@@ -1350,7 +1351,7 @@ export function seedRbacData(): void {
       'perm_session_manage_own',
     ],
     role_sponsor: [
-      'perm_course_view',
+      'perm_course_view', 'perm_billing_view_own',
       'perm_billing_view_all', 'perm_billing_pay_student', 'perm_wallet_fund',
       'perm_user_view_self',
       'perm_student_view_assigned', 'perm_student_login_history',
@@ -1549,7 +1550,8 @@ export function migrateUsersToRbac(): void {
     admin: 'role_admin',
   };
 
-  const users = db.prepare('SELECT id, role, email FROM users').all() as Array<{
+  // Do not resurrect grants deliberately changed/revoked through role management.
+  const users = db.prepare('SELECT id, role, email FROM users WHERE authorization_version = 0').all() as Array<{
     id: string; role: string; email: string;
   }>;
 
@@ -2214,6 +2216,14 @@ function ensureDeletionColumns(): void {
   }
 }
 ensureDeletionColumns();
+
+/** Invalidate every previously issued JWT after an effective role change. */
+export function ensureAuthorizationVersionColumn(): void {
+  const columns = db.pragma('table_info(users)') as Array<{ name: string }>;
+  if (columns.length && !columns.some(c => c.name === 'authorization_version')) {
+    db.exec('ALTER TABLE users ADD COLUMN authorization_version INTEGER NOT NULL DEFAULT 0');
+  }
+}
 
 function ensureMessageSoftDeleteColumns(): void {
   const hasTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_messages'").get();
