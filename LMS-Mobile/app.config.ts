@@ -37,6 +37,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     predictiveBackGestureEnabled: false,
     permissions: ['INTERNET'],
+    blockedPermissions: ['android.permission.RECORD_AUDIO'],
   },
   web: {
     output: 'static',
@@ -55,6 +56,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     'expo-secure-store',
     'expo-video',
+    ['expo-audio', { microphonePermission: false, recordAudioAndroid: false }],
     [
       'expo-image-picker',
       {

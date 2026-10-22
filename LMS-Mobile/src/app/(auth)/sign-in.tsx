@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getErrorMessage } from '@/utils/apiError';
 
 export default function SignInScreen() {
-  const { login } = useAuth();
+  const { login, sessionNotice } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,8 +50,10 @@ export default function SignInScreen() {
           </View>
 
           <View className="gap-4">
+            {sessionNotice ? <Text accessibilityRole="alert" className="text-amber-800">{sessionNotice}</Text> : null}
             <Input
               label="Email"
+              accessibilityLabel="Email"
               value={email}
               onChangeText={setEmail}
               placeholder="you@example.com"
@@ -62,6 +64,7 @@ export default function SignInScreen() {
             />
             <Input
               label="Password"
+              accessibilityLabel="Password"
               value={password}
               onChangeText={setPassword}
               placeholder="Your password"
@@ -70,8 +73,9 @@ export default function SignInScreen() {
               textContentType="password"
             />
 
-            {error ? <Text className="text-sm text-red-500">{error}</Text> : null}
+            {error ? <Text accessibilityRole="alert" className="text-sm text-red-500">{error}</Text> : null}
 
+            <Link href="/(auth)/forgot-password" className="text-sm font-semibold text-accent-teal">Forgot password?</Link>
             <Button label="Sign in" onPress={onSubmit} loading={submitting} size="lg" />
           </View>
 
