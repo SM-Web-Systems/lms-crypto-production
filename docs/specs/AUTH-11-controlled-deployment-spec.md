@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-22
 **Author:** Claude (automated)
-**Status:** DRAFT
+**Status:** DEPLOYED — 2026-10-22T12:37:23Z
 **Predecessor:** AUTH-10 (Infrastructure Hardening Specification)
 **PR:** #76 (merge commit `8abf282`)
 **Type:** Infrastructure deployment (no new code changes)
