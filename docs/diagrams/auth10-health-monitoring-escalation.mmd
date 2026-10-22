@@ -1,0 +1,83 @@
+flowchart TB
+    subgraph DOCKER_HEALTH["Docker Healthcheck — 15s interval"]
+        DH1["node fetch http://127.0.0.1:3001/health"]
+        DH2{"Response OK?"}
+        DH3["Status: healthy"]
+        DH4["Status: unhealthy\nafter 3 retries"]
+        DH5["Docker restart policy triggers"]
+
+        DH1 --> DH2
+        DH2 -->|"yes"| DH3
+        DH2 -->|"no"| DH4
+        DH4 --> DH5
+    end
+
+    subgraph DATA_CHECK["lms-data-check.sh — 6h cron"]
+        DC1["Check container health status"]
+        DC2["Query SQLite row counts"]
+        DC3["Append to CSV history"]
+        DC4{"All checks pass?"}
+        DC5["Log: OK"]
+        DC6["Alert: data anomaly detected"]
+
+        DC1 --> DC2 --> DC3 --> DC4
+        DC4 -->|"yes"| DC5
+        DC4 -->|"no"| DC6
+    end
+
+    subgraph DISK_ALERT["disk_alert.sh — 1h cron"]
+        DA1["Check disk usage: df"]
+        DA2{"Usage above 75 percent?"}
+        DA3["No action"]
+        DA4["Send email alert"]
+
+        DA1 --> DA2
+        DA2 -->|"no"| DA3
+        DA2 -->|"yes"| DA4
+    end
+
+    subgraph PROPOSED_EXTERNAL["PROPOSED: External Monitoring"]
+        EXT1["External HTTP probe\nfrom outside host"]
+        EXT2{"HTTPS reachable?"}
+        EXT3["Log: reachable"]
+        EXT4["Escalate: site down"]
+
+        EXT1 --> EXT2
+        EXT2 -->|"yes"| EXT3
+        EXT2 -->|"no"| EXT4
+    end
+
+    subgraph DEAD_MAN["PROPOSED: Dead-Man Check"]
+        DM1["Monitoring service expects\nperiodic heartbeat ping"]
+        DM2{"Heartbeat received\nwithin window?"}
+        DM3["All clear"]
+        DM4["Alert: host or cron\nmay be down"]
+
+        DM1 --> DM2
+        DM2 -->|"yes"| DM3
+        DM2 -->|"no"| DM4
+    end
+
+    subgraph ESCALATION["Escalation Paths"]
+        E_LOG["Level 1: Log entry\nDocker logs, CSV history"]
+        E_RESTART["Level 2: Auto restart\nDocker restart policy"]
+        E_EMAIL["Level 3: Email alert\ndisk_alert, data anomaly"]
+        E_EXTERNAL["Level 4: External alert\nSite unreachable"]
+        E_DEADMAN["Level 5: Dead-man alert\nHost or cron failure"]
+
+        E_LOG --> E_RESTART --> E_EMAIL --> E_EXTERNAL --> E_DEADMAN
+    end
+
+    DH3 -.-> E_LOG
+    DH5 -.-> E_RESTART
+    DC6 -.-> E_EMAIL
+    DA4 -.-> E_EMAIL
+    EXT4 -.-> E_EXTERNAL
+    DM4 -.-> E_DEADMAN
+
+    style DOCKER_HEALTH fill:#e3f2fd,stroke:#1565c0
+    style DATA_CHECK fill:#e8f5e9,stroke:#2e7d32
+    style DISK_ALERT fill:#fff3e0,stroke:#ef6c00
+    style PROPOSED_EXTERNAL fill:#f3e5f5,stroke:#7b1fa2
+    style DEAD_MAN fill:#fce4ec,stroke:#c62828
+    style ESCALATION fill:#fff9c4,stroke:#f9a825
