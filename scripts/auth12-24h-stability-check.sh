@@ -85,12 +85,12 @@ PASS=true
 [ "$(docker inspect --format='{{.RestartCount}}' lms-api 2>/dev/null)" != "0" ] && PASS=false && echo "FAIL: Non-zero restarts"
 [ "$ERRORS" -gt 0 ] && PASS=false && echo "FAIL: Errors found in logs ($ERRORS)"
 [ "$NON_OK" -gt 0 ] && PASS=false && echo "FAIL: Non-OK monitoring entries ($NON_OK)"
-[ "$ELAPSED_SEC" -lt 86400 ] && echo "CONDITION: Only ${ELAPSED_HOURS}h of 24h elapsed"
-
-if $PASS; then
-  echo "24-HOUR STABILITY: PASS"
-else
+if ! $PASS; then
   echo "24-HOUR STABILITY: FAIL — see above"
+elif [ "$ELAPSED_SEC" -lt 86400 ]; then
+  echo "24-HOUR STABILITY: PENDING — only ${ELAPSED_HOURS}h elapsed"
+else
+  echo "24-HOUR STABILITY: PENDING REVIEW — 24h complete; validate monitoring coverage, backup, SHA and security controls before final PASS"
 fi
 } | tee "$REPORT_FILE"
 
