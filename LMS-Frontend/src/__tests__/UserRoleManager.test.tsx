@@ -24,6 +24,7 @@ vi.mock('../services/rbacService', () => ({
   rbacService: {
     getRoles: vi.fn(),
     getUserRoles: vi.fn(),
+    getRoleOptions: vi.fn(),
     assignUserRole: vi.fn(),
     removeUserRole: vi.fn(),
   },
@@ -61,6 +62,7 @@ beforeEach(() => {
   (usersService.getUsers as Mock).mockResolvedValue(USERS);
   (rbacService.getRoles as Mock).mockResolvedValue(ROLES);
   (rbacService.getUserRoles as Mock).mockResolvedValue(BOB_ROLES);
+  (rbacService.getRoleOptions as Mock).mockResolvedValue({canModify:true,reason:null,assignableRoles:ROLES.filter(r => r.id !== 'r2'),revocableRoleIds:['r2']});
   (rbacService.assignUserRole as Mock).mockResolvedValue(undefined);
   (rbacService.removeUserRole as Mock).mockResolvedValue(undefined);
 });
@@ -68,6 +70,27 @@ beforeEach(() => {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('UserRoleManager', () => {
+  it('shows no mutation actions for a peer target and does not request the global role catalogue', async () => {
+    (rbacService.getRoleOptions as Mock).mockResolvedValueOnce({canModify:false,reason:'Peer roles cannot be changed.',assignableRoles:[],revocableRoleIds:[]});
+    renderComponent();
+    await waitFor(()=>expect(screen.getByText('Bob Student')).toBeInTheDocument());
+    const row=screen.getByText('Bob Student').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button',{name:/manage roles/i}));
+    await waitFor(()=>expect(screen.getByText('Peer roles cannot be changed.')).toBeInTheDocument());
+    expect(screen.queryByRole('combobox',{name:/role/i})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/remove.*student/i})).not.toBeInTheDocument();
+    expect(rbacService.getRoles).not.toHaveBeenCalled();
+  });
+  it('does not expose role actions if the server cannot provide allowed options', async () => {
+    (rbacService.getRoleOptions as Mock).mockRejectedValueOnce(new Error('Role options unavailable'));
+    renderComponent();
+    await waitFor(()=>expect(screen.getByText('Bob Student')).toBeInTheDocument());
+    const row=screen.getByText('Bob Student').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button',{name:/manage roles/i}));
+    await waitFor(()=>expect(screen.getByText('Role options unavailable')).toBeInTheDocument());
+    expect(screen.queryByRole('combobox',{name:/role/i})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:/remove.*student/i})).not.toBeInTheDocument();
+  });
   // URM-01: Component renders and loads users
   it('URM-01: renders loading state then displays user list', async () => {
     renderComponent();
@@ -305,7 +328,7 @@ describe('UserRoleManager', () => {
 
     // Should show the privilege boundary note
     expect(
-      screen.getByText(/the backend enforces role privilege boundaries/i),
+      screen.getByText(/only role changes available to you are shown/i),
     ).toBeTruthy();
   });
 

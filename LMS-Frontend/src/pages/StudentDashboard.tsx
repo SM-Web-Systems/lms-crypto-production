@@ -39,7 +39,7 @@ const StudentDashboard: React.FC = () => {
   const [appStatusMap, setAppStatusMap] = useState<Record<string, NftApplication | null>>({});
 
   useEffect(() => {
-    fetchSubmissions();
+    fetchSubmissions({view: 'own'});
   }, [fetchSubmissions]);
 
   useEffect(() => {
@@ -66,14 +66,14 @@ const StudentDashboard: React.FC = () => {
       return;
     }
     let cancelled = false;
-    courseService.fetchCourses().then(async (list) => {
+    courseService.fetchCourses({access: 'enrolled'}).then(async (list) => {
       if (cancelled) return;
       setCourses(list);
       const results = await Promise.all(
         list.map(async (c) => {
           const [prog, apps] = await Promise.all([
             courseCompletionService.getCourseProgress(c.id).catch(() => null),
-            courseCompletionService.getCourseApplications(c.id).catch(() => [] as NftApplication[]),
+            courseCompletionService.getCourseApplications(c.id, 'own').catch(() => [] as NftApplication[]),
           ]);
           return { id: c.id, prog, app: apps.length > 0 ? apps[0] : null };
         })
@@ -141,7 +141,7 @@ const StudentDashboard: React.FC = () => {
       <div className="rounded-xl border border-red-200/90 bg-red-50 px-4 py-4 text-red-900 shadow-sm">
         <p className="font-medium">Couldn't load your dashboard</p>
         <p className="text-sm mt-1 text-red-800/90">{submissionsError}</p>
-        <Button variant="outline" className="mt-3 border-red-200" onClick={() => fetchSubmissions()}>
+        <Button variant="outline" className="mt-3 border-red-200" onClick={() => fetchSubmissions({view: 'own'})}>
           Try again
         </Button>
       </div>

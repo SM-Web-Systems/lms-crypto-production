@@ -239,7 +239,7 @@ const Profile: React.FC = () => {
   }
 
   const displayName = name || (isViewingOther ? 'User' : user.name);
-  const basePath = user.role === 'admin' ? '/admin' : '/student';
+  const basePath = ''; // Profile and messaging are shared authenticated routes.
   const shownAvatar = avatarPreview ?? avatarUrl;
 
   const viewedProfile = isViewingOther ? profile : {

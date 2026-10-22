@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { DataProvider } from './context/DataContext';
@@ -16,7 +16,7 @@ import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { resolveClosestRole } from './utils/resolveClosestRole';
+import { availableWorkspaces, canAccessPath, homeForUser } from './utils/authorization';
 import type { UserRole } from './types/api';
 
 // Lazy-loaded pages — split into separate chunks per route
@@ -49,17 +49,12 @@ const EmployerDashboard = React.lazy(() => import('./pages/EmployerDashboard'));
 const ParentDashboard = React.lazy(() => import('./pages/ParentDashboard'));
 const TeacherDashboard = React.lazy(() => import('./pages/TeacherDashboard'));
 
-function roleHome(role: string | undefined): string {
-  if (role === 'admin') return '/admin';
-  if (role === 'lecturer') return '/lecturer';
-  if (role === 'teaching-assistant') return '/ta';
-  if (role === 'sponsor') return '/sponsor';
-  if (role === 'employer') return '/employer';
-  if (role === 'parent') return '/parent';
-  if (role === 'teacher') return '/teacher';
-  if (role === 'custom') return roleHome(resolveClosestRole(role));
-  return '/student';
-}
+export const AccessDenied: React.FC = () => {
+  const { user } = useAuth();
+  return <div className="p-8 space-y-4" role="alert"><h1 className="text-xl font-bold">Access unavailable</h1>
+    <p>Your current access does not include this page. Contact your administrator if you need access.</p>
+    {availableWorkspaces(user).length > 0 && <Link to={homeForUser(user)}>Return to your workspace</Link>}</div>;
+};
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -70,12 +65,13 @@ const LoadingScreen: React.FC = () => (
   </div>
 );
 
-const ProtectedRoute: React.FC<{
+export const ProtectedRoute: React.FC<{
   children: React.ReactNode;
   allowedRole?: UserRole;
   allowedRoles?: UserRole[];
 }> = ({ children, allowedRole, allowedRoles }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -85,12 +81,11 @@ const ProtectedRoute: React.FC<{
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user?.role as UserRole)) {
-    return <Navigate to={roleHome(user?.role)} replace />;
-  }
-
-  if (allowedRole && user?.role !== allowedRole) {
-    return <Navigate to={roleHome(user?.role)} replace />;
+  const workspaces = availableWorkspaces(user);
+  if ((allowedRoles && !allowedRoles.some(role => role !== 'custom' && workspaces.includes(role)))
+    || (allowedRole && (allowedRole === 'custom' || !workspaces.includes(allowedRole)))
+    || !canAccessPath(user, location.pathname)) {
+    return <AccessDenied />;
   }
 
   return <>{children}</>;
@@ -102,7 +97,7 @@ const HomeRoute: React.FC = () => {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
-      navigate(roleHome(user.role), { replace: true });
+      navigate(homeForUser(user), { replace: true });
     }
   }, [isAuthenticated, user, navigate, isLoading]);
 
@@ -123,7 +118,7 @@ const LoginRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={roleHome(user.role)} replace />;
+    return <Navigate to={homeForUser(user)} replace />;
   }
 
   return <Login />;
@@ -137,7 +132,7 @@ const SignUpRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={roleHome(user.role)} replace />;
+    return <Navigate to={homeForUser(user)} replace />;
   }
 
   return <SignUp />;
@@ -149,7 +144,7 @@ function App() {
     <Router>
       <ToastProvider>
         <AuthProvider>
-          <DataProvider>
+          <SessionDataProvider>
             <ErrorBoundary>
             <Suspense fallback={<LoadingScreen />}>
             <Routes>
@@ -162,6 +157,12 @@ function App() {
             {/* Public certificate verification — no auth required */}
             <Route path="/verify/:credentialId" element={<CertificateVerification />} />
             <Route path="/" element={<HomeRoute />} />
+            <Route path="/access-denied" element={<ProtectedRoute><AccessDenied /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+            <Route path="/profile/:userId" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+            <Route path="/messages" element={<ProtectedRoute><Layout><Messages /></Layout></ProtectedRoute>} />
+            <Route path="/forum" element={<ProtectedRoute><Layout><Forum /></Layout></ProtectedRoute>} />
+            <Route path="/lecturer/course-members" element={<ProtectedRoute allowedRole="lecturer"><Layout><CourseMembers /></Layout></ProtectedRoute>} />
 
             {/* Student Routes */}
             <Route
@@ -427,7 +428,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/sponsor"
+              path="/admin/sponsor/:tab?"
               element={
                 <ProtectedRoute allowedRole="admin">
                   <Layout>
@@ -544,37 +545,7 @@ function App() {
 
             {/* Sponsor Routes (self-service) */}
             <Route
-              path="/sponsor"
-              element={
-                <ProtectedRoute allowedRole="sponsor">
-                  <Layout>
-                    <SponsorDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sponsor/rewards"
-              element={
-                <ProtectedRoute allowedRole="sponsor">
-                  <Layout>
-                    <SponsorDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sponsor/impact"
-              element={
-                <ProtectedRoute allowedRole="sponsor">
-                  <Layout>
-                    <SponsorDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sponsor/billing"
+              path="/sponsor/:tab?"
               element={
                 <ProtectedRoute allowedRole="sponsor">
                   <Layout>
@@ -756,7 +727,7 @@ function App() {
             </Routes>
             </Suspense>
             </ErrorBoundary>
-          </DataProvider>
+          </SessionDataProvider>
         </AuthProvider>
       </ToastProvider>
     </Router>
@@ -765,3 +736,9 @@ function App() {
 }
 
 export default App;
+
+/** Clear cached rosters/submissions when identity or effective permissions change. */
+const SessionDataProvider: React.FC<{children: React.ReactNode}> = ({children}) => {
+  const { user } = useAuth();
+  return <DataProvider key={JSON.stringify([user?.id, user?.permissions, user?.workspaces, user?.assignedCourses])}>{children}</DataProvider>;
+};

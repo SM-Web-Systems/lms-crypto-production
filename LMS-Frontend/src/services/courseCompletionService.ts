@@ -81,7 +81,7 @@ export const courseCompletionService = {
     const res = await api.get<{
       success: boolean;
       data: { completions: { item_id: string; completed_at: string | null; progress_pct: number | null; last_position_s: number | null }[] };
-    }>(`/courses/${courseId}/lessons/completions`);
+    }>(`/courses/${courseId}/lessons/completions`, {params: {view: 'own'}});
     return (res.data.data?.completions ?? []).map((c) => ({
       itemId: c.item_id,
       completedAt: c.completed_at,
@@ -105,11 +105,11 @@ export const courseCompletionService = {
   },
 
   /** GET /courses/:courseId/completions/applications — list applications for this course */
-  async getCourseApplications(courseId: string): Promise<NftApplication[]> {
+  async getCourseApplications(courseId: string, view?: 'own'): Promise<NftApplication[]> {
     const res = await api.get<{
       success: boolean;
       data: { applications: NftApplication[] };
-    }>(`/courses/${courseId}/completions/applications`);
+    }>(`/courses/${courseId}/completions/applications`, {params: view ? {view} : undefined});
     return res.data.data?.applications ?? [];
   },
 

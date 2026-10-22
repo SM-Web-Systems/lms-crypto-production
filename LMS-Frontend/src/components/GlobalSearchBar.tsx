@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { searchService, type SearchResults } from '../services/searchService';
 import { Search, BookOpen, Users, Award, FileQuestion, X, Loader2 } from 'lucide-react';
+import { availableWorkspaces, canAccessPath } from '../utils/authorization';
 
 const GlobalSearchBar: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -70,7 +71,14 @@ const GlobalSearchBar: React.FC = () => {
     navigate(path);
   };
 
-  const rolePrefix = user?.role === 'admin' ? '/admin' : user?.role === 'lecturer' ? '/lecturer' : '/student';
+  const workspaces = availableWorkspaces(user);
+  const coursePath = (id: string) => workspaces.includes('lecturer') ? `/lecturer/courses/${id}`
+    : canAccessPath(user, '/admin/course') ? `/admin/course?course=${id}`
+    : workspaces.includes('student') ? `/student/course?course=${id}` : null;
+  const credentialPath = canAccessPath(user, '/admin/certificates') ? '/admin/certificates'
+    : canAccessPath(user, '/student/badges') ? '/student/badges' : null;
+  const quizPath = canAccessPath(user, '/admin/quizzes') ? '/admin/quizzes'
+    : canAccessPath(user, '/student/quizzes') ? '/student/quizzes' : null;
 
   const totalResults = results
     ? Object.values(results.counts).reduce((a, b) => a + b, 0)
@@ -127,9 +135,7 @@ const GlobalSearchBar: React.FC = () => {
             <div className="mb-2">
               <p className="text-xs font-semibold text-neutral-500 uppercase px-2 py-1">Courses</p>
               {results.results.courses.map((c) => (
-                <button key={c.id} type="button" onClick={() => navigateTo(
-                    user?.role === 'lecturer' ? `/lecturer/courses/${c.id}` : `${rolePrefix}/course?course=${c.id}`
-                  )}
+                <button key={c.id} type="button" disabled={!coursePath(c.id)} onClick={() => { const path = coursePath(c.id); if (path) navigateTo(path); }}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-neutral-50 transition-colors" data-testid="search-result-course">
                   <BookOpen className="h-4 w-4 text-blue-500 shrink-0" />
                   <div className="min-w-0">
@@ -145,7 +151,7 @@ const GlobalSearchBar: React.FC = () => {
             <div className="mb-2">
               <p className="text-xs font-semibold text-neutral-500 uppercase px-2 py-1">Users</p>
               {results.results.users.map((u) => (
-                <button key={u.id} type="button" onClick={() => navigateTo('/admin/students')}
+                <button key={u.id} type="button" onClick={() => navigateTo(`/profile/${u.id}`)}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-neutral-50 transition-colors" data-testid="search-result-user">
                   <Users className="h-4 w-4 text-green-500 shrink-0" />
                   <div className="min-w-0">
@@ -161,7 +167,7 @@ const GlobalSearchBar: React.FC = () => {
             <div className="mb-2">
               <p className="text-xs font-semibold text-neutral-500 uppercase px-2 py-1">Certificates</p>
               {results.results.credentials.map((cr) => (
-                <button key={cr.id} type="button" onClick={() => navigateTo(`${rolePrefix}/badges`)}
+                <button key={cr.id} type="button" disabled={!credentialPath} onClick={() => { if (credentialPath) navigateTo(credentialPath); }}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-neutral-50 transition-colors" data-testid="search-result-credential">
                   <Award className="h-4 w-4 text-purple-500 shrink-0" />
                   <div className="min-w-0">
@@ -177,7 +183,7 @@ const GlobalSearchBar: React.FC = () => {
             <div className="mb-2">
               <p className="text-xs font-semibold text-neutral-500 uppercase px-2 py-1">Quizzes</p>
               {results.results.quizzes.map((qz) => (
-                <button key={qz.id} type="button" onClick={() => navigateTo(`${rolePrefix}/quizzes`)}
+                <button key={qz.id} type="button" disabled={!quizPath} onClick={() => { if (quizPath) navigateTo(quizPath); }}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-neutral-50 transition-colors" data-testid="search-result-quiz">
                   <FileQuestion className="h-4 w-4 text-amber-500 shrink-0" />
                   <div className="min-w-0">

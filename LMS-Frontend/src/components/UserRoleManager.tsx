@@ -8,12 +8,12 @@
  * assignable role and displays backend 403 rejections verbatim.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { Users, Shield, Search, AlertCircle, Loader2, Info, X } from 'lucide-react';
 import { usersService, type UserDirectoryItem } from '../services/usersService';
-import { rbacService, type RbacRole, type UserRole } from '../services/rbacService';
+import { rbacService, type RbacRole, type UserRole, type RoleManagementOptions } from '../services/rbacService';
 import { getErrorMessage } from '../utils/apiError';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -24,6 +24,8 @@ export function UserRoleManager() {
   // ── User list state ────────────────────────────────────────────────────
   const [users, setUsers] = useState<UserDirectoryItem[]>([]);
   const [allRoles, setAllRoles] = useState<RbacRole[]>([]);
+  const [roleOptions, setRoleOptions] = useState<RoleManagementOptions | null>(null);
+  const selectedId = useRef<string | null>(null);
   const [listState, setListState] = useState<LoadState>('idle');
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
@@ -53,12 +55,8 @@ export function UserRoleManager() {
     setListState('loading');
     setListError('');
     try {
-      const [usersData, rolesData] = await Promise.all([
-        usersService.getUsers(),
-        rbacService.getRoles(),
-      ]);
+      const usersData = await usersService.getUsers();
       setUsers(usersData);
-      setAllRoles(rolesData);
       setListState('data');
     } catch (err) {
       setListError(getErrorMessage(err));
@@ -72,15 +70,22 @@ export function UserRoleManager() {
 
   // ── Load selected user's RBAC roles ────────────────────────────────────
   const loadUserRoles = useCallback(async (userId: string) => {
+    if (selectedId.current !== userId) return;
     setRolesState('loading');
+    setRoleOptions(null);
+    setAllRoles([]);
     setRolesError('');
     setMutationError('');
     setMutationSuccess('');
     try {
-      const roles = await rbacService.getUserRoles(userId);
+      const [roles, options] = await Promise.all([rbacService.getUserRoles(userId), rbacService.getRoleOptions(userId)]);
+      if (selectedId.current !== userId) return;
       setUserRoles(roles);
+      setRoleOptions(options);
+      setAllRoles(options.assignableRoles);
       setRolesState('data');
     } catch (err) {
+      if (selectedId.current !== userId) return;
       setRolesError(getErrorMessage(err));
       setRolesState('error');
     }
@@ -88,6 +93,7 @@ export function UserRoleManager() {
 
   const handleSelectUser = useCallback(
     (user: UserDirectoryItem) => {
+      selectedId.current = user.id;
       setSelectedUser(user);
       setSelectedRoleId('');
       setConfirmAction(null);
@@ -100,7 +106,7 @@ export function UserRoleManager() {
 
   // ── Assign role ────────────────────────────────────────────────────────
   const handleAssign = useCallback(async () => {
-    if (!selectedUser || !confirmAction || confirmAction.type !== 'assign') return;
+    if (!selectedUser || !confirmAction || confirmAction.type !== 'assign' || !roleOptions?.assignableRoles.some(r => r.id === confirmAction.roleId)) return;
     setAssigning(true);
     setMutationError('');
     setMutationSuccess('');
@@ -116,11 +122,11 @@ export function UserRoleManager() {
     } finally {
       setAssigning(false);
     }
-  }, [selectedUser, confirmAction, loadUserRoles]);
+  }, [selectedUser, confirmAction, loadUserRoles, roleOptions]);
 
   // ── Remove role ────────────────────────────────────────────────────────
   const handleRemove = useCallback(async () => {
-    if (!selectedUser || !confirmAction || confirmAction.type !== 'remove') return;
+    if (!selectedUser || !confirmAction || confirmAction.type !== 'remove' || !roleOptions?.revocableRoleIds.includes(confirmAction.roleId)) return;
     setRemovingRoleId(confirmAction.roleId);
     setMutationError('');
     setMutationSuccess('');
@@ -135,7 +141,7 @@ export function UserRoleManager() {
     } finally {
       setRemovingRoleId(null);
     }
-  }, [selectedUser, confirmAction, loadUserRoles]);
+  }, [selectedUser, confirmAction, loadUserRoles, roleOptions]);
 
   // ── Derived data ───────────────────────────────────────────────────────
   const filteredUsers = useMemo(() => {
@@ -279,6 +285,7 @@ export function UserRoleManager() {
                     <button
                       type="button"
                       onClick={() => {
+                        selectedId.current = null;
                         setSelectedUser(null);
                         setUserRoles([]);
                         setRolesState('idle');
@@ -323,7 +330,7 @@ export function UserRoleManager() {
                             className="flex items-center justify-between text-sm bg-neutral-50 rounded px-3 py-1.5"
                           >
                             <span className="font-medium">{r.role_label}</span>
-                            <Button
+                            {roleOptions?.revocableRoleIds.includes(r.role_id) && <Button
                               variant="outline"
                               size="sm"
                               onClick={() =>
@@ -333,7 +340,7 @@ export function UserRoleManager() {
                               aria-label={`Remove ${r.role_label} role`}
                             >
                               {removingRoleId === r.role_id ? 'Removing...' : 'Remove'}
-                            </Button>
+                            </Button>}
                           </li>
                         ))}
                       </ul>
@@ -345,8 +352,7 @@ export function UserRoleManager() {
                     <div className="flex gap-2 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
                       <Info className="h-4 w-4 shrink-0 mt-0.5" />
                       <p>
-                        The backend enforces role privilege boundaries. Attempts to assign or remove a
-                        role outside your permitted level will be rejected.
+                        {roleOptions?.reason ?? 'Only role changes available to you are shown. Access is checked again when you save.'}
                       </p>
                     </div>
                   )}
@@ -363,7 +369,7 @@ export function UserRoleManager() {
                   )}
 
                   {/* Assign role */}
-                  {rolesState === 'data' && (
+                  {rolesState === 'data' && roleOptions?.canModify && (
                     <div>
                       <label
                         htmlFor="assign-role-select"
