@@ -109,11 +109,11 @@
 | ID | Task | Dependencies | Acceptance Criteria | Status | Evidence |
 |----|------|-------------|---------------------|--------|----------|
 | 11.1 | PR: AUTH-09 closure + AUTH-10 docs | 1.10 | CI passes, merged | PASS | Pushed to main (acb39fa) |
-| 11.2 | PR: Non-root + read-only hardening | 10.1, 10.2 | CI passes, merged | TODO | |
-| 11.3 | PR: Monitoring infrastructure | 10.1, 10.2 | CI passes, merged | TODO | |
+| 11.2 | PR: Non-root + read-only + monitoring | 10.1, 10.2 | CI passes, merged | PASS | PR #76 → `8abf282` |
+| 11.3 | PR: Monitoring infrastructure | 10.1, 10.2 | CI passes, merged | PASS | Combined with 11.2 (single coherent PR) |
 
 ## Phase 12 — Final Report
 | ID | Task | Dependencies | Acceptance Criteria | Status | Evidence |
 |----|------|-------------|---------------------|--------|----------|
-| 12.1 | Create stability report | 11.1-11.3 | All sections complete | TODO | |
-| 12.2 | Commit documentation | 12.1 | Pushed to main | TODO | |
+| 12.1 | Create stability report | 11.1-11.3 | All sections complete | PASS | `AUTH-10-infrastructure-hardening-report.md` |
+| 12.2 | Commit documentation | 12.1 | Pushed to main | PASS | See final commit |
