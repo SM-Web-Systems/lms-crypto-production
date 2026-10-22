@@ -1,0 +1,79 @@
+flowchart TB
+    START["Deploy In Progress\nSHA 27f9535"]
+
+    subgraph FAILURES["Failure Detection Points"]
+        direction TB
+        F_HEALTH["API Health Timeout\ncurl /health fails\nfor 60 seconds"]
+        F_SMOKE["Smoke Test Failure\nsmoke-test.sh returns non-zero\nEndpoint or write test failed"]
+        F_DATA["Data Integrity Failure\nRow counts below thresholds\nusers<10 OR courses<3 OR nfts<5"]
+        F_SHA["SHA Mismatch\n/health buildSha != git HEAD\nWrong image deployed"]
+    end
+
+    subgraph DECISION["Rollback Decision Tree"]
+        direction TB
+        Q1{"CAN_ROLLBACK set?\nprevious-images.txt\nhas valid image IDs"}
+        Q1_NO["WARNING: No previous state\nFirst deploy — cannot rollback\nManual intervention required"]
+        Q1_YES["Auto-rollback triggered"]
+    end
+
+    subgraph ROLLBACK["rollback.sh Execution"]
+        direction TB
+        R1["Read .deploy-state/previous-images.txt\napi=sha256:...\nweb=sha256:..."]
+        R2["Determine project name\nlms-ammawallet"]
+        R3["docker tag api_image\nlms-ammawallet-api:latest"]
+        R4["docker tag web_image\nlms-ammawallet-web:latest"]
+        R5["docker compose up -d --no-deps api web"]
+        R6["Wait for API health (60s timeout)"]
+        R7{"API healthy?"}
+        R_OK["ROLLBACK SUCCESS\nLogged to deploy-log.txt\nPrevious version restored"]
+        R_FAIL["ROLLBACK FAILED\nAPI unhealthy after restore\nMANUAL INTERVENTION REQUIRED"]
+
+        R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7
+        R7 -->|"yes"| R_OK
+        R7 -->|"no"| R_FAIL
+    end
+
+    subgraph VOLUME_COMPAT["Volume Compatibility Note"]
+        direction TB
+        VC1["After AUTH-11 volume chown:\nFiles owned by node (1000:1000)"]
+        VC2["Rollback to root image:\nroot CAN read/write node-owned files\nRoot has unrestricted access"]
+        VC3["Forward compatibility preserved:\nNo need to chown back to root\nRollback is safe without\nvolume ownership changes"]
+
+        VC1 --> VC2 --> VC3
+    end
+
+    subgraph DATA_SAFETY["Data Safety Net"]
+        direction TB
+        DS1["Pre-deploy backup exists\n.deploy-state/pre-deploy-backup.txt\npoints to sqlite3 .backup file"]
+        DS2["If data corrupted post-rollback:\nManual restore from backup\nsqlite3 restore to volume path"]
+        DS3["Daily backups at 03:00\nMedia backup at 03:45\nMultiple recovery points"]
+
+        DS1 --> DS2 --> DS3
+    end
+
+    START --> F_HEALTH
+    START --> F_SMOKE
+    START --> F_DATA
+    START --> F_SHA
+
+    F_HEALTH --> Q1
+    F_SMOKE --> Q1
+    F_DATA --> Q1
+    F_SHA --> Q1
+
+    Q1 -->|"no"| Q1_NO
+    Q1 -->|"yes"| Q1_YES
+    Q1_YES --> R1
+
+    R_OK -.-> VOLUME_COMPAT
+    R_FAIL -.-> DATA_SAFETY
+
+    style START fill:#e3f2fd,stroke:#1565c0
+    style FAILURES fill:#ffebee,stroke:#c62828
+    style DECISION fill:#fff3e0,stroke:#ef6c00
+    style ROLLBACK fill:#f3e5f5,stroke:#7b1fa2
+    style VOLUME_COMPAT fill:#e8f5e9,stroke:#2e7d32
+    style DATA_SAFETY fill:#fff9c4,stroke:#f9a825
+    style R_OK fill:#c8e6c9,stroke:#2e7d32
+    style R_FAIL fill:#ffcdd2,stroke:#b71c1c
+    style Q1_NO fill:#ffcdd2,stroke:#b71c1c

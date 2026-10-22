@@ -1,0 +1,68 @@
+flowchart TB
+    subgraph CURRENT["CURRENT STATE (SHA 0dd2385) — Root, Writable FS"]
+        direction TB
+        C_API["lms-api container\nport 3001"]
+        C_USER["USER: root uid=0"]
+        C_FS["Filesystem: writable\nNo read_only, no tmpfs"]
+        C_DATA["/app/data — root:root\nstudent_ms.db 16.8MB\n+ WAL 4.1MB + SHM 32KB"]
+        C_UPLOADS["/app/uploads — root:root\navatars, documents,\nimports, submissions"]
+        C_ENTRY["docker-entrypoint.sh\nRuns as root"]
+
+        C_API --> C_USER
+        C_USER --> C_FS
+        C_FS --> C_DATA
+        C_FS --> C_UPLOADS
+        C_USER --> C_ENTRY
+    end
+
+    subgraph PROPOSED["PROPOSED STATE (SHA 27f9535) — Node, Read-Only FS"]
+        direction TB
+        P_API["lms-api container\nport 3001"]
+        P_USER["USER: node uid=1000"]
+        P_FS["Filesystem: read_only: true\ntmpfs: /tmp (64m)\ntmpfs: /home/node/.npm (16m)"]
+        P_DATA["/app/data — node:node\nstudent_ms.db + WAL + SHM\nvia named volume lms-data"]
+        P_UPLOADS["/app/uploads — node:node\navatars, documents,\nimports, submissions\nvia named volume lms-uploads"]
+        P_ENTRY["docker-entrypoint.sh\nRuns as node"]
+
+        P_API --> P_USER
+        P_USER --> P_FS
+        P_FS --> P_DATA
+        P_FS --> P_UPLOADS
+        P_USER --> P_ENTRY
+    end
+
+    subgraph WEB["lms-web Container"]
+        W1["nginx:alpine\nport 80\nHealthcheck: wget --spider /"]
+        W2["Depends on: api healthy"]
+        W1 --- W2
+    end
+
+    subgraph PROXY["External Access"]
+        NGINX["nginx_server\nTLS reverse proxy\nlms.smwebsystems.com"]
+    end
+
+    subgraph NETWORKS["Docker Networks"]
+        N_DEFAULT["default (bridge)\napi <-> web"]
+        N_WEBSTACK["web-stack_default (external)\nnginx_server <-> api, web"]
+        N_STALWART["stalwart_bridge (external)\napi <-> mail"]
+    end
+
+    subgraph VOLUMES["Named Volumes"]
+        V_DATA["lms-data:/app/data"]
+        V_UPLOADS["lms-uploads:/app/uploads"]
+    end
+
+    CURRENT -->|"AUTH-11 deploys\nPR #76 merge SHA 8abf282"| PROPOSED
+    PROPOSED --> WEB
+    NGINX --> N_WEBSTACK
+    N_WEBSTACK --> P_API
+    N_WEBSTACK --> W1
+    P_DATA -.- V_DATA
+    P_UPLOADS -.- V_UPLOADS
+
+    style CURRENT fill:#ffebee,stroke:#c62828
+    style PROPOSED fill:#e8f5e9,stroke:#2e7d32
+    style WEB fill:#e3f2fd,stroke:#1565c0
+    style PROXY fill:#fff3e0,stroke:#ef6c00
+    style NETWORKS fill:#f3e5f5,stroke:#7b1fa2
+    style VOLUMES fill:#fff9c4,stroke:#f9a825

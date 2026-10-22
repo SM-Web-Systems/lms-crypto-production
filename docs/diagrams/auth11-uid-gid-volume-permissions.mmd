@@ -1,0 +1,55 @@
+flowchart TB
+    subgraph DOCKERFILE["Dockerfile Build Layer"]
+        direction TB
+        D1["FROM node:22-bookworm-slim\nnode user uid=1000 exists in base image"]
+        D2["WORKDIR /app\nCOPY package*.json ./\nRUN npm ci"]
+        D3["COPY . .\nRUN npm run build"]
+        D4["RUN mkdir -p data uploads"]
+        D5["RUN mkdir -p /home/node/.npm"]
+        D6["RUN chown -R node:node\n/app/data /app/uploads /home/node"]
+        D7["USER node"]
+
+        D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7
+    end
+
+    subgraph IMAGE_LAYER["Image Layer Permissions"]
+        direction TB
+        IL1["/app — root:root (read-only at runtime)\nApplication code, node_modules, dist/"]
+        IL2["/app/data — node:node\nEmpty dir in image layer\nOverridden by named volume at runtime"]
+        IL3["/app/uploads — node:node\nEmpty dir in image layer\nOverridden by named volume at runtime"]
+        IL4["/home/node/.npm — node:node\nOverridden by tmpfs at runtime"]
+    end
+
+    subgraph VOLUME_MIGRATION["Named Volume Migration (One-Time)"]
+        direction TB
+        VM1["Existing lms-data volume\nOwned root:root\nContains student_ms.db + WAL + SHM"]
+        VM2["docker run --rm\n-v lms-ammawallet_lms-data:/data\nbusybox chown -R 1000:1000 /data"]
+        VM3["Existing lms-uploads volume\nOwned root:root\nContains avatars, documents, imports, submissions"]
+        VM4["docker run --rm\n-v lms-ammawallet_lms-uploads:/uploads\nbusybox chown -R 1000:1000 /uploads"]
+        VM5["Volumes now owned node:node (1000:1000)"]
+
+        VM1 --> VM2
+        VM3 --> VM4
+        VM2 --> VM5
+        VM4 --> VM5
+    end
+
+    subgraph RUNTIME["Runtime File Access (node uid=1000)"]
+        direction TB
+        R_RO["/app — READ-ONLY\nread_only: true in compose\nCode, node_modules immutable"]
+        R_DATA["/app/data — READ-WRITE\nNamed volume lms-data\nstudent_ms.db, WAL, SHM"]
+        R_UPLOADS["/app/uploads — READ-WRITE\nNamed volume lms-uploads\navatars/, documents/, imports/, submissions/"]
+        R_TMP["/tmp — READ-WRITE\ntmpfs 64MB\nTransient process files"]
+        R_NPM["/home/node/.npm — READ-WRITE\ntmpfs 16MB\nnpm cache (ephemeral)"]
+    end
+
+    DOCKERFILE -->|"docker build produces"| IMAGE_LAYER
+    IMAGE_LAYER -->|"first deploy requires"| VOLUME_MIGRATION
+    VOLUME_MIGRATION -->|"enables"| RUNTIME
+    D6 -.->|"sets ownership for"| IL2
+    D6 -.->|"sets ownership for"| IL3
+
+    style DOCKERFILE fill:#e3f2fd,stroke:#1565c0
+    style IMAGE_LAYER fill:#f3e5f5,stroke:#7b1fa2
+    style VOLUME_MIGRATION fill:#fff3e0,stroke:#ef6c00
+    style RUNTIME fill:#e8f5e9,stroke:#2e7d32

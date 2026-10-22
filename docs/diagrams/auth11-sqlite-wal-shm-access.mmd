@@ -1,0 +1,64 @@
+flowchart TB
+    subgraph APP["lms-api (node uid=1000)"]
+        direction TB
+        A1["Node.js Application\nbetter-sqlite3 driver"]
+        A2["Opens student_ms.db\nWAL mode enabled"]
+    end
+
+    subgraph WAL_MODE["SQLite WAL Mode — File Access Pattern"]
+        direction TB
+        DB["student_ms.db (16.8MB)\nMain database file\nRead: SELECT queries\nWrite: checkpoint merges WAL"]
+        WAL["student_ms.db-wal (4.1MB)\nWrite-Ahead Log\nCreated automatically on first write\nAppend-only during transactions\nCheckpointed periodically"]
+        SHM["student_ms.db-shm (32KB)\nShared Memory\nCreated alongside WAL\nCoordinates concurrent readers\nMemory-mapped by all connections"]
+
+        DB --- WAL
+        WAL --- SHM
+    end
+
+    subgraph OPS["Database Operations"]
+        direction TB
+        OP_READ["SELECT\nReads from DB + WAL\nUses SHM for coordination\nNo file creation needed"]
+        OP_WRITE["INSERT / UPDATE / DELETE\nAppends to WAL file\nUpdates SHM index\nRequires write access to WAL + SHM"]
+        OP_CHECKPOINT["WAL Checkpoint\nMerges WAL back into DB\nRequires write to all 3 files\nTriggered automatically or at close"]
+        OP_CREATE["First Connection (cold start)\nCreates WAL if missing\nCreates SHM if missing\nRequires write to /app/data directory"]
+    end
+
+    subgraph OWNERSHIP["Ownership Requirements (uid=1000)"]
+        direction TB
+        OWN_DIR["/app/data directory\nMust be writable by node\nFor WAL/SHM file creation"]
+        OWN_DB["student_ms.db\nMust be writable by node\nFor checkpoint writes"]
+        OWN_WAL["student_ms.db-wal\nMust be writable by node\nCreated/written every transaction"]
+        OWN_SHM["student_ms.db-shm\nMust be writable by node\nMemory-mapped read-write"]
+    end
+
+    subgraph FAILURE["Failure If Permissions Wrong"]
+        direction TB
+        F1["SQLITE_READONLY\nCannot open WAL\nDatabase opens in read-only mode"]
+        F2["SQLITE_CANTOPEN\nCannot create WAL/SHM\nFirst write after cold start fails"]
+        F3["SQLITE_IOERR\nCannot checkpoint\nWAL grows without bound"]
+    end
+
+    A1 --> A2
+    A2 --> DB
+    A2 --> WAL
+    A2 --> SHM
+
+    OP_READ --> DB
+    OP_READ --> WAL
+    OP_WRITE --> WAL
+    OP_WRITE --> SHM
+    OP_CHECKPOINT --> DB
+    OP_CHECKPOINT --> WAL
+    OP_CHECKPOINT --> SHM
+    OP_CREATE --> OWN_DIR
+
+    OWN_DIR -.->|"if not owned by 1000"| F2
+    OWN_DB -.->|"if not owned by 1000"| F1
+    OWN_WAL -.->|"if not owned by 1000"| F1
+    OWN_SHM -.->|"if not owned by 1000"| F3
+
+    style APP fill:#e3f2fd,stroke:#1565c0
+    style WAL_MODE fill:#e8f5e9,stroke:#2e7d32
+    style OPS fill:#fff3e0,stroke:#ef6c00
+    style OWNERSHIP fill:#f3e5f5,stroke:#7b1fa2
+    style FAILURE fill:#ffebee,stroke:#c62828
