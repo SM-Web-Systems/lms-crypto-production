@@ -1,6 +1,6 @@
 # AUTH-13 release readiness
 
-Status: implementation prepared locally; draft review branches; no merge/deployment/production verification. The payment/monitoring implementation is in draft #80; its integrated CI is in progress. This report does not close AUTH-12.
+Status: implementation and local regression complete, with independent code review; draft review branches only. Implementation commit `8f3f07a` passed all four CI jobs in [run 39948571919](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/39948571919). Subsequent readiness-metadata commits change documentation only. Human review and the latest applicable PR checks remain required before merge. No merge, deployment or production verification occurred; this report does not close AUTH-12.
 
 ## Review stack and baseline
 
@@ -9,7 +9,7 @@ Status: implementation prepared locally; draft review branches; no merge/deploym
 | Original platform/Wallet follow-up | `codex/platform-audit-remediation`, `bbf17a0` | draft #77; dependency, unmerged |
 | Safe database bootstrap | `codex/auth13-database-bootstrap`, `a594056` | draft #78; CI 39942642653 passed |
 | Explicit authorization policy | `codex/auth13-authorization-policy`, `4a48674` | draft #79; CI 39944137060 passed |
-| Payment/monitoring/recovery | `codex/auth13-payment-monitoring` | draft #80, implementation `e48f5e6`; CI 39947724814 running |
+| Payment/monitoring/recovery | `codex/auth13-payment-monitoring` | draft #80, implementation `e48f5e6`, offline-test/CI follow-up `8f3f07a`; CI 39948571919 passed |
 | Wallet verified-email integration | Wallet `04c3f0c` | Wallet draft #2; no AUTH-13 source edits |
 
 Verified main remains `bef8653`. Production `6763f4e` is historical reported state, not re-inspected here. Stack order is #77 → #78 → #79 → #80. Review diffs against each preceding branch. Do not merge a dependent PR before its base; retarget only after maintainers merge dependencies and revalidate the combined diff.
@@ -40,22 +40,23 @@ Full original evidence/classification/acceptance is in `AUTH-13-assessment-findi
 | New bootstrap and policy combined selection | 42 passed; API build and source-free compiled smoke passed |
 | Sponsor/payment, revocation/Wallet, tenant/course selections | 95 / 107 / 57 passed respectively; selections overlap |
 | Payment-integrity selection | 46 passed across three files |
-| Full API regression | Running locally; final integrated CI pending |
-| Full web tests | 515 passed across 55 files; one async-navigation test race corrected; bounded-worker rerun passed |
+| Full API regression | 1,790 passed across 177 files locally and in implementation CI |
+| Full web tests | 515 passed across 55 files; TypeScript, production build and bundle-size gate passed; one async-navigation test race corrected |
 | Mobile regression | 153 passed across 16 suites; TypeScript passed |
-| Full local Chromium E2E | 73 passed, including five new real webhook-state checks; E2E TypeScript passed |
+| Full local Chromium E2E | 73 passed locally and in CI, including five new real webhook-state checks; E2E TypeScript passed |
 | Offline monitoring/verifier/exporter/command fixtures | 25 passed; no live service calls |
 | Existing monitoring syntax/inventory | 14 passed |
 | Deployment/rollback syntax and isolated smoke verifier | 10 and 12 passed; smoke verifier now intercepts every HTTP request |
 | External HTTP transport guard | 3 passed |
 | Synthetic WAL backup/restore | PASS; exact restored rows, FK/integrity checks, unchanged source and corrupt-snapshot rejection |
+| Implementation CI | Backend, Frontend, E2E and Offline Monitoring/Restore all passed on `8f3f07a` |
 | Docker runtime and installed devices | Not executed; Docker unavailable locally, devices are human acceptance |
 
 The initial API run encountered removed/obsolete guard assertions; they were replaced with actual process/FK behavior. Initial new authorization/webhook tests reproduced 11 and 8 defects respectively. An early web run hit a timeout and a delayed-navigation assertion race; the latter now awaits navigation. These early failures are not presented as final passing evidence.
 
 ## Dependency impact
 
-No package dependency or lockfile upgrades were introduced. Fresh `npm audit --json` on 2026-10-23 reported API 22 advisories (2 critical, 11 high, 9 moderate), web 19 (1 critical, 12 high, 5 moderate, 1 low), mobile 96 (2 critical, 70 high, 23 moderate, 1 low). These counts include transitive/dev graph entries and are not a count of exploitable production paths. Critical entries include API `dompurify`/`proxy-addr`, web `dompurify`, mobile `shell-quote`/`tar`. E2E locked install audit reported zero.
+No package dependency or lockfile upgrades were introduced. Readiness metadata changes after the implementation commit do not alter application code; check the latest PR badge before merging. Fresh `npm audit --json` on 2026-10-23 reported API 22 advisories (2 critical, 11 high, 9 moderate), web 19 (1 critical, 12 high, 5 moderate, 1 low), mobile 96 (2 critical, 70 high, 23 moderate, 1 low). These counts include transitive/dev graph entries and are not a count of exploitable production paths. Critical entries include API `dompurify`/`proxy-addr`, web `dompurify`, mobile `shell-quote`/`tar`. E2E locked install audit reported zero.
 
 Existing audit CI steps remain nonblocking. Advisory triage is a material release risk and must be assessed independently; AUTH-13 is not a claim of zero vulnerabilities. Existing twelve dependency PRs remain separate, avoiding unreviewed bulk upgrades.
 

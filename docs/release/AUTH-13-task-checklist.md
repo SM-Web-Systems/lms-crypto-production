@@ -15,10 +15,11 @@ Owner: implementation agent, with independent review agents for read-only review
 | A13-08 | Payment CI and monitoring evidence regressions | A13-07 | implementation agent | PASS | eight webhook integrity failures and actual Bash defects reproduced; fixture coverage added |
 | A13-09 | Test-only webhook CI and evidence-based monitoring verifier | A13-08 | implementation agent | PASS | synthetic HMAC/transport guard; 46 payment, 73 E2E, 25 monitoring/exporter checks; final independent review clean |
 | A13-10 | Isolated backup/restore drill and retention assessment | A13-09 | implementation agent | PASS | synthetic WAL restore drill passed; real retention/restore remains owner evidence |
-| A13-11 | Full regression, review, diagrams/specification and final readiness | A13-10 | implementation agent / independent reviewer | IN PROGRESS | draft #80 e48f5e6; web515/mobile153/E2E73/offline25/smoke12/deploy-syntax10 pass; final integrated API/CI pending |
+| A13-11 | Full regression, review, diagrams/specification and final readiness | A13-10 | implementation agent / independent reviewer | PASS | draft #80 e48f5e6 + 8f3f07a; API1790/web515/mobile153/E2E73/offline25/smoke12/deploy-syntax10 pass; all four implementation CI jobs passed run39948571919 |
 | A13-12 | Production configuration, observation, real backup/email and installed-device evidence | review/merge/deployment authorization | server owner | DEFERRED | no production actions authorized |
+| A13-13 | Verify/enforce required main-branch merge checks | repository administrator rights | maintainer | DEFERRED | applicable rules returned []; protection endpoint 404; enforcement not independently verified |
 | A13-14 | Infrastructure/dependency/mobile roadmap work | separate releases | maintainers | DEFERRED | AUTH-14 and existing dependency/mobile PRs |
 
 Each implementation area gets its own draft PR. The database branch starts at PR #77; subsequent branches may be stacked to validate the integrated result. No merge or deployment is part of this task.
 
-Database validation: initial full suite returned 1,744 passing tests, one obsolete source-text assertion failure and one removed-file collection failure during the run. Both obsolete tests were replaced/removed. Final full regression will run against a stable integrated snapshot. Focused final database suite: 19/19; API build and compiled smoke passed.
+Database validation: initial full suite returned 1,744 passing tests, one obsolete source-text assertion failure and one removed-file collection failure during the run. Both obsolete tests were replaced/removed. Final stable-snapshot API regression passed 1,790 tests across 177 files. Focused final database suite: 19/19; API build and compiled smoke passed.
