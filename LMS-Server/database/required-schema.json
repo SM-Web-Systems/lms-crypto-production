@@ -1,0 +1,2609 @@
+{
+  "tables": {
+    "active_sessions": [
+      "id",
+      "user_id",
+      "token_hash",
+      "ip_address",
+      "user_agent",
+      "created_at",
+      "last_active",
+      "expires_at",
+      "revoked_at"
+    ],
+    "announcements": [
+      "id",
+      "title",
+      "body",
+      "scope",
+      "course_id",
+      "author_id",
+      "pinned",
+      "created_at",
+      "updated_at"
+    ],
+    "audit_log": [
+      "id",
+      "action",
+      "actor_id",
+      "target_id",
+      "details",
+      "created_at"
+    ],
+    "certificate_badges": [
+      "id",
+      "user_id",
+      "course_id",
+      "application_id",
+      "badge_svg",
+      "badge_hash",
+      "created_at"
+    ],
+    "cohort_members": [
+      "cohort_id",
+      "user_id",
+      "application_id",
+      "added_at"
+    ],
+    "cohort_status_log": [
+      "id",
+      "cohort_id",
+      "from_status",
+      "to_status",
+      "triggered_by",
+      "reason",
+      "created_at"
+    ],
+    "conversation_messages": [
+      "id",
+      "conversation_id",
+      "sender_id",
+      "body",
+      "created_at",
+      "is_deleted",
+      "deleted_at",
+      "deleted_by",
+      "deletion_type"
+    ],
+    "conversation_reads": [
+      "user_id",
+      "conversation_id",
+      "last_read_at"
+    ],
+    "conversations": [
+      "id",
+      "user1_id",
+      "user2_id",
+      "updated_at"
+    ],
+    "course_approval_workflow": [
+      "id",
+      "course_id",
+      "submitted_by",
+      "status",
+      "reviewed_by",
+      "review_note",
+      "submitted_at",
+      "reviewed_at",
+      "created_at"
+    ],
+    "course_completion_requirements": [
+      "id",
+      "course_id",
+      "require_all_lessons",
+      "lesson_threshold",
+      "required_quiz_ids",
+      "min_quiz_score",
+      "require_submissions",
+      "created_at",
+      "updated_at"
+    ],
+    "course_documents": [
+      "id",
+      "title",
+      "description",
+      "category",
+      "file_name",
+      "file_size",
+      "file_path",
+      "file_mime_type",
+      "course_ids",
+      "week_id",
+      "uploaded_by_id",
+      "uploaded_at",
+      "created_at",
+      "updated_at"
+    ],
+    "course_enrollments": [
+      "course_id",
+      "user_id"
+    ],
+    "course_invites": [
+      "id",
+      "course_id",
+      "email",
+      "token",
+      "status",
+      "created_at",
+      "expires_at"
+    ],
+    "course_lecturers": [
+      "course_id",
+      "user_id",
+      "assigned_at",
+      "assigned_by"
+    ],
+    "course_material_submissions": [
+      "id",
+      "course_id",
+      "submitter_id",
+      "section_id",
+      "item_title",
+      "item_type",
+      "content",
+      "status",
+      "reviewed_by",
+      "review_note",
+      "reviewed_at",
+      "created_at"
+    ],
+    "course_nft_applications": [
+      "id",
+      "user_id",
+      "course_id",
+      "wallet_address",
+      "status",
+      "applied_at",
+      "reviewed_at",
+      "reviewed_by",
+      "review_notes",
+      "lecturer_rec",
+      "lecturer_rec_notes",
+      "lecturer_rec_by",
+      "lecturer_rec_at",
+      "tx_hash",
+      "credential_id",
+      "payment_id",
+      "selected_tier"
+    ],
+    "course_pricing": [
+      "id",
+      "course_id",
+      "price_cents",
+      "currency",
+      "is_active",
+      "tiers_enabled",
+      "stellar_price_xlm",
+      "stellar_price_usdc",
+      "created_at",
+      "updated_at"
+    ],
+    "course_tas": [
+      "course_id",
+      "user_id",
+      "assigned_by",
+      "assigned_at"
+    ],
+    "courses": [
+      "id",
+      "title",
+      "description",
+      "course_code",
+      "sections",
+      "sponsor_label",
+      "tenant_id",
+      "approval_status"
+    ],
+    "data_exports": [
+      "id",
+      "user_id",
+      "status",
+      "file_path",
+      "error",
+      "created_at",
+      "completed_at"
+    ],
+    "deleted_user_identities": [
+      "user_id",
+      "original_name",
+      "original_email",
+      "original_wallet_address",
+      "original_auth_provider",
+      "original_ammawallet_user_id",
+      "snapshot_at",
+      "retention_expires_at",
+      "access_count",
+      "last_accessed_at",
+      "last_accessed_by",
+      "last_access_reason"
+    ],
+    "deletion_requests": [
+      "id",
+      "user_id",
+      "status",
+      "requested_at",
+      "cancel_token_hash",
+      "grace_period_ends_at",
+      "finalized_at",
+      "cancelled_at",
+      "blocked_reason",
+      "dry_run_result",
+      "finalization_log",
+      "created_at",
+      "updated_at"
+    ],
+    "disputes": [
+      "id",
+      "payment_id",
+      "status",
+      "reason",
+      "resolution_note",
+      "created_by",
+      "resolved_by",
+      "created_at",
+      "resolved_at"
+    ],
+    "email_outbox": [
+      "id",
+      "email_type",
+      "recipient",
+      "subject",
+      "html_body",
+      "status",
+      "retry_count",
+      "max_retries",
+      "error_message",
+      "created_at",
+      "last_attempt_at",
+      "abandoned_at",
+      "idempotency_key"
+    ],
+    "email_templates": [
+      "id",
+      "slug",
+      "category",
+      "name",
+      "subject",
+      "body_html",
+      "variables",
+      "version",
+      "updated_by",
+      "created_at",
+      "updated_at"
+    ],
+    "forum_posts": [
+      "id",
+      "topic_id",
+      "body",
+      "author_id",
+      "is_deleted",
+      "deleted_at",
+      "deleted_by",
+      "deletion_type",
+      "created_at",
+      "updated_at"
+    ],
+    "forum_topics": [
+      "id",
+      "title",
+      "body",
+      "author_id",
+      "course_id",
+      "is_deleted",
+      "deleted_at",
+      "deleted_by",
+      "deletion_type",
+      "created_at",
+      "updated_at"
+    ],
+    "health_check_pings": [
+      "id",
+      "ts"
+    ],
+    "identity_access_log": [
+      "id",
+      "target_user_id",
+      "actor_id",
+      "reason",
+      "fields_accessed",
+      "outcome",
+      "created_at"
+    ],
+    "lesson_completions": [
+      "id",
+      "user_id",
+      "course_id",
+      "item_id",
+      "section_id",
+      "completed_at",
+      "marked_by",
+      "progress_pct",
+      "last_position_s"
+    ],
+    "login_history": [
+      "id",
+      "user_id",
+      "login_at",
+      "ip_address",
+      "user_agent",
+      "auth_method"
+    ],
+    "nft_credentials": [
+      "id",
+      "user_id",
+      "quiz_id",
+      "wallet_address",
+      "mint_status",
+      "tx_hash",
+      "error",
+      "contract_id",
+      "network",
+      "course_id",
+      "application_id",
+      "is_superseded",
+      "soroban_token_id",
+      "created_at",
+      "updated_at"
+    ],
+    "notification_preferences": [
+      "id",
+      "user_id",
+      "type",
+      "enabled",
+      "updated_at"
+    ],
+    "notifications": [
+      "id",
+      "user_id",
+      "type",
+      "title",
+      "body",
+      "read",
+      "link",
+      "created_at"
+    ],
+    "payments": [
+      "id",
+      "user_id",
+      "course_id",
+      "application_id",
+      "amount_cents",
+      "currency",
+      "payment_method",
+      "status",
+      "confirmed_by",
+      "confirmed_at",
+      "notes",
+      "paystack_reference",
+      "paystack_access_code",
+      "stellar_tx_hash",
+      "stellar_memo",
+      "stellar_expected_amount",
+      "created_at",
+      "updated_at"
+    ],
+    "perk_claims": [
+      "id",
+      "perk_id",
+      "user_id",
+      "claimed_at"
+    ],
+    "perks": [
+      "id",
+      "title",
+      "description",
+      "image_url",
+      "expires_at",
+      "max_claims",
+      "created_by",
+      "created_at"
+    ],
+    "permissions": [
+      "id",
+      "name",
+      "category",
+      "label",
+      "description",
+      "is_system",
+      "created_at"
+    ],
+    "quiz_completions": [
+      "id",
+      "quiz_id",
+      "user_id",
+      "score",
+      "total",
+      "passed",
+      "answers",
+      "payment_status",
+      "completed_at"
+    ],
+    "quizzes": [
+      "id",
+      "title",
+      "description",
+      "information",
+      "course_id",
+      "passing_score",
+      "questions",
+      "created_at",
+      "updated_at"
+    ],
+    "reward_accounts": [
+      "id",
+      "user_id",
+      "account_type",
+      "available_stroops",
+      "reserved_stroops",
+      "currency_code",
+      "created_at",
+      "updated_at"
+    ],
+    "reward_allocations": [
+      "id",
+      "reward_id",
+      "student_user_id",
+      "amount_stroops",
+      "currency_code",
+      "status",
+      "idempotency_key",
+      "eligible_at",
+      "released_at",
+      "cancelled_at",
+      "refunded_at",
+      "created_at"
+    ],
+    "reward_audience_snapshots": [
+      "id",
+      "reward_id",
+      "student_user_id",
+      "snapshot_at"
+    ],
+    "reward_eligibility_events": [
+      "id",
+      "reward_id",
+      "allocation_id",
+      "event_type",
+      "event_source_id",
+      "student_user_id",
+      "evaluated_at",
+      "result",
+      "idempotency_key"
+    ],
+    "reward_event_outbox": [
+      "id",
+      "event_type",
+      "event_source_id",
+      "student_user_id",
+      "event_data",
+      "status",
+      "attempt_count",
+      "last_attempt_at",
+      "completed_at",
+      "error_message",
+      "next_attempt_at",
+      "created_at"
+    ],
+    "reward_refund_attempts": [
+      "id",
+      "reward_id",
+      "allocation_id",
+      "attempted_by_user_id",
+      "attempted_amount_stroops",
+      "currency_code",
+      "recipient_available_stroops",
+      "status",
+      "resolution",
+      "resolved_at",
+      "resolved_by_user_id",
+      "created_at"
+    ],
+    "reward_refund_audit_log": [
+      "id",
+      "attempt_id",
+      "reward_id",
+      "allocation_id",
+      "actor_user_id",
+      "action",
+      "resolution_type",
+      "amount_stroops",
+      "reason",
+      "created_at"
+    ],
+    "reward_transactions": [
+      "id",
+      "reward_id",
+      "allocation_id",
+      "source_account_type",
+      "source_bucket",
+      "source_user_id",
+      "destination_account_type",
+      "destination_bucket",
+      "destination_user_id",
+      "actor_type",
+      "actor_user_id",
+      "transaction_type",
+      "amount_stroops",
+      "currency_code",
+      "previous_state",
+      "new_state",
+      "funding_source_type",
+      "funding_reference",
+      "source_event_id",
+      "idempotency_key",
+      "reason",
+      "metadata",
+      "created_at"
+    ],
+    "rewards": [
+      "id",
+      "creator_user_id",
+      "scope_type",
+      "scope_id",
+      "reward_type",
+      "amount_mode",
+      "amount_stroops",
+      "max_recipients",
+      "currency_code",
+      "description",
+      "auto_release",
+      "eligibility_config",
+      "status",
+      "idempotency_key",
+      "expires_at",
+      "funded_at",
+      "activated_at",
+      "eligible_at",
+      "approved_at",
+      "released_at",
+      "cancelled_at",
+      "refunded_at",
+      "created_at",
+      "updated_at"
+    ],
+    "role_permissions": [
+      "role_id",
+      "permission_id",
+      "created_at"
+    ],
+    "roles": [
+      "id",
+      "name",
+      "label",
+      "description",
+      "is_system",
+      "created_by",
+      "created_at"
+    ],
+    "scheduler_locks": [
+      "lock_name",
+      "holder_id",
+      "acquired_at",
+      "expires_at"
+    ],
+    "scheduler_tick_log": [
+      "id",
+      "started_at",
+      "completed_at",
+      "duration_ms",
+      "result",
+      "outbox_processed",
+      "outbox_failed",
+      "expiry_processed",
+      "expiry_failed",
+      "error_message"
+    ],
+    "sponsor_cohorts": [
+      "id",
+      "name",
+      "sponsor_user_id",
+      "course_id",
+      "selected_tier",
+      "payment_id",
+      "status",
+      "start_date",
+      "end_date",
+      "created_at"
+    ],
+    "students": [
+      "id",
+      "user_id",
+      "name",
+      "email",
+      "enrollment_number",
+      "department",
+      "semester",
+      "created_at",
+      "updated_at"
+    ],
+    "submissions": [
+      "id",
+      "student_id",
+      "title",
+      "description",
+      "file_name",
+      "file_size",
+      "file_path",
+      "file_mime_type",
+      "status",
+      "submitted_at",
+      "reviewed_at",
+      "reviewed_by_id",
+      "feedback",
+      "course_id",
+      "week_id",
+      "item_id",
+      "grade_status",
+      "graded_by",
+      "created_at",
+      "updated_at"
+    ],
+    "system_config": [
+      "key",
+      "value",
+      "updated_at",
+      "updated_by"
+    ],
+    "tenant_settings": [
+      "tenant_id",
+      "super_student_threshold",
+      "updated_at",
+      "reward_high_value_threshold"
+    ],
+    "tenant_users": [
+      "tenant_id",
+      "user_id",
+      "tenant_role",
+      "joined_at"
+    ],
+    "tenants": [
+      "id",
+      "name",
+      "slug",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "user_course_codes": [
+      "user_id",
+      "course_code"
+    ],
+    "user_group_members": [
+      "group_id",
+      "user_id",
+      "joined_at"
+    ],
+    "user_groups": [
+      "id",
+      "name",
+      "group_type",
+      "owner_user_id",
+      "created_at",
+      "updated_at"
+    ],
+    "user_links": [
+      "id",
+      "parent_user_id",
+      "child_user_id",
+      "link_type",
+      "created_at"
+    ],
+    "user_profiles": [
+      "user_id",
+      "avatar_path",
+      "whatsapp",
+      "telegram",
+      "linkedin_url",
+      "github_url",
+      "twitter_url",
+      "website_url",
+      "custom_links",
+      "updated_at"
+    ],
+    "user_roles": [
+      "user_id",
+      "role_id",
+      "granted_by",
+      "created_at"
+    ],
+    "users": [
+      "id",
+      "name",
+      "email",
+      "password_hash",
+      "role",
+      "description",
+      "clerk_user_id",
+      "walletAddress",
+      "wallet_linking_status",
+      "password_reset_token",
+      "password_reset_expires_at",
+      "password_changed_at",
+      "authorization_version",
+      "reward_balance_legacy_real",
+      "deletion_status",
+      "deletion_requested_at",
+      "deletion_finalized_at",
+      "deletion_requested_by",
+      "legal_hold_reason",
+      "legal_hold_placed_at",
+      "legal_hold_review_date",
+      "created_at",
+      "updated_at",
+      "auth_provider",
+      "ammawallet_user_id",
+      "reward_balance"
+    ],
+    "webhook_events": [
+      "id",
+      "event_id",
+      "event_type",
+      "provider",
+      "processed_at",
+      "payload"
+    ]
+  },
+  "indexes": [
+    "idx_active_sessions_hash",
+    "idx_active_sessions_user",
+    "idx_announcements_course",
+    "idx_announcements_created",
+    "idx_announcements_scope",
+    "idx_audit_log_action",
+    "idx_audit_log_actor",
+    "idx_audit_log_created",
+    "idx_certificate_badges_application_id",
+    "idx_cohort_members_user",
+    "idx_cohort_status_log_cohort",
+    "idx_conv_reads_user",
+    "idx_conversations_user1",
+    "idx_conversations_user2",
+    "idx_course_enrollments_course",
+    "idx_course_enrollments_user",
+    "idx_course_invites_course",
+    "idx_course_invites_email",
+    "idx_course_invites_token",
+    "idx_course_lecturers_course",
+    "idx_course_lecturers_user",
+    "idx_course_pricing_course_id",
+    "idx_course_tas_user",
+    "idx_courses_course_code",
+    "idx_courses_tenant",
+    "idx_data_exports_user",
+    "idx_deletion_requests_grace",
+    "idx_deletion_requests_status",
+    "idx_deletion_requests_user",
+    "idx_disputes_payment",
+    "idx_disputes_status",
+    "idx_documents_category",
+    "idx_documents_uploaded_at",
+    "idx_documents_uploaded_by",
+    "idx_email_outbox_retry",
+    "idx_email_outbox_status",
+    "idx_email_templates_category",
+    "idx_email_templates_slug",
+    "idx_forum_posts_author",
+    "idx_forum_posts_deleted",
+    "idx_forum_posts_topic",
+    "idx_forum_topics_author",
+    "idx_forum_topics_course_id",
+    "idx_forum_topics_deleted",
+    "idx_identity_access_log_actor",
+    "idx_identity_access_log_target",
+    "idx_lesson_completions_user_course",
+    "idx_login_history_user",
+    "idx_messages_conversation",
+    "idx_messages_deleted",
+    "idx_nft_apps_active",
+    "idx_nft_apps_status",
+    "idx_nft_apps_user_course",
+    "idx_nft_credentials_course",
+    "idx_nft_credentials_status",
+    "idx_nft_credentials_user",
+    "idx_notification_preferences_user",
+    "idx_notifications_user_created",
+    "idx_notifications_user_read",
+    "idx_payments_application_id",
+    "idx_payments_course_id",
+    "idx_payments_status",
+    "idx_payments_user_id",
+    "idx_permissions_category",
+    "idx_permissions_name",
+    "idx_quiz_completions_quiz",
+    "idx_quiz_completions_user",
+    "idx_quizzes_course",
+    "idx_refund_attempts_reward",
+    "idx_refund_attempts_status",
+    "idx_refund_audit_attempt",
+    "idx_reward_accounts_user",
+    "idx_reward_allocations_reward",
+    "idx_reward_allocations_student",
+    "idx_reward_audience_reward",
+    "idx_reward_elig_reward",
+    "idx_reward_outbox_status",
+    "idx_reward_txn_allocation",
+    "idx_reward_txn_idem",
+    "idx_reward_txn_reward",
+    "idx_rewards_creator",
+    "idx_rewards_scope",
+    "idx_rewards_status",
+    "idx_role_permissions_role",
+    "idx_sponsor_cohorts_course",
+    "idx_sponsor_cohorts_sponsor",
+    "idx_students_department",
+    "idx_students_semester",
+    "idx_submissions_course",
+    "idx_submissions_course_week",
+    "idx_submissions_status",
+    "idx_submissions_student_id",
+    "idx_tenant_users_tenant",
+    "idx_tenant_users_user",
+    "idx_tenants_slug",
+    "idx_tenants_status",
+    "idx_user_course_codes_code",
+    "idx_user_course_codes_user",
+    "idx_user_links_child",
+    "idx_user_links_parent",
+    "idx_user_roles_role",
+    "idx_user_roles_user",
+    "idx_users_clerk_user_id",
+    "idx_users_reset_token",
+    "idx_webhook_events_event_id"
+  ],
+  "keys": {
+    "active_sessions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "token_hash"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "announcements": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "author_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "audit_log": {
+      "primary": [
+        "id"
+      ],
+      "unique": [],
+      "foreign": []
+    },
+    "certificate_badges": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "course_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "application_id",
+          "course_nft_applications",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "cohort_members": {
+      "primary": [
+        "cohort_id",
+        "user_id"
+      ],
+      "unique": [
+        [
+          "cohort_id",
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "application_id",
+          "course_nft_applications",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "cohort_id",
+          "sponsor_cohorts",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "cohort_status_log": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "cohort_id",
+          "sponsor_cohorts",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "conversation_messages": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "sender_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "conversation_id",
+          "conversations",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "conversation_reads": {
+      "primary": [
+        "user_id",
+        "conversation_id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "conversation_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "conversation_id",
+          "conversations",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "conversations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user2_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user1_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_approval_workflow": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "reviewed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "submitted_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_completion_requirements": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "course_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_documents": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "uploaded_by_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ]
+      ]
+    },
+    "course_enrollments": {
+      "primary": [
+        "course_id",
+        "user_id"
+      ],
+      "unique": [
+        [
+          "course_id",
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_invites": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "token"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_lecturers": {
+      "primary": [
+        "course_id",
+        "user_id"
+      ],
+      "unique": [
+        [
+          "course_id",
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "assigned_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_material_submissions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "reviewed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "submitter_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_nft_applications": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "WHERE status NOT IN ('rejected', 'minted')",
+          "user_id",
+          "course_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "credential_id",
+          "nft_credentials",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "lecturer_rec_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "reviewed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_pricing": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "course_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_tas": {
+      "primary": [
+        "course_id",
+        "user_id"
+      ],
+      "unique": [
+        [
+          "course_id",
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "assigned_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "courses": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "course_code"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "tenant_id",
+          "tenants",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ]
+      ]
+    },
+    "data_exports": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "deleted_user_identities": {
+      "primary": [
+        "user_id"
+      ],
+      "unique": [
+        [
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ]
+      ]
+    },
+    "deletion_requests": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ]
+      ]
+    },
+    "disputes": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "resolved_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "created_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "payment_id",
+          "payments",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "email_outbox": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "idempotency_key"
+        ]
+      ],
+      "foreign": []
+    },
+    "email_templates": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "slug"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": []
+    },
+    "forum_posts": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "author_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "topic_id",
+          "forum_topics",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "forum_topics": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "author_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "health_check_pings": {
+      "primary": [
+        "id"
+      ],
+      "unique": [],
+      "foreign": []
+    },
+    "identity_access_log": {
+      "primary": [
+        "id"
+      ],
+      "unique": [],
+      "foreign": []
+    },
+    "lesson_completions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "course_id",
+          "item_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "marked_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "login_history": {
+      "primary": [
+        "id"
+      ],
+      "unique": [],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "nft_credentials": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "quiz_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "application_id",
+          "course_nft_applications",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "quiz_id",
+          "quizzes",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "notification_preferences": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "type"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "notifications": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "payments": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "confirmed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "application_id",
+          "course_nft_applications",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "perk_claims": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "perk_id",
+          "user_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "perk_id",
+          "perks",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "perks": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "created_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ]
+      ]
+    },
+    "permissions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "name"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": []
+    },
+    "quiz_completions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "quiz_id",
+          "user_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "quiz_id",
+          "quizzes",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "quizzes": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ]
+      ]
+    },
+    "reward_accounts": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "account_type",
+          "currency_code"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_allocations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "reward_id",
+          "student_user_id"
+        ],
+        [
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "student_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_audience_snapshots": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "reward_id",
+          "student_user_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "student_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_eligibility_events": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "reward_id",
+          "event_type",
+          "event_source_id",
+          "student_user_id"
+        ],
+        [
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "student_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "allocation_id",
+          "reward_allocations",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_event_outbox": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "event_type",
+          "event_source_id",
+          "student_user_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "student_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_refund_attempts": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "resolved_by_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "attempted_by_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "allocation_id",
+          "reward_allocations",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_refund_audit_log": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "actor_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "attempt_id",
+          "reward_refund_attempts",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_transactions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "actor_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "destination_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "source_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "allocation_id",
+          "reward_allocations",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "rewards": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "creator_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "role_permissions": {
+      "primary": [
+        "role_id",
+        "permission_id"
+      ],
+      "unique": [
+        [
+          "role_id",
+          "permission_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "permission_id",
+          "permissions",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "role_id",
+          "roles",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "roles": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "name"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "created_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ]
+      ]
+    },
+    "scheduler_locks": {
+      "primary": [
+        "lock_name"
+      ],
+      "unique": [
+        [
+          "lock_name"
+        ]
+      ],
+      "foreign": []
+    },
+    "scheduler_tick_log": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": []
+    },
+    "sponsor_cohorts": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "payment_id",
+          "payments",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "sponsor_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "students": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "enrollment_number"
+        ],
+        [
+          "email"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ]
+      ]
+    },
+    "submissions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "graded_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "reviewed_by_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ],
+        [
+          "student_id",
+          "students",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "system_config": {
+      "primary": [
+        "key"
+      ],
+      "unique": [
+        [
+          "key"
+        ]
+      ],
+      "foreign": [
+        [
+          "updated_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "NO ACTION"
+        ]
+      ]
+    },
+    "tenant_settings": {
+      "primary": [
+        "tenant_id"
+      ],
+      "unique": [
+        [
+          "tenant_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "tenant_id",
+          "tenants",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "tenant_users": {
+      "primary": [
+        "tenant_id",
+        "user_id"
+      ],
+      "unique": [
+        [
+          "tenant_id",
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "tenant_id",
+          "tenants",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "tenants": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "slug"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": []
+    },
+    "user_course_codes": {
+      "primary": [
+        "user_id",
+        "course_code"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "course_code"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "user_group_members": {
+      "primary": [
+        "group_id",
+        "user_id"
+      ],
+      "unique": [
+        [
+          "group_id",
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "group_id",
+          "user_groups",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "user_groups": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "owner_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "user_links": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "parent_user_id",
+          "child_user_id",
+          "link_type"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "child_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "parent_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "user_profiles": {
+      "primary": [
+        "user_id"
+      ],
+      "unique": [
+        [
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "user_roles": {
+      "primary": [
+        "user_id",
+        "role_id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "role_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "granted_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "role_id",
+          "roles",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "users": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "WHERE password_reset_token IS NOT NULL",
+          "password_reset_token"
+        ],
+        [
+          "WHERE clerk_user_id IS NOT NULL",
+          "clerk_user_id"
+        ],
+        [
+          "walletAddress"
+        ],
+        [
+          "email"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": []
+    },
+    "webhook_events": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "event_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": []
+    }
+  }
+}

@@ -1,19 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import fs from 'fs';
-import path from 'path';
+import { db } from '../config/database.js';
 
 describe('LMS-DB-001 — quizzes.course_id FK constraint', () => {
-  it('schema.sql should declare quizzes.course_id with REFERENCES courses(id)', () => {
-    const schema = fs.readFileSync(path.resolve(__dirname, '../../database/schema.sql'), 'utf-8');
-    // Find the quizzes CREATE TABLE block
-    const quizzesMatch = schema.match(/CREATE TABLE(?:\s+IF NOT EXISTS)?\s+quizzes\s*\([\s\S]*?\);/im);
-    expect(quizzesMatch).not.toBeNull();
-    const quizzesBlock = quizzesMatch![0];
-    expect(quizzesBlock).toMatch(/course_id\s+TEXT\s+REFERENCES\s+courses\s*\(\s*id\s*\)/i);
+  it('prevents references to missing courses', () => {
+    expect(() => db.prepare("INSERT INTO quizzes(id,title,course_id) VALUES('bad','Bad','missing')").run()).toThrow();
   });
-
-  it('database.ts should have ensureQuizzesCourseIdFK function', () => {
-    const src = fs.readFileSync(path.resolve(__dirname, '../config/database.ts'), 'utf-8');
-    expect(src).toContain('ensureQuizzesCourseIdFK');
+  it('retains the quiz and clears course association when a course is deleted', () => {
+    db.exec("INSERT INTO courses(id,title,course_code) VALUES('course','Course','TEST'); INSERT INTO quizzes(id,title,course_id) VALUES('quiz','Quiz','course')");
+    db.prepare("DELETE FROM courses WHERE id='course'").run();
+    expect(db.prepare("SELECT course_id FROM quizzes WHERE id='quiz'").get()).toEqual({course_id:null});
   });
 });

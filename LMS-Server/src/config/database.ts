@@ -1,8 +1,8 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
-import path from 'path';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
+import { openApplicationDatabase, loadCanonicalSchema, validateDatabase } from './databaseBootstrap.js';
 
 dotenv.config();
 
@@ -12,158 +12,13 @@ dotenv.config();
 const DB_PATH = process.env.DATABASE_PATH ||
   (process.env.VITEST ? ':memory:' : './data/student_ms.db');
 
-// Ensure directory exists (skip for in-memory databases)
-import fs from 'fs';
-if (DB_PATH !== ':memory:') {
-  const dbDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
-}
+const opened = openApplicationDatabase(DB_PATH);
+export let db: DatabaseType = opened.database;
+const startupMigrations: Array<() => void> = [];
 
-export let db: DatabaseType = new Database(DB_PATH);
+startupMigrations.push(ensureAuthorizationVersionColumn);
 
-db.pragma('journal_mode = WAL');
-// FK checks are enabled after module-level migrations complete (see bottom of migration block).
-// This prevents failures when ensure* functions reference tables that don't yet exist
-// (e.g., in-memory test DBs where schema.sql hasn't been loaded yet).
-db.pragma('foreign_keys = OFF');
 
-// Bootstrap: if this is a fresh file-based DB (no users table), load schema.sql to create all tables.
-// This makes E2E cold starts and new deployments work without running `npm run db:schema` manually.
-//
-// GUARD (Incident 2026-09-06): If the DB file is >4KB or a WAL journal exists, this is NOT a fresh DB.
-// Refuse to bootstrap — the DB likely has data that wasn't visible due to WAL checkpoint failure.
-// See: notes/incident-2026-09-07-db-reset.md
-//
-// NOTE: Capture WAL state BEFORE the SELECT query. In WAL mode, even a read-only
-// SELECT creates the -wal file as a side effect, which would cause the guard to
-// self-trigger on a genuinely fresh database.
-const _preQueryWalExists = DB_PATH !== ':memory:' && fs.existsSync(DB_PATH + '-wal');
-const _preQueryDbSize = DB_PATH !== ':memory:' ? fs.statSync(DB_PATH).size : 0;
-const hasUsersTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
-if (!hasUsersTable && DB_PATH !== ':memory:') {
-  if (_preQueryDbSize > 4096 || _preQueryWalExists) {
-    const msg = `FATAL: DB file exists (${_preQueryDbSize} bytes, WAL=${_preQueryWalExists}) but users table not found. ` +
-      `Refusing to bootstrap schema.sql on a non-empty DB. Manual intervention required. ` +
-      `See notes/incident-2026-09-07-db-reset.md`;
-    console.error(msg);
-    throw new Error(msg);
-  }
-
-  const schemaPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../database/schema.sql');
-  if (fs.existsSync(schemaPath)) {
-    db.exec(fs.readFileSync(schemaPath, 'utf-8'));
-  }
-}
-
-/** A1 — Redesign Phase A: widen users.role CHECK to include 'lecturer'.
- *  SQLite cannot ALTER a CHECK constraint, so the table must be recreated.
- *  Called FIRST so all subsequent ensures operate on the updated users table. */
-function ensureLecturerRole(): void {
-  const hasUsers = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-    .get();
-  if (!hasUsers) return;
-
-  const { sql } = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
-    .get() as { sql: string };
-  if (sql.includes("'lecturer'")) return; // already migrated
-
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON'); // prevent SQLite ≥3.26.0 from auto-rewriting FKs in other tables
-  db.exec(`
-    BEGIN;
-    ALTER TABLE users RENAME TO _users_old;
-    CREATE TABLE users (
-      id                        TEXT PRIMARY KEY,
-      name                      TEXT NOT NULL,
-      email                     TEXT UNIQUE NOT NULL,
-      password_hash             TEXT NOT NULL,
-      role                      TEXT NOT NULL DEFAULT 'student'
-                                  CHECK (role IN ('student', 'lecturer', 'admin')),
-      walletAddress             TEXT UNIQUE,
-      created_at                TEXT DEFAULT (datetime('now')),
-      updated_at                TEXT DEFAULT (datetime('now')),
-      clerk_user_id             TEXT,
-      description               TEXT,
-      password_reset_expires_at TEXT,
-      password_changed_at       TEXT,
-      password_reset_token      TEXT,
-      wallet_linking_status     TEXT DEFAULT 'none',
-      auth_provider             TEXT DEFAULT 'local',
-      ammawallet_user_id        TEXT
-    );
-    INSERT INTO users SELECT
-      id, name, email, password_hash, role, walletAddress,
-      created_at, updated_at, clerk_user_id, description,
-      password_reset_expires_at, password_changed_at, password_reset_token,
-      wallet_linking_status, auth_provider, ammawallet_user_id
-    FROM _users_old;
-    DROP TABLE _users_old;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user_id
-      ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_reset_token
-      ON users(password_reset_token) WHERE password_reset_token IS NOT NULL;
-    COMMIT;
-  `);
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-ensureLecturerRole();
-ensureAuthorizationVersionColumn();
-
-/** A1-fix — repair stale "_users_old" FK references caused by ensureLecturerRole().
- *  SQLite ≥3.26.0 auto-rewrote FK text in 13 tables when "ALTER TABLE users RENAME TO _users_old"
- *  ran without PRAGMA legacy_alter_table=ON. With foreign_keys=ON, any DML (INSERT/UPDATE/DELETE)
- *  on those tables fails at prepare time with "no such table: main._users_old".
- *  This function detects stale tables and rebuilds them with the correct FK reference. */
-function ensureUsersFKFix(): void {
-  const stale = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%_users_old%'")
-    .all() as { name: string }[];
-  if (stale.length === 0) return;
-
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON');
-
-  for (const { name } of stale) {
-    const tableRow = db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?")
-      .get(name) as { sql: string } | undefined;
-    if (!tableRow) continue;
-
-    // Replace stale reference: REFERENCES "_users_old" → REFERENCES users
-    const fixedSql = tableRow.sql.replace(/REFERENCES "_users_old"/g, 'REFERENCES users');
-
-    // Column list for data copy
-    const cols = (db.prepare(`PRAGMA table_info("${name}")`).all() as { name: string }[])
-      .map((c) => c.name);
-    const colList = cols.join(', ');
-
-    // Explicit index definitions to recreate (auto-indexes have null sql, skip them)
-    const indexes = db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL")
-      .all(name) as { sql: string }[];
-
-    const tmpName = `_${name}_ufix`;
-
-    db.exec(`
-      BEGIN;
-      ALTER TABLE "${name}" RENAME TO "${tmpName}";
-      ${fixedSql};
-      INSERT INTO "${name}" (${colList}) SELECT ${colList} FROM "${tmpName}";
-      DROP TABLE "${tmpName}";
-      ${indexes.map((i) => i.sql + ';').join('\n      ')}
-      COMMIT;
-    `);
-  }
-
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-ensureUsersFKFix();
 
 // Ensure user_course_codes exists (for DBs created before course-code access was added)
 function ensureCourseCodeTables(): void {
@@ -182,7 +37,7 @@ function ensureCourseCodeTables(): void {
     `);
   }
 }
-ensureCourseCodeTables();
+startupMigrations.push(ensureCourseCodeTables);
 
 function ensureClerkUserIdColumn(): void {
   const hasUsers = db
@@ -198,7 +53,7 @@ function ensureClerkUserIdColumn(): void {
     );
   }
 }
-ensureClerkUserIdColumn();
+startupMigrations.push(ensureClerkUserIdColumn);
 
 /** Profile API selects users.description — ensure column exists on older databases. */
 function ensureUsersDescriptionColumn(): void {
@@ -211,7 +66,7 @@ function ensureUsersDescriptionColumn(): void {
     db.exec('ALTER TABLE users ADD COLUMN description TEXT');
   }
 }
-ensureUsersDescriptionColumn();
+startupMigrations.push(ensureUsersDescriptionColumn);
 
 function ensureAnnouncementsTable(): void {
   const has = db
@@ -236,7 +91,7 @@ function ensureAnnouncementsTable(): void {
     `);
   }
 }
-ensureAnnouncementsTable();
+startupMigrations.push(ensureAnnouncementsTable);
 
 function ensureUserProfilesTable(): void {
   const has = db
@@ -274,7 +129,7 @@ function ensureUserProfilesTable(): void {
     addCol('custom_links', "TEXT DEFAULT '[]'");
   }
 }
-ensureUserProfilesTable();
+startupMigrations.push(ensureUserProfilesTable);
 
 function ensureCourseInvitesTable(): void {
   const has = db
@@ -297,7 +152,7 @@ function ensureCourseInvitesTable(): void {
     `);
   }
 }
-ensureCourseInvitesTable();
+startupMigrations.push(ensureCourseInvitesTable);
 
 function ensureConversationReadsTable(): void {
   const has = db
@@ -315,7 +170,7 @@ function ensureConversationReadsTable(): void {
     `);
   }
 }
-ensureConversationReadsTable();
+startupMigrations.push(ensureConversationReadsTable);
 
 function ensureForumTopicCourseIdColumn(): void {
   const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='forum_topics'").get();
@@ -326,7 +181,7 @@ function ensureForumTopicCourseIdColumn(): void {
     db.exec('CREATE INDEX IF NOT EXISTS idx_forum_topics_course_id ON forum_topics(course_id)');
   }
 }
-ensureForumTopicCourseIdColumn();
+startupMigrations.push(ensureForumTopicCourseIdColumn);
 
 function ensureQuizInformationColumn(): void {
   const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quizzes'").get();
@@ -336,7 +191,7 @@ function ensureQuizInformationColumn(): void {
     db.exec('ALTER TABLE quizzes ADD COLUMN information TEXT');
   }
 }
-ensureQuizInformationColumn();
+startupMigrations.push(ensureQuizInformationColumn);
 
 /** course_documents.course_ids — JSON array of course IDs for access restriction; NULL = open to all.
  *  Column was added to schema.sql but pre-existing tables created before that change lack it.
@@ -349,7 +204,7 @@ function ensureCourseDocumentsCourseIdsColumn(): void {
     db.exec('ALTER TABLE course_documents ADD COLUMN course_ids TEXT');
   }
 }
-ensureCourseDocumentsCourseIdsColumn();
+startupMigrations.push(ensureCourseDocumentsCourseIdsColumn);
 
 /** SSO columns — auth_provider and ammawallet_user_id added for AmmaWallet SSO (Phase 1). */
 function ensureSsoColumns(): void {
@@ -363,7 +218,7 @@ function ensureSsoColumns(): void {
     db.exec('ALTER TABLE users ADD COLUMN ammawallet_user_id TEXT');
   }
 }
-ensureSsoColumns();
+startupMigrations.push(ensureSsoColumns);
 
 function ensureWalletLinkingStatusColumn(): void {
   const hasUsers = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
@@ -374,7 +229,7 @@ function ensureWalletLinkingStatusColumn(): void {
     db.exec("UPDATE users SET wallet_linking_status = 'linked' WHERE walletAddress IS NOT NULL");
   }
 }
-ensureWalletLinkingStatusColumn();
+startupMigrations.push(ensureWalletLinkingStatusColumn);
 
 function ensureNftCredentialsTable(): void {
   const has = db
@@ -402,7 +257,7 @@ function ensureNftCredentialsTable(): void {
     `);
   }
 }
-ensureNftCredentialsTable();
+startupMigrations.push(ensureNftCredentialsTable);
 
 /** A2 — course_lecturers: maps lecturers to their assigned courses. */
 function ensureCourseLecturersTable(): void {
@@ -418,7 +273,7 @@ function ensureCourseLecturersTable(): void {
     CREATE INDEX IF NOT EXISTS idx_course_lecturers_course ON course_lecturers(course_id);
   `);
 }
-ensureCourseLecturersTable();
+startupMigrations.push(ensureCourseLecturersTable);
 
 /** A3 — lesson_completions: per-user per-item completion tracking. */
 function ensureLessonCompletionsTable(): void {
@@ -437,43 +292,9 @@ function ensureLessonCompletionsTable(): void {
       ON lesson_completions(user_id, course_id);
   `);
 }
-ensureLessonCompletionsTable();
+startupMigrations.push(ensureLessonCompletionsTable);
 
-/** P7-C1 — migrate lesson_completions: make completed_at nullable, add progress columns. */
-function ensureLessonCompletionsProgressColumns(): void {
-  const cols = db.prepare('PRAGMA table_info(lesson_completions)').all() as { name: string; notnull: number }[];
-  const hasProgressPct = cols.some((c) => c.name === 'progress_pct');
-  if (hasProgressPct) return; // already migrated
 
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON');
-  db.exec(`
-    BEGIN;
-    ALTER TABLE lesson_completions RENAME TO _lesson_completions_p7_old;
-    CREATE TABLE lesson_completions (
-      id           TEXT PRIMARY KEY,
-      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-      item_id      TEXT NOT NULL,
-      section_id   TEXT NOT NULL,
-      completed_at TEXT DEFAULT (datetime('now')),
-      marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
-      progress_pct    INTEGER,
-      last_position_s INTEGER,
-      UNIQUE (user_id, course_id, item_id)
-    );
-    INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, completed_at, marked_by)
-      SELECT id, user_id, course_id, item_id, section_id, completed_at, marked_by
-      FROM _lesson_completions_p7_old;
-    DROP TABLE _lesson_completions_p7_old;
-    CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course
-      ON lesson_completions(user_id, course_id);
-    COMMIT;
-  `);
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-ensureLessonCompletionsProgressColumns();
 
 /** A4 — course_completion_requirements: per-course NFT eligibility rules. */
 function ensureCourseCompletionRequirementsTable(): void {
@@ -491,7 +312,7 @@ function ensureCourseCompletionRequirementsTable(): void {
     );
   `);
 }
-ensureCourseCompletionRequirementsTable();
+startupMigrations.push(ensureCourseCompletionRequirementsTable);
 
 /** A5 — course_nft_applications: student applies for course NFT; admin approves then mints.
  *  Partial unique index prevents duplicate active applications (allows re-apply after rejection). */
@@ -522,7 +343,7 @@ function ensureCourseNftApplicationsTable(): void {
       WHERE status NOT IN ('rejected', 'minted');
   `);
 }
-ensureCourseNftApplicationsTable();
+startupMigrations.push(ensureCourseNftApplicationsTable);
 
 /** A6 — nft_credentials: add course_id and application_id for course-level mints.
  *  Existing quiz-triggered rows keep quiz_id; new course mints will populate course_id. */
@@ -540,120 +361,11 @@ function ensureNftCredentialsCourseId(): void {
     db.exec('ALTER TABLE nft_credentials ADD COLUMN application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL');
   }
 }
-ensureNftCredentialsCourseId();
+startupMigrations.push(ensureNftCredentialsCourseId);
 
-/** B0 — make nft_credentials.quiz_id nullable to support course-level mints.
- *  New course mints have no associated quiz; quiz_id will be NULL.
- *  Existing quiz-triggered rows keep their quiz_id unchanged.
- *  Must run AFTER ensureNftCredentialsCourseId() so course_id/application_id already exist. */
-function ensureNftCredentialsQuizIdNullable(): void {
-  const has = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='nft_credentials'")
-    .get();
-  if (!has) return;
-  const cols = db.prepare('PRAGMA table_info(nft_credentials)').all() as { name: string; notnull: number }[];
-  const quizIdCol = cols.find((c) => c.name === 'quiz_id');
-  if (!quizIdCol || quizIdCol.notnull === 0) return; // already nullable
 
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON'); // prevent SQLite ≥3.26.0 from auto-rewriting FKs in other tables
-  db.exec(`
-    BEGIN;
-    ALTER TABLE nft_credentials RENAME TO _nft_creds_b0_old;
-    CREATE TABLE nft_credentials (
-      id             TEXT PRIMARY KEY,
-      user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      quiz_id        TEXT REFERENCES quizzes(id) ON DELETE CASCADE,
-      wallet_address TEXT NOT NULL,
-      mint_status    TEXT NOT NULL DEFAULT 'pending'
-                       CHECK (mint_status IN ('pending', 'minted', 'failed')),
-      tx_hash        TEXT,
-      error          TEXT,
-      contract_id    TEXT NOT NULL,
-      network        TEXT NOT NULL DEFAULT 'public',
-      created_at     TEXT DEFAULT (datetime('now')),
-      updated_at     TEXT DEFAULT (datetime('now')),
-      course_id      TEXT REFERENCES courses(id) ON DELETE SET NULL,
-      application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
-      UNIQUE (user_id, quiz_id)
-    );
-    INSERT INTO nft_credentials
-      (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, error,
-       contract_id, network, created_at, updated_at, course_id, application_id)
-    SELECT
-      id, user_id, quiz_id, wallet_address, mint_status, tx_hash, error,
-      contract_id, network, created_at, updated_at, course_id, application_id
-    FROM _nft_creds_b0_old;
-    DROP TABLE _nft_creds_b0_old;
-    CREATE INDEX IF NOT EXISTS idx_nft_credentials_user   ON nft_credentials(user_id);
-    CREATE INDEX IF NOT EXISTS idx_nft_credentials_status ON nft_credentials(mint_status);
-    CREATE INDEX IF NOT EXISTS idx_nft_credentials_course ON nft_credentials(course_id);
-    COMMIT;
-  `);
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-ensureNftCredentialsQuizIdNullable();
 
-/** B0-fix — repair stale FK reference in course_nft_applications.
- *  SQLite ≥ 3.26.0 auto-rewrites FK references when a table is renamed.
- *  ensureNftCredentialsQuizIdNullable() renamed nft_credentials → _nft_creds_b0_old
- *  without PRAGMA legacy_alter_table, so course_nft_applications.credential_id
- *  was silently rewritten to reference "_nft_creds_b0_old" (which was then dropped).
- *  This function detects that stale reference and rebuilds the table correctly. */
-function ensureCourseNftApplicationsFKFix(): void {
-  const row = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='course_nft_applications'")
-    .get() as { sql: string } | undefined;
-  if (!row) return;
-  if (!row.sql.includes('_nft_creds_b0_old')) return; // already correct, nothing to do
 
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON'); // prevent FK auto-rewrite during rename
-  db.exec(`
-    BEGIN;
-    ALTER TABLE course_nft_applications RENAME TO _nft_apps_fk_fix_old;
-    CREATE TABLE course_nft_applications (
-      id                 TEXT PRIMARY KEY,
-      user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      course_id          TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-      wallet_address     TEXT NOT NULL,
-      status             TEXT NOT NULL DEFAULT 'pending'
-                           CHECK (status IN ('pending', 'approved', 'rejected', 'minted')),
-      applied_at         TEXT NOT NULL DEFAULT (datetime('now')),
-      reviewed_at        TEXT,
-      reviewed_by        TEXT REFERENCES users(id) ON DELETE SET NULL,
-      review_notes       TEXT,
-      lecturer_rec       TEXT CHECK (lecturer_rec IN ('approved', 'not_ready') OR lecturer_rec IS NULL),
-      lecturer_rec_notes TEXT,
-      lecturer_rec_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
-      lecturer_rec_at    TEXT,
-      tx_hash            TEXT,
-      credential_id      TEXT REFERENCES nft_credentials(id) ON DELETE SET NULL
-    );
-    INSERT INTO course_nft_applications
-      (id, user_id, course_id, wallet_address, status, applied_at,
-       reviewed_at, reviewed_by, review_notes,
-       lecturer_rec, lecturer_rec_notes, lecturer_rec_by, lecturer_rec_at,
-       tx_hash, credential_id)
-    SELECT
-      id, user_id, course_id, wallet_address, status, applied_at,
-      reviewed_at, reviewed_by, review_notes,
-      lecturer_rec, lecturer_rec_notes, lecturer_rec_by, lecturer_rec_at,
-      tx_hash, credential_id
-    FROM _nft_apps_fk_fix_old;
-    DROP TABLE _nft_apps_fk_fix_old;
-    CREATE INDEX IF NOT EXISTS idx_nft_apps_user_course ON course_nft_applications(user_id, course_id);
-    CREATE INDEX IF NOT EXISTS idx_nft_apps_status      ON course_nft_applications(status);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_nft_apps_active
-      ON course_nft_applications(user_id, course_id)
-      WHERE status NOT IN ('rejected', 'minted');
-    COMMIT;
-  `);
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-ensureCourseNftApplicationsFKFix();
 
 /** L-007 — Add sponsor_label column to courses for cohort/sponsor tagging. */
 function ensureCourseSponsorLabel(): void {
@@ -661,7 +373,7 @@ function ensureCourseSponsorLabel(): void {
     db.exec('ALTER TABLE courses ADD COLUMN sponsor_label TEXT');
   } catch { /* column already exists */ }
 }
-ensureCourseSponsorLabel();
+startupMigrations.push(ensureCourseSponsorLabel);
 
 /** L-013 — Add is_superseded column to nft_credentials for re-mint correction flow.
  *  When an admin re-mints a credential, the old row is marked is_superseded=1 and a
@@ -671,7 +383,7 @@ function ensureNftCredentialsIsSuperseded(): void {
     db.exec('ALTER TABLE nft_credentials ADD COLUMN is_superseded INTEGER NOT NULL DEFAULT 0');
   } catch { /* column already exists */ }
 }
-ensureNftCredentialsIsSuperseded();
+startupMigrations.push(ensureNftCredentialsIsSuperseded);
 
 /** NM-A2 — Add soroban_token_id column to nft_credentials.
  *  Stores the on-chain Soroban u32 token ID returned by mint() so Nfts.tsx can match
@@ -682,7 +394,7 @@ function ensureNftCredentialsSorobanTokenId(): void {
     db.exec('ALTER TABLE nft_credentials ADD COLUMN soroban_token_id INTEGER');
   } catch { /* column already exists */ }
 }
-ensureNftCredentialsSorobanTokenId();
+startupMigrations.push(ensureNftCredentialsSorobanTokenId);
 
 /** LMS-ADM-001 — audit_log table for admin mutation tracking. */
 function ensureAuditLogTable(): void {
@@ -700,51 +412,9 @@ function ensureAuditLogTable(): void {
     CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
   `);
 }
-ensureAuditLogTable();
+startupMigrations.push(ensureAuditLogTable);
 
-/** LMS-DB-001 — Add FK quizzes.course_id → courses(id) ON DELETE SET NULL.
- *  Existing databases created before this change have no FK on course_id.
- *  This function detects the missing FK and rebuilds the table.
- *  NOTE: Production DB migration is a SEPARATE deployment task — this only
- *  affects in-memory test DBs and any NEW databases created from schema.sql. */
-function ensureQuizzesCourseIdFK(): void {
-  const has = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quizzes'")
-    .get();
-  if (!has) return;
 
-  const { sql } = db
-    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='quizzes'")
-    .get() as { sql: string };
-  if (sql.includes('REFERENCES')) return; // already has FK
-
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON');
-  db.exec(`
-    BEGIN;
-    ALTER TABLE quizzes RENAME TO _quizzes_db001_old;
-    CREATE TABLE quizzes (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT,
-      information TEXT,
-      course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
-      passing_score INTEGER NOT NULL DEFAULT 70,
-      questions TEXT NOT NULL DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-    INSERT INTO quizzes (id, title, description, information, course_id, passing_score, questions, created_at, updated_at)
-      SELECT id, title, description, information, course_id, passing_score, questions, created_at, updated_at
-      FROM _quizzes_db001_old;
-    DROP TABLE _quizzes_db001_old;
-    CREATE INDEX IF NOT EXISTS idx_quizzes_course ON quizzes(course_id);
-    COMMIT;
-  `);
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-ensureQuizzesCourseIdFK();
 
 /** Phase 1 Course-Centric IA: add course_id, week_id, item_id to submissions. */
 function ensureSubmissionsCourseContext(): void {
@@ -761,7 +431,7 @@ function ensureSubmissionsCourseContext(): void {
     db.exec("CREATE INDEX IF NOT EXISTS idx_submissions_course_week ON submissions(course_id, week_id)");
   }
 }
-ensureSubmissionsCourseContext();
+startupMigrations.push(ensureSubmissionsCourseContext);
 
 /** Phase 1 Course-Centric IA: add week_id to course_documents for per-week placement. */
 function ensureCourseDocumentsWeekId(): void {
@@ -774,7 +444,7 @@ function ensureCourseDocumentsWeekId(): void {
     db.exec("ALTER TABLE course_documents ADD COLUMN week_id TEXT");
   }
 }
-ensureCourseDocumentsWeekId();
+startupMigrations.push(ensureCourseDocumentsWeekId);
 
 /** Phase 7 C2 — notifications table for in-app student notifications. */
 function ensureNotificationsTable(): void {
@@ -795,7 +465,7 @@ function ensureNotificationsTable(): void {
       ON notifications(user_id, created_at);
   `);
 }
-ensureNotificationsTable();
+startupMigrations.push(ensureNotificationsTable);
 
 /** Phase 23 C3 — notification_preferences for per-type opt-out. */
 function ensureNotificationPreferencesTable(): void {
@@ -812,7 +482,7 @@ function ensureNotificationPreferencesTable(): void {
       ON notification_preferences(user_id);
   `);
 }
-ensureNotificationPreferencesTable();
+startupMigrations.push(ensureNotificationPreferencesTable);
 
 /** Phase 11 C1a — course_pricing + payments tables for certificate monetization. */
 function ensurePaymentsTables(): void {
@@ -865,7 +535,7 @@ function ensurePaymentsTables(): void {
     }
   }
 }
-ensurePaymentsTables();
+startupMigrations.push(ensurePaymentsTables);
 
 /** Phase 11 C2 — certificate_badges table + tier columns. */
 function ensureBadgesTables(): void {
@@ -904,7 +574,7 @@ function ensureBadgesTables(): void {
     }
   }
 }
-ensureBadgesTables();
+startupMigrations.push(ensureBadgesTables);
 
 // ─── Phase 11 C3: Sponsor Cohorts ───────────────────────────────────────────
 function ensureCohortTables(): void {
@@ -955,7 +625,7 @@ function ensureCohortTables(): void {
     CREATE INDEX IF NOT EXISTS idx_cohort_status_log_cohort ON cohort_status_log(cohort_id);
   `);
 }
-ensureCohortTables();
+startupMigrations.push(ensureCohortTables);
 
 // ─── Phase 12 C1: Paystack payment automation ────────────────────────────────
 function ensurePaystackColumns(): void {
@@ -994,7 +664,7 @@ function ensurePaystackColumns(): void {
     CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id ON webhook_events(event_id);
   `);
 }
-ensurePaystackColumns();
+startupMigrations.push(ensurePaystackColumns);
 
 // ─── Phase 20 C1: Multi-Tenant Architecture ──────────────────────────────────
 function ensureTenantTables(): void {
@@ -1028,9 +698,10 @@ function ensureTenantTables(): void {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_courses_tenant ON courses(tenant_id)`);
   }
 }
-ensureTenantTables();
+startupMigrations.push(ensureTenantTables);
 
 // ─── Phase 22 C3: Email Templates ──────────────────────────────────────────────
+function ensureEmailTemplates(): void {
 db.exec(`
   CREATE TABLE IF NOT EXISTS email_templates (
     id         TEXT PRIMARY KEY,
@@ -1082,6 +753,9 @@ db.exec(`
   }
 }
 
+}
+startupMigrations.push(ensureEmailTemplates);
+
 // ─── Phase 12B: Capability-based RBAC ─────────────────────────────────────────
 function ensureRbacTables(): void {
   db.exec(`
@@ -1127,7 +801,7 @@ function ensureRbacTables(): void {
     CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
   `);
 }
-ensureRbacTables();
+startupMigrations.push(ensureRbacTables);
 
 export function seedRbacData(): void {
   // Seed built-in roles (idempotent)
@@ -1538,9 +1212,9 @@ export function seedRbacData(): void {
 }
 // Only seed at module load if the users table already exists (production DB).
 // For test DBs (empty in-memory), setup.ts calls seedRbacData() explicitly after loading schema.sql.
-if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) {
-  seedRbacData();
-}
+startupMigrations.push(() => {
+  if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) seedRbacData();
+});
 
 export function migrateUsersToRbac(): void {
   // Map existing users.role → user_roles (idempotent)
@@ -1570,9 +1244,9 @@ export function migrateUsersToRbac(): void {
     }
   }
 }
-if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) {
-  migrateUsersToRbac();
-}
+startupMigrations.push(() => {
+  if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) migrateUsersToRbac();
+});
 
 // Phase A: Add approval_status column to courses (live DB migration)
 function ensureCoursesApprovalStatus(): void {
@@ -1583,7 +1257,7 @@ function ensureCoursesApprovalStatus(): void {
     db.exec("ALTER TABLE courses ADD COLUMN approval_status TEXT DEFAULT 'published'");
   }
 }
-ensureCoursesApprovalStatus();
+startupMigrations.push(ensureCoursesApprovalStatus);
 
 // Phase A: Add reward_balance column to users (live DB migration)
 function ensureUsersRewardBalance(): void {
@@ -1594,7 +1268,7 @@ function ensureUsersRewardBalance(): void {
     db.exec('ALTER TABLE users ADD COLUMN reward_balance REAL DEFAULT 0');
   }
 }
-ensureUsersRewardBalance();
+startupMigrations.push(ensureUsersRewardBalance);
 
 // Phase A: user_links table
 function ensureUserLinksTable(): void {
@@ -1611,7 +1285,7 @@ function ensureUserLinksTable(): void {
     CREATE INDEX IF NOT EXISTS idx_user_links_child ON user_links(child_user_id);
   `);
 }
-ensureUserLinksTable();
+startupMigrations.push(ensureUserLinksTable);
 
 // Phase A: user_groups + user_group_members tables
 function ensureUserGroupsTables(): void {
@@ -1632,7 +1306,7 @@ function ensureUserGroupsTables(): void {
     );
   `);
 }
-ensureUserGroupsTables();
+startupMigrations.push(ensureUserGroupsTables);
 
 // Phase A: login_history table
 function ensureLoginHistoryTable(): void {
@@ -1648,7 +1322,7 @@ function ensureLoginHistoryTable(): void {
     CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id);
   `);
 }
-ensureLoginHistoryTable();
+startupMigrations.push(ensureLoginHistoryTable);
 
 // Phase A: course_approval_workflow table
 function ensureCourseApprovalWorkflowTable(): void {
@@ -1666,7 +1340,7 @@ function ensureCourseApprovalWorkflowTable(): void {
     );
   `);
 }
-ensureCourseApprovalWorkflowTable();
+startupMigrations.push(ensureCourseApprovalWorkflowTable);
 
 // Phase A: rewards + perks tables
 function ensureRewardsAndPerksTables(): void {
@@ -1691,17 +1365,17 @@ function ensureRewardsAndPerksTables(): void {
     );
   `);
 
-  // Drop the old 3-state rewards stub if it exists (has amount_xlm column)
+  // Never drop the old rewards stub during startup.
   const hasOldRewards = db.prepare("SELECT count(*) as c FROM sqlite_master WHERE type='table' AND name='rewards'").get() as { c: number };
   if (hasOldRewards.c > 0) {
     const cols = db.pragma('table_info(rewards)') as Array<{ name: string }>;
     const hasAmountXlm = cols.some(c => c.name === 'amount_xlm');
     if (hasAmountXlm) {
-      db.exec('DROP TABLE IF EXISTS rewards');
+      throw new Error('Database startup refused: legacy rewards require a reviewed offline migration.');
     }
   }
 }
-ensureRewardsAndPerksTables();
+startupMigrations.push(ensureRewardsAndPerksTables);
 
 function ensureTenantSettingsTable(): void {
   db.exec(`
@@ -1712,7 +1386,7 @@ function ensureTenantSettingsTable(): void {
     );
   `);
 }
-ensureTenantSettingsTable();
+startupMigrations.push(ensureTenantSettingsTable);
 
 function ensureSystemConfigTable(): void {
   db.exec(`
@@ -1724,7 +1398,7 @@ function ensureSystemConfigTable(): void {
     );
   `);
 }
-ensureSystemConfigTable();
+startupMigrations.push(ensureSystemConfigTable);
 
 function ensureCourseTasTable(): void {
   db.exec(`
@@ -1738,7 +1412,7 @@ function ensureCourseTasTable(): void {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_course_tas_user ON course_tas(user_id)');
 }
-ensureCourseTasTable();
+startupMigrations.push(ensureCourseTasTable);
 
 function ensureCourseMaterialSubmissionsTable(): void {
   db.exec(`
@@ -1758,7 +1432,7 @@ function ensureCourseMaterialSubmissionsTable(): void {
     )
   `);
 }
-ensureCourseMaterialSubmissionsTable();
+startupMigrations.push(ensureCourseMaterialSubmissionsTable);
 
 function ensureSubmissionsGradeColumns(): void {
   const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='submissions'").get();
@@ -1771,7 +1445,7 @@ function ensureSubmissionsGradeColumns(): void {
     db.exec('ALTER TABLE submissions ADD COLUMN graded_by TEXT');
   }
 }
-ensureSubmissionsGradeColumns();
+startupMigrations.push(ensureSubmissionsGradeColumns);
 
 function ensureHealthCheckPingsTable(): void {
   db.exec(`
@@ -1781,7 +1455,7 @@ function ensureHealthCheckPingsTable(): void {
     );
   `);
 }
-ensureHealthCheckPingsTable();
+startupMigrations.push(ensureHealthCheckPingsTable);
 
 // Phase F2: active_sessions table for JWT hash tracking
 function ensureActiveSessionsTable(): void {
@@ -1805,7 +1479,7 @@ function ensureActiveSessionsTable(): void {
     db.exec('ALTER TABLE active_sessions ADD COLUMN revoked_at TEXT');
   } catch { /* column already exists */ }
 }
-ensureActiveSessionsTable();
+startupMigrations.push(ensureActiveSessionsTable);
 
 function ensureDataExportsTable(): void {
   db.exec(`
@@ -1821,75 +1495,11 @@ function ensureDataExportsTable(): void {
     CREATE INDEX IF NOT EXISTS idx_data_exports_user ON data_exports(user_id);
   `);
 }
-ensureDataExportsTable();
+startupMigrations.push(ensureDataExportsTable);
 
 // Phase F4: migrate payments.status CHECK to include 'refunded' (production DBs only;
 // in-memory test DBs use schema.sql which already contains 'refunded').
-function migratePaymentsStatusCheck(): void {
-  const tableExists = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payments'")
-    .get();
-  if (!tableExists) return;
 
-  try {
-    const testId = '_migration_test_' + Date.now();
-    db.prepare(
-      "INSERT INTO payments (id, user_id, course_id, amount_cents, currency, payment_method, status) VALUES (?, 'test', 'test', 0, 'USD', 'test', 'refunded')",
-    ).run(testId);
-    db.prepare('DELETE FROM payments WHERE id = ?').run(testId);
-    return; // Already supports 'refunded'
-  } catch {
-    // Need to rebuild table
-  }
-
-  db.pragma('foreign_keys = OFF');
-  db.pragma('legacy_alter_table = ON');
-  db.exec(`
-    ALTER TABLE payments RENAME TO payments_old;
-    CREATE TABLE payments (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-      application_id TEXT REFERENCES course_nft_applications(id) ON DELETE SET NULL,
-      amount_cents INTEGER NOT NULL,
-      currency TEXT NOT NULL DEFAULT 'USD',
-      payment_method TEXT NOT NULL DEFAULT 'manual',
-      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'waived', 'failed', 'refunded')),
-      confirmed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-      confirmed_at TEXT,
-      notes TEXT,
-      paystack_reference TEXT,
-      paystack_access_code TEXT,
-      stellar_tx_hash TEXT,
-      stellar_memo TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  // Column-explicit INSERT: detect which columns exist in old table and copy accordingly
-  const oldCols = new Set(
-    (db.prepare("PRAGMA table_info('payments_old')").all() as { name: string }[]).map(c => c.name)
-  );
-  const allCols = [
-    'id', 'user_id', 'course_id', 'application_id', 'amount_cents', 'currency',
-    'payment_method', 'status', 'confirmed_by', 'confirmed_at', 'notes',
-    'paystack_reference', 'paystack_access_code', 'stellar_tx_hash', 'stellar_memo',
-    'created_at', 'updated_at',
-  ];
-  const selectExprs = allCols.map(c => oldCols.has(c) ? c : 'NULL');
-  db.exec(`
-    INSERT INTO payments (${allCols.join(', ')})
-    SELECT ${selectExprs.join(', ')} FROM payments_old;
-    DROP TABLE payments_old;
-    CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
-    CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
-    CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
-    CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-  `);
-  db.pragma('legacy_alter_table = OFF');
-  db.pragma('foreign_keys = ON');
-}
-migratePaymentsStatusCheck();
 
 // Phase F4: disputes table for payment dispute / refund workflow
 function ensureDisputesTable(): void {
@@ -1909,7 +1519,7 @@ function ensureDisputesTable(): void {
     CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
   `);
 }
-ensureDisputesTable();
+startupMigrations.push(ensureDisputesTable);
 
 // ─── Reward System Tables (R2) ───────────────────────────────────────────────
 
@@ -1920,7 +1530,7 @@ function migrateRewardBalance(): void {
   if (hasLegacy || !hasOriginal) return;
   db.exec("ALTER TABLE users RENAME COLUMN reward_balance TO reward_balance_legacy_real");
 }
-migrateRewardBalance();
+startupMigrations.push(migrateRewardBalance);
 
 function ensureRewardTables(): void {
   db.exec(`
@@ -2102,7 +1712,7 @@ function ensureRewardTables(): void {
     CREATE INDEX IF NOT EXISTS idx_refund_attempts_status ON reward_refund_attempts(status);
   `);
 }
-ensureRewardTables();
+startupMigrations.push(ensureRewardTables);
 
 // ──── Scheduler Tables ────
 function ensureSchedulerTables(): void {
@@ -2152,7 +1762,7 @@ function ensureSchedulerTables(): void {
     db.exec('ALTER TABLE reward_event_outbox ADD COLUMN next_attempt_at TEXT');
   }
 }
-ensureSchedulerTables();
+startupMigrations.push(ensureSchedulerTables);
 
 function ensureTenantSettingsRewardColumn(): void {
   const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tenant_settings'").get();
@@ -2162,7 +1772,7 @@ function ensureTenantSettingsRewardColumn(): void {
     db.exec('ALTER TABLE tenant_settings ADD COLUMN reward_high_value_threshold INTEGER DEFAULT NULL');
   }
 }
-ensureTenantSettingsRewardColumn();
+startupMigrations.push(ensureTenantSettingsRewardColumn);
 
 function ensureEmailOutbox(): void {
   db.exec(`
@@ -2186,7 +1796,7 @@ function ensureEmailOutbox(): void {
     CREATE INDEX IF NOT EXISTS idx_email_outbox_retry ON email_outbox(status, last_attempt_at);
   `);
 }
-ensureEmailOutbox();
+startupMigrations.push(ensureEmailOutbox);
 
 // ─── Account Deletion & Forum Anonymization ──────────────────────────────────
 
@@ -2215,7 +1825,7 @@ function ensureDeletionColumns(): void {
     }
   }
 }
-ensureDeletionColumns();
+startupMigrations.push(ensureDeletionColumns);
 
 /** Invalidate every previously issued JWT after an effective role change. */
 export function ensureAuthorizationVersionColumn(): void {
@@ -2240,7 +1850,7 @@ function ensureMessageSoftDeleteColumns(): void {
     `);
   }
 }
-ensureMessageSoftDeleteColumns();
+startupMigrations.push(ensureMessageSoftDeleteColumns);
 
 function ensureForumSoftDeleteColumns(): void {
   const hasTopics = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='forum_topics'").get();
@@ -2270,7 +1880,7 @@ function ensureForumSoftDeleteColumns(): void {
     `);
   }
 }
-ensureForumSoftDeleteColumns();
+startupMigrations.push(ensureForumSoftDeleteColumns);
 
 function ensureDeletionTables(): void {
   db.exec(`
@@ -2322,10 +1932,24 @@ function ensureDeletionTables(): void {
     CREATE INDEX IF NOT EXISTS idx_identity_access_log_actor ON identity_access_log(actor_id);
   `);
 }
-ensureDeletionTables();
+startupMigrations.push(ensureDeletionTables);
 
-// Re-enable foreign key checks after all module-level migrations complete.
-db.pragma('foreign_keys = ON');
+// One transaction owns schema changes, RBAC seeds, and default data. Preflight
+// ran read-only; a failed upgrade must not leave earlier writes committed.
+try {
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    if (opened.initializing) loadCanonicalSchema(db);
+    for (const migration of startupMigrations) migration();
+    if (DB_PATH !== ':memory:') validateDatabase(db, true);
+  }).immediate();
+  db.pragma('legacy_alter_table = OFF');
+  db.pragma('foreign_keys = ON');
+  db.pragma('journal_mode = WAL');
+} catch (error) {
+  db.close();
+  throw error;
+}
 
 export function query<T>(sql: string, params: unknown[] = []): T[] {
   const stmt = db.prepare(sql);
@@ -2381,6 +2005,7 @@ export function createSession(
 }
 
 export function _resetForTests(schemaSQL: string): void {
+  if (!process.env.VITEST || DB_PATH !== ':memory:') throw new Error('Test reset requires an in-memory test database');
   // Drop-and-recreate without reassigning `db` so ESM imports in test files
   // always reference the same object (avoids live-binding propagation issues).
   db.pragma('foreign_keys = OFF');

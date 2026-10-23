@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, 'feat/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'codex/**']
   workflow_call:
 
 jobs:
@@ -25,7 +25,8 @@ jobs:
       - name: Audit backend dependencies
         run: npm audit --audit-level=high
         continue-on-error: true
-      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: npm run test:compiled-bootstrap
       - run: npx vitest run
       - name: Typecheck BVC validator script
         run: npx tsc --noEmit --esModuleInterop --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck src/scripts/validateBvcContent.ts
@@ -73,7 +74,11 @@ jobs:
       - name: Install Playwright browsers
         run: cd e2e && npx playwright install chromium
       - name: Start backend
-        run: cd LMS-Server && npx tsx src/server.ts &
+        run: |
+          cd LMS-Server
+          npm run build
+          npm run db:init -- --initialize-new
+          node dist/server.js &
         env:
           NODE_ENV: test
           PORT: '3001'
