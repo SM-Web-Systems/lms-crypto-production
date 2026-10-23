@@ -34,13 +34,15 @@ export default function ResetPasswordScreen(){
     finally{setBusy(false);}
   };
   return <Screen edges={['top','bottom']}><KeyboardAvoidingView className="flex-1" behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerClassName="flex-grow justify-center p-6 gap-4" keyboardShouldPersistTaps="handled">
-    <Text className="text-2xl font-bold text-neutral-900">Choose a new password</Text>
+    <Text className="text-2xl font-bold text-neutral-900">Reset an internal account password</Text>
+    <Text>For LMS internal accounts only. AmmaWallet passwords are managed on AmmaWallet.</Text>
+    <Link href="/(auth)/forgot-password" className="font-semibold text-accent-teal">Recover an AmmaWallet account instead</Link>
     {done ? <Text accessibilityLiveRegion="polite">Password updated. Sign in with your new password.</Text> : <>
       <Input label="Reset link or token" accessibilityLabel="Reset link or token" value={link} onChangeText={setLink} autoCapitalize="none" autoCorrect={false} secureTextEntry/>
       <Input label="New password" accessibilityLabel="New password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" textContentType="newPassword"/>
       <Input label="Confirm new password" accessibilityLabel="Confirm new password" value={confirmation} onChangeText={setConfirmation} secureTextEntry autoCapitalize="none" textContentType="newPassword"/>
       <Button label={busy?'Updating…':'Update password'} onPress={submit} disabled={busy}/>
-      <Link href="/(auth)/forgot-password" className="font-semibold text-accent-teal">Request a new reset link</Link>
+      <Link href="/(auth)/internal-forgot-password" className="font-semibold text-accent-teal">Request a new reset link</Link>
     </>}
     {error ? <ErrorBanner message={error}/> : null}
     <Link href="/(auth)/sign-in" className="font-semibold text-accent-teal">Back to sign in</Link>

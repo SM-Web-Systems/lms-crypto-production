@@ -4,6 +4,7 @@ import {render,screen,waitFor,fireEvent,act} from '@testing-library/react-native
 import {AuthProvider,useAuth} from '@/context/AuthContext';
 import {SessionBoundary} from '@/components/SessionBoundary';
 import {authService} from '@/services/authService';
+import {ammaWalletService} from '@/services/ammaWalletService';
 import {getStoredToken,setStoredToken,clearStoredToken} from '@/lib/token';
 import {ApiRequestError} from '@/utils/apiError';
 import {mobileHome} from '@/utils/authorization';
@@ -13,6 +14,7 @@ let mockToken:string|null='saved-token';
 let mockUnauthorized:(token:string)=>void;
 jest.mock('@/lib/api',()=>({__esModule:true,default:{post:jest.fn().mockResolvedValue({})},setTokenGetter:jest.fn(),onUnauthorized:jest.fn((listener)=>{mockUnauthorized=listener;return jest.fn();})}));
 jest.mock('@/services/authService');
+jest.mock('@/services/ammaWalletService',()=>({ammaWalletService:{signIn:jest.fn(),cancelSignIn:jest.fn()}}));
 jest.mock('@/lib/token',()=>({getStoredToken:jest.fn(()=>Promise.resolve(mockToken)),setStoredToken:jest.fn(async(token)=>{mockToken=token;return true;}),clearStoredToken:jest.fn(async()=>{mockToken=null;})}));
 const service=authService as jest.Mocked<typeof authService>;
 const student:User={id:'student',name:'Learner',email:'student@example.invalid',role:'student',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view','course.submit']};
@@ -24,6 +26,7 @@ function Probe(){
     <Text>{auth.user?auth.user.email:'Signed out'}</Text><Text>{mobileHome(auth.user)}</Text>
     {auth.sessionNotice?<Text>{auth.sessionNotice}</Text>:null}
     <Pressable onPress={()=>auth.login('sponsor@example.invalid','password')}><Text>Login</Text></Pressable>
+    <Pressable onPress={()=>auth.loginWithAmma().catch(()=>{})}><Text>Wallet login</Text></Pressable>
     <Pressable onPress={()=>auth.logout()}><Text>Logout</Text></Pressable>
     <Pressable onPress={()=>auth.refresh()}><Text>Refresh</Text></Pressable>
   </>;
@@ -38,6 +41,37 @@ beforeEach(()=>{
 });
 
 describe('A14 resilient native sessions',()=>{
+  it('establishes the wallet session with the effective authorization returned by the API',async()=>{
+    mockToken=null;
+    (ammaWalletService.signIn as jest.Mock).mockResolvedValueOnce({token:'wallet-token',user:sponsor});
+    renderSession();await waitFor(()=>expect(screen.getByText('Signed out')).toBeTruthy());
+    await act(async()=>fireEvent.press(screen.getByText('Wallet login')));
+    await waitFor(()=>expect(screen.getByText(sponsor.email)).toBeTruthy());
+    expect(mockToken).toBe('wallet-token');expect(screen.getByText('/workspace')).toBeTruthy();
+  });
+  it('does not restore a wallet result after local logout',async()=>{
+    mockToken=null;
+    let complete!:(value:unknown)=>void;
+    (ammaWalletService.signIn as jest.Mock).mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve;}));
+    renderSession();await waitFor(()=>expect(screen.getByText('Signed out')).toBeTruthy());
+    fireEvent.press(screen.getByText('Wallet login'));
+    await act(async()=>fireEvent.press(screen.getByText('Logout')));
+    await act(async()=>complete({token:'late-wallet-token',user:sponsor}));
+    expect(mockToken).toBeNull();expect(screen.getByText('Signed out')).toBeTruthy();
+    expect(setStoredToken).not.toHaveBeenCalled();expect(ammaWalletService.cancelSignIn).toHaveBeenCalled();
+  });
+  it('does not rehydrate the previous identity when the browser foregrounds during wallet sign-in',async()=>{
+    let complete!:(value:unknown)=>void;
+    (ammaWalletService.signIn as jest.Mock).mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve;}));
+    renderSession();await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
+    fireEvent.press(screen.getByText('Wallet login'));
+    const reads=service.getMe.mock.calls.length;
+    const listener=(AppState.addEventListener as jest.Mock).mock.calls[0][1];
+    await act(async()=>listener('active'));
+    expect(service.getMe).toHaveBeenCalledTimes(reads);
+    await act(async()=>complete({token:'wallet-token',user:sponsor}));
+    expect(mockToken).toBe('wallet-token');
+  });
   it('restores an authoritative session',async()=>{
     renderSession();await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
     expect(clearStoredToken).not.toHaveBeenCalled();

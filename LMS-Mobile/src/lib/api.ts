@@ -63,7 +63,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
     const authorization = error.config?.headers?.Authorization;
-    const publicAuth = /\/auth\/(login|register|forgot-password|reset-password)(?:\?|$)/.test(error.config?.url || '');
+    const publicAuth = /\/auth\/(login|register|forgot-password|reset-password|amma-mobile-session)(?:\?|$)/.test(error.config?.url || '');
     if (error.response?.status === 401 && !publicAuth && typeof authorization === 'string' && authorization.startsWith('Bearer ')) {
       reportUnauthorized(authorization.slice(7));
     }

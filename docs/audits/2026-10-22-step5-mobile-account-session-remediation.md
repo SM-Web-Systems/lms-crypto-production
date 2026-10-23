@@ -2,6 +2,8 @@
 
 Date: 2026-10-22
 
+Follow-up, 2026-10-23: this report records the original step-5 implementation. Normal mobile registration/recovery now delegates to AmmaWallet, with a native SSO return flow; local password recovery remains for internal accounts. See [AmmaWallet mobile authentication alignment](2026-10-23-amma-wallet-mobile-auth-alignment.md). The original step-5 validation below did not establish native AmmaWallet sign-in parity.
+
 Scope: implementation-order step 5 from `2026-10-22-platform-audit.md`. All edits and validation were local. No server access, deployment, commit, or push was performed. Existing steps 1–4 changes were preserved.
 
 ## A13 — Role handoffs and account journeys

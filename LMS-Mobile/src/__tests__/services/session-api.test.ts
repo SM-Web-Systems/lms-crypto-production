@@ -3,7 +3,7 @@ import api,{setTokenGetter,onUnauthorized} from '@/lib/api';
 
 describe('central API unauthorized handling',()=>{
   beforeEach(()=>{setTokenGetter(async()=>'current-token');});
-  it.each([['/courses',401,true],['/courses',403,false],['/courses',503,false],['/auth/login',401,false],['/auth/reset-password',401,false]])('%s with %s notifies only an authenticated invalid session',async(path,status,notify)=>{
+  it.each([['/courses',401,true],['/courses',403,false],['/courses',503,false],['/auth/login',401,false],['/auth/reset-password',401,false],['/auth/amma-mobile-session',401,false]])('%s with %s notifies only an authenticated invalid session',async(path,status,notify)=>{
     const listener=jest.fn(),unsubscribe=onUnauthorized(listener);
     const adapter=jest.fn(async(config:InternalAxiosRequestConfig)=>{throw new AxiosError('Failed','ERR_BAD_RESPONSE',config,undefined,{status,statusText:'Failed',headers:{},config,data:{error:{message:'Denied'}}});});
     await expect(api.get(path,{adapter})).rejects.toMatchObject({status});

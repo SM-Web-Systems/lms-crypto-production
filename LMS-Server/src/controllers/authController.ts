@@ -19,6 +19,7 @@ import {
 } from "../services/ammaWalletSSOService.js";
 import logger from "../utils/logger.js";
 import { createNotification } from "../services/notificationService.js";
+import { createMobileHandoff, consumeMobileHandoff, isMobileSsoContext, MOBILE_SSO_CALLBACK, type MobileSsoContext } from '../services/mobileSsoService.js';
 
 
 /** Record a login event in the login_history table. Best-effort — never throws. */
@@ -516,15 +517,24 @@ export async function resetPassword(
  * nonce and the LMS callback URL.
  */
 export function ammaLogin(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): void {
   try {
+    let mobile: MobileSsoContext | undefined;
+    const nativeParameters = ['client','code_challenge','code_challenge_method','app_state','redirect_uri'];
+    if (nativeParameters.some(key => req.query[key] !== undefined)) {
+      const candidate = {client: req.query.client, codeChallenge: req.query.code_challenge, appState: req.query.app_state};
+      if (req.query.redirect_uri !== undefined || req.query.code_challenge_method !== 'S256' || !isMobileSsoContext(candidate)) {
+        throw new AppError('Invalid mobile sign-in request',400,ErrorCodes.VALIDATION_ERROR);
+      }
+      mobile = candidate;
+    }
     const frontendUrl = (process.env.FRONTEND_URL || 'https://lms.smwebsystems.com').replace(/\/$/, '');
     // The callback target is the LMS API endpoint (not the frontend SPA route)
     const callbackUrl = `${frontendUrl}/api/v1/auth/amma-callback`;
-    const redirectUrl = buildSsoInitiateUrl(callbackUrl);
+    const redirectUrl = buildSsoInitiateUrl(callbackUrl, mobile);
     res.redirect(302, redirectUrl);
   } catch (error) {
     next(error);
@@ -542,25 +552,36 @@ export async function ammaCallback(
   next: NextFunction,
 ): Promise<void> {
   const frontendUrl = (process.env.FRONTEND_URL || 'https://lms.smwebsystems.com').replace(/\/$/, '');
-
-  const safeRedirectError = (code: string) =>
-    res.redirect(302, `${frontendUrl}/login?sso_error=${code}`);
+  let mobile: MobileSsoContext | undefined;
+  res.setHeader('Cache-Control','no-store');
+  res.setHeader('Referrer-Policy','no-referrer');
+  const safeRedirectError = (code: string) => {
+    if (mobile) {
+      const destination = new URL(MOBILE_SSO_CALLBACK);
+      destination.searchParams.set('error',code);
+      destination.searchParams.set('state',mobile.appState);
+      return res.redirect(302,destination.toString());
+    }
+    return res.redirect(302, `${frontendUrl}/login?sso_error=${code}`);
+  };
 
   try {
     const assertion = typeof req.query.assertion === 'string' ? req.query.assertion : '';
     const state     = typeof req.query.state     === 'string' ? req.query.state     : '';
 
-    if (!assertion || !state) {
+    if (!state) {
       return safeRedirectError('missing_params');
     }
 
     // 1. Validate the state JWT (CSRF / replay protection)
     try {
-      validateState(state);
+      mobile = validateState(state);
     } catch (err) {
       logger.warn({ module: 'ammaCallback', err }, 'Invalid state');
       return safeRedirectError('invalid_state');
     }
+
+    if (!assertion) return safeRedirectError(req.query.error === 'access_denied' ? 'cancelled' : 'missing_params');
 
     // 2. Exchange assertion for AmmaWallet user identity (server-to-server)
     let ammaUser: AmmaWalletSSOUser;
@@ -655,6 +676,13 @@ export async function ammaCallback(
       logger.info({ module: 'ammaCallback', userId, email: maskedEmail }, 'Created new SSO user');
     }
 
+    // Native clients receive only a short-lived proof-bound code. The access
+    // token is issued through HTTPS after the app proves possession of its verifier.
+    if (mobile) {
+      const version = queryOne<{authorization_version:number}>('SELECT authorization_version FROM users WHERE id=?',[userId])!.authorization_version;
+      return void res.redirect(302,createMobileHandoff(userId,version,mobile));
+    }
+
     // 4. Issue LMS session JWT
     const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
 
@@ -667,6 +695,27 @@ export async function ammaCallback(
   } catch (error) {
     next(error);
   }
+}
+
+/** POST /auth/amma-mobile-session — public, rate-limited PKCE code exchange. */
+export function ammaMobileSession(req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('Cache-Control','no-store');
+  try {
+    const handoff = consumeMobileHandoff(req.body?.code,req.body?.code_verifier);
+    const user = handoff ? queryOne<User & {authorization_version:number}>('SELECT * FROM users WHERE id=?',[handoff.userId]) : null;
+    if (!handoff || !user || user.authorization_version !== handoff.authorizationVersion || user.auth_provider !== 'ammawallet') {
+      throw new AppError('Sign-in has expired or is invalid. Please sign in with AmmaWallet again.',401,ErrorCodes.INVALID_CREDENTIALS);
+    }
+    const studentId = queryOne<{id:string}>('SELECT id FROM students WHERE user_id=?',[user.id])?.id;
+    const token = generateToken({userId:user.id,email:user.email,role:user.role,roles:getUserRoles(user.id),studentId});
+    createSession(user.id,token,req);
+    recordLoginHistory(user.id,req,'sso');
+    res.json({success:true,data:{token,user:{
+      id:user.id,name:user.name,email:user.email,role:user.role,
+      walletAddress:user.walletAddress,walletLinkingStatus:user.wallet_linking_status,
+      courseCodes:getUserCourseCodes(user.id),...getAuthorizationContext(user.id),
+    }}});
+  } catch (error) { next(error); }
 }
 
 // Helper function to create a user (for seeding/registration)

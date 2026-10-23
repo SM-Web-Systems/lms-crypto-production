@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import api, { setTokenGetter, onUnauthorized } from '../lib/api';
 import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { authService } from '../services/authService';
+import { ammaWalletService } from '../services/ammaWalletService';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/token';
 import type { User } from '../types/api';
 
@@ -13,8 +14,9 @@ export interface AuthContextType {
   sessionError: string | null;
   sessionNotice: string | null;
   storageWarning: string | null;
+  walletSignInPending: boolean;
+  loginWithAmma: () => Promise<User>;
   login: (email: string, password: string) => Promise<User>;
-  register: (name: string, email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
   refresh: () => Promise<void>;
@@ -28,6 +30,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionNotice, setNotice] = useState<string | null>(null);
   const [storageWarning, setWarning] = useState<string | null>(null);
+  const [walletSignInPending,setWalletPending] = useState(false);
+  const walletPending = useRef(false);
+  const walletRequest = useRef(0);
   const generation = useRef(0);
   const request = useRef(0);
   const mounted = useRef(true);
@@ -42,6 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const refresh = useCallback(async () => {
+    if (walletPending.current) return; // Browser foregrounding must not hydrate the previous identity.
     const started = generation.current;
     const currentRequest = ++request.current;
     const current = () => mounted.current && generation.current === started && request.current === currentRequest;
@@ -65,7 +71,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     void refresh();
     const app = AppState.addEventListener('change', (state) => { if (state === 'active') void refresh(); });
     const timer = setInterval(() => { if (AppState.currentState === 'active') void refresh(); }, 60_000);
-    return () => { mounted.current = false; request.current++; unsubscribe(); app.remove(); clearInterval(timer); };
+    return () => { mounted.current = false; request.current++; ammaWalletService.cancelSignIn(); unsubscribe(); app.remove(); clearInterval(timer); };
   }, [expire, refresh]);
 
   const establish = useCallback(async (work: () => Promise<{token: string; user: User}>): Promise<User> => {
@@ -78,9 +84,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setWarning(persisted ? null : 'You are signed in, but this device could not save the session. You may need to sign in again after closing the app.');
     return result.user;
   }, []);
-  const login = useCallback((email: string, password: string) => establish(() => authService.login(email, password)), [establish]);
-  const register = useCallback((name: string, email: string, password: string) => establish(() => authService.register(name, email, password)), [establish]);
+  const loginWithAmma = useCallback(async () => {
+    if (walletPending.current) throw new Error('Wallet sign-in is already in progress.');
+    const attempt = ++walletRequest.current;
+    walletPending.current = true; setWalletPending(true); setNotice(null);
+    try { return await establish(() => ammaWalletService.signIn()); }
+    catch (error) {
+      if (mounted.current && walletRequest.current === attempt) setNotice(getErrorMessage(error,'Could not complete wallet sign-in. Please try again.'));
+      throw error;
+    }
+    finally { if (mounted.current && walletRequest.current === attempt) { walletPending.current = false; setWalletPending(false); } }
+  },[establish]);
+  const login = useCallback((email: string, password: string) => {
+    walletRequest.current++; walletPending.current = false; setWalletPending(false); ammaWalletService.cancelSignIn();
+    return establish(() => authService.login(email,password));
+  },[establish]);
   const logout = useCallback(async () => {
+    walletRequest.current++; walletPending.current = false; setWalletPending(false); ammaWalletService.cancelSignIn();
     generation.current++; request.current++;
     const token = await getStoredToken().catch(() => null);
     setUser(null); setSessionError(null); setNotice(null); setIsLoading(false); setWarning(null);
@@ -96,7 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Profile responses cannot restore a signed-out identity or replace newer authorization.
     setUser(current => current?.id === updated.id ? {...current,name:updated.name} : current);
   }, [renderedGeneration]);
-  return <AuthContext.Provider value={{user,isAuthenticated:!!user,isLoading,sessionError,sessionNotice,storageWarning,login,register,logout,updateUser,refresh}}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{user,isAuthenticated:!!user,isLoading,sessionError,sessionNotice,storageWarning,walletSignInPending,loginWithAmma,login,logout,updateUser,refresh}}>{children}</AuthContext.Provider>;
 };
 
 export function useAuth(): AuthContextType {

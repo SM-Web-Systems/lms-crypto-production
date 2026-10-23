@@ -27,12 +27,4 @@ export const authService = {
     return assertApiSuccess(response, 'Invalid email or password.');
   },
 
-  async register(name: string, email: string, password: string): Promise<AuthResult> {
-    const response = await api.post<ApiResponse<AuthResult>>('/auth/register', {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-    });
-    return assertApiSuccess(response, 'Could not create your account.');
-  },
 };

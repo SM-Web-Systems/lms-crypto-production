@@ -9,6 +9,7 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import logger from "../utils/logger.js";
+import { isMobileSsoContext, type MobileSsoContext } from './mobileSsoService.js';
 
 const AMMA_BASE    = (process.env.AMMA_WALLET_URL || "http://localhost:3001").replace(/\/$/, "");
 const AMMA_API_KEY = process.env.AMMA_WALLET_API_KEY || "";
@@ -33,13 +34,13 @@ function walletUrl(path: string): string {
  *
  * @param lmsCallbackUrl  Full HTTPS URL of the LMS /auth/amma-callback endpoint.
  */
-export function buildSsoInitiateUrl(lmsCallbackUrl: string): string {
+export function buildSsoInitiateUrl(lmsCallbackUrl: string, mobile?: MobileSsoContext): string {
   if (!STATE_SECRET) {
     throw new Error("AMMA_SSO_STATE_SECRET is required for SSO state signing");
   }
 
   const state = jwt.sign(
-    { purpose: "sso_state", nonce: crypto.randomBytes(16).toString("hex") },
+    { purpose: "sso_state", nonce: crypto.randomBytes(16).toString("hex"), ...(mobile ? {mobile} : {}) },
     STATE_SECRET,
     { expiresIn: "5m" },
   );
@@ -73,8 +74,8 @@ setInterval(cleanupExpiredJtis, 2 * 60 * 1000).unref();
  * Validate the state JWT returned in the callback.
  * Throws on invalid signature, expiry, wrong purpose, or replay (JTI reuse).
  */
-export function validateState(state: string): void {
-  const payload = jwt.verify(state, STATE_SECRET) as { purpose?: string; nonce?: string };
+export function validateState(state: string): MobileSsoContext | undefined {
+  const payload = jwt.verify(state, STATE_SECRET, {algorithms: ['HS256']}) as { purpose?: string; nonce?: string; mobile?: unknown };
   if (payload.purpose !== "sso_state") {
     throw new Error("Invalid state token — wrong purpose");
   }
@@ -87,7 +88,11 @@ export function validateState(state: string): void {
   if (usedJtis.has(jti)) {
     throw new Error("State token already used — replay detected");
   }
+  if (payload.mobile !== undefined && !isMobileSsoContext(payload.mobile)) {
+    throw new Error('Invalid native SSO context');
+  }
   usedJtis.set(jti, Date.now() + JTI_RETENTION_MS);
+  return payload.mobile as MobileSsoContext | undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

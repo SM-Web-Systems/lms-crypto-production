@@ -8,13 +8,19 @@ Native screens are for student learning. The app uses API-provided workspaces an
 
 Set `EXPO_PUBLIC_WEB_BASE_URL` to your web deployment for handoffs. Development defaults are shown in `.env.example`; physical devices need reachable LAN addresses. Release profiles explicitly use the production web origin. Browser sign-in is separate: no mobile token is put into a handoff URL.
 
-Password recovery is available from sign in. Reset email links continue to work on web; learners can also paste the link/token into the app's reset screen, or open `lmsmobile://reset-password?token=...`. No universal-link or push setup is included in this step.
+AmmaWallet is the primary account authority. Sign in opens the system authentication browser through the existing LMS SSO endpoint. Registration and normal password recovery open AmmaWallet; the app does not create a second password account. Existing LMS internal accounts retain an explicitly disclosed password login and a separate internal recovery screen. Local reset links remain for those internal accounts only.
+
+Installed Android/iOS builds return through `lmsmobile://sso-callback` with a one-use code bound to the app's PKCE verifier. The LMS token is obtained through the API and saved using the existing session storage path. The browser preview opens the LMS web dashboard instead of attempting a native callback. A native build is required; Expo Go is not the acceptance environment for this custom scheme.
+
+Set `EXPO_PUBLIC_AMMA_WALLET_URL` for registration/recovery links when using a non-production wallet host. It defaults to `https://ammawallet.com`. SSO itself follows the API server's existing wallet configuration, so both configurations must refer to the intended environment. No wallet API key or server state secret belongs in a mobile public environment variable.
 
 Profile provides **Account and security**, workspace selection, payments/rewards handoffs when permitted, and wallet setup. Certificates also have an actionable wallet handoff. Account management supports current/other session revocation, requesting/downloading personal data exports, and confirmed account deletion with cancellation during the existing grace period. Pending-deletion accounts reopen directly into account management.
 
 Native tokens stay in SecureStore; the web preview uses tab-scoped session storage. Startup network failures preserve credentials and show a reconnect screen. Existing sessions remain available during transient refresh failures. Authenticated 401 responses centrally sign out the matching session, while permission-denied responses do not discard credentials. Revalidation runs on foreground and periodically while active. Push notifications and durable offline content/progress remain roadmap items.
 
 See `../docs/audits/2026-10-22-step5-mobile-account-session-remediation.md` for validation and device checks.
+
+The account-authority correction and native SSO contract are documented in `../docs/audits/2026-10-23-amma-wallet-mobile-auth-alignment.md`. Deploy the backwards-compatible API extension before distributing the updated mobile build. Pending sign-in codes use the same single-process deployment assumption as the existing SSO replay cache; restarts require starting sign-in again.
 
 ## Development
 
@@ -24,7 +30,7 @@ cp .env.example .env   # set EXPO_PUBLIC_API_BASE_URL to your LMS-Server
 npm start
 ```
 
-Test accounts (after server seed): `student@smwebsystems.com` / `student123`
+Use synthetic AmmaWallet accounts or explicitly provisioned internal accounts for development. Do not run demo-user initialization against a populated database.
 
 ## Learning content
 

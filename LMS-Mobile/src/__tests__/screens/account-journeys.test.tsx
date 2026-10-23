@@ -3,7 +3,7 @@ import {Linking} from 'react-native';
 import {render,screen,fireEvent,waitFor} from '@testing-library/react-native';
 import WorkspaceScreen from '@/app/workspace';
 import AccountScreen from '@/app/account';
-import ForgotPasswordScreen from '@/app/(auth)/forgot-password';
+import ForgotPasswordScreen from '@/app/(auth)/internal-forgot-password';
 import ResetPasswordScreen from '@/app/(auth)/reset-password';
 import {accountService} from '@/services/accountService';
 import {authService} from '@/services/authService';
@@ -92,7 +92,7 @@ describe('native account controls',()=>{
   });
 });
 
-describe('native password recovery',()=>{
+describe('native internal-account password recovery',()=>{
   it('validates email and gives a generic recovery response',async()=>{
     render(<ForgotPasswordScreen/>);fireEvent.press(screen.getByText('Send reset link'));
     expect(screen.getByText('Enter a valid email address.')).toBeTruthy();
