@@ -15,7 +15,7 @@ Owner: implementation agent, with independent review agents for read-only review
 | A13-08 | Payment CI and monitoring evidence regressions | A13-07 | implementation agent | PASS | eight webhook integrity failures and actual Bash defects reproduced; fixture coverage added |
 | A13-09 | Test-only webhook CI and evidence-based monitoring verifier | A13-08 | implementation agent | PASS | synthetic HMAC/transport guard; 46 payment, 73 E2E, 25 monitoring/exporter checks; final independent review clean |
 | A13-10 | Isolated backup/restore drill and retention assessment | A13-09 | implementation agent | PASS | synthetic WAL restore drill passed; real retention/restore remains owner evidence |
-| A13-11 | Full regression, review, diagrams/specification and final readiness | A13-10 | implementation agent / independent reviewer | IN PROGRESS | API/web/mobile/E2E/build checks and draft PR readiness; integrated CI pending |
+| A13-11 | Full regression, review, diagrams/specification and final readiness | A13-10 | implementation agent / independent reviewer | IN PROGRESS | draft #80 e48f5e6; web515/mobile153/E2E73/offline25/smoke12/deploy-syntax10 pass; final integrated API/CI pending |
 | A13-12 | Production configuration, observation, real backup/email and installed-device evidence | review/merge/deployment authorization | server owner | DEFERRED | no production actions authorized |
 | A13-14 | Infrastructure/dependency/mobile roadmap work | separate releases | maintainers | DEFERRED | AUTH-14 and existing dependency/mobile PRs |
 

@@ -79,6 +79,8 @@ jobs:
         run: cd LMS-Frontend && npm ci
       - name: Install E2E dependencies
         run: cd e2e && npm ci
+      - name: Typecheck E2E harness
+        run: cd e2e && npx tsc --noEmit -p tsconfig.json
       - name: Install Playwright browsers
         run: cd e2e && npx playwright install chromium
       - name: Verify network guard and generate synthetic HMAC
@@ -128,6 +130,8 @@ jobs:
           node-version: 22
       - run: python3 -m unittest discover -s scripts/tests
       - run: bash scripts/test-monitoring.sh
+      - run: bash scripts/test-scripts.sh
+      - run: bash scripts/smoke-test-verify.sh
       - run: npm ci
         working-directory: LMS-Server
       - run: npm run test:restore-drill

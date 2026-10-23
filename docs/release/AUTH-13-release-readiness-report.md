@@ -1,6 +1,6 @@
 # AUTH-13 release readiness
 
-Status: implementation prepared locally; draft review branches; no merge/deployment/production verification. Final integrated CI is pending for the payment/monitoring PR. This report does not close AUTH-12.
+Status: implementation prepared locally; draft review branches; no merge/deployment/production verification. The payment/monitoring implementation is in draft #80; its integrated CI is in progress. This report does not close AUTH-12.
 
 ## Review stack and baseline
 
@@ -9,10 +9,10 @@ Status: implementation prepared locally; draft review branches; no merge/deploym
 | Original platform/Wallet follow-up | `codex/platform-audit-remediation`, `bbf17a0` | draft #77; dependency, unmerged |
 | Safe database bootstrap | `codex/auth13-database-bootstrap`, `a594056` | draft #78; CI 39942642653 passed |
 | Explicit authorization policy | `codex/auth13-authorization-policy`, `4a48674` | draft #79; CI 39944137060 passed |
-| Payment/monitoring/recovery | `codex/auth13-payment-monitoring` | draft preparation; final CI pending |
+| Payment/monitoring/recovery | `codex/auth13-payment-monitoring` | draft #80, implementation `e48f5e6`; CI 39947724814 running |
 | Wallet verified-email integration | Wallet `04c3f0c` | Wallet draft #2; no AUTH-13 source edits |
 
-Verified main remains `bef8653`. Production `6763f4e` is historical reported state, not re-inspected here. Stack order is #77 → #78 → #79 → payment/monitoring. Review diffs against each preceding branch. Do not merge a dependent PR before its base; retarget only after maintainers merge dependencies and revalidate the combined diff.
+Verified main remains `bef8653`. Production `6763f4e` is historical reported state, not re-inspected here. Stack order is #77 → #78 → #79 → #80. Review diffs against each preceding branch. Do not merge a dependent PR before its base; retarget only after maintainers merge dependencies and revalidate the combined diff.
 
 ## Backlog reconciliation
 
@@ -46,6 +46,7 @@ Full original evidence/classification/acceptance is in `AUTH-13-assessment-findi
 | Full local Chromium E2E | 73 passed, including five new real webhook-state checks; E2E TypeScript passed |
 | Offline monitoring/verifier/exporter/command fixtures | 25 passed; no live service calls |
 | Existing monitoring syntax/inventory | 14 passed |
+| Deployment/rollback syntax and isolated smoke verifier | 10 and 12 passed; smoke verifier now intercepts every HTTP request |
 | External HTTP transport guard | 3 passed |
 | Synthetic WAL backup/restore | PASS; exact restored rows, FK/integrity checks, unchanged source and corrupt-snapshot rejection |
 | Docker runtime and installed devices | Not executed; Docker unavailable locally, devices are human acceptance |
