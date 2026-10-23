@@ -1,9 +1,9 @@
 # AUTH-12: Production Stability and Release Closure Report
 
-**Date:** 2026-10-22
+**Date:** 2026-10-22 (initial), 2026-10-23 (final update)
 **Operator:** Claude (automated)
 **Scope:** Post-deployment stability verification for AUTH-11 infrastructure hardening
-**Overall Verdict:** PASS WITH CONDITIONS
+**Overall Verdict:** PASS WITH CONDITIONS (confirmed after 24-hour observation)
 
 ---
 
@@ -36,11 +36,12 @@
 |--------|-------|
 | Window start | 2026-10-22T12:37:16Z |
 | Window end | 2026-10-23T12:37:16Z |
-| Elapsed at report time | ~18 minutes (0.3 hours) |
-| Status | **PENDING** — durable cron scheduled for 14:47 SAST Oct 23 |
-| Interim evidence | 8 CSV entries, all OK; 0 errors; 0 restarts |
+| Elapsed at report time | ~18 minutes (initial), 25.7 hours (final verification) |
+| Status | **COMPLETE** — 24-hour window elapsed; final verification at 16:21 SAST Oct 23 |
+| Total monitoring records in window | 289 CSV entries, all OK; 0 errors; 0 restarts |
+| Scheduled verification | Executed at 14:47 SAST Oct 23 — PENDING REVIEW (as designed) |
 
-**Note:** Full 24-hour PASS cannot be claimed until the observation window completes. A self-removing cron job will execute `scripts/auth12-24h-stability-check.sh` at the window end and save results to `/home/webadmin/logs/auth12-24h-stability-report.txt`.
+**Update (2026-10-23):** The 24-hour observation window completed at 14:37 SAST. The scheduled verification script executed at 14:47 SAST and correctly reported PENDING REVIEW. Independent final verification was performed at 16:21 SAST. Full results in `AUTH-12-final-24h-verification-report.md`.
 
 ---
 
@@ -299,8 +300,12 @@ CI green for both deployed SHA (`6763f4e`) and current HEAD (`0f954ad`).
 - Rollback readiness
 - Zero errors, zero restarts
 
-**What requires time to fully verify (conditions):**
-1. **24-hour observation window** — ends 2026-10-23T12:37:16Z. Durable cron scheduled. Current monitoring shows continuous OK. Full PASS deferred.
-2. **First post-deployment daily backup** — runs 2026-10-23 03:00 SAST. Backup script is UID-independent (uses sudo on host). Expected to succeed.
+**Previously pending conditions (now resolved):**
+1. ~~**24-hour observation window**~~ — **RESOLVED.** Window completed 2026-10-23T12:37:16Z. 289 monitoring checks during window, all OK. Zero gaps, zero errors, zero restarts.
+2. ~~**First post-deployment daily backup**~~ — **RESOLVED.** Backup executed 2026-10-23 03:00 SAST. File: `student_ms_20261023_030001.db` (16.9MB). `PRAGMA integrity_check` = ok. 18 users (matches production).
 
-**Neither condition represents a deployment risk.** Both are confirmations of continued normal operation, not indicators of potential failure. The deployment is stable and correctly hardened.
+**Remaining conditions (LOW severity, non-blocking):**
+1. **Verification script defects** — `auth12-24h-stability-check.sh` has non-critical logic gaps (SHA not enforced, backup/frontend not in verdict). Recommended fix in AUTH-13.
+2. **Email delivery verification gap** — SMTP submission works (exit 0, TLS 1.3) but inbox delivery for real stale-trigger events not tested. No alerts were needed during stable observation.
+
+**AUTH-12 is closed.** The deployment is stable and correctly hardened. Full 24-hour verification report: `AUTH-12-final-24h-verification-report.md`.
