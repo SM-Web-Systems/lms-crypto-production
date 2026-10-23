@@ -45,6 +45,13 @@ describe('Amma Wallet is the mobile account authority', () => {
     fireEvent.press(screen.getByText('Create AmmaWallet account'));
     await waitFor(() => expect(Linking.openURL).toHaveBeenCalledWith('https://ammawallet.com/register?source=lms'));
   });
+  it('opens Wallet settings after an email requirement failure', async () => {
+    mockWalletLogin.mockRejectedValueOnce(new Error('Add and verify an email in AmmaWallet settings.'));
+    render(<SignInScreen/>);fireEvent.press(screen.getByText('Sign in with AmmaWallet'));
+    await waitFor(() => expect(screen.getByText('Open AmmaWallet settings')).toBeTruthy());
+    fireEvent.press(screen.getByText('Open AmmaWallet settings'));
+    await waitFor(() => expect(Linking.openURL).toHaveBeenCalledWith('https://ammawallet.com/settings'));
+  });
   it('directs wallet recovery to Amma Wallet rather than requesting an LMS reset', async () => {
     render(<ForgotPasswordScreen/>);
     expect(screen.queryByLabelText('Email')).toBeNull();

@@ -21,6 +21,7 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (name: string, email: string, password: string) => Promise<User>;
+  completeSso: (token: string) => Promise<User>;
   logout: () => Promise<void>;
   updateUser: (user: User, verifiedToken?: string) => void;
 }
@@ -70,6 +71,24 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
   },[]);
   const login=useCallback((email:string,password:string)=>establish('/auth/login',{email:email.trim().toLowerCase(),password}),[establish]);
   const register=useCallback((name:string,email:string,password:string)=>establish('/auth/register',{name:name.trim(),email:email.trim().toLowerCase(),password}),[establish]);
+  const completeSso=useCallback(async(token:string):Promise<User>=>{
+    const started=++generation.current;request.current++;
+    setStoredToken(token);setUser(null);setSessionError(null);setIsLoading(true);
+    const current=()=>mounted.current && generation.current===started && getStoredToken()===token;
+    try{
+      const response=await api.get<ApiResponse<User>>('/auth/me',{headers:{Authorization:`Bearer ${token}`}});
+      if(!current())throw new Error('The active session changed. Please sign in again.');
+      if(!response.data.success || !response.data.data)throw new Error('Could not verify your wallet session. Please retry.');
+      setUser(response.data.data);setSessionError(null);
+      return response.data.data;
+    }catch(error){
+      if(current()){
+        if(error instanceof ApiRequestError && error.status===401)invalidate(token);
+        else setSessionError(getErrorMessage(error,'Could not reach the server. Your wallet session is being kept.'));
+      }
+      throw error;
+    }finally{if(current())setIsLoading(false);}
+  },[invalidate]);
   const logout=useCallback(async()=>{
     const token=getStoredToken();generation.current++;request.current++;setStoredToken(null);setUser(null);setSessionError(null);setIsLoading(false);
     if(token){try{await api.post('/auth/logout',undefined,{headers:{Authorization:`Bearer ${token}`},timeout:5000});}catch{/* Local sign-out succeeds while offline. */}}
@@ -83,7 +102,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     }else setUser(current=>current?.id===updated.id?{...current,name:updated.name}:current);
   },[renderedGeneration]);
   const recovery=sessionError && !user && !isLoading;
-  return <AuthContext.Provider value={{user,isAuthenticated:!!user,isLoading,login,register,logout,updateUser}}>
+  return <AuthContext.Provider value={{user,isAuthenticated:!!user,isLoading,login,register,completeSso,logout,updateUser}}>
     {recovery ? <main className="min-h-screen flex items-center justify-center bg-neutral-50 p-6">
       <div className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-6 space-y-4">
         <h1 className="text-xl font-bold">Reconnect to your account</h1>

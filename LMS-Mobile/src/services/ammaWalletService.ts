@@ -22,14 +22,14 @@ function applicationUrl(base: string, path: string): URL {
   return url;
 }
 
-export function walletAccountUrl(action: 'register' | 'recover'): string {
+export function walletAccountUrl(action: 'register' | 'recover' | 'settings'): string {
   const base = process.env.EXPO_PUBLIC_AMMA_WALLET_URL || 'https://ammawallet.com';
-  const url = applicationUrl(base, action === 'register' ? '/register' : '/forgot-password');
+  const url = applicationUrl(base, action === 'register' ? '/register' : action === 'settings' ? '/settings' : '/forgot-password');
   if (action === 'register') url.searchParams.set('source','lms');
   return url.toString();
 }
 
-export async function openWalletAccount(action: 'register' | 'recover'): Promise<void> {
+export async function openWalletAccount(action: 'register' | 'recover' | 'settings'): Promise<void> {
   await Linking.openURL(walletAccountUrl(action));
 }
 
@@ -65,7 +65,21 @@ export const ammaWalletService = {
       if (callback.protocol !== 'lmsmobile:' || callback.host !== 'sso-callback' || !['','/'].includes(callback.pathname)
         || callback.username || callback.password || callback.hash || callback.searchParams.getAll('state').length !== 1
         || callback.searchParams.get('state') !== state) throw new Error('The sign-in response could not be verified. Please start again.');
-      if (callback.searchParams.has('error')) throw new Error('AmmaWallet could not complete sign-in. Please try again.');
+      if (callback.searchParams.has('error')) {
+        if (callback.searchParams.getAll('error').length !== 1 || callback.searchParams.has('code')) {
+          throw new Error('The sign-in response could not be verified. Please start again.');
+        }
+        const error = callback.searchParams.get('error')!;
+        if (error === 'cancelled') throw new WalletSignInCancelled();
+        const messages: Record<string, string> = {
+          email_required: 'LMS needs an email address. Open AmmaWallet settings, add and verify an email, then sign in again.',
+          email_unverified: 'Verify your email in AmmaWallet settings, then sign in again.',
+          link_required: 'An LMS account already uses this email. Open the LMS web dashboard, sign in with its LMS password, then choose Connect AmmaWallet in your profile.',
+          identity_conflict: 'This LMS account is connected to a different Wallet identity. Use the original AmmaWallet account or contact your LMS administrator for account recovery.',
+          account_unavailable: 'This LMS account is unavailable. Contact your LMS administrator.',
+        };
+        throw new Error(messages[error] || 'AmmaWallet could not complete sign-in. Please try again.');
+      }
       const code = callback.searchParams.get('code');
       if (callback.searchParams.getAll('code').length !== 1 || !code || !/^[a-f0-9]{64}$/.test(code)) {
         throw new Error('The sign-in response is incomplete. Please start again.');

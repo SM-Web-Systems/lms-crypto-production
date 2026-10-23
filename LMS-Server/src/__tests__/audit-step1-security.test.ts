@@ -155,7 +155,8 @@ describe('A02 — effective role replacement and token invalidation', () => {
     expect((await change(a,target,'student')).status).toBe(200);
     vi.stubEnv('ADMIN_EMAILS',target.email);
     vi.spyOn(sso,'validateState').mockImplementation(() => {});
-    vi.spyOn(sso,'verifyAssertion').mockResolvedValue({userId:'audit-wallet-user',email:target.email} as sso.AmmaWalletSSOUser);
+    execute("UPDATE users SET auth_provider='ammawallet', ammawallet_user_id='audit-wallet-user' WHERE id=?", [target.id]);
+    vi.spyOn(sso,'verifyAssertion').mockResolvedValue({userId:'audit-wallet-user',email:target.email,isEmailVerified:true,firstName:null,lastName:null,mainnetWalletAddress:null});
     try {
       const res = await request(app).get('/api/v1/auth/amma-callback?assertion=audit&state=audit');
       expect(res.status).toBe(302);

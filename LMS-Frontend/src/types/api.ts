@@ -61,6 +61,7 @@ export interface User {
   role: UserRole;
   walletAddress: string | null;
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
+  authProvider?: 'local' | 'ammawallet';
   /** Course codes the user can access (students). When backend supports this, include in auth/me. */
   courseCodes?: string[];
   rbacRoles?: string[];

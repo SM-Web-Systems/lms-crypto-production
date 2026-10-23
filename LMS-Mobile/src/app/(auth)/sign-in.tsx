@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { getErrorMessage } from '@/utils/apiError';
-import { WalletSignInCancelled } from '@/services/ammaWalletService';
+import { WalletSignInCancelled, openWalletAccount } from '@/services/ammaWalletService';
 import { openWebDashboard } from '@/utils/webHandoff';
 
 export default function SignInScreen() {
@@ -71,6 +71,12 @@ export default function SignInScreen() {
             {Platform.OS === 'web' ? <Text className="text-sm text-neutral-500">Opens the LMS web dashboard in your browser.</Text> : null}
             <Link href="/(auth)/forgot-password" className="text-sm font-semibold text-accent-teal">Recover your AmmaWallet account</Link>
             {error ? <Text accessibilityRole="alert" className="text-sm text-red-500">{error}</Text> : null}
+            {error ? <>
+              <Button label="Open AmmaWallet settings" variant="ghost" disabled={walletBusy || submitting}
+                onPress={() => { void openWalletAccount('settings').catch(err => setError(getErrorMessage(err, 'Could not open AmmaWallet settings.'))); }}/>
+              <Button label="Open LMS web sign in" variant="ghost" disabled={walletBusy || submitting}
+                onPress={() => { void openWebDashboard('/login').catch(err => setError(getErrorMessage(err, 'Could not open LMS web sign in.'))); }}/>
+            </> : null}
             <Button label="Administrator / internal sign in" variant="ghost" onPress={()=>setShowInternal(value=>!value)}
               disabled={walletBusy || submitting} accessibilityState={{expanded:showInternal}}/>
             {showInternal ? <View className="gap-4">

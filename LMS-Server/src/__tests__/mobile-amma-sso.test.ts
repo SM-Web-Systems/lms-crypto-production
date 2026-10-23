@@ -82,6 +82,7 @@ describe('Amma Wallet native session handoff', () => {
   });
   it('preserves managed roles and reads current effective context at exchange', async () => {
     execute("INSERT INTO users(id,name,email,password_hash,role) VALUES('managed','Sponsor',?,'$sso$','student')",[identity.email]);
+    execute("UPDATE users SET auth_provider='ammawallet', ammawallet_user_id=? WHERE id='managed'",[identity.userId]);
     execute("DELETE FROM user_roles WHERE user_id='managed'");
     execute("INSERT INTO user_roles(user_id,role_id) VALUES('managed','role_sponsor')");
     const value = await code();

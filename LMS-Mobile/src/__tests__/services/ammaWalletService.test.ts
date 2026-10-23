@@ -55,6 +55,19 @@ describe('proof-bound Amma Wallet mobile sign-in',()=>{
     await expect(ammaWalletService.signIn()).rejects.toThrow('AmmaWallet could not complete sign-in');
     expect(post).not.toHaveBeenCalled();
   });
+  it.each([
+    ['email_required','add and verify an email'], ['email_unverified','Verify your email'],
+    ['link_required','Connect AmmaWallet'], ['identity_conflict','original AmmaWallet account'],
+  ])('provides actionable recovery for %s without exchanging a session',async(error,message)=>{
+    browser.mockImplementationOnce(async(initial)=>response(initial,{url:response(initial).url.replace('code='+code,'error='+error)}));
+    await expect(ammaWalletService.signIn()).rejects.toThrow(message);
+    expect(post).not.toHaveBeenCalled();
+  });
+  it('rejects an ambiguous error/success callback',async()=>{
+    browser.mockImplementationOnce(async(initial)=>response(initial,{url:response(initial).url+'&error=email_required'}));
+    await expect(ammaWalletService.signIn()).rejects.toThrow('could not be verified');
+    expect(post).not.toHaveBeenCalled();
+  });
   it.each(['cancel','dismiss'])('handles browser %s without creating a local account',async(type)=>{
     browser.mockResolvedValueOnce({type});
     await expect(ammaWalletService.signIn()).rejects.toBeInstanceOf(WalletSignInCancelled);
@@ -96,6 +109,7 @@ describe('proof-bound Amma Wallet mobile sign-in',()=>{
     process.env.EXPO_PUBLIC_AMMA_WALLET_URL = 'https://wallet.example.invalid';
     expect(walletAccountUrl('register')).toBe('https://wallet.example.invalid/register?source=lms');
     expect(walletAccountUrl('recover')).toBe('https://wallet.example.invalid/forgot-password');
+    expect(walletAccountUrl('settings')).toBe('https://wallet.example.invalid/settings');
   });
   it('does not start a custom-scheme login from a browser preview',async()=>{
     const platform = Platform.OS;

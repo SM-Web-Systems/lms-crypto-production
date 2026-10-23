@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   login, register, logout, getMe, forgotPassword, resetPassword,
-  ammaLogin, ammaCallback, ammaMobileSession,
+  ammaLogin, ammaLink, ammaCallback, ammaMobileSession,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -153,6 +153,9 @@ router.get('/me', authenticate, getMe);
  *       302: { description: Redirects to AmmaWallet SSO }
  */
 router.get('/amma-login',    ammaLogin);
+// Explicit account conversion requires authentication and local password confirmation.
+// Already-bound users use this same endpoint to refresh only their own immutable Wallet ID.
+router.post('/amma-link', authenticate, ammaLink);
 /**
  * @openapi
  * /auth/amma-callback:

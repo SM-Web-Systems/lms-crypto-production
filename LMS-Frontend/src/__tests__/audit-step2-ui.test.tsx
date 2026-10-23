@@ -7,9 +7,9 @@ import { hasCapability, homeForUser } from '../utils/authorization';
 
 const mocks = vi.hoisted(() => ({
   user: null as User | null, updateUser: vi.fn(), fetchStudents: vi.fn(), fetchSubmissions: vi.fn(),
-  get: vi.fn(), post: vi.fn(), analytics: vi.fn(),
+  get: vi.fn(), post: vi.fn(), analytics: vi.fn(), completeSso:vi.fn(),
 }));
-vi.mock('../context/useAuth', () => ({useAuth: () => ({user:mocks.user,isAuthenticated:!!mocks.user,isLoading:false,logout:vi.fn(),updateUser:mocks.updateUser})}));
+vi.mock('../context/useAuth', () => ({useAuth: () => ({user:mocks.user,isAuthenticated:!!mocks.user,isLoading:false,logout:vi.fn(),updateUser:mocks.updateUser,completeSso:mocks.completeSso})}));
 vi.mock('../services/api', () => ({default:{get:mocks.get,post:mocks.post},setTokenGetter:vi.fn(),onUnauthorized:()=>()=>{}}));
 vi.mock('../context/DataContext', () => ({DataProvider: ({children}: {children:React.ReactNode}) => children, useData: () => ({
   students:[],submissions:[],studentsLoading:false,submissionsLoading:false,studentsError:null,submissionsError:null,
@@ -116,20 +116,19 @@ describe('SSO workspace restoration', () => {
   it('uses the verified server context instead of a JWT routing hint', async () => {
     const sponsor=user({workspaces:['sponsor'],defaultWorkspace:'sponsor',permissions:['impact_report.read']});
     window.history.replaceState(null,'','/sso-callback#token=opaque-session-token');
-    mocks.get.mockResolvedValue({data:{success:true,data:sponsor}});
+    mocks.completeSso.mockImplementation(async(token)=>{localStorage.setItem('lms_token',token);return sponsor;});
     render(<MemoryRouter initialEntries={['/sso-callback']}><Routes>
       <Route path="/sso-callback" element={<SsoCallback />} />
       <Route path="/sponsor" element={<p>Verified sponsor landing</p>} />
     </Routes></MemoryRouter>);
     await waitFor(()=>expect(screen.getByText('Verified sponsor landing')).toBeInTheDocument());
-    expect(mocks.get).toHaveBeenCalledWith('/auth/me');
-    expect(mocks.updateUser).toHaveBeenCalledWith(sponsor, 'opaque-session-token');
+    expect(mocks.completeSso).toHaveBeenCalledWith('opaque-session-token');
     expect(window.location.hash).toBe('');
   });
   it('SSO verification keeps a recoverable token and retries a transient outage',async()=>{
     const sponsor=user({workspaces:['sponsor'],defaultWorkspace:'sponsor'});
     window.history.replaceState(null,'','/sso-callback#token=recoverable-session');
-    mocks.get.mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce({data:{success:true,data:sponsor}});
+    mocks.completeSso.mockImplementationOnce(async(token)=>{localStorage.setItem('lms_token',token);throw new Error('Offline');}).mockResolvedValueOnce(sponsor);
     render(<MemoryRouter initialEntries={['/sso-callback']}><Routes><Route path="/sso-callback" element={<SsoCallback/>}/><Route path="/sponsor" element={<p>Recovered SSO workspace</p>}/></Routes></MemoryRouter>);
     await waitFor(()=>expect(screen.getByText('Retry connection')).toBeInTheDocument());
     expect(localStorage.getItem('lms_token')).toBe('recoverable-session');
@@ -139,9 +138,9 @@ describe('SSO workspace restoration', () => {
   it('a late failed SSO verification cannot clear a newer login token',async()=>{
     let reject!:(error:Error)=>void;
     window.history.replaceState(null,'','/sso-callback#token=old-session');
-    mocks.get.mockImplementationOnce(()=>new Promise((_resolve,fail)=>{reject=fail;}));
+    mocks.completeSso.mockImplementationOnce((token)=>{localStorage.setItem('lms_token',token);return new Promise((_resolve,fail)=>{reject=fail;});});
     render(<MemoryRouter initialEntries={['/sso-callback']}><SsoCallback/></MemoryRouter>);
-    await waitFor(()=>expect(mocks.get).toHaveBeenCalled());
+    await waitFor(()=>expect(mocks.completeSso).toHaveBeenCalled());
     localStorage.setItem('lms_token','newer-session');
     await act(async()=>reject(new Error('Old request failed')));
     expect(localStorage.getItem('lms_token')).toBe('newer-session');
