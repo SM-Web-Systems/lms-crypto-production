@@ -11,7 +11,7 @@
     "db:init": "node dist/scripts/initDb.js",
     "db:schema": "node dist/scripts/initDb.js",
     "db:seed": "tsx src/scripts/seedUsers.ts",
-    "db:promote-admin": "tsx src/scripts/promoteUserToAdmin.ts",
+    "db:promote-admin": "node dist/scripts/promoteUserToAdmin.js",
     "db:promote-admin:docker": "docker exec lms-api npm run db:promote-admin --",
     "db:seed-courses": "tsx src/scripts/seedCourses.ts",
     "db:seed-solana": "tsx src/scripts/seedSolanaCrashCourse.ts",

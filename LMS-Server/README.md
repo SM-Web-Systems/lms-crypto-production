@@ -86,7 +86,7 @@ A TypeScript/Express backend server for the KanyaCSI Student Management System. 
    Any existing file (including an empty file) or WAL/SHM/journal sidecar is refused.
    `db:schema` is a compatibility alias for the same compiled command and requires the same flag.
    Alternate schema files are unsupported. Provision an administrator separately using the reviewed
-   administrator provisioning procedure; never seed demonstration credentials into a deployment.
+   administrator provisioning procedure (confirm the selected identity, then use `npm run db:promote-admin -- <email>`); never seed demonstration credentials into a deployment.
 
    Normal startup refuses missing, corrupt, partial or unsupported databases. Preserve the database
    and all sidecars, then follow the [AUTH-13 bootstrap procedure](../docs/specs/AUTH-13-application-integrity-spec.md).
@@ -202,3 +202,5 @@ All errors follow a consistent format:
 ## License
 
 MIT
+
+Public password registration always creates a student, regardless of submitted role or staff email allowlists. Staff allowlists apply only after verified Amma Wallet assertions for new accounts. Existing managed grants are preserved. Explicit operator promotion updates RBAC and invalidates existing sessions immediately.

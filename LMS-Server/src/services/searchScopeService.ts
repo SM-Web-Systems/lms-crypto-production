@@ -1,8 +1,10 @@
+import { getCurrentAdminTier } from './administratorPolicy.js';
+
 /** SQL scopes for search. Callers must still check the capability for each result type. */
 export function searchCourseScope(userId: string, permissions: Set<string>, staffOnly = false): { sql: string; params: unknown[] } {
   // Keep the existing administrator course boundary: platform courses + own tenants.
-  if (permissions.has('course.delete')) {
-    if (permissions.has('tenant.manage')) return { sql: '1 = 1', params: [] };
+  if (permissions.has('course.delete') && getCurrentAdminTier(userId)) {
+    if (permissions.has('tenant.manage') && getCurrentAdminTier(userId)) return { sql: '1 = 1', params: [] };
     return {
       sql: `(c.id IS NOT NULL AND (c.tenant_id IS NULL OR c.tenant_id IN
         (SELECT tenant_id FROM tenant_users WHERE user_id = ? AND tenant_role = 'admin')))`,
@@ -32,7 +34,7 @@ export function searchCourseScope(userId: string, permissions: Set<string>, staf
 }
 
 export function searchDirectoryScope(userId: string, permissions: Set<string>): { sql: string; params: unknown[] } {
-  if (permissions.has('tenant.manage')) return { sql: '1 = 1', params: [] };
+  if (permissions.has('tenant.manage') && getCurrentAdminTier(userId)) return { sql: '1 = 1', params: [] };
   // Directory capability permits platform users and members of the caller's tenants;
   // it does not confer any access to those users' credentials or quiz analytics.
   return {

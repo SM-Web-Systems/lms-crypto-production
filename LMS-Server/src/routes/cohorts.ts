@@ -4,9 +4,10 @@
 
 import { Router, type Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission, getUserPermissions } from '../middleware/rbac.js';
+import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
+import { isAdminTier } from '../services/administratorPolicy.js';
 import { sponsorCourseOptions } from '../services/sponsorPortalService.js';
 import { queryOne } from '../config/database.js';
 import { createNotification } from '../services/notificationService.js';
@@ -26,18 +27,6 @@ import {
 } from '../services/cohortService.js';
 
 const router = Router();
-
-/**
- * Check if the requesting user is an admin-tier actor.
- * Uses `course.delete` as the admin-tier discriminator — only admin, admin-2,
- * and super-admin hold this permission. Same pattern as requireCourseScope.
- */
-function isAdminTier(req: AuthRequest): boolean {
-  if (!req._permissions) {
-    req._permissions = new Set(getUserPermissions(req.user!.userId));
-  }
-  return req._permissions.has('course.delete');
-}
 
 /**
  * Verify cohort ownership for sponsor-tier users.

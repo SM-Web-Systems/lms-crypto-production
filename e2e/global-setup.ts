@@ -58,22 +58,15 @@ async function globalSetup() {
     }
   }
 
-  // Promote superadmin@test.com to super-admin RBAC role.
-  // The API blocks super-admin assignment (ESC-4), so we assign directly via
-  // sqlite3. ADMIN_EMAILS auto-promotes to the legacy admin column; this adds
-  // the RBAC role that carries privacy.view_deleted_identity.
-  // In CI, DATABASE_PATH is set explicitly. For local runs, fall back to the
-  // same temp path used by the webServer block in playwright.config.ts.
+  // Direct fixture provisioning is restricted to this disposable test database.
+  // Public registration intentionally cannot create administrators.
   const dbPath = process.env.DATABASE_PATH || '';
   if (dbPath) {
-    try {
+    for (const [email, role] of [['admin@test.com','role_admin'], ['superadmin@test.com','role_super_admin']]) {
       execSync(
-        `sqlite3 "${dbPath}" "INSERT OR IGNORE INTO user_roles (user_id, role_id, granted_by) SELECT u.id, r.id, u.id FROM users u, roles r WHERE u.email = 'superadmin@test.com' AND r.name = 'super-admin';"`,
+        `sqlite3 "${dbPath}" "INSERT OR IGNORE INTO user_roles (user_id, role_id, granted_by) SELECT u.id, '${role}', u.id FROM users u WHERE u.email = '${email}'; UPDATE users SET role='admin' WHERE email='${email}';"`,
         { stdio: 'pipe' },
       );
-      console.log('[e2e-setup] promoted superadmin@test.com to super-admin RBAC role');
-    } catch (err) {
-      console.warn('[e2e-setup] super-admin RBAC promotion failed (sqlite3):', err);
     }
 
     // Assign sponsor role to sponsor-a@test.com and sponsor-b@test.com.

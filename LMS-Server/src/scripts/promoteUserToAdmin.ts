@@ -8,7 +8,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { execute, queryOne, close } from '../config/database.js';
+import { queryOne, close } from '../config/database.js';
+
+import { provisionAdministratorFromConsole } from '../services/roleSecurityService.js';
 
 const email = process.argv[2]?.trim().toLowerCase();
 if (!email || !email.includes('@')) {
@@ -25,17 +27,7 @@ if (!row) {
   process.exit(1);
 }
 
-if (row.role === 'admin') {
-  console.log(`Already admin: ${email} (${row.name})`);
-  close();
-  process.exit(0);
-}
-
-const n = execute("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?", ['admin', row.id]);
-if (n === 0) {
-  console.error('Update failed unexpectedly.');
-  process.exit(1);
-}
-
-console.log(`Promoted to admin: ${email} (${row.name})`);
-close();
+try {
+  const changed = provisionAdministratorFromConsole(row.id);
+  console.log(`${changed ? 'Granted administrator access' : 'Administrator access already assigned'}: ${row.id}`);
+} finally { close(); }

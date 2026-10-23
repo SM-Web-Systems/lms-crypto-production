@@ -1225,8 +1225,8 @@ export function migrateUsersToRbac(): void {
   };
 
   // Do not resurrect grants deliberately changed/revoked through role management.
-  const users = db.prepare('SELECT id, role, email FROM users WHERE authorization_version = 0').all() as Array<{
-    id: string; role: string; email: string;
+  const users = db.prepare('SELECT id, role FROM users WHERE authorization_version = 0').all() as Array<{
+    id: string; role: string;
   }>;
 
   const insertUserRole = db.prepare(
@@ -1238,10 +1238,7 @@ export function migrateUsersToRbac(): void {
     if (roleId) {
       insertUserRole.run(user.id, roleId);
     }
-    // Super-admin for hardcoded email
-    if (user.email === 'mukhtar.meer@smwebsystems.com') {
-      insertUserRole.run(user.id, 'role_super_admin');
-    }
+
   }
 }
 startupMigrations.push(() => {

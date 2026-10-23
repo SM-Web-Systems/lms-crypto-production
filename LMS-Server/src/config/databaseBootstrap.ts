@@ -35,6 +35,7 @@ function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<ty
 }
 const baseline = (expected.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
   .map(({ name }) => ({ name, keys: keys(expected, name), columns: (expected.pragma(`table_info("${name}")`) as { name: string }[]).map(c => c.name) }));
+const baselineTriggers = expected.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'").all() as {name:string;sql:string}[];
 expected.close();
 
 function refuse(reason: string): never {
@@ -51,6 +52,11 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
       if (!afterMigrations && table.name === 'users' && column === 'authorization_version') continue;
       if (!columns.some(c => c.name === column)) refuse(`unsupported schema (${table.name}.${column})`);
     }
+  }
+  for (const trigger of baselineTriggers) {
+    const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?").get(trigger.name) as {sql:string} | undefined;
+    const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+    if (!actual || normalize(actual.sql) !== normalize(trigger.sql)) refuse(`missing or changed role trigger (${trigger.name})`);
   }
   if ((db.pragma('foreign_key_check') as unknown[]).length) refuse('foreign key check failed');
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;

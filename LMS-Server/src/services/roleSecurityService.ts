@@ -82,3 +82,17 @@ export function revokeUserRole(actorId: string, targetId: string, roleId: string
     return assignment.name;
   }).immediate();
 }
+
+/** Trusted operator CLI only; never called from public registration or login. */
+export function provisionAdministratorFromConsole(userId: string): boolean {
+  return db.transaction(() => {
+    const user = queryOne<{role: LegacyRole}>('SELECT role FROM users WHERE id = ?', [userId]);
+    if (!user) throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
+    const assigned = queryOne("SELECT 1 FROM user_roles WHERE user_id = ? AND role_id = 'role_admin'", [userId]);
+    if (assigned && user.role === 'admin') return false;
+    execute("INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES(?,'role_admin')", [userId]);
+    execute("UPDATE users SET role = 'admin', updated_at = datetime('now') WHERE id = ?", [userId]);
+    invalidateAuthorization(userId);
+    return true;
+  }).immediate();
+}

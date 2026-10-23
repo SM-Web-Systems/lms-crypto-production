@@ -1,3 +1,4 @@
+import { getCurrentAdminTier } from './administratorPolicy.js';
 import { query, queryOne } from '../config/database.js';
 import { getUserPermissions, getUserRoles } from '../middleware/rbac.js';
 
@@ -25,8 +26,7 @@ export function getAuthorizationContext(userId: string) {
   if (!admin && can('course.manage') && !workspaces.length) workspaces.push('lecturer');
   if (can('course.submit')) workspaces.push('student');
   if (!workspaces.length && can('course.view')) workspaces.push('student');
-  const adminTier = rbacRoles.includes('super-admin') ? 'super-admin'
-    : rbacRoles.includes('admin-2') ? 'admin-2' : rbacRoles.includes('admin') ? 'admin' : null;
+  const adminTier = getCurrentAdminTier(userId);
   const deletionStatus = queryOne<{deletion_status:string|null}>('SELECT deletion_status FROM users WHERE id = ?', [userId])?.deletion_status ?? null;
   return { rbacRoles, permissions, workspaces, defaultWorkspace: workspaces[0] ?? null, adminTier, assignedCourses, deletionStatus };
 }

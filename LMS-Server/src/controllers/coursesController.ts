@@ -1,3 +1,4 @@
+import { isAdminTier } from '../services/administratorPolicy.js';
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import AdmZip from 'adm-zip';
@@ -207,7 +208,7 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
 
     // Determine tenant_id: auto-set for tenant admins, explicit for super-admins, NULL otherwise
     let tenantId: string | null = null;
-    if (req.user?.userId && hasPermission(req.user.userId, 'course.delete')) {
+    if (isAdminTier(req) && req.user && hasPermission(req.user.userId, 'course.delete')) {
       const hasTenantManage = queryOne<{ name: string }>(
         `SELECT p.name FROM permissions p
          JOIN role_permissions rp ON p.id = rp.permission_id
@@ -238,7 +239,7 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
     );
 
     // A new instructor draft must be discoverable by its creator without enrollment.
-    if (req.user?.userId && !hasPermission(req.user.userId, 'course.delete')) {
+    if (req.user?.userId && !(isAdminTier(req) && hasPermission(req.user.userId, 'course.delete'))) {
       execute('INSERT OR IGNORE INTO course_lecturers (course_id, user_id) VALUES (?, ?)', [course.id, req.user.userId]);
     }
 

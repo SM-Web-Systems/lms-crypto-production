@@ -8,10 +8,10 @@ Owner: implementation agent, with independent review agents for read-only review
 | A13-01 | Reconcile AUTH history, issues, PRs and existing fixes | A13-00 | implementation agent | PASS | assessment findings; #67/#68 and 14 open PRs reconciled |
 | A13-02 | Failing real-process bootstrap/data-preservation regressions | A13-01 | implementation agent | PASS | 11 original bootstrap failures reproduced; partial-index regression red; 19 focused tests pass |
 | A13-03 | Canonical bootstrap and compiled startup | A13-02 | implementation agent | PASS | API build and source-free compiled init/restart pass; complete schema/key contract |
-| A13-04 | Database independent review and draft PR | A13-03 | independent reviewer / implementation agent | IN PROGRESS | independent review findings fixed; draft PR preparation |
-| A13-05 | Failing authorization boundary regressions | A13-04 | implementation agent | TODO | pending |
-| A13-06 | Explicit admin policy and role-trigger audit | A13-05 | implementation agent | TODO | pending |
-| A13-07 | Authorization independent review and draft PR | A13-06 | independent reviewer / implementation agent | TODO | pending |
+| A13-04 | Database independent review and draft PR | A13-03 | independent reviewer / implementation agent | PASS | draft PR #78 a594056; final independent database review clean |
+| A13-05 | Failing authorization boundary regressions | A13-04 | implementation agent | PASS | 11 authorization failures reproduced in real route/middleware tests |
+| A13-06 | Explicit admin policy and role-trigger audit | A13-05 | implementation agent | PASS | 23 new policy checks; 95 sponsor/payment, 107 revocation/Wallet/context and 57 tenant/course/submission regressions pass |
+| A13-07 | Authorization independent review and draft PR | A13-06 | independent reviewer / implementation agent | PASS | clean final independent review; 42 integrated bootstrap/policy checks and compiled smoke pass; draft PR preparation |
 | A13-08 | Payment CI and monitoring evidence regressions | A13-07 | implementation agent | TODO | pending |
 | A13-09 | Test-only webhook CI and evidence-based monitoring verifier | A13-08 | implementation agent | TODO | pending |
 | A13-10 | Isolated backup/restore drill and retention assessment | A13-09 | implementation agent | TODO | pending |
