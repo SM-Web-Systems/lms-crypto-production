@@ -3,10 +3,7 @@
  * Runs once before all test files.  Idempotent: 409 (duplicate) is ignored.
  */
 
-import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { withFixtureDatabase } from './helpers/fixture-db';
 
 const API_URL = process.env.E2E_API_URL || 'http://localhost:3001';
 
@@ -39,55 +36,20 @@ async function globalSetup() {
   }
 
   for (const u of USERS) {
-    try {
-      const res = await fetch(`${API_URL}/api/v1/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(u),
-      });
-      if (res.ok) {
-        console.log(`[e2e-setup] registered ${u.email}`);
-      } else if (res.status === 409) {
-        console.log(`[e2e-setup] ${u.email} already exists — OK`);
-      } else {
-        const body = await res.text();
-        console.warn(`[e2e-setup] register ${u.email} returned ${res.status}: ${body}`);
-      }
-    } catch (err) {
-      console.warn(`[e2e-setup] failed to register ${u.email}:`, err);
-    }
+    const res = await fetch(`${API_URL}/api/v1/auth/register`, {
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(u),
+    });
+    if (!res.ok && res.status !== 409) throw new Error(`Fixture registration failed: ${res.status}`);
   }
-
-  // Direct fixture provisioning is restricted to this disposable test database.
-  // Public registration intentionally cannot create administrators.
-  const dbPath = process.env.DATABASE_PATH || '';
-  if (dbPath) {
-    for (const [email, role] of [['admin@test.com','role_admin'], ['superadmin@test.com','role_super_admin']]) {
-      execSync(
-        `sqlite3 "${dbPath}" "INSERT OR IGNORE INTO user_roles (user_id, role_id, granted_by) SELECT u.id, '${role}', u.id FROM users u WHERE u.email = '${email}'; UPDATE users SET role='admin' WHERE email='${email}';"`,
-        { stdio: 'pipe' },
-      );
+  withFixtureDatabase(db => {
+    for (const [email,role] of [['admin@test.com','role_admin'],['superadmin@test.com','role_super_admin']]) {
+      db.prepare('INSERT OR IGNORE INTO user_roles(user_id,role_id) SELECT id,? FROM users WHERE email=?').run(role,email);
+      db.prepare("UPDATE users SET role='admin' WHERE email=?").run(email);
     }
-
-    // Assign sponsor role to sponsor-a@test.com and sponsor-b@test.com.
-    // Sponsor role is not assignable via the public API, so we use sqlite3.
-    for (const email of ['sponsor-a@test.com', 'sponsor-b@test.com']) {
-      try {
-        execSync(
-          `sqlite3 "${dbPath}" "INSERT OR IGNORE INTO user_roles (user_id, role_id, granted_by) SELECT u.id, 'role_sponsor', u.id FROM users u WHERE u.email = '${email}';"`,
-          { stdio: 'pipe' },
-        );
-        console.log(`[e2e-setup] assigned sponsor role to ${email}`);
-      } catch (err) {
-        console.warn(`[e2e-setup] sponsor role assignment failed for ${email}:`, err);
-      }
+    for (const email of ['sponsor-a@test.com','sponsor-b@test.com']) {
+      db.prepare("INSERT OR IGNORE INTO user_roles(user_id,role_id) SELECT id,'role_sponsor' FROM users WHERE email=?").run(email);
     }
-
-    // Seed sponsor E2E test data: course, cohorts, memberships, payment.
-    // Uses a temp SQL file to avoid shell-escaping issues.
-    // All statements are idempotent (INSERT OR IGNORE).
-    try {
-      const seedSQL = [
+    const seedSQL = [
         "INSERT OR IGNORE INTO courses (id, title, course_code, sections) VALUES ('e2e-sponsor-course-01', 'E2E Sponsor Test Course', 'E2E-SPNS-01', '[]');",
         "INSERT OR IGNORE INTO course_pricing (id, course_id, price_cents, currency, is_active, tiers_enabled) VALUES ('e2e-sponsor-pricing-01', 'e2e-sponsor-course-01', 5000, 'USD', 1, 'both');",
         "INSERT OR IGNORE INTO sponsor_cohorts (id, name, sponsor_user_id, course_id, selected_tier, status, created_at) SELECT 'e2e-cohort-a', 'E2E Cohort Alpha', u.id, 'e2e-sponsor-course-01', 'paid', 'active', datetime('now') FROM users u WHERE u.email = 'sponsor-a@test.com';",
@@ -103,17 +65,7 @@ async function globalSetup() {
         "INSERT OR IGNORE INTO course_nft_applications (id, user_id, course_id, wallet_address, status, applied_at) SELECT 'e2e-nft-app-b', u.id, 'e2e-sponsor-course-01', '0xE2E_FAKE_B', 'minted', datetime('now') FROM users u WHERE u.email = 'student@test.com';",
         "INSERT OR IGNORE INTO certificate_badges (id, user_id, course_id, application_id, badge_svg, badge_hash) SELECT 'e2e-badge-cohort-b', u.id, 'e2e-sponsor-course-01', 'e2e-nft-app-b', '<svg>e2e</svg>', 'e2e-hash-b' FROM users u WHERE u.email = 'student@test.com';",
       ].join('\n');
-      const tmpFile = join(tmpdir(), `lms-e2e-seed-${Date.now()}.sql`);
-      writeFileSync(tmpFile, seedSQL);
-      execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { stdio: 'pipe' });
-      unlinkSync(tmpFile);
-      console.log('[e2e-setup] seeded sponsor E2E test data (course, cohorts, payments, badges)');
-    } catch (err) {
-      console.warn('[e2e-setup] sponsor E2E data seeding failed (sqlite3):', err);
-    }
-  } else {
-    console.warn('[e2e-setup] DATABASE_PATH not set — skipping RBAC promotions and sponsor seeding');
-  }
+    db.exec(seedSQL);
+  });
 }
-
 export default globalSetup;

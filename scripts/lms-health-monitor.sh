@@ -13,7 +13,7 @@
 #
 # Environment:
 #   LMS_MONITOR_LOG     — Log file path (default: /home/webadmin/logs/lms-health-monitor.log)
-#   LMS_MONITOR_CSV     — CSV history file (default: /home/webadmin/logs/lms-health-monitor.csv)
+#   LMS_MONITOR_CSV     — CSV history file (default: /home/webadmin/logs/lms-health-monitor-v2.csv)
 #   LMS_HEARTBEAT_FILE  — Heartbeat file for dead-man check (default: /home/webadmin/logs/lms-monitor-heartbeat)
 #   LMS_API_URL         — API health URL (default: https://lms.smwebsystems.com/api/v1/health)
 #   LMS_FRONTEND_URL    — Frontend URL (default: https://lms.smwebsystems.com/)
@@ -31,20 +31,27 @@ set -euo pipefail
 
 # --- Configuration ---
 LOG_FILE="${LMS_MONITOR_LOG:-/home/webadmin/logs/lms-health-monitor.log}"
-CSV_FILE="${LMS_MONITOR_CSV:-/home/webadmin/logs/lms-health-monitor.csv}"
+CSV_FILE="${LMS_MONITOR_CSV:-/home/webadmin/logs/lms-health-monitor-v2.csv}"
 HEARTBEAT_FILE="${LMS_HEARTBEAT_FILE:-/home/webadmin/logs/lms-monitor-heartbeat}"
 API_URL="${LMS_API_URL:-https://lms.smwebsystems.com/api/v1/health}"
 FRONTEND_URL="${LMS_FRONTEND_URL:-https://lms.smwebsystems.com/}"
-ALERT_EMAIL="${LMS_ALERT_EMAIL:-mukhtar.meer@smwebsystems.com}"
+ALERT_EMAIL="${LMS_ALERT_EMAIL-mukhtar.meer@smwebsystems.com}"
 DISK_THRESHOLD="${LMS_DISK_THRESHOLD:-75}"
 MAX_5XX="${LMS_5XX_THRESHOLD:-0}"
 MAX_RESTART_COUNT="${LMS_MAX_RESTART_COUNT:-0}"
+
+PYTHON_BIN="${LMS_PYTHON_BIN:-python3}"
+
+for value in "$DISK_THRESHOLD" "$MAX_5XX" "$MAX_RESTART_COUNT"; do
+  if ! [[ "$value" =~ ^[0-9]{1,9}$ ]]; then echo "Invalid monitoring threshold" >&2; exit 2; fi
+done
+if [ "$DISK_THRESHOLD" -lt 1 ] || [ "$DISK_THRESHOLD" -gt 100 ]; then echo "Invalid disk threshold" >&2; exit 2; fi
 
 API_CONTAINER="lms-api"
 WEB_CONTAINER="lms-web"
 HOSTNAME_TAG=$(hostname)
 
-ts() { date '+%Y-%m-%d %H:%M:%S'; }
+ts() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 
 alerts=""
 status="OK"
@@ -56,16 +63,18 @@ add_alert() {
   echo "[$(ts)] ALERT: $msg" >> "$LOG_FILE"
 }
 
-# --- Initialize CSV header if missing ---
-if [ ! -f "$CSV_FILE" ]; then
-  echo "timestamp,api_health,frontend_http,api_docker_health,web_docker_health,api_restarts,5xx_count,disk_pct,db_status,status" > "$CSV_FILE"
+# Versioned evidence format. Never append incompatible rows to historical AUTH-12 CSV.
+CSV_HEADER="timestamp,api_health,frontend_http,api_docker_health,web_docker_health,api_restarts,five_xx_count,disk_pct,db_status,sha,web_restarts,api_uid,api_read_only,collection_ok,status"
+if [ -f "$CSV_FILE" ] && [ "$(head -1 "$CSV_FILE")" != "$CSV_HEADER" ]; then
+  echo 'Incompatible monitoring CSV header; preserve history and select a separate v2 file' >&2; exit 2
 fi
+if [ ! -f "$CSV_FILE" ]; then echo "$CSV_HEADER" > "$CSV_FILE"; fi
 
 # --- 1. API health endpoint ---
 api_health="unknown"
 api_response=$(curl -fsS --max-time 10 "$API_URL" 2>/dev/null) || api_response=""
 if [ -n "$api_response" ]; then
-  api_health=$(echo "$api_response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null) || api_health="parse_error"
+  api_health=$(echo "$api_response" | "$PYTHON_BIN" -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null) || api_health="parse_error"
 fi
 if [ "$api_health" != "ok" ]; then
   add_alert "API health check failed (status=$api_health, url=$API_URL)"
@@ -90,12 +99,27 @@ fi
 
 # --- 4. Container restart count ---
 api_restarts=$(docker inspect --format='{{.RestartCount}}' "$API_CONTAINER" 2>/dev/null) || api_restarts="-1"
-if [ "$api_restarts" -gt "$MAX_RESTART_COUNT" ] 2>/dev/null; then
+if ! [[ "$api_restarts" =~ ^[0-9]{1,9}$ ]] || [ "$api_restarts" -gt "$MAX_RESTART_COUNT" ]; then
   add_alert "API container RestartCount=$api_restarts (threshold: $MAX_RESTART_COUNT)"
 fi
 
+# Additional release-evidence fields; failures are never normalized to OK.
+web_restarts=$(docker inspect --format='{{.RestartCount}}' "$WEB_CONTAINER" 2>/dev/null) || web_restarts=-1
+if ! [[ "$web_restarts" =~ ^[0-9]{1,9}$ ]] || [ "$web_restarts" -gt "$MAX_RESTART_COUNT" ]; then add_alert "Web RestartCount=$web_restarts"; fi
+api_uid=$(docker exec "$API_CONTAINER" id -u 2>/dev/null) || api_uid=-1
+if ! [[ "$api_uid" =~ ^[0-9]{1,9}$ ]] || [ "$api_uid" -le 0 ]; then add_alert "API UID failed or unreadable: $api_uid"; fi
+api_read_only=$(docker inspect --format='{{.HostConfig.ReadonlyRootfs}}' "$API_CONTAINER" 2>/dev/null) || api_read_only=unknown
+if [ "$api_read_only" != true ]; then add_alert "API read-only root failed or unreadable: $api_read_only"; fi
+sha=$(printf '%s' "$api_response" | "$PYTHON_BIN" -c "import sys,json; print(json.load(sys.stdin).get('buildSha','unknown'))" 2>/dev/null) || sha=unknown
+if ! [[ "$sha" =~ ^[a-fA-F0-9]{40}$ ]]; then add_alert 'Build SHA missing or invalid'; fi
+
 # --- 5. 5xx errors in recent logs (last 5 minutes) ---
-five_xx_count=$(docker logs "$API_CONTAINER" --since 5m 2>&1 | grep -c '"statusCode":5[0-9][0-9]' 2>/dev/null) || five_xx_count="0"
+if recent_logs=$(docker logs "$API_CONTAINER" --since 5m 2>&1); then
+  five_xx_count=$(printf '%s\n' "$recent_logs" | grep -c '"statusCode":5[0-9][0-9]' || true)
+else
+  five_xx_count="-1"
+  add_alert "Unable to read container logs"
+fi
 if [ "$five_xx_count" -gt "$MAX_5XX" ] 2>/dev/null; then
   add_alert "5xx errors detected: $five_xx_count in last 5 minutes (threshold: $MAX_5XX)"
 fi
@@ -103,26 +127,28 @@ fi
 # --- 6. Database readiness ---
 db_status="unknown"
 if [ -n "$api_response" ]; then
-  db_status=$(echo "$api_response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('checks',{}).get('db',{}).get('status','unknown'))" 2>/dev/null) || db_status="parse_error"
+  db_status=$(echo "$api_response" | "$PYTHON_BIN" -c "import sys,json; print(json.load(sys.stdin).get('checks',{}).get('db',{}).get('status','unknown'))" 2>/dev/null) || db_status="parse_error"
 fi
 if [ "$db_status" != "ok" ]; then
   add_alert "Database readiness check failed (status=$db_status)"
 fi
 
 # --- 7. Disk space ---
-disk_pct=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
-if [ "$disk_pct" -ge "$DISK_THRESHOLD" ] 2>/dev/null; then
+disk_pct=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//') || disk_pct=-1
+if ! [[ "$disk_pct" =~ ^[0-9]{1,3}$ ]] || [ "$disk_pct" -ge "$DISK_THRESHOLD" ]; then
   add_alert "Disk usage at ${disk_pct}% (threshold: ${DISK_THRESHOLD}%)"
 fi
 
 # --- Write heartbeat ---
-date '+%Y-%m-%d %H:%M:%S' > "$HEARTBEAT_FILE"
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$HEARTBEAT_FILE"
 
 # --- Log result ---
 echo "[$(ts)] $status: api=$api_health frontend=$frontend_http docker_api=$api_docker_health docker_web=$web_docker_health restarts=$api_restarts 5xx=$five_xx_count disk=${disk_pct}% db=$db_status" >> "$LOG_FILE"
 
 # --- Append to CSV ---
-echo "$(ts),$api_health,$frontend_http,$api_docker_health,$web_docker_health,$api_restarts,$five_xx_count,$disk_pct,$db_status,$status" >> "$CSV_FILE"
+collection_ok=false
+[ "$status" = "OK" ] && collection_ok=true
+echo "$(ts),$api_health,$frontend_http,$api_docker_health,$web_docker_health,$api_restarts,$five_xx_count,$disk_pct,$db_status,$sha,$web_restarts,$api_uid,$api_read_only,$collection_ok,$status" >> "$CSV_FILE"
 
 # --- Trim CSV to last 5000 entries ---
 if [ "$(wc -l < "$CSV_FILE")" -gt 5001 ]; then
@@ -152,9 +178,11 @@ Checks:
   Disk:             ${disk_pct}%
   DB:               $db_status"
 
-  printf "%s" "$MESSAGE" | msmtp "$ALERT_EMAIL" 2>/dev/null || {
-    echo "[$(ts)] WARNING: Failed to send alert email" >> "$LOG_FILE"
-  }
+  if printf "%s" "$MESSAGE" | msmtp "$ALERT_EMAIL" 2>/dev/null; then
+    echo "[$(ts)] MAIL_SUBMITTED: receipt unconfirmed" >> "$LOG_FILE"
+  else
+    echo "[$(ts)] MAIL_SUBMISSION_FAILED: alert remains active" >> "$LOG_FILE"
+  fi
 fi
 
 # --- Trim log to last 10000 lines ---
@@ -164,4 +192,5 @@ if [ "$(wc -l < "$LOG_FILE")" -gt 10000 ]; then
   mv "$tmpf" "$LOG_FILE"
 fi
 
-exit 0
+[ "$status" = "OK" ] && exit 0
+exit 1

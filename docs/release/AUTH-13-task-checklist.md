@@ -12,10 +12,10 @@ Owner: implementation agent, with independent review agents for read-only review
 | A13-05 | Failing authorization boundary regressions | A13-04 | implementation agent | PASS | 11 authorization failures reproduced in real route/middleware tests |
 | A13-06 | Explicit admin policy and role-trigger audit | A13-05 | implementation agent | PASS | 23 new policy checks; 95 sponsor/payment, 107 revocation/Wallet/context and 57 tenant/course/submission regressions pass |
 | A13-07 | Authorization independent review and draft PR | A13-06 | independent reviewer / implementation agent | PASS | clean final independent review; 42 integrated bootstrap/policy checks and compiled smoke pass; draft PR preparation |
-| A13-08 | Payment CI and monitoring evidence regressions | A13-07 | implementation agent | TODO | pending |
-| A13-09 | Test-only webhook CI and evidence-based monitoring verifier | A13-08 | implementation agent | TODO | pending |
-| A13-10 | Isolated backup/restore drill and retention assessment | A13-09 | implementation agent | TODO | pending |
-| A13-11 | Full regression, review, diagrams/specification and final readiness | A13-10 | implementation agent / independent reviewer | TODO | pending |
+| A13-08 | Payment CI and monitoring evidence regressions | A13-07 | implementation agent | PASS | eight webhook integrity failures and actual Bash defects reproduced; fixture coverage added |
+| A13-09 | Test-only webhook CI and evidence-based monitoring verifier | A13-08 | implementation agent | PASS | synthetic HMAC/transport guard; 46 payment, 73 E2E, 25 monitoring/exporter checks; final independent review clean |
+| A13-10 | Isolated backup/restore drill and retention assessment | A13-09 | implementation agent | PASS | synthetic WAL restore drill passed; real retention/restore remains owner evidence |
+| A13-11 | Full regression, review, diagrams/specification and final readiness | A13-10 | implementation agent / independent reviewer | IN PROGRESS | API/web/mobile/E2E/build checks and draft PR readiness; integrated CI pending |
 | A13-12 | Production configuration, observation, real backup/email and installed-device evidence | review/merge/deployment authorization | server owner | DEFERRED | no production actions authorized |
 | A13-14 | Infrastructure/dependency/mobile roadmap work | separate releases | maintainers | DEFERRED | AUTH-14 and existing dependency/mobile PRs |
 

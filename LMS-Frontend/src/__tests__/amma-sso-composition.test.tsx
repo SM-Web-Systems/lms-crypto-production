@@ -48,7 +48,7 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     fireEvent.click(screen.getByText('Complete wallet return'));
     await waitFor(()=>expect(screen.getByTestId('current-identity')).toHaveTextContent('wallet-user'));
     expect(reads[reads.length-1]).toBe('Bearer wallet-token');
-    expect(screen.getByText('Wallet dashboard')).toBeInTheDocument();
+    expect(await screen.findByText('Wallet dashboard')).toBeInTheDocument();
   });
   it('finishes wallet navigation after provider-level outage recovery remounts the callback without its hash',async()=>{
     window.history.replaceState({},'','/sso-callback#token=wallet-token');

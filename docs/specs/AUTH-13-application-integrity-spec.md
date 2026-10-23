@@ -66,7 +66,7 @@ The legacy insert trigger maps the server-written `users.role` to student/instru
 
 ## Payment and CI evidence
 
-E2E uses an isolated compiled API and disposable database. Each run generates a synthetic HMAC key shared only with its harness. Never consume a production provider secret. Valid signatures permit provider-event processing; invalid/missing/tampered signatures fail before mutation. Duplicate events must not repeat payment/reward effects. Provider API calls are stubbed where needed.
+E2E uses an isolated compiled API and disposable database. Each run generates a synthetic HMAC key shared only with its harness. Never consume a production provider secret. Valid signatures permit provider-event processing; invalid/missing/tampered signatures fail before mutation. Duplicate events must not repeat payment/reward effects. Keys distinguish provider/event/reference (and refund reference); matching legacy markers suppress only already-applied transitions. Refund payloads follow the provider transaction_reference/string-amount shape. Full refunds update confirmed payments; partial refunds are retained for manual reconciliation without automatic aggregation. Provider API calls are stubbed where needed.
 
 ```mermaid
 flowchart LR

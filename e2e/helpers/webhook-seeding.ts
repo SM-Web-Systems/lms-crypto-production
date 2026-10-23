@@ -5,7 +5,7 @@
  * signatures for testing payment lifecycle flows.
  *
  * Guardrails:
- * - Test environment only (PAYSTACK_SECRET_KEY defaults to empty string).
+ * - Test environment only (a freshly generated synthetic HMAC is mandatory).
  * - No production credentials or real payment transactions.
  * - Uses existing webhook endpoint — no backend changes required.
  */
@@ -13,13 +13,16 @@
 import { createHmac } from 'crypto';
 import type { APIRequestContext } from '@playwright/test';
 
-const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || '';
+const PAYSTACK_SECRET = process.env.E2E_SYNTHETIC_HMAC_KEY || '';
+if (!/^auth13-fixture-[a-f0-9]{64}$/.test(PAYSTACK_SECRET)) throw new Error('Synthetic E2E HMAC is required');
 
 export interface WebhookPayload {
   event: string;
   data: {
-    reference: string;
-    amount: number;
+    reference?: string;
+    transaction_reference?: string;
+    refund_reference?: string | null;
+    amount: number | string;
     currency: string;
     status: string;
     paid_at?: string;
@@ -122,8 +125,9 @@ export async function sendRefundProcessed(
   return sendWebhook(request, apiURL, {
     event: 'refund.processed',
     data: {
-      reference,
-      amount: amountCents,
+      transaction_reference: reference,
+      refund_reference: `synthetic-refund-${reference}`,
+      amount: String(amountCents),
       currency,
       status: 'processed',
     },
