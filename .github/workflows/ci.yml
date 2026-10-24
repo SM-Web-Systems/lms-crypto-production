@@ -46,10 +46,9 @@ jobs:
       - run: npm ci
       - name: Audit frontend production dependencies
         run: npm audit --omit=dev --audit-level=high
-      # Tailwind 3's remaining high/moderate build findings need a reviewed CSS
-      # migration. Still block critical findings and registry/audit failures.
-      - name: Audit frontend including build tools (critical gate)
-        run: npm audit --audit-level=critical
+      # Include build dependencies so vulnerable parser resolutions cannot return.
+      - name: Audit frontend including build tools
+        run: npm audit --audit-level=moderate
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx vite build
