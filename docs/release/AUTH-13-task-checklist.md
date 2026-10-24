@@ -113,18 +113,33 @@ Previous session was interrupted during lesson_completions migration investigati
 - [x] All reviewers agree (payment + DB/auth both PASS)
 - [x] Push-ready commits identified (see branch ownership below)
 
-## Current Verdict: CONDITIONAL PASS
+## Current Verdict: CONDITIONAL PASS — Fixes Pushed, CI Pending
 
-All validation complete. Fixes ready for commit to PR branches.
+All fixes committed and pushed to correct PR branches. Stack forward-propagated.
 
-### Branch Ownership (Push-Ready)
+### Commits Pushed (2026-10-24)
 
-| Worktree | Branch | Changed Files | Target PR |
-|----------|--------|---------------|-----------|
-| auth13-payment | codex/auth13-payment-monitoring | `src/routes/webhooks.ts`, `src/__tests__/auth13-webhook-integrity.test.ts` | PR #80 |
-| auth13-integration | codex/auth13-database-bootstrap | `src/config/database.ts`, `src/config/databaseBootstrap.ts`, `src/__tests__/auth13-bootstrap.test.ts`, `src/__tests__/auth13-lesson-completions.test.ts` (new) | PR #78 |
-| auth13-review | main (docs only) | 11 release documents in `docs/release/` | Separate docs commit |
+| PR | Branch | Old SHA | New SHA | Commits |
+|----|--------|---------|---------|---------|
+| #77 | `codex/platform-audit-remediation` | `bbf17a0` | unchanged | — |
+| #78 | `codex/auth13-database-bootstrap` | `a594056` | `9db2cce` | DB fixes + lesson completions + CI skip |
+| #79 | `codex/auth13-authorization-policy` | `4a48674` | `1814f37` | Forward merge from #78 + conflict resolution |
+| #80 | `codex/auth13-payment-monitoring` | `9697390` | `cce04df` | Refund dedup fix + TS type fix + forward merge |
+| #81 | `codex/api-web-dependency-security` | `f30d86f` | `60b61c0` | Forward merge from #80 |
+| #82 | `docs/auth13-validation-reports` | — | `4b4f198` | New docs PR |
 
-**Note:** `deploy.sh` CRLF→LF normalization appears in both worktrees — this is a git line-ending artifact, not an intentional change. Exclude from commits.
+### Files Committed
+
+**PR #78** (2 commits):
+- `src/config/database.ts` — lesson completions migration + role trigger
+- `src/config/databaseBootstrap.ts` — FK exemptions, column exemptions, FK violation warnings
+- `src/__tests__/auth13-lesson-completions.test.ts` — 10 new acceptance tests (with CI skipIf guard)
+
+**PR #80** (2 commits):
+- `src/routes/webhooks.ts` — refund dedup three-tier identity (with TS type fix)
+- `src/__tests__/auth13-webhook-integrity.test.ts` — 9 new regression tests
+
+**PR #82** (1 commit):
+- 11 release documents in `docs/release/`
 
 See `AUTH-13-final-blocker-resolution.md` and `AUTH-13-merge-and-deployment-readiness.md` for full details.
