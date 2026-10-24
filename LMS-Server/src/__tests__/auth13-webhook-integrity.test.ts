@@ -179,4 +179,29 @@ describe('AUTH-13 webhook financial state and atomic idempotency', () => {
     // Different provider IDs means both are recorded
     expect(events()).toBe(3);
   });
+
+  // --- AUTH-13 reconciliation-mode financial safety ---
+
+  it('reconciliation-mode refund records event but does NOT mutate financial state', async () => {
+    // When a refund event has no identity (no refund_reference, no data.id),
+    // it enters reconciliation mode. The event must be recorded for audit,
+    // but payment status must NOT change — provider reconciliation is required
+    // before making financial claims with ambiguous identity.
+    await send(); // confirm payment first
+    expect(payment()).toMatchObject({ status: 'confirmed' });
+    const r = await send('refund.processed', { amount: '100', refund_reference: undefined });
+    expect(r.status).toBe(200);
+    expect(events()).toBe(2); // confirm + reconciliation event recorded for audit
+    expect(payment()).toMatchObject({ status: 'confirmed' }); // NOT refunded
+    expect(r.body.message).toMatch(/reconcil/i);
+  });
+
+  it('reconciliation-mode partial refund also defers to manual review', async () => {
+    await send(); // confirm
+    const r = await send('refund.processed', { amount: '50', refund_reference: undefined });
+    expect(r.status).toBe(200);
+    expect(events()).toBe(2);
+    expect(payment()).toMatchObject({ status: 'confirmed' });
+    expect(r.body.message).toMatch(/reconcil/i);
+  });
 });
