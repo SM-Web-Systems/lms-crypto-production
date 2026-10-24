@@ -126,7 +126,12 @@ if [ "$sha" != "$EXPECTED_SHA" ]; then add_alert 'Unexpected build SHA; compare 
 
 # --- 5. 5xx errors in recent logs (last 5 minutes) ---
 reconciliation_count=0
-if recent_logs=$(docker logs "$API_CONTAINER" --since 5m --tail 10000 2>&1); then
+if recent_logs=$(docker logs "$API_CONTAINER" --since 5m --tail 10001 2>&1); then
+  # Request one extra line so a capped clean tail cannot conceal an earlier
+  # warning and still be represented as complete/healthy evidence.
+  if [ "$(printf '%s\n' "$recent_logs" | wc -l)" -gt 10000 ]; then
+    add_alert 'Recent log sample exceeded safe collection limit; collection incomplete'
+  fi
   five_xx_count=$(printf '%s\n' "$recent_logs" | grep -c '"statusCode":5[0-9][0-9]' || true)
   if reconciliation_count=$(printf '%s\n' "$recent_logs" | "$PYTHON_BIN" "$SCRIPT_DIR/monitor_evidence.py" reconciliation 2>/dev/null); then
     if [ "$reconciliation_count" -gt 0 ]; then add_alert "Reconciliation signals in recent logs: $reconciliation_count; review provider evidence through the authorized reconciliation process"; fi

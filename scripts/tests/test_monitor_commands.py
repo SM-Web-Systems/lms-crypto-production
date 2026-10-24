@@ -35,6 +35,10 @@ case "$(basename "$0")" in
       if [[ "${MODE:-}" == reconciliation ]]; then
         printf '%s\\n' '{"module":"paystack-webhook","msg":"Partial refund recorded; manual reconciliation required","reference":"PRIVATE_REFERENCE","email":"private@example.invalid","amount":12345}'
       fi
+      if [[ "${MODE:-}" == log_flood ]]; then
+        count=10000; [[ "$*" != *10001* ]] || count=10001
+        awk -v count="$count" 'BEGIN {for (i=0;i<count;i++) print "{\\"level\\":30,\\"msg\\":\\"ordinary line\\"}"}'
+      fi
       exit 0
     fi
     if [[ "$*" == *RestartCount* ]]; then [[ "${MODE:-}" != restart_failure ]] || exit 1; printf 0; else printf healthy; fi ;;
@@ -122,6 +126,11 @@ esac
             self.assertNotIn(private,body)
             self.assertNotIn(private,(self.root/'health.log').read_text())
         self.assertIn('MAIL_SUPPRESSED',(self.root/'health.log').read_text())
+
+    def test_truncated_recent_logs_cannot_report_healthy(self):
+        result=self.health('log_flood');self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Recent log sample exceeded safe collection limit',(self.root/'health.log').read_text())
+        self.assertIn(',false,ALERT',(self.root/'health.csv').read_text())
 
     def test_health_mail_failure_reserves_cooldown_and_stays_alerting(self):
         result=self.health('mail_failure');self.assertEqual(result.returncode,0,result.stderr)

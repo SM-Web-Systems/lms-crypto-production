@@ -23,9 +23,13 @@ class BundleTests(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
     def git(self,*args):return subprocess.check_output(['git',*args],cwd=self.source,text=True,stderr=subprocess.DEVNULL)
     def build(self,sha=None):
-        return subprocess.run([sys.executable,str(ROOT/'scripts'/'build-monitor-bundle.py'),'--source',str(self.source),'--sha',sha or self.sha,'--output',str(self.output)],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(ROOT/'scripts'/'build-monitor-bundle.py'),'--source',str(self.source),'--sha',sha or self.sha,'--output',str(self.output)],capture_output=True,text=True)
+        if result.returncode==0:
+            # Pin from trusted build output, never from a later mutable manifest.
+            self.trusted_digest=json.loads(result.stdout)['manifest_sha256']
+        return result
     def verify(self):
-        return subprocess.run([sys.executable,str(ROOT/'scripts'/'build-monitor-bundle.py'),'--verify',str(self.output),'--sha',self.sha],capture_output=True,text=True)
+        return subprocess.run([sys.executable,str(ROOT/'scripts'/'build-monitor-bundle.py'),'--verify',str(self.output),'--sha',self.sha,'--manifest-sha',self.trusted_digest],capture_output=True,text=True)
 
     def test_bundle_uses_only_committed_scripts_and_verifies_digests(self):
         result=self.build();self.assertEqual(result.returncode,0,result.stderr)
@@ -48,6 +52,14 @@ class BundleTests(unittest.TestCase):
     def test_modified_bundle_or_wrong_source_identity_refused(self):
         self.assertEqual(self.build().returncode,0)
         (self.output/FILES[0]).write_text('tampered')
+        self.assertNotEqual(self.verify().returncode,0)
+
+    def test_self_modified_manifest_cannot_authenticate_unreviewed_script(self):
+        self.assertEqual(self.build().returncode,0)
+        file=self.output/FILES[0];file.write_text('unreviewed code')
+        manifest=json.loads((self.output/'manifest.json').read_text())
+        manifest['files'][FILES[0]]=hashlib.sha256(file.read_bytes()).hexdigest()
+        (self.output/'manifest.json').write_text(json.dumps(manifest))
         self.assertNotEqual(self.verify().returncode,0)
 
     def test_bundle_cannot_be_installed_inside_mutable_source_checkout(self):

@@ -29,12 +29,14 @@ def git(source, *arguments):
     return result.stdout.strip()
 
 
-def verify(bundle, sha):
+def verify(bundle, sha, manifest_sha):
     if bundle.is_symlink() or not bundle.is_dir():
         raise ValueError('invalid bundle directory')
     manifest_file = bundle/'manifest.json'
     if manifest_file.is_symlink() or manifest_file.stat().st_size > 8192:
         raise ValueError('invalid bundle manifest')
+    if not re.fullmatch('[a-f0-9]{64}', manifest_sha) or digest(manifest_file) != manifest_sha:
+        raise ValueError('externally pinned manifest digest mismatch')
     manifest = json.loads(manifest_file.read_text(encoding='utf8'))
     if manifest.get('version') != 1 or manifest.get('source_sha') != sha:
         raise ValueError('bundle identity mismatch')
@@ -91,9 +93,11 @@ def build(source, sha, output):
             json.dump({'version':1, 'source_sha':sha, 'files':hashes}, stream, sort_keys=True, indent=2)
             stream.flush()
             os.fsync(stream.fileno())
-        verify(staging, sha)
+        manifest_sha = digest(manifest)
+        verify(staging, sha, manifest_sha)
         os.rename(staging, output)
         staging = None
+        return manifest_sha
     finally:
         if staging is not None:
             shutil.rmtree(staging)
@@ -106,6 +110,7 @@ def main():
     parser.add_argument('--source', type=Path)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--verify', type=Path)
+    parser.add_argument('--manifest-sha')
     args = parser.parse_args()
     try:
         if not re.fullmatch('[a-f0-9]{40}', args.sha):
@@ -113,15 +118,19 @@ def main():
         if args.verify is not None:
             if args.source is not None or args.output is not None:
                 raise ValueError('verify cannot create a bundle')
-            verify(args.verify, args.sha)
+            if args.manifest_sha is None:
+                raise ValueError('independently recorded manifest digest required')
+            verify(args.verify, args.sha, args.manifest_sha)
+            manifest_sha = args.manifest_sha
         else:
-            if args.source is None or args.output is None:
+            if args.source is None or args.output is None or args.manifest_sha is not None:
                 raise ValueError('source and new output required')
-            build(args.source.resolve(), args.sha, args.output.absolute())
+            manifest_sha = build(args.source.resolve(), args.sha, args.output.absolute())
     except (ValueError, OSError, TypeError, AttributeError, KeyError, subprocess.SubprocessError):
         print('Monitoring bundle verification failed; preserve source and existing bundles', file=sys.stderr)
         return 1
-    print('Monitoring bundle verified; no cron or server configuration changed')
+    print(json.dumps({'status':'VERIFIED_OFFLINE', 'source_sha':args.sha,
+                      'manifest_sha256':manifest_sha, 'cron_changed':False}, sort_keys=True))
     return 0
 
 
