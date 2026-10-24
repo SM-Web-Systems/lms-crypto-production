@@ -18,6 +18,16 @@ Historical server reports identify `/home/webadmin/lms-crypto-production` as Com
 
 ## Implementation boundaries
 
+## Development outcome, 2026-10-24
+
+RS-01/02 are addressed by PR #87 (`1c433dc`); RS-03/04 by dependent PR #89 (`4a58732`); RS-05/06 by PR #88 and its handoff. The combined code candidate is `212e0faf45a40bb39b19306b8b2e5c0bb3248a02`, independently reviewed with no remaining P0/P1 finding and all four CI jobs passed in run `40093580080`. Locally, API 1813 passed/one protected-copy skip, web 515, E2E 73 and combined offline 110 passed/one Windows POSIX permission skip (111 total); builds, bootstrap, synthetic WAL restore, audits and shell/smoke checks passed. No production condition is inferred from these results.
+
+RS-07 is partly contained by the release gate's exact FK-violation tuple fingerprint, which rejects newly introduced/changed violations without repairing rows. The application's broader warning-only FK behavior and legacy completion migration design remain separate follow-up work. Historical production image/schema/financial compatibility remains unknown and NO-GO for automated execution. Real Docker/UID/mounts, protected-copy migration/restore, retention, SMTP receipt, cron transition, Wallet #2 and devices remain owner gates.
+
+No PR was merged. Automatic approval review rejected the attempted #87 merge because immediate exact-head review/protection/current-main invariants were insufficiently verified. Main remains the baseline. The original checkouts are preserved; only isolated review branches were changed. The final handoff and PR descriptions bind exact reviewed commits, CI and remaining acceptance. Do not start unrelated AUTH-14 features before these release gates are resolved.
+
+## Implementation design
+
 Keep three focused PRs, deployment → rollback as a dependent pair, monitoring separately reviewable. Use Python standard-library orchestration for structured Docker/Git responses, SQLite online backups, strict JSON manifests and atomic writes; Bash entrypoints remain small and fail closed. No shell eval or printed subprocess/configuration output. Commands in tests are fake Git/Docker/HTTP interfaces; databases are synthetic temporary files. Existing grep-only script checks must be replaced/updated with actual behavioral coverage, not preserved as false proof.
 
 The workflow may only run manually; merging must never deploy. It validates the workflow's approved source SHA and requires an already prepared exact server checkout. It does not git pull/checkout the live directory. Server preparation and immutable monitoring installation require a separately authorized operator procedure. The phase-one execution path must remain blocked until the complete recovery eligibility gate is implemented and independently reviewed.
