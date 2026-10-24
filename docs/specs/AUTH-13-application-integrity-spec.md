@@ -4,7 +4,7 @@ Status: development and review only. Depends on unmerged platform/Wallet integra
 
 ## Database invariants and failure paths
 
-Normal startup never creates a missing database, repairs partial data by replaying a schema, rebuilds tables, or creates login accounts. Before a write-capable connection, inspect the existing regular nonempty file read-only, including committed WAL content. Validate integrity, baseline tables/columns, primary/unique/foreign keys and known legacy constraints. Missing or unsupported structures stop startup with preservation guidance.
+Normal startup never creates a missing database, repairs partial data by replaying a schema, rebuilds tables, or creates login accounts. Before a write-capable connection, inspect the existing regular nonempty file read-only, including committed WAL content. Validate integrity, baseline tables/columns, primary/unique/foreign keys, full/partial unique-index predicates, canonical role-assignment triggers and known legacy constraints. Missing or unsupported structures stop startup with preservation guidance.
 
 Only the compiled CLI with `--initialize-new` can request creation. An environment variable or server argument cannot authorize it. Refuse every existing target, including zero bytes, and orphan WAL/SHM/journal sidecars. Use exclusive file creation. Apply `database/schema.sql`, then the same ordered additive migrations/default role/template seeds used on normal startup, in one immediate transaction. Validate the final required-schema contract before commit. A late failure rolls back earlier migrations/seeds. Retain the failed target for inspection; retry on a different new path.
 

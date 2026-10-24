@@ -261,7 +261,9 @@ export async function register(
       );
     }
 
-    const role: LegacyRole = isAdminEmail(email) ? "admin" : isLecturerEmail(email) ? "lecturer" : "student";
+    // Public email/password registration has not verified email ownership.
+    // Staff allowlists apply only after a verified provider assertion.
+    const role: LegacyRole = "student";
     const userId = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
 

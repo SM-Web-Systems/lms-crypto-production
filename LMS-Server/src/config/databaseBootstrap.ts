@@ -43,6 +43,7 @@ function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<ty
 }
 const baseline = (expected.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
   .map(({ name }) => ({ name, keys: keys(expected, name), columns: (expected.pragma(`table_info("${name}")`) as { name: string }[]).map(c => c.name) }));
+const baselineTriggers = expected.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'").all() as {name:string;sql:string}[];
 expected.close();
 
 function refuse(reason: string): never {
@@ -60,6 +61,15 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
       // Additive lesson-completion progress columns are added by ensureLessonCompletionsTable migration.
       if (!afterMigrations && table.name === 'lesson_completions' && (column === 'progress_pct' || column === 'last_position_s')) continue;
       if (!columns.some(c => c.name === column)) refuse(`unsupported schema (${table.name}.${column})`);
+    }
+  }
+  // Triggers are validated only after migrations have had the chance to create them.
+  // Pre-existing databases may not have triggers that are new in this release.
+  if (afterMigrations) {
+    for (const trigger of baselineTriggers) {
+      const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?").get(trigger.name) as {sql:string} | undefined;
+      const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+      if (!actual || normalize(actual.sql) !== normalize(trigger.sql)) refuse(`missing or changed role trigger (${trigger.name})`);
     }
   }
   // Pre-existing databases may contain legacy orphaned FK references that pre-date

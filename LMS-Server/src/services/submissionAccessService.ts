@@ -1,3 +1,4 @@
+import { getCurrentAdminTier } from './administratorPolicy.js';
 import { queryOne } from '../config/database.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { courseAccessScope } from './courseAccessService.js';
@@ -10,7 +11,7 @@ export function studentRecordId(userId: string): string | undefined {
 /** Static s alias: used by both paginated lists and individual-resource checks. */
 export function submissionStaffScope(userId: string) {
   const permissions = new Set(getUserPermissions(userId));
-  const admin = permissions.has('course.delete');
+  const admin = permissions.has('course.delete') && !!getCurrentAdminTier(userId);
   if (!admin && !permissions.has('course.grade') && !permissions.has('course.grade_pending')) return {sql:'0 = 1', params:[] as unknown[]};
   const scope = courseAccessScope(userId, permissions, 'staff');
   const params = [...scope.params];

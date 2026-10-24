@@ -1,6 +1,8 @@
 import { Response, NextFunction } from 'express';
 import { query, queryOne } from '../config/database.js';
 import { AuthRequest, ErrorCodes, UserRole } from '../types/index.js';
+import { AppError } from './errorHandler.js';
+import { isAdminTier } from '../services/administratorPolicy.js';
 import { canAccessCourse } from '../services/courseAccessService.js';
 
 // Augment AuthRequest for per-request permission/role caching
@@ -57,6 +59,25 @@ export function hasAnyRole(userRoles: string[], requiredRoles: string[]): boolea
   return requiredRoles.some((r) => userRoles.includes(r));
 }
 
+const permissionCache = new WeakMap<AuthRequest, { userId: string; permissions: Set<string> }>();
+
+/** Only this loader owns the cache; never trust a prefilled assertion or another user. */
+export function getRequestPermissions(req: AuthRequest): Set<string> {
+  if (!req.user) throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+  const cached = permissionCache.get(req);
+  if (cached?.userId === req.user.userId) return cached.permissions;
+  const permissions = new Set(getUserPermissions(req.user.userId));
+  permissionCache.set(req, { userId: req.user.userId, permissions });
+  req._permissions = permissions;
+  return permissions;
+}
+
+export function requireAdministrator(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (!req.user) { res.status(401).json({success:false,error:{code:ErrorCodes.UNAUTHORIZED,message:'Authentication required'}}); return; }
+  if (!isAdminTier(req)) { res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Administrator role required'}}); return; }
+  next();
+}
+
 /**
  * Middleware: require the authenticated user to have ALL specified permissions.
  * Uses per-request caching to avoid duplicate DB queries.
@@ -71,13 +92,8 @@ export function requirePermission(...permissions: string[]) {
       return;
     }
 
-    // Per-request cache
-    if (!req._permissions) {
-      const permList = getUserPermissions(req.user.userId);
-      req._permissions = new Set(permList);
-    }
-
-    const missing = permissions.filter((p) => !req._permissions!.has(p));
+    const currentPermissions = getRequestPermissions(req);
+    const missing = permissions.filter((p) => !currentPermissions.has(p));
     if (missing.length > 0) {
       res.status(403).json({
         success: false,
@@ -98,8 +114,7 @@ export function requirePermission(...permissions: string[]) {
  * RBAC-aware replacement for legacy requireCourseAccess.
  *
  * Checks RBAC permissions (not legacy users.role) to determine course access:
- *   1. course.delete permission → admin-tier scope (platform + administered tenants).
- *      Only admin/admin-2/super-admin hold course.delete.
+ *   1. Explicit administrator grant plus course.delete → platform/administered-tenant scope.
  *   2. course.manage permission + course_lecturers assignment → instructor scope
  *   3. course.grade_pending permission + course_tas assignment → TA scope
  *   4. Otherwise → 403
@@ -126,17 +141,13 @@ export function requireCourseScope(req: AuthRequest, res: Response, next: NextFu
     return;
   }
 
-  // Per-request cache
-  if (!req._permissions) {
-    const permList = getUserPermissions(req.user.userId);
-    req._permissions = new Set(permList);
-  }
+  const permissions = getRequestPermissions(req);
 
   if (!queryOne('SELECT id FROM courses WHERE id = ?', [courseId])) {
     res.status(404).json({success:false,error:{code:ErrorCodes.NOT_FOUND,message:'Course not found'}});
     return;
   }
-  if (canAccessCourse(req.user.userId, courseId, req._permissions, 'staff')) {
+  if (canAccessCourse(req.user.userId, courseId, permissions, 'staff')) {
     next();
     return;
   }
@@ -155,7 +166,7 @@ export function requireCourseManagementScope(req: AuthRequest, res: Response, ne
   if (!queryOne('SELECT id FROM courses WHERE id = ?', [courseId])) {
     res.status(404).json({success:false,error:{code:ErrorCodes.NOT_FOUND,message:'Course not found'}}); return;
   }
-  const permissions = req._permissions ?? new Set(getUserPermissions(req.user.userId));
+  const permissions = getRequestPermissions(req);
   if (!canAccessCourse(req.user.userId, courseId, permissions, 'manage')) {
     res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Not authorized to manage this course'}}); return;
   }
