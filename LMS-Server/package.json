@@ -23,7 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:bvc": "tsx src/scripts/validateBvcContent.ts",
-    "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs"
+    "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs",
+    "test:restore-drill": "node scripts/synthetic-restore-drill.mjs"
   },
   "keywords": [
     "student",

@@ -9,6 +9,31 @@
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# Intercept every curl used by smoke-test.sh. This verifier must never contact
+# the deployment, including while exercising the production default URL string.
+fixture_bin=$(mktemp -d)
+cleanup() { rm -f -- "$fixture_bin/curl"; rmdir -- "$fixture_bin"; }
+trap cleanup EXIT
+cat > "$fixture_bin/curl" <<'STUB'
+#!/usr/bin/env bash
+set -eu
+url=""
+for arg in "$@"; do case "$arg" in http://*|https://*) url="$arg" ;; esac; done
+case "$url" in
+  http://127.0.0.1:1/*) exit 7 ;;
+  https://lms.smwebsystems.com/api/v1/*) ;;
+  *) echo 'Unexpected fixture URL; no network call allowed' >&2; exit 99 ;;
+esac
+if [[ "$*" == *http_code* ]]; then
+  case "$url" in */courses) printf 401 ;; *) printf 200 ;; esac
+else
+  printf '{"status":"ok","checks":{"db":{"status":"ok"}},"buildSha":"synthetic-fixture"}'
+fi
+STUB
+chmod +x "$fixture_bin/curl"
+export PATH="$fixture_bin:$PATH"
+unset SMOKE_BASE_URL
+
 pass=0
 fail=0
 total=0
@@ -83,15 +108,15 @@ echo "--- Exit codes ---"
 SMOKE_BASE_URL="http://127.0.0.1:1/api/v1" timeout 30 bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
 assert "Unreachable URL exits nonzero" "1" "$exit_code"
 
-# Production URL should exit zero
-"$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
-assert "Production URL exits zero" "0" "$exit_code"
+# Synthetic success response should exit zero (curl is intercepted)
+bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
+assert "Synthetic success response exits zero" "0" "$exit_code"
 
 # ── 5. Output includes base URL ──────────────────────────────────────────────
 echo ""
 echo "--- Output format ---"
 
-output=$("$SCRIPT" 2>&1) || true
+output=$(bash "$SCRIPT" 2>&1) || true
 if echo "$output" | grep -q "Base URL:"; then
   assert "Output shows base URL" "found" "found"
 else
