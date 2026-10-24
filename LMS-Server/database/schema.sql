@@ -1,5 +1,6 @@
--- SQLite schema for SM Web Systems LMS (run this in your server repo to fix "no such table: users")
--- Run: npm run db:schema  (uses this file by default)
+-- Canonical base schema for SM Web Systems LMS. Runtime additive migrations follow transactionally.
+-- New isolated databases only: npm run build; npm run db:init -- --initialize-new
+-- Never apply this manually to repair an existing database; preserve DB/WAL/SHM and review first.
 
 -- Users table (auth); description = optional profile bio (Profile API)
 CREATE TABLE IF NOT EXISTS users (

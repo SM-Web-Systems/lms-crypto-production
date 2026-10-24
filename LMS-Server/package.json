@@ -8,8 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "db:init": "tsx src/scripts/initDb.ts",
-    "db:schema": "tsx src/scripts/runSchema.ts",
+    "db:init": "node dist/scripts/initDb.js",
+    "db:schema": "node dist/scripts/initDb.js",
     "db:seed": "tsx src/scripts/seedUsers.ts",
     "db:promote-admin": "tsx src/scripts/promoteUserToAdmin.ts",
     "db:promote-admin:docker": "docker exec lms-api npm run db:promote-admin --",
@@ -22,7 +22,8 @@
     "db:migrate-clerk": "tsx src/scripts/migrateClerkUserId.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate:bvc": "tsx src/scripts/validateBvcContent.ts"
+    "validate:bvc": "tsx src/scripts/validateBvcContent.ts",
+    "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs"
   },
   "keywords": [
     "student",

@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+process.env.DATABASE_PATH ||= path.join(tmpdir(), `lms-e2e-${randomUUID()}.db`);
 
 const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
 const apiURL = process.env.E2E_API_URL || 'http://localhost:3001';
@@ -34,24 +39,24 @@ export default defineConfig({
   // When running locally, start the Vite dev server automatically
   webServer: process.env.CI ? undefined : [
     {
-      command: 'cd ../LMS-Server && npx tsx src/server.ts',
+      command: 'cd ../LMS-Server && npm run build && npm run db:init -- --initialize-new && node dist/server.js',
       url: `${apiURL}/health`,
-      reuseExistingServer: true,
-      timeout: 30_000,
+      reuseExistingServer: false,
+      timeout: 120_000,
       env: {
         NODE_ENV: 'test',
         PORT: '3001',
         JWT_SECRET: 'e2e-test-jwt-secret-do-not-use-in-production',
         ADMIN_EMAILS: 'admin@test.com,superadmin@test.com',
-        DATABASE_PATH: '/tmp/lms-e2e-local.db',
+        DATABASE_PATH: process.env.DATABASE_PATH,
         PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
       },
     },
     {
       command: 'cd ../LMS-Frontend && npx vite --port 5173',
       url: baseURL,
-      reuseExistingServer: true,
-      timeout: 30_000,
+      reuseExistingServer: false,
+      timeout: 120_000,
       env: {
         VITE_API_BASE_URL: `${apiURL}/api/v1`,
       },

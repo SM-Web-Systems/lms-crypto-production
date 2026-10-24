@@ -64,7 +64,7 @@ async function globalSetup() {
   // the RBAC role that carries privacy.view_deleted_identity.
   // In CI, DATABASE_PATH is set explicitly. For local runs, fall back to the
   // same temp path used by the webServer block in playwright.config.ts.
-  const dbPath = process.env.DATABASE_PATH || (process.env.CI ? '' : '/tmp/lms-e2e-local.db');
+  const dbPath = process.env.DATABASE_PATH || '';
   if (dbPath) {
     try {
       execSync(
