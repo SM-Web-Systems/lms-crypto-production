@@ -24,7 +24,6 @@ jobs:
       - run: npm ci
       - name: Audit backend dependencies
         run: npm audit --audit-level=high
-        continue-on-error: true
       - run: npm run build
       - run: npm run test:compiled-bootstrap
       - run: npx vitest run
@@ -45,9 +44,12 @@ jobs:
           cache: npm
           cache-dependency-path: LMS-Frontend/package-lock.json
       - run: npm ci
-      - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      - name: Audit frontend production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      # Tailwind 3's remaining high/moderate build findings need a reviewed CSS
+      # migration. Still block critical findings and registry/audit failures.
+      - name: Audit frontend including build tools (critical gate)
+        run: npm audit --audit-level=critical
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx vite build

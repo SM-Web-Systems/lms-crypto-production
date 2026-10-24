@@ -56,6 +56,8 @@ The initial API run encountered removed/obsolete guard assertions; they were rep
 
 ## Dependency impact
 
+Follow-up: the separate dependency review branch records API/web patches, current advisory dispositions and owner handoff in [the October 23 dependency security review](2026-10-23-dependency-security-review.md). The counts and unchanged-lockfile statement below describe the AUTH-13 baseline before that follow-up; they are not the patched branch's latest audit results.
+
 No package dependency or lockfile upgrades were introduced. Readiness metadata changes after the implementation commit do not alter application code; check the latest PR badge before merging. Fresh `npm audit --json` on 2026-10-23 reported API 22 advisories (2 critical, 11 high, 9 moderate), web 19 (1 critical, 12 high, 5 moderate, 1 low), mobile 96 (2 critical, 70 high, 23 moderate, 1 low). These counts include transitive/dev graph entries and are not a count of exploitable production paths. Critical entries include API `dompurify`/`proxy-addr`, web `dompurify`, mobile `shell-quote`/`tar`. E2E locked install audit reported zero.
 
 Existing audit CI steps remain nonblocking. Advisory triage is a material release risk and must be assessed independently; AUTH-13 is not a claim of zero vulnerabilities. Existing twelve dependency PRs remain separate, avoiding unreviewed bulk upgrades.
