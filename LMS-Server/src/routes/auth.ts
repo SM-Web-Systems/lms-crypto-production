@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   login, register, logout, getMe, forgotPassword, resetPassword,
-  ammaLogin, ammaCallback,
+  ammaLogin, ammaLink, ammaCallback, ammaMobileSession,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -135,10 +135,27 @@ router.get('/me', authenticate, getMe);
  *   get:
  *     tags: [Auth]
  *     summary: Redirect to AmmaWallet SSO login
+ *     description: Web callers use no parameters. Installed LMS mobile clients provide all four native parameters; arbitrary redirect URIs are rejected.
+ *     parameters:
+ *       - in: query
+ *         name: client
+ *         schema: { type: string, enum: [mobile] }
+ *       - in: query
+ *         name: code_challenge
+ *         schema: { type: string, minLength: 43, maxLength: 43 }
+ *       - in: query
+ *         name: code_challenge_method
+ *         schema: { type: string, enum: [S256] }
+ *       - in: query
+ *         name: app_state
+ *         schema: { type: string, minLength: 32, maxLength: 128 }
  *     responses:
  *       302: { description: Redirects to AmmaWallet SSO }
  */
 router.get('/amma-login',    ammaLogin);
+// Explicit account conversion requires authentication and local password confirmation.
+// Already-bound users use this same endpoint to refresh only their own immutable Wallet ID.
+router.post('/amma-link', authenticate, ammaLink);
 /**
  * @openapi
  * /auth/amma-callback:
@@ -147,13 +164,37 @@ router.get('/amma-login',    ammaLogin);
  *     summary: Receive AmmaWallet SSO assertion
  *     parameters:
  *       - in: query
- *         name: token
+ *         name: assertion
+ *         schema: { type: string }
+ *       - in: query
+ *         name: state
  *         schema: { type: string }
  *     responses:
- *       200: { description: SSO login successful }
- *       401: { description: Invalid SSO token }
+ *       302: { description: Web token callback or fixed native code/error callback }
  */
 router.get('/amma-callback', ammaCallback);
+/**
+ * @openapi
+ * /auth/amma-mobile-session:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Redeem a one-use native SSO code with its PKCE verifier
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code, code_verifier]
+ *             properties:
+ *               code: { type: string, minLength: 64, maxLength: 64 }
+ *               code_verifier: { type: string, minLength: 43, maxLength: 128 }
+ *     responses:
+ *       200: { description: LMS session token and current effective user context; response is not cacheable }
+ *       401: { description: Invalid, expired, consumed, or invalidated handoff }
+ *       429: { description: Auth write rate limit exceeded }
+ */
+router.post('/amma-mobile-session', ammaMobileSession);
 
 export default router;
 

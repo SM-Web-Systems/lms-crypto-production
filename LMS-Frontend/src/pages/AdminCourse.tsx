@@ -24,6 +24,7 @@ import {
 import { documentsService } from '../services/documentsService';
 import { getErrorMessage } from '../utils/apiError';
 import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 import { AdminCoursePageSkeleton } from '../components/PageSkeletons';
 import { AdminCoursePreview } from '../components/AdminCoursePreview';
 import { quizService } from '../services/quizService';
@@ -339,7 +340,7 @@ const AdminCourse: React.FC = () => {
     const silent = opts?.silent ?? false;
     if (!silent) setCoursesLoading(true);
     courseService
-      .fetchCourses()
+      .fetchCourses({access: 'manage'})
       .then(setCourses)
       .catch(() => setCourses([]))
       .finally(() => {
@@ -589,6 +590,7 @@ const AdminCourse: React.FC = () => {
   };
 
   const applyNewDraftFromUrl = () => {
+    if (!hasCapability(user, 'course.create')) return;
     setEditingId(null);
     setCourseTitle('');
     setCourseDescription('');
@@ -877,6 +879,7 @@ const AdminCourse: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!hasCapability(user, editingId ? 'course.manage' : 'course.create')) return;
     if (!courseTitle.trim()) return;
     setSaving(true);
     try {
@@ -931,7 +934,7 @@ const AdminCourse: React.FC = () => {
       {!showForm ? (
         <>
           <div className="flex flex-wrap gap-3 mb-6">
-            {user?.role === 'admin' && (
+            {hasCapability(user, 'course.create') && (
               <Button onClick={openNewCourseForm}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create course
@@ -969,7 +972,7 @@ const AdminCourse: React.FC = () => {
                         <Pencil className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
-                      {user?.role === 'admin' && (
+                      {hasCapability(user, 'course.delete') && (
                         <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-red-600 hover:bg-red-50">
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1576,7 +1579,7 @@ const AdminCourse: React.FC = () => {
         onClose={() => setImportWizardOpen(false)}
         courseId={editingId || ''}
         courseTitle={courseTitle}
-        onImportComplete={() => { loadCourses({ silent: true }); if (editingId) { courseService.fetchCourses().then(list => { const c = list.find(x => x.id === editingId); if (c) startEdit(c); }); } }}
+        onImportComplete={() => { loadCourses({ silent: true }); if (editingId) { courseService.fetchCourses({access: 'manage'}).then(list => { const c = list.find(x => x.id === editingId); if (c) startEdit(c); }); } }}
       />
     </div>
   );

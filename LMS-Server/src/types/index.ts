@@ -32,6 +32,7 @@ export interface User {
   password_reset_token: string | null;
   password_reset_expires_at: string | null;
   password_changed_at: string | null;
+  deletion_status?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -128,13 +129,16 @@ export interface SubmissionResponse {
 export interface JWTPayload {
   userId: string;
   email: string;
-  /** Legacy role from `users.role` column — presentation-only; see KNOWN_BEHAVIORS.md. */
+  /** Legacy role from users.role; effective role changes invalidate older tokens. */
   role: LegacyRole;
   /** All assigned RBAC roles (from user_roles table). */
   roles?: UserRole[];
+  /** Compared with users.authorization_version on every authenticated request. */
+  authorizationVersion?: number;
   studentId?: string;
   // Standard JWT claim set automatically by jsonwebtoken
   iat?: number;
+  exp?: number;
 }
 
 // Extended Request Type

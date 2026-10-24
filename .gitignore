@@ -50,3 +50,7 @@ Thumbs.db
 # Claude Code / Superpowers local dirs
 .claude/
 .superpowers/
+
+# Local AUTH-13 validation output and Python fixture bytecode
+.auth13-*
+__pycache__/

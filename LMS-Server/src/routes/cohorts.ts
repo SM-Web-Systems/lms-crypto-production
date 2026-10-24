@@ -4,9 +4,11 @@
 
 import { Router, type Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission, getUserPermissions } from '../middleware/rbac.js';
+import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
+import { isAdminTier } from '../services/administratorPolicy.js';
+import { sponsorCourseOptions } from '../services/sponsorPortalService.js';
 import { queryOne } from '../config/database.js';
 import { createNotification } from '../services/notificationService.js';
 import {
@@ -25,18 +27,6 @@ import {
 } from '../services/cohortService.js';
 
 const router = Router();
-
-/**
- * Check if the requesting user is an admin-tier actor.
- * Uses `course.delete` as the admin-tier discriminator — only admin, admin-2,
- * and super-admin hold this permission. Same pattern as requireCourseScope.
- */
-function isAdminTier(req: AuthRequest): boolean {
-  if (!req._permissions) {
-    req._permissions = new Set(getUserPermissions(req.user!.userId));
-  }
-  return req._permissions.has('course.delete');
-}
 
 /**
  * Verify cohort ownership for sponsor-tier users.
@@ -111,6 +101,9 @@ router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), 
     return;
   }
 
+  if (!isAdminTier(req) && !sponsorCourseOptions(req.user!.userId).some(c => c.id === courseId)) {
+    res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Course is not available for sponsorship'}});return;
+  }
   try {
     const cohort = createCohort({
       name,
@@ -157,7 +150,7 @@ router.get('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (
   const courseId = req.query.courseId as string | undefined;
   const filters: { courseId?: string; sponsorUserId?: string } = {};
   if (courseId) filters.courseId = courseId;
-  if (!isAdminTier(req)) {
+  if (!isAdminTier(req) || req.query.view === 'own') {
     filters.sponsorUserId = req.user!.userId;
   }
   const cohorts = listCohorts(Object.keys(filters).length > 0 ? filters : undefined);

@@ -2,7 +2,7 @@
  * CohortManagement — Phase 11 C3: cohort tab in SponsorDashboard.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { cohortService } from '../services/cohortService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, BulkApplyResult, CertificateTier } from '../types/api';
@@ -428,10 +428,12 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
 // ─── Main CohortManagement ──────────────────────────────────────────────────
 
 interface CohortManagementProps {
+  ownerOnly?:boolean;refreshTick?:number;onChanged?:()=>void;courseOptionsLoading?:boolean;courseOptionsError?:boolean;
   courses: { id: string; title: string; tiersEnabled: string }[];
 }
 
-export const CohortManagement: React.FC<CohortManagementProps> = ({ courses }) => {
+export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, ownerOnly=false, refreshTick=0, onChanged, courseOptionsLoading=false, courseOptionsError=false }) => {
+  const generation = useRef(0);
   const [cohorts, setCohorts] = useState<SponsorCohortSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -439,37 +441,38 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses }) =
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const current = ++generation.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await cohortService.listCohorts();
-      setCohorts(data);
+      const data = await cohortService.listCohorts(undefined,ownerOnly ? 'own' : undefined);
+      if (current === generation.current) setCohorts(data);
     } catch (err) {
-      setError(getErrorMessage(err));
+      if (current === generation.current) setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      if (current === generation.current) setLoading(false);
     }
-  }, []);
+  }, [ownerOnly]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); return () => { generation.current++; }; }, [load,refreshTick]);
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold flex items-center gap-2"><Users className="w-5 h-5" /> Cohorts</h3>
-        <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-1" /> Create Cohort</Button>
+        <Button size="sm" disabled={courseOptionsLoading || courseOptionsError || !courses.length} onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-1" /> Create Cohort</Button>
       </div>
 
-      {error && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
+      {error && <div role="alert" className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
 
-      {showCreate && <CreateCohortModal courses={courses} onCreated={() => { setShowCreate(false); load(); }} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateCohortModal courses={courses} onCreated={() => { setShowCreate(false); load(); onChanged?.(); }} onClose={() => setShowCreate(false)} />}
 
       {loading ? (
         <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading cohorts...</div>
-      ) : cohorts.length === 0 ? (
+      ) : error ? <Button variant="outline" size="sm" onClick={load}>Retry cohorts</Button> : cohorts.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-gray-500">No cohorts yet. Create one to get started.</CardContent></Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-left text-gray-600 border-b">
               <th className="py-2 px-3"></th><th className="py-2 px-3">Name</th><th className="py-2 px-3">Course</th>
@@ -503,7 +506,7 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses }) =
                   </tr>
                   {expanded === c.cohortId && (
                     <tr><td colSpan={8}>
-                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} cohortStatus={c.status} onRefresh={load} />
+                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} cohortStatus={c.status} onRefresh={() => { load(); onChanged?.(); }} />
                     </td></tr>
                   )}
                 </React.Fragment>

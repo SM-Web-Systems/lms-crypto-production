@@ -25,10 +25,17 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
       // Reject tokens issued before the last password reset.
       // One indexed SELECT by PK — negligible cost on SQLite.
-      const row = queryOne<{ password_changed_at: string | null; deletion_status: string | null }>(
-        'SELECT password_changed_at, deletion_status FROM users WHERE id = ?',
+      const row = queryOne<{ password_changed_at: string | null; deletion_status: string | null; authorization_version: number }>(
+        'SELECT password_changed_at, deletion_status, authorization_version FROM users WHERE id = ?',
         [payload.userId],
       );
+
+      if (!row || (payload.authorizationVersion ?? 0) !== row.authorization_version) {
+        res.status(401).json({ success: false, error: {
+          code: ErrorCodes.UNAUTHORIZED, message: 'Authorization changed. Please log in again.',
+        } });
+        return;
+      }
 
       // Account deletion gate: finalized users are fully blocked.
       // pending_deletion users are restricted to allowlisted paths.
@@ -47,9 +54,12 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         const allowedPaths = [
           '/api/v1/account/delete',
           '/api/v1/data-export',
+          '/api/v1/auth/me',
+          '/api/v1/auth/logout',
+          '/api/v1/sessions',
         ];
         const requestPath = req.originalUrl.split('?')[0];
-        const isAllowed = allowedPaths.some(p => requestPath.startsWith(p));
+        const isAllowed = allowedPaths.some(p => requestPath === p || requestPath.startsWith(p + '/'));
         if (!isAllowed) {
           res.status(403).json({
             success: false,
@@ -84,13 +94,13 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       //   3. No row at all → token was created without going through login (test token or
       //      pre-F2 token) → allow through for backward compatibility.
       const tokenHash = hashToken(token);
-      const session = queryOne<{ id: string; revoked_at: string | null }>(
-        'SELECT id, revoked_at FROM active_sessions WHERE token_hash = ?',
+      const session = queryOne<{ id: string; revoked_at: string | null; expired: number }>(
+        "SELECT id, revoked_at, datetime(expires_at) <= datetime('now') as expired FROM active_sessions WHERE token_hash = ?",
         [tokenHash],
       );
       if (session) {
         // Row exists — check if revoked or expired
-        if (session.revoked_at) {
+        if (session.revoked_at || session.expired) {
           res.status(401).json({
             success: false,
             error: {

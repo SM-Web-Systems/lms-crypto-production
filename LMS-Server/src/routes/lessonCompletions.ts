@@ -13,7 +13,8 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
-import { requireCourseScope } from '../middleware/rbac.js';
+import { requireCourseScope, getUserPermissions } from '../middleware/rbac.js';
+import { canAccessCourse } from '../services/courseAccessService.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
@@ -106,7 +107,7 @@ router.post(
   authenticate,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(callerId));
     const { courseId, itemId } = req.params;
 
     const course = queryOne<{ id: string; course_code: string; sections: string }>(
@@ -121,19 +122,10 @@ router.post(
       return;
     }
 
-    // Students must be enrolled in the course
-    if (role === 'student') {
-      const enrolled = queryOne<{ user_id: string }>(
-        'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?',
-        [callerId, course.course_code]
-      );
-      if (!enrolled) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'Not enrolled in this course' },
-        });
-        return;
-      }
+    if (!permissions.has('course.view') || !(canAccessCourse(callerId, courseId, permissions, 'enrolled')
+      || canAccessCourse(callerId, courseId, permissions, 'staff'))) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'You do not have learning access to this course' } });
+      return;
     }
 
     const sectionId = findSectionForItem(course.sections, itemId);
@@ -142,6 +134,12 @@ router.post(
         success: false,
         error: { code: ErrorCodes.NOT_FOUND, message: 'Lesson item not found in course' },
       });
+      return;
+    }
+
+    const item = parseFlatSections(course.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+    if (item?.type === 'quiz' || item?.type === 'assignment') {
+      res.status(409).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Assessment lessons complete after a quiz pass or instructor approval' } });
       return;
     }
 
@@ -342,11 +340,11 @@ router.put(
   authenticate,
   (req: AuthRequest, res: Response): void => {
     const callerId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(callerId));
     const { courseId, itemId } = req.params;
     const { positionSeconds, progressPercent } = req.body;
 
-    if (typeof positionSeconds !== 'number' || !Number.isInteger(positionSeconds) || positionSeconds < 0) {
+    if (typeof positionSeconds !== 'number' || !Number.isSafeInteger(positionSeconds) || positionSeconds < 0) {
       res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'positionSeconds must be an integer >= 0' } });
       return;
     }
@@ -362,13 +360,10 @@ router.put(
       return;
     }
 
-    if (role === 'student') {
-      const enrolled = queryOne<{ user_id: string }>(
-        'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?', [callerId, course.course_code]);
-      if (!enrolled) {
-        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not enrolled in this course' } });
-        return;
-      }
+    if (!permissions.has('course.view') || !(canAccessCourse(callerId, courseId, permissions, 'enrolled')
+      || canAccessCourse(callerId, courseId, permissions, 'staff'))) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'You do not have learning access to this course' } });
+      return;
     }
 
     const sectionId = findSectionForItem(course.sections, itemId);
@@ -377,11 +372,19 @@ router.put(
       return;
     }
 
+    const item = parseFlatSections(course.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+    if (item?.type === 'quiz' || item?.type === 'assignment') {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Playback progress is not supported for assessments' } });
+      return;
+    }
+
     execute(
       `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, completed_at, progress_pct, last_position_s)
        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
        ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET progress_pct = excluded.progress_pct, last_position_s = excluded.last_position_s`,
+       DO UPDATE SET progress_pct = CASE WHEN completed_at IS NOT NULL THEN 100
+         ELSE MAX(COALESCE(progress_pct, 0), excluded.progress_pct) END,
+         last_position_s = excluded.last_position_s`,
       [uuidv4(), callerId, courseId, itemId, sectionId, callerId, progressPercent, positionSeconds]
     );
 
@@ -417,7 +420,7 @@ router.get(
   authenticate,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(callerId));
     const { courseId } = req.params;
 
     const course = queryOne<{ id: string }>(
@@ -432,6 +435,10 @@ router.get(
       return;
     }
 
+    if (!permissions.has('course.view') || !canAccessCourse(callerId, courseId, permissions)) {
+      res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'You do not have access to this course'}});
+      return;
+    }
     type CompletionRow = {
       user_id: string;
       course_id: string;
@@ -443,58 +450,14 @@ router.get(
       last_position_s: number | null;
     };
 
-    let completions: CompletionRow[];
-
-    if (role === 'student') {
-      completions = query<CompletionRow>(
-        `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-         FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
-        [callerId, courseId]
-      );
-    } else if (role === 'lecturer') {
-      // Must be assigned to this course
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [courseId, callerId]
-      );
-      if (!assigned) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'Not assigned to this course' },
-        });
-        return;
-      }
-      const filterUserId = req.query['userId'] as string | undefined;
-      if (filterUserId) {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
-          [filterUserId, courseId]
-        );
-      } else {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE course_id = ? ORDER BY completed_at`,
-          [courseId]
-        );
-      }
-    } else {
-      // admin
-      const filterUserId = req.query['userId'] as string | undefined;
-      if (filterUserId) {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
-          [filterUserId, courseId]
-        );
-      } else {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE course_id = ? ORDER BY completed_at`,
-          [courseId]
-        );
-      }
-    }
+    const staff = (permissions.has('course.grade') || permissions.has('course.grade_pending') || permissions.has('course.delete'))
+      && canAccessCourse(callerId, courseId, permissions, 'staff');
+    const filterUserId = !staff || req.query.view === 'own' ? callerId : req.query.userId;
+    const completions = query<CompletionRow>(
+      'SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s FROM lesson_completions WHERE course_id = ?'
+        + (filterUserId ? ' AND user_id = ?' : '') + ' ORDER BY completed_at',
+      filterUserId ? [courseId, filterUserId] : [courseId]
+    );
 
     res.json({ success: true, data: { completions } });
   }

@@ -4,67 +4,67 @@
  * The LMS backend redirects here after a successful SSO assertion exchange:
  *   /sso-callback#token=<lms-jwt>
  *
- * This component:
- *   1. Reads the token from the URL hash fragment.
- *   2. Decodes the role from the JWT payload (routing hint only — backend
- *      validates on every API call).
- *   3. Stores the token in localStorage (same key as normal login).
- *   4. Shows a brief "Wallet linked successfully" card for ~1.2 s.
- *   5. Hard-redirects to the appropriate dashboard, triggering AuthProvider
- *      to hydrate the session from the stored token.
+ * Stores the token, removes it from the URL and hydrates the session from
+ * /auth/me before selecting the effective workspace.
  *
  * Using a hash fragment means the token is never sent to any server as a
  * query parameter (never in nginx access logs, browser history URL bar shows it
  * but it's ephemeral and immediately replaced by the dashboard URL).
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, CheckCircle } from 'lucide-react';
-
-const TOKEN_KEY = 'lms_token';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/useAuth';
+import {getStoredToken} from '../context/AuthContext';
+import { homeForUser } from '../utils/authorization';
+import { ApiRequestError } from '../utils/apiError';
 
 const SsoCallback: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [recoverable, setRecoverable] = useState(false);
+  const {completeSso,user,isAuthenticated,isLoading} = useAuth();
+  const completeRef = useRef(completeSso);
+  completeRef.current = completeSso;
+  const navigate = useNavigate();
+  const tokenRef = useRef(new URLSearchParams(window.location.hash.slice(1)).get('token'));
 
   useEffect(() => {
     // Parse hash fragment: #token=<jwt>
-    const hash = window.location.hash.slice(1); // remove leading '#'
-    const params = new URLSearchParams(hash);
-    const token = params.get('token');
+    const token = tokenRef.current;
+    let cancelled = false;
 
-    // Decode role from JWT payload (routing hint only — backend validates on every API call)
-    let role: string | null = null;
-    if (token) {
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-          role = payload.role ?? null;
-        }
-      } catch { /* malformed JWT → role stays null → routes to /student */ }
-    }
-
-    if (!token) {
-      setError('SSO session data is missing. Please try signing in again.');
+    if (!token) return; // Provider-level recovery may remount after removing the hash.
+    if (attempt > 0 && getStoredToken() !== token) {
+      setRecoverable(false);
+      setError('The active session changed. Return to your workspace or sign in again.');
       return;
     }
 
-    // Store token — same mechanism as normal login
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-    } catch {
-      setError('Unable to store session. Please allow localStorage and try again.');
-      return;
-    }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    // The provider owns token storage, generation guards and verification together.
+    completeRef.current(token).then(verified => {
+      if (cancelled || getStoredToken() !== token) return;
+      setSuccess(true);
+      navigate(homeForUser(verified), {replace: true});
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      const currentToken = getStoredToken();
+      if (currentToken && currentToken !== token) return;
+      const invalid = error instanceof ApiRequestError && error.status === 401;
+      setRecoverable(!invalid && currentToken === token);
+      setError(invalid ? 'This session has expired or was revoked. Please sign in again.' : 'Unable to verify your session. Reconnect and try again.');
+    });
+    return () => { cancelled = true; };
+  }, [navigate, attempt]);
 
-    // Show success card briefly before redirecting
-    const destination = role === 'admin' ? '/admin' : '/student';
-    setSuccess(true);
-    setTimeout(() => {
-      window.location.replace(destination);
-    }, 1200);
-  }, []);
+  useEffect(()=>{
+    if(tokenRef.current || isLoading)return;
+    if(isAuthenticated && user)navigate(homeForUser(user),{replace:true});
+    else setError('SSO session data is missing. Please try signing in again.');
+  },[isLoading,isAuthenticated,user,navigate]);
 
   if (error) {
     return (
@@ -72,6 +72,7 @@ const SsoCallback: React.FC = () => {
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Sign-in failed</h2>
           <p className="text-sm text-red-600">{error}</p>
+          {recoverable && <button onClick={() => {setError(null);setAttempt(value=>value+1);}} className="rounded-lg bg-accent-teal px-4 py-2 text-white">Retry connection</button>}
           <a
             href="/login"
             className="inline-block mt-4 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"

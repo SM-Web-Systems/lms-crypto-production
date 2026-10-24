@@ -71,24 +71,27 @@ A TypeScript/Express backend server for the KanyaCSI Student Management System. 
 
    **Clerk + LMS users:** On first successful Clerk sign-in, the server links by **email** to an existing `users` row (and sets `clerk_user_id`) or creates a **student** user plus a `students` row. Seed admins/students in the DB first if you need a specific role; new Clerk-only sign-ups are **students**.
 
-4. **Initialize the database**
+4. **Initialize a new, isolated database explicitly**
 
-   **Option A – SM Web Systems LMS (schema + seed two users)**  
-   If you use the schema from the `SM-Web-systems-LMS` repo and only need admin + student logins:
+   Build first, set `DATABASE_PATH` to a new path in a writable directory, then:
 
    ```bash
-   # From server repo; DB path = DATABASE_PATH or ./data/student_ms.db
-   npm run db:schema    # run schema once (uses database/schema.sql in this repo)
-   npm run db:seed      # seed admin@smwebsystems.com and student@smwebsystems.com
+   npm run build
+   DATABASE_PATH=./data/new-lms.db npm run db:init -- --initialize-new
+   DATABASE_PATH=./data/new-lms.db npm start
    ```
 
-   To use a different schema file: `SCHEMA_SQL_PATH=/path/to/schema.sql npm run db:schema`
+   PowerShell: set `$env:DATABASE_PATH = './data/new-lms.db'` before the commands.
+   Initialization creates the canonical schema and default roles/templates, with no login accounts.
+   Any existing file (including an empty file) or WAL/SHM/journal sidecar is refused.
+   `db:schema` is a compatibility alias for the same compiled command and requires the same flag.
+   Alternate schema files are unsupported. Provision an administrator separately using the reviewed
+   administrator provisioning procedure (confirm the selected identity, then use `npm run db:promote-admin -- <email>`); never seed demonstration credentials into a deployment.
 
-   **Option B – Full init (Kanya sample data)**  
-   ```bash
-   npm run db:init
-   ```
-   This creates all tables and seeds sample data (admin@kanya.edu, john@kanya.edu, etc.).
+   Normal startup refuses missing, corrupt, partial or unsupported databases. Preserve the database
+   and all sidecars, then follow the [AUTH-13 bootstrap procedure](../docs/specs/AUTH-13-application-integrity-spec.md).
+   Do not delete files or rerun initialization as a repair. Existing legacy rebuilds need a separately
+   reviewed offline migration; the startup path performs additive changes transactionally.
 
 ## Running the Server
 
@@ -138,15 +141,10 @@ npm start
 |--------|----------|-------------|
 | GET | `/api/v1/analytics/dashboard` | Get dashboard statistics |
 
-## Test Credentials
+## Test accounts
 
-**After `npm run db:schema` + `npm run db:seed` (SM Web Systems):**
-- **Admin:** `admin@smwebsystems.com` / `admin123`
-- **Student:** `student@smwebsystems.com` / `student123`
-
-**After `npm run db:init` (Kanya sample data):**
-- **Admin:** `admin@kanya.edu` / `admin123`
-- **Students:** `john@kanya.edu`, `jane@kanya.edu`, etc. / `student123`
+Automated tests create disposable synthetic accounts. Production initialization creates none.
+Legacy development seed scripts are not a production provisioning procedure.
 
 ## Project Structure
 
@@ -204,3 +202,5 @@ All errors follow a consistent format:
 ## License
 
 MIT
+
+Public password registration always creates a student, regardless of submitted role or staff email allowlists. Staff allowlists apply only after verified Amma Wallet assertions for new accounts. Existing managed grants are preserved. Explicit operator promotion updates RBAC and invalidates existing sessions immediately.

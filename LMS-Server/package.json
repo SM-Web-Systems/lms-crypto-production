@@ -8,10 +8,10 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "db:init": "tsx src/scripts/initDb.ts",
-    "db:schema": "tsx src/scripts/runSchema.ts",
+    "db:init": "node dist/scripts/initDb.js",
+    "db:schema": "node dist/scripts/initDb.js",
     "db:seed": "tsx src/scripts/seedUsers.ts",
-    "db:promote-admin": "tsx src/scripts/promoteUserToAdmin.ts",
+    "db:promote-admin": "node dist/scripts/promoteUserToAdmin.js",
     "db:promote-admin:docker": "docker exec lms-api npm run db:promote-admin --",
     "db:seed-courses": "tsx src/scripts/seedCourses.ts",
     "db:seed-solana": "tsx src/scripts/seedSolanaCrashCourse.ts",
@@ -22,7 +22,9 @@
     "db:migrate-clerk": "tsx src/scripts/migrateClerkUserId.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate:bvc": "tsx src/scripts/validateBvcContent.ts"
+    "validate:bvc": "tsx src/scripts/validateBvcContent.ts",
+    "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs",
+    "test:restore-drill": "node scripts/synthetic-restore-drill.mjs"
   },
   "keywords": [
     "student",
@@ -34,22 +36,22 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@stellar/stellar-sdk": "^16.2.0",
+    "@stellar/stellar-sdk": "^16.4.1",
     "@types/qrcode": "^1.5.6",
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "archiver": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
-    "express": "^4.21.0",
+    "express": "^4.22.3",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
-    "isomorphic-dompurify": "^3.19.0",
+    "isomorphic-dompurify": "3.19.0",
     "jsonwebtoken": "^9.0.2",
     "marked": "^18.0.11",
-    "multer": "^2.3.0",
-    "nodemailer": "^9.0.5",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.2.1",
     "pdfkit": "^0.16.0",
     "pino": "^10.3.1",
     "qrcode": "^1.5.4",
@@ -80,6 +82,6 @@
     "supertest": "^7.2.2",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.12"
   }
 }

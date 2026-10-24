@@ -25,7 +25,7 @@ import {
 } from '../controllers/coursesController.js';
 import { getCourseSubmissions } from '../controllers/submissionsController.js';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission, requireCourseScope } from '../middleware/rbac.js';
+import { requirePermission, requireCourseScope, requireCourseManagementScope } from '../middleware/rbac.js';
 import { uploadZip } from '../utils/fileUpload.js';
 
 const router = Router();
@@ -42,7 +42,7 @@ router.use(authenticate);
  *     responses:
  *       200: { description: List of courses }
  */
-router.get('/', getCourses);
+router.get('/', requirePermission('course.view'), getCourses);
 /**
  * @openapi
  * /courses/{id}/members:
@@ -58,7 +58,7 @@ router.get('/', getCourses);
  *     responses:
  *       200: { description: List of course members }
  */
-router.get('/:id/members', getCourseMembers);
+router.get('/:id/members', requirePermission('course.view'), getCourseMembers);
 /**
  * @openapi
  * /courses/{id}/members:
@@ -84,7 +84,7 @@ router.get('/:id/members', getCourseMembers);
  *       201: { description: Member enrolled }
  *       403: { description: Requires course.enroll_others }
  */
-router.post('/:id/members', requirePermission('course.enroll_others'), addCourseMember);
+router.post('/:id/members', requirePermission('course.enroll_others'), requireCourseManagementScope, addCourseMember);
 /**
  * @openapi
  * /courses/{id}/members/{userId}:
@@ -104,7 +104,7 @@ router.post('/:id/members', requirePermission('course.enroll_others'), addCourse
  *     responses:
  *       200: { description: Member removed }
  */
-router.delete('/:id/members/:userId', requirePermission('course.enroll_others'), removeCourseMember);
+router.delete('/:id/members/:userId', requirePermission('course.enroll_others'), requireCourseManagementScope, removeCourseMember);
 // Phase 1 Course-Centric IA: submissions scoped to a course
 /**
  * @openapi
@@ -139,7 +139,7 @@ router.get('/:courseId/submissions', requireCourseScope, getCourseSubmissions);
  *       200: { description: List of lecturers }
  *       403: { description: Requires user.manage }
  */
-router.get('/:id/lecturers', requirePermission('user.manage'), getLecturers);
+router.get('/:id/lecturers', requirePermission('user.manage'), requireCourseManagementScope, getLecturers);
 /**
  * @openapi
  * /courses/{id}/lecturers:
@@ -164,7 +164,7 @@ router.get('/:id/lecturers', requirePermission('user.manage'), getLecturers);
  *     responses:
  *       201: { description: Lecturer assigned }
  */
-router.post('/:id/lecturers', requirePermission('user.manage'), addLecturer);
+router.post('/:id/lecturers', requirePermission('user.manage'), requireCourseManagementScope, addLecturer);
 /**
  * @openapi
  * /courses/{id}/lecturers/{lecturerUserId}:
@@ -184,7 +184,7 @@ router.post('/:id/lecturers', requirePermission('user.manage'), addLecturer);
  *     responses:
  *       200: { description: Lecturer removed }
  */
-router.delete('/:id/lecturers/:lecturerUserId', requirePermission('user.manage'), removeLecturer);
+router.delete('/:id/lecturers/:lecturerUserId', requirePermission('user.manage'), requireCourseManagementScope, removeLecturer);
 /**
  * @openapi
  * /courses/{id}:
@@ -202,18 +202,18 @@ router.delete('/:id/lecturers/:lecturerUserId', requirePermission('user.manage')
  *       404: { description: Course not found }
  */
 // Phase D: Course approval workflow (must be before /:id catch-all)
-router.post('/:id/submit-for-approval', requirePermission('course.manage'), submitForApproval);
-router.post('/:id/approve', requirePermission('course.approve'), approveCourse);
-router.post('/:id/reject', requirePermission('course.approve'), rejectCourse);
+router.post('/:id/submit-for-approval', requirePermission('course.manage'), requireCourseManagementScope, submitForApproval);
+router.post('/:id/approve', requirePermission('course.approve'), requireCourseManagementScope, approveCourse);
+router.post('/:id/reject', requirePermission('course.approve'), requireCourseManagementScope, rejectCourse);
 // Phase D: TA assignment
-router.get('/:id/tas', requirePermission('course.manage'), listCourseTAs);
-router.post('/:id/tas', requirePermission('course.manage'), assignTA);
-router.delete('/:id/tas/:userId', requirePermission('course.manage'), removeTA);
+router.get('/:id/tas', requirePermission('course.manage'), requireCourseManagementScope, listCourseTAs);
+router.post('/:id/tas', requirePermission('course.manage'), requireCourseManagementScope, assignTA);
+router.delete('/:id/tas/:userId', requirePermission('course.manage'), requireCourseManagementScope, removeTA);
 // Phase D: Material approval
-router.post('/:id/materials/:materialId/approve', requirePermission('course.manage'), approveMaterial);
-router.post('/:id/materials/:materialId/reject', requirePermission('course.manage'), rejectMaterial);
+router.post('/:id/materials/:materialId/approve', requirePermission('course.manage'), requireCourseManagementScope, approveMaterial);
+router.post('/:id/materials/:materialId/reject', requirePermission('course.manage'), requireCourseManagementScope, rejectMaterial);
 
-router.get('/:id', getCourse);
+router.get('/:id', requirePermission('course.view'), getCourse);
 /**
  * @openapi
  * /courses:
@@ -252,7 +252,7 @@ router.post('/', requirePermission('course.create'), createCourse);
  *       200: { description: Course updated }
  *       403: { description: Requires course.manage }
  */
-router.put('/:id', requirePermission('course.manage'), updateCourse);
+router.put('/:id', requirePermission('course.manage'), requireCourseManagementScope, updateCourse);
 /**
  * @openapi
  * /courses/{id}/import/zip:
@@ -281,7 +281,7 @@ router.put('/:id', requirePermission('course.manage'), updateCourse);
  *       404: { description: Course not found }
  */
 // ZIP import registered before generic import (more-specific route first)
-router.post('/:id/import/zip', requirePermission('course.manage'), uploadZip.single('zipfile'), importZipContent);
+router.post('/:id/import/zip', requirePermission('course.manage'), requireCourseManagementScope, uploadZip.single('zipfile'), importZipContent);
 /**
  * @openapi
  * /courses/{id}/import/github:
@@ -311,7 +311,7 @@ router.post('/:id/import/zip', requirePermission('course.manage'), uploadZip.sin
  *       403: { description: Non-whitelisted org or insufficient permissions }
  *       404: { description: Course or repo not found }
  */
-router.post('/:id/import/github', requirePermission('course.manage'), importGitHubContent);
+router.post('/:id/import/github', requirePermission('course.manage'), requireCourseManagementScope, importGitHubContent);
 /**
  * @openapi
  * /courses/{id}/import:
@@ -359,7 +359,7 @@ router.post('/:id/import/github', requirePermission('course.manage'), importGitH
  *       403: { description: Requires course.manage }
  *       404: { description: Course not found }
  */
-router.post('/:id/import', requirePermission('course.manage'), importCourseContent);
+router.post('/:id/import', requirePermission('course.manage'), requireCourseManagementScope, importCourseContent);
 /**
  * @openapi
  * /courses/{id}:
@@ -376,6 +376,6 @@ router.post('/:id/import', requirePermission('course.manage'), importCourseConte
  *       200: { description: Course deleted }
  *       403: { description: Requires course.manage }
  */
-router.delete('/:id', requirePermission('course.manage'), deleteCourse);
+router.delete('/:id', requirePermission('course.delete'), requireCourseManagementScope, deleteCourse);
 
 export default router;

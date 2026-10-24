@@ -77,7 +77,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
         const status = (e as { response?: { status?: number } }).response?.status;
         if (status === 409) {
           // Re-fetch the existing application so UI reflects real server state
-          courseCompletionService.getCourseApplications(courseId)
+          courseCompletionService.getCourseApplications(courseId, 'own')
             .then((apps) => {
               if (apps.length > 0) onAppStatusChange(courseId, apps[0]);
             })

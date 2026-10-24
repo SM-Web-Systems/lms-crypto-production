@@ -182,9 +182,9 @@ describe('F2: Session Management', () => {
 
     expect(res.status).toBe(200);
 
-    // Session 2's row should be gone
-    const row = queryOne<{ id: string }>('SELECT id FROM active_sessions WHERE id = ?', [session2Id]);
-    expect(row).toBeNull();
+    // Retain the revoked row so its token cannot regain legacy-token access.
+    const row = queryOne<{ revoked_at: string | null }>('SELECT revoked_at FROM active_sessions WHERE id = ?', [session2Id]);
+    expect(row?.revoked_at).toBeTruthy();
   });
 
   it("F2-SESSION-3: Admin can list any user's sessions", async () => {

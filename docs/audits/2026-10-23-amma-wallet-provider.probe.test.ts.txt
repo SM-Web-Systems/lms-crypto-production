@@ -1,0 +1,20 @@
+// Audit replay: append the code below to a temporary copy of packages/backend/src/routes/sso.test.ts in the same directory, run Vitest on that copy, then delete it. Provider DB/auth are mocked, but issuance, signing, replay handling and response serialization are real.
+
+import { db as providerDb } from '../db';
+
+describe('LMS integration audit: provider identity cases',()=>{
+  it.each([['unverified','unverified@example.invalid'],['phone-only',null]])('issues and verifies a valid assertion for %s identity',async(_label,email)=>{
+    consumedJtis.clear();setupJtiMock();
+    mockConfig.SSO_CALLBACK_WHITELIST=['https://lms.example.invalid'];
+    const user={id:1,email,firstName:'Audit',lastName:'Wallet',isEmailVerified:false};
+    const chain:any={from:()=>chain,where:()=>chain,orderBy:()=>chain,limit:async()=>[user]};
+    vi.mocked(providerDb.select).mockReturnValue(chain);
+    const provider=Fastify();provider.register(ssoRoutes);
+    const issued=await provider.inject({method:'POST',url:'/api/v1/sso/token',payload:{callbackUrl:'https://lms.example.invalid/api/v1/auth/amma-callback',state:'synthetic-audit-state'}});
+    expect(issued.statusCode).toBe(200);
+    const verified=await provider.inject({method:'POST',url:'/api/v1/sso/verify',payload:{assertion:issued.json().assertionToken}});
+    expect(verified.statusCode).toBe(200);
+    expect(verified.json()).toMatchObject({userId:'1',email,isEmailVerified:false,mainnetWalletAddress:null});
+    await provider.close();
+  });
+});

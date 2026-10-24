@@ -3,6 +3,8 @@
  */
 
 import api from './api';
+import type { CourseAnalytics, SponsorStudent } from './analyticsService';
+import { assertApiSuccess } from '../utils/apiError';
 
 export interface SponsorDashboardData {
   totalCohorts: number;
@@ -45,6 +47,8 @@ export interface SponsorBilling {
   payments: Array<{
     id: string;
     courseId: string;
+    courseName?: string;
+    payerName?: string;
     amountCents: number;
     currency: string;
     paymentMethod: string;
@@ -84,6 +88,8 @@ interface BillingRaw {
   payments: Array<{
     id: string;
     course_id: string;
+    course_name?: string;
+    payer_name?: string;
     amount_cents: number;
     currency: string;
     payment_method: string;
@@ -94,17 +100,52 @@ interface BillingRaw {
 }
 
 export const sponsorService = {
+  async getCourses(): Promise<CourseAnalytics[]> {
+    const response = await api.get<{ success: boolean; data: { courses: CourseAnalytics[] } }>(
+      '/sponsor/courses',
+    );
+    return assertApiSuccess(response, 'Could not load sponsored courses.').courses;
+  },
+  async getCourseOptions(): Promise<
+    { id: string; title: string; tiersEnabled: 'free_only' | 'paid_only' | 'both' }[]
+  > {
+    const response = await api.get<{
+      success: boolean;
+      data: { courses: { id: string; title: string; tiersEnabled: 'free_only' | 'paid_only' | 'both' }[] };
+    }>('/sponsor/course-options');
+    return assertApiSuccess(response, 'Could not load course choices.').courses;
+  },
+  async getStudents(courseId: string): Promise<SponsorStudent[]> {
+    const response = await api.get<{ success: boolean; data: { students: SponsorStudent[] } }>(
+      `/sponsor/courses/${encodeURIComponent(courseId)}/students`,
+    );
+    return assertApiSuccess(response, 'Could not load cohort members.').students;
+  },
+  async getSpendingReport(): ReturnType<typeof import('./cohortService').cohortService.getSpendingReport> {
+    const response = await api.get('/sponsor/spending-report');
+    return assertApiSuccess(response, 'Could not load cohort spending.');
+  },
+  async exportCoursesCsv(): Promise<void> {
+    const response = await api.get('/sponsor/courses/export', { responseType: 'blob' });
+    download(response.data, 'sponsor-analytics.csv');
+  },
+  async downloadReceipt(id: string): Promise<void> {
+    const response = await api.get(`/payments/${encodeURIComponent(id)}/receipt`, { responseType: 'blob' });
+    download(response.data, `receipt-${id}.pdf`);
+  },
   async getDashboard(): Promise<SponsorDashboardData> {
     const res = await api.get<{ success: boolean; data: SponsorDashboardData }>('/sponsor/dashboard');
-    return res.data.data;
+    return assertApiSuccess(res, 'Could not load cohorts.');
   },
 
   async getImpactReport(dateRange?: DateRange): Promise<ImpactReport> {
     const params: Record<string, string> = {};
     if (dateRange?.from) params.from = dateRange.from;
     if (dateRange?.to) params.to = dateRange.to;
-    const res = await api.get<{ success: boolean; data: ImpactReportRaw }>('/sponsor/impact-report', { params });
-    const raw = res.data.data;
+    const res = await api.get<{ success: boolean; data: ImpactReportRaw }>('/sponsor/impact-report', {
+      params,
+    });
+    const raw = assertApiSuccess(res, 'Could not load sponsor data.');
     return {
       totalMembers: raw.totalMembers,
       totalCompleted: raw.totalCompleted,
@@ -138,16 +179,19 @@ export const sponsorService = {
     window.URL.revokeObjectURL(url);
   },
 
-  async getBilling(dateRange?: DateRange): Promise<SponsorBilling> {
+  async getBilling(dateRange?: DateRange, scope?: 'cohort'): Promise<SponsorBilling> {
     const params: Record<string, string> = {};
     if (dateRange?.from) params.from = dateRange.from;
     if (dateRange?.to) params.to = dateRange.to;
+    if (scope) params.scope = scope;
     const res = await api.get<{ success: boolean; data: BillingRaw }>('/sponsor/billing', { params });
     const raw = res.data.data;
     return {
       payments: raw.payments.map((p) => ({
         id: p.id,
         courseId: p.course_id,
+        courseName: p.course_name,
+        payerName: p.payer_name,
         amountCents: p.amount_cents,
         currency: p.currency,
         paymentMethod: p.payment_method,
@@ -158,3 +202,14 @@ export const sponsorService = {
     };
   },
 };
+
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

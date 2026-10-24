@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 import { messageService } from '../services/messageService';
 import { enrollmentService } from '../services/enrollmentService';
 import { studentsService } from '../services/studentsService';
@@ -26,7 +27,7 @@ const Messages: React.FC = () => {
   const { user } = useAuth();
   const userId = user?.id ?? '';
   const userName = user?.name ?? 'Me';
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = hasCapability(user, 'user.view_all');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -414,7 +415,7 @@ const Messages: React.FC = () => {
                       size="sm"
                       className="shrink-0 border-neutral-200/90"
                       onClick={() =>
-                        navigate(user?.role === 'admin' ? `/admin/profile/${otherUserId}` : `/student/profile/${otherUserId}`)
+                        navigate(`/profile/${otherUserId}`)
                       }
                     >
                       Profile

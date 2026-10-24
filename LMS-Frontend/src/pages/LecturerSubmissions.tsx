@@ -44,7 +44,7 @@ const LecturerSubmissions: React.FC = () => {
   // Load initial data
   useEffect(() => {
     fetchSubmissions();
-    courseService.fetchCourses()
+    courseService.fetchCourses({access: 'manage'})
       .then((cs) => {
         setCourses(cs);
         if (cs.length > 0) setSelectedCourseId(cs[0].id);

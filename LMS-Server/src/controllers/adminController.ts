@@ -1,4 +1,7 @@
 import { Response, NextFunction } from 'express';
+import { getUserPermissions } from '../middleware/rbac.js';
+import { courseAccessScope } from '../services/courseAccessService.js';
+import { searchDirectoryScope } from '../services/searchScopeService.js';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -70,8 +73,10 @@ export async function listCertificates(
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+    const permissions = new Set(getUserPermissions(req.user!.userId));
+    const scope = courseAccessScope(req.user!.userId, permissions, 'staff');
+    const conditions: string[] = ['a.course_id IN (SELECT c.id FROM courses c WHERE ' + scope.sql + ')'];
+    const params: unknown[] = [...scope.params];
 
     if (status && ['pending', 'approved', 'rejected', 'minted'].includes(status)) {
       conditions.push('a.status = ?');
@@ -157,7 +162,6 @@ export async function listIssuedCredentials(
     mintStatus?: string;
     network?: string;
   };
-  const role = req.user?.role;
   const requestingUserId = req.user?.userId;
 
   try {
@@ -170,20 +174,17 @@ export async function listIssuedCredentials(
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    // Lecturers: scope to courses they are assigned to
-    if (role === 'lecturer') {
-      const lecturerCourses = query<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE user_id = ?',
-        [requestingUserId],
-      );
-      if (lecturerCourses.length === 0) {
-        res.json({ success: true, data: { credentials: [], total: 0 } });
-        return;
-      }
-      const cids = lecturerCourses.map((r) => r.course_id);
-      conditions.push(`nc.course_id IN (${cids.map(() => '?').join(',')})`);
-      params.push(...cids);
+    const permissions = new Set(getUserPermissions(requestingUserId!));
+    const scope = courseAccessScope(requestingUserId!, permissions, 'staff');
+    const effectiveCourse = 'COALESCE(nc.course_id, (SELECT course_id FROM quizzes WHERE id = nc.quiz_id))';
+    let reviewScope = effectiveCourse + ' IN (SELECT c.id FROM courses c WHERE ' + scope.sql + ')';
+    params.push(...scope.params);
+    if (permissions.has('course.delete')) {
+      const directory = searchDirectoryScope(requestingUserId!, permissions);
+      reviewScope = '(' + reviewScope + ' OR ' + effectiveCourse + ' IS NULL) AND EXISTS (SELECT 1 FROM users u WHERE u.id = nc.user_id AND ' + directory.sql + ')';
+      params.push(...directory.params);
     }
+    conditions.push(reviewScope);
 
     if (courseId) {
       conditions.push('nc.course_id = ?');

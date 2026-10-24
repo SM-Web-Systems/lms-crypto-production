@@ -1,3 +1,4 @@
+import { db, queryOne } from '../config/database.js';
 /**
  * Webhook routes — Phase 12 C1: Paystack webhook handler.
  *
@@ -24,14 +25,7 @@ router.use(express.raw({ type: 'application/json' }));
 
 interface PaystackWebhookPayload {
   event: string;
-  data: {
-    reference: string;
-    status: string;
-    amount: number;
-    currency: string;
-    paid_at?: string;
-    metadata?: Record<string, unknown>;
-  };
+  data: Record<string, unknown>;
 }
 
 /**
@@ -71,6 +65,9 @@ router.post(
 
     // Get raw body — express.raw() gives us a Buffer
     const rawBody = req.body as Buffer;
+    if (!Buffer.isBuffer(rawBody)) {
+      res.status(400).json({success:false,message:'JSON raw body required'}); return;
+    }
     if (!verifyWebhookSignature(rawBody, signature)) {
       res.status(401).json({ success: false, message: 'Invalid signature' });
       return;
@@ -84,59 +81,83 @@ router.post(
       return;
     }
 
+    if (!payload || typeof payload !== 'object' || typeof payload.event !== 'string' ||
+        !payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+      res.status(400).json({success:false,message:'Invalid event payload'}); return;
+    }
     const { event, data } = payload;
-
-    // Idempotency check — use reference as event_id
-    const isNew = recordWebhookEvent(data.reference, event, 'paystack', rawBody.toString());
-    if (!isNew) {
-      // Already processed — return 200 to stop Paystack retries
-      res.json({ success: true, message: 'Already processed' });
-      return;
+    if (!['charge.success','charge.failed','refund.processed'].includes(event)) {
+      res.json({success:true,message:`Event ${event} acknowledged`}); return;
     }
-
-    // Process event
-    switch (event) {
-      case 'charge.success': {
-        const payment = getPaymentByReference(data.reference);
-        if (!payment) {
-          logger.warn({ module: 'paystack-webhook', reference: data.reference }, 'No payment found for reference');
-          res.json({ success: true, message: 'No matching payment' });
-          return;
-        }
-
-        // Verify amount matches
-        if (data.amount !== payment.amount_cents) {
-          logger.warn({ module: 'paystack-webhook', reference: data.reference, expected: payment.amount_cents, received: data.amount }, 'Amount mismatch');
-          res.json({ success: true, message: 'Amount mismatch logged' });
-          return;
-        }
-
-        confirmPayment(payment.id, payment.user_id, `Auto-confirmed via Paystack webhook`);
-        res.json({ success: true, message: 'Payment confirmed' });
-        return;
-      }
-
-      case 'charge.failed': {
-        const payment = getPaymentByReference(data.reference);
-        if (payment && payment.status === 'pending') {
-          failPayment(payment.id);
-        }
-        res.json({ success: true, message: 'Failure recorded' });
-        return;
-      }
-
-      case 'refund.processed': {
-        const payment = getPaymentByReference(data.reference);
-        if (payment && payment.status === 'confirmed') {
-          refundPayment(payment.id, 'Refund processed via Paystack');
-        }
-        res.json({ success: true, message: 'Refund recorded' });
-        return;
-      }
-
-      default:
-        res.json({ success: true, message: `Event ${event} acknowledged` });
+    // Paystack refund notifications use transaction_reference and may encode
+    // amount as a decimal string; charges use reference and a numeric amount.
+    // https://paystack.com/docs/payments/refunds/#listen-to-notifications
+    const reference = event === 'refund.processed' ? data.transaction_reference : data.reference;
+    const amount = event === 'refund.processed' && typeof data.amount === 'string' && /^[0-9]+$/.test(data.amount)
+      ? Number(data.amount) : data.amount;
+    const refundReference = data.refund_reference;
+    if (typeof reference !== 'string' || !Number.isSafeInteger(amount) || (amount as number) <= 0 ||
+        typeof data.currency !== 'string' || (event === 'refund.processed' &&
+          (data.status !== 'processed' || (refundReference != null && typeof refundReference !== 'string')))) {
+      res.status(400).json({success:false,message:'Invalid event payment evidence'}); return;
     }
+    const result = db.transaction(() => {
+      const payment = getPaymentByReference(reference);
+      if (!payment) return {status:200,message:'No matching payment'};
+      // A mismatch must not consume the idempotency key for a later valid retry.
+      if (payment.payment_method !== 'paystack' || (event === 'refund.processed' ? (amount as number) > payment.amount_cents : amount !== payment.amount_cents) || data.currency !== payment.currency) {
+        logger.warn({module:'paystack-webhook',paymentId:payment.id}, 'Payment amount/currency/method mismatch');
+        return {status:200,message:amount !== payment.amount_cents ? 'Amount mismatch logged' : 'Currency or payment method mismatch logged'};
+      }
+      // Retain historical reference-only records without suppressing later types.
+      const historical = queryOne('SELECT 1 FROM webhook_events WHERE event_id = ? AND event_type = ? AND provider = ?',
+        [reference,event,'paystack']);
+      const needsMutation = event === 'charge.success' ? ['pending','failed'].includes(payment.status)
+        : event === 'charge.failed' ? payment.status === 'pending'
+          : payment.status === 'confirmed' && amount === payment.amount_cents;
+      // Legacy markers were not atomic: permit a valid retry when the old write
+      // failed or consumed a mismatched event before applying the payment.
+      if (historical && !needsMutation) return {status:200,message:'Already processed'};
+      if (event === 'refund.processed' && !['confirmed','refunded'].includes(payment.status)) {
+        return {status:409,message:'Confirmation not yet recorded; retry refund'};
+      }
+      // Refund deduplication: prefer refund_reference, then Paystack event ID
+      // (data.id), then fall through to reconciliation mode that always records
+      // but flags for manual review.
+      const eventPaystackId = data.id;
+      const refundKey = (refundReference as string | null | undefined)
+        ?? (eventPaystackId != null && (typeof eventPaystackId === 'number' || (typeof eventPaystackId === 'string' && eventPaystackId.length > 0))
+          ? `_event_${eventPaystackId}`
+          : `_reconcile_${Date.now()}_${amount}`);
+      if (refundKey.startsWith('_reconcile_')) {
+        logger.warn({module:'paystack-webhook',paymentId:payment.id,reference,amount}, 'Refund event missing both refund_reference and provider event ID; recorded with reconciliation marker');
+      }
+      const eventId = JSON.stringify(event === 'refund.processed'
+        ? ['paystack', event, reference, refundKey]
+        : ['paystack', event, reference]);
+      if (!recordWebhookEvent(eventId,event,'paystack',rawBody.toString())) return {status:200,message:'Already processed'};
+      // Reconciliation-mode refunds: event recorded for audit but no financial
+      // mutation — provider reconciliation required when identity is ambiguous.
+      if (event === 'refund.processed' && refundKey.startsWith('_reconcile_')) {
+        return {status:200,message:'Refund evidence recorded; provider reconciliation required before financial mutation'};
+      }
+      switch (event) {
+        case 'charge.success':
+          if (['pending','failed'].includes(payment.status)) confirmPayment(payment.id,payment.user_id,'Auto-confirmed via Paystack webhook');
+          return {status:200,message:payment.status === 'refunded' || payment.status === 'waived' ? 'Final payment state retained' : 'Payment confirmed'};
+        case 'charge.failed':
+          if (payment.status === 'pending') failPayment(payment.id);
+          return {status:200,message:'Failure recorded'};
+        default:
+          if ((amount as number) < payment.amount_cents) {
+            logger.warn({module:'paystack-webhook',paymentId:payment.id}, 'Partial refund recorded; manual reconciliation required');
+            return {status:200,message:'Partial refund recorded; manual reconciliation required'};
+          }
+          if (payment.status === 'confirmed') refundPayment(payment.id,'Refund processed via Paystack');
+          return {status:200,message:'Refund recorded'};
+      }
+    }).immediate();
+    res.status(result.status).json({success:result.status === 200,message:result.message});
   },
 );
 

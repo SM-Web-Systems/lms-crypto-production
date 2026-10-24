@@ -1,4 +1,6 @@
 import { Response, NextFunction } from 'express';
+import { getUserPermissions } from '../middleware/rbac.js';
+import { courseAccessScope } from '../services/courseAccessService.js';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
@@ -66,38 +68,17 @@ const SELECT = `
 export async function getAnnouncements(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user?.userId;
-    const role   = req.user?.role;
     if (!userId) throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
 
     // LMS-PAGINATION-001: paginate announcements
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-    let rows: AnnouncementRow[];
-
-    if (role === 'admin') {
-      rows = query<AnnouncementRow>(
-        `${SELECT} ORDER BY a.pinned DESC, a.created_at DESC LIMIT ? OFFSET ?`,
-        [limit, offset]
-      );
-    } else {
-      // student: general + courses they are enrolled in (via user_course_codes)
-      rows = query<AnnouncementRow>(
-        `${SELECT}
-         WHERE a.scope = 'general'
-            OR (
-              a.scope = 'course'
-              AND a.course_id IN (
-                SELECT c2.id FROM courses c2
-                JOIN user_course_codes ucc ON ucc.course_code = c2.course_code
-                WHERE ucc.user_id = ?
-              )
-            )
-         ORDER BY a.pinned DESC, a.created_at DESC
-         LIMIT ? OFFSET ?`,
-        [userId, limit, offset]
-      );
-    }
+    const scope = courseAccessScope(userId, new Set(getUserPermissions(userId)));
+    const rows = query<AnnouncementRow>(
+      SELECT + " WHERE a.scope = 'general' OR (a.scope = 'course' AND a.course_id IN (SELECT c.id FROM courses c WHERE " + scope.sql + ")) ORDER BY a.pinned DESC, a.created_at DESC LIMIT ? OFFSET ?",
+      [...scope.params, limit, offset],
+    );
 
     res.json({ success: true, data: { announcements: rows.map(rowToAnnouncement) } });
   } catch (error) { next(error); }

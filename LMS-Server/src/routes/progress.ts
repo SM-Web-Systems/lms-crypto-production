@@ -15,7 +15,8 @@
 
 import { Router, Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { requireCourseScope } from '../middleware/rbac.js';
+import { requireCourseScope, getUserPermissions } from '../middleware/rbac.js';
+import { canAccessCourse } from '../services/courseAccessService.js';
 import { queryOne, query } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
@@ -59,22 +60,9 @@ router.get(
       return;
     }
 
-    // LMS-J1-001: Students must be enrolled to view their own progress
-    const role = req.user!.role;
-    if (role === 'student') {
-      const enrolled = queryOne<{ user_id: string }>(
-        `SELECT ucc.user_id FROM user_course_codes ucc
-         JOIN courses c ON c.course_code = ucc.course_code
-         WHERE ucc.user_id = ? AND c.id = ?`,
-        [userId, courseId]
-      );
-      if (!enrolled) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'You are not enrolled in this course' },
-        });
-        return;
-      }
+    if (!canAccessCourse(userId, courseId, new Set(getUserPermissions(userId)))) {
+      res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'You do not have access to this course'}});
+      return;
     }
 
     const progress = getCourseProgress(userId, courseId);

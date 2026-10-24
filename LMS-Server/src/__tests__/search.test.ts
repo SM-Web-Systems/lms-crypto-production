@@ -40,6 +40,8 @@ function seedSearchData() {
     `INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'Blockchain Fundamentals', 'Learn blockchain basics', 'BLK-101', '[]')`,
   ).run(courseId);
 
+  db.prepare('INSERT INTO user_course_codes (user_id, course_code) VALUES (?, ?)').run(studentId, 'BLK-101');
+
   adminToken = makeToken({ userId: adminId, email: `search-admin-${adminId}@test.com`, role: 'admin' });
   studentToken = makeToken({ userId: studentId, email: `alice-${studentId}@test.com`, role: 'student' });
 }

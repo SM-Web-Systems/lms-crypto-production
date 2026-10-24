@@ -249,16 +249,12 @@ export function recordWebhookEvent(
   provider: string,
   payload: string,
 ): boolean {
-  try {
-    execute(
-      'INSERT INTO webhook_events (id, event_id, event_type, provider, payload) VALUES (?, ?, ?, ?, ?)',
-      [uuidv4(), eventId, eventType, provider, payload],
-    );
-    return true;
-  } catch {
-    // UNIQUE constraint on event_id — already processed
-    return false;
-  }
+  // Only an actual event_id conflict is a duplicate. Storage failures propagate.
+  return execute(
+    `INSERT INTO webhook_events (id, event_id, event_type, provider, payload)
+     VALUES (?, ?, ?, ?, ?) ON CONFLICT(event_id) DO NOTHING`,
+    [uuidv4(), eventId, eventType, provider, payload],
+  ) === 1;
 }
 
 // ─── AUTH-02: Cohort-scoped sponsor billing access ──────────────────────────
