@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { openApplicationDatabase, loadCanonicalSchema, validateDatabase } from './databaseBootstrap.js';
+import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
+import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
 dotenv.config();
 
@@ -277,34 +279,7 @@ startupMigrations.push(ensureCourseLecturersTable);
 
 /** A3 — lesson_completions: per-user per-item completion tracking. */
 function ensureLessonCompletionsTable(): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS lesson_completions (
-      id           TEXT PRIMARY KEY,
-      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-      item_id      TEXT NOT NULL,
-      section_id   TEXT NOT NULL,
-      completed_at TEXT DEFAULT (datetime('now')),
-      marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
-      progress_pct    INTEGER,
-      last_position_s INTEGER,
-      UNIQUE (user_id, course_id, item_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course
-      ON lesson_completions(user_id, course_id);
-  `);
-  // Additive migration: add progress columns if missing on pre-existing tables.
-  const cols = (db.pragma('table_info("lesson_completions")') as { name: string }[]).map(c => c.name);
-  if (!cols.includes('progress_pct')) {
-    db.exec('ALTER TABLE lesson_completions ADD COLUMN progress_pct INTEGER');
-  }
-  if (!cols.includes('last_position_s')) {
-    db.exec('ALTER TABLE lesson_completions ADD COLUMN last_position_s INTEGER');
-  }
-  // NOTE: Legacy databases may have completed_at as NOT NULL. SQLite cannot ALTER COLUMN
-  // to change nullability. Inserting NULL completed_at on such databases will fail.
-  // A table reconstruction migration is required to fix this; not implemented here to
-  // avoid data-loss risk. The bootstrap validator will catch the incompatibility.
+  ensureLessonCompletionSchema(db);
 }
 startupMigrations.push(ensureLessonCompletionsTable);
 
@@ -1975,14 +1950,19 @@ startupMigrations.push(ensureRoleAssignmentTrigger);
 // One transaction owns schema changes, RBAC seeds, and default data. Preflight
 // ran read-only; a failed upgrade must not leave earlier writes committed.
 try {
+  db.pragma('foreign_keys = ON');
+  if (db.pragma('foreign_keys', { simple: true }) !== 1) throw new Error('Database startup refused: foreign key enforcement unavailable');
   db.pragma('foreign_keys = OFF');
   db.transaction(() => {
+    const foreignKeyBaseline = DB_PATH !== ':memory:' ? captureForeignKeyEvidence(db) : new Set<string>();
+    assertNoNewForeignKeyEvidence(foreignKeyBaseline, opened.foreignKeyBaseline);
     if (opened.initializing) loadCanonicalSchema(db);
     for (const migration of startupMigrations) migration();
-    if (DB_PATH !== ':memory:') validateDatabase(db, true);
+    if (DB_PATH !== ':memory:') validateDatabase(db, true, foreignKeyBaseline);
   }).immediate();
   db.pragma('legacy_alter_table = OFF');
   db.pragma('foreign_keys = ON');
+  if (db.pragma('foreign_keys', { simple: true }) !== 1) throw new Error('Database startup refused: foreign key enforcement unavailable');
   db.pragma('journal_mode = WAL');
 } catch (error) {
   db.close();

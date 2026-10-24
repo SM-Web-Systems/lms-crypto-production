@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { ensureLessonCompletionSchema } from '../config/lessonCompletionMigration.js';
 
 const schema = readFileSync(path.resolve('database/schema.sql'), 'utf8');
 const protectedDbPath = '/home/webadmin/auth13-validation/db-compat/test-production-v4.db';
@@ -54,34 +55,12 @@ const partialLessonCompletionsSQL = `
     ON lesson_completions(user_id, course_id);
 `;
 
-/**
- * Simulate the ensureLessonCompletionsTable migration logic from database.ts.
- * This mirrors the production code so we can test migration behavior in isolation.
- */
+/** Invoke the production helper inside the startup transaction contract. */
 function runMigration(db: SqliteDatabase): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS lesson_completions (
-      id           TEXT PRIMARY KEY,
-      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-      item_id      TEXT NOT NULL,
-      section_id   TEXT NOT NULL,
-      completed_at TEXT DEFAULT (datetime('now')),
-      marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
-      progress_pct    INTEGER,
-      last_position_s INTEGER,
-      UNIQUE (user_id, course_id, item_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course
-      ON lesson_completions(user_id, course_id);
-  `);
-  const cols = (db.pragma('table_info("lesson_completions")') as { name: string }[]).map(c => c.name);
-  if (!cols.includes('progress_pct')) {
-    db.exec('ALTER TABLE lesson_completions ADD COLUMN progress_pct INTEGER');
-  }
-  if (!cols.includes('last_position_s')) {
-    db.exec('ALTER TABLE lesson_completions ADD COLUMN last_position_s INTEGER');
-  }
+  const foreignKeys = db.pragma('foreign_keys', { simple: true });
+  db.pragma('foreign_keys=OFF');
+  try { db.transaction(() => ensureLessonCompletionSchema(db)).immediate(); }
+  finally { db.pragma(`foreign_keys=${foreignKeys ? 1 : 0}`); }
 }
 
 function columnNames(db: SqliteDatabase, table: string): string[] {
@@ -255,6 +234,7 @@ describe('AUTH-13 lesson_completions migration', () => {
     failingDb.pragma = db.pragma.bind(db);
 
     // Run the migration within a savepoint so failure rolls back
+    db.pragma('foreign_keys=OFF');
     db.exec('SAVEPOINT migration_test');
     try {
       runMigrationWithDb(failingDb);
@@ -293,29 +273,7 @@ describe('AUTH-13 lesson_completions migration', () => {
   });
 });
 
-/** Migration variant that accepts an explicit db handle (for failure simulation). */
+/** Production helper with an intercepted handle for transaction-failure evidence. */
 function runMigrationWithDb(db: SqliteDatabase): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS lesson_completions (
-      id           TEXT PRIMARY KEY,
-      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-      item_id      TEXT NOT NULL,
-      section_id   TEXT NOT NULL,
-      completed_at TEXT DEFAULT (datetime('now')),
-      marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
-      progress_pct    INTEGER,
-      last_position_s INTEGER,
-      UNIQUE (user_id, course_id, item_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course
-      ON lesson_completions(user_id, course_id);
-  `);
-  const cols = (db.pragma('table_info("lesson_completions")') as { name: string }[]).map(c => c.name);
-  if (!cols.includes('progress_pct')) {
-    db.exec('ALTER TABLE lesson_completions ADD COLUMN progress_pct INTEGER');
-  }
-  if (!cols.includes('last_position_s')) {
-    db.exec('ALTER TABLE lesson_completions ADD COLUMN last_position_s INTEGER');
-  }
+  ensureLessonCompletionSchema(db);
 }
