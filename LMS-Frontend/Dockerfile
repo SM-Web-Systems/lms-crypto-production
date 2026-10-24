@@ -18,6 +18,8 @@ ENV VITE_BUILD_SHA=$BUILD_SHA
 RUN npm run build
 
 FROM nginx:alpine
+ARG BUILD_SHA=unknown
+LABEL org.opencontainers.image.revision=$BUILD_SHA
 COPY nginx.docker.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
