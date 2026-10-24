@@ -121,7 +121,20 @@ router.post(
       if (event === 'refund.processed' && !['confirmed','refunded'].includes(payment.status)) {
         return {status:409,message:'Confirmation not yet recorded; retry refund'};
       }
-      const eventId = JSON.stringify(event === 'refund.processed' ? ['paystack',event,reference,refundReference ?? null] : ['paystack',event,reference]);
+      // Refund deduplication: prefer refund_reference, then Paystack event ID
+      // (data.id), then fall through to reconciliation mode that always records
+      // but flags for manual review.
+      const eventPaystackId = data.id;
+      const refundKey = refundReference
+        ?? (eventPaystackId != null && (typeof eventPaystackId === 'number' || (typeof eventPaystackId === 'string' && eventPaystackId.length > 0))
+          ? `_event_${eventPaystackId}`
+          : `_reconcile_${Date.now()}_${amount}`);
+      if (refundKey.startsWith('_reconcile_')) {
+        logger.warn({module:'paystack-webhook',paymentId:payment.id,reference,amount}, 'Refund event missing both refund_reference and provider event ID; recorded with reconciliation marker');
+      }
+      const eventId = JSON.stringify(event === 'refund.processed'
+        ? ['paystack', event, reference, refundKey]
+        : ['paystack', event, reference]);
       if (!recordWebhookEvent(eventId,event,'paystack',rawBody.toString())) return {status:200,message:'Already processed'};
       switch (event) {
         case 'charge.success':
