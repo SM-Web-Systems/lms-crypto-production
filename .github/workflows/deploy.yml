@@ -30,7 +30,7 @@ jobs:
     needs: ci
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
