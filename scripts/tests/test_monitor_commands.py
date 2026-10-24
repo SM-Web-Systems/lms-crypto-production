@@ -1,5 +1,6 @@
 """Run actual Bash scripts with all external service commands intercepted."""
 import os
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -29,10 +30,20 @@ case "$(basename "$0")" in
   docker)
     if [[ "$1" == exec ]]; then printf 1000; exit 0; fi
     if [[ "$*" == *ReadonlyRootfs* ]]; then printf true; exit 0; fi
-    if [[ "$1" == logs ]]; then [[ "${MODE:-}" != logs_failure ]] || exit 1; exit 0; fi
+    if [[ "$1" == logs ]]; then
+      [[ "${MODE:-}" != logs_failure ]] || exit 1
+      if [[ "${MODE:-}" == reconciliation ]]; then
+        printf '%s\\n' '{"module":"paystack-webhook","msg":"Partial refund recorded; manual reconciliation required","reference":"PRIVATE_REFERENCE","email":"private@example.invalid","amount":12345}'
+      fi
+      if [[ "${MODE:-}" == log_flood ]]; then
+        count=10000; [[ "$*" != *10001* ]] || count=10001
+        awk -v count="$count" 'BEGIN {for (i=0;i<count;i++) print "{\\"level\\":30,\\"msg\\":\\"ordinary line\\"}"}'
+      fi
+      exit 0
+    fi
     if [[ "$*" == *RestartCount* ]]; then [[ "${MODE:-}" != restart_failure ]] || exit 1; printf 0; else printf healthy; fi ;;
   df) printf 'Filesystem Size Used Avail Use%% Mounted\\nfixture 10G 1G 9G 10%% /\\n' ;;
-  msmtp) cat >/dev/null; printf called >> "$MAIL_MARKER"; [[ "${MODE:-}" != mail_failure ]] ;;
+  msmtp) cat >> "$MAIL_BODY"; printf called >> "$MAIL_MARKER"; [[ "${MODE:-}" != mail_failure ]] ;;
   stat) [[ "${MODE:-}" != stat_failure ]] || exit 1; /usr/bin/stat "$@" ;;
   hostname) printf fixture-host ;;
   *) exit 99 ;;
@@ -45,7 +56,12 @@ esac
             LMS_HEARTBEAT_FILE=shell_path(self.root/'heartbeat'),LMS_DEADMAN_LOG=shell_path(self.root/'deadman.log'),
             LMS_PYTHON_BIN=shell_path(sys.executable),LMS_ALERT_EMAIL='synthetic@example.invalid',
             LMS_API_URL='http://fixture.invalid/health',LMS_FRONTEND_URL='http://fixture.invalid/',
-            MAIL_MARKER=shell_path(self.root/'mail.marker'))
+            MAIL_MARKER=shell_path(self.root/'mail.marker'),MAIL_BODY=shell_path(self.root/'mail.body'),
+            LMS_EXPECTED_SHA='a'*40,LMS_ALERT_STATE_FILE=shell_path(self.root/'alerts.json'),
+            LMS_BACKUP_STATUS_FILE=shell_path(self.root/'backup-status.json'))
+        (self.root/'backup-status.json').write_text(json.dumps({
+            'status':'ok','timestamp':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
+            'sha256':'b'*64}),encoding='utf8')
 
     def tearDown(self): self.directory.cleanup()
 
@@ -74,6 +90,56 @@ esac
     def test_invalid_threshold_stops_before_checks(self):
         self.env['LMS_DISK_THRESHOLD']='invalid'
         self.assertEqual(self.health().returncode,2);self.assertFalse((self.root/'heartbeat').exists())
+
+    def test_unexpected_sha_alerts(self):
+        self.env['LMS_EXPECTED_SHA']='b'*40
+        result=self.health();self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Unexpected build SHA',(self.root/'health.log').read_text())
+
+    def test_missing_expected_sha_stops_before_collection(self):
+        self.env.pop('LMS_EXPECTED_SHA',None)
+        result=self.health();self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse((self.root/'heartbeat').exists())
+
+    def test_historical_csv_header_and_bytes_are_preserved(self):
+        file=self.root/'health.csv';file.write_bytes(b'timestamp,status\nold,OK\n')
+        result=self.health();self.assertEqual(result.returncode,2,result.stderr)
+        self.assertEqual(file.read_bytes(),b'timestamp,status\nold,OK\n')
+        self.assertFalse((self.root/'heartbeat').exists())
+
+    def test_backup_failure_missing_stale_or_invalid_status_alerts(self):
+        file=self.root/'backup-status.json'
+        for data in [None,{'status':'failed'}, {'status':'ok','timestamp':'2000-01-01T00:00:00Z','sha256':'b'*64}, {'status':'ok','timestamp':'bad','sha256':'bad'}]:
+            with self.subTest(data=data):
+                if data is None: file.unlink(missing_ok=True)
+                else: file.write_text(json.dumps(data),encoding='utf8')
+                result=self.health();self.assertEqual(result.returncode,1,result.stderr)
+                self.assertIn('Backup evidence failed',(self.root/'health.log').read_text())
+
+    def test_reconciliation_alert_is_sanitized_and_throttled(self):
+        for _ in range(2):
+            result=self.health('reconciliation');self.assertEqual(result.returncode,1,result.stderr)
+        self.assertEqual((self.root/'mail.marker').read_text(),'called')
+        body=(self.root/'mail.body').read_text()
+        self.assertIn('Reconciliation signals in recent logs: 1',body)
+        for private in ['PRIVATE_REFERENCE','private@example.invalid','12345']:
+            self.assertNotIn(private,body)
+            self.assertNotIn(private,(self.root/'health.log').read_text())
+        self.assertIn('MAIL_SUPPRESSED',(self.root/'health.log').read_text())
+
+    def test_truncated_recent_logs_cannot_report_healthy(self):
+        result=self.health('log_flood');self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Recent log sample exceeded safe collection limit',(self.root/'health.log').read_text())
+        self.assertIn(',false,ALERT',(self.root/'health.csv').read_text())
+
+    def test_health_mail_failure_reserves_cooldown_and_stays_alerting(self):
+        result=self.health('mail_failure');self.assertEqual(result.returncode,0,result.stderr)
+        # Force a real health alert while mail transport fails.
+        self.env['LMS_EXPECTED_SHA']='b'*40
+        result=self.health('mail_failure');self.assertEqual(result.returncode,1,result.stderr)
+        result=self.health('mail_failure');self.assertEqual(result.returncode,1,result.stderr)
+        self.assertEqual((self.root/'mail.marker').read_text(),'called')
+        self.assertIn('MAIL_SUBMISSION_FAILED',(self.root/'health.log').read_text())
 
     def test_fresh_heartbeat_no_mail(self):
         self.beat();result=self.deadman();self.assertEqual(result.returncode,0,result.stderr)
