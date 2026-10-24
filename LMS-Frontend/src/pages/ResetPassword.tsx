@@ -3,10 +3,12 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, Lock, Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/authService';
 import { getErrorMessage } from '../utils/apiError';
+import { useAuth } from '../context/useAuth';
 
 const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const token = searchParams.get('token') ?? '';
 
@@ -40,6 +42,7 @@ const ResetPassword: React.FC = () => {
     setSubmitting(true);
     try {
       await authService.resetPassword(token, password);
+      await logout();
       // Redirect to login with a success indicator in state
       navigate('/login', { state: { passwordReset: true }, replace: true });
     } catch (err) {

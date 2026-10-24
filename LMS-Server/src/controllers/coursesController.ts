@@ -4,13 +4,15 @@ import AdmZip from 'adm-zip';
 import path from 'path';
 import fs from 'fs';
 import { query, queryOne, execute } from '../config/database.js';
-import { hasPermission } from '../middleware/rbac.js';
+import { hasPermission, getUserPermissions } from '../middleware/rbac.js';
 import { AuthRequest, Course, CourseSection, CourseWeek, CourseItem, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { getDocumentFileUrl, deleteFile } from '../utils/fileUpload.js';
 import { createNotification } from '../services/notificationService.js';
 import { renderMarkdownToSafeHtml } from '../utils/markdownProcessor.js';
 import { parseGitHubUrl, isAllowedOrg, fetchGitHubZip } from '../services/githubImportService.js';
+
+import { canAccessCourse, courseAccessScope } from '../services/courseAccessService.js';
 
 interface CourseRow {
   id: string;
@@ -19,14 +21,6 @@ interface CourseRow {
   course_code: string;
   sections: string;
   sponsor_label: string | null;
-}
-
-function getUserCourseCodes(userId: string): string[] {
-  const rows = query<{ course_code: string }>(
-    'SELECT course_code FROM user_course_codes WHERE user_id = ?',
-    [userId]
-  );
-  return rows.map((r) => r.course_code);
 }
 
 /**
@@ -88,55 +82,20 @@ function rowToCourse(row: CourseRow): Course {
 
 export async function getCourses(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const role = req.user?.role;
-    const userId = req.user?.userId;
-    let rows: CourseRow[];
-    if (role === 'admin') {
-      // Check if user has tenant.manage (super-admin) — sees all courses
-      const hasTenantManage = queryOne<{ name: string }>(
-        `SELECT p.name FROM permissions p
-         JOIN role_permissions rp ON p.id = rp.permission_id
-         JOIN user_roles ur ON rp.role_id = ur.role_id
-         WHERE ur.user_id = ? AND p.name = 'tenant.manage'`,
-        [userId]
-      );
-      if (hasTenantManage) {
-        rows = query<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses ORDER BY title');
-      } else {
-        // Tenant admin: see own tenant courses + platform-wide courses
-        rows = query<CourseRow>(
-          `SELECT id, title, description, course_code, sections, sponsor_label FROM courses
-           WHERE tenant_id IN (SELECT tenant_id FROM tenant_users WHERE user_id = ? AND tenant_role = 'admin')
-              OR tenant_id IS NULL
-           ORDER BY title`,
-          [userId]
-        );
-      }
-    } else if (role === 'lecturer' && userId) {
-      // Lecturers see courses they are assigned to via course_lecturers
-      rows = query<CourseRow>(
-        `SELECT c.id, c.title, c.description, c.course_code, c.sections, c.sponsor_label
-         FROM courses c
-         INNER JOIN course_lecturers cl ON cl.course_id = c.id
-         WHERE cl.user_id = ?
-         ORDER BY c.title`,
-        [userId]
-      );
-    } else {
-      if (!userId) {
-        throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
-      }
-      const codes = getUserCourseCodes(userId);
-      if (codes.length === 0) {
-        rows = [];
-      } else {
-        const placeholders = codes.map(() => '?').join(',');
-        rows = query<CourseRow>(
-          `SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE course_code IN (${placeholders}) AND approval_status IN ('approved', 'published') ORDER BY title`,
-          codes
-        );
-      }
+    const userId = req.user!.userId;
+    const permissions = new Set(getUserPermissions(userId));
+    const access = req.query.access;
+    if (access !== undefined && access !== 'manage' && access !== 'members' && access !== 'enrolled') {
+      throw new AppError('access must be manage, members or enrolled', 400, ErrorCodes.VALIDATION_ERROR);
     }
+    if (access === 'manage' && !permissions.has('course.manage')) {
+      throw new AppError('Insufficient permissions', 403, ErrorCodes.FORBIDDEN);
+    }
+    const scope = courseAccessScope(userId, permissions, access === 'manage' || access === 'members' || access === 'enrolled' ? access : 'read');
+    const rows = query<CourseRow>(
+      'SELECT c.id, c.title, c.description, c.course_code, c.sections, c.sponsor_label FROM courses c WHERE ' + scope.sql + ' ORDER BY c.title',
+      scope.params,
+    );
     const courses = rows.map(rowToCourse);
     res.json({
       success: true,
@@ -157,21 +116,8 @@ export async function getCourse(req: AuthRequest, res: Response, next: NextFunct
     if (!row) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
-    if (req.user?.role !== 'admin' && userId) {
-      if (req.user?.role === 'lecturer') {
-        const assigned = queryOne<{ course_id: string }>(
-          'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-          [id, userId]
-        );
-        if (!assigned) {
-          throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
-        }
-      } else {
-        const codes = getUserCourseCodes(userId);
-        if (!codes.includes(row.course_code)) {
-          throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
-        }
-      }
+    if (!userId || !canAccessCourse(userId, id, new Set(getUserPermissions(userId)))) {
+      throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
     }
     res.json({
       success: true,
@@ -261,7 +207,7 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
 
     // Determine tenant_id: auto-set for tenant admins, explicit for super-admins, NULL otherwise
     let tenantId: string | null = null;
-    if (req.user?.role === 'admin' && req.user?.userId) {
+    if (req.user?.userId && hasPermission(req.user.userId, 'course.delete')) {
       const hasTenantManage = queryOne<{ name: string }>(
         `SELECT p.name FROM permissions p
          JOIN role_permissions rp ON p.id = rp.permission_id
@@ -291,6 +237,11 @@ export async function createCourse(req: AuthRequest, res: Response, next: NextFu
       [course.id, course.title, course.description ?? null, course.courseCode, storedJson, sponsorLabelVal, tenantId, approvalStatus]
     );
 
+    // A new instructor draft must be discoverable by its creator without enrollment.
+    if (req.user?.userId && !hasPermission(req.user.userId, 'course.delete')) {
+      execute('INSERT OR IGNORE INTO course_lecturers (course_id, user_id) VALUES (?, ?)', [course.id, req.user.userId]);
+    }
+
     const row = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [course.id]);
     if (!row) {
       throw new AppError('Failed to create course', 500, ErrorCodes.INTERNAL_ERROR);
@@ -311,17 +262,6 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
     const existing = queryOne<CourseRow>('SELECT id, title, description, course_code, sections, sponsor_label FROM courses WHERE id = ?', [id]);
     if (!existing) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
-    }
-
-    // Lecturers may only update courses they are assigned to via course_lecturers
-    if (req.user?.role === 'lecturer') {
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [id, req.user.userId]
-      );
-      if (!assigned) {
-        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
-      }
     }
 
     const o = (req.body || {}) as Record<string, unknown>;
@@ -401,17 +341,6 @@ export async function importCourseContent(req: AuthRequest, res: Response, next:
     );
     if (!existing) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
-    }
-
-    // Lecturer assignment guard (same as updateCourse)
-    if (req.user?.role === 'lecturer') {
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [id, req.user.userId],
-      );
-      if (!assigned) {
-        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
-      }
     }
 
     const body = req.body as { sections?: unknown; mode?: string };
@@ -811,18 +740,6 @@ export function importZipContent(req: AuthRequest, res: Response, next: NextFunc
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    // Lecturer assignment guard
-    if (req.user?.role === 'lecturer') {
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [id, req.user.userId],
-      );
-      if (!assigned) {
-        if (uploadedPath) deleteFile(uploadedPath);
-        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
-      }
-    }
-
     if (!req.file) {
       throw new AppError('ZIP file is required', 400, ErrorCodes.VALIDATION_ERROR);
     }
@@ -846,17 +763,6 @@ export async function importGitHubContent(req: AuthRequest, res: Response, next:
     );
     if (!existing) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
-    }
-
-    // Lecturer assignment guard
-    if (req.user?.role === 'lecturer') {
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [id, req.user.userId],
-      );
-      if (!assigned) {
-        throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
-      }
     }
 
     const { repoUrl, subPath, ref = 'main' } = req.body as {
@@ -909,21 +815,9 @@ export async function deleteCourse(req: AuthRequest, res: Response, next: NextFu
 
 // --- Course members (Course members & user directory API) ---
 
-function assertCanAccessCourse(courseId: string, userId: string, isAdmin: boolean): boolean {
-  if (isAdmin) return true;
-  const course = queryOne<{ course_code: string }>('SELECT course_code FROM courses WHERE id = ?', [courseId]);
-  if (!course) return false;
-  const hasCode = queryOne<{ user_id: string }>(
-    'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?',
-    [userId, course.course_code]
-  );
-  return !!hasCode;
-}
-
 export async function getCourseMembers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user?.userId;
-    const isAdmin = req.user?.role === 'admin';
     if (!userId) {
       throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
     }
@@ -933,7 +827,7 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
     if (!course) {
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
-    if (!assertCanAccessCourse(courseId, userId, isAdmin)) {
+    if (!canAccessCourse(userId, courseId, new Set(getUserPermissions(userId)), 'members')) {
       throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
     }
 

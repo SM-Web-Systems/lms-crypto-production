@@ -6,13 +6,7 @@ import { getErrorMessage } from '../utils/apiError';
 
 // SSO initiate endpoint — browser is redirected here, not a fetch call
 const AMMA_LOGIN_URL = '/api/v1/auth/amma-login';
-const AMMA_WALLET_URL = 'https://ammawallet.com';
-
-const SSO_ERROR_MESSAGES: Record<string, string> = {
-  invalid_state: 'The sign-in session expired or was tampered with. Please try again.',
-  assertion_failed: 'AmmaWallet could not verify your identity. Please try again.',
-  user_error: 'Could not create your LMS session. Please contact support.',
-};
+import { AMMA_WALLET_URL, SSO_ERROR_MESSAGES } from '../utils/walletSignIn';
 
 const Login: React.FC = () => {
   const { login } = useAuth();
@@ -27,7 +21,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [ssoRequired, setSsoRequired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [showAdminForm, setShowAdminForm] = useState(ssoErrorCode === 'link_required');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +67,9 @@ const Login: React.FC = () => {
           {ssoErrorMsg && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3">
               {ssoErrorMsg}
+              {(ssoErrorCode === 'email_required' || ssoErrorCode === 'email_unverified') && (
+                <a href={`${AMMA_WALLET_URL}/settings`} className="block mt-2 font-semibold underline">Open AmmaWallet settings</a>
+              )}
             </div>
           )}
 

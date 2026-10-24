@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { WebHandoffButton } from '@/components/WebHandoffButton';
 import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -46,6 +47,7 @@ function WalletBanner({ status }: { status: WalletStatus | null }) {
             Link your wallet on the web dashboard to receive certificates.
           </Text>
         )}
+        {!linked ? <View className="mt-3"><WebHandoffButton path="/student" label="Link wallet on web" /></View> : null}
       </View>
     </View>
   );

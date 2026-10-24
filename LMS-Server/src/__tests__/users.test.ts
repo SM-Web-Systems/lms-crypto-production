@@ -32,13 +32,13 @@ describe('GET /api/v1/users/me/courses', () => {
     expect(res.body.data.courseIds).not.toContain(ids.course2Id);
   });
 
-  it('admin with no course codes gets empty array', async () => {
+  it('admin discovers accessible platform courses without student enrollment', async () => {
     const res = await request(app)
       .get('/api/v1/users/me/courses')
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.courseIds).toEqual([]);
+    expect(res.body.data.courseIds).toEqual(expect.arrayContaining([ids.courseId, ids.course2Id]));
   });
 });
 

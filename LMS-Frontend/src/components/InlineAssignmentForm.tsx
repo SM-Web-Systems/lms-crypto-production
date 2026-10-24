@@ -56,7 +56,7 @@ export default function InlineAssignmentForm({
     try {
       await submissionsService.create({
         title: title.trim(),
-        description: '',
+        description: `Assignment: ${title.trim()}`,
         file,
         courseId,
         weekId,

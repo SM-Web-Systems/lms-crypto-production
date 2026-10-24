@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 import { courseService } from '../services/courseService';
 import { userDirectoryService } from '../services/userDirectoryService';
 import { usersService, UserDirectoryItem } from '../services/usersService';
@@ -66,8 +67,7 @@ const CourseMembers: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userId = user?.id ?? '';
-  const isAdmin = user?.role === 'admin';
-  const userCourseCodes = user?.courseCodes ?? [];
+  const isAdmin = hasCapability(user, 'user.manage');
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [membersByCourseId, setMembersByCourseId] = useState<Record<string, Member[]>>({});
@@ -91,12 +91,8 @@ const CourseMembers: React.FC = () => {
   const [pendingInvitesByCourse, setPendingInvitesByCourse] = useState<Record<string, PendingInvite[]>>({});
   const csvFileRef = useRef<HTMLInputElement>(null);
 
-  const coursesToShow = useMemo(
-    () => (isAdmin ? courses : courses.filter((c) => c.courseCode && userCourseCodes.includes(c.courseCode))),
-    [courses, isAdmin, userCourseCodes]
-  );
-
-  const userCourseCodesKey = useMemo(() => [...userCourseCodes].sort().join(','), [userCourseCodes]);
+  // The API already enforces enrollment, assignment and tenant scope.
+  const coursesToShow = courses;
 
   const effectiveSelectedId = useMemo(() => {
     if (coursesToShow.length === 0) return null;
@@ -139,12 +135,10 @@ const CourseMembers: React.FC = () => {
       setLoading(true);
       setLoadError(null);
       try {
-        const list = await courseService.fetchCourses();
+        const list = await courseService.fetchCourses({access: 'members'});
         if (cancelled) return;
 
-        const toShow = isAdmin
-          ? list
-          : list.filter((c) => c.courseCode && userCourseCodes.includes(c.courseCode));
+        const toShow = list;
 
         const memberResults = await Promise.all(
           toShow.map(async (c) => {
@@ -198,7 +192,7 @@ const CourseMembers: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, userCourseCodesKey, loadRetryKey]);
+  }, [isAdmin, userId, loadRetryKey]);
 
   const allCourseCodes = useMemo(
     () => [...new Set(courses.map((c) => c.courseCode).filter(Boolean) as string[])].sort(),
@@ -368,7 +362,7 @@ const CourseMembers: React.FC = () => {
     }
   };
 
-  const basePath = user?.role === 'admin' ? '/admin' : '/student';
+  const basePath = ''; // Shared profile routes work across all workspaces.
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
   const hour = new Date().getHours();

@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { randomBytes } from 'crypto';
-import { JWTPayload } from '../types/index.js';
+import { JWTPayload, type LegacyRole } from '../types/index.js';
+import { queryOne } from './database.js';
 
 dotenv.config();
 
@@ -15,16 +16,18 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 /**
  * Generate a signed JWT for the given payload.
  *
- * KB-01: The `role` field in the payload is the legacy `users.role` value at
- * issuance time. It is NOT refreshed when an admin changes the user's role or
- * RBAC assignments. This is accepted behavior — backend authorization always
- * queries the DB via `requirePermission()`, so permission changes take effect
- * immediately. The JWT `role` is used only for frontend routing (presentation).
- * See KNOWN_BEHAVIORS.md for full rationale.
+ * Role changes invalidate older tokens through an authorization version.
+ * Tokens predating versioning are treated as version zero by authenticate().
  */
 export function generateToken(payload: JWTPayload): string {
   // jwtid ensures each token is unique even for identical payloads issued in the same second
-  return jwt.sign(payload, JWT_SECRET, {
+  const current = queryOne<{ authorization_version: number; role: LegacyRole }>(
+    'SELECT authorization_version, role FROM users WHERE id = ?', [payload.userId],
+  );
+  // A login may have read the user before an asynchronous password check. Read
+  // the legacy role and version together so a concurrent demotion cannot mint
+  // an old admin claim with the new, valid version.
+  return jwt.sign({ ...payload, role: current?.role ?? payload.role, authorizationVersion: current?.authorization_version ?? 0 }, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
     jwtid: randomBytes(8).toString('hex'),
   } as jwt.SignOptions);

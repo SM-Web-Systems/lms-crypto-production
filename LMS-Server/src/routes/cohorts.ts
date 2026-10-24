@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission, getUserPermissions } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
+import { sponsorCourseOptions } from '../services/sponsorPortalService.js';
 import { queryOne } from '../config/database.js';
 import { createNotification } from '../services/notificationService.js';
 import {
@@ -111,6 +112,9 @@ router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), 
     return;
   }
 
+  if (!isAdminTier(req) && !sponsorCourseOptions(req.user!.userId).some(c => c.id === courseId)) {
+    res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Course is not available for sponsorship'}});return;
+  }
   try {
     const cohort = createCohort({
       name,
@@ -157,7 +161,7 @@ router.get('/admin/cohorts', authenticate, requirePermission('cohort.manage'), (
   const courseId = req.query.courseId as string | undefined;
   const filters: { courseId?: string; sponsorUserId?: string } = {};
   if (courseId) filters.courseId = courseId;
-  if (!isAdminTier(req)) {
+  if (!isAdminTier(req) || req.query.view === 'own') {
     filters.sponsorUserId = req.user!.userId;
   }
   const cohorts = listCohorts(Object.keys(filters).length > 0 ? filters : undefined);

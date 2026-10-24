@@ -30,6 +30,7 @@ import {
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
 import GlobalSearchBar from './GlobalSearchBar';
+import { activeWorkspace, availableWorkspaces, canAccessPath, workspacePaths } from '../utils/authorization';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -39,6 +40,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const workspace = activeWorkspace(user, location.pathname);
+  const workspaces = availableWorkspaces(user);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [walletBannerDismissed, setWalletBannerDismissed] = useState(false);
@@ -93,6 +96,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Dashboard', path: '/lecturer', icon: LayoutDashboard },
       { name: 'Course Editor', path: '/lecturer/course', icon: BookOpen },
       { name: 'Submissions', path: '/lecturer/submissions', icon: FileText },
+      { name: 'Course members', path: '/lecturer/course-members', icon: Users },
       { name: 'Messages', path: '/lecturer/messages', icon: Mail },
       { name: 'Profile', path: '/lecturer/profile', icon: User },
     ],
@@ -103,6 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ],
     sponsor: [
       { name: 'Dashboard', path: '/sponsor', icon: LayoutDashboard },
+      { name: 'Cohorts', path: '/sponsor/cohorts', icon: Users },
       { name: 'Rewards', path: '/sponsor/rewards', icon: Gift },
       { name: 'Impact Report', path: '/sponsor/impact', icon: BarChart2 },
       { name: 'Billing', path: '/sponsor/billing', icon: CreditCard },
@@ -145,7 +150,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ],
   };
 
-  const navigation = navigationMap[user?.role ?? 'student'] ?? navigationMap.student;
+  const navigation = (workspace ? navigationMap[workspace] ?? [] : []).filter(item => canAccessPath(user, item.path));
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
@@ -163,7 +168,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         className={[
           'fixed lg:sticky top-0 z-50 h-screen w-56 xl:w-60 shrink-0 flex flex-col bg-gradient-to-b from-white to-neutral-50/95 border-r border-neutral-200/90 shadow-sm lg:shadow-none',
           'transition-transform duration-200 ease-out lg:translate-x-0',
-          mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full invisible lg:visible lg:translate-x-0',
         ].join(' ')}
       >
         <div className="p-4 border-b border-neutral-200/80 flex items-center gap-3 min-h-[4rem]">
@@ -182,6 +187,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
         </div>
 
+        {workspaces.length > 1 && <div className="p-3">
+          <label htmlFor="workspace-select" className="block text-xs text-neutral-500 mb-1">Workspace</label>
+          <select id="workspace-select" value={workspace} onChange={event => navigate(workspacePaths[event.target.value as keyof typeof workspacePaths])}
+            className="w-full rounded border border-neutral-300 p-2 text-sm">
+            {workspaces.map(w => <option key={w} value={w}>{w === 'teaching-assistant' ? 'Teaching assistant' : w.charAt(0).toUpperCase() + w.slice(1)}</option>)}
+          </select>
+        </div>}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5" aria-label="Main navigation">
           {navigation.map((item) => {
             const Icon = item.icon;
@@ -233,7 +245,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <p className="text-sm font-medium text-neutral-800 truncate max-w-[140px] sm:max-w-[200px]">
                 {user?.name}
               </p>
-              <p className="text-xs text-neutral-500 capitalize">{user?.role}</p>
+              <p className="text-xs text-neutral-500 capitalize">{workspace?.replace(/-/g, ' ')}</p>
             </div>
             <button
               type="button"
@@ -247,7 +259,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
 
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
-          {user?.role === 'student' &&
+          {workspace === 'student' &&
             user?.walletLinkingStatus === 'existing_account' &&
             !walletBannerDismissed && (
               <WalletLinkingBanner onDismiss={() => setWalletBannerDismissed(true)} />

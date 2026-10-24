@@ -1,12 +1,15 @@
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs, Redirect, usePathname, useRouter } from 'expo-router';
 import { ActivityIndicator, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
+import { canStudy, canOpenStudentPath } from '@/utils/authorization';
 import { brand } from '@/theme/colors';
 
 export default function StudentTabsLayout() {
-  const { isLoading, isAuthenticated, user, logout } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
+  const path = usePathname();
+  const router = useRouter();
 
   if (isLoading) {
     return (
@@ -20,23 +23,14 @@ export default function StudentTabsLayout() {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
-  if (user?.role === 'admin') {
-    return (
-      <View className="flex-1 items-center justify-center bg-neutral-50 px-8">
-        <Ionicons name="shield-outline" size={48} color={brand.accent.teal} />
-        <Text className="mt-4 text-center text-lg font-bold text-neutral-900">Admin features are on web</Text>
-        <Text className="mt-2 text-center text-sm text-neutral-600">
-          Use the web dashboard for admin tools. Sign in with a student account to use the mobile app.
-        </Text>
-        {user.email ? (
-          <Text className="mt-4 text-center text-xs text-neutral-400">Signed in as {user.email}</Text>
-        ) : null}
-        <View className="mt-6 w-full max-w-xs">
-          <Button label="Sign out" variant="outline" onPress={logout} />
-        </View>
-      </View>
-    );
-  }
+  if (user?.deletionStatus === 'pending_deletion') return <Redirect href="/account" />;
+  if (!canStudy(user)) return <Redirect href="/workspace" />;
+  if (!canOpenStudentPath(user,path)) return <View className="flex-1 justify-center bg-neutral-50 p-6 gap-4">
+    <Text className="text-xl font-bold">Access unavailable</Text>
+    <Text>Your current permissions do not include this feature.</Text>
+    <Button label="Back to learning" onPress={()=>router.replace('/(student)/dashboard')} />
+    <Button label="Your workspaces" variant="outline" onPress={()=>router.replace('/workspace')} />
+  </View>;
 
   return (
     <Tabs
@@ -67,6 +61,7 @@ export default function StudentTabsLayout() {
         name="submissions"
         options={{
           title: 'Submissions',
+          href: user?.permissions?.includes('course.submit') ? undefined : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="cloud-upload-outline" color={color} size={size} />,
         }}
       />
@@ -81,6 +76,7 @@ export default function StudentTabsLayout() {
         name="certificates"
         options={{
           title: 'Certificates',
+          href: user?.permissions?.includes('certificate.view_own') ? undefined : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="ribbon-outline" color={color} size={size} />,
         }}
       />

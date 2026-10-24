@@ -51,16 +51,25 @@ export interface NFTResponse {
 
 // User Types
 export type UserRole = "student" | "admin" | "lecturer" | "sponsor" | "employer" | "parent" | "teacher" | "teaching-assistant" | "custom";
+export type Workspace = Exclude<UserRole, 'custom'>;
 
 export interface User {
+  deletionStatus?: string | null;
   id: string;
   name: string;
   email: string;
   role: UserRole;
   walletAddress: string | null;
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
+  authProvider?: 'local' | 'ammawallet';
   /** Course codes the user can access (students). When backend supports this, include in auth/me. */
   courseCodes?: string[];
+  rbacRoles?: string[];
+  permissions?: string[];
+  workspaces?: Workspace[];
+  defaultWorkspace?: Workspace | null;
+  adminTier?: 'admin' | 'admin-2' | 'super-admin' | null;
+  assignedCourses?: { instructor: string[]; teachingAssistant: string[] };
 }
 
 export interface LoginResponse {
@@ -198,6 +207,7 @@ export interface StudentQueryParams {
 }
 
 export interface SubmissionQueryParams {
+  view?: 'own' | 'staff';
   page?: number;
   limit?: number;
   status?: SubmissionStatus;

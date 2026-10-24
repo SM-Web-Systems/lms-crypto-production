@@ -7,7 +7,8 @@
 
 import { Response } from 'express';
 import { query } from '../config/database.js';
-import { hasPermission } from '../middleware/rbac.js';
+import { getUserPermissions } from '../middleware/rbac.js';
+import { searchCourseScope, searchDirectoryScope } from '../services/searchScopeService.js';
 import type { AuthRequest } from '../types/index.js';
 import logger from '../utils/logger.js';
 
@@ -28,7 +29,9 @@ export function globalSearch(req: AuthRequest, res: Response): void {
     const q = rawQ.slice(0, 100);
     const limit = Math.min(20, Math.max(1, parseInt(req.query.limit as string, 10) || 5));
     const userId = req.user!.userId;
-    const isAdmin = hasPermission(userId, 'user.view_all');
+    const permissions = new Set(getUserPermissions(userId));
+    const courseScope = searchCourseScope(userId, permissions);
+    const staffScope = searchCourseScope(userId, permissions, true);
 
     // Parse requested types (default: all accessible)
     let requestedTypes: SearchType[];
@@ -46,13 +49,13 @@ export function globalSearch(req: AuthRequest, res: Response): void {
     const results: Record<string, unknown[]> = {};
     const counts: Record<string, number> = {};
 
-    // Courses — all authenticated users can search
-    if (requestedTypes.includes('courses')) {
+    // Course discovery uses enrollment, assignment, sponsor, or tenant scope.
+    if (requestedTypes.includes('courses') && permissions.has('course.view')) {
       const courses = query<{ id: string; title: string; course_code: string; description: string }>(
-        `SELECT id, title, course_code, description FROM courses
-         WHERE title LIKE ? OR course_code LIKE ? OR description LIKE ?
+        `SELECT c.id, c.title, c.course_code, c.description FROM courses c
+         WHERE (c.title LIKE ? OR c.course_code LIKE ? OR c.description LIKE ?) AND ${courseScope.sql}
          ORDER BY title LIMIT ?`,
-        [pattern, pattern, pattern, limit],
+        [pattern, pattern, pattern, ...courseScope.params, limit],
       );
       results.courses = courses.map((c) => ({
         id: c.id,
@@ -63,13 +66,13 @@ export function globalSearch(req: AuthRequest, res: Response): void {
       counts.courses = courses.length;
     }
 
-    // Users — admin only
-    if (requestedTypes.includes('users') && isAdmin) {
+    if (requestedTypes.includes('users') && permissions.has('user.view_all')) {
+      const directoryScope = searchDirectoryScope(userId, permissions);
       const users = query<{ id: string; name: string; email: string; role: string }>(
-        `SELECT id, name, email, role FROM users
-         WHERE name LIKE ? OR email LIKE ?
+        `SELECT u.id, u.name, u.email, u.role FROM users u
+         WHERE (u.name LIKE ? OR u.email LIKE ?) AND ${directoryScope.sql}
          ORDER BY name LIMIT ?`,
-        [pattern, pattern, limit],
+        [pattern, pattern, ...directoryScope.params, limit],
       );
       results.users = users.map((u) => ({
         id: u.id,
@@ -80,14 +83,26 @@ export function globalSearch(req: AuthRequest, res: Response): void {
       counts.users = users.length;
     }
 
-    // Credentials — students see own only, admins see all
+    // Directory access never implies credential access. Reviewers are course-scoped.
     if (requestedTypes.includes('credentials')) {
       const credParams: unknown[] = [pattern, pattern];
       let credWhere = `(c.title LIKE ? OR u.name LIKE ?) AND nc.mint_status = 'minted' AND nc.is_superseded = 0`;
-      if (!isAdmin) {
-        credWhere += ' AND nc.user_id = ?';
+      const credentialScopes: string[] = [];
+      if (permissions.has('certificate.view_own')) {
+        credentialScopes.push('nc.user_id = ?');
         credParams.push(userId);
       }
+      if (permissions.has('certificate.approve')) {
+        const isAdministrator = permissions.has('course.delete');
+        const studentScope = isAdministrator
+          ? searchDirectoryScope(userId, permissions) : { sql: '1 = 1', params: [] };
+        // Legacy credentials without a course remain visible to administrators
+        // within their directory boundary, never to unassigned instructors.
+        const reviewScope = isAdministrator ? `(c.id IS NULL OR ${staffScope.sql})` : staffScope.sql;
+        credentialScopes.push(`(${reviewScope} AND ${studentScope.sql})`);
+        credParams.push(...staffScope.params, ...studentScope.params);
+      }
+      credWhere += ` AND (${credentialScopes.length ? credentialScopes.join(' OR ') : '0 = 1'})`;
       credParams.push(limit);
 
       const creds = query<{
@@ -95,7 +110,8 @@ export function globalSearch(req: AuthRequest, res: Response): void {
       }>(
         `SELECT nc.id, c.title AS course_title, u.name AS student_name, nc.created_at
          FROM nft_credentials nc
-         LEFT JOIN courses c ON c.id = nc.course_id
+         LEFT JOIN quizzes source_quiz ON source_quiz.id = nc.quiz_id
+         LEFT JOIN courses c ON c.id = COALESCE(nc.course_id, source_quiz.course_id)
          LEFT JOIN users u ON u.id = nc.user_id
          WHERE ${credWhere}
          ORDER BY nc.created_at DESC LIMIT ?`,
@@ -110,15 +126,14 @@ export function globalSearch(req: AuthRequest, res: Response): void {
       counts.credentials = creds.length;
     }
 
-    // Quizzes — admin sees all, students excluded for now (low value, can add later)
-    if (requestedTypes.includes('quizzes') && isAdmin) {
+    if (requestedTypes.includes('quizzes') && permissions.has('quiz.view_analytics')) {
       const quizzes = query<{ id: string; title: string; description: string | null; course_title: string | null }>(
         `SELECT q.id, q.title, q.description, c.title AS course_title
          FROM quizzes q
          LEFT JOIN courses c ON c.id = q.course_id
-         WHERE q.title LIKE ? OR q.description LIKE ?
+         WHERE (q.title LIKE ? OR q.description LIKE ?) AND ${staffScope.sql}
          ORDER BY q.title LIMIT ?`,
-        [pattern, pattern, limit],
+        [pattern, pattern, ...staffScope.params, limit],
       );
       results.quizzes = quizzes.map((qz) => ({
         id: qz.id,

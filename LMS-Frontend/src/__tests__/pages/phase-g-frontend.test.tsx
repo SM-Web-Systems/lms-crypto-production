@@ -40,7 +40,7 @@ import { PermissionGate } from '../../components/PermissionGate';
 function renderLayoutWithRole(role: string) {
   mockUser.role = role;
   vi.mocked(useAuth).mockReturnValue({
-    user: { ...mockUser, role: role as any },
+    user: { ...mockUser, role: 'student', workspaces: [role], defaultWorkspace: role, permissions: ['impact_report.read', 'reward.view_assigned', 'course.grade_pending', 'billing.view_own', 'cohort.manage'] } as any,
     isAuthenticated: true,
     isLoading: false,
     logout: vi.fn(),
@@ -71,6 +71,7 @@ describe('Phase G Frontend', () => {
   it('G-NAV-1 — Sponsor sees sponsor nav items', () => {
     renderLayoutWithRole('sponsor');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Cohorts')).toBeInTheDocument();
     expect(screen.getByText('Impact Report')).toBeInTheDocument();
     expect(screen.getByText('Billing')).toBeInTheDocument();
   });
@@ -127,7 +128,7 @@ describe('Phase G Frontend', () => {
 
   it('G-CUSTOM-3 — PermissionGate renders children for allowed role', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { ...mockUser, role: 'admin' as any },
+      user: { ...mockUser, role: 'student', workspaces: ['admin'], permissions: ['system.manage_roles'] } as any,
       isAuthenticated: true,
       isLoading: false,
       logout: vi.fn(),

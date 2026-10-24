@@ -24,7 +24,7 @@ import type { ImpactReport, SponsorBilling } from '../../services/sponsorService
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: vi.fn(() => ({
-    user: { id: '1', name: 'Sponsor', email: 's@test.com', role: 'sponsor', walletAddress: null, walletLinkingStatus: 'none' as const },
+    user: { id: '1', name: 'Sponsor', email: 's@test.com', role: 'student', workspaces:['sponsor'], permissions:['cohort.view_own','cohort.manage','reward.view_assigned','impact_report.read','billing.view_own','student.view_assigned'], walletAddress: null, walletLinkingStatus: 'none' as const },
     isAuthenticated: true,
     isLoading: false,
     logout: vi.fn(),
@@ -59,6 +59,9 @@ const mockGetImpactReport = vi.fn();
 const mockGetBilling = vi.fn();
 vi.mock('../../services/sponsorService', () => ({
   sponsorService: {
+    getCourses:(...args:unknown[])=>mockGetCourseAnalytics(...args),getStudents:(...args:unknown[])=>mockGetSponsorStudents(...args),exportCoursesCsv:(...args:unknown[])=>mockExportCsv(...args),
+    getCourseOptions:async()=> (await mockGetCourseAnalytics()).map((c:{courseId:string;courseName:string;tiersEnabled?:string})=>({id:c.courseId,title:c.courseName,tiersEnabled:c.tiersEnabled??'both'})),
+    getDashboard:vi.fn().mockResolvedValue({cohorts:[]}),getSpendingReport:(...args:unknown[])=>mockGetSpendingReport(...args),
     getImpactReport: (...args: unknown[]) => mockGetImpactReport(...args),
     getBilling: (...args: unknown[]) => mockGetBilling(...args),
   },

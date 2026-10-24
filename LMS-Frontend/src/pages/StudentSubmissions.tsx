@@ -27,7 +27,7 @@ const StudentSubmissions: React.FC = () => {
   const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
-    fetchSubmissions();
+    fetchSubmissions({view: 'own'});
   }, [fetchSubmissions]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

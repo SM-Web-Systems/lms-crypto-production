@@ -3,6 +3,7 @@ import { Card, CardContent } from './Card';
 import { getWalletStatus } from '../services/walletService';
 import type { User, WalletStatusResponse } from '../types/api';
 import { Wallet, AlertCircle, Copy, ExternalLink, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Props {
   user: User;
@@ -19,6 +20,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setStatus(null); setError(false);
     if (user.walletLinkingStatus !== 'linked') return;
     let cancelled = false;
     setLoading(true);
@@ -26,7 +28,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
       .then((s) => { if (!cancelled) { setStatus(s); setLoading(false); } })
       .catch(() => { if (!cancelled) { setError(true); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [user.walletLinkingStatus]);
+  }, [user.id, user.walletAddress, user.walletLinkingStatus]);
 
   function copyAddress(addr: string) {
     navigator.clipboard.writeText(addr).then(() => {
@@ -36,7 +38,8 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
   }
 
   // State A — no wallet
-  if (user.walletLinkingStatus === 'none' || !user.walletLinkingStatus) {
+  const linkingStatus = status?.walletLinkingStatus ?? user.walletLinkingStatus;
+  if (linkingStatus === 'none' || !linkingStatus) {
     return (
       <Card className="bg-gradient-to-br from-amber-50/80 via-white to-orange-50/60">
         <CardContent className="flex items-start gap-4 py-5">
@@ -45,21 +48,21 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
           </span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-amber-900 text-sm">Wallet not linked</p>
-            <p className="text-xs text-amber-800/80 mt-0.5">Link your AmmaWallet to receive course certificates.</p>
+            <p className="text-xs text-amber-800/80 mt-0.5">Create an active mainnet wallet on AmmaWallet, then connect or refresh it from your LMS profile.</p>
           </div>
-          <a
-            href="/api/v1/auth/amma-login"
+          <Link
+            to="/profile"
             className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
           >
-            Sign in with AmmaWallet
-          </a>
+            Manage wallet connection
+          </Link>
         </CardContent>
       </Card>
     );
   }
 
   // State B — existing_account
-  if (user.walletLinkingStatus === 'existing_account') {
+  if (linkingStatus === 'existing_account') {
     return (
       <Card className="bg-gradient-to-br from-amber-50/80 via-white to-orange-50/60">
         <CardContent className="flex items-start gap-4 py-5">
@@ -68,17 +71,15 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
           </span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-amber-900 text-sm">AmmaWallet action needed</p>
-            <p className="text-xs text-amber-800/80 mt-0.5">An AmmaWallet account already exists for your email. Sign in to link it.</p>
+            <p className="text-xs text-amber-800/80 mt-0.5">Connect your existing AmmaWallet account from your LMS profile using your LMS password.</p>
           </div>
-          <a
-            href="https://ammawallet.com"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to="/profile"
             className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
           >
-            Open AmmaWallet
+            Manage wallet connection
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
-          </a>
+          </Link>
         </CardContent>
       </Card>
     );
@@ -97,7 +98,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
   }
 
   // State C — linked
-  const walletAddr = user.walletAddress;
+  const walletAddr = status ? status.walletAddress : user.walletAddress;
   const xlmBalance = status?.xlmBalance;
 
   return (
@@ -113,7 +114,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
                   <CheckCircle className="h-3 w-3" aria-hidden="true" />
-                  Wallet linked
+                  Wallet confirmed at sign-in
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-700/10 text-emerald-900 text-xs font-medium">
                   Mainnet
@@ -157,6 +158,8 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
             </a>
           </div>
         </div>
+        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active mainnet wallet at sign-in.
+          {' '}<Link to="/profile" className="font-semibold underline">Review or refresh wallet connection</Link></p>
       </CardContent>
     </Card>
   );

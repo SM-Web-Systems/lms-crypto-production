@@ -55,6 +55,9 @@ export const submissionsService = {
     const formData = new FormData();
     formData.append('title', data.title);
     formData.append('description', data.description);
+    if (data.courseId) formData.append('courseId', data.courseId);
+    if (data.weekId) formData.append('weekId', data.weekId);
+    if (data.itemId) formData.append('itemId', data.itemId);
     appendNativeFile(formData, 'file', data.file);
     const response = await api.post<ApiResponse<Submission>>('/submissions', formData);
     return assertApiSuccess(response, 'Could not submit your work.');

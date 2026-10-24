@@ -15,7 +15,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: vi.fn(() => ({
-    user: { id: '1', name: 'Sponsor', email: 's@test.com', role: 'sponsor', walletAddress: null, walletLinkingStatus: 'none' as const },
+    user: { id: '1', name: 'Sponsor', email: 's@test.com', role: 'student', workspaces:['sponsor'], permissions:['cohort.view_own','cohort.manage','reward.view_assigned','impact_report.read','billing.view_own','student.view_assigned'], walletAddress: null, walletLinkingStatus: 'none' as const },
     isAuthenticated: true,
     isLoading: false,
     logout: vi.fn(),
@@ -43,6 +43,8 @@ vi.mock('../../services/cohortService', () => ({
 
 vi.mock('../../services/sponsorService', () => ({
   sponsorService: {
+    getCourses:vi.fn().mockResolvedValue([]),getStudents:vi.fn().mockResolvedValue([]),exportCoursesCsv:vi.fn(),
+    getCourseOptions:vi.fn().mockResolvedValue([]),getDashboard:vi.fn().mockResolvedValue({cohorts:[]}),getSpendingReport:vi.fn().mockResolvedValue(null),
     getImpactReport: vi.fn().mockResolvedValue({ totalMembers: 0, totalCompleted: 0, totalCertificates: 0, completionPct: 0, cohorts: [] }),
     getBilling: vi.fn().mockResolvedValue({ payments: [], total: 0 }),
   },
