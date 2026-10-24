@@ -125,7 +125,7 @@ router.post(
       // (data.id), then fall through to reconciliation mode that always records
       // but flags for manual review.
       const eventPaystackId = data.id;
-      const refundKey = refundReference
+      const refundKey = (refundReference as string | null | undefined)
         ?? (eventPaystackId != null && (typeof eventPaystackId === 'number' || (typeof eventPaystackId === 'string' && eventPaystackId.length > 0))
           ? `_event_${eventPaystackId}`
           : `_reconcile_${Date.now()}_${amount}`);
