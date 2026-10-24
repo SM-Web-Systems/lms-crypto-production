@@ -10,6 +10,7 @@ COPY package*.json ./
 RUN npm ci
 
 ARG BUILD_SHA=unknown
+LABEL org.opencontainers.image.revision=$BUILD_SHA
 COPY . .
 RUN echo "$BUILD_SHA" > /app/BUILD_SHA
 RUN npm run build

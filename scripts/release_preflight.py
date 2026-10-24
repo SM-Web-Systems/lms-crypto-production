@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import posixpath
 import re
 import shutil
 import sqlite3
@@ -29,6 +30,7 @@ ENVIRONMENT = {'checkout': 'DEPLOY_DIR', 'repository': 'DEPLOY_REPOSITORY',
                'api_container': 'DEPLOY_API_CONTAINER', 'web_container': 'DEPLOY_WEB_CONTAINER',
                'db_volume': 'DEPLOY_DB_VOLUME', 'backup_root': 'DEPLOY_BACKUP_DIR'}
 REQUIRED_FILES = ('docker-compose.yml', 'scripts/deploy.sh', 'scripts/release_preflight.py',
+                  'scripts/release_recovery.py', 'scripts/rollback.sh',
                   'LMS-Server/Dockerfile', 'LMS-Frontend/Dockerfile')
 
 
@@ -46,11 +48,11 @@ class CommandRunner:
         self.git = git or ['git']
         self.docker = docker or ['docker']
 
-    def text(self, tool, args, cwd):
+    def text(self, tool, args, cwd, env=None, timeout=45):
         command = self.git if tool == 'git' else self.docker
         try:
             result = subprocess.run([*command, *args], cwd=cwd, capture_output=True,
-                                    text=True, timeout=45, check=False)
+                                    text=True, timeout=timeout, env=env, check=False)
         except (OSError, subprocess.SubprocessError):
             raise ReleaseError('COMMAND_UNAVAILABLE') from None
         require(result.returncode == 0, 'COMMAND_FAILED')
@@ -91,6 +93,26 @@ def _one(value, code):
 
 def _is_within(path, parent):
     return path == parent or parent in path.parents
+
+
+def reject_nested_database_mounts(mounts, destination_key):
+    for mount in mounts:
+        destination = mount.get(destination_key)
+        require(isinstance(destination, str), 'DATABASE_MOUNT_DESTINATION_INVALID')
+        require(not posixpath.normpath(destination).startswith('/app/data/'), 'DATABASE_NESTED_MOUNT_FORBIDDEN')
+
+
+def validate_runtime_database_configuration(container):
+    configuration = container.get('Config') or {}
+    require(configuration.get('WorkingDir') == '/app', 'API_WORKDIR_MISMATCH')
+    environment = configuration.get('Env') or []
+    require(isinstance(environment, list) and all(isinstance(value, str) for value in environment),
+            'RUNNING_API_ENVIRONMENT_INVALID')
+    require(not any(value.startswith('VITEST=') and value != 'VITEST=' for value in environment),
+            'RUNNING_TEST_DATABASE_FORBIDDEN')
+    database_paths = [value.split('=', 1)[1] for value in environment if value.startswith('DATABASE_PATH=')]
+    require(len(database_paths) <= 1 and (not database_paths or database_paths[0] in ('./data/student_ms.db', '/app/data/student_ms.db')),
+            'DATABASE_CONTAINER_PATH_MISMATCH')
 
 
 def file_sha256(path):
@@ -155,10 +177,12 @@ def database_metadata(db):
         for row in db.execute('SELECT * FROM "' + table + '" ORDER BY ' + quoted):
             financial.update(json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode())
             financial.update(b'\n')
+    violations = sorted(db.execute('PRAGMA foreign_key_check').fetchall(), key=lambda row: json.dumps(row))
     return {'schema_sha256': hashlib.sha256(json.dumps([schema, user_version], separators=(',', ':')).encode()).hexdigest(),
             'user_version': user_version, 'table_counts': counts,
             'financial_state_sha256': financial.hexdigest(),
-            'foreign_key_violation_count': sum(1 for _ in db.execute('PRAGMA foreign_key_check'))}
+            'foreign_key_violation_count': len(violations),
+            'foreign_key_violations_sha256': hashlib.sha256(json.dumps(violations, separators=(',', ':')).encode()).hexdigest()}
 
 
 def _source_metadata(path):
@@ -227,12 +251,9 @@ def validate_target(config, runner=None):
         require(revision is None or bool(SHA.fullmatch(revision)), 'IMAGE_REVISION_INVALID')
         services[service] = {'container_id': container_id, 'container_name': name, 'image_id': image_id, 'revision': revision}
         if service == 'api': raw_api = container
-    require(raw_api['Config'].get('WorkingDir') == '/app', 'API_WORKDIR_MISMATCH')
-    environment = raw_api['Config'].get('Env') or []
-    require(not any(value.startswith('VITEST=') and value != 'VITEST=' for value in environment), 'RUNNING_TEST_DATABASE_FORBIDDEN')
-    database_paths = [value.split('=', 1)[1] for value in environment if value.startswith('DATABASE_PATH=')]
-    require(len(database_paths) <= 1 and (not database_paths or database_paths[0] in ('./data/student_ms.db', '/app/data/student_ms.db')),
-            'DATABASE_CONTAINER_PATH_MISMATCH')
+    validate_runtime_database_configuration(raw_api)
+    reject_nested_database_mounts(compose['services']['api'].get('volumes', []), 'target')
+    reject_nested_database_mounts(raw_api.get('Mounts', []), 'Destination')
     declared_mounts = [mount for mount in compose['services']['api'].get('volumes', []) if mount.get('target') == '/app/data']
     declared_mount = _one(declared_mounts, 'COMPOSE_DATABASE_MOUNT_INVALID')
     logical_name = declared_mount.get('source')
@@ -254,6 +275,9 @@ def validate_target(config, runner=None):
     _check_backup_location(backup_root, database)
     return {'checkout': str(root), 'repository': REPOSITORY, 'approved_sha': config['approved_sha'],
             'project': config['project'], 'compose_file': str(compose_file), 'services': services,
+            'compose_sha256': hashlib.sha256(json.dumps(compose, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
+            'build_image_refs': {service: compose['services'][service].get('image') or config['project'] + '-' + service + ':latest'
+                                 for service in ('api', 'web')},
             'database': {'volume_name': config['db_volume'], 'volume_source': str(mount_source),
                          'host_path': str(database), 'container_path': '/app/data/student_ms.db'},
             'source_database': metadata}

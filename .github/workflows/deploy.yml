@@ -12,6 +12,11 @@ on:
         type: choice
         options:
           - production
+      execute:
+        description: 'Execute reviewed release (false prepares recovery evidence only)'
+        required: true
+        type: boolean
+        default: false
 
 # Ensure only one deploy runs at a time
 concurrency:
@@ -43,11 +48,14 @@ jobs:
           DEPLOY_WEB_CONTAINER: ${{ vars.DEPLOY_WEB_CONTAINER }}
           DEPLOY_DB_VOLUME: ${{ vars.DEPLOY_DB_VOLUME }}
           DEPLOY_BACKUP_DIR: ${{ vars.DEPLOY_BACKUP_DIR }}
+          DEPLOY_BASE_URL: ${{ vars.DEPLOY_BASE_URL }}
+          DEPLOY_RECOVERY_POLICY: ${{ vars.DEPLOY_RECOVERY_POLICY }}
+          DEPLOY_EXECUTE_REQUEST: ${{ inputs.execute }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: APPROVED_SHA,DEPLOY_DIR,DEPLOY_REPOSITORY,DEPLOY_PROJECT,DEPLOY_API_CONTAINER,DEPLOY_WEB_CONTAINER,DEPLOY_DB_VOLUME,DEPLOY_BACKUP_DIR
+          envs: APPROVED_SHA,DEPLOY_DIR,DEPLOY_REPOSITORY,DEPLOY_PROJECT,DEPLOY_API_CONTAINER,DEPLOY_WEB_CONTAINER,DEPLOY_DB_VOLUME,DEPLOY_BACKUP_DIR,DEPLOY_BASE_URL,DEPLOY_RECOVERY_POLICY,DEPLOY_EXECUTE_REQUEST
           script: |
             set -eu
             : "${DEPLOY_DIR:?Explicit prepared checkout required}"
@@ -71,7 +79,7 @@ jobs:
             esac
             dirty="$(git --no-optional-locks status --porcelain=v1 --untracked-files=all 2>/dev/null)"
             test -z "$dirty"
-            for file in scripts/deploy.sh scripts/release_preflight.py; do
+            for file in scripts/deploy.sh scripts/release_preflight.py scripts/release_recovery.py scripts/rollback.sh; do
               test -f "$file" && test ! -L "$file"
               git --no-optional-locks ls-files --error-unmatch -- "$file" >/dev/null 2>&1
               expected_blob="$(git --no-optional-locks rev-parse "$APPROVED_SHA:$file" 2>/dev/null)"
@@ -79,5 +87,10 @@ jobs:
               test "$actual_blob" = "$expected_blob"
             done
             export DEPLOY_SHA="$APPROVED_SHA"
+            case "$DEPLOY_EXECUTE_REQUEST" in
+              false) export DEPLOY_EXECUTE=0 ;;
+              true) export DEPLOY_EXECUTE=1 ;;
+              *) exit 2 ;;
+            esac
             # Operator preparation is separate; cron can still read this checkout.
             exec bash ./scripts/deploy.sh

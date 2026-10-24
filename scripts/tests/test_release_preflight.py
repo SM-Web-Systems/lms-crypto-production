@@ -45,6 +45,8 @@ class EntrypointSafetyTests(unittest.TestCase):
             sentinel=root/'invoked'
             (checkout/'scripts/deploy.sh').write_text('printf invoked > "$SENTINEL"\n',encoding='utf8')
             (checkout/'scripts/release_preflight.py').write_text('synthetic',encoding='utf8')
+            (checkout/'scripts/release_recovery.py').write_text('synthetic',encoding='utf8')
+            (checkout/'scripts/rollback.sh').write_text('synthetic',encoding='utf8')
             fake=root/'bin';fake.mkdir()
             (fake/'git').write_text('''#!/usr/bin/env bash
 case "$*" in
@@ -65,7 +67,7 @@ esac
             env=dict(os.environ,APPROVED_SHA=SHA,DEPLOY_DIR=shell_path(checkout),
                      DEPLOY_REPOSITORY='SM-Web-Systems/lms-crypto-production',FIXTURE_ROOT=shell_path(checkout),
                      FIXTURE_SHA='e'*40,FIXTURE_REMOTE='git@github.com:SM-Web-Systems/lms-crypto-production.git',
-                     FIXTURE_DIRTY='',SENTINEL=shell_path(sentinel))
+                     FIXTURE_DIRTY='',SENTINEL=shell_path(sentinel),DEPLOY_EXECUTE_REQUEST='false')
             command='export PATH="$1:$PATH"; '+bootstrap
             for key,value in [('FIXTURE_SHA','e'*40),('FIXTURE_REMOTE','https://example.invalid/other'),('FIXTURE_DIRTY',' M tracked'),('FIXTURE_BLOB','modified')]:
                 with self.subTest(key=key):
@@ -232,6 +234,16 @@ elif tool=='docker':
 
     def test_desired_database_mount_readonly(self):
         self.compose['services']['api']['volumes'][0]['read_only']=True;self.assert_refuses()
+
+    def test_nested_database_file_or_sidecar_mount_refuses(self):
+        for destination in ('/app/data/student_ms.db', '/app/data/student_ms.db-wal', '/app/data/student_ms.db-shm'):
+            with self.subTest(destination=destination):
+                desired = {'type':'bind','source':'/unrelated','target':destination}
+                self.compose['services']['api']['volumes'].append(desired)
+                self.assert_refuses();self.compose['services']['api']['volumes'].pop()
+                actual = {'Type':'bind','Source':'/unrelated','Destination':destination,'RW':True}
+                self.containers['fixture-api']['Mounts'].append(actual)
+                self.assert_refuses();self.containers['fixture-api']['Mounts'].pop()
 
     def test_wrong_mount_name_type_source_or_readonly(self):
         mount=self.containers['fixture-api']['Mounts'][0]
