@@ -16,8 +16,6 @@ Assessed 2026-10-24 against main `47fe4f92e09e9c949ae80e6c22d1cd600898126b`. Thi
 
 Historical server reports identify `/home/webadmin/lms-crypto-production` as Compose's working directory and `/home/webadmin/web-stack/html/LMS-AmmaWallet` as an older checkout. Neither path/runtime/image state is live-verified here. Reported production remains `6763f4e`; AUTH-13 is merged, not production-verified. Missing rollback images, volume identity, cron and retention must be reverified by the server owner. CI at baseline passed backend/frontend/offline/E2E; backend log reports 1813 passed and one protected-copy skip, web 515, E2E 73. Wallet #2 remains an open draft. Latest recorded web audit reports three moderate build findings and zero production findings; no current audit is inferred from an older seven-finding report.
 
-## Implementation boundaries
-
 ## Development outcome, 2026-10-24
 
 RS-01/02 are addressed by PR #87 (`1c433dc`); RS-03/04 by dependent PR #89 (`4a58732`); RS-05/06 by PR #88 and its handoff. The combined code candidate is `212e0faf45a40bb39b19306b8b2e5c0bb3248a02`, independently reviewed with no remaining P0/P1 finding and all four CI jobs passed in run `40093580080`. Locally, API 1813 passed/one protected-copy skip, web 515, E2E 73 and combined offline 110 passed/one Windows POSIX permission skip (111 total); builds, bootstrap, synthetic WAL restore, audits and shell/smoke checks passed. No production condition is inferred from these results.

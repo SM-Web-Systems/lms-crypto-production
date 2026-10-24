@@ -14,4 +14,4 @@ Baseline: `47fe4f92e09e9c949ae80e6c22d1cd600898126b`. Statuses require executed 
 | optional backlog | Only separately scoped after P0 reviewable PRs; do not start unrelated AUTH-14/features | DEFERRED |
 | production | Actual volume/image/backup/SMTP/cron/device/runtime acceptance and release/stability observation | OWNER GATE — NOT EXECUTED |
 
-Independent review records, test commands, before/after failures and residual limitations will be recorded per workstream and in the final handoff. No merge is permitted merely because tests pass: exact-head independent review, required-check enforcement, unchanged main, no critical/high blockers and manual-only production deployment are separate requirements.
+Independent review records, test commands, before/after failures and residual limitations are recorded per workstream, in the handoff and against exact heads in the PR descriptions. No merge is permitted merely because tests pass: exact-head independent review, required-check enforcement, unchanged main, no critical/high blockers and manual-only production deployment are separate requirements.
