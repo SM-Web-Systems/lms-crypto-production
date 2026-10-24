@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const schema = readFileSync(path.resolve('database/schema.sql'), 'utf8');
@@ -272,7 +272,7 @@ describe('AUTH-13 lesson_completions migration', () => {
     expect(colsAfter).not.toContain('last_position_s');
   });
 
-  it('protected copy compatibility', () => {
+  it.skipIf(!existsSync(protectedDbPath))('protected copy compatibility', () => {
     const db = new Database(protectedDbPath, { readonly: true });
     databases.push(db);
     const cols = columnNames(db, 'lesson_completions');
