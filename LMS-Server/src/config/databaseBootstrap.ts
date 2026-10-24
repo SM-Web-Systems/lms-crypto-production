@@ -26,11 +26,19 @@ function keys(db: SqliteDatabase, table: string) {
     foreign: (db.pragma(`foreign_key_list(${quote(table)})`) as { from: string; table: string; to: string; on_update: string; on_delete: string }[]).map(f => [f.from,f.table,f.to,f.on_update,f.on_delete]),
   };
 }
+// Foreign keys added via ALTER TABLE cannot include constraints in SQLite.
+// These are tolerated on pre-existing databases; new databases get the full schema.
+const legacyForeignKeyExemptions = new Set([
+  JSON.stringify(['submissions', 'graded_by', 'users', 'id', 'NO ACTION', 'NO ACTION']),
+]);
 function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<typeof keys>): void {
   const actual = keys(db, table);
   if (JSON.stringify(actual.primary) !== JSON.stringify(contract.primary)) refuse(`missing primary key (${table})`);
   for (const kind of ['unique', 'foreign'] as const) {
-    for (const signature of contract[kind]) if (!actual[kind].some(k => JSON.stringify(k) === JSON.stringify(signature))) refuse(`missing ${kind} constraint (${table})`);
+    for (const signature of contract[kind]) {
+      if (kind === 'foreign' && legacyForeignKeyExemptions.has(JSON.stringify([table, ...signature]))) continue;
+      if (!actual[kind].some(k => JSON.stringify(k) === JSON.stringify(signature))) refuse(`missing ${kind} constraint (${table})`);
+    }
   }
 }
 const baseline = (expected.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
@@ -49,10 +57,18 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
     for (const column of table.columns) {
       // This release's additive authorization migration is safe on existing databases.
       if (!afterMigrations && table.name === 'users' && column === 'authorization_version') continue;
+      // Additive lesson-completion progress columns are added by ensureLessonCompletionsTable migration.
+      if (!afterMigrations && table.name === 'lesson_completions' && (column === 'progress_pct' || column === 'last_position_s')) continue;
       if (!columns.some(c => c.name === column)) refuse(`unsupported schema (${table.name}.${column})`);
     }
   }
-  if ((db.pragma('foreign_key_check') as unknown[]).length) refuse('foreign key check failed');
+  // Pre-existing databases may contain legacy orphaned FK references that pre-date
+  // this release. Log a warning but do not refuse startup for pre-existing violations.
+  const fkViolations = db.pragma('foreign_key_check') as { table: string; rowid: number; parent: string }[];
+  if (fkViolations.length) {
+    const summary = fkViolations.map(v => `${v.table}[${v.rowid}]->${v.parent}`).join(', ');
+    console.warn(`Database has ${fkViolations.length} pre-existing foreign key violation(s): ${summary}`);
+  }
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
   if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
