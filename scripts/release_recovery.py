@@ -133,8 +133,11 @@ def verify_policy(target, backup, policy):
     require(isinstance(reference, str) and 1 <= len(reference) <= 200 and '\n' not in reference and '\r' not in reference,
             'INDEPENDENT_REVIEW_REFERENCE_REQUIRED')
     source = target['services']['api']['revision']
-    require(isinstance(source, str) and bool(pre.SHA.fullmatch(source)) and
-            target['services']['web']['revision'] == source, 'HISTORICAL_IMAGE_REVISION_UNKNOWN_OR_MIXED')
+    historical = (source is None and target['services']['web']['revision'] is None
+                  and policy.get('historical_transition') is True)
+    if not historical:
+        require(isinstance(source, str) and bool(pre.SHA.fullmatch(source)) and
+                target['services']['web']['revision'] == source, 'HISTORICAL_IMAGE_REVISION_UNKNOWN_OR_MIXED')
     for key, value in {'source_sha': source, 'target_sha': target['approved_sha'],
                        'project': target['project'], 'repository': target['repository'],
                        'database': target['database'], 'compose_sha256': target['compose_sha256'],
@@ -179,7 +182,8 @@ def preserve_recovery(target, backup, state, runner, policy):
         verify_policy(target, backup, policy)
         live = pre._source_metadata(Path(target['database']['host_path']))
         verify_database_contract(live, backup)
-        manifest['eligibility'] = 'EXACT_SCHEMA_AND_FINANCIAL_STATE'
+        manifest['eligibility'] = ('HISTORICAL_TRANSITION' if policy.get('historical_transition') is True
+                                   else 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
         filename = 'recovery-' + identifier + '.json'
         path = state / filename
         immutable_json(path, manifest)
@@ -463,7 +467,8 @@ def prepare(config, runner=None, policy=None, dry_run=False):
     with release_lock(state):
         manifest = _prepare_locked(config, target, state, policy, runner)
         return {'status': 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED', 'requested_sha': target['approved_sha'],
-                'manifest_id': manifest['manifest_id'], 'recovery_eligible': True}
+                'manifest_id': manifest['manifest_id'],
+                'recovery_eligible': manifest['eligibility'] == 'EXACT_SCHEMA_AND_FINANCIAL_STATE'}
 
 
 def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60):
@@ -506,8 +511,9 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
             result = {'status': 'DEPLOYMENT_VERIFIED', 'requested_sha': config['approved_sha'], 'checked_out_sha': target['approved_sha'],
                       'built_sha': target['approved_sha'], 'health_sha': target['approved_sha'], 'deployed_sha': target['approved_sha'],
                       'images': built, 'manifest_id': manifest['manifest_id'],
-                      'automatic_recovery_currently_eligible': all(post_deploy[key] == manifest['backup'][key]
-                                                                  for key in ('schema_sha256', 'financial_state_sha256', 'foreign_key_violations_sha256'))}
+                      'automatic_recovery_currently_eligible': manifest['eligibility'] == 'EXACT_SCHEMA_AND_FINANCIAL_STATE' and
+                          all(post_deploy[key] == manifest['backup'][key]
+                              for key in ('schema_sha256', 'financial_state_sha256', 'foreign_key_violations_sha256'))}
             immutable_json(state / ('deploy-result-' + uuid.uuid4().hex + '.json'), result)
             return result
         except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):

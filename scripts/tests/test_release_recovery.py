@@ -502,4 +502,76 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED')
 
 
+    # --- Historical transition tests ---
+
+    def _make_historical(self):
+        """Configure environment for a historical transition: both images unlabeled."""
+        for image in (API_IMAGE, WEB_IMAGE):
+            self.runner.images[image] = None
+        self.target['services']['api']['revision'] = None
+        self.target['services']['web']['revision'] = None
+        self.policy['source_sha'] = None
+        self.policy['historical_transition'] = True
+
+    def test_historical_transition_accepts_unlabeled_images_with_policy(self):
+        self._make_historical()
+        manifest = self.capture()
+        self.assertEqual(manifest['eligibility'], 'HISTORICAL_TRANSITION')
+        self.assertTrue((self.state / 'current-recovery.json').exists())
+        for service in ('api', 'web'):
+            self.assertIsNone(manifest['images'][service]['revision'])
+
+    def test_historical_transition_without_policy_flag_still_refuses(self):
+        for image in (API_IMAGE, WEB_IMAGE):
+            self.runner.images[image] = None
+        self.target['services']['api']['revision'] = None
+        self.target['services']['web']['revision'] = None
+        self.policy['source_sha'] = None
+        # No historical_transition flag in policy
+        with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_historical_transition_with_mixed_revisions_refuses(self):
+        self.runner.images[API_IMAGE] = None
+        self.target['services']['api']['revision'] = None
+        # Web still has a valid revision
+        self.policy['source_sha'] = None
+        self.policy['historical_transition'] = True
+        with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_historical_transition_manifest_blocks_automated_rollback(self):
+        self._make_historical()
+        self.capture()
+        with self.assertRaises(pre.ReleaseError): self.rec.load_manifest(self.state)
+
+    def test_historical_transition_prepare_reports_no_recovery(self):
+        self._make_historical()
+        result = self.rec.prepare(self.config, self.runner, policy=self.policy)
+        self.assertEqual(result['status'], 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED')
+        self.assertFalse(result['recovery_eligible'])
+
+    def test_historical_transition_deploy_succeeds(self):
+        self._make_historical()
+        result = self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED')
+        self.assertFalse(result['automatic_recovery_currently_eligible'])
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+        self.assertEqual(self.containers['fixture-web']['Image'], NEW_WEB)
+
+    def test_historical_transition_deploy_failure_stops_without_rollback(self):
+        self._make_historical()
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1',
+                            http=lambda url: (503, b''), timeout=0)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(sum('up' in call for call in self.runner.calls), 1)
+
+    def test_normal_policy_still_produces_exact_eligibility(self):
+        manifest = self.capture()
+        self.assertEqual(manifest['eligibility'], 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
+        loaded = self.rec.load_manifest(self.state)
+        self.assertEqual(loaded['eligibility'], 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
+
+
 if __name__ == '__main__': unittest.main()
