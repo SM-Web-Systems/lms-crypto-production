@@ -136,6 +136,11 @@ router.post(
         ? ['paystack', event, reference, refundKey]
         : ['paystack', event, reference]);
       if (!recordWebhookEvent(eventId,event,'paystack',rawBody.toString())) return {status:200,message:'Already processed'};
+      // Reconciliation-mode refunds: event recorded for audit but no financial
+      // mutation — provider reconciliation required when identity is ambiguous.
+      if (event === 'refund.processed' && refundKey.startsWith('_reconcile_')) {
+        return {status:200,message:'Refund evidence recorded; provider reconciliation required before financial mutation'};
+      }
       switch (event) {
         case 'charge.success':
           if (['pending','failed'].includes(payment.status)) confirmPayment(payment.id,payment.user_id,'Auto-confirmed via Paystack webhook');
