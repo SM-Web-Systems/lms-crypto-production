@@ -284,13 +284,27 @@ function ensureLessonCompletionsTable(): void {
       course_id    TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
       item_id      TEXT NOT NULL,
       section_id   TEXT NOT NULL,
-      completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT DEFAULT (datetime('now')),
       marked_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+      progress_pct    INTEGER,
+      last_position_s INTEGER,
       UNIQUE (user_id, course_id, item_id)
     );
     CREATE INDEX IF NOT EXISTS idx_lesson_completions_user_course
       ON lesson_completions(user_id, course_id);
   `);
+  // Additive migration: add progress columns if missing on pre-existing tables.
+  const cols = (db.pragma('table_info("lesson_completions")') as { name: string }[]).map(c => c.name);
+  if (!cols.includes('progress_pct')) {
+    db.exec('ALTER TABLE lesson_completions ADD COLUMN progress_pct INTEGER');
+  }
+  if (!cols.includes('last_position_s')) {
+    db.exec('ALTER TABLE lesson_completions ADD COLUMN last_position_s INTEGER');
+  }
+  // NOTE: Legacy databases may have completed_at as NOT NULL. SQLite cannot ALTER COLUMN
+  // to change nullability. Inserting NULL completed_at on such databases will fail.
+  // A table reconstruction migration is required to fix this; not implemented here to
+  // avoid data-loss risk. The bootstrap validator will catch the incompatibility.
 }
 startupMigrations.push(ensureLessonCompletionsTable);
 
@@ -1930,6 +1944,33 @@ function ensureDeletionTables(): void {
   `);
 }
 startupMigrations.push(ensureDeletionTables);
+
+/** AUTH-13: Ensure role-assignment trigger exists on pre-existing databases. */
+function ensureRoleAssignmentTrigger(): void {
+  const hasUsers = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'").get();
+  if (!hasUsers) return; // Schema not yet loaded (in-memory test or new DB — canonical schema will add it)
+  const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get();
+  if (!exists) {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_auto_assign_user_role
+      AFTER INSERT ON users
+      FOR EACH ROW
+      WHEN NEW.role IN ('student', 'lecturer', 'admin')
+      BEGIN
+        INSERT OR IGNORE INTO user_roles (user_id, role_id)
+        VALUES (
+          NEW.id,
+          CASE NEW.role
+            WHEN 'student' THEN 'role_student'
+            WHEN 'lecturer' THEN 'role_instructor'
+            WHEN 'admin' THEN 'role_admin'
+          END
+        );
+      END
+    `);
+  }
+}
+startupMigrations.push(ensureRoleAssignmentTrigger);
 
 // One transaction owns schema changes, RBAC seeds, and default data. Preflight
 // ran read-only; a failed upgrade must not leave earlier writes committed.
