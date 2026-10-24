@@ -101,10 +101,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   },[establish]);
   const logout = useCallback(async () => {
     walletRequest.current++; walletPending.current = false; setWalletPending(false); ammaWalletService.cancelSignIn();
-    generation.current++; request.current++;
+    const started = ++generation.current; request.current++;
     const token = await getStoredToken().catch(() => null);
+    // A delayed storage lookup can return a newer login's token. Superseded
+    // logout work must neither clear local state nor revoke that newer token.
+    if (generation.current !== started) return;
     setUser(null); setSessionError(null); setNotice(null); setIsLoading(false); setWarning(null);
-    await clearStoredToken().catch(() => setWarning('This device could not remove the saved session. Please retry signing out.'));
+    await clearStoredToken().catch(() => {
+      if (mounted.current && generation.current === started) setWarning('This device could not remove the saved session. Please retry signing out.');
+    });
     if (token) {
       try { await api.post('/auth/logout', undefined, {headers:{Authorization: `Bearer ${token}`},timeout:5000}); }
       catch { /* Local sign-out still succeeds while offline. */ }

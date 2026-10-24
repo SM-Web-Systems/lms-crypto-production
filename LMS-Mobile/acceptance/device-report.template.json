@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "app_sha": null,
+  "reports": [
+    {
+      "platform": "android",
+      "device_type": "physical",
+      "device": "",
+      "os_version": "",
+      "app_build_id": "",
+      "artifact_sha256": "",
+      "tested_at": null,
+      "tester": "",
+      "environment": "authorized_staging",
+      "api_sha": null,
+      "wallet_sha": null,
+      "cases": {
+        "wallet_sso": {"status": "not_run", "evidence": ""},
+        "callback_lifecycle": {"status": "not_run", "evidence": ""},
+        "session_lifecycle": {"status": "not_run", "evidence": ""},
+        "role_handoffs": {"status": "not_run", "evidence": ""},
+        "learning_content": {"status": "not_run", "evidence": ""},
+        "learning_progress": {"status": "not_run", "evidence": ""},
+        "account_controls": {"status": "not_run", "evidence": ""},
+        "documents_accessibility": {"status": "not_run", "evidence": ""}
+      }
+    },
+    {
+      "platform": "ios",
+      "device_type": "physical",
+      "device": "",
+      "os_version": "",
+      "app_build_id": "",
+      "artifact_sha256": "",
+      "tested_at": null,
+      "tester": "",
+      "environment": "authorized_staging",
+      "api_sha": null,
+      "wallet_sha": null,
+      "cases": {
+        "wallet_sso": {"status": "not_run", "evidence": ""},
+        "callback_lifecycle": {"status": "not_run", "evidence": ""},
+        "session_lifecycle": {"status": "not_run", "evidence": ""},
+        "role_handoffs": {"status": "not_run", "evidence": ""},
+        "learning_content": {"status": "not_run", "evidence": ""},
+        "learning_progress": {"status": "not_run", "evidence": ""},
+        "account_controls": {"status": "not_run", "evidence": ""},
+        "documents_accessibility": {"status": "not_run", "evidence": ""}
+      }
+    }
+  ]
+}
