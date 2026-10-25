@@ -114,12 +114,17 @@ def _read_private_json_safe(path):
         return None
 
 
-def _discover_trusted_overlay(backup_root, compose_file, approved_sha, project, running_images):
+def _discover_trusted_overlay(backup_root, compose_file, project, running_images, running_revisions):
     """Discover a verified deploy overlay from release-state evidence.
 
     Returns the overlay path only when the full provenance chain is verified:
     pointer -> recovery manifest -> candidate manifest -> overlay file.
-    Running container image IDs must match the overlay's declared images.
+
+    The manifest's recorded SHA is validated against the running containers'
+    OCI revision labels, NOT against the new release's approved SHA. This
+    is critical: during a cross-release upgrade the new checkout SHA differs
+    from the previous deployment's SHA recorded in the manifest.
+
     Returns None when evidence is absent (fail-open to single-file path).
     Raises ReleaseError when evidence is present but contradictory (fail-closed).
     """
@@ -145,12 +150,25 @@ def _discover_trusted_overlay(backup_root, compose_file, approved_sha, project, 
         manifest_id = manifest.get('manifest_id', '')
         require(manifest_name == 'recovery-' + manifest_id + '.json',
                 'OVERLAY_PROVENANCE_MANIFEST_INVALID')
-        # Verify the manifest records the correct deployment context.
+        # Verify manifest deployment context matches the current checkout and project.
         target = manifest.get('target') or {}
-        require(target.get('approved_sha') == approved_sha, 'OVERLAY_PROVENANCE_SHA_MISMATCH')
         require(_same_path(target.get('compose_file'), Path(str(compose_file))),
                 'OVERLAY_PROVENANCE_COMPOSE_MISMATCH')
         require(target.get('project') == project, 'OVERLAY_PROVENANCE_PROJECT_MISMATCH')
+        # Verify the manifest's recorded SHA matches the running containers' OCI
+        # revision labels. This proves the manifest describes the CURRENT runtime,
+        # not an unrelated historical deployment. The manifest SHA is the PREVIOUS
+        # deployment's SHA; the new release SHA is validated separately by the
+        # git checkout checks in validate_target().
+        manifest_sha = target.get('approved_sha')
+        require(isinstance(manifest_sha, str) and bool(SHA.fullmatch(manifest_sha)),
+                'OVERLAY_PROVENANCE_MANIFEST_SHA_INVALID')
+        api_revision = running_revisions.get('api')
+        web_revision = running_revisions.get('web')
+        require(api_revision is not None and web_revision is not None,
+                'OVERLAY_PROVENANCE_REVISION_MISSING')
+        require(api_revision == web_revision == manifest_sha,
+                'OVERLAY_PROVENANCE_REVISION_MISMATCH')
         # Find the candidate manifest for this recovery.
         candidate_path = state / ('candidate-' + manifest_id + '.json')
         candidate = _read_private_json_safe(candidate_path)
@@ -376,9 +394,10 @@ def validate_target(config, runner=None):
     trusted_overlay = None
     if not _same_path(config_files_labels.get('api'), compose_file):
         running_images = {svc: services[svc]['image_id'] for svc in ('api', 'web')}
+        running_revisions = {svc: services[svc]['revision'] for svc in ('api', 'web')}
         trusted_overlay = _discover_trusted_overlay(
-            config['backup_root'], compose_file, config['approved_sha'],
-            config['project'], running_images)
+            config['backup_root'], compose_file,
+            config['project'], running_images, running_revisions)
     require(_validate_config_files_label(config_files_labels.get('api'), compose_file, trusted_overlay),
             'CONTAINER_CHECKOUT_MISMATCH')
     validate_runtime_database_configuration(raw_api)
