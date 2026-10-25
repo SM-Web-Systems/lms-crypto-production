@@ -42,6 +42,14 @@ Warnings contain aggregate counts only. They do not print rowids, primary keys, 
 - Final local command: `npx --no-install vitest run src/__tests__/auth13-bootstrap.test.ts src/__tests__/auth13-lesson-completions.test.ts src/__tests__/foreign-key-integrity.test.ts src/__tests__/lesson-completion-preservation.test.ts` — **51 passed / one protected-copy skip (52 total), four files**, 83.78 seconds.
 - Final corrected source also passed `npm run build`, `npm run test:compiled-bootstrap` and `npm run test:restore-drill`. Full CI and independent exact-head re-review are separate parent/PR gates; no unperformed check is represented as passed here.
 
+## Completion review — 2026-10-25
+
+The parent reviewed implementation commit `f9f90e4c46a2ab0f1c00d3b45b58a5cc8060b4ae` separately from its original author. The review covered DDL token boundaries, replacement-column/FK invariants before copy/drop, retained dependencies and rowids, transaction rollback, typed orphan identities, preflight-to-write comparison and runtime FK enforcement. No additional actionable findings were identified in that review; unsupported-layout and protected-copy limitations above remain explicit.
+
+A fresh local rerun passed **51 tests / one protected-copy skip across four files** in 45.42 seconds, followed by a passing TypeScript build, compiled initialization/restart without source, and the synthetic active-WAL restore drill (integrity/FKs OK, two restored rows, source rows unchanged). This supersedes the pending local re-review status above; it does not turn the protected-copy skip into a pass or claim a full local backend-suite result.
+
+The branch integrates without conflicts with server-managed `main` at `dfb988ec4a553f61b110c0e483c1b176312f7906`; that integration check did not change this checkout or merge either branch. Full GitHub CI and the final PR head/status are recorded on the pull request. No deployment workflow was dispatched. The separate Wallet and mobile dependency worktrees were left untouched.
+
 ## Server acceptance and recovery
 
 This introduces a real database schema reconstruction, so it must be evaluated separately from the currently reviewed release-tooling PRs. Do not insert it into a release already being assessed without updating the exact candidate and its compatibility/recovery evidence. A protected-copy rehearsal must preserve completed and pending records, custom schema dependencies and legacy FK identities, test real authenticated progress/completion writes, and restart twice before any production authorization.
