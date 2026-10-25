@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - 'LMS-Mobile/**'
+      - 'scripts/local-services/**'
       - '.github/workflows/mobile-ci.yml'
       - 'docs/release/mobile-device-acceptance-followup.md'
   push:
     branches: [main]
     paths:
       - 'LMS-Mobile/**'
+      - 'scripts/local-services/**'
       - '.github/workflows/mobile-ci.yml'
       - 'docs/release/mobile-device-acceptance-followup.md'
   workflow_dispatch:
@@ -44,5 +46,7 @@ jobs:
         run: npm run acceptance:tooling
       - name: Local device target configuration guards
         run: npm run test:local-setup
+      - name: Local service isolation guards
+        run: node --test ../scripts/local-services/*.test.mjs
       - name: Offline acceptance regressions and TypeScript
         run: npm run acceptance:local

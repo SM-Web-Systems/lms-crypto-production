@@ -54,3 +54,10 @@ Thumbs.db
 # Local AUTH-13 validation output and Python fixture bytecode
 .auth13-*
 __pycache__/
+
+# Isolated laptop service configuration and runtime files
+.local-services/
+
+# Local browser smoke artifacts
+.playwright-cli/
+output/playwright/local-stack/
