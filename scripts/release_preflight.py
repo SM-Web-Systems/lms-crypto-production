@@ -95,6 +95,143 @@ def _is_within(path, parent):
     return path == parent or parent in path.parents
 
 
+OVERLAY_NAME = re.compile(r'deploy-[0-9a-f]{32}\.json\Z')
+MANIFEST_NAME = re.compile(r'recovery-[0-9a-f]{32}\.json\Z')
+
+
+def _read_private_json_safe(path):
+    """Read a private JSON file for provenance checks. Returns None on any error."""
+    try:
+        path = _path(str(path))
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 1024 * 1024:
+            return None
+        if os.name != 'nt':
+            if stat.S_IMODE(path.stat().st_mode) & 0o077 != 0:
+                return None
+        value = json.loads(path.read_bytes())
+        return value if isinstance(value, dict) else None
+    except (OSError, ValueError, UnicodeError, ReleaseError):
+        return None
+
+
+def _discover_trusted_overlay(backup_root, compose_file, project, running_images, running_revisions):
+    """Discover a verified deploy overlay from release-state evidence.
+
+    Returns the overlay path only when the full provenance chain is verified:
+    pointer -> recovery manifest -> candidate manifest -> overlay file.
+
+    The manifest's recorded SHA is validated against the running containers'
+    OCI revision labels, NOT against the new release's approved SHA. This
+    is critical: during a cross-release upgrade the new checkout SHA differs
+    from the previous deployment's SHA recorded in the manifest.
+
+    Returns None when evidence is absent (fail-open to single-file path).
+    Raises ReleaseError when evidence is present but contradictory (fail-closed).
+    """
+    try:
+        state = _path(str(backup_root)) / 'release-state'
+        if not state.is_dir():
+            return None
+        pointer = _read_private_json_safe(state / 'current-recovery.json')
+        if pointer is None:
+            return None
+        require(pointer.get('version') == 1, 'OVERLAY_PROVENANCE_POINTER_INVALID')
+        manifest_name = pointer.get('manifest')
+        require(isinstance(manifest_name, str) and bool(MANIFEST_NAME.fullmatch(manifest_name)),
+                'OVERLAY_PROVENANCE_POINTER_INVALID')
+        manifest_path = state / manifest_name
+        require(manifest_path.is_file() and not manifest_path.is_symlink(),
+                'OVERLAY_PROVENANCE_MANIFEST_MISSING')
+        require(file_sha256(manifest_path) == pointer.get('sha256'),
+                'OVERLAY_PROVENANCE_MANIFEST_CHECKSUM')
+        manifest = _read_private_json_safe(manifest_path)
+        require(manifest is not None and manifest.get('version') == 1,
+                'OVERLAY_PROVENANCE_MANIFEST_INVALID')
+        manifest_id = manifest.get('manifest_id', '')
+        require(manifest_name == 'recovery-' + manifest_id + '.json',
+                'OVERLAY_PROVENANCE_MANIFEST_INVALID')
+        # Verify manifest deployment context matches the current checkout and project.
+        target = manifest.get('target') or {}
+        require(_same_path(target.get('compose_file'), Path(str(compose_file))),
+                'OVERLAY_PROVENANCE_COMPOSE_MISMATCH')
+        require(target.get('project') == project, 'OVERLAY_PROVENANCE_PROJECT_MISMATCH')
+        # Verify the manifest's recorded SHA matches the running containers' OCI
+        # revision labels. This proves the manifest describes the CURRENT runtime,
+        # not an unrelated historical deployment. The manifest SHA is the PREVIOUS
+        # deployment's SHA; the new release SHA is validated separately by the
+        # git checkout checks in validate_target().
+        manifest_sha = target.get('approved_sha')
+        require(isinstance(manifest_sha, str) and bool(SHA.fullmatch(manifest_sha)),
+                'OVERLAY_PROVENANCE_MANIFEST_SHA_INVALID')
+        api_revision = running_revisions.get('api')
+        web_revision = running_revisions.get('web')
+        require(api_revision is not None and web_revision is not None,
+                'OVERLAY_PROVENANCE_REVISION_MISSING')
+        require(api_revision == web_revision == manifest_sha,
+                'OVERLAY_PROVENANCE_REVISION_MISMATCH')
+        # Find the candidate manifest for this recovery.
+        candidate_path = state / ('candidate-' + manifest_id + '.json')
+        candidate = _read_private_json_safe(candidate_path)
+        if candidate is None:
+            return None
+        require(candidate.get('manifest_sha256') == file_sha256(manifest_path),
+                'OVERLAY_PROVENANCE_CANDIDATE_CHECKSUM')
+        # Verify the overlay file.
+        overlay_str = candidate.get('overlay_file')
+        require(isinstance(overlay_str, str), 'OVERLAY_PROVENANCE_OVERLAY_MISSING')
+        overlay = _path(overlay_str)
+        require(overlay.parent == state, 'OVERLAY_PROVENANCE_OVERLAY_LOCATION')
+        require(bool(OVERLAY_NAME.fullmatch(overlay.name)), 'OVERLAY_PROVENANCE_OVERLAY_NAME')
+        require(overlay.is_file() and not overlay.is_symlink(),
+                'OVERLAY_PROVENANCE_OVERLAY_MISSING')
+        require(file_sha256(overlay) == candidate.get('overlay_sha256'),
+                'OVERLAY_PROVENANCE_OVERLAY_CHECKSUM')
+        # Validate overlay content: must only contain image overrides.
+        payload = _read_private_json_safe(overlay)
+        require(payload is not None, 'OVERLAY_PROVENANCE_OVERLAY_INVALID')
+        services = payload.get('services')
+        require(isinstance(services, dict) and set(services.keys()) == {'api', 'web'},
+                'OVERLAY_PROVENANCE_OVERLAY_INVALID')
+        for svc in ('api', 'web'):
+            svc_data = services[svc]
+            require(isinstance(svc_data, dict) and set(svc_data.keys()) == {'image'},
+                    'OVERLAY_PROVENANCE_OVERLAY_INVALID')
+            image_id = svc_data['image']
+            require(isinstance(image_id, str) and bool(IMAGE.fullmatch(image_id)),
+                    'OVERLAY_PROVENANCE_OVERLAY_INVALID')
+            # The candidate manifest must independently record the same image IDs.
+            require(candidate.get('images', {}).get(svc) == image_id,
+                    'OVERLAY_PROVENANCE_CANDIDATE_IMAGE_MISMATCH')
+            # The running container must use the exact image from the overlay.
+            require(running_images.get(svc) == image_id,
+                    'OVERLAY_PROVENANCE_IMAGE_MISMATCH')
+        return overlay
+    except ReleaseError:
+        raise
+    except (OSError, ValueError, TypeError, KeyError):
+        raise ReleaseError('OVERLAY_PROVENANCE_FAILED') from None
+
+
+def _validate_config_files_label(label, compose_file, trusted_overlay):
+    """Validate a container's config_files label against trusted configuration.
+
+    Accepts either:
+    - Exactly the base compose file path (single-file deployment).
+    - Exactly '<base>,<overlay>' when a trusted overlay is provided.
+    """
+    if _same_path(label, compose_file):
+        return True
+    if trusted_overlay is not None and isinstance(label, str) and ',' in label:
+        parts = label.split(',')
+        if len(parts) == 2:
+            try:
+                return (_path(parts[0]) == compose_file and
+                        _path(parts[1]) == trusted_overlay)
+            except ReleaseError:
+                return False
+    return False
+
+
 def reject_nested_database_mounts(mounts, destination_key):
     for mount in mounts:
         destination = mount.get(destination_key)
@@ -228,7 +365,7 @@ def validate_target(config, runner=None):
     require(desired_env.get('DATABASE_PATH') in (None, './data/student_ms.db', '/app/data/student_ms.db'),
             'COMPOSE_DATABASE_PATH_MISMATCH')
     require(desired_api.get('working_dir') in (None, '/app'), 'COMPOSE_API_WORKDIR_MISMATCH')
-    services = {}; raw_api = None
+    services = {}; raw_api = None; config_files_labels = {}
     for service in ('api', 'web'):
         name = config[service + '_container']
         declared = compose.get('services', {}).get(service, {})
@@ -238,8 +375,8 @@ def validate_target(config, runner=None):
         require(container.get('Name') == '/' + name and container.get('State', {}).get('Running') is True, 'CONTAINER_NOT_RUNNING_OR_WRONG_NAME')
         require(labels.get('com.docker.compose.project') == config['project'] and labels.get('com.docker.compose.service') == service,
                 'CONTAINER_COMPOSE_IDENTITY_MISMATCH')
-        require(_same_path(labels.get('com.docker.compose.project.working_dir'), root)
-                and _same_path(labels.get('com.docker.compose.project.config_files'), compose_file), 'CONTAINER_CHECKOUT_MISMATCH')
+        require(_same_path(labels.get('com.docker.compose.project.working_dir'), root), 'CONTAINER_CHECKOUT_MISMATCH')
+        config_files_labels[service] = labels.get('com.docker.compose.project.config_files')
         container_id = container.get('Id', '')
         require(bool(re.fullmatch(r'[0-9a-f]{64}', container_id)), 'CONTAINER_ID_INVALID')
         require(runner.text('docker', [*compose_args, 'ps', '--quiet', service], root) == container_id, 'COMPOSE_CONTAINER_ID_MISMATCH')
@@ -251,6 +388,18 @@ def validate_target(config, runner=None):
         require(revision is None or bool(SHA.fullmatch(revision)), 'IMAGE_REVISION_INVALID')
         services[service] = {'container_id': container_id, 'container_name': name, 'image_id': image_id, 'revision': revision}
         if service == 'api': raw_api = container
+    # Both containers must carry the same config_files label.
+    require(config_files_labels.get('api') == config_files_labels.get('web'), 'CONTAINER_CHECKOUT_MISMATCH')
+    # Validate the config_files label, discovering a trusted overlay if needed.
+    trusted_overlay = None
+    if not _same_path(config_files_labels.get('api'), compose_file):
+        running_images = {svc: services[svc]['image_id'] for svc in ('api', 'web')}
+        running_revisions = {svc: services[svc]['revision'] for svc in ('api', 'web')}
+        trusted_overlay = _discover_trusted_overlay(
+            config['backup_root'], compose_file,
+            config['project'], running_images, running_revisions)
+    require(_validate_config_files_label(config_files_labels.get('api'), compose_file, trusted_overlay),
+            'CONTAINER_CHECKOUT_MISMATCH')
     validate_runtime_database_configuration(raw_api)
     reject_nested_database_mounts(compose['services']['api'].get('volumes', []), 'target')
     reject_nested_database_mounts(raw_api.get('Mounts', []), 'Destination')
