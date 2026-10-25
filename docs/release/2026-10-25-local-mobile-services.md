@@ -1,0 +1,30 @@
+# Local mobile services validation — 2026-10-25
+
+LMS branch: `codex/local-mobile-services`, based on local Android environment PR #95 at `c03b81819be2b0dbc5f3235dcc0a083fd8f3c59e`. Wallet prerequisite: PR #4 at `2d63e98b707f029b066250bc16d40d969e3a6236`, based on PR #3. No server access, merge or deployment occurred.
+
+## Installed and initialized
+
+Actual LMS SQLite and Wallet PostgreSQL services, actual web applications, and a Mailpit inbox run from isolated short Windows checkouts. PostgreSQL 17.11 EDB binary archive revision 5 came from the official EDB download redirect; recorded archive SHA256 is `80379b2c04d51c30225532e0ae04509899141e9957ed096fe749d7fd9df8f82f`. This is a recorded download hash, not a claim of a published comparison hash. Mailpit 1.32.0 was verified against the official GitHub asset SHA256 `16915767a6c95dca569336e8f561f91cf355e9a33c57b91deedcc10a4bba7fd4`.
+
+The isolated data directory has an instance/checkout owner marker. PostgreSQL writes require matching data-directory and database instance identities. Initial schema creation is transactional; the only follow-up delta is the model-generated missing email-verification table/FK. The LMS database was explicitly initialized through its new-database command. Fresh independent signing/encryption/API credentials were generated locally. No existing database was reset or copied from production.
+
+All eight listeners were verified at `127.0.0.1`: APIs 3001/3002, web 5173/5174, SMTP 1025, mail UI 8025, PostgreSQL 55432 and supervisor control 28081. The runner loads loopback-only guards, strips ambient credentials/proxy/preload variables, adds local CSP headers, and keeps generated configuration/data/keys outside version control. It does not install a system service or trust a CA globally. Mailpit STARTTLS certificates are trusted only by the two application processes.
+
+## Executed checks
+
+- **Six pure local guard/settings tests PASS**: actual loopback HTTP/TCP allowed, wildcard listeners confined, external transports rejected, redirects cannot escape, direct DNS/Resolver variants blocked before zero-network traps, environment credentials stripped and malformed/reused identity secrets refused. CI includes these tests.
+- **Initialization/restart PASS**: fresh SQLite/PostgreSQL bootstrap; repeated init preserves data; ordinary stop/restart; stop acknowledges only after shutdown; PostgreSQL-only stop after init without a supervisor; occupied unrelated control listener preserved and newly started owned PostgreSQL rolled back.
+- **Real local smoke PASS**: synthetic Wallet registration, captured STARTTLS verification email, verification, login; recovery of a previously unverified fixture via authenticated resend; Wallet assertion, LMS callback and one-use PKCE mobile-session exchange; replay HTTP 401. Student access does not acquire user-management permission.
+- **Learning persistence PASS**: authorized synthetic course read, progress write, completion write, and read-back of completed timestamp, 100 percent progress and saved position from SQLite. Re-running smoke reuses accounts/course and preserves data.
+- **Actual Android emulator browser/native handoff PASS**: the installed app opened local Wallet, a verified synthetic learner signed in, and the callback returned to the native authenticated learner dashboard. The app then displayed the local authored week, completed first lesson and incomplete second text lesson. This is emulator evidence, not physical-device acceptance.
+- **Wallet prerequisites PASS**: 598 backend tests/85 files, 36 web tests/9 files and production web TypeScript/build. Full backend typecheck remains 65 normalized pre-existing diagnostics. Independent Wallet review verified that no diagnostics were added/removed. The browser now renders with zero console errors; four existing compatibility warnings remain.
+
+Initial smoke failures revealed two real Wallet issues: the verification table was absent from its schema export, and same-second refresh tokens collided on their unique stored hash. Both were reproduced by failing regressions, minimally fixed and then passed the actual local smoke. Interactive browser verification additionally found the redundant Vite `process.env` override causing a partial polyfill and a blank sign-in page; its removal restored the page and passed the production web build. These fixes are in Wallet PR #4, not hidden fixture database/authentication bypasses.
+
+Independent local-runner review corrected uncovered DNS resolver variants, partial-init PostgreSQL cleanup, supervisor reservation/rollback and fixture retries. The local runner's ignored Wallet wrapper alone simulates CAPTCHA and labels it on screen. Real Cloudflare/provider acceptance is not claimed. The runner's network preload is a development guard, not an OS sandbox or support for running untrusted code.
+
+## Remaining limits
+
+No real account, wallet funding/minting, SMS, mail delivery, payment or chain transaction was used. No cloud EAS build, signing/store submission or production configuration change occurred. Existing production Wallet verification tables must be reconciled before a reviewed migration; this work does not run one. Wider native media, account/role, hardware and iOS acceptance remain open. The physical-device report remains NOT RUN. The Android emulator, Metro and local stack are left available for local testing.
+
+Instructions and credential-file location: `docs/release/LOCAL_MOBILE_SERVICES.md`.
