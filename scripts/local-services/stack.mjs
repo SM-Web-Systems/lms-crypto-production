@@ -1,3 +1,4 @@
+import { readingUrl, readingHtml } from './fixtures.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -174,7 +175,7 @@ async function init(c) {
     const csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:3001 http://localhost:3002 http://localhost:5173 http://localhost:5174 ws://localhost:5173 ws://localhost:5174; frame-src 'none'; form-action 'self'; base-uri 'self'";
     for (const [name, dir, port, target] of [['lms', path.join(root, 'LMS-Frontend'), 5173, 3001], ['wallet', path.join(c.wallet, 'packages/web-app'), 5174, 3002]]) {
         const url = p => pathToFileURL(p).href;
-        const captcha = name === 'wallet' ? `,plugins:[{name:'local-offline-captcha',enforce:'pre',transform(source,id){if(id.endsWith('/components/Turnstile.tsx'))return {code:${JSON.stringify("import {useEffect,createElement} from 'react';export function Turnstile({onVerify}){useEffect(()=>{onVerify('local-captcha-simulation');},[onVerify]);return createElement('p',{'data-local-captcha':'true'},'Local test: CAPTCHA service is simulated.');}")},map:null};}}]` : '';
+        const captcha = name === 'wallet' ? `,plugins:[{name:'local-offline-captcha',enforce:'pre',transform(source,id){if(id.endsWith('/components/Turnstile.tsx'))return {code:${JSON.stringify("import {useEffect,createElement} from 'react';export function Turnstile({onVerify}){useEffect(()=>{onVerify('local-captcha-simulation');},[onVerify]);return createElement('p',{'data-local-captcha':'true'},'Local test: CAPTCHA service is simulated.');}")},map:null};}}]` : `,plugins:[{name:'local-reading-fixture',configureServer(server){server.middlewares.use(${JSON.stringify(new URL(readingUrl).pathname)},(_req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');res.setHeader('Content-Security-Policy',"default-src 'none'");res.end(${JSON.stringify(readingHtml)});});}}]`;
         const code = `import {mergeConfig} from ${JSON.stringify(url(path.join(dir, 'node_modules/vite/dist/node/index.js')))};\nimport base from ${JSON.stringify(path.join(dir, 'vite.config.ts'))};\nexport default mergeConfig(base,{envDir:${JSON.stringify(local)},server:{host:'127.0.0.1',port:${port},strictPort:true,allowedHosts:['localhost','127.0.0.1'],headers:{'Content-Security-Policy':${JSON.stringify(csp)}},proxy:{'/api':{target:'http://127.0.0.1:${target}',changeOrigin:true}}}${captcha}});\n`;
         fs.writeFileSync(path.join(local, name + '.vite.mjs'), code);
     }
@@ -246,11 +247,13 @@ async function start(c) {
         fs.closeSync(fd);
         children.push(child);
         child.on('error', error => { console.error(name + ': ' + error.message); stop(); });
-        child.on('exit', code => { if (!stopping) {
-            console.error(name + ' exited (' + code + '); see local logs.');
-            process.exitCode = 1;
-            stop();
-        } });
+        child.on('exit', code => {
+            if (!stopping) {
+                console.error(name + ' exited (' + code + '); see local logs.');
+                process.exitCode = 1;
+                stop();
+            }
+        });
     }
     for (const dir of [path.join(root, 'LMS-Server'), path.join(c.wallet, 'packages/backend')])
         refuseDotenv(dir);

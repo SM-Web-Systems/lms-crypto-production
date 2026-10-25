@@ -1,3 +1,4 @@
+import { fixtureWeeks, repairFixtureReadings } from './fixtures.mjs';
 import './loopback-only.cjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -107,15 +108,18 @@ const db = new Database(path.join(c.data, 'lms.sqlite'));
 db.pragma('foreign_keys=ON');
 db.pragma('busy_timeout=5000');
 const course = 'local-mobile-learning', item = 'local-reading-1';
-const weeks = [{ id: 'local-week-1', title: 'Week 1 — Local acceptance', order: 1, sections: [{ id: 'local-section-1', title: 'Local reading', items: [
-                    { id: item, type: 'text', title: 'Smoke-tested reading', order: 1, information: '<h2>Local learning test</h2><p>This synthetic lesson uses no external content.</p>' },
-                    { id: 'local-reading-2', type: 'text', title: 'Try completion yourself', order: 2, information: '<h2>Your next local check</h2><p>Open this lesson and mark it complete. All data stays in the local LMS database.</p>' }
-                ] }] }];
+const weeks = fixtureWeeks();
 db.transaction(() => {
     db.prepare("INSERT OR IGNORE INTO courses(id,title,description,course_code,sections,approval_status) VALUES(?,?,?,?,?,'published')").run(course, 'Local Mobile Acceptance', 'Synthetic local test content', 'LOCAL-MOBILE', JSON.stringify(weeks));
+    const stored = db.prepare("SELECT sections FROM courses WHERE id=? AND course_code='LOCAL-MOBILE'").get(course);
+    const existing = JSON.parse(stored.sections);
+    if (repairFixtureReadings(existing))
+        db.prepare('UPDATE courses SET sections=? WHERE id=?').run(JSON.stringify(existing), course);
     db.prepare('INSERT OR IGNORE INTO user_course_codes(user_id,course_code) VALUES(?,?)').run(session.data.user.id, 'LOCAL-MOBILE');
 })();
 const token = session.data.token;
+const reading = await api(fixtureWeeks()[0].sections[0].items[1].url);
+assert.match(await reading.text(), /Your local learning check/);
 await api('http://127.0.0.1:3001/api/v1/courses/' + course, { token });
 await api(`http://127.0.0.1:3001/api/v1/courses/${course}/lessons/${item}/progress`, { method: 'PUT', token, body: { positionSeconds: 12, progressPercent: 40 } });
 await api(`http://127.0.0.1:3001/api/v1/courses/${course}/lessons/${item}/complete`, { method: 'POST', token, body: {} });
