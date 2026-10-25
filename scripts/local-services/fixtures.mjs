@@ -14,7 +14,10 @@ export function repairFixtureReadings(weeks) {
             for (const lesson of section.items || []) {
                 if (['local-reading-1', 'local-reading-2'].includes(lesson.id) && lesson.type === 'text' && !lesson.url) {
                     lesson.url = readingUrl;
-                    if (typeof lesson.information === 'string' && lesson.information.startsWith('<h2>'))
+                    if ([
+                        '<h2>Local learning test</h2><p>This synthetic lesson uses no external content.</p>',
+                        '<h2>Your next local check</h2><p>Open this lesson and mark it complete. All data stays in the local LMS database.</p>'
+                    ].includes(lesson.information))
                         lesson.information = 'Read the local resource below, then mark this lesson complete.';
                     changed = true;
                 }
