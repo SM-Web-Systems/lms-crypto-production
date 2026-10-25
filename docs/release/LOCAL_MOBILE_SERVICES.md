@@ -62,9 +62,9 @@ Mailpit captures only `@example.test` recipients, has no relay/forward configura
 
 The smoke command creates/reuses a local operator and learner through actual Wallet registration/login, captures verification mail and verifies the email address. It can recover a partially created unverified fixture through authenticated resend. The operator reserves Wallet's legacy ID 1 boundary; the learner remains a separate account and receives an LMS student profile through actual SSO.
 
-Local-only credentials are in `.local-services/accounts.json`. Use the learner to sign in through the mobile app's **Sign in with AmmaWallet** button. A fresh login opens local Wallet and returns through the existing `lmsmobile://sso-callback` PKCE flow. No separate LMS password is created. Server secrets are in ignored `.local-services/settings.json`; data/logs live in the owned `%LOCALAPPDATA%/LmsMobile/services/stack-<id>` directory.
+Local-only credentials are in `.local-services/accounts.json`. Use the learner to sign in through the mobile app's **Sign in with AmmaWallet** button. A fresh login opens local Wallet and returns through the existing `lmsmobile://sso-callback` PKCE flow. No separate LMS password is created. Server secrets are in ignored `.local-services/settings.json`; database data/logs live in the owned `%LOCALAPPDATA%/LmsMobile/services/stack-<id>` directory. LMS file uploads use this isolated checkout's ignored `LMS-Server/uploads` directory.
 
-The smoke command also creates a synthetic **Local Mobile Acceptance** course with an authored week and two text lessons. The first lesson has API-tested saved progress/completion; the second is left incomplete for interactive testing. The fixture writes only to this runner's identified local databases. It does not seed production data or create/fund a blockchain wallet.
+The smoke command also creates a synthetic **Local Mobile Acceptance** course with an authored week and two text lessons. The readings are served by the local web runner at `http://localhost:5173/local-reading.html`. The first lesson has API-tested saved progress/completion; the second is left incomplete for interactive testing. The fixture writes only to this runner's identified local databases. It does not seed production data or create/fund a blockchain wallet.
 
 ## Connect the emulator
 
@@ -87,6 +87,6 @@ node --test scripts/local-services/*.test.mjs
 
 Stop waits for the owned cluster to shut down and preserves databases. It authenticates the supervisor identity and refuses an unrelated control listener. Without a supervisor it can stop only its marked PostgreSQL data directory. A failed startup rolls back a newly started cluster. It does not kill arbitrary node processes, other emulators or other databases.
 
-The six pure guard/settings tests run in mobile CI. The smoke script is an explicitly invoked integration tool and does not run in CI. Local configuration, credentials, mail, keys, browser traces and generated Vite wrappers remain ignored.
+The eight pure guard/settings tests run in mobile CI. The smoke script is an explicitly invoked integration tool and does not run in CI. Local configuration, credentials, mail, keys, browser traces and generated Vite wrappers remain ignored.
 
 The local environment validates account/SSO and synthetic text learning. Physical Android/iOS acceptance, iOS builds, real CAPTCHA, SMS, payments, chain operations and the wider media/device checklist remain separate. Server evaluation, merges and deployment stay with the server operator.
