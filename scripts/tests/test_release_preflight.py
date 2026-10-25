@@ -461,7 +461,9 @@ elif tool=='docker':
     elif args[:2]==['volume','inspect']: print(json.dumps(data['volume']))
     elif args[:2]==['image','inspect']:
         image_id = args[-1]
-        print(json.dumps([{'Id':image_id,'Config':{'Labels':data.get('image_labels',{})}}]))
+        per_image = data.get('image_labels_map', {}).get(image_id)
+        labels = per_image if per_image is not None else data.get('image_labels', {})
+        print(json.dumps([{'Id':image_id,'Config':{'Labels':labels}}]))
     else: sys.exit(91)
 ''', encoding='utf8')
         self.config = {'checkout': str(self.checkout), 'repository': 'SM-Web-Systems/lms-crypto-production',
@@ -832,6 +834,35 @@ elif tool=='docker':
         # This will cause revision to be None which fails the not-None check
         self.assert_refuses()
 
+    def test_split_revision_api_correct_web_wrong(self):
+        """API image has correct OCI revision but web has a different one."""
+        WRONG_REV = 'f' * 40
+        self.assertNotEqual(SHA, WRONG_REV)
+        self.fixture['image_labels_map'] = {
+            self.api_image: {'org.opencontainers.image.revision': SHA},
+            self.web_image: {'org.opencontainers.image.revision': WRONG_REV},
+        }
+        self.fixture.pop('image_labels', None)
+        self.assert_refuses('OVERLAY_PROVENANCE_REVISION_MISMATCH')
+
+    def test_split_revision_api_missing_web_present(self):
+        """API image lacks OCI revision label but web has one."""
+        self.fixture['image_labels_map'] = {
+            self.api_image: {},
+            self.web_image: {'org.opencontainers.image.revision': SHA},
+        }
+        self.fixture.pop('image_labels', None)
+        self.assert_refuses('OVERLAY_PROVENANCE_REVISION_MISSING')
+
+    def test_split_revision_web_missing_api_present(self):
+        """Web image lacks OCI revision label but API has one."""
+        self.fixture['image_labels_map'] = {
+            self.api_image: {'org.opencontainers.image.revision': SHA},
+            self.web_image: {},
+        }
+        self.fixture.pop('image_labels', None)
+        self.assert_refuses('OVERLAY_PROVENANCE_REVISION_MISSING')
+
     def test_candidate_overlay_checksum_invalid(self):
         """Candidate with wrong overlay_sha256 is rejected."""
         self.candidate['overlay_sha256'] = '0' * 64
@@ -916,6 +947,29 @@ elif tool=='docker':
         self.assertIn('source_database', target)
         self.assertIn('compose_sha256', target)
         self.assertIn('build_image_refs', target)
+
+    def test_cross_release_with_per_image_oci_labels(self):
+        """Cross-release preflight using per-image OCI labels (realistic stub).
+
+        In production, docker image inspect returns labels per image ID.
+        This test uses image_labels_map to simulate that each image carries
+        its own OCI revision from the previous deployment.
+        """
+        OLD_SHA = 'a' * 40
+        NEW_SHA = 'e' * 40
+        self.assertNotEqual(OLD_SHA, NEW_SHA)
+        self.config['approved_sha'] = NEW_SHA
+        self.fixture['sha'] = NEW_SHA
+        # Per-image labels: both images were built from OLD_SHA
+        self.fixture['image_labels_map'] = {
+            self.api_image: {'org.opencontainers.image.revision': OLD_SHA},
+            self.web_image: {'org.opencontainers.image.revision': OLD_SHA},
+        }
+        self.fixture.pop('image_labels', None)
+        target = self.validate()
+        self.assertEqual(target['approved_sha'], NEW_SHA)
+        self.assertEqual(target['services']['api']['revision'], OLD_SHA)
+        self.assertEqual(target['services']['web']['revision'], OLD_SHA)
 
     def test_every_refusal_is_nonmutating(self):
         """Every overlay refusal path leaves the fixture directory unchanged."""
