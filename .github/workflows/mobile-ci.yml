@@ -42,5 +42,7 @@ jobs:
         run: npm audit --audit-level=critical
       - name: Offline EAS startup and profile schema compatibility
         run: npm run acceptance:tooling
+      - name: Local device target configuration guards
+        run: npm run test:local-setup
       - name: Offline acceptance regressions and TypeScript
         run: npm run acceptance:local

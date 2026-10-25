@@ -51,6 +51,10 @@ npx expo export --platform android --platform ios --max-workers 2 --output-dir d
 
 Device acceptance checks are listed in `../docs/audits/2026-10-22-step4-native-learning-remediation.md`.
 
+## Local Android emulator on Windows
+
+See [LOCAL_ANDROID.md](./LOCAL_ANDROID.md) for the isolated SDK/JDK setup, endpoint guards, native debug build, and emulator commands. Use `npm run android:local -- start` for this environment. This uses an installed development client, which supports the app's native SSO callback.
+
 ## Android release (APK / Google Play)
 
 See **[ANDROID_RELEASE.md](./ANDROID_RELEASE.md)** for EAS Build setup, APK testing builds, and Play Store AAB submission.
