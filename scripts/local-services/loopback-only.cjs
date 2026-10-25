@@ -50,10 +50,16 @@ require('node:dgram').createSocket = deny;
 const dns = require('node:dns');
 for (const [api, asynchronous] of [[dns, false], [dns.promises, true]]) {
     const lookup = api.lookup;
-    api.lookup = asynchronous ? async function (host, ...args) { if (!local(host))
-        deny(); return lookup.call(this, host, ...args); }
-        : function (host, ...args) { if (!local(host))
-            deny(); return lookup.call(this, host, ...args); };
+    api.lookup = asynchronous ? async function (host, ...args) {
+        if (!local(host))
+            deny();
+        return lookup.call(this, host, ...args);
+    }
+        : function (host, ...args) {
+            if (!local(host))
+                deny();
+            return lookup.call(this, host, ...args);
+        };
     for (const target of [api, api.Resolver.prototype]) {
         for (let proto = target; proto && proto !== Object.prototype; proto = Object.getPrototypeOf(proto)) {
             for (const name of Object.getOwnPropertyNames(proto)) {
