@@ -5,7 +5,7 @@
 | Section | RBAC retirement — Step 2: backend authorization and explicit provisioning |
 | Date | 2026-10-26 |
 | Repository / branch | SM-Web-Systems/lms-crypto-production / codex/rbac-backend-cutover |
-| Review unit | Separate Step 2 PR, stacked on codex/rbac-role-inventory (Step 1 PR #98) |
+| Review unit | [Step 2 PR #99](https://github.com/SM-Web-Systems/lms-crypto-production/pull/99), stacked on codex/rbac-role-inventory (Step 1 PR #98); implementation commit bcc41219adabfbd2bec24729c251edb36eba5fa7, assess the latest PR head |
 | Prerequisite | Accepted [RBAC-STEP-01 assessment](SERVER-HANDOVER-RBAC-STEP-01-INVENTORY-AND-POLICY-TESTS.md), including real account exceptions and old endpoint usage |
 | Requested server action | Assess the exact Step 2 PR head, rehearse the transition and return the section record below |
 | Production status | Not deployed; real account decisions, protected-copy rehearsal and maintenance/recovery approval remain server-owned |

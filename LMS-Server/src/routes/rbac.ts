@@ -2,10 +2,10 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission, getUserRoles } from '../middleware/rbac.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { auditLog } from '../services/auditService.js';
-import { revokeUserRole, ROLE_PRIVILEGE_LEVEL, getRoleManagementOptions, assignUserRole, replaceUserRoles, updateCustomRolePermissions, deleteCustomRole } from '../services/roleSecurityService.js';
+import { revokeUserRole, getRoleManagementOptions, assignUserRole, replaceUserRoles, updateCustomRolePermissions, deleteCustomRole } from '../services/roleSecurityService.js';
 
 const router = Router();
 
@@ -14,11 +14,38 @@ router.get('/users/:id/role-options', authenticate, requirePermission('user.assi
   catch (error) { next(error); }
 });
 
-function getHighestPrivilegeLevel(roles: string[]): number {
-  return Math.max(0, ...roles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
-}
-
-/** PUT /admin/users/:id/roles replaces the complete RBAC role set atomically. */
+/**
+ * @openapi
+ * /admin/users/{id}/roles:
+ *   put:
+ *     tags: [RBAC]
+ *     summary: Atomically replace the complete RBAC role set and revoke existing sessions
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [roleIds]
+ *             properties:
+ *               roleIds:
+ *                 type: array
+ *                 maxItems: 100
+ *                 description: Canonical/custom role identifiers. An empty array intentionally removes all grants.
+ *                 items: { type: string }
+ *     responses:
+ *       200: { description: Roles replaced; previous sessions invalidated on change }
+ *       400: { description: Invalid roleIds }
+ *       401: { description: Authentication required }
+ *       403: { description: Missing user.assign_role or hierarchy/self/super-admin boundary }
+ *       404: { description: User or role not found }
+ */
 router.put('/users/:id/roles',authenticate,requirePermission('user.assign_role'),(req:AuthRequest,res:Response,next)=>{
   try { replaceUserRoles(req.user!.userId,req.params.id,req.body?.roleIds); res.json({success:true,message:'Roles replaced'}); }
   catch(error) { next(error); }

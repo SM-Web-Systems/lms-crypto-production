@@ -96,6 +96,16 @@ test('failure rolls schema, trigger, versions and sessions back together',()=>{
     assert.match(db.prepare("SELECT sql FROM sqlite_master WHERE name='trg_auto_assign_user_role'").get().sql,/NEW.role/);
   });
 });
+test('an unknown later migration marker cannot be mistaken for the supported schema',()=>{
+  fixture(({db,file,apply,plan})=>{
+    apply();
+    db.exec("INSERT INTO authorization_migrations(id,review_reference) VALUES('future-schema','synthetic')");
+    const before=readFileSync(file);
+    assert.throws(plan,/Invalid cutover marker/);
+    assert.throws(apply,/Invalid cutover marker/);
+    assert.deepEqual(readFileSync(file),before);
+  });
+});
 test('argument parsing cannot ambiguously select apply or omit values',()=>{
   assert.throws(()=>parseCutoverArguments(['--plan','--apply']));
   assert.throws(()=>parseCutoverArguments(['--database']));

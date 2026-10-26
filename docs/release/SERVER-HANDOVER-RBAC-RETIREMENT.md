@@ -5,7 +5,7 @@ Each section has its own numbered handover, review branch/PR, evidence, server c
 | Section | Work | Handover | Server assessment |
 | --- | --- | --- | --- |
 | RBAC-STEP-01 | Read-only role inventory and policy tests | [Step 1 handover](SERVER-HANDOVER-RBAC-STEP-01-INVENTORY-AND-POLICY-TESTS.md), PR #98 | Pending production inventory/account and usage evidence |
-| RBAC-STEP-02 | Backend authorization and explicit provisioning | [Step 2 handover, sections 2A–2D](SERVER-HANDOVER-RBAC-STEP-02-BACKEND-CUTOVER.md) | Separate review branch codex/rbac-backend-cutover; production cutover gated by Step 1 decisions and protected-copy/image rehearsal |
+| RBAC-STEP-02 | Backend authorization and explicit provisioning | [Step 2 handover, sections 2A–2D](SERVER-HANDOVER-RBAC-STEP-02-BACKEND-CUTOVER.md), PR #99 | Separate review branch codex/rbac-backend-cutover; production cutover gated by Step 1 decisions and protected-copy/image rehearsal |
 | RBAC-STEP-03 | Web/mobile contracts and role UI | Not yet issued | Planned |
 | RBAC-STEP-04 | Legacy schema/compatibility removal | Not yet issued | Planned; requires earlier sections and rollback proof |
 
