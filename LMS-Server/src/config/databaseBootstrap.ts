@@ -2,6 +2,7 @@ import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence, type ForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
 // Only the explicit CLI can request creation, before importing database.ts.
 // Neither server arguments nor an environment flag authorize initialization.
@@ -50,7 +51,7 @@ function refuse(reason: string): never {
   throw new Error(`Database startup refused: ${reason}. Preserve the database and its WAL/SHM/journal files; restore or perform a reviewed upgrade. db:init --initialize-new is only for a separate new database.`);
 }
 
-export function validateDatabase(db: SqliteDatabase, afterMigrations = false): void {
+export function validateDatabase(db: SqliteDatabase, afterMigrations = false, foreignKeyBaseline: ForeignKeyEvidence = new Set()): ForeignKeyEvidence {
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('integrity check failed');
   for (const table of baseline) {
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
@@ -72,13 +73,9 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
       if (!actual || normalize(actual.sql) !== normalize(trigger.sql)) refuse(`missing or changed role trigger (${trigger.name})`);
     }
   }
-  // Pre-existing databases may contain legacy orphaned FK references that pre-date
-  // this release. Log a warning but do not refuse startup for pre-existing violations.
-  const fkViolations = db.pragma('foreign_key_check') as { table: string; rowid: number; parent: string }[];
-  if (fkViolations.length) {
-    const summary = fkViolations.map(v => `${v.table}[${v.rowid}]->${v.parent}`).join(', ');
-    console.warn(`Database has ${fkViolations.length} pre-existing foreign key violation(s): ${summary}`);
-  }
+  const foreignKeys = captureForeignKeyEvidence(db);
+  if (afterMigrations) assertNoNewForeignKeyEvidence(foreignKeys, foreignKeyBaseline);
+  if (foreignKeys.size) console.warn(`Database has ${foreignKeys.size} unchanged legacy foreign key violation(s); reviewed repair remains required.`);
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
   if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
@@ -86,6 +83,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   if (!(db.pragma('foreign_key_list(quizzes)') as { from: string; on_delete: string }[]).some(f => f.from === 'course_id' && f.on_delete === 'SET NULL')) refuse('legacy quiz foreign key');
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND (sql LIKE '%_users_old%' OR sql LIKE '%_nft_creds_b0_old%')").get()) refuse('stale foreign key references');
   if (afterMigrations) {
+    if ((db.pragma('table_info(lesson_completions)') as {name:string;notnull:number}[])
+      .find(column => column.name === 'completed_at')?.notnull) refuse('legacy lesson completion timestamp requires nullable migration');
     for (const [table, names] of Object.entries(required.tables)) {
       const columns = db.pragma(`table_info("${table}")`) as { name: string }[];
       for (const name of names) if (!columns.some(c => c.name === name)) refuse(`incomplete migration (${table}.${name})`);
@@ -95,12 +94,13 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
       if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(index)) refuse(`missing required index (${index})`);
     }
   }
+  return foreignKeys;
 }
 
-export function openApplicationDatabase(filename: string): { database: SqliteDatabase; initializing: boolean } {
+export function openApplicationDatabase(filename: string): { database: SqliteDatabase; initializing: boolean; foreignKeyBaseline: ForeignKeyEvidence } {
   if (filename === ':memory:') {
     if (!process.env.VITEST) refuse('in-memory databases are reserved for tests');
-    return { database: new Database(':memory:'), initializing: false };
+    return { database: new Database(':memory:'), initializing: false, foreignKeyBaseline: new Set() };
   }
   const resolved = path.resolve(filename);
   const exists = fs.existsSync(resolved);
@@ -108,14 +108,15 @@ export function openApplicationDatabase(filename: string): { database: SqliteDat
     if (exists || ['-wal', '-shm', '-journal'].some(s => fs.existsSync(resolved + s))) refuse('initialization target or sidecar already exists');
     fs.mkdirSync(path.dirname(resolved), { recursive: true });
     fs.closeSync(fs.openSync(resolved, 'wx', 0o600));
-    return { database: new Database(resolved, { fileMustExist: true }), initializing: true };
+    return { database: new Database(resolved, { fileMustExist: true }), initializing: true, foreignKeyBaseline: new Set() };
   }
   if (!exists) refuse('database file is missing');
   const stat = fs.lstatSync(resolved);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0) refuse('database is empty or not a regular file');
   const inspection = new Database(resolved, { readonly: true, fileMustExist: true });
-  try { validateDatabase(inspection); } finally { inspection.close(); }
-  return { database: new Database(resolved, { fileMustExist: true }), initializing: false };
+  let foreignKeyBaseline: ForeignKeyEvidence;
+  try { inspection.exec('BEGIN'); foreignKeyBaseline = validateDatabase(inspection); } finally { inspection.close(); }
+  return { database: new Database(resolved, { fileMustExist: true }), initializing: false, foreignKeyBaseline };
 }
 
 export function loadCanonicalSchema(db: SqliteDatabase): void { db.exec(canonicalSql); }
