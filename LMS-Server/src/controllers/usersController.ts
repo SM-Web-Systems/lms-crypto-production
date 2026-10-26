@@ -55,7 +55,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (callerId === id) {
       res.json({
         success: true,
-        data: { id: row.id, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
+        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
       });
       return;
     }
@@ -67,7 +67,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (callerPerms.has('user.manage')) {
       res.json({
         success: true,
-        data: { id: row.id, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
+        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
       });
       return;
     }
@@ -85,7 +85,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       if ((inScope?.cnt ?? 0) > 0) {
         res.json({
           success: true,
-          data: { id: row.id, displayName: row.name, ...compatibleRoleSummary(row.id) },
+          data: { id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) },
         });
         return;
       }
@@ -104,7 +104,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       if ((inCohort?.cnt ?? 0) > 0) {
         res.json({
           success: true,
-          data: { id: row.id, displayName: row.name, ...compatibleRoleSummary(row.id) },
+          data: { id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) },
         });
         return;
       }

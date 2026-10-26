@@ -1,21 +1,20 @@
 /**
  * Phase G Frontend Tests
  *
- * G-TYPE-1 — UserRole includes all new roles
  * G-NAV-1  — Sponsor sees sponsor nav items
  * G-NAV-2  — Employer sees employer nav items
  * G-NAV-3  — Parent sees parent nav items
  * G-NAV-4  — Teacher sees teacher nav items
  * G-NAV-5  — TA sees TA-specific nav items (not lecturer)
- * G-CUSTOM-1 — resolveClosestRole maps custom roles correctly
- * G-CUSTOM-2 — resolveClosestRole defaults unknown to student
+ * Custom assignments cannot imply a workspace.
+ * Current workspace context governs multi-role routing.
  * G-CUSTOM-3 — PermissionGate renders children for allowed role
  */
 
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { resolveClosestRole } from '../../utils/resolveClosestRole';
+import { availableWorkspaces, homeForUser } from '../../utils/authorization';
 
 // Mock useAuth for Layout tests
 const mockUser = { id: '1', name: 'Test', email: 't@t.com', role: 'student' as string, walletAddress: null, walletLinkingStatus: 'none' as const };
@@ -60,14 +59,6 @@ describe('Phase G Frontend', () => {
     vi.clearAllMocks();
   });
 
-  it('G-TYPE-1 — UserRole includes all new roles', async () => {
-    // This is a compile-time check. If the type doesn't include these, TS would fail.
-    // We do a runtime check via roleHome to verify the mapping.
-    const { default: App } = await import('../../App');
-    // If this module loads without type errors, the type system is correct.
-    expect(App).toBeDefined();
-  });
-
   it('G-NAV-1 — Sponsor sees sponsor nav items', () => {
     renderLayoutWithRole('sponsor');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
@@ -110,20 +101,15 @@ describe('Phase G Frontend', () => {
     expect(screen.queryByText('Submissions')).not.toBeInTheDocument();
   });
 
-  it('G-CUSTOM-1 — resolveClosestRole maps custom roles correctly', () => {
-    expect(resolveClosestRole('admin')).toBe('admin');
-    expect(resolveClosestRole('lecturer')).toBe('lecturer');
-    expect(resolveClosestRole('teaching-assistant')).toBe('teaching-assistant');
-    expect(resolveClosestRole('super-admin')).toBe('admin');
-    expect(resolveClosestRole('instructor')).toBe('lecturer');
-    expect(resolveClosestRole('guardian')).toBe('parent');
-    expect(resolveClosestRole('professor')).toBe('lecturer');
+  it('custom assignment names never manufacture a workspace', () => {
+    const user = {id:'u',name:'User',email:'u@test.invalid',rbacRoles:['super-admin-adviser','guardian','professor'],walletAddress:null,walletLinkingStatus:'none' as const};
+    expect(availableWorkspaces(user)).toEqual([]);
+    expect(homeForUser(user)).toBe('/access-denied');
   });
 
-  it('G-CUSTOM-2 — resolveClosestRole defaults unknown to student', () => {
-    expect(resolveClosestRole('unknown')).toBe('student');
-    expect(resolveClosestRole(undefined)).toBe('student');
-    expect(resolveClosestRole('')).toBe('student');
+  it('uses current workspace context for a custom multi-role user without a legacy label', () => {
+    const user = {id:'u',name:'User',email:'u@test.invalid',rbacRoles:['curriculum-editor','student'],workspaces:['lecturer','student'] as const,walletAddress:null,walletLinkingStatus:'none' as const};
+    expect(homeForUser({...user,workspaces:[...user.workspaces]})).toBe('/lecturer');
   });
 
   it('G-CUSTOM-3 — PermissionGate renders children for allowed role', () => {
@@ -135,7 +121,7 @@ describe('Phase G Frontend', () => {
     } as any);
 
     const { rerender } = render(
-      <PermissionGate allowedRole="admin">
+      <PermissionGate allowedWorkspace="admin">
         <span>Secret Content</span>
       </PermissionGate>,
     );
@@ -143,7 +129,7 @@ describe('Phase G Frontend', () => {
 
     // Should NOT render for wrong role
     rerender(
-      <PermissionGate allowedRole="student">
+      <PermissionGate allowedWorkspace="student">
         <span>Secret Content</span>
       </PermissionGate>,
     );

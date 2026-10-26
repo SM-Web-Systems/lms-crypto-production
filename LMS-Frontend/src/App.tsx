@@ -17,7 +17,7 @@ import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { availableWorkspaces, canAccessPath, homeForUser } from './utils/authorization';
-import type { UserRole } from './types/api';
+import type { Workspace } from './types/api';
 
 // Lazy-loaded pages — split into separate chunks per route
 const Messages = React.lazy(() => import('./pages/Messages'));
@@ -67,9 +67,9 @@ const LoadingScreen: React.FC = () => (
 
 export const ProtectedRoute: React.FC<{
   children: React.ReactNode;
-  allowedRole?: UserRole;
-  allowedRoles?: UserRole[];
-}> = ({ children, allowedRole, allowedRoles }) => {
+  allowedWorkspace?: Workspace;
+  allowedWorkspaces?: Workspace[];
+}> = ({ children, allowedWorkspace, allowedWorkspaces }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -82,8 +82,8 @@ export const ProtectedRoute: React.FC<{
   }
 
   const workspaces = availableWorkspaces(user);
-  if ((allowedRoles && !allowedRoles.some(role => role !== 'custom' && workspaces.includes(role)))
-    || (allowedRole && (allowedRole === 'custom' || !workspaces.includes(allowedRole)))
+  if ((allowedWorkspaces && !allowedWorkspaces.some(role => workspaces.includes(role)))
+    || (allowedWorkspace && !workspaces.includes(allowedWorkspace))
     || !canAccessPath(user, location.pathname)) {
     return <AccessDenied />;
   }
@@ -162,13 +162,13 @@ function App() {
             <Route path="/profile/:userId" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><Layout><Messages /></Layout></ProtectedRoute>} />
             <Route path="/forum" element={<ProtectedRoute><Layout><Forum /></Layout></ProtectedRoute>} />
-            <Route path="/lecturer/course-members" element={<ProtectedRoute allowedRole="lecturer"><Layout><CourseMembers /></Layout></ProtectedRoute>} />
+            <Route path="/lecturer/course-members" element={<ProtectedRoute allowedWorkspace="lecturer"><Layout><CourseMembers /></Layout></ProtectedRoute>} />
 
             {/* Student Routes */}
             <Route
               path="/student"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentDashboard />
                   </Layout>
@@ -178,7 +178,7 @@ function App() {
             <Route
               path="/student/submissions"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentSubmissions />
                   </Layout>
@@ -188,7 +188,7 @@ function App() {
             <Route
               path="/student/payments"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentPayments />
                   </Layout>
@@ -198,7 +198,7 @@ function App() {
             <Route
               path="/student/rewards"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentDashboard />
                   </Layout>
@@ -208,7 +208,7 @@ function App() {
             <Route
               path="/student/badges"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <BadgeGallery />
                   </Layout>
@@ -218,7 +218,7 @@ function App() {
             <Route
               path="/student/documents"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentDocuments />
                   </Layout>
@@ -228,7 +228,7 @@ function App() {
             <Route
               path="/student/course"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentCourse />
                   </Layout>
@@ -238,7 +238,7 @@ function App() {
             <Route
               path="/student/forum"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <Forum />
                   </Layout>
@@ -248,7 +248,7 @@ function App() {
             <Route
               path="/student/messages"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <Messages />
                   </Layout>
@@ -258,7 +258,7 @@ function App() {
             <Route
               path="/student/quizzes"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentQuizzes />
                   </Layout>
@@ -268,7 +268,7 @@ function App() {
             <Route
               path="/student/progress"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentProgress />
                   </Layout>
@@ -278,7 +278,7 @@ function App() {
             <Route
               path="/student/profile"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <Profile />
                   </Layout>
@@ -288,7 +288,7 @@ function App() {
             <Route
               path="/student/profile/:userId"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <Profile />
                   </Layout>
@@ -298,7 +298,7 @@ function App() {
             <Route
               path="/student/course-members"
               element={
-                <ProtectedRoute allowedRole="student">
+                <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <CourseMembers />
                   </Layout>
@@ -310,7 +310,7 @@ function App() {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <AdminDashboard />
                   </Layout>
@@ -320,7 +320,7 @@ function App() {
             <Route
               path="/admin/students"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <AdminStudents />
                   </Layout>
@@ -330,7 +330,7 @@ function App() {
             <Route
               path="/admin/submissions"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <AdminSubmissions />
                   </Layout>
@@ -340,7 +340,7 @@ function App() {
             <Route
               path="/admin/documents"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <AdminDocuments />
                   </Layout>
@@ -350,7 +350,7 @@ function App() {
             <Route
               path="/admin/course"
               element={
-                <ProtectedRoute allowedRoles={['admin', 'lecturer']}>
+                <ProtectedRoute allowedWorkspaces={['admin', 'lecturer']}>
                   <Layout>
                     <AdminCourse />
                   </Layout>
@@ -360,7 +360,7 @@ function App() {
             <Route
               path="/admin/quizzes"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <AdminQuizzes />
                   </Layout>
@@ -370,7 +370,7 @@ function App() {
             <Route
               path="/admin/forum"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <Forum />
                   </Layout>
@@ -380,7 +380,7 @@ function App() {
             <Route
               path="/admin/messages"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <Messages />
                   </Layout>
@@ -390,7 +390,7 @@ function App() {
             <Route
               path="/admin/profile"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <Profile />
                   </Layout>
@@ -400,7 +400,7 @@ function App() {
             <Route
               path="/admin/profile/:userId"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <Profile />
                   </Layout>
@@ -410,7 +410,7 @@ function App() {
             <Route
               path="/admin/course-members"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <CourseMembers />
                   </Layout>
@@ -420,7 +420,7 @@ function App() {
             <Route
               path="/admin/certificates"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <AdminCertificates />
                   </Layout>
@@ -430,7 +430,7 @@ function App() {
             <Route
               path="/admin/sponsor/:tab?"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <SponsorDashboard />
                   </Layout>
@@ -441,7 +441,7 @@ function App() {
             <Route
               path="/admin/users"
               element={
-                <ProtectedRoute allowedRole="admin">
+                <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <UserRoleManager />
                   </Layout>
@@ -453,7 +453,7 @@ function App() {
             <Route
               path="/lecturer"
               element={
-                <ProtectedRoute allowedRole="lecturer">
+                <ProtectedRoute allowedWorkspace="lecturer">
                   <Layout>
                     <LecturerDashboard />
                   </Layout>
@@ -463,7 +463,7 @@ function App() {
             <Route
               path="/lecturer/courses/:courseId"
               element={
-                <ProtectedRoute allowedRole="lecturer">
+                <ProtectedRoute allowedWorkspace="lecturer">
                   <Layout>
                     <LecturerCourseStudents />
                   </Layout>
@@ -473,7 +473,7 @@ function App() {
             <Route
               path="/lecturer/course"
               element={
-                <ProtectedRoute allowedRole="lecturer">
+                <ProtectedRoute allowedWorkspace="lecturer">
                   <Layout>
                     <AdminCourse />
                   </Layout>
@@ -483,7 +483,7 @@ function App() {
             <Route
               path="/lecturer/submissions"
               element={
-                <ProtectedRoute allowedRole="lecturer">
+                <ProtectedRoute allowedWorkspace="lecturer">
                   <Layout>
                     <LecturerSubmissions />
                   </Layout>
@@ -493,7 +493,7 @@ function App() {
             <Route
               path="/lecturer/messages"
               element={
-                <ProtectedRoute allowedRole="lecturer">
+                <ProtectedRoute allowedWorkspace="lecturer">
                   <Layout>
                     <Messages />
                   </Layout>
@@ -503,7 +503,7 @@ function App() {
             <Route
               path="/lecturer/profile"
               element={
-                <ProtectedRoute allowedRole="lecturer">
+                <ProtectedRoute allowedWorkspace="lecturer">
                   <Layout>
                     <Profile />
                   </Layout>
@@ -515,7 +515,7 @@ function App() {
             <Route
               path="/ta"
               element={
-                <ProtectedRoute allowedRole="teaching-assistant">
+                <ProtectedRoute allowedWorkspace="teaching-assistant">
                   <Layout>
                     <TADashboard />
                   </Layout>
@@ -525,7 +525,7 @@ function App() {
             <Route
               path="/ta/courses"
               element={
-                <ProtectedRoute allowedRole="teaching-assistant">
+                <ProtectedRoute allowedWorkspace="teaching-assistant">
                   <Layout>
                     <TADashboard />
                   </Layout>
@@ -535,7 +535,7 @@ function App() {
             <Route
               path="/ta/grade"
               element={
-                <ProtectedRoute allowedRole="teaching-assistant">
+                <ProtectedRoute allowedWorkspace="teaching-assistant">
                   <Layout>
                     <TADashboard />
                   </Layout>
@@ -547,7 +547,7 @@ function App() {
             <Route
               path="/sponsor/:tab?"
               element={
-                <ProtectedRoute allowedRole="sponsor">
+                <ProtectedRoute allowedWorkspace="sponsor">
                   <Layout>
                     <SponsorDashboard />
                   </Layout>
@@ -559,7 +559,7 @@ function App() {
             <Route
               path="/employer"
               element={
-                <ProtectedRoute allowedRole="employer">
+                <ProtectedRoute allowedWorkspace="employer">
                   <Layout>
                     <EmployerDashboard />
                   </Layout>
@@ -569,7 +569,7 @@ function App() {
             <Route
               path="/employer/rewards"
               element={
-                <ProtectedRoute allowedRole="employer">
+                <ProtectedRoute allowedWorkspace="employer">
                   <Layout>
                     <EmployerDashboard />
                   </Layout>
@@ -579,7 +579,7 @@ function App() {
             <Route
               path="/employer/teams"
               element={
-                <ProtectedRoute allowedRole="employer">
+                <ProtectedRoute allowedWorkspace="employer">
                   <Layout>
                     <EmployerDashboard />
                   </Layout>
@@ -589,7 +589,7 @@ function App() {
             <Route
               path="/employer/billing"
               element={
-                <ProtectedRoute allowedRole="employer">
+                <ProtectedRoute allowedWorkspace="employer">
                   <Layout>
                     <EmployerDashboard />
                   </Layout>
@@ -601,7 +601,7 @@ function App() {
             <Route
               path="/parent"
               element={
-                <ProtectedRoute allowedRole="parent">
+                <ProtectedRoute allowedWorkspace="parent">
                   <Layout>
                     <ParentDashboard />
                   </Layout>
@@ -611,7 +611,7 @@ function App() {
             <Route
               path="/parent/rewards"
               element={
-                <ProtectedRoute allowedRole="parent">
+                <ProtectedRoute allowedWorkspace="parent">
                   <Layout>
                     <ParentDashboard />
                   </Layout>
@@ -621,7 +621,7 @@ function App() {
             <Route
               path="/parent/children"
               element={
-                <ProtectedRoute allowedRole="parent">
+                <ProtectedRoute allowedWorkspace="parent">
                   <Layout>
                     <ParentDashboard />
                   </Layout>
@@ -631,7 +631,7 @@ function App() {
             <Route
               path="/parent/wallets"
               element={
-                <ProtectedRoute allowedRole="parent">
+                <ProtectedRoute allowedWorkspace="parent">
                   <Layout>
                     <ParentDashboard />
                   </Layout>
@@ -641,7 +641,7 @@ function App() {
             <Route
               path="/parent/groups"
               element={
-                <ProtectedRoute allowedRole="parent">
+                <ProtectedRoute allowedWorkspace="parent">
                   <Layout>
                     <ParentDashboard />
                   </Layout>
@@ -651,7 +651,7 @@ function App() {
             <Route
               path="/parent/billing"
               element={
-                <ProtectedRoute allowedRole="parent">
+                <ProtectedRoute allowedWorkspace="parent">
                   <Layout>
                     <ParentDashboard />
                   </Layout>
@@ -663,7 +663,7 @@ function App() {
             <Route
               path="/teacher"
               element={
-                <ProtectedRoute allowedRole="teacher">
+                <ProtectedRoute allowedWorkspace="teacher">
                   <Layout>
                     <TeacherDashboard />
                   </Layout>
@@ -673,7 +673,7 @@ function App() {
             <Route
               path="/teacher/rewards"
               element={
-                <ProtectedRoute allowedRole="teacher">
+                <ProtectedRoute allowedWorkspace="teacher">
                   <Layout>
                     <TeacherDashboard />
                   </Layout>
@@ -683,7 +683,7 @@ function App() {
             <Route
               path="/teacher/classes"
               element={
-                <ProtectedRoute allowedRole="teacher">
+                <ProtectedRoute allowedWorkspace="teacher">
                   <Layout>
                     <TeacherDashboard />
                   </Layout>
@@ -693,7 +693,7 @@ function App() {
             <Route
               path="/teacher/analytics"
               element={
-                <ProtectedRoute allowedRole="teacher">
+                <ProtectedRoute allowedWorkspace="teacher">
                   <Layout>
                     <TeacherDashboard />
                   </Layout>
@@ -703,7 +703,7 @@ function App() {
             <Route
               path="/teacher/billing"
               element={
-                <ProtectedRoute allowedRole="teacher">
+                <ProtectedRoute allowedWorkspace="teacher">
                   <Layout>
                     <TeacherDashboard />
                   </Layout>

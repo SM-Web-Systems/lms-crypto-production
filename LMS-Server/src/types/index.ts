@@ -214,6 +214,8 @@ export interface ForumAuthor {
   name: string;
   email: string | null;
   role: LegacyRole;
+  rbacRoles?: string[];
+  roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
   isDeleted?: boolean;
 }
 
@@ -392,6 +394,10 @@ export interface UserDirectoryItem {
   name: string;
   email?: string;
   role: LegacyRole;
+  rbacRoles?: string[];
+  roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
+  /** Roster profile membership; does not confer current learning access. */
+  studentId?: string | null;
   courseCodes?: string[];
 }
 

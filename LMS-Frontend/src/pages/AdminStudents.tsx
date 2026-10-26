@@ -176,7 +176,7 @@ const AdminStudents: React.FC = () => {
         const student = await addStudent(formData);
         const userId = student.userId || student.id;
         if (userId && selectedCourseCodes.length > 0) await usersService.patchUserCourseCodes(userId, selectedCourseCodes);
-        userDirectoryService.add({ id: userId || student.id, name: student.name, email: student.email, role: 'student', courseCodes: selectedCourseCodes });
+        userDirectoryService.add({ id: userId || student.id, name: student.name, email: student.email, courseCodes: selectedCourseCodes });
       }
       setIsModalOpen(false);
     } catch (error) {

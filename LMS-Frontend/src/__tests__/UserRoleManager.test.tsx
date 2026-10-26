@@ -70,6 +70,17 @@ beforeEach(() => {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('UserRoleManager', () => {
+  it('shows multiple custom RBAC badges without a legacy field or legacy column', async () => {
+    (usersService.getUsers as Mock).mockResolvedValueOnce([{
+      id:'multi',name:'Multi User',email:'multi@test.invalid',courseCodes:[],
+      roleSummaries:[{id:'a',name:'student',label:'Learner'},{id:'b',name:'support-desk',label:'Support desk'}],
+    }]);
+    renderComponent();
+    expect(await screen.findByText('Learner')).toBeInTheDocument();
+    expect(screen.getByText('Support desk')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader',{name:'RBAC roles'})).toBeInTheDocument();
+    expect(screen.queryByText(/legacy role/i)).not.toBeInTheDocument();
+  });
   it('shows no mutation actions for a peer target and does not request the global role catalogue', async () => {
     (rbacService.getRoleOptions as Mock).mockResolvedValueOnce({canModify:false,reason:'Peer roles cannot be changed.',assignableRoles:[],revocableRoleIds:[]});
     renderComponent();
@@ -128,8 +139,8 @@ describe('UserRoleManager', () => {
     expect(screen.queryByText('Bob Student')).toBeNull();
   });
 
-  // URM-03: User list shows correct columns (Name, Email, Legacy Role, Actions)
-  it('URM-03: user list table has Name, Email, Legacy Role, Actions columns', async () => {
+  // URM-03: User list shows correct columns (Name, Email, RBAC roles, Actions)
+  it('URM-03: user list table has Name, Email, RBAC roles, Actions columns', async () => {
     renderComponent();
     await waitFor(() => {
       expect(screen.getByText('Alice Admin')).toBeTruthy();
@@ -137,7 +148,7 @@ describe('UserRoleManager', () => {
 
     expect(screen.getByText('Name')).toBeTruthy();
     expect(screen.getByText('Email')).toBeTruthy();
-    expect(screen.getByText('Legacy Role')).toBeTruthy();
+    expect(screen.getByText('RBAC roles')).toBeTruthy();
     expect(screen.getByText('Actions')).toBeTruthy();
   });
 
@@ -156,7 +167,7 @@ describe('UserRoleManager', () => {
 
     expect(rbacService.getUserRoles).toHaveBeenCalledWith('u2');
     await waitFor(() => {
-      expect(screen.getByText('Student')).toBeTruthy();
+      expect(screen.getAllByText('Student').length).toBeGreaterThan(0);
     });
     // Should show selected user's info in the right panel
     const emailMatches = screen.getAllByText('bob@example.com');
@@ -367,7 +378,7 @@ describe('UserRoleManager', () => {
     await user.click(within(bobRow).getByRole('button', { name: /manage roles/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Content Reviewer')).toBeTruthy();
+      expect(within(screen.getByText('Current RBAC Roles').parentElement!).getByText('Content Reviewer')).toBeInTheDocument();
     });
     // The raw role name "content-reviewer" should NOT appear as a visible label
     expect(screen.queryByText('content-reviewer')).toBeNull();
@@ -395,21 +406,22 @@ describe('UserRoleManager', () => {
     expect(callArgs[1]).not.toBeUndefined();
   });
 
-  // REG-04: Legacy-role vs RBAC-role explanation note is visible
-  it('REG-04: legacy-role vs RBAC-role explanation is displayed', async () => {
-    const user = userEvent.setup();
+  it('refreshes the selected user directory badges from current assignments', async () => {
     renderComponent();
-    await waitFor(() => expect(screen.getByText('Bob Student')).toBeTruthy());
-
-    const bobRow = screen.getByText('Bob Student').closest('tr')!;
-    await user.click(within(bobRow).getByRole('button', { name: /manage roles/i }));
-    await waitFor(() => expect(rbacService.getUserRoles).toHaveBeenCalledWith('u2'));
-
-    // Should display the legacy vs RBAC explanation note
-    await waitFor(() => {
-      expect(
-        screen.getByText(/legacy role.*rbac/i) || screen.getByText(/rbac.*legacy/i),
-      ).toBeTruthy();
-    });
+    const row=(await screen.findByText('Bob Student')).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button',{name:/manage roles/i}));
+    await waitFor(()=>expect(within(row).getByText('Student')).toBeInTheDocument());
+    expect(screen.queryByText(/legacy role/i)).not.toBeInTheDocument();
+  });
+  it('refreshes the directory to zero assignments after a successful revocation', async () => {
+    (rbacService.getUserRoles as Mock).mockResolvedValueOnce(BOB_ROLES).mockResolvedValueOnce([]);
+    renderComponent();
+    const row=(await screen.findByText('Bob Student')).closest('tr')!;
+    await userEvent.click(within(row).getByRole('button',{name:/manage roles/i}));
+    await userEvent.click(await screen.findByRole('button',{name:'Remove Student role'}));
+    await userEvent.click(screen.getByRole('button',{name:'Confirm'}));
+    await waitFor(()=>expect(within(row).getByText('No roles assigned')).toBeInTheDocument());
+    expect(within(row).queryByText('Student')).not.toBeInTheDocument();
+    expect(rbacService.removeUserRole).toHaveBeenCalledWith('u2','r2');
   });
 });

@@ -49,7 +49,7 @@ beforeEach(() => {
 describe('A03 — workspace routes and navigation', () => {
   it('sponsor with legacy student opens the sponsor route and sponsor navigation', () => {
     mocks.user=user({rbacRoles:['sponsor'],workspaces:['sponsor'],defaultWorkspace:'sponsor',permissions:['impact_report.read']});
-    render(<MemoryRouter initialEntries={['/sponsor']}><ProtectedRoute allowedRole="sponsor"><Layout><p>Sponsor workspace</p></Layout></ProtectedRoute></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/sponsor']}><ProtectedRoute allowedWorkspace="sponsor"><Layout><p>Sponsor workspace</p></Layout></ProtectedRoute></MemoryRouter>);
     expect(screen.getByText('Sponsor workspace')).toBeInTheDocument();
     expect(screen.getByText('Impact Report')).toBeInTheDocument();
     expect(homeForUser(mocks.user)).toBe('/sponsor');
@@ -66,23 +66,23 @@ describe('A03 — workspace routes and navigation', () => {
   });
   it('legacy admin alone cannot open an administrator route', () => {
     mocks.user=user({role:'admin',permissions:[],workspaces:[],rbacRoles:[],defaultWorkspace:null});
-    render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedRole="admin"><p>Secret role tools</p></ProtectedRoute></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedWorkspace="admin"><p>Secret role tools</p></ProtectedRoute></MemoryRouter>);
     expect(screen.getByText('Access unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Secret role tools')).not.toBeInTheDocument();
     expect(homeForUser(mocks.user)).toBe('/access-denied');
   });
   it('a valid admin workspace still needs the page capability', () => {
     mocks.user=user({workspaces:['admin'],defaultWorkspace:'admin',permissions:['system.view_audit_log']});
-    render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedRole="admin"><p>Role tools</p></ProtectedRoute></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedWorkspace="admin"><p>Role tools</p></ProtectedRoute></MemoryRouter>);
     expect(screen.getByText('Access unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Role tools')).not.toBeInTheDocument();
   });
   it('updated authorization immediately removes an already-open restricted page', () => {
     mocks.user=user({workspaces:['admin'],permissions:['user.assign_role','user.view_all']});
-    const view=render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedRole="admin"><p>Role tools</p></ProtectedRoute></MemoryRouter>);
+    const view=render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedWorkspace="admin"><p>Role tools</p></ProtectedRoute></MemoryRouter>);
     expect(screen.getByText('Role tools')).toBeInTheDocument();
     mocks.user={...mocks.user,permissions:[]};
-    view.rerender(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedRole="admin"><p>Role tools</p></ProtectedRoute></MemoryRouter>);
+    view.rerender(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedWorkspace="admin"><p>Role tools</p></ProtectedRoute></MemoryRouter>);
     expect(screen.queryByText('Role tools')).not.toBeInTheDocument();
     expect(screen.getByText('Access unavailable')).toBeInTheDocument();
   });

@@ -10,19 +10,12 @@ import {
   Loader2, ChevronDown, ChevronRight, Users, BookOpen,
 } from 'lucide-react';
 import { Submission } from '../types/api';
-import { courseService } from '../services/courseService';
+import { courseService, type CourseMember } from '../services/courseService';
 import { studentsService } from '../services/studentsService';
 import { getErrorMessage } from '../utils/apiError';
 import { StatusBadge, fmtSize } from '../components/StatusBadge';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface CourseMember {
-  id: string;   // user.id
-  name: string;
-  email: string;
-  role: string;
-}
 
 interface CourseItem {
   id: string;
@@ -159,14 +152,22 @@ const AdminSubmissions: React.FC = () => {
   useEffect(() => {
     if (selectedCourseId === '__all__') {
       setMembers([]);
+      setMembersLoading(false);
       return;
     }
+    let cancelled = false;
+    setMembers([]);
     setMembersLoading(true);
     courseService.fetchCourseMembers(selectedCourseId)
-      .then((m) => setMembers(m.filter((x) => x.role === 'student')))
-      .catch(() => setMembers([]))
-      .finally(() => setMembersLoading(false));
+      .then(value => { if (!cancelled) setMembers(value); })
+      .catch(() => { if (!cancelled) setMembers([]); })
+      .finally(() => { if (!cancelled) setMembersLoading(false); });
+    return () => { cancelled = true; };
   }, [selectedCourseId]);
+
+  // Historical learner membership remains visible even after a role is revoked.
+  // The ID map supports Step 2 backends during the client compatibility window.
+  const learnerMembers = members.filter(member => member.studentId || userIdToStudentId[member.id]);
 
   // Submissions grouped by studentId for quick lookup
   const submissionsByStudentId = useMemo(() => {
@@ -367,16 +368,16 @@ const AdminSubmissions: React.FC = () => {
                 <Loader2 className="h-5 w-5 animate-spin text-primary-500" />
                 <span className="text-sm text-gray-500">Loading members…</span>
               </div>
-            ) : members.length === 0 ? (
+            ) : learnerMembers.length === 0 ? (
               <div className="text-center py-10">
                 <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 text-sm">No students are enrolled in this course yet.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {members.map((member) => {
+                {learnerMembers.map((member) => {
                   // member.id is user_id — resolve to student_id for filtering
-                  const studentId = userIdToStudentId[member.id];
+                  const studentId = member.studentId ?? userIdToStudentId[member.id];
                   const memberSubs = studentId ? (submissionsByStudentId[studentId] ?? []) : [];
                   return (
                     <MemberRow

@@ -8,6 +8,31 @@ on:
   workflow_call:
 
 jobs:
+  mobile:
+    name: Mobile Tests, Typecheck & Bundle
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LMS-Mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test -- --runInBand
+      - name: Bundle Android JavaScript without live services
+        run: npx expo export --platform android --output-dir dist/ci-android --max-workers 2
+        env:
+          EXPO_NO_DOTENV: '1'
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:4998/api/v1
+          EXPO_PUBLIC_WEB_BASE_URL: http://127.0.0.1:4998
+          EXPO_PUBLIC_AMMA_WALLET_URL: http://127.0.0.1:4999
+
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest

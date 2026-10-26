@@ -50,21 +50,25 @@ export interface NFTResponse {
 }
 
 // User Types
-export type UserRole = "student" | "admin" | "lecturer" | "sponsor" | "employer" | "parent" | "teacher" | "teaching-assistant" | "custom";
-export type Workspace = Exclude<UserRole, 'custom'>;
+/** RBAC names are extensible and are never workspace identifiers. */
+export type RbacRoleName = string;
+export type Workspace = 'student' | 'admin' | 'lecturer' | 'sponsor' | 'employer' | 'parent' | 'teacher' | 'teaching-assistant';
+export interface RoleSummary { id: string; name: RbacRoleName; label: string }
 
 export interface User {
   deletionStatus?: string | null;
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  /** @deprecated Transitional server field. Never use for presentation or access. */
+  role?: string;
   walletAddress: string | null;
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
   authProvider?: 'local' | 'ammawallet';
   /** Course codes the user can access (students). When backend supports this, include in auth/me. */
   courseCodes?: string[];
   rbacRoles?: string[];
+  roleSummaries?: RoleSummary[];
   permissions?: string[];
   workspaces?: Workspace[];
   defaultWorkspace?: Workspace | null;

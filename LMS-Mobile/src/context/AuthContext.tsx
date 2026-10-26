@@ -5,6 +5,7 @@ import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { authService } from '../services/authService';
 import { ammaWalletService } from '../services/ammaWalletService';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/token';
+import { currentSessionUser } from '../../../LMS-Frontend/src/utils/rolePresentation';
 import type { User } from '../types/api';
 
 export interface AuthContextType {
@@ -57,7 +58,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!current()) return;
       if (!token) { setUser(null); setSessionError(null); return; }
       const me = await authService.getMe();
-      if (current()) { setUser(me); setSessionError(null); }
+      if (current()) { setUser(currentSessionUser(me)); setSessionError(null); }
     } catch (error) {
       if (!current()) return;
       if (token && error instanceof ApiRequestError && error.status === 401) await expire(token);
@@ -80,9 +81,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!mounted.current || generation.current !== started) throw new Error('Sign-in was cancelled. Please try again.');
     const persisted = await setStoredToken(result.token);
     if (!mounted.current || generation.current !== started) throw new Error('Sign-in was cancelled. Please try again.');
-    setUser(result.user); setSessionError(null); setNotice(null); setIsLoading(false);
+    setUser(currentSessionUser(result.user)); setSessionError(null); setNotice(null); setIsLoading(false);
     setWarning(persisted ? null : 'You are signed in, but this device could not save the session. You may need to sign in again after closing the app.');
-    return result.user;
+    return currentSessionUser(result.user);
   }, []);
   const loginWithAmma = useCallback(async () => {
     if (walletPending.current) throw new Error('Wallet sign-in is already in progress.');

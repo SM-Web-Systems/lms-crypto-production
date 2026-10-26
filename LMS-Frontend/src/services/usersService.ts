@@ -5,12 +5,12 @@
 import api from './api';
 import { ApiResponse } from '../types/api';
 import { assertApiSuccess } from '../utils/apiError';
+import type { RolePresentation } from '../utils/rolePresentation';
 
-export interface UserDirectoryItem {
+export interface UserDirectoryItem extends RolePresentation {
   id: string;
   name: string;
   email: string;
-  role: 'student' | 'admin' | 'lecturer';
   courseCodes: string[];
 }
 

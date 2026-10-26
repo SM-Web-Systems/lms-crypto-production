@@ -833,9 +833,10 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
       throw new AppError('You do not have access to this course', 403, ErrorCodes.FORBIDDEN);
     }
 
-    const rows = query<{ id: string; name: string; email: string; role: string }>(
-      `SELECT u.id, u.name, u.email
+    const rows = query<{ id: string; name: string; email: string; studentId: string | null }>(
+      `SELECT u.id, u.name, u.email, s.id AS studentId
        FROM users u
+       LEFT JOIN students s ON s.user_id = u.id
        INNER JOIN user_course_codes c ON c.user_id = u.id
        WHERE c.course_code = ?
        ORDER BY u.name`,
@@ -847,6 +848,7 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
       name: r.name,
       email: r.email,
       ...summaries.get(r.id)!,
+      studentId: r.studentId,
     }));
 
     res.json({
@@ -921,9 +923,10 @@ export async function addCourseMember(req: AuthRequest, res: Response, next: Nex
       // best-effort
     }
 
-    const rows = query<{ id: string; name: string; email: string; role: string }>(
-      `SELECT u.id, u.name, u.email
+    const rows = query<{ id: string; name: string; email: string; studentId: string | null }>(
+      `SELECT u.id, u.name, u.email, s.id AS studentId
        FROM users u
+       LEFT JOIN students s ON s.user_id = u.id
        INNER JOIN user_course_codes c ON c.user_id = u.id
        WHERE c.course_code = ?
        ORDER BY u.name`,
@@ -935,6 +938,7 @@ export async function addCourseMember(req: AuthRequest, res: Response, next: Nex
       name: r.name,
       email: r.email,
       ...summaries.get(r.id)!,
+      studentId: r.studentId,
     }));
 
     res.status(201).json({
