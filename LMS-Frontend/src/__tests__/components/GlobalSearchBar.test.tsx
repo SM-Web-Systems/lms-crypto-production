@@ -17,7 +17,7 @@ vi.mock('../../services/searchService', () => ({
 }));
 
 vi.mock('../../context/useAuth', () => ({
-  useAuth: () => ({ user: { role: 'student', name: 'Test', workspaces: ['student'], permissions: ['course.view', 'certificate.view_own', 'quiz.view'] } }),
+  useAuth: () => ({ user: {  name: 'Test', workspaces: ['student'], permissions: ['course.view', 'certificate.view_own', 'quiz.view'] } }),
 }));
 
 import { searchService } from '../../services/searchService';

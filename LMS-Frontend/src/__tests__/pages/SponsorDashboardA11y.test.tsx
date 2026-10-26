@@ -15,7 +15,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: vi.fn(() => ({
-    user: { id: '1', name: 'Sponsor', email: 's@test.com', role: 'student', workspaces:['sponsor'], permissions:['cohort.view_own','cohort.manage','reward.view_assigned','impact_report.read','billing.view_own','student.view_assigned'], walletAddress: null, walletLinkingStatus: 'none' as const },
+    user: { id: '1', name: 'Sponsor', email: 's@test.com',  workspaces:['sponsor'], permissions:['cohort.view_own','cohort.manage','reward.view_assigned','impact_report.read','billing.view_own','student.view_assigned'], walletAddress: null, walletLinkingStatus: 'none' as const },
     isAuthenticated: true,
     isLoading: false,
     logout: vi.fn(),

@@ -81,13 +81,19 @@ function seedAuth02() {
   // Sponsors use legacy role='student' to avoid trg_auto_assign_user_role
   // granting role_admin (which includes billing.confirm admin bypass).
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
     VALUES
-      ('${adminId}',    'AUTH02 Admin',     '${testEmail('admin', adminId)}',       'hash', 'admin',   'GTEST${adminId.slice(0, 8)}', 'linked'),
-      ('${sponsorAId}', 'AUTH02 Sponsor A', '${testEmail('spa', sponsorAId)}',     'hash', 'student', 'GTEST${sponsorAId.slice(0, 8)}', 'linked'),
-      ('${sponsorBId}', 'AUTH02 Sponsor B', '${testEmail('spb', sponsorBId)}',     'hash', 'student', 'GTEST${sponsorBId.slice(0, 8)}', 'linked'),
-      ('${studentAId}', 'AUTH02 Student A', '${testEmail('sta', studentAId)}',     'hash', 'student', 'GTEST${studentAId.slice(0, 8)}', 'linked'),
-      ('${studentBId}', 'AUTH02 Student B', '${testEmail('stb', studentBId)}',     'hash', 'student', 'GTEST${studentBId.slice(0, 8)}', 'linked');
+      ('${adminId}','AUTH02 Admin','${testEmail('admin', adminId)}','hash','GTEST${adminId.slice(0, 8)}','linked'),
+      ('${sponsorAId}','AUTH02 Sponsor A','${testEmail('spa', sponsorAId)}','hash','GTEST${sponsorAId.slice(0, 8)}','linked'),
+      ('${sponsorBId}','AUTH02 Sponsor B','${testEmail('spb', sponsorBId)}','hash','GTEST${sponsorBId.slice(0, 8)}','linked'),
+      ('${studentAId}','AUTH02 Student A','${testEmail('sta', studentAId)}','hash','GTEST${studentAId.slice(0, 8)}','linked'),
+      ('${studentBId}','AUTH02 Student B','${testEmail('stb', studentBId)}','hash','GTEST${studentBId.slice(0, 8)}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${sponsorAId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${sponsorBId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentAId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentBId}','role_student');
+
   `);
 
   // --- RBAC role assignments ---
@@ -407,8 +413,10 @@ describe('AUTH-02 — Edge cases', () => {
     // Create a sponsor with role_sponsor but no cohorts
     const sponsorCId = uuidv4();
     db.exec(`
-      INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-      VALUES ('${sponsorCId}', 'AUTH02 Sponsor C', '${testEmail('spc', sponsorCId)}', 'hash', 'student', 'GTEST${sponsorCId.slice(0, 8)}', 'linked');
+      INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+      VALUES ('${sponsorCId}','AUTH02 Sponsor C','${testEmail('spc', sponsorCId)}','hash','GTEST${sponsorCId.slice(0, 8)}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${sponsorCId}','role_student');
+
       INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${sponsorCId}', 'role_sponsor');
     `);
 

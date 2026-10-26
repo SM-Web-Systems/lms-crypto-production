@@ -17,7 +17,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { availableWorkspaces, homeForUser } from '../../utils/authorization';
 
 // Mock useAuth for Layout tests
-const mockUser = { id: '1', name: 'Test', email: 't@t.com', role: 'student' as string, walletAddress: null, walletLinkingStatus: 'none' as const };
+const mockUser = { id: '1', name: 'Test', email: 't@t.com',  walletAddress: null, walletLinkingStatus: 'none' as const };
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: vi.fn(() => ({
@@ -37,9 +37,8 @@ import Layout from '../../components/Layout';
 import { PermissionGate } from '../../components/PermissionGate';
 
 function renderLayoutWithRole(role: string) {
-  mockUser.role = role;
   vi.mocked(useAuth).mockReturnValue({
-    user: { ...mockUser, role: 'student', workspaces: [role], defaultWorkspace: role, permissions: ['impact_report.read', 'reward.view_assigned', 'course.grade_pending', 'billing.view_own', 'cohort.manage'] } as any,
+    user: { ...mockUser,  workspaces: [role], defaultWorkspace: role, permissions: ['impact_report.read', 'reward.view_assigned', 'course.grade_pending', 'billing.view_own', 'cohort.manage'] } as any,
     isAuthenticated: true,
     isLoading: false,
     logout: vi.fn(),
@@ -114,7 +113,7 @@ describe('Phase G Frontend', () => {
 
   it('G-CUSTOM-3 — PermissionGate renders children for allowed role', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { ...mockUser, role: 'student', workspaces: ['admin'], permissions: ['system.manage_roles'] } as any,
+      user: { ...mockUser,  workspaces: ['admin'], permissions: ['system.manage_roles'] } as any,
       isAuthenticated: true,
       isLoading: false,
       logout: vi.fn(),

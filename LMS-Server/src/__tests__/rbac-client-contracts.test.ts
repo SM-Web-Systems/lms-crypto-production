@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
@@ -8,7 +9,6 @@ import { getAuthorizationContext } from '../services/authorizationService.js';
 import { roleSummariesForUsers } from '../services/roleSummaryService.js';
 
 beforeEach(() => {
-  db.exec('DROP TRIGGER IF EXISTS trg_fixture_legacy_roles');
   // The reset omits runtime-created profile tables, as in avatar-serving tests.
   db.exec(`CREATE TABLE user_profiles (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 function account(grants: string[], legacy = 'admin') {
   const id = randomUUID(), email = id + '@client-rbac.invalid';
-  db.prepare('INSERT INTO users(id,name,email,password_hash,role) VALUES(?,?,?,?,?)').run(id, 'Contract ' + id, email, 'unused', legacy);
+  seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)`, [id,'Contract ' + id,email,'unused'], []);
   for (const role of grants) db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id, role);
   return { id, token: generateToken({ userId: id, email, role: 'student' }) };
 }
@@ -35,6 +35,7 @@ function course() {
 }
 const get = (path: string, token: string) => request(app).get('/api/v1' + path).auth(token, { type: 'bearer' });
 function assertPublicSummary(value: Record<string, unknown>) {
+  expect(value).not.toHaveProperty('role');
   expect(value).not.toHaveProperty('permissions');
   expect(value).not.toHaveProperty('workspaces');
   expect(value).not.toHaveProperty('adminTier');
@@ -42,13 +43,13 @@ function assertPublicSummary(value: Record<string, unknown>) {
 }
 
 describe('RBAC Step 3 scoped client contracts', () => {
-  it('keeps the previous mobile me shape on the transitional server', async () => {
+  it('returns current RBAC context without the removed single role field', async () => {
     const user = account(['role_admin', 'role_student'], 'lecturer');
     const response = await get('/auth/me', user.token);
     expect(response.status).toBe(200);
-    // Previous source consumes these effective fields and the single display hint.
+    expect(response.body.data).not.toHaveProperty('role');
     expect(response.body.data).toMatchObject({
-      id:user.id, role:'admin', rbacRoles:expect.arrayContaining(['admin','student']),
+      id:user.id, rbacRoles:expect.arrayContaining(['admin','student']),
       workspaces:expect.arrayContaining(['admin','student']),
       permissions:expect.arrayContaining(['user.view_all','course.view']),
     });

@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,13 +23,9 @@ function seedLecturerData() {
   lecturerUserId = uuidv4();
   const unassignedLecturerId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test Lecturer', ?, ?, 'lecturer')`,
-  ).run(lecturerUserId, `lecturer-${lecturerUserId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test Lecturer',?,?)`, [lecturerUserId,`lecturer-${lecturerUserId}@test.com`,HASH], ["role_instructor"]);
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Unassigned Lecturer', ?, ?, 'lecturer')`,
-  ).run(unassignedLecturerId, `lecturer2-${unassignedLecturerId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Unassigned Lecturer',?,?)`, [unassignedLecturerId,`lecturer2-${unassignedLecturerId}@test.com`,HASH], ["role_instructor"]);
 
   // Assign lecturer to course via course_lecturers
   db.prepare(

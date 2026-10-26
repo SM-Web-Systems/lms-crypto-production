@@ -55,14 +55,15 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   // Existing databases require an operator-reviewed offline cutover, never an
   // implicit startup grant/backfill or trigger repair.
   const ledger = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").get();
-  if (!ledger || !db.prepare("SELECT 1 FROM authorization_migrations WHERE id='rbac-only-v1'").get()
-    || (db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get() as {total:number}).total !== 1) {
-    refuse('RBAC-only schema requires the reviewed offline rbac-cutover migration');
+  if (!ledger) refuse('RBAC schema requires the reviewed offline rbac-retire-legacy migration');
+  const ids = (db.prepare('SELECT id FROM authorization_migrations ORDER BY id').all() as {id:string}[]).map(row=>row.id);
+  if (!['rbac-only-v2','rbac-only-v1,rbac-only-v2'].includes(ids.join(','))) {
+    refuse('RBAC schema requires the reviewed offline rbac-retire-legacy migration');
   }
-  const expectedGuard = baselineTriggers.find(trigger => trigger.name === 'trg_auto_assign_user_role');
-  const actualGuard = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get() as {sql:string}|undefined;
-  const normalizeGuard = (sql:string) => sql.replace(/\s+/g,' ').trim();
-  if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
+  if ((db.pragma('table_xinfo(users)') as {name:string}[]).some(column=>column.name==='role')
+    || db.prepare("SELECT 1 FROM sqlite_master WHERE name='trg_auto_assign_user_role' OR (type='trigger' AND tbl_name='users')").get()) {
+    refuse('retired authorization schema objects remain');
+  }
 
   for (const table of baseline) {
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
@@ -92,7 +93,6 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
     console.warn(`Database has ${fkViolations.length} pre-existing foreign key violation(s): ${summary}`);
   }
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
-  if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
   if ((db.pragma('table_info(nft_credentials)') as { name: string; notnull: number }[]).find(c => c.name === 'quiz_id')?.notnull) refuse('legacy NFT constraint');
   if (!(db.pragma('foreign_key_list(quizzes)') as { from: string; on_delete: string }[]).some(f => f.from === 'course_id' && f.on_delete === 'SET NULL')) refuse('legacy quiz foreign key');

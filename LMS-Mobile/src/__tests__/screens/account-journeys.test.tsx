@@ -16,7 +16,7 @@ const mockLogout=jest.fn().mockResolvedValue(undefined),mockRefresh=jest.fn().mo
 jest.mock('@/context/AuthContext',()=>({useAuth:()=>({user:mockUser,isLoading:false,isAuthenticated:!!mockUser,logout:mockLogout,refresh:mockRefresh,updateUser:mockUpdate})}));
 jest.mock('@/services/accountService');jest.mock('@/services/authService');
 const service=accountService as jest.Mocked<typeof accountService>,auth=authService as jest.Mocked<typeof authService>;
-const student:User={id:'student',name:'Learner',email:'student@example.invalid',role:'student',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view','course.submit','certificate.view_own']};
+const student:User={id:'student',name:'Learner',email:'student@example.invalid',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view','course.submit','certificate.view_own']};
 beforeEach(()=>{
   jest.clearAllMocks();mockUser=student;service.sessions.mockResolvedValue([]);service.exports.mockResolvedValue([]);service.deletionStatus.mockResolvedValue({status:'none'});
   service.requestDeletion.mockResolvedValue(undefined);service.cancelDeletion.mockResolvedValue(undefined);service.revokeSession.mockResolvedValue(undefined);service.requestExport.mockResolvedValue(undefined);
@@ -29,7 +29,7 @@ describe('A13 role-aware handoffs',()=>{
     expect(canStudy(user)).toBe(false);expect(mobileHome(user)).toBe('/workspace');
   });
   it('legacy admin with effective student access can study; legacy student alone confers no access',()=>{
-    expect(canStudy({...student,role:'admin'})).toBe(true);
+    expect(canStudy({...student,rbacRoles:['admin']})).toBe(true);
     expect(canStudy({...student,workspaces:undefined})).toBe(false);
     expect(canOpenStudentPath({...student,permissions:['course.view']},'/submissions')).toBe(false);
   });

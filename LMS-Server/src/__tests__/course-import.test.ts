@@ -32,11 +32,15 @@ function seedImportData(): SeedResult {
   const existingSectionId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Import Admin', 'import-admin@test.com', '${HASH}', 'admin'),
-      ('${lecturerId}', 'Import Lecturer', 'import-lecturer@test.com', '${HASH}', 'lecturer'),
-      ('${unassignedLecturerId}', 'Unassigned Lecturer', 'import-unassigned@test.com', '${HASH}', 'lecturer');
+      ('${adminId}','Import Admin','import-admin@test.com','${HASH}'),
+      ('${lecturerId}','Import Lecturer','import-lecturer@test.com','${HASH}'),
+      ('${unassignedLecturerId}','Unassigned Lecturer','import-unassigned@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${unassignedLecturerId}','role_instructor');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES (

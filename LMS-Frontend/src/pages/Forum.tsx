@@ -218,7 +218,7 @@ const Forum: React.FC = () => {
 
   // ── Thread view ──────────────────────────────────────────────────────────────
   if (selectedTopic) {
-    const author = selectedTopic.author ?? { name: 'Unknown', role: 'student', isDeleted: false };
+    const author = selectedTopic.author ?? { name: 'Unknown', isDeleted: false };
     return (
       <div>
         {/* Channel breadcrumb */}
@@ -296,7 +296,7 @@ const Forum: React.FC = () => {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <PostAuthor
-                        author={post.author ?? { name: 'Unknown', role: 'student', isDeleted: false }}
+                        author={post.author ?? { name: 'Unknown', isDeleted: false }}
                         createdAt={post.createdAt}
                       />
                       {user && post.author?.id === user.id && (

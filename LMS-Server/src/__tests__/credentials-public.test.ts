@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * credentials-public.test.ts
  *
@@ -25,10 +26,8 @@ const OTHER_WALLET = 'GDPOFQ7YDGLMFVWZ2LRKLQFN7KQBJ5UVTVF6TVVQ5G5WALLET2TESTXX';
 /** Insert a minimal user row and return its id */
 function seedUser(): string {
   const userId = uuidv4();
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-     VALUES (?, 'Cred Test User', ?, 'hash', 'student', ?, 'linked')`
-  ).run(userId, `cred-test-${userId}@test.com`, TEST_WALLET);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+     VALUES (?,'Cred Test User',?,'hash',?,'linked')`, [userId,`cred-test-${userId}@test.com`,TEST_WALLET], ["role_student"]);
   return userId;
 }
 
@@ -145,10 +144,8 @@ describe('GET /api/v1/credentials/public', () => {
 
     // Insert a second user with OTHER_WALLET
     const otherUserId = uuidv4();
-    db.prepare(
-      `INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-       VALUES (?, 'Other User', ?, 'hash', 'student', ?, 'linked')`
-    ).run(otherUserId, `other-ca4-${otherUserId}@test.com`, OTHER_WALLET);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+       VALUES (?,'Other User',?,'hash',?,'linked')`, [otherUserId,`other-ca4-${otherUserId}@test.com`,OTHER_WALLET], ["role_student"]);
 
     db.prepare(
       `INSERT INTO nft_credentials

@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database.js';
@@ -12,9 +13,7 @@ import {
 
 function createUser(role = 'student'): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, 'hash', ?)"
-  ).run(id, `${id}@test.com`, role);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test',?,'hash')`, [id,`${id}@test.com`], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]);
   return id;
 }
 

@@ -23,7 +23,7 @@ describe('POST /api/v1/auth/login', () => {
       id: ids.adminId,
       name: 'Admin User',
       email: 'admin@test.com',
-      role: 'admin',
+      rbacRoles: ['admin'],
     });
   });
 
@@ -78,7 +78,7 @@ describe('GET /api/v1/auth/me', () => {
       id: ids.adminId,
       name: 'Admin User',
       email: 'admin@test.com',
-      role: 'admin',
+      rbacRoles: ['admin'],
       walletAddress: 'admin-wallet-address',
     });
     expect(res.body.data.courseCodes).toBeDefined();

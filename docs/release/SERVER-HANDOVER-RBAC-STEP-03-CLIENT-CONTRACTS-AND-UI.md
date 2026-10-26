@@ -10,6 +10,8 @@ Status: implementation for assessment; production and installed-device acceptanc
 
 Use [the numbered retirement index](SERVER-HANDOVER-RBAC-RETIREMENT.md) to keep this assessment separate from Steps 1, 2 and 4. Retarget this stacked PR after its prerequisites merge, reconcile other active PRs, and rerun checks on the resulting head. No merge, deployment, live database change or live provider operation is part of this laptop handover.
 
+The transitional field retention described here belongs to the Step 3 release/PR #100. The [Step 4 packet](SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md) describes their later removal; this packet's installed-client acceptance and retirement decisions remain prerequisites.
+
 ## 3A — Web role presentation and workspace contracts
 
 - User Role Management replaces the Legacy Role column with wrapping badges for every current RBAC assignment, including custom roles. Narrow layouts show each user's identity, roles and management button together without sideways scrolling. Selecting a user and successful role changes refresh their directory badges. Assignment/removal choices still come from backend role-management options; API escalation and last-super-admin guards remain authoritative.

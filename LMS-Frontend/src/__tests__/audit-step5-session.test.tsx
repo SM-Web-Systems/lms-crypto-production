@@ -7,7 +7,7 @@ import type {User} from '../types/api';
 
 const mocks=vi.hoisted(()=>({get:vi.fn(),post:vi.fn(),unauthorized:undefined as undefined|((token:string)=>void)}));
 vi.mock('../services/api',()=>({default:{get:mocks.get,post:mocks.post},setTokenGetter:vi.fn(),onUnauthorized:(listener:(token:string)=>void)=>{mocks.unauthorized=listener;return()=>{};}}));
-const student:User={id:'student',name:'Learner',email:'student@example.invalid',role:'student',walletAddress:null,walletLinkingStatus:'none',workspaces:['student'],permissions:['course.view']};
+const student:User={id:'student',name:'Learner',email:'student@example.invalid',walletAddress:null,walletLinkingStatus:'none',workspaces:['student'],permissions:['course.view']};
 const sponsor:User={...student,id:'sponsor',email:'sponsor@example.invalid',workspaces:['sponsor']};
 const response=(user:User)=>({data:{success:true,data:user}});
 let profileUpdate:(user:User)=>void;

@@ -22,9 +22,10 @@ function seedUser(suffix: string) {
   const code = `CME-${uuidv4().slice(0, 8)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-    VALUES ('${userId}', 'CME Student', 'cme-${suffix}@test.com', '${HASH}', 'student',
-            'GCMEWALLET${userId.slice(0,8).toUpperCase()}', 'linked');
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+    VALUES ('${userId}','CME Student','cme-${suffix}@test.com','${HASH}','GCMEWALLET${userId.slice(0,8).toUpperCase()}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
 
     INSERT INTO courses (id, title, course_code, sections)
     VALUES ('${courseId}', 'CME Course', '${code}', '[]');

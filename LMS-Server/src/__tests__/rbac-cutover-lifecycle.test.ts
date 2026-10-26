@@ -1,3 +1,5 @@
+import jwt from 'jsonwebtoken';
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { beforeEach,describe,it,expect } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
@@ -7,10 +9,9 @@ import { generateToken,verifyToken } from '../config/jwt.js';
 import { createRbacAccount } from '../services/rbacAccountService.js';
 import { getUserRoles } from '../middleware/rbac.js';
 
-beforeEach(()=>db.exec('DROP TRIGGER IF EXISTS trg_fixture_legacy_roles'));
 function raw(grants:string[]=[]){
   const id=randomUUID(),email=id+'@rbac-lifecycle.invalid';
-  db.prepare("INSERT INTO users(id,name,email,password_hash,authorization_version,role) VALUES(?,'Synthetic',?,'synthetic',1,'admin')").run(id,email);
+  seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES(?,'Synthetic',?,'synthetic',1)`, [id,email], []);
   for(const role of grants) db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id,role);
   return {id,email,token:generateToken({userId:id,email,role:'admin'})};
 }
@@ -25,7 +26,7 @@ describe('RBAC cutover lifecycle and transaction boundaries',()=>{
     expect(getUserRoles(created.id)).toEqual(['admin']);
     expect(version(created.id)).toBe(1);
     expect(created.studentId).toBeTypeOf('string'); // Capability, not a second student role.
-    expect(db.prepare('SELECT role FROM users WHERE id=?').get(created.id)).toEqual({role:'student'});
+    expect(db.pragma('table_info(users)').some((column:any)=>column.name==='role')).toBe(false);
   });
   it('failed initial grant/profile creation rolls user and grants back',()=>{
     db.exec("CREATE TRIGGER fail_profile BEFORE INSERT ON students BEGIN SELECT RAISE(ABORT,'synthetic profile failure'); END");
@@ -76,10 +77,13 @@ describe('RBAC cutover lifecycle and transaction boundaries',()=>{
     expect(result.status).toBe(200); expect(getUserRoles(target.id)).toEqual(['sponsor']); expect(version(target.id)).toBe(2);
     expect((await request(app).get('/api/v1/auth/me').auth(target.token,AUTH)).status).toBe(401);
   });
-  it('token compatibility labels and role lists come from RBAC, ignoring supplied/stored labels',()=>{
+  it('minted tokens contain no role hints or cached role list',()=>{
     const user=raw(['role_student']);
-    const payload=verifyToken(generateToken({userId:user.id,email:user.email,role:'admin',roles:['super-admin']}));
-    expect(payload.role).toBe('student'); expect(payload.roles).toEqual(['student']);
+    const untrusted={userId:user.id,email:user.email,role:'admin',roles:['super-admin']};
+    const token=generateToken(untrusted);
+    const payload=jwt.decode(token);
+    expect(verifyToken(token)).not.toHaveProperty('role');
+    expect(payload).not.toHaveProperty('role'); expect(payload).not.toHaveProperty('roles');
   });
   it('certificate self-application requires certificate capability even when enrolled',async()=>{
     db.exec("INSERT INTO roles(id,name,label) VALUES('limited','limited-learner','Limited'); INSERT INTO role_permissions(role_id,permission_id) VALUES('limited','perm_course_view')");

@@ -37,11 +37,15 @@ function seedBase() {
   const courseId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
     VALUES
-      ('${adminId}',    'Admin',    'admin-f@test.com',    '${HASH}', 'admin',    NULL,             'none'),
-      ('${studentId}',  'Student',  'student-f@test.com',  '${HASH}', 'student',  '${WALLET_ADDR}', 'linked'),
-      ('${lecturerId}', 'Lecturer', 'lecturer-f@test.com', '${HASH}', 'lecturer', NULL,             'none');
+      ('${adminId}','Admin','admin-f@test.com','${HASH}',NULL,'none'),
+      ('${studentId}','Student','student-f@test.com','${HASH}','${WALLET_ADDR}','linked'),
+      ('${lecturerId}','Lecturer','lecturer-f@test.com','${HASH}',NULL,'none');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Phase F Course', 'Test', 'PF-001', '[]');

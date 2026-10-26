@@ -20,8 +20,10 @@ function seedUser(role: 'admin' | 'student', suffix: string) {
   const userId = uuidv4();
   const email = `${suffix}-${Date.now()}@test.com`;
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'User ${suffix}', '${email}', '${HASH}', '${role}');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','User ${suffix}','${email}','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}',CASE '${role}' WHEN 'student' THEN 'role_student' WHEN 'lecturer' THEN 'role_instructor' WHEN 'admin' THEN 'role_admin' END);
+
   `);
   return { userId, email };
 }

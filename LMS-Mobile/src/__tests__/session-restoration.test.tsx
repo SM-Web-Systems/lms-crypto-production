@@ -17,7 +17,7 @@ jest.mock('@/services/authService');
 jest.mock('@/services/ammaWalletService',()=>({ammaWalletService:{signIn:jest.fn(),cancelSignIn:jest.fn()}}));
 jest.mock('@/lib/token',()=>({getStoredToken:jest.fn(()=>Promise.resolve(mockToken)),setStoredToken:jest.fn(async(token)=>{mockToken=token;return true;}),clearStoredToken:jest.fn(async()=>{mockToken=null;})}));
 const service=authService as jest.Mocked<typeof authService>;
-const student:User={id:'student',name:'Learner',email:'student@example.invalid',role:'student',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view','course.submit']};
+const student:User={id:'student',name:'Learner',email:'student@example.invalid',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view','course.submit']};
 const sponsor:User={...student,id:'sponsor',email:'sponsor@example.invalid',workspaces:['sponsor'],defaultWorkspace:'sponsor',permissions:['cohort.view_own']};
 let profileUpdate:(user:User)=>void;
 function Probe(){
@@ -166,7 +166,7 @@ describe('A14 resilient native sessions',()=>{
     renderSession();
     await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
     expect(JSON.parse(screen.getByTestId('current-authorization').props.children)).not.toHaveProperty('role');
-    const {role: _legacy, ...current} = sponsor;
+    const current = sponsor;
     service.getMe.mockResolvedValueOnce({...current,rbacRoles:['sponsor'],roleSummaries:[]});
     await act(async()=>fireEvent.press(screen.getByText('Refresh')));
     await waitFor(()=>expect(screen.getByText('/workspace')).toBeTruthy());

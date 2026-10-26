@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * nft-metadata.test.ts — NFT metadata JSON endpoint
  *
@@ -17,8 +18,7 @@ import { db } from '../config/database.js';
 
 function seedUser(): string {
   const id = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'Meta Student', 'hash', 'student')`)
-    .run(id, `meta-${id}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'Meta Student','hash')`, [id,`meta-${id}@test.com`], ["role_student"]);
   return id;
 }
 

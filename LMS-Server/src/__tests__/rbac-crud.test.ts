@@ -23,8 +23,10 @@ function createSuperAdmin() {
   const userId = uuidv4();
   const hash = '$2a$04$' + 'x'.repeat(53); // dummy hash
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'SA CRUD', 'crud-sa-${userId.slice(0,6)}@test.com', '${hash}', 'admin');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','SA CRUD','crud-sa-${userId.slice(0,6)}@test.com','${hash}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_admin');
+
   `);
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, 'role_admin']);
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, 'role_super_admin']);

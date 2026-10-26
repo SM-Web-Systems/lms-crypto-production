@@ -9,8 +9,8 @@ import SsoCallback from '../pages/SsoCallback';
 import { ApiRequestError } from '../utils/apiError';
 import type { User } from '../types/api';
 
-const walletUser: User = {id:'wallet-user',name:'Wallet learner',email:'wallet@example.invalid',role:'student',walletAddress:null,walletLinkingStatus:'none',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view']};
-const internalUser: User = {...walletUser,id:'internal-user',email:'internal@example.invalid',role:'admin',workspaces:['admin'],defaultWorkspace:'admin'};
+const walletUser: User = {id:'wallet-user',name:'Wallet learner',email:'wallet@example.invalid',walletAddress:null,walletLinkingStatus:'none',workspaces:['student'],defaultWorkspace:'student',permissions:['course.view']};
+const internalUser: User = {...walletUser,id:'internal-user',email:'internal@example.invalid',workspaces:['admin'],defaultWorkspace:'admin'};
 let signOut:(()=>Promise<void>)|undefined;
 const originalAdapter=api.defaults.adapter;
 const reads: string[] = [];

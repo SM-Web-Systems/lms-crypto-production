@@ -1,7 +1,7 @@
 # Remove LMS legacy roles: review and implementation plan
 
 Date: 2026-10-26
-Status: Steps 1–3 implemented in sequential review PRs #98, #99 and #100; server assessment and deployment pending. Step 4 has not started.
+Status: Steps 1–4 implemented in sequential review PRs #98, #99, #100 and #101. All production assessment, installed-client acceptance, migration and deployment gates remain server-owned; implementation is not production acceptance.
 
 Use the [numbered server handover index](../release/SERVER-HANDOVER-RBAC-RETIREMENT.md) for each section's implementation, evidence and acceptance gates. The findings below describe the original review baseline; production inventory and installed-client acceptance remain unverified.
 

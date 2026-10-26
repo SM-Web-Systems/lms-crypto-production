@@ -35,11 +35,14 @@ export function seedTestData(): TestIds {
   const documentId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id, name, email, password_hash, walletAddress, wallet_linking_status)
     VALUES
-      ('${adminId}', 'Admin User', 'admin@test.com', '${HASH}', 'admin', 'admin-wallet-address', 'none'),
-      ('${studentUserId}', 'Student User', 'student@test.com', '${HASH}', 'student', 'student-wallet-address', 'none'),
-      ('${linkedStudentUserId}', 'Linked Student', 'linked@test.com', '${HASH}', 'student', '${LINKED_WALLET_ADDRESS}', 'linked');
+      ('${adminId}', 'Admin User', 'admin@test.com', '${HASH}', 'admin-wallet-address', 'none'),
+      ('${studentUserId}', 'Student User', 'student@test.com', '${HASH}', 'student-wallet-address', 'none'),
+      ('${linkedStudentUserId}', 'Linked Student', 'linked@test.com', '${HASH}', '${LINKED_WALLET_ADDRESS}', 'linked');
+    INSERT INTO user_roles(user_id,role_id) VALUES
+      ('${adminId}','role_admin'),('${studentUserId}','role_student'),('${linkedStudentUserId}','role_student');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES

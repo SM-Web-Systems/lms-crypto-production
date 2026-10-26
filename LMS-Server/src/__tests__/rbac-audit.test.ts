@@ -27,8 +27,10 @@ const HASH = '$2a$04$' + 'x'.repeat(53);
 function createSuperAdmin() {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'Audit SA', 'aud-sa-${userId.slice(0, 6)}@test.com', '${HASH}', 'admin');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','Audit SA','aud-sa-${userId.slice(0, 6)}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_admin');
+
   `);
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, 'role_admin']);
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, 'role_super_admin']);
@@ -38,8 +40,10 @@ function createSuperAdmin() {
 function createStudent() {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'Audit Student', 'aud-stu-${userId.slice(0, 6)}@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','Audit Student','aud-stu-${userId.slice(0, 6)}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, 'role_student']);
   return { userId, token: makeToken({ userId, email: `aud-stu-${userId.slice(0, 6)}@test.com`, role: 'student' }) };
@@ -48,8 +52,10 @@ function createStudent() {
 function createTargetUser() {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'Audit Target', 'aud-tgt-${userId.slice(0, 6)}@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','Audit Target','aud-tgt-${userId.slice(0, 6)}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, 'role_student']);
   return { userId };

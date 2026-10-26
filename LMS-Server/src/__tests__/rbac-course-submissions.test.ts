@@ -51,14 +51,21 @@ function seedCourseSubmissions() {
 
   // --- Users ---
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',        'WI08 Admin',      'wi08-admin-${adminId}@test.com',         '${HASH}', 'admin'),
-      ('${lecturerAId}',    'WI08 Lecturer A', 'wi08-lecta-${lecturerAId}@test.com',     '${HASH}', 'lecturer'),
-      ('${lecturerBId}',    'WI08 Lecturer B', 'wi08-lectb-${lecturerBId}@test.com',     '${HASH}', 'lecturer'),
-      ('${taId}',           'WI08 TA',         'wi08-ta-${taId}@test.com',               '${HASH}', 'student'),
-      ('${studentUserId}',  'WI08 Student 1',  'wi08-stu1-${studentUserId}@test.com',    '${HASH}', 'student'),
-      ('${student2UserId}', 'WI08 Student 2',  'wi08-stu2-${student2UserId}@test.com',   '${HASH}', 'student');
+      ('${adminId}','WI08 Admin','wi08-admin-${adminId}@test.com','${HASH}'),
+      ('${lecturerAId}','WI08 Lecturer A','wi08-lecta-${lecturerAId}@test.com','${HASH}'),
+      ('${lecturerBId}','WI08 Lecturer B','wi08-lectb-${lecturerBId}@test.com','${HASH}'),
+      ('${taId}','WI08 TA','wi08-ta-${taId}@test.com','${HASH}'),
+      ('${studentUserId}','WI08 Student 1','wi08-stu1-${studentUserId}@test.com','${HASH}'),
+      ('${student2UserId}','WI08 Student 2','wi08-stu2-${student2UserId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerAId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerBId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${taId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student2UserId}','role_student');
+
   `);
 
   // --- Students ---

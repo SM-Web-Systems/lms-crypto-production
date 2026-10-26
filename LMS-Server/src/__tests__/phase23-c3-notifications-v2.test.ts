@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * Phase 23 C3 — Notifications v2 backend tests (12 tests).
  */
@@ -5,7 +6,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
-import { execute, query, queryOne } from '../config/database.js';
+import { db, execute, query, queryOne } from '../config/database.js';
 import { createNotification, getPreferences, updatePreferences, createBroadcast, CONFIGURABLE_TYPES } from '../services/notificationService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,10 +27,7 @@ function seedUsers(): void {
     [student2Id, 'Student2', 'notif-student2@test.com', 'student'],
     [lecturerId, 'Lecturer', 'notif-lecturer@test.com', 'lecturer'],
   ] as const) {
-    execute(
-      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hashed', ?)`,
-      [id, name, email, role]
-    );
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,'hashed')`, [id,name,email], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]).changes;
   }
 }
 

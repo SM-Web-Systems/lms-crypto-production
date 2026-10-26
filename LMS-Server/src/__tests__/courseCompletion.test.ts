@@ -31,11 +31,15 @@ function seedBase() {
   const stuRecordId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
     VALUES
-      ('${adminId}',    'Admin',    'admin-b@test.com',    '${HASH}', 'admin', NULL, 'none'),
-      ('${studentId}',  'Student',  'student-b@test.com',  '${HASH}', 'student', 'GWALLET_STU_001', 'linked'),
-      ('${lecturerId}', 'Lecturer', 'lecturer-b@test.com', '${HASH}', 'lecturer', NULL, 'none');
+      ('${adminId}','Admin','admin-b@test.com','${HASH}',NULL,'none'),
+      ('${studentId}','Student','student-b@test.com','${HASH}','GWALLET_STU_001','linked'),
+      ('${lecturerId}','Lecturer','lecturer-b@test.com','${HASH}',NULL,'none');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Test Course B', 'Phase B test course', 'TC-B-001', '[]');
@@ -513,9 +517,11 @@ describe('B5 — GET /courses/:courseId/completions/applications', () => {
     const ids = seedBase();
     const unassignedLecId = uuidv4();
     db.exec(`
-      INSERT INTO users (id, name, email, password_hash, role)
-      VALUES ('${unassignedLecId}', 'Other Lec', 'other-lec@test.com', '${HASH}', 'lecturer')
-    `);
+      INSERT INTO users (id,name,email,password_hash)
+      VALUES ('${unassignedLecId}','Other Lec','other-lec@test.com','${HASH}')
+    ;
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${unassignedLecId}','role_instructor');
+`);
     const token = makeToken({ userId: unassignedLecId, email: 'other-lec@test.com', role: 'lecturer' });
     const res = await request(app)
       .get(`/api/v1/courses/${ids.courseId}/completions/applications`)

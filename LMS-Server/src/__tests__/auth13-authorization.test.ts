@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
@@ -14,7 +15,7 @@ import * as wallet from '../services/walletService.js';
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 function fixture(roleId = 'role_sponsor', extras = false) {
   for (const id of ['actor','other-sponsor','own-student','other-student']) {
-    db.prepare('INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)').run(id,id,`${id}@example.invalid`,'synthetic');
+    seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)`, [id,id,`${id}@example.invalid`,'synthetic'], ["role_student"]);
   }
   db.prepare('INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES(?,?)').run('actor',roleId);
   if (extras) {
@@ -79,7 +80,7 @@ describe('AUTH-13 explicit administrator boundaries', () => {
     expect((await request(app).get('/api/v1/payments/other-payment/status').auth(token,{type:'bearer'})).status).toBe(403);
   });
   it('never creates super-admin from a hardcoded email during migration', () => {
-    db.prepare('INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)').run('email-claim','Claim','mukhtar.meer@smwebsystems.com','synthetic');
+    seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)`, ['email-claim','Claim','mukhtar.meer@smwebsystems.com','synthetic'], ["role_student"]);
     expect(db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get()).toEqual({total:1});
     expect(db.prepare("SELECT 1 FROM user_roles WHERE user_id='email-claim' AND role_id='role_super_admin'").get()).toBeUndefined();
   });
@@ -88,8 +89,8 @@ describe('AUTH-13 explicit administrator boundaries', () => {
     vi.spyOn(wallet,'createUserWallet').mockRejectedValue(new Error('synthetic provider unavailable'));
     const response = await request(app).post('/api/v1/auth/register').send({name:'Claim',email:'claimed@example.invalid',password:'SyntheticPassword123!',role:'admin'});
     expect(response.status).toBe(201);
-    const user = db.prepare("SELECT id,role FROM users WHERE email='claimed@example.invalid'").get() as {id:string;role:string};
-    expect(user.role).toBe('student');
+    const user = db.prepare("SELECT id FROM users WHERE email='claimed@example.invalid'").get() as {id:string;role:string};
+    expect(user).not.toHaveProperty('role');
     expect(db.prepare("SELECT role_id FROM user_roles WHERE user_id=?").all(user.id)).toEqual([{role_id:'role_student'}]);
   });
   it('does not trust unowned cached permissions supplied before the RBAC middleware', async () => {

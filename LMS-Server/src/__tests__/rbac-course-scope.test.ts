@@ -43,12 +43,17 @@ function seedCourseScope() {
   // TA has legacy role 'student' (elevated via RBAC only)
   // Student has legacy role 'student'
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',      'WI01 Admin',      'wi01-admin-${adminId}@test.com',    '${HASH}', 'admin'),
-      ('${instructorId}', 'WI01 Instructor', 'wi01-inst-${instructorId}@test.com', '${HASH}', 'lecturer'),
-      ('${taId}',         'WI01 TA',         'wi01-ta-${taId}@test.com',           '${HASH}', 'student'),
-      ('${studentUserId}','WI01 Student',    'wi01-stu-${studentUserId}@test.com', '${HASH}', 'student');
+      ('${adminId}','WI01 Admin','wi01-admin-${adminId}@test.com','${HASH}'),
+      ('${instructorId}','WI01 Instructor','wi01-inst-${instructorId}@test.com','${HASH}'),
+      ('${taId}','WI01 TA','wi01-ta-${taId}@test.com','${HASH}'),
+      ('${studentUserId}','WI01 Student','wi01-stu-${studentUserId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${instructorId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${taId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES ('${studentId}', '${studentUserId}', 'WI01 Student', 'wi01-stu-${studentUserId}@test.com', 'WI01-001', 'CS', 1);
@@ -108,8 +113,10 @@ function seedMismatchedInstructor() {
 
   // Legacy role is 'student', but RBAC role is instructor
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${mismatchId}', 'Mismatched Inst', 'wi01-mismatch-${mismatchId}@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${mismatchId}','Mismatched Inst','wi01-mismatch-${mismatchId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${mismatchId}','role_student');
+
 
     INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${mismatchId}', 'role_instructor');
 

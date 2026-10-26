@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,8 +11,8 @@ function seedParent(): { parentId: string; token: string; childId: string; famil
   const childId = uuidv4();
   const familyId = uuidv4();
 
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Parent', ?, 'hash', 'admin')").run(parentId, `${parentId}@test.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Child', ?, 'hash', 'student')").run(childId, `${childId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Parent',?,'hash')`, [parentId,`${parentId}@test.com`], ["role_admin"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Child',?,'hash')`, [childId,`${childId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(parentId, 'role_parent');
   db.prepare("INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')").run(uuidv4(), parentId, childId);
 
@@ -60,7 +61,7 @@ describe('Parent Reward Routes', () => {
   it('CR-P-3: POST /parent/rewards rejects unlinked child', async () => {
     const { token } = seedParent();
     const unlinkedChild = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Other', ?, 'hash', 'student')").run(unlinkedChild, `${unlinkedChild}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Other',?,'hash')`, [unlinkedChild,`${unlinkedChild}@test.com`], ["role_student"]);
 
     const res = await request(app)
       .post('/api/v1/parent/rewards')

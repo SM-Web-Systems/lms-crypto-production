@@ -8,7 +8,7 @@ import type { User } from '../types/api';
 
 const api = vi.hoisted(()=>({get:vi.fn(),post:vi.fn()}));
 vi.mock('../services/api',()=>({default:api,setTokenGetter:vi.fn(),onUnauthorized:()=>()=>{}}));
-const student: User={id:'session-user',name:'Audit',email:'audit@example.invalid',role:'student',walletAddress:null,walletLinkingStatus:'none',workspaces:['student'],permissions:['course.view','course.submit'],defaultWorkspace:'student'};
+const student: User={id:'session-user',name:'Audit',email:'audit@example.invalid',walletAddress:null,walletLinkingStatus:'none',workspaces:['student'],permissions:['course.view','course.submit'],defaultWorkspace:'student'};
 const sponsor: User={...student,workspaces:['sponsor','student'],defaultWorkspace:'sponsor',permissions:['course.view','course.submit','cohort.view_own']};
 const response=(user:User)=>({data:{success:true,data:user}});
 function State() { const {user,isLoading}=useAuth(); return <><p>{isLoading?'Loading':user?homeForUser(user):'Signed out'}</p><output data-testid="current-authorization">{JSON.stringify(user)}</output></>; }
@@ -19,7 +19,7 @@ describe('A03 — refresh effective authorization in an open session',()=>{
     render(<AuthProvider><State /></AuthProvider>);
     await waitFor(()=>expect(screen.getByText('/student')).toBeInTheDocument());
     expect(JSON.parse(screen.getByTestId('current-authorization').textContent!)).not.toHaveProperty('role');
-    const {role: _oldHint, ...current} = sponsor;
+    const current = sponsor;
     api.get.mockResolvedValueOnce(response({...current, rbacRoles:['sponsor'], roleSummaries:[]}));
     fireEvent(window,new Event('focus'));
     await waitFor(()=>expect(screen.getByText('/sponsor')).toBeInTheDocument());

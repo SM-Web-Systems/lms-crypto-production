@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import './setup.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,12 +31,8 @@ function seedRewardScenario(): {
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
-  ).run(sponsorId, `${sponsorId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [sponsorId,`${sponsorId}@test.com`], ["role_admin"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`
@@ -109,9 +106,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
     // Create a reward with 2 students
     const studentId2 = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student2', ?, 'hash', 'student')"
-    ).run(studentId2, `${studentId2}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student2',?,'hash')`, [studentId2,`${studentId2}@test.com`], ["role_student"]);
     db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId2);
 
     const reward = createReward(sponsorId, {
@@ -327,9 +322,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
 
     const studentId2 = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student2', ?, 'hash', 'student')"
-    ).run(studentId2, `${studentId2}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student2',?,'hash')`, [studentId2,`${studentId2}@test.com`], ["role_student"]);
     db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId2);
 
     const reward = createReward(sponsorId, {

@@ -156,7 +156,8 @@ describe('AUTH-13 lesson_completions migration', () => {
     db.exec(prereqSQL);
     db.exec(legacyLessonCompletionsSQL);
     // Insert prerequisite data
-    db.exec("INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash')");
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash');
+`);
     db.exec("INSERT INTO courses(id,title,description) VALUES('c1','Course 1','Desc')");
     // Insert lesson completion with old schema
     db.exec("INSERT INTO lesson_completions(id,user_id,course_id,item_id,section_id) VALUES('lc1','u1','c1','item1','sec1')");
@@ -179,7 +180,8 @@ describe('AUTH-13 lesson_completions migration', () => {
     db.exec(prereqSQL);
     // Use canonical schema (nullable completed_at)
     runMigration(db);
-    db.exec("INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash')");
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash');
+`);
     db.exec("INSERT INTO courses(id,title,description) VALUES('c1','Course 1','Desc')");
     // Insert with explicit NULL completed_at (in-progress lesson)
     db.exec("INSERT INTO lesson_completions(id,user_id,course_id,item_id,section_id,completed_at,progress_pct,last_position_s) VALUES('lc1','u1','c1','item1','sec1',NULL,25,120)");
@@ -193,7 +195,8 @@ describe('AUTH-13 lesson_completions migration', () => {
     const db = memdb();
     db.exec(prereqSQL);
     runMigration(db);
-    db.exec("INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash')");
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash');
+`);
     db.exec("INSERT INTO courses(id,title,description) VALUES('c1','Course 1','Desc')");
     // Start with in-progress (NULL completed_at)
     db.exec("INSERT INTO lesson_completions(id,user_id,course_id,item_id,section_id,completed_at,progress_pct) VALUES('lc1','u1','c1','item1','sec1',NULL,50)");
@@ -208,7 +211,8 @@ describe('AUTH-13 lesson_completions migration', () => {
     const db = memdb();
     db.exec(prereqSQL);
     runMigration(db);
-    db.exec("INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash')");
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash');
+`);
     db.exec("INSERT INTO courses(id,title,description) VALUES('c1','Course 1','Desc')");
     // Insert initial progress
     db.exec("INSERT INTO lesson_completions(id,user_id,course_id,item_id,section_id,completed_at,progress_pct,last_position_s) VALUES('lc1','u1','c1','item1','sec1',NULL,10,30)");
@@ -235,7 +239,8 @@ describe('AUTH-13 lesson_completions migration', () => {
     const db = memdb();
     db.exec(prereqSQL);
     db.exec(legacyLessonCompletionsSQL);
-    db.exec("INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash')");
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES('u1','Test User','test@example.invalid','hash');
+`);
     db.exec("INSERT INTO courses(id,title,description) VALUES('c1','Course 1','Desc')");
     db.exec("INSERT INTO lesson_completions(id,user_id,course_id,item_id,section_id) VALUES('lc1','u1','c1','item1','sec1')");
     const colsBefore = columnNames(db, 'lesson_completions');

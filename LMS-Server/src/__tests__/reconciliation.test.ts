@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reconciliation.test.ts — Timeout-then-success transaction reconciliation
  *
@@ -20,15 +21,13 @@ import { getHorizonUrl, reconcileCredential } from '../services/reconciliationSe
 
 function seedUser(): string {
   const id = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'Rec Student', 'hash', 'student')`)
-    .run(id, `rec-${id}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'Rec Student','hash')`, [id,`rec-${id}@test.com`], ["role_student"]);
   return id;
 }
 
 function seedAdmin(): { adminId: string; token: string } {
   const adminId = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, 'rec-admin@test.com', 'Rec Admin', 'hash', 'admin')`)
-    .run(adminId);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,'rec-admin@test.com','Rec Admin','hash')`, [adminId], ["role_admin"]);
   const token = makeToken({ userId: adminId, email: 'rec-admin@test.com', role: 'admin' });
   return { adminId, token };
 }

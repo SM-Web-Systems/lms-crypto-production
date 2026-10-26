@@ -147,11 +147,7 @@ type StatusFilter = 'all' | NftApplicationStatus;
 
 // ─── Applications sub-panel ───────────────────────────────────────────────────
 
-interface ApplicationsPanelProps {
-  role: 'admin' | 'lecturer';
-}
-
-const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) => {
+const ApplicationsPanel: React.FC = () => {
   const [applications, setApplications] = useState<NftApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1017,7 +1013,7 @@ const AdminCertificates: React.FC = () => {
       </div>
 
       {activeTab === 'applications'
-        ? <ApplicationsPanel role="admin" />
+        ? <ApplicationsPanel />
         : <IssuedCredentialsPanel />}
     </div>
   );

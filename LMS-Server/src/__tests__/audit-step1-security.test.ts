@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect, vi } from 'vitest';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
@@ -8,13 +9,13 @@ import { db, execute, queryOne, ensureAuthorizationVersionColumn, hashToken } fr
 import { generateToken, verifyToken } from '../config/jwt.js';
 import { getUserRoles, hasPermission } from '../middleware/rbac.js';
 import { assertNotLastSuperAdmin } from '../services/roleSecurityService.js';
-import type { LegacyRole } from '../types/index.js';
+type UntrustedRoleHint = 'student' | 'lecturer' | 'admin';
 import * as sso from '../services/ammaWalletSSOService.js';
 
-function actor(roleId: string, legacy: LegacyRole = 'student') {
+function actor(roleId: string, legacy: UntrustedRoleHint = 'student') {
   const id = randomUUID();
   const email = `${id}@audit.invalid`;
-  execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (?, 'Audit user', ?, 'unused', ?)", [id,email,legacy]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Audit user',?,'unused')`, [id,email], []).changes;
   execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
   execute('INSERT INTO user_roles (user_id,role_id) VALUES (?,?)', [id,roleId]);
   return { id, email, token: generateToken({userId:id,email,role:legacy}) };
@@ -22,7 +23,7 @@ function actor(roleId: string, legacy: LegacyRole = 'student') {
 function revoke(caller: ReturnType<typeof actor>, target: ReturnType<typeof actor>, role: string) {
   return request(app).delete(`/api/v1/admin/users/${target.id}/roles/${role}`).auth(caller.token,{type:'bearer'});
 }
-function change(caller: ReturnType<typeof actor>, target: ReturnType<typeof actor>, role: LegacyRole) {
+function change(caller: ReturnType<typeof actor>, target: ReturnType<typeof actor>, role: UntrustedRoleHint) {
   return request(app).put(`/api/v1/admin/users/${target.id}/roles`).auth(caller.token,{type:'bearer'}).send({roleIds:[{student:'role_student',lecturer:'role_instructor',admin:'role_admin'}[role]]});
 }
 function course(tenantId: string | null = null) {
@@ -77,7 +78,7 @@ describe('A01 — revocation hierarchy and atomicity', () => {
     expect((await revoke(a,target,'role_admin')).status).toBe(200);
     expect(getUserRoles(target.id)).toEqual([]);
     expect(hasPermission(target.id,'course.delete')).toBe(false);
-    expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('admin');
+    expect(db.pragma('table_info(users)').some((column:any)=>column.name==='role')).toBe(false);
     expect((await request(app).get('/api/v1/auth/me').auth(target.token,{type:'bearer'})).status).toBe(401);
     expect(queryOne<{revoked_at: string}>('SELECT revoked_at FROM active_sessions WHERE user_id = ?', [target.id])?.revoked_at).toBeTruthy();
   });
@@ -95,7 +96,7 @@ describe('A01 — revocation hierarchy and atomicity', () => {
     db.exec("CREATE TRIGGER fail_version BEFORE UPDATE OF authorization_version ON users BEGIN SELECT RAISE(ABORT,'test failure'); END");
     expect((await revoke(a,target,'role_admin')).status).toBe(500);
     expect(getUserRoles(target.id)).toContain('admin');
-    expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('admin');
+    expect(db.pragma('table_info(users)').some((column:any)=>column.name==='role')).toBe(false);
   });
 });
 
@@ -117,7 +118,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
     expect((await request(app).get('/api/v1/users').auth(fresh,{type:'bearer'})).status).toBe(403);
     // Simulate a login that read the old role before awaiting password verification.
     const staleLogin = generateToken({userId:target.id,email:target.email,role:'admin'});
-    expect(verifyToken(staleLogin).role).toBe('student');
+    expect(verifyToken(staleLogin)).not.toHaveProperty('role');
   });
   it('cannot demote a peer or higher-tier user via RBAC replacement', async () => {
     const a = actor('role_admin2','admin');
@@ -143,7 +144,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
     try {
       const res = await request(app).post('/api/v1/auth/login').send({email:target.email,password:'audit-password'});
       expect(res.status).toBe(200);
-      expect(res.body.data.user.role).toBe('student');
+      expect(res.body.data.user).not.toHaveProperty('role');
       expect((await request(app).get('/api/v1/users').auth(res.body.data.token,{type:'bearer'})).status).toBe(403);
     } finally { vi.unstubAllEnvs(); }
   });
@@ -161,7 +162,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
       const res = await request(app).get('/api/v1/auth/amma-callback?assertion=audit&state=audit');
       expect(res.status).toBe(302);
       expect(res.headers.location).toContain('/sso-callback');
-      expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('admin');
+      expect(db.pragma('table_info(users)').some((column:any)=>column.name==='role')).toBe(false);
       expect(getUserRoles(target.id)).toEqual(['student']);
     } finally { vi.restoreAllMocks(); vi.unstubAllEnvs(); }
   });
@@ -181,7 +182,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
   });
   it('migrates existing databases idempotently and preserves users', () => {
     const a = actor('role_student');
-    db.exec('DROP TRIGGER IF EXISTS trg_fixture_legacy_roles; ALTER TABLE users DROP COLUMN authorization_version');
+    db.exec(' ALTER TABLE users DROP COLUMN authorization_version');
     ensureAuthorizationVersionColumn();
     ensureAuthorizationVersionColumn();
     expect(queryOne<{authorization_version: number}>('SELECT authorization_version FROM users WHERE id = ?', [a.id])?.authorization_version).toBe(0);

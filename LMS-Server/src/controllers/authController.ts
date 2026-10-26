@@ -8,7 +8,6 @@ import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { createUserWallet } from "../services/walletService.js";
-import { getUserRoles } from "../middleware/rbac.js";
 import { getAuthorizationContext } from '../services/authorizationService.js';
 import { sendPasswordResetEmail } from "../services/emailService.js";
 import {
@@ -20,7 +19,6 @@ import {
   type AmmaWalletSSOUser,
 } from "../services/ammaWalletSSOService.js";
 import logger from "../utils/logger.js";
-import { compatibleRole } from '../services/roleCompatibilityService.js';
 import { createRbacAccount, type InitialRoleId } from '../services/rbacAccountService.js';
 import { resolveAmmaAccount, SsoPolicyError } from "../services/ammaAccountService.js";
 import { createNotification } from "../services/notificationService.js";
@@ -143,7 +141,6 @@ export async function login(
 
     // Existing accounts are governed by role management, not provisioning lists.
     // Reapplying ADMIN_EMAILS here would undo an intentional demotion on login.
-    const role = compatibleRole(user.id);
 
     const studentId = queryOne<Student>('SELECT id FROM students WHERE user_id = ?', [user.id])?.id;
 
@@ -151,8 +148,6 @@ export async function login(
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role,
-      roles: getUserRoles(user.id),
       studentId,
     });
 
@@ -183,7 +178,6 @@ export async function login(
           id: user.id,
           name: user.name,
           email: user.email,
-          role,
           walletAddress: user.walletAddress,
           walletLinkingStatus: user.wallet_linking_status,
           authProvider: user.auth_provider ?? 'local',
@@ -283,9 +277,8 @@ export async function register(
     logger.info({ module: 'authController', action: 'register', userId, email: maskedEmail, transition: `none→${walletLinkingStatus}` }, 'User registered');
 
     const {studentId} = createRbacAccount({id:userId,name,email,passwordHash,initialRoleId:'role_student',walletAddress,walletLinkingStatus});
-    const role = compatibleRole(userId);
 
-    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+    const token = generateToken({ userId, email, studentId });
 
     recordLoginHistory(userId, req, 'local');
     try { createSession(userId, token, req); } catch { /* best-effort */ }
@@ -298,7 +291,6 @@ export async function register(
           id: userId,
           name,
           email,
-          role,
           walletAddress,
           walletLinkingStatus,
           courseCodes: getUserCourseCodes(userId),
@@ -352,7 +344,6 @@ export async function getMe(
         id: user.id,
         name: user.name,
         email: user.email,
-        role: compatibleRole(user.id),
         walletAddress: user.walletAddress,
         walletLinkingStatus: user.wallet_linking_status,
         authProvider: user.auth_provider ?? 'local',
@@ -623,7 +614,6 @@ export async function ammaCallback(
     }
     const {user, studentId} = resolved;
     const {id: userId, email} = user;
-    const role = compatibleRole(userId);
 
     // Native clients receive only a short-lived proof-bound code. The access
     // token is issued through HTTPS after the app proves possession of its verifier.
@@ -633,7 +623,7 @@ export async function ammaCallback(
     }
 
     // 4. Issue LMS session JWT
-    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+    const token = generateToken({ userId, email, studentId });
 
     recordLoginHistory(userId, req, 'sso');
     createSession(userId, token, req);
@@ -656,11 +646,11 @@ export function ammaMobileSession(req: Request, res: Response, next: NextFunctio
       throw new AppError('Sign-in has expired or is invalid. Please sign in with AmmaWallet again.',401,ErrorCodes.INVALID_CREDENTIALS);
     }
     const studentId = queryOne<{id:string}>('SELECT id FROM students WHERE user_id=?',[user.id])?.id;
-    const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId});
+    const token = generateToken({userId:user.id,email:user.email,studentId});
     createSession(user.id,token,req);
     recordLoginHistory(user.id,req,'sso');
     res.json({success:true,data:{token,user:{
-      id:user.id,name:user.name,email:user.email,role:compatibleRole(user.id),
+      id:user.id,name:user.name,email:user.email,
       walletAddress:user.walletAddress,walletLinkingStatus:user.wallet_linking_status,authProvider:user.auth_provider ?? 'local',
       courseCodes:getUserCourseCodes(user.id),...getAuthorizationContext(user.id),
     }}});
