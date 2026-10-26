@@ -2,8 +2,6 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { randomBytes } from 'crypto';
 import { JWTPayload } from '../types/index.js';
-import { compatibleRole } from '../services/roleCompatibilityService.js';
-import { getUserRoles } from '../middleware/rbac.js';
 import { db, queryOne } from './database.js';
 
 dotenv.config();
@@ -25,7 +23,7 @@ export function generateToken(payload: JWTPayload): string {
   // jwtid ensures each token is unique even for identical payloads issued in the same second
   return db.transaction(() => {
     const current = queryOne<{authorization_version:number}>('SELECT authorization_version FROM users WHERE id = ?', [payload.userId]);
-    return jwt.sign({...payload,role:compatibleRole(payload.userId),roles:getUserRoles(payload.userId),
+    return jwt.sign({userId:payload.userId,email:payload.email,studentId:payload.studentId,
       authorizationVersion:current?.authorization_version ?? 0},JWT_SECRET,{
       expiresIn:JWT_EXPIRES_IN,jwtid:randomBytes(8).toString('hex'),
     } as jwt.SignOptions);
@@ -33,14 +31,21 @@ export function generateToken(payload: JWTPayload): string {
 }
 
 export function verifyToken(token: string): JWTPayload {
-  return jwt.verify(token, JWT_SECRET) as JWTPayload;
+  return identityClaims(jwt.verify(token, JWT_SECRET) as JWTPayload);
 }
 
 export function decodeToken(token: string): JWTPayload | null {
   try {
-    return jwt.decode(token) as JWTPayload;
+    const decoded = jwt.decode(token);
+    return decoded && typeof decoded === 'object' ? identityClaims(decoded as JWTPayload) : null;
   } catch {
     return null;
   }
+}
+
+/** Ignore historical/unsolicited role claims, including on still-valid old tokens. */
+function identityClaims(payload: JWTPayload): JWTPayload {
+  return {userId:payload.userId,email:payload.email,studentId:payload.studentId,
+    authorizationVersion:payload.authorizationVersion,iat:payload.iat,exp:payload.exp,jti:payload.jti};
 }
 

@@ -37,7 +37,7 @@ import AdminDashboard from '../pages/AdminDashboard';
 import SsoCallback from '../pages/SsoCallback';
 
 function user(fields: Partial<User> = {}): User {
-  return {id:'audit-user',name:'Audit',email:'audit@example.invalid',role:'student',walletAddress:null,walletLinkingStatus:'none',
+  return {id:'audit-user',name:'Audit',email:'audit@example.invalid',walletAddress:null,walletLinkingStatus:'none',
     rbacRoles:['student'],workspaces:['student'],defaultWorkspace:'student',permissions:['course.view','course.submit'],...fields};
 }
 beforeEach(() => {
@@ -65,7 +65,7 @@ describe('A03 — workspace routes and navigation', () => {
     expect(mocks.user.id).toBe('audit-user');
   });
   it('legacy admin alone cannot open an administrator route', () => {
-    mocks.user=user({role:'admin',permissions:[],workspaces:[],rbacRoles:[],defaultWorkspace:null});
+    mocks.user=user({permissions:[],workspaces:[],rbacRoles:[],defaultWorkspace:null});
     render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedWorkspace="admin"><p>Secret role tools</p></ProtectedRoute></MemoryRouter>);
     expect(screen.getByText('Access unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Secret role tools')).not.toBeInTheDocument();
@@ -87,7 +87,7 @@ describe('A03 — workspace routes and navigation', () => {
     expect(screen.getByText('Access unavailable')).toBeInTheDocument();
   });
   it('unknown role names and missing authorization fail closed', () => {
-    mocks.user=user({role:'custom',rbacRoles:['super-admin-imposter'],permissions:[],workspaces:[]});
+    mocks.user=user({rbacRoles:['super-admin-imposter'],permissions:[],workspaces:[]});
     expect(hasCapability(mocks.user,'system.manage_roles')).toBe(false);
     expect(homeForUser(mocks.user)).toBe('/access-denied');
   });
@@ -95,7 +95,7 @@ describe('A03 — workspace routes and navigation', () => {
 
 describe('A09 — administrator tools honor individual capabilities', () => {
   it('baseline admin does not mount role or tenant controls', () => {
-    mocks.user=user({role:'admin',workspaces:['admin'],permissions:['course.view','course.grade','user.view_all','system.view_audit_log']});
+    mocks.user=user({workspaces:['admin'],permissions:['course.view','course.grade','user.view_all','system.view_audit_log']});
     render(<MemoryRouter initialEntries={['/admin']}><Layout><AdminDashboard /></Layout></MemoryRouter>);
     expect(screen.queryByText('Roles panel')).not.toBeInTheDocument();
     expect(screen.queryByText('Tenants panel')).not.toBeInTheDocument();

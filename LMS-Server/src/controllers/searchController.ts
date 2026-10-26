@@ -1,4 +1,4 @@
-import { compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
+import { userRoleSummaries } from '../services/roleSummaryService.js';
 /**
  * searchController — unified multi-entity search with RBAC filtering.
  *
@@ -69,13 +69,13 @@ export function globalSearch(req: AuthRequest, res: Response): void {
 
     if (requestedTypes.includes('users') && permissions.has('user.view_all')) {
       const directoryScope = searchDirectoryScope(userId, permissions);
-      const users = query<{ id: string; name: string; email: string; role: string }>(
+      const users = query<{ id: string; name: string; email: string }>(
         `SELECT u.id, u.name, u.email FROM users u
          WHERE (u.name LIKE ? OR u.email LIKE ?) AND ${directoryScope.sql}
          ORDER BY name LIMIT ?`,
         [pattern, pattern, ...directoryScope.params, limit],
       );
-      const summaries=compatibleRoleSummaries(users.map(user=>user.id));
+      const summaries=userRoleSummaries(users.map(user=>user.id));
       results.users = users.map((u) => ({
         id: u.id,
         name: u.name,

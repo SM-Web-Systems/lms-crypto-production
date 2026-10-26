@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { compatibleRoleSummary, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
+import { userRoleSummary, userRoleSummaries } from '../services/roleSummaryService.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { courseAccessScope } from '../services/courseAccessService.js';
 
@@ -43,7 +43,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
     }
 
-    const row = queryOne<{ id: string; name: string; email: string; role: string }>(
+    const row = queryOne<{ id: string; name: string; email: string }>(
       'SELECT id, name, email FROM users WHERE id = ?',
       [id]
     );
@@ -55,7 +55,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (callerId === id) {
       res.json({
         success: true,
-        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
+        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...userRoleSummary(row.id) },
       });
       return;
     }
@@ -67,7 +67,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (callerPerms.has('user.manage')) {
       res.json({
         success: true,
-        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
+        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...userRoleSummary(row.id) },
       });
       return;
     }
@@ -85,7 +85,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       if ((inScope?.cnt ?? 0) > 0) {
         res.json({
           success: true,
-          data: { id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) },
+          data: { id: row.id, name: row.name, displayName: row.name, ...userRoleSummary(row.id) },
         });
         return;
       }
@@ -104,7 +104,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       if ((inCohort?.cnt ?? 0) > 0) {
         res.json({
           success: true,
-          data: { id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) },
+          data: { id: row.id, name: row.name, displayName: row.name, ...userRoleSummary(row.id) },
         });
         return;
       }
@@ -120,7 +120,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
 
 export async function getUsers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const rows = query<{ id: string; name: string; email: string; role: string }>(
+    const rows = query<{ id: string; name: string; email: string }>(
       'SELECT id, name, email FROM users ORDER BY name'
     );
 
@@ -134,7 +134,7 @@ export async function getUsers(req: AuthRequest, res: Response, next: NextFuncti
       codeMap.get(user_id)!.push(course_code);
     }
 
-    const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
+    const summaries=userRoleSummaries(rows.map(row=>row.id));
     const users: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -205,10 +205,4 @@ export async function patchUser(req: AuthRequest, res: Response, next: NextFunct
   } catch (error) {
     next(error);
   }
-}
-
-/** Retired API: explicit RBAC routes preserve multi-role grants and safe demotion. */
-export function patchUserRole(_req:AuthRequest,res:Response):void {
-  res.status(410).json({success:false,error:{code:'LEGACY_ROLE_ENDPOINT_RETIRED',
-    message:'Use the RBAC user-role endpoints, including PUT /api/v1/admin/users/:id/roles for atomic replacement.'}});
 }

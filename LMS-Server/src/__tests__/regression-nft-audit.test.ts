@@ -30,14 +30,20 @@ function seedAuditBase() {
   const code2      = `AUD-${uuidv4().slice(0, 8)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${adminId}', 'Audit Admin', 'admin-aud-${adminId}@test.com', '${HASH}', 'admin');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${adminId}','Audit Admin','admin-aud-${adminId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
 
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${studentId}', 'Audit Student', 'student-aud-${studentId}@test.com', '${HASH}', 'student');
 
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${lecturerId}', 'Audit Lecturer', 'lecturer-aud-${lecturerId}@test.com', '${HASH}', 'lecturer');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${studentId}','Audit Student','student-aud-${studentId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
+
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${lecturerId}','Audit Lecturer','lecturer-aud-${lecturerId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Audit Course 1', 'Test', '${code}', '[]');
@@ -155,8 +161,10 @@ describe('NA3 — GET /admin/issued-credentials (lecturer) scoped to assigned co
   it('returns empty array when lecturer has no assigned courses', async () => {
     const unassignedId = uuidv4();
     db.exec(`
-      INSERT INTO users (id, name, email, password_hash, role)
-      VALUES ('${unassignedId}', 'No-course Lecturer', 'lect-none-${unassignedId}@test.com', '${HASH}', 'lecturer');
+      INSERT INTO users (id,name,email,password_hash)
+      VALUES ('${unassignedId}','No-course Lecturer','lect-none-${unassignedId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${unassignedId}','role_instructor');
+
     `);
     const token = makeToken({ userId: unassignedId, email: `lect-none-${unassignedId}@test.com`, role: 'lecturer' });
 

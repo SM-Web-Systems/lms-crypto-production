@@ -43,10 +43,13 @@ function seedInviteData() {
   const noExpiryToken = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Inv Admin', 'inv-admin-${adminId}@test.com', '${HASH}', 'admin'),
-      ('${studentId}', 'Inv Student', 'inv-student-${studentId}@test.com', '${HASH}', 'student');
+      ('${adminId}','Inv Admin','inv-admin-${adminId}@test.com','${HASH}'),
+      ('${studentId}','Inv Student','inv-student-${studentId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Invite Course', 'Test', '${code}', '[]');

@@ -27,12 +27,17 @@ function seedCourseCtx() {
   const code2 = `CC2-${uuidv4().slice(0, 6)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'CC Admin', 'cc-admin-${adminId}@t.com', '${HASH}', 'admin'),
-      ('${studentUserId}', 'CC Student', 'cc-stu-${studentUserId}@t.com', '${HASH}', 'student'),
-      ('${student2UserId}', 'CC Student2', 'cc-stu2-${student2UserId}@t.com', '${HASH}', 'student'),
-      ('${lecturerId}', 'CC Lecturer', 'cc-lec-${lecturerId}@t.com', '${HASH}', 'lecturer');
+      ('${adminId}','CC Admin','cc-admin-${adminId}@t.com','${HASH}'),
+      ('${studentUserId}','CC Student','cc-stu-${studentUserId}@t.com','${HASH}'),
+      ('${student2UserId}','CC Student2','cc-stu2-${student2UserId}@t.com','${HASH}'),
+      ('${lecturerId}','CC Lecturer','cc-lec-${lecturerId}@t.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student2UserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES

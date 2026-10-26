@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * og-pages.test.ts — Phase 25 C2
  *
@@ -24,9 +25,7 @@ function seedOgData() {
   courseId = uuidv4();
   credentialId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Alice Test', ?, 'hash', 'student')`,
-  ).run(userId, `og-test-${userId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Alice Test',?,'hash')`, [userId,`og-test-${userId}@test.com`], ["role_student"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'Blockchain Fundamentals', 'Test course', 'BLK-101', '[]')`,

@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * provider-info.test.ts — Provider info in integration-status endpoint
  *
@@ -15,8 +16,7 @@ import { _resetProviderCache } from '../services/nftProvider.js';
 
 function seedAdmin(): string {
   const adminId = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'PI Admin', 'hash', 'admin')`)
-    .run(adminId, `pi-admin-${adminId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'PI Admin','hash')`, [adminId,`pi-admin-${adminId}@test.com`], ["role_admin"]);
   return makeToken({ userId: adminId, email: `pi-admin-${adminId}@test.com`, role: 'admin' });
 }
 

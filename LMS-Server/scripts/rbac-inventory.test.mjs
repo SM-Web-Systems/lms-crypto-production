@@ -10,7 +10,7 @@ import { inspectSnapshot, parseArguments, writePrivateDetails } from './rbac-inv
 
 const SHA = 'a'.repeat(40);
 const script = fileURLToPath(new URL('./rbac-inventory.mjs',import.meta.url));
-const schema = readFileSync(new URL('../database/schema.sql',import.meta.url),'utf8');
+const schema = readFileSync(new URL('../database/migrations/fixtures/rbac-only-v1.schema.sql',import.meta.url),'utf8');
 function fixture(run) {
   const directory = mkdtempSync(path.join(tmpdir(),'lms-rbac-inventory-'));
   const file = path.join(directory,'snapshot.db');

@@ -4,7 +4,9 @@ import { db } from '../config/database.js';
 describe('Reward Schema', () => {
   it('R-SCHEMA-1: rewards table has 13-state CHECK constraint', () => {
     const id = 'test-reward-schema-1';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${id}', 'Test', '${id}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${id}','Test','${id}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${id}','role_admin');
+`);
     // Valid state
     expect(() => {
       db.prepare(
@@ -24,7 +26,9 @@ describe('Reward Schema', () => {
 
   it('R-SCHEMA-2: reward_accounts created with funder/recipient/platform types', () => {
     const uid = 'test-ra-user';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
 
     for (const type of ['funder', 'recipient', 'platform']) {
       expect(() => {
@@ -45,7 +49,9 @@ describe('Reward Schema', () => {
   it('R-SCHEMA-3: reward_transactions has CHECK constraints', () => {
     const uid = 'test-txn-user';
     const rid = 'test-txn-reward';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
     db.exec(`INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, idempotency_key) VALUES ('${rid}', '${uid}', 'sponsor_cohort', 's1', 'custom', 100, 'idem-txn1')`);
 
     // system actor with user_id should fail
@@ -62,7 +68,9 @@ describe('Reward Schema', () => {
   it('R-SCHEMA-4: reward_allocations UNIQUE(reward_id, student_user_id)', () => {
     const uid = 'test-alloc-user';
     const rid = 'test-alloc-reward';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
     db.exec(`INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, idempotency_key) VALUES ('${rid}', '${uid}', 'sponsor_cohort', 's1', 'custom', 100, 'idem-alloc1')`);
 
     db.prepare(
@@ -79,7 +87,9 @@ describe('Reward Schema', () => {
   it('R-SCHEMA-5: reward_eligibility_events composite unique', () => {
     const uid = 'test-elig-user';
     const rid = 'test-elig-reward';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
     db.exec(`INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, idempotency_key) VALUES ('${rid}', '${uid}', 'sponsor_cohort', 's1', 'custom', 100, 'idem-elig1')`);
 
     db.prepare(
@@ -96,7 +106,9 @@ describe('Reward Schema', () => {
   it('R-SCHEMA-6: reward_audience_snapshots table exists', () => {
     const uid = 'test-snap-user';
     const rid = 'test-snap-reward';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
     db.exec(`INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, idempotency_key) VALUES ('${rid}', '${uid}', 'sponsor_cohort', 's1', 'custom', 100, 'idem-snap1')`);
 
     expect(() => {
@@ -108,7 +120,9 @@ describe('Reward Schema', () => {
 
   it('R-SCHEMA-7: invalid enum values rejected', () => {
     const uid = 'test-enum-user';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
 
     // Invalid scope_type
     expect(() => {
@@ -129,7 +143,9 @@ describe('Reward Schema', () => {
 
   it('R-SCHEMA-8: ON DELETE RESTRICT prevents cascade deletion', () => {
     const uid = 'test-del-user';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
     db.prepare(
       `INSERT INTO reward_accounts (id, user_id, account_type) VALUES (?, ?, 'funder')`
     ).run('ra-del', uid);
@@ -142,7 +158,9 @@ describe('Reward Schema', () => {
 
   it('R-SCHEMA-9: XLM-only currency enforced', () => {
     const uid = 'test-curr-user';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
 
     expect(() => {
       db.prepare(
@@ -153,7 +171,9 @@ describe('Reward Schema', () => {
 
   it('R-SCHEMA-10: reward_event_outbox created with composite unique', () => {
     const uid = 'test-outbox-user';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
 
     db.prepare(
       `INSERT INTO reward_event_outbox (id, event_type, event_source_id, student_user_id) VALUES (?, 'course_completion', 'src1', ?)`
@@ -170,7 +190,9 @@ describe('Reward Schema', () => {
   it('R-SCHEMA-11: reward_refund_attempts created with RESTRICT FKs', () => {
     const uid = 'test-rra-user';
     const rid = 'test-rra-reward';
-    db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${uid}', 'Test', '${uid}@test.com', 'hash', 'admin')`);
+    db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${uid}','Test','${uid}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${uid}','role_admin');
+`);
     db.exec(`INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, idempotency_key) VALUES ('${rid}', '${uid}', 'sponsor_cohort', 's1', 'custom', 100, 'idem-rra1')`);
     db.prepare(
       `INSERT INTO reward_allocations (id, reward_id, student_user_id, amount_stroops, idempotency_key) VALUES (?, ?, ?, 100, ?)`

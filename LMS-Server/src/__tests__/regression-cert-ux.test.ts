@@ -25,10 +25,13 @@ function seedCertUxBase() {
   const code = `CUX-${uuidv4().slice(0, 8)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
     VALUES
-      ('${student1Id}', 'CUX S1', 'cux-s1-${student1Id}@test.com', '${HASH}', 'student', 'GCUXWALLET1', 'linked'),
-      ('${student2Id}', 'CUX S2', 'cux-s2-${student2Id}@test.com', '${HASH}', 'student', 'GCUXWALLET2', 'linked');
+      ('${student1Id}','CUX S1','cux-s1-${student1Id}@test.com','${HASH}','GCUXWALLET1','linked'),
+      ('${student2Id}','CUX S2','cux-s2-${student2Id}@test.com','${HASH}','GCUXWALLET2','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student1Id}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student2Id}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'CUX Course', 'Test', '${code}', '[]');

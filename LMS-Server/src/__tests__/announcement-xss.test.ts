@@ -30,7 +30,9 @@ beforeEach(() => {
 
 function seedAdmin() {
   const id = uuidv4();
-  db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${id}', 'Admin', 'admin-${id}@test.com', '${HASH}', 'admin')`);
+  db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${id}','Admin','admin-${id}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${id}','role_admin');
+`);
   return makeToken({ userId: id, email: `admin-${id}@test.com`, role: 'admin' });
 }
 

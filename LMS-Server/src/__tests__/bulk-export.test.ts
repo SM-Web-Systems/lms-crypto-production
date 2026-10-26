@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * bulk-export.test.ts — Phase 25 C5
  *
@@ -25,9 +26,7 @@ function seedBulkExportData() {
   courseId = uuidv4();
   credentialId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Bulk Student', ?, ?, 'student')`,
-  ).run(studentId, `bulk-${studentId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Bulk Student',?,?)`, [studentId,`bulk-${studentId}@test.com`,HASH], ["role_student"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'Bulk Course', 'Test', 'BLK-101', '[]')`,

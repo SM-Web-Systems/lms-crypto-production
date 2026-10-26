@@ -52,7 +52,9 @@ describe('AUTH-13 real-process database bootstrap', { timeout: 60000 }, () => {
   });
   it('explicit initialization refuses an existing populated database', () => {
     const file = location(); canonical(file);
-    const db = new Database(file); db.exec("INSERT INTO users(id,name,email,password_hash) VALUES('sentinel','Keep','keep@example.invalid','synthetic-hash')"); db.close();
+    const db = new Database(file); db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES('sentinel','Keep','keep@example.invalid','synthetic-hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('sentinel','role_student');
+`); db.close();
     const before = readFileSync(file);
     expect(run(file,true).status).not.toBe(0); expect(readFileSync(file)).toEqual(before);
   });
@@ -75,7 +77,9 @@ describe('AUTH-13 real-process database bootstrap', { timeout: 60000 }, () => {
   });
   it('restarts a valid database without changing existing identities or credential history', () => {
     const file = location(); canonical(file);
-    const db = new Database(file); db.exec("INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('sentinel','Keep','keep@example.invalid','synthetic-hash',3)");
+    const db = new Database(file); db.exec(`INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('sentinel','Keep','keep@example.invalid','synthetic-hash',3);
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('sentinel','role_student');
+`);
     db.exec("INSERT INTO nft_credentials(id,user_id,wallet_address,contract_id,mint_status) VALUES('history','sentinel','synthetic-recipient','synthetic-contract','minted')"); db.close();
     const result = run(file); expect(result.status,result.stderr).toBe(0);
     const check = new Database(file,{readonly:true});
@@ -86,7 +90,9 @@ describe('AUTH-13 real-process database bootstrap', { timeout: 60000 }, () => {
     const file = location(); canonical(file);
     const writer = new Database(file); writer.pragma('journal_mode=WAL'); writer.pragma('wal_autocheckpoint=0');
     try {
-      writer.exec("INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('wal-user','WAL','wal@example.invalid','synthetic-hash',2)");
+      writer.exec(`INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('wal-user','WAL','wal@example.invalid','synthetic-hash',2);
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('wal-user','role_student');
+`);
       expect(existsSync(file+'-wal')).toBe(true);
       const result = run(file); expect(result.status,result.stderr).toBe(0); expect(result.stdout).toContain('"users":1');
       expect(writer.prepare("SELECT name FROM users WHERE id='wal-user'").get()).toEqual({name:'WAL'});
@@ -114,18 +120,17 @@ describe('AUTH-13 real-process database bootstrap', { timeout: 60000 }, () => {
     const result = run(file); expect(result.status).not.toBe(0); expect(result.stderr).toContain('unique constraint');
     expect(readFileSync(file)).toEqual(before);
   });
-  it('refuses a missing RBAC-only fence without repairing or writing the database',()=>{
+  it('refuses a prior authorization schema marker without repairing or writing the database',()=>{
     const file=location();canonical(file);const db=new Database(file);
-    db.exec('DROP TRIGGER trg_auto_assign_user_role');db.close();const before=readFileSync(file);
-    const result=run(file);expect(result.status).not.toBe(0);expect(result.stderr).toContain('RBAC-only rollback fence');
+    db.exec("DELETE FROM authorization_migrations; INSERT INTO authorization_migrations(id,review_reference) VALUES('rbac-only-v1','synthetic')");db.close();const before=readFileSync(file);
+    const result=run(file);expect(result.status).not.toBe(0);expect(result.stderr).toContain('reviewed offline rbac-retire-legacy');
     expect(readFileSync(file)).toEqual(before);
   });
   it('rejects a changed canonical role-assignment trigger', () => {
     const file = location(); canonical(file); const db = new Database(file);
-    db.exec('DROP TRIGGER trg_auto_assign_user_role');
     db.exec("CREATE TRIGGER trg_auto_assign_user_role AFTER INSERT ON users BEGIN INSERT INTO user_roles(user_id,role_id) VALUES(NEW.id,'role_super_admin'); END");
     db.close(); const before = readFileSync(file);
-    const result = run(file); expect(result.status).not.toBe(0); expect(result.stderr).toContain('RBAC-only rollback fence');
+    const result = run(file); expect(result.status).not.toBe(0); expect(result.stderr).toContain('retired authorization schema objects remain');
     expect(readFileSync(file)).toEqual(before);
   });
   it('rolls back earlier additive migrations if a later migration fails', () => {

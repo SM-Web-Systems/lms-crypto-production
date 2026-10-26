@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * search.test.ts — Phase 26 C1
  *
@@ -28,13 +29,9 @@ function seedSearchData() {
   studentId = uuidv4();
   courseId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Search Admin', ?, ?, 'admin')`,
-  ).run(adminId, `search-admin-${adminId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Search Admin',?,?)`, [adminId,`search-admin-${adminId}@test.com`,HASH], ["role_admin"]);
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Alice Blockchain', ?, ?, 'student')`,
-  ).run(studentId, `alice-${studentId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Alice Blockchain',?,?)`, [studentId,`alice-${studentId}@test.com`,HASH], ["role_student"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'Blockchain Fundamentals', 'Learn blockchain basics', 'BLK-101', '[]')`,

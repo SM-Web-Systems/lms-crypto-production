@@ -40,11 +40,15 @@ function seedNavBase() {
   const code      = `NAV-${uuidv4().slice(0, 8)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${adminId}', 'Nav Admin', 'admin-nav-${adminId}@test.com', '${HASH}', 'admin');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${adminId}','Nav Admin','admin-nav-${adminId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
 
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${studentId}', 'Nav Student', 'student-nav-${studentId}@test.com', '${HASH}', 'student');
+
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${studentId}','Nav Student','student-nav-${studentId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Nav Course', 'Test', '${code}', '${SECTIONS_WITH_TEXT.replace(/'/g, "''")}');

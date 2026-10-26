@@ -28,8 +28,10 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedAdmin(suffix: string) {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, wallet_linking_status)
-    VALUES ('${userId}', 'Admin ${suffix}', '${suffix}@test.com', '${HASH}', 'admin', 'none');
+    INSERT INTO users (id,name,email,password_hash,wallet_linking_status)
+    VALUES ('${userId}','Admin ${suffix}','${suffix}@test.com','${HASH}','none');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_admin');
+
   `);
   return userId;
 }

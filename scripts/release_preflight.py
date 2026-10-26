@@ -32,13 +32,21 @@ def validate_image_authorization(image, database_path):
         with readonly_database(database_path) as database:
             ledger = database.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").fetchone()
             current = None
+            columns = {row[1] for row in database.execute('PRAGMA table_xinfo(users)')}
             if ledger:
-                rows = database.execute('SELECT id FROM authorization_migrations').fetchall()
-                require(rows == [('rbac-only-v1',)], 'RBAC_SCHEMA_MARKER_INVALID')
+                rows = database.execute('SELECT id FROM authorization_migrations ORDER BY id').fetchall()
                 guard = database.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").fetchone()
-                expected = 'CREATE TRIGGER trg_auto_assign_user_role AFTER INSERT ON users FOR EACH ROW BEGIN SELECT 1; END'
-                require(guard and re.sub(r'\s+', ' ', guard[0]).strip().rstrip(';') == expected, 'RBAC_SCHEMA_FENCE_INVALID')
-                current = 'rbac-only-v1'
+                if rows == [('rbac-only-v1',)]:
+                    expected = 'CREATE TRIGGER trg_auto_assign_user_role AFTER INSERT ON users FOR EACH ROW BEGIN SELECT 1; END'
+                    require('role' in columns and guard and re.sub(r'\s+', ' ', guard[0]).strip().rstrip(';') == expected, 'RBAC_SCHEMA_FENCE_INVALID')
+                    current = 'rbac-only-v1'
+                else:
+                    require(rows in ([('rbac-only-v2',)], [('rbac-only-v1',), ('rbac-only-v2',)]), 'RBAC_SCHEMA_MARKER_INVALID')
+                    require('role' not in columns and not guard, 'RBAC_SCHEMA_CONTRACTION_INVALID')
+                    require(not database.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND tbl_name='users'").fetchone(), 'RBAC_SCHEMA_CONTRACTION_INVALID')
+                    current = 'rbac-only-v2'
+            else:
+                require('role' in columns, 'RBAC_SCHEMA_MARKER_INVALID')
             require(label == current, 'RBAC_IMAGE_SCHEMA_MISMATCH')
     except sqlite3.Error:
         raise ReleaseError('RBAC_SCHEMA_UNSUPPORTED') from None

@@ -26,12 +26,17 @@ function seedDeleteData() {
   const submissionId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Del Admin', 'del-admin-${adminId}@test.com', '${HASH}', 'admin'),
-      ('${studentUserId}', 'Del Student', 'del-student-${studentUserId}@test.com', '${HASH}', 'student'),
-      ('${lecturerAId}', 'Lecturer A', 'del-lect-a-${lecturerAId}@test.com', '${HASH}', 'lecturer'),
-      ('${lecturerBId}', 'Lecturer B', 'del-lect-b-${lecturerBId}@test.com', '${HASH}', 'lecturer');
+      ('${adminId}','Del Admin','del-admin-${adminId}@test.com','${HASH}'),
+      ('${studentUserId}','Del Student','del-student-${studentUserId}@test.com','${HASH}'),
+      ('${lecturerAId}','Lecturer A','del-lect-a-${lecturerAId}@test.com','${HASH}'),
+      ('${lecturerBId}','Lecturer B','del-lect-b-${lecturerBId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerAId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerBId}','role_instructor');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES ('${studentId}', '${studentUserId}', 'Del Student', 'del-student-${studentUserId}@test.com', 'DEL-001', 'CS', 1);

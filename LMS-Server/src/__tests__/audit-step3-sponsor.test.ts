@@ -1,17 +1,15 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { randomUUID as uuid } from 'node:crypto';
 import app from '../app.js';
-import { execute, queryOne } from '../config/database.js';
+import { db, execute, queryOne } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
 
 function actor(role = 'role_sponsor') {
   const id = uuid(),
     email = id + '@audit.invalid';
-  execute("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Account',?,'unused','student')", [
-    id,
-    email,
-  ]);
+  seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash) VALUES (?,'Account',?,'unused')`, [id,email], ["role_student"]).changes;
   execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
   execute('INSERT INTO user_roles(user_id,role_id) VALUES (?,?)', [id, role]);
   return { id, token: generateToken({ userId: id, email, role: 'student' }) };

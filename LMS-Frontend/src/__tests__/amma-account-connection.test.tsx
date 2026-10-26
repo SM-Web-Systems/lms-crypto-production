@@ -10,7 +10,7 @@ vi.mock('../context/useAuth', () => ({useAuth: () => ({login: vi.fn()})}));
 import AmmaWalletConnection, {walletNavigation} from '../components/AmmaWalletConnection';
 import StudentWalletStatusCard from '../components/StudentWalletStatusCard';
 import Login from '../pages/Login';
-const user: User = {id: 'owner', name: 'Owner', email: 'owner@example.invalid', role: 'student',
+const user: User = {id: 'owner', name: 'Owner', email: 'owner@example.invalid',
   walletAddress: null, walletLinkingStatus: 'none', authProvider: 'local'};
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => { vi.restoreAllMocks(); });

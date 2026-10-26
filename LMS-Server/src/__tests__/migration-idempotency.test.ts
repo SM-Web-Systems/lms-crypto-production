@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * migration-idempotency.test.ts — Disposable migration validation and runtime idempotency tests
  *
@@ -29,8 +30,7 @@ function createPreMigrationDb(): InstanceType<typeof Database> {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'student'
+      password_hash TEXT NOT NULL
     );
     CREATE TABLE courses (
       id TEXT PRIMARY KEY,
@@ -114,8 +114,7 @@ function seedCredential(memDb: InstanceType<typeof Database>, overrides?: {
 
   // Ensure user and course exist (ignore if already present)
   try {
-    memDb.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'Test', 'hash', 'student')`)
-      .run(userId, `test-${userId.slice(0, 8)}@test.com`);
+    seedTestAccount(memDb, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'Test','hash')`, [userId,`test-${userId.slice(0, 8)}@test.com`], []);
   } catch { /* already exists */ }
 
   try {
@@ -557,8 +556,7 @@ describe('Runtime Idempotency (in-memory migrated schema)', () => {
     const opKey = `mint:${userId}:${courseId}:wallet:contract:testnet`;
 
     // Seed user + course
-    memDb.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'Test', 'hash', 'student')`)
-      .run(userId, `u-${userId.slice(0, 8)}@test.com`);
+    seedTestAccount(memDb, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'Test','hash')`, [userId,`u-${userId.slice(0, 8)}@test.com`], []);
     memDb.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'D', ?)`)
       .run(courseId, `C-${courseId.slice(0, 8)}`);
     memDb.prepare(`INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status) VALUES (?, ?, ?, 'G', 'approved')`)

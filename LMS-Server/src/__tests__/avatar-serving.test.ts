@@ -46,8 +46,10 @@ function seedUser(role: 'admin' | 'student' | 'lecturer') {
   const userId = uuidv4();
   const email = `avatar-test-${userId.slice(0, 8)}@test.com`;
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'Avatar Test User', '${email}', '${HASH}', '${role}');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','Avatar Test User','${email}','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}',CASE '${role}' WHEN 'student' THEN 'role_student' WHEN 'lecturer' THEN 'role_instructor' WHEN 'admin' THEN 'role_admin' END);
+
   `);
   return { userId, email, token: makeToken({ userId, email, role }) };
 }

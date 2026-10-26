@@ -30,7 +30,7 @@ describe('explicit learner membership in submission review', () => {
     expect(screen.getByText('Historical learner')).toBeInTheDocument();
     expect(screen.queryByText('No learner profile')).not.toBeInTheDocument();
   });
-  it('uses learner-profile IDs on a Step 2 backend without roster membership metadata', async () => {
+  it('does not infer learner membership from role names when no roster profile is provided', async () => {
     vi.mocked(studentsService.getAll).mockResolvedValue({
       students:[{id:'s-old',userId:'old',name:'Compatibility learner',email:'old@invalid.test',enrollmentNumber:'old',department:'Test',semester:1,createdAt:'2026-01-01'}],
       pagination:{page:1,limit:500,total:1,totalPages:1},
@@ -38,6 +38,7 @@ describe('explicit learner membership in submission review', () => {
     vi.mocked(courseService.fetchCourseMembers).mockResolvedValue([{id:'old',name:'Compatibility learner',email:'old@invalid.test',rbacRoles:['instructor']}]);
     render(<AdminSubmissions />);
     await userEvent.click(await screen.findByRole('button',{name:'RBAC'}));
-    await waitFor(()=>expect(screen.getByText('Compatibility learner')).toBeInTheDocument());
+    await waitFor(()=>expect(screen.getByText('No students are enrolled in this course yet.')).toBeInTheDocument());
+    expect(screen.queryByText('Compatibility learner')).not.toBeInTheDocument();
   });
 });

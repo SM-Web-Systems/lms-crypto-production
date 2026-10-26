@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,8 +11,8 @@ function seedTeacher(): { teacherId: string; token: string; classId: string; stu
   const studentId = uuidv4();
   const classId = uuidv4();
 
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Teacher', ?, 'hash', 'admin')").run(teacherId, `${teacherId}@test.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')").run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Teacher',?,'hash')`, [teacherId,`${teacherId}@test.com`], ["role_admin"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
 
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(teacherId, 'role_teacher');
 

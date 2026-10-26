@@ -44,13 +44,19 @@ function seedBase() {
   const course2Id   = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',     'Admin',     'admin-d@test.com',     '${HASH}', 'admin'),
-      ('${lecturerId}',  'Lecturer',  'lecturer-d@test.com',  '${HASH}', 'lecturer'),
-      ('${lecturer2Id}', 'Lecturer2', 'lecturer2-d@test.com', '${HASH}', 'lecturer'),
-      ('${studentId}',   'Student',   'student-d@test.com',   '${HASH}', 'student'),
-      ('${student2Id}',  'Student2',  'student2-d@test.com',  '${HASH}', 'student');
+      ('${adminId}','Admin','admin-d@test.com','${HASH}'),
+      ('${lecturerId}','Lecturer','lecturer-d@test.com','${HASH}'),
+      ('${lecturer2Id}','Lecturer2','lecturer2-d@test.com','${HASH}'),
+      ('${studentId}','Student','student-d@test.com','${HASH}'),
+      ('${student2Id}','Student2','student2-d@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturer2Id}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student2Id}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES

@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // --- Mocks ---
 
-const CURRENT_USER = { id: 'user-1', name: 'Alice', email: 'alice@test.com', role: 'student' };
+const CURRENT_USER = { id: 'user-1', name: 'Alice', email: 'alice@test.com' };
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: () => ({ user: CURRENT_USER }),
@@ -62,7 +62,7 @@ function makeTopic(overrides: Partial<{
       id: overrides.authorId ?? 'user-1',
       name: overrides.authorName ?? 'Alice',
       email: 'alice@test.com',
-      role: 'student' as const,
+
     },
     createdAt: '2026-09-06T12:00:00Z',
     postCount: 0,
@@ -82,7 +82,7 @@ function makePost(overrides: Partial<{
       id: overrides.authorId ?? 'user-1',
       name: overrides.authorName ?? 'Alice',
       email: 'alice@test.com',
-      role: 'student' as const,
+
     },
     createdAt: '2026-09-06T12:05:00Z',
     isDeleted: overrides.isDeleted ?? false,

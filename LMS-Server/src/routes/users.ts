@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getMyCourses, getUser, getUsers, patchUser, patchUserRole } from '../controllers/usersController.js';
+import { getMyCourses, getUser, getUsers, patchUser } from '../controllers/usersController.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 
@@ -48,32 +48,6 @@ router.get('/', requirePermission('user.view_all'), getUsers);
  */
 router.get('/:id', getUser);
 // Role management — Phase C (must be before /:id to avoid param swallowing)
-/**
- * @openapi
- * /users/{id}/role:
- *   patch:
- *     tags: [Users]
- *     summary: Retired legacy role endpoint (410); use RBAC role assignment/replacement
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [role]
- *             properties:
- *               role: { type: string, enum: [student, lecturer, admin] }
- *     responses:
- *       200: { description: Role updated }
- *       403: { description: Requires user.manage permission }
- */
-router.patch('/:id/role', requirePermission('user.manage'), patchUserRole);
 /**
  * @openapi
  * /users/{id}:

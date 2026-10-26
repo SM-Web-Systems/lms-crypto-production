@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * Phase F — Cross-Cutting Features Tests
  *
@@ -13,17 +14,14 @@ import './setup.js';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import app from '../app.js';
-import { execute, query, queryOne, createSession, hashToken } from '../config/database.js';
+import { db, execute, query, queryOne, createSession, hashToken } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function createUser(role: 'student' | 'lecturer' | 'admin', email?: string): string {
   const id = uuidv4();
-  execute(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, '$2a$10$test', ?)",
-    [id, `Test ${role}`, email ?? `${id}@test.com`, role],
-  );
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,'$2a$10$test')`, [id,`Test ${role}`,email ?? `${id}@test.com`], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]).changes;
   const roleMap: Record<string, string> = {
     student: 'role_student',
     lecturer: 'role_instructor',

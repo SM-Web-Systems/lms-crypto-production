@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { createHash, randomBytes } from 'node:crypto';
@@ -81,7 +82,7 @@ describe('Amma Wallet native session handoff', () => {
     expect((await exchange(value)).status).toBe(401);
   });
   it('preserves managed roles and reads current effective context at exchange', async () => {
-    execute("INSERT INTO users(id,name,email,password_hash,role) VALUES('managed','Sponsor',?,'$sso$','student')",[identity.email]);
+    seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash) VALUES('managed','Sponsor',?,'$sso$')`, [identity.email], ["role_student"]).changes;
     execute("UPDATE users SET auth_provider='ammawallet', ammawallet_user_id=? WHERE id='managed'",[identity.userId]);
     execute("DELETE FROM user_roles WHERE user_id='managed'");
     execute("INSERT INTO user_roles(user_id,role_id) VALUES('managed','role_sponsor')");

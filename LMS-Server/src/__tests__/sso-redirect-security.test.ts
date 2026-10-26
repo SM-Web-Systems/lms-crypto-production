@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * SSO-SEC — SSO redirect URL must not expose role in the fragment.
  *
@@ -18,10 +19,10 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedSsoUser(role: 'student' | 'admin' = 'student') {
   const userId = uuidv4();
   const email = `sso-sec-${userId}@test.com`;
-  db.prepare(`
-    INSERT INTO users (id, name, email, password_hash, role, sso_provider, sso_id)
-    VALUES (?, 'SSO Sec User', ?, ?, ?, 'ammawallet', ?)
-  `).run(userId, email, HASH, role, `aw-${userId}`);
+  seedTestAccount(db, `
+    INSERT INTO users (id,name,email,password_hash,sso_provider,sso_id)
+    VALUES (?,'SSO Sec User',?,?,'ammawallet',?)
+  `, [userId,email,HASH,`aw-${userId}`], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]);
   if (role === 'student') {
     const studentId = uuidv4();
     db.prepare(`

@@ -9,7 +9,7 @@ vi.mock('../../services/documentsService', () => ({
 }));
 
 vi.mock('../../context/useAuth', () => ({
-  useAuth: () => ({ user: { role: 'admin', name: 'Admin' } }),
+  useAuth: () => ({ user: {  name: 'Admin' } }),
 }));
 
 import { documentsService } from '../../services/documentsService';

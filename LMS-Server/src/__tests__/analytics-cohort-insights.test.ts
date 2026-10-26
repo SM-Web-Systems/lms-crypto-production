@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * analytics-cohort-insights.test.ts — Phase 25 C4
  *
@@ -32,17 +33,11 @@ function seedAnalyticsData() {
   cohortId = uuidv4();
   studentId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin Analytics', ?, ?, 'admin')`,
-  ).run(adminId, `admin-an-${adminId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Admin Analytics',?,?)`, [adminId,`admin-an-${adminId}@test.com`,HASH], ["role_admin"]);
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor One', ?, ?, 'admin')`,
-  ).run(sponsorId, `sponsor-${sponsorId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor One',?,?)`, [sponsorId,`sponsor-${sponsorId}@test.com`,HASH], ["role_admin"]);
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student One', ?, ?, 'student')`,
-  ).run(studentId, `student-${studentId}@test.com`, HASH);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student One',?,?)`, [studentId,`student-${studentId}@test.com`,HASH], ["role_student"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, 'Analytics Course', 'Test', 'ANC-101', '[]')`,

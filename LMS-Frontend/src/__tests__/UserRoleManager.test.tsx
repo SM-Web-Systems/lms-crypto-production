@@ -32,9 +32,9 @@ vi.mock('../services/rbacService', () => ({
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 const USERS = [
-  { id: 'u1', name: 'Alice Admin', email: 'alice@example.com', role: 'admin' as const, courseCodes: [] },
-  { id: 'u2', name: 'Bob Student', email: 'bob@example.com', role: 'student' as const, courseCodes: [] },
-  { id: 'u3', name: 'Carol Lecturer', email: 'carol@example.com', role: 'lecturer' as const, courseCodes: [] },
+  { id: 'u1', name: 'Alice Admin', email: 'alice@example.com',  courseCodes: [] },
+  { id: 'u2', name: 'Bob Student', email: 'bob@example.com',  courseCodes: [] },
+  { id: 'u3', name: 'Carol Lecturer', email: 'carol@example.com',  courseCodes: [] },
 ];
 
 const ROLES = [

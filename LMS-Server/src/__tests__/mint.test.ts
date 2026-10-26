@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * mintService.test.ts
  *
@@ -17,10 +18,8 @@ import { v4 as uuidv4 } from 'uuid';
 function seedUserAndQuiz() {
   const userId = uuidv4();
   const quizId = uuidv4();
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-     VALUES (?, 'Test User', ?, 'hash', 'student', 'GWALLET123', 'linked')`
-  ).run(userId, `user-${userId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+     VALUES (?,'Test User',?,'hash','GWALLET123','linked')`, [userId,`user-${userId}@test.com`], ["role_student"]);
   db.prepare(
     `INSERT INTO quizzes (id, title, passing_score, questions)
      VALUES (?, 'Test Quiz', 70, '[]')`

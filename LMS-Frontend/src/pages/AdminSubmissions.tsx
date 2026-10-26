@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { Submission } from '../types/api';
 import { courseService, type CourseMember } from '../services/courseService';
-import { studentsService } from '../services/studentsService';
 import { getErrorMessage } from '../utils/apiError';
 import { StatusBadge, fmtSize } from '../components/StatusBadge';
 
@@ -126,8 +125,6 @@ const AdminSubmissions: React.FC = () => {
   const [members, setMembers] = useState<CourseMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
 
-  // user.id → student.id map for filtering submissions
-  const [userIdToStudentId, setUserIdToStudentId] = useState<Record<string, string>>({});
 
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -141,11 +138,7 @@ const AdminSubmissions: React.FC = () => {
       setCourses(cs);
       setCoursesLoading(false);
     }).catch(() => setCoursesLoading(false));
-    studentsService.getAll({ limit: 500 }).then(({ students }) => {
-      const map: Record<string, string> = {};
-      students.forEach((s) => { if (s.userId) map[s.userId] = s.id; });
-      setUserIdToStudentId(map);
-    }).catch(() => {});
+
   }, [fetchSubmissions]);
 
   // Load members when course changes
@@ -166,8 +159,7 @@ const AdminSubmissions: React.FC = () => {
   }, [selectedCourseId]);
 
   // Historical learner membership remains visible even after a role is revoked.
-  // The ID map supports Step 2 backends during the client compatibility window.
-  const learnerMembers = members.filter(member => member.studentId || userIdToStudentId[member.id]);
+  const learnerMembers = members.filter(member => member.studentId);
 
   // Submissions grouped by studentId for quick lookup
   const submissionsByStudentId = useMemo(() => {
@@ -377,7 +369,7 @@ const AdminSubmissions: React.FC = () => {
               <div className="space-y-3">
                 {learnerMembers.map((member) => {
                   // member.id is user_id — resolve to student_id for filtering
-                  const studentId = member.studentId ?? userIdToStudentId[member.id];
+                  const studentId = member.studentId;
                   const memberSubs = studentId ? (submissionsByStudentId[studentId] ?? []) : [];
                   return (
                     <MemberRow

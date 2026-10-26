@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect, afterEach } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 import request from 'supertest';
@@ -44,12 +45,8 @@ function seedSponsorWithCohort(): {
   const cohortId = uuidv4();
   const courseId = uuidv4();
 
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
-  ).run(sponsorId, `${sponsorId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [sponsorId,`${sponsorId}@test.com`], ["role_admin"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(
     sponsorId,
     'role_sponsor'
@@ -104,9 +101,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const userId = uuidv4();
     const courseId = uuidv4();
     const courseCode = `CC-${courseId.slice(0, 8)}`;
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       `INSERT INTO courses (id, title, description, course_code, sections)
        VALUES (?, 'Test', 'desc', ?, ?)`
@@ -137,9 +132,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const userId = uuidv4();
     const courseId = uuidv4();
     const courseCode = `CC-${courseId.slice(0, 8)}`;
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       `INSERT INTO courses (id, title, description, course_code, sections)
        VALUES (?, 'Test', 'desc', ?, ?)`
@@ -175,9 +168,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const userId = uuidv4();
     const courseId = uuidv4();
     const courseCode = `CC-${courseId.slice(0, 8)}`;
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       `INSERT INTO courses (id, title, description, course_code, sections)
        VALUES (?, 'Test', 'desc', ?, ?)`
@@ -215,9 +206,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const quizId = uuidv4();
     const courseId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
     ).run(courseId, `QC-${courseId.slice(0, 8)}`);
@@ -247,9 +236,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const quizId = uuidv4();
     const courseId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
     ).run(courseId, `QC-${courseId.slice(0, 8)}`);
@@ -288,9 +275,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const quizId = uuidv4();
     const courseId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
     ).run(courseId, `QC-${courseId.slice(0, 8)}`);
@@ -321,9 +306,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const quizId = uuidv4();
     const courseId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(userId, `${userId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Quiz Course', 'desc', ?)"
     ).run(courseId, `QC-${courseId.slice(0, 8)}`);
@@ -368,12 +351,8 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const submissionId = uuidv4();
     const code = `GA-${uuidv4().slice(0, 6)}`;
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-    ).run(adminId, `${adminId}@test.com`);
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-    ).run(studentUserId, `${studentUserId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Admin',?,'hash')`, [adminId,`${adminId}@test.com`], ["role_admin"]);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentUserId,`${studentUserId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR001', 'CS', 1)"
     ).run(studentId, studentUserId, `${studentUserId}@test.com`);
@@ -404,12 +383,8 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const studentId = uuidv4();
     const submissionId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-    ).run(adminId, `${adminId}@test.com`);
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-    ).run(studentUserId, `${studentUserId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Admin',?,'hash')`, [adminId,`${adminId}@test.com`], ["role_admin"]);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentUserId,`${studentUserId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR002', 'CS', 1)"
     ).run(studentId, studentUserId, `${studentUserId}@test.com`);
@@ -437,12 +412,8 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const studentId = uuidv4();
     const submissionId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-    ).run(adminId, `${adminId}@test.com`);
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-    ).run(studentUserId, `${studentUserId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Admin',?,'hash')`, [adminId,`${adminId}@test.com`], ["role_admin"]);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentUserId,`${studentUserId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR003', 'CS', 1)"
     ).run(studentId, studentUserId, `${studentUserId}@test.com`);
@@ -478,12 +449,8 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
     const studentId = uuidv4();
     const submissionId = uuidv4();
 
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-    ).run(adminId, `${adminId}@test.com`);
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-    ).run(studentUserId, `${studentUserId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Admin',?,'hash')`, [adminId,`${adminId}@test.com`], ["role_admin"]);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentUserId,`${studentUserId}@test.com`], ["role_student"]);
     db.prepare(
       "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, 'ENR004', 'CS', 1)"
     ).run(studentId, studentUserId, `${studentUserId}@test.com`);
@@ -519,9 +486,7 @@ describe('R12-ATOMIC: Outbox atomicity with primary writes', () => {
 describe('R12: Outbox and Eligibility Processing', () => {
   it('R-ELIG-1: produceOutboxEvent inserts pending event', () => {
     const studentId = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(studentId, `${studentId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
 
     produceOutboxEvent('course_completion', 'course-123', studentId);
 
@@ -536,9 +501,7 @@ describe('R12: Outbox and Eligibility Processing', () => {
 
   it('R-ELIG-2: duplicate outbox event is silently ignored', () => {
     const studentId = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(studentId, `${studentId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
 
     produceOutboxEvent('quiz_pass', 'quiz-1', studentId);
     produceOutboxEvent('quiz_pass', 'quiz-1', studentId); // duplicate
@@ -633,9 +596,7 @@ describe('R12: Outbox and Eligibility Processing', () => {
   it('R-ELIG-8: non-audience student events are ignored', () => {
     const { sponsorId, cohortId } = seedSponsorWithCohort();
     const outsiderId = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Outsider', ?, 'hash', 'student')"
-    ).run(outsiderId, `${outsiderId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Outsider',?,'hash')`, [outsiderId,`${outsiderId}@test.com`], ["role_student"]);
 
     createActiveReward(sponsorId, cohortId);
 
@@ -679,9 +640,7 @@ describe('R12: Outbox and Eligibility Processing', () => {
 
   it('R-ELIG-10: attempt_count increments on each processing', () => {
     const studentId = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'student')"
-    ).run(studentId, `${studentId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
 
     const eventId = uuidv4();
     const sourceId = `src-${uuidv4()}`;
@@ -719,9 +678,7 @@ describe('R12: Outbox and Eligibility Processing', () => {
 
     // Create a separate instructor user as reviewer
     const instructorId = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Instructor', ?, 'hash', 'admin')"
-    ).run(instructorId, `${instructorId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Instructor',?,'hash')`, [instructorId,`${instructorId}@test.com`], ["role_admin"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(
       instructorId,
       'role_admin'

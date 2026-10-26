@@ -42,10 +42,13 @@ function seedData() {
   const inviteToken = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${wrongUserId}', 'Wrong User', 'wrong@test.com', '${HASH}', 'student'),
-      ('${correctUserId}', 'Correct User', 'invited@test.com', '${HASH}', 'student');
+      ('${wrongUserId}','Wrong User','wrong@test.com','${HASH}'),
+      ('${correctUserId}','Correct User','invited@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${wrongUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${correctUserId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Email Bind Course', 'Test', '${code}', '[]');

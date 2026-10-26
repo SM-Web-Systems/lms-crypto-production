@@ -1,16 +1,17 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe,it,expect } from 'vitest';
 import request from 'supertest';
 import {randomUUID,createHash} from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import app from '../app.js';
-import {execute,queryOne,hashToken} from '../config/database.js';
+import { db,execute,queryOne,hashToken} from '../config/database.js';
 import {generateToken} from '../config/jwt.js';
 
 const password='audit-password';
 const hash=bcrypt.hashSync(password,4);
 function actor(){
   const id=randomUUID(),email=`${id}@account.invalid`;
-  execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (?,'Audit learner',?,?,'student')",[id,email,hash]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Audit learner',?,?)`, [id,email,hash], ["role_student"]).changes;
   const token=generateToken({userId:id,email,role:'student'});
   const session=randomUUID();
   execute("INSERT INTO active_sessions (id,user_id,token_hash,expires_at) VALUES (?,?,?,datetime('now','+1 day'))",[session,id,hashToken(token)]);
