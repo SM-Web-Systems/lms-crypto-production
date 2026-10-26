@@ -53,4 +53,5 @@ Thumbs.db
 
 # Local AUTH-13 validation output and Python fixture bytecode
 .auth13-*
+.rbac-inventory/
 __pycache__/

@@ -24,7 +24,9 @@
     "test:watch": "vitest",
     "validate:bvc": "tsx src/scripts/validateBvcContent.ts",
     "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs",
-    "test:restore-drill": "node scripts/synthetic-restore-drill.mjs"
+    "test:restore-drill": "node scripts/synthetic-restore-drill.mjs",
+    "rbac:inventory": "node scripts/rbac-inventory.mjs",
+    "test:rbac-inventory": "node --test scripts/rbac-inventory.test.mjs"
   },
   "keywords": [
     "student",
