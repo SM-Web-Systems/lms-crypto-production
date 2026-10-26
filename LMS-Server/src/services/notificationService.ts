@@ -51,7 +51,11 @@ export function createBroadcast(params: {
   if (params.target === 'all') {
     users = query<{ id: string }>('SELECT id FROM users');
   } else {
-    users = query<{ id: string }>('SELECT id FROM users WHERE role = ?', [params.target]);
+    const audiences = {student:['student','super-student'],lecturer:['instructor'],sponsor:['sponsor']};
+    const roles = audiences[params.target];
+    users = query<{id:string}>(`SELECT DISTINCT u.id FROM users u
+      JOIN user_roles ur ON ur.user_id=u.id JOIN roles r ON r.id=ur.role_id
+      WHERE r.name IN (${roles.map(()=>'?').join(',')})`, roles);
   }
   for (const user of users) {
     createNotification({

@@ -28,6 +28,8 @@ jobs:
       - run: npm run test:compiled-bootstrap
       - name: Test offline RBAC inventory
         run: npm run test:rbac-inventory
+      - name: Test RBAC cutover and repeated runtime startup
+        run: npm run test:rbac-runtime
       - run: npx vitest run
       - name: Typecheck BVC validator script
         run: npx tsc --noEmit --esModuleInterop --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck src/scripts/validateBvcContent.ts

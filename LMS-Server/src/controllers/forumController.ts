@@ -1,3 +1,4 @@
+import { compatibleRole, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute, db } from '../config/database.js';
@@ -33,7 +34,7 @@ function toAuthor(u: User): ForumAuthor {
     id: u.id,
     name: u.name,
     email: u.email ?? null,
-    role: u.role,
+    role: compatibleRole(u.id),
   };
 }
 
@@ -47,11 +48,10 @@ function rowToTopic(row: {
   updated_at: string;
   author_name: string | null;
   author_email: string | null;
-  author_role: string | null;
   author_deletion_status: string | null;
   post_count: number;
   last_post_at: string | null;
-}): ForumTopicResponse {
+}, role=compatibleRole(row.author_id)): ForumTopicResponse {
   const isDeleted = row.author_deletion_status === 'finalized';
   return {
     id: row.id,
@@ -62,7 +62,7 @@ function rowToTopic(row: {
       id: row.author_id,
       name: isDeleted ? 'Deleted User' : (row.author_name ?? 'Unknown'),
       email: isDeleted ? null : (row.author_email ?? null),
-      role: (row.author_role ?? 'student') as ForumAuthor['role'],
+      role,
       ...(isDeleted ? { isDeleted: true } : {}),
     },
     createdAt: toISO(row.created_at)!,
@@ -81,9 +81,8 @@ function rowToPost(row: {
   updated_at: string;
   author_name: string | null;
   author_email: string | null;
-  author_role: string | null;
   author_deletion_status: string | null;
-}): ForumPostResponse {
+}, role=compatibleRole(row.author_id)): ForumPostResponse {
   const isDeleted = row.author_deletion_status === 'finalized';
   return {
     id: row.id,
@@ -93,7 +92,7 @@ function rowToPost(row: {
       id: row.author_id,
       name: isDeleted ? 'Deleted User' : (row.author_name ?? 'Unknown'),
       email: isDeleted ? null : (row.author_email ?? null),
-      role: (row.author_role ?? 'student') as ForumAuthor['role'],
+      role,
       ...(isDeleted ? { isDeleted: true } : {}),
     },
     createdAt: toISO(row.created_at)!,
@@ -121,8 +120,7 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
       updated_at: string;
       author_name: string | null;
       author_email: string | null;
-      author_role: string | null;
-      author_deletion_status: string | null;
+          author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
       is_deleted: number;
@@ -132,7 +130,7 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
               CASE WHEN t.is_deleted = 1 THEN NULL ELSE t.title END AS title,
               CASE WHEN t.is_deleted = 1 THEN NULL ELSE t.body END AS body,
               t.course_id, t.author_id, t.created_at, t.updated_at,
-              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.name AS author_name, u.email AS author_email,
               u.deletion_status AS author_deletion_status,
               (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS post_count,
               (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS last_post_at,
@@ -145,8 +143,9 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
       filterGeneral ? [limit, offset] : [rawCourseId, limit, offset]
     );
 
+    const summaries=compatibleRoleSummaries(rows.map(row=>row.author_id));
     const topics = rows.map(row => {
-      const topic = rowToTopic(row);
+      const topic = rowToTopic(row,summaries.get(row.author_id)!.role);
       if (row.is_deleted === 1) {
         return { ...topic, isDeleted: true as const };
       }
@@ -176,14 +175,13 @@ export async function getTopic(req: AuthRequest, res: Response, next: NextFuncti
       updated_at: string;
       author_name: string | null;
       author_email: string | null;
-      author_role: string | null;
-      author_deletion_status: string | null;
+          author_deletion_status: string | null;
       post_count: number;
       last_post_at: string | null;
       is_deleted: number;
     }>(
       `SELECT t.id, t.title, t.body, t.course_id, t.author_id, t.created_at, t.updated_at,
-              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.name AS author_name, u.email AS author_email,
               u.deletion_status AS author_deletion_status,
               (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS post_count,
               (SELECT MAX(created_at) FROM forum_posts WHERE topic_id = t.id AND is_deleted = 0) AS last_post_at,
@@ -232,14 +230,13 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       updated_at: string;
       author_name: string | null;
       author_email: string | null;
-      author_role: string | null;
-      author_deletion_status: string | null;
+          author_deletion_status: string | null;
       is_deleted: number;
     }>(
       `SELECT p.id, p.topic_id,
               CASE WHEN p.is_deleted = 1 THEN NULL ELSE p.body END AS body,
               p.author_id, p.created_at, p.updated_at,
-              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.name AS author_name, u.email AS author_email,
               u.deletion_status AS author_deletion_status,
               p.is_deleted
        FROM forum_posts p
@@ -250,8 +247,9 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
       [topicId, limit, offset]
     );
 
+    const summaries=compatibleRoleSummaries(rows.map(row=>row.author_id));
     const posts = rows.map(row => {
-      const post = rowToPost(row as any);
+      const post = rowToPost(row as any,summaries.get(row.author_id)!.role);
       if (row.is_deleted === 1) {
         return { ...post, isDeleted: true as const };
       }
@@ -307,7 +305,7 @@ export async function createTopic(req: AuthRequest, res: Response, next: NextFun
       }
     }
 
-    const author = queryOne<User>('SELECT id, name, email, role FROM users WHERE id = ?', [userId]);
+    const author = queryOne<User>('SELECT id, name, email FROM users WHERE id = ?', [userId]);
     if (!author) {
       throw new AppError('User not found', 401, ErrorCodes.UNAUTHORIZED);
     }
@@ -386,7 +384,7 @@ export async function createPost(req: AuthRequest, res: Response, next: NextFunc
       throw new AppError('Validation failed', 400, ErrorCodes.VALIDATION_ERROR, errors);
     }
 
-    const author = queryOne<User>('SELECT id, name, email, role FROM users WHERE id = ?', [userId]);
+    const author = queryOne<User>('SELECT id, name, email FROM users WHERE id = ?', [userId]);
     if (!author) {
       throw new AppError('User not found', 401, ErrorCodes.UNAUTHORIZED);
     }
@@ -676,15 +674,14 @@ export async function adminGetTopics(req: AuthRequest, res: Response, next: Next
       deletion_type: string | null;
       author_name: string | null;
       author_email: string | null;
-      author_role: string | null;
-      original_name: string | null;
+          original_name: string | null;
       original_email: string | null;
       post_count: number;
     }>(
       `SELECT t.id, t.title, t.body, t.course_id, t.author_id,
               t.created_at, t.updated_at,
               t.is_deleted, t.deleted_at, t.deleted_by, t.deletion_type,
-              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.name AS author_name, u.email AS author_email,
               dui.original_name, dui.original_email,
               (SELECT COUNT(*) FROM forum_posts WHERE topic_id = t.id) AS post_count
        FROM forum_topics t
@@ -745,14 +742,13 @@ export async function adminGetPosts(req: AuthRequest, res: Response, next: NextF
       deletion_type: string | null;
       author_name: string | null;
       author_email: string | null;
-      author_role: string | null;
-      original_name: string | null;
+          original_name: string | null;
       original_email: string | null;
     }>(
       `SELECT p.id, p.topic_id, p.body, p.author_id,
               p.created_at, p.updated_at,
               p.is_deleted, p.deleted_at, p.deleted_by, p.deletion_type,
-              u.name AS author_name, u.email AS author_email, u.role AS author_role,
+              u.name AS author_name, u.email AS author_email,
               dui.original_name, dui.original_email
        FROM forum_posts p
        LEFT JOIN users u ON p.author_id = u.id

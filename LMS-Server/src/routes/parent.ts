@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { query, queryOne, execute } from '../config/database.js';
+import { createRbacAccount } from '../services/rbacAccountService.js';
+import { db, query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
@@ -74,25 +75,11 @@ router.post('/parent/children', authenticate, requirePermission('user.create'), 
   const childId = uuidv4();
   const hash = bcrypt.hashSync(password, 10);
 
-  execute(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, 'student')",
-    [childId, name, email, hash]
-  );
-  execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [childId, 'role_student']);
-
-  // Create student record
-  const studentId = uuidv4();
-  const enrollmentNumber = `REG-${childId.replace(/-/g, '').slice(0, 12).toUpperCase()}`;
-  execute(
-    "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, ?, ?, ?, 'General', 1)",
-    [studentId, childId, name, email, enrollmentNumber]
-  );
-
-  // Link parent → child
-  execute(
-    "INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')",
-    [uuidv4(), parentId, childId]
-  );
+  db.transaction(() => {
+    createRbacAccount({id:childId,name,email,passwordHash:hash,initialRoleId:'role_student'});
+    execute("INSERT INTO user_links(id,parent_user_id,child_user_id,link_type) VALUES(?,?,?,'parent')",
+      [uuidv4(),parentId,childId]);
+  }).immediate();
 
   res.status(201).json({ success: true, data: { id: childId, name, email } });
 });

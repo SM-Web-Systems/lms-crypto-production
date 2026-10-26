@@ -29,7 +29,7 @@ const REQUIRED = {
   user_group_members: ['group_id', 'user_id'],
 };
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-function fingerprintFile(file) {
+export function fingerprintFile(file) {
   const fd=openSync(file,'r'), hash=createHash('sha256'), buffer=Buffer.alloc(1024*1024);
   let header;
   try {
@@ -97,6 +97,8 @@ function inventory(db, metadata) {
   const groups = countByUser('SELECT owner_user_id AS user_id,COUNT(*) AS total FROM user_groups GROUP BY owner_user_id');
   const groupMembers = countByUser('SELECT user_id,COUNT(*) AS total FROM user_group_members GROUP BY user_id');
   const counters = {};
+  const bridge = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get();
+  const legacyBridgeActive = /NEW\s*\.\s*role/i.test(bridge?.sql ?? '') && /user_roles/i.test(bridge?.sql ?? '');
   const accountDetails = [];
   const increment = code => { counters[code] = (counters[code] ?? 0) + 1; };
   const legacyCounts = { student: 0, lecturer: 0, admin: 0, unknown: 0 };
@@ -111,7 +113,7 @@ function inventory(db, metadata) {
     if (!grants.length) note(user.authorization_version > 0 ? 'managed_account_without_grants' : 'unmanaged_account_without_grants');
     if (mapped && !grants.includes(mapped)) {
       note('legacy_mapping_absent_from_rbac');
-      if (user.authorization_version === 0) note('startup_legacy_regrant_risk');
+      if (user.authorization_version === 0 && legacyBridgeActive) note('startup_legacy_regrant_risk');
     }
     if (can.has('course.submit') && !profiles.get(user.id)) note('learner_profile_missing');
     if ((profiles.get(user.id) ?? 0) > 1) note('multiple_learner_profiles');
@@ -164,7 +166,7 @@ function inventory(db, metadata) {
       versionNote: 'SQLite user_version and schema fingerprint do not establish the deployed application migration level.' },
     users: { total: users.length, withoutDeletionStatus: users.filter(user => user.deletion_status === null).length,
       withDeletionStatus: users.filter(user => user.deletion_status !== null).length, legacyCounts },
-    rbac: { assignments: assignments.length, roles: roles.length,
+    rbac: { assignments: assignments.length, roles: roles.length, legacyBridgeActive,
       builtInAssignmentCounts: Object.fromEntries(Object.keys(BUILT_INS).map(id => [id, assignments.filter(row => row.role_id === id).length])),
       customRoleCount: roles.filter(role => !Object.hasOwn(BUILT_INS,role.id)).length,
       accountFindingCounts: counters, catalogIssueCount: catalogIssues.length,

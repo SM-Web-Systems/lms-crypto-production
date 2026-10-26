@@ -1230,35 +1230,6 @@ startupMigrations.push(() => {
   if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) seedRbacData();
 });
 
-export function migrateUsersToRbac(): void {
-  // Map existing users.role → user_roles (idempotent)
-  const roleMap: Record<string, string> = {
-    student: 'role_student',
-    lecturer: 'role_instructor',
-    admin: 'role_admin',
-  };
-
-  // Do not resurrect grants deliberately changed/revoked through role management.
-  const users = db.prepare('SELECT id, role FROM users WHERE authorization_version = 0').all() as Array<{
-    id: string; role: string;
-  }>;
-
-  const insertUserRole = db.prepare(
-    'INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)'
-  );
-
-  for (const user of users) {
-    const roleId = roleMap[user.role];
-    if (roleId) {
-      insertUserRole.run(user.id, roleId);
-    }
-
-  }
-}
-startupMigrations.push(() => {
-  if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get()) migrateUsersToRbac();
-});
-
 // Phase A: Add approval_status column to courses (live DB migration)
 function ensureCoursesApprovalStatus(): void {
   const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='courses'").get();
@@ -1944,33 +1915,6 @@ function ensureDeletionTables(): void {
   `);
 }
 startupMigrations.push(ensureDeletionTables);
-
-/** AUTH-13: Ensure role-assignment trigger exists on pre-existing databases. */
-function ensureRoleAssignmentTrigger(): void {
-  const hasUsers = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'").get();
-  if (!hasUsers) return; // Schema not yet loaded (in-memory test or new DB — canonical schema will add it)
-  const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get();
-  if (!exists) {
-    db.exec(`
-      CREATE TRIGGER IF NOT EXISTS trg_auto_assign_user_role
-      AFTER INSERT ON users
-      FOR EACH ROW
-      WHEN NEW.role IN ('student', 'lecturer', 'admin')
-      BEGIN
-        INSERT OR IGNORE INTO user_roles (user_id, role_id)
-        VALUES (
-          NEW.id,
-          CASE NEW.role
-            WHEN 'student' THEN 'role_student'
-            WHEN 'lecturer' THEN 'role_instructor'
-            WHEN 'admin' THEN 'role_admin'
-          END
-        );
-      END
-    `);
-  }
-}
-startupMigrations.push(ensureRoleAssignmentTrigger);
 
 // One transaction owns schema changes, RBAC seeds, and default data. Preflight
 // ran read-only; a failed upgrade must not leave earlier writes committed.

@@ -1,21 +1,11 @@
-/**
- * WI-02 — patchUserRole validation and privilege-escalation tests
- *
- * Tests PATCH /api/v1/users/:id/role with:
- *   - Valid legacy role assignment (student, lecturer, admin)
- *   - Invalid/unknown role rejection
- *   - Privilege-escalation denial (admin cannot promote to admin)
- *   - Self-assignment denial
- *   - Admin-2 can demote/promote within allowed levels
- *   - No regression in existing role-management behavior
- */
-
+/** RBAC role-set replacement and legacy endpoint retirement. */
 import { describe, it, expect } from 'vitest';
 import './setup.js';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import app from '../app.js';
-import { execute } from '../config/database.js';
+import { getUserRoles } from '../middleware/rbac.js';
+import { db, execute } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 
 /**
@@ -49,201 +39,54 @@ function createUser(
   return { userId, email, token };
 }
 
-describe('WI-02 — patchUserRole validation and escalation guards', () => {
-
-  describe('Valid legacy role assignment', () => {
-    it('admin-2 can change a student to lecturer → 200', async () => {
-      const admin2 = createUser('admin', ['role_admin2']);
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin2.token}`)
-        .send({ role: 'student' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.role).toBe('student');
-    });
-
-    it('admin-2 can change a student to lecturer → 200', async () => {
-      const admin2 = createUser('admin', ['role_admin2']);
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin2.token}`)
-        .send({ role: 'lecturer' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe('lecturer');
-    });
-
-    it('super-admin can change a student to admin → 200', async () => {
-      const superAdmin = createUser('admin', ['role_super_admin']);
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${superAdmin.token}`)
-        .send({ role: 'admin' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe('admin');
-    });
+describe('RBAC user-role replacement',()=>{
+  const replace=(actor:ReturnType<typeof createUser>,target:string,roleIds:unknown)=>request(app)
+    .put('/api/v1/admin/users/'+target+'/roles').auth(actor.token,{type:'bearer'}).send({roleIds});
+  it.each([['role_student','student'],['role_instructor','instructor'],['role_admin','admin']])('assigns %s through current RBAC',async(id,name)=>{
+    const actor=createUser('admin',['role_admin2']),target=createUser('student');
+    expect((await replace(actor,target.userId,[id])).status).toBe(200);
+    expect(getUserRoles(target.userId)).toEqual([name]);
   });
-
-  describe('Invalid/unknown role rejection', () => {
-    it('rejects unknown role name → 400', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'superadmin' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('rejects RBAC role name that is not a legacy role → 400', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'instructor' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('rejects empty role → 400', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: '' });
-
-      expect(res.status).toBe(400);
-    });
-
-    it('rejects missing role field → 400', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({});
-
-      expect(res.status).toBe(400);
-    });
+  it.each([null,'student',{},[null],['']])('rejects malformed role IDs %j',async ids=>{
+    const actor=createUser('admin',['role_admin2']),target=createUser('student');
+    expect((await replace(actor,target.userId,ids)).status).toBe(400);
+    expect(getUserRoles(target.userId)).toEqual(['student']);
   });
-
-  describe('Privilege-escalation denial', () => {
-    it('admin (level 80) cannot promote user to admin → 403', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'admin' });
-
-      expect(res.status).toBe(403);
-    });
-
-    it('admin (level 80) can set user to lecturer (level 70) → 200', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'lecturer' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe('lecturer');
-    });
-
-    it('admin (level 80) can set user to student (level 10) → 200', async () => {
-      const admin = createUser('admin');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'student' });
-
-      expect(res.status).toBe(200);
-    });
-
-    it('admin-2 (level 90) can promote to admin (level 80) → 200', async () => {
-      const admin2 = createUser('admin', ['role_admin2']);
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${admin2.token}`)
-        .send({ role: 'admin' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.role).toBe('admin');
-    });
+  it('rejects unknown roles without removing existing grants',async()=>{
+    const actor=createUser('admin',['role_admin2']),target=createUser('student');
+    expect((await replace(actor,target.userId,['missing-role'])).status).toBe(404);
+    expect(getUserRoles(target.userId)).toEqual(['student']);
   });
-
-  describe('Self-assignment denial', () => {
-    it('admin cannot change own role → 400', async () => {
-      const admin = createUser('admin');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${admin.userId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'student' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('own role');
-    });
+  it('requires role assignment capability, not only user.manage',async()=>{
+    const actor=createUser('admin'),target=createUser('student');
+    expect((await replace(actor,target.userId,['role_instructor'])).status).toBe(403);
   });
-
-  describe('Authorization enforcement', () => {
-    it('student without user.manage is denied → 403', async () => {
-      const student = createUser('student');
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .set('Authorization', `Bearer ${student.token}`)
-        .send({ role: 'lecturer' });
-
-      expect(res.status).toBe(403);
-    });
-
-    it('unauthenticated request → 401', async () => {
-      const target = createUser('student');
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${target.userId}/role`)
-        .send({ role: 'lecturer' });
-
-      expect(res.status).toBe(401);
-    });
-
-    it('nonexistent target user → 404', async () => {
-      const admin = createUser('admin');
-      const fakeId = uuidv4();
-
-      const res = await request(app)
-        .patch(`/api/v1/users/${fakeId}/role`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ role: 'student' });
-
-      expect(res.status).toBe(404);
-    });
+  it('cannot assign equal/higher privileges or super-admin',async()=>{
+    const actor=createUser('admin',['role_admin2']),target=createUser('student');
+    for(const id of ['role_admin2','role_super_admin']) expect((await replace(actor,target.userId,[id])).status).toBe(403);
+  });
+  it('cannot modify a peer or higher-tier target, including their lower grants',async()=>{
+    const actor=createUser('admin',['role_admin2']),peer=createUser('admin',['role_admin2']);
+    expect((await replace(actor,peer.userId,[])).status).toBe(403);
+  });
+  it('cannot replace your own roles',async()=>{
+    const actor=createUser('admin',['role_admin2']);
+    expect((await replace(actor,actor.userId,[])).status).toBe(403);
+  });
+  it('supports intentional zero grants and preserves inert legacy storage',async()=>{
+    const actor=createUser('admin',['role_admin2']),target=createUser('admin');
+    expect((await replace(actor,target.userId,[])).status).toBe(200);
+    expect(getUserRoles(target.userId)).toEqual([]);
+    expect(db.prepare('SELECT role FROM users WHERE id=?').get(target.userId)).toEqual({role:'admin'});
+  });
+  it('requires authentication and reports a missing target',async()=>{
+    expect((await request(app).put('/api/v1/admin/users/absent/roles').send({roleIds:[]})).status).toBe(401);
+    const actor=createUser('admin',['role_admin2']); expect((await replace(actor,'absent',[])).status).toBe(404);
+  });
+  it('returns 410 on the retired endpoint without changing grants',async()=>{
+    const actor=createUser('admin',['role_admin2']),target=createUser('student');
+    const response=await request(app).patch('/api/v1/users/'+target.userId+'/role').auth(actor.token,{type:'bearer'}).send({role:'admin'});
+    expect(response.status).toBe(410); expect(response.body.error.code).toBe('LEGACY_ROLE_ENDPOINT_RETIRED');
+    expect(getUserRoles(target.userId)).toEqual(['student']);
   });
 });

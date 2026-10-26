@@ -117,8 +117,13 @@ router.post(
       return;
     }
 
-    // Enrollment check (admin/lecturer bypass)
-    if (req.user!.role === 'student') {
+    // Self-application is a learner action. Staff review is a separate scoped API.
+    const permissions = new Set(getUserPermissions(userId));
+    if (!permissions.has('course.view') || !permissions.has('certificate.apply')) {
+      res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Certificate application capability required'}});
+      return;
+    }
+    {
       const enrolled = queryOne<{ user_id: string }>(
         `SELECT uc.user_id FROM user_course_codes uc
          INNER JOIN courses c ON c.course_code = uc.course_code

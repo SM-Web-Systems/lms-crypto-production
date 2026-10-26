@@ -213,77 +213,13 @@ describe('C1 — DELETE /courses/:id/lecturers/:lecturerUserId', () => {
 // C2 — Role management
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('C2 — PATCH /users/:id/role', () => {
-  let ids: ReturnType<typeof seedBase>;
-  beforeEach(() => { ids = seedBase(); });
-
-  it('admin promotes student to lecturer', async () => {
-    const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${ids.studentId}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'lecturer' });
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.role).toBe('lecturer');
-    const row = db.prepare('SELECT role FROM users WHERE id = ?').get(ids.studentId) as { role: string };
-    expect(row.role).toBe('lecturer');
-  });
-
-  it('admin demotes lecturer to student', async () => {
-    const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${ids.lecturerId}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'student' });
-    expect(res.status).toBe(200);
-    expect(res.body.data.role).toBe('student');
-  });
-
-  it('admin cannot promote student to admin (equal privilege) → 403', async () => {
-    // WI-02: admin (level 80) cannot assign admin (level 80) — escalation guard
-    const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${ids.studentId}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'admin' });
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 400 for invalid role value', async () => {
-    const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${ids.studentId}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'superuser' });
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 400 when admin tries to change own role', async () => {
-    const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${ids.adminId}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'student' });
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 404 if user not found', async () => {
-    const token = makeToken({ userId: ids.adminId, email: 'admin-c@test.com', role: 'admin' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${uuidv4()}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'lecturer' });
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 403 if caller is not admin', async () => {
-    const token = makeToken({ userId: ids.lecturerId, email: 'lecturer-c@test.com', role: 'lecturer' });
-    const res = await request(app)
-      .patch(`/api/v1/users/${ids.studentId}/role`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ role: 'admin' });
-    expect(res.status).toBe(403);
+describe('C2 — retired legacy role endpoint',()=>{
+  it('returns 410 instead of replacing the RBAC grant set',async()=>{
+    const ids=seedBase();
+    const token=makeToken({userId:ids.adminId,email:'admin-c@test.com',role:'admin'});
+    const response=await request(app).patch('/api/v1/users/'+ids.studentId+'/role').auth(token,{type:'bearer'}).send({role:'lecturer'});
+    expect(response.status).toBe(410);
+    expect(db.prepare('SELECT role_id FROM user_roles WHERE user_id=?').all(ids.studentId)).toEqual([{role_id:'role_student'}]);
   });
 });
 

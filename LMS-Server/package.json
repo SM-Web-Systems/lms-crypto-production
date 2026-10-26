@@ -26,7 +26,9 @@
     "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs",
     "test:restore-drill": "node scripts/synthetic-restore-drill.mjs",
     "rbac:inventory": "node scripts/rbac-inventory.mjs",
-    "test:rbac-inventory": "node --test scripts/rbac-inventory.test.mjs"
+    "test:rbac-inventory": "node --test scripts/rbac-inventory.test.mjs scripts/rbac-cutover.test.mjs",
+    "rbac:cutover": "node scripts/rbac-cutover.mjs",
+    "test:rbac-runtime": "node scripts/test-rbac-runtime.mjs"
   },
   "keywords": [
     "student",
