@@ -87,7 +87,6 @@ const Messages: React.FC = () => {
             id: s.userId || s.id,
             name: s.name,
             email: s.email,
-            role: 'student' as const,
           }))
         );
         const peerList = await enrollmentService.getPeersInMyCourses(userId, true);

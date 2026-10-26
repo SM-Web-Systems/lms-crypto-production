@@ -1,11 +1,12 @@
 import api from './api';
+import type { RolePresentation } from '../utils/rolePresentation';
 
 export interface CustomLink {
   title: string;
   url: string;
 }
 
-export interface UserProfile {
+export interface UserProfile extends RolePresentation {
   id?: string;
   displayName?: string;
   description?: string;

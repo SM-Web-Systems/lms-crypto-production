@@ -1,10 +1,12 @@
 import { query } from '../config/database.js';
 import type { LegacyRole } from '../types/index.js';
+import { roleSummariesForUsers } from './roleSummaryService.js';
 
 /** Temporary response/claim adapter for supported older clients. Never an access check. */
 export function compatibleRoleSummaries(userIds:string[]) {
   const ids=[...new Set(userIds)];
-  const summaries=new Map(ids.map(id=>[id,{role:'student' as LegacyRole,rbacRoles:[] as string[]}]));
+  const assignments = roleSummariesForUsers(ids);
+  const summaries=new Map(ids.map(id=>[id,{role:'student' as LegacyRole,rbacRoles:[] as string[],roleSummaries:assignments.get(id)!}]));
   const administrators:Record<string,string>={role_admin:'admin',role_admin2:'admin-2',role_super_admin:'super-admin'};
   for(let offset=0;offset<ids.length;offset+=400) {
     const chunk=ids.slice(offset,offset+400);

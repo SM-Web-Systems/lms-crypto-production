@@ -1,4 +1,4 @@
-import { compatibleRole, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
+import { compatibleRoleSummary, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute, db } from '../config/database.js';
@@ -34,7 +34,7 @@ function toAuthor(u: User): ForumAuthor {
     id: u.id,
     name: u.name,
     email: u.email ?? null,
-    role: compatibleRole(u.id),
+    ...compatibleRoleSummary(u.id),
   };
 }
 
@@ -51,7 +51,7 @@ function rowToTopic(row: {
   author_deletion_status: string | null;
   post_count: number;
   last_post_at: string | null;
-}, role=compatibleRole(row.author_id)): ForumTopicResponse {
+}, summary=compatibleRoleSummary(row.author_id)): ForumTopicResponse {
   const isDeleted = row.author_deletion_status === 'finalized';
   return {
     id: row.id,
@@ -62,7 +62,8 @@ function rowToTopic(row: {
       id: row.author_id,
       name: isDeleted ? 'Deleted User' : (row.author_name ?? 'Unknown'),
       email: isDeleted ? null : (row.author_email ?? null),
-      role,
+      ...summary,
+      ...(isDeleted ? { rbacRoles: [], roleSummaries: [] } : {}),
       ...(isDeleted ? { isDeleted: true } : {}),
     },
     createdAt: toISO(row.created_at)!,
@@ -82,7 +83,7 @@ function rowToPost(row: {
   author_name: string | null;
   author_email: string | null;
   author_deletion_status: string | null;
-}, role=compatibleRole(row.author_id)): ForumPostResponse {
+}, summary=compatibleRoleSummary(row.author_id)): ForumPostResponse {
   const isDeleted = row.author_deletion_status === 'finalized';
   return {
     id: row.id,
@@ -92,7 +93,8 @@ function rowToPost(row: {
       id: row.author_id,
       name: isDeleted ? 'Deleted User' : (row.author_name ?? 'Unknown'),
       email: isDeleted ? null : (row.author_email ?? null),
-      role,
+      ...summary,
+      ...(isDeleted ? { rbacRoles: [], roleSummaries: [] } : {}),
       ...(isDeleted ? { isDeleted: true } : {}),
     },
     createdAt: toISO(row.created_at)!,
@@ -145,7 +147,7 @@ export async function getTopics(req: AuthRequest, res: Response, next: NextFunct
 
     const summaries=compatibleRoleSummaries(rows.map(row=>row.author_id));
     const topics = rows.map(row => {
-      const topic = rowToTopic(row,summaries.get(row.author_id)!.role);
+      const topic = rowToTopic(row,summaries.get(row.author_id)!);
       if (row.is_deleted === 1) {
         return { ...topic, isDeleted: true as const };
       }
@@ -249,7 +251,7 @@ export async function getPosts(req: AuthRequest, res: Response, next: NextFuncti
 
     const summaries=compatibleRoleSummaries(rows.map(row=>row.author_id));
     const posts = rows.map(row => {
-      const post = rowToPost(row as any,summaries.get(row.author_id)!.role);
+      const post = rowToPost(row as any,summaries.get(row.author_id)!);
       if (row.is_deleted === 1) {
         return { ...post, isDeleted: true as const };
       }

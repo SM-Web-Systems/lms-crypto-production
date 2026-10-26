@@ -24,6 +24,7 @@ function Probe(){
   const auth=useAuth();profileUpdate=auth.updateUser;
   return <>
     <Text>{auth.user?auth.user.email:'Signed out'}</Text><Text>{mobileHome(auth.user)}</Text>
+    <Text testID="current-authorization">{JSON.stringify(auth.user)}</Text>
     {auth.sessionNotice?<Text>{auth.sessionNotice}</Text>:null}
     <Pressable onPress={()=>auth.login('sponsor@example.invalid','password')}><Text>Login</Text></Pressable>
     <Pressable onPress={()=>auth.loginWithAmma().catch(()=>{})}><Text>Wallet login</Text></Pressable>
@@ -159,6 +160,19 @@ describe('A14 resilient native sessions',()=>{
     await act(async()=>fireEvent.press(screen.getByText('Retry clearing saved session')));
     await waitFor(()=>expect(screen.queryByText('Retry clearing saved session')).toBeNull());
     expect(mockToken).toBeNull();
+  });
+
+  it('discards old single-role hints and replaces authorization on foreground refresh',async()=>{
+    renderSession();
+    await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
+    expect(JSON.parse(screen.getByTestId('current-authorization').props.children)).not.toHaveProperty('role');
+    const {role: _legacy, ...current} = sponsor;
+    service.getMe.mockResolvedValueOnce({...current,rbacRoles:['sponsor'],roleSummaries:[]});
+    await act(async()=>fireEvent.press(screen.getByText('Refresh')));
+    await waitFor(()=>expect(screen.getByText('/workspace')).toBeTruthy());
+    const refreshed=JSON.parse(screen.getByTestId('current-authorization').props.children);
+    expect(refreshed).not.toHaveProperty('role');
+    expect(refreshed.rbacRoles).toEqual(['sponsor']);
   });
 
 });

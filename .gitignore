@@ -55,3 +55,8 @@ Thumbs.db
 .auth13-*
 .rbac-inventory/
 __pycache__/
+
+# Local browser sessions and generated RBAC verification reports
+.playwright-cli/
+/output/rbac-*.json
+/output/playwright/rbac-*-fixture.js

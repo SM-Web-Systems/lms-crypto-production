@@ -1,4 +1,6 @@
 import api from './api';
+import type { CourseMember } from '../types/directory';
+export type { CourseMember } from '../types/directory';
 import type { ApiResponse } from '../types/api';
 import type { Course, CourseSection, CourseWeek } from '../types/course';
 import { ApiRequestError, assertApiSuccess } from '../utils/apiError';
@@ -43,8 +45,8 @@ export const courseService = {
     }
   },
 
-  async fetchCourseMembers(courseId: string): Promise<{ id: string; name: string; email: string; role: string }[]> {
-    const response = await api.get<{ success?: boolean; data?: { members?: { id: string; name: string; email: string; role: string }[] } }>(`/courses/${courseId}/members`);
+  async fetchCourseMembers(courseId: string): Promise<CourseMember[]> {
+    const response = await api.get<{ success?: boolean; data?: { members?: CourseMember[] } }>(`/courses/${courseId}/members`);
     const members = response.data?.data?.members;
     return Array.isArray(members) ? members : [];
   },

@@ -3,12 +3,13 @@
  */
 
 import api from './api';
+import type { RolePresentation } from '../utils/rolePresentation';
 
 export interface SearchResults {
   query: string;
   results: {
     courses?: Array<{ id: string; title: string; courseCode: string; description: string }>;
-    users?: Array<{ id: string; name: string; email: string; role: string }>;
+    users?: Array<{ id: string; name: string; email: string } & RolePresentation>;
     credentials?: Array<{ id: string; courseTitle: string; studentName: string; issuedAt: string }>;
     quizzes?: Array<{ id: string; title: string; courseTitle: string }>;
   };

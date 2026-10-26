@@ -1,3 +1,4 @@
+import { rolesText } from '../utils/rolePresentation';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -321,9 +322,7 @@ const Profile: React.FC = () => {
                   {!isViewingOther && (
                     <p className="text-sm text-neutral-500 truncate">{user.email}</p>
                   )}
-                  {!isViewingOther && (
-                    <p className="text-xs text-neutral-400 mt-0.5 capitalize">{user.role}</p>
-                  )}
+                  <p className="text-xs text-neutral-400 mt-0.5">{rolesText(isViewingOther ? profile : user)}</p>
                 </div>
               </div>
 
@@ -563,7 +562,7 @@ const Profile: React.FC = () => {
               </div>
               <p className="font-semibold text-neutral-900 text-lg">{displayName}</p>
               {!isViewingOther && <p className="text-sm text-neutral-500 mt-0.5">{user.email}</p>}
-              <p className="text-xs text-neutral-400 capitalize mt-0.5">{isViewingOther ? '' : user.role}</p>
+              <p className="text-xs text-neutral-400 mt-0.5">{rolesText(isViewingOther ? profile : user)}</p>
               {!isViewingOther && (
                 <Button
                   variant="outline"
