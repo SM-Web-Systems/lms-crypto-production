@@ -1,3 +1,4 @@
+import { compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
 import { isAdminTier } from '../services/administratorPolicy.js';
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -833,18 +834,19 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
     }
 
     const rows = query<{ id: string; name: string; email: string; role: string }>(
-      `SELECT u.id, u.name, u.email, u.role
+      `SELECT u.id, u.name, u.email
        FROM users u
        INNER JOIN user_course_codes c ON c.user_id = u.id
        WHERE c.course_code = ?
        ORDER BY u.name`,
       [course.course_code]
     );
+    const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
     const members: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
-      role: r.role as UserDirectoryItem['role'],
+      ...summaries.get(r.id)!,
     }));
 
     res.json({
@@ -920,18 +922,19 @@ export async function addCourseMember(req: AuthRequest, res: Response, next: Nex
     }
 
     const rows = query<{ id: string; name: string; email: string; role: string }>(
-      `SELECT u.id, u.name, u.email, u.role
+      `SELECT u.id, u.name, u.email
        FROM users u
        INNER JOIN user_course_codes c ON c.user_id = u.id
        WHERE c.course_code = ?
        ORDER BY u.name`,
       [course.course_code]
     );
+    const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
     const members: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
-      role: r.role as UserDirectoryItem['role'],
+      ...summaries.get(r.id)!,
     }));
 
     res.status(201).json({
@@ -1023,12 +1026,12 @@ export async function addLecturer(req: AuthRequest, res: Response, next: NextFun
       throw new AppError('Course not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    const user = queryOne<{ id: string; role: string }>('SELECT id, role FROM users WHERE id = ?', [userId]);
+    const user = queryOne<{ id: string }>('SELECT id FROM users WHERE id = ?', [userId]);
     if (!user) {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
-    if (user.role !== 'lecturer') {
-      throw new AppError('User is not a lecturer', 422, ErrorCodes.VALIDATION_ERROR);
+    if (!getUserPermissions(userId).includes('course.manage')) {
+      throw new AppError('User does not have teaching capability', 422, ErrorCodes.VALIDATION_ERROR);
     }
 
     const existing = queryOne<{ course_id: string }>(

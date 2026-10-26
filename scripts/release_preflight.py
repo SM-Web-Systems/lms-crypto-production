@@ -22,6 +22,26 @@ from contextlib import closing, contextmanager
 REPOSITORY = 'SM-Web-Systems/lms-crypto-production'
 REQUIRED_TABLES = ('users', 'courses', 'nft_credentials', 'payments', 'webhook_events',
                    'roles', 'permissions', 'role_permissions', 'user_roles')
+AUTHORIZATION_SCHEMA_LABEL = 'org.smwebsystems.lms.authorization-schema'
+
+
+def validate_image_authorization(image, database_path):
+    """Reject an incompatible API image before deployment or rollback stops writers."""
+    label = (image.get('Config', {}).get('Labels') or {}).get(AUTHORIZATION_SCHEMA_LABEL)
+    try:
+        with readonly_database(database_path) as database:
+            ledger = database.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").fetchone()
+            current = None
+            if ledger:
+                rows = database.execute('SELECT id FROM authorization_migrations').fetchall()
+                require(rows == [('rbac-only-v1',)], 'RBAC_SCHEMA_MARKER_INVALID')
+                guard = database.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").fetchone()
+                expected = 'CREATE TRIGGER trg_auto_assign_user_role AFTER INSERT ON users FOR EACH ROW BEGIN SELECT 1; END'
+                require(guard and re.sub(r'\s+', ' ', guard[0]).strip().rstrip(';') == expected, 'RBAC_SCHEMA_FENCE_INVALID')
+                current = 'rbac-only-v1'
+            require(label == current, 'RBAC_IMAGE_SCHEMA_MISMATCH')
+    except sqlite3.Error:
+        raise ReleaseError('RBAC_SCHEMA_UNSUPPORTED') from None
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
 NAME = re.compile(r'[a-z0-9][a-z0-9_.-]*\Z')

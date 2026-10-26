@@ -52,6 +52,18 @@ function refuse(reason: string): never {
 
 export function validateDatabase(db: SqliteDatabase, afterMigrations = false): void {
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('integrity check failed');
+  // Existing databases require an operator-reviewed offline cutover, never an
+  // implicit startup grant/backfill or trigger repair.
+  const ledger = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").get();
+  if (!ledger || !db.prepare("SELECT 1 FROM authorization_migrations WHERE id='rbac-only-v1'").get()
+    || (db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get() as {total:number}).total !== 1) {
+    refuse('RBAC-only schema requires the reviewed offline rbac-cutover migration');
+  }
+  const expectedGuard = baselineTriggers.find(trigger => trigger.name === 'trg_auto_assign_user_role');
+  const actualGuard = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get() as {sql:string}|undefined;
+  const normalizeGuard = (sql:string) => sql.replace(/\s+/g,' ').trim();
+  if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
+
   for (const table of baseline) {
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
     validateKeys(db, table.name, table.keys);

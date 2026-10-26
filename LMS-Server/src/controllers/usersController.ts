@@ -1,21 +1,10 @@
 import { Response, NextFunction } from 'express';
-import { db, query, queryOne, execute } from '../config/database.js';
-import { AuthRequest, UserDirectoryItem, ErrorCodes, LegacyRole } from '../types/index.js';
+import { query, queryOne, execute } from '../config/database.js';
+import { AuthRequest, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { auditLog } from '../services/auditService.js';
-import { getUserRoles, getUserPermissions } from '../middleware/rbac.js';
-import { assertCanModifyUser, assertNotLastSuperAdmin, invalidateAuthorization, LEGACY_RBAC_ROLE, ROLE_PRIVILEGE_LEVEL } from '../services/roleSecurityService.js';
+import { compatibleRoleSummary, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
+import { getUserPermissions } from '../middleware/rbac.js';
 import { courseAccessScope } from '../services/courseAccessService.js';
-
-/**
- * Privilege levels for legacy roles, aligned with the RBAC hierarchy in rbac.ts.
- * Used by patchUserRole() to enforce escalation guards on the legacy users.role column.
- */
-const LEGACY_ROLE_PRIVILEGE: Record<string, number> = {
-  'student': 10,
-  'lecturer': 70,  // maps to RBAC 'instructor' (level 70)
-  'admin': 80,     // maps to RBAC 'admin' (level 80)
-};
 
 function getUserCourseCodes(userId: string): string[] {
   const rows = query<{ course_code: string }>(
@@ -55,7 +44,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     }
 
     const row = queryOne<{ id: string; name: string; email: string; role: string }>(
-      'SELECT id, name, email, role FROM users WHERE id = ?',
+      'SELECT id, name, email FROM users WHERE id = ?',
       [id]
     );
     if (!row) {
@@ -66,7 +55,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (callerId === id) {
       res.json({
         success: true,
-        data: { id: row.id, displayName: row.name, email: row.email, role: row.role },
+        data: { id: row.id, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
       });
       return;
     }
@@ -78,7 +67,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (callerPerms.has('user.manage')) {
       res.json({
         success: true,
-        data: { id: row.id, displayName: row.name, email: row.email, role: row.role },
+        data: { id: row.id, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
       });
       return;
     }
@@ -96,7 +85,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       if ((inScope?.cnt ?? 0) > 0) {
         res.json({
           success: true,
-          data: { id: row.id, displayName: row.name, role: row.role },
+          data: { id: row.id, displayName: row.name, ...compatibleRoleSummary(row.id) },
         });
         return;
       }
@@ -115,7 +104,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
       if ((inCohort?.cnt ?? 0) > 0) {
         res.json({
           success: true,
-          data: { id: row.id, displayName: row.name, role: row.role },
+          data: { id: row.id, displayName: row.name, ...compatibleRoleSummary(row.id) },
         });
         return;
       }
@@ -132,7 +121,7 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
 export async function getUsers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const rows = query<{ id: string; name: string; email: string; role: string }>(
-      'SELECT id, name, email, role FROM users ORDER BY name'
+      'SELECT id, name, email FROM users ORDER BY name'
     );
 
     // LMS-ADM-007: batch course code lookup to eliminate N+1
@@ -145,11 +134,12 @@ export async function getUsers(req: AuthRequest, res: Response, next: NextFuncti
       codeMap.get(user_id)!.push(course_code);
     }
 
+    const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
     const users: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
-      role: r.role as UserDirectoryItem['role'],
+      ...summaries.get(r.id)!,
       courseCodes: codeMap.get(r.id) || [],
     }));
 
@@ -217,73 +207,8 @@ export async function patchUser(req: AuthRequest, res: Response, next: NextFunct
   }
 }
 
-// ── Role management (Phase C) ─────────────────────────────────────────────────
-
-export async function patchUserRole(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { id } = req.params;
-    const { role } = req.body ?? {};
-    const callerId = req.user?.userId;
-
-    const validRoles: LegacyRole[] = ['student', 'lecturer', 'admin'];
-    if (!role || !validRoles.includes(role as LegacyRole)) {
-      throw new AppError(
-        `role must be one of: ${validRoles.join(', ')}`,
-        400,
-        ErrorCodes.VALIDATION_ERROR,
-      );
-    }
-
-    if (id === callerId) {
-      throw new AppError('Cannot change your own role', 400, ErrorCodes.VALIDATION_ERROR);
-    }
-
-    // WI-02: Privilege-escalation guard — caller cannot assign a legacy role
-    // whose privilege level is >= their own highest RBAC privilege level.
-    const callerRoles = getUserRoles(callerId!);
-    const callerLevel = Math.max(0, ...callerRoles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
-    const targetLevel = LEGACY_ROLE_PRIVILEGE[role] ?? 0;
-    if (targetLevel >= callerLevel) {
-      throw new AppError(
-        'Cannot assign a role with equal or higher privilege than your own',
-        403,
-        ErrorCodes.FORBIDDEN,
-      );
-    }
-
-    const user = queryOne<{ id: string; email: string; role: string }>(
-      'SELECT id, email, role FROM users WHERE id = ?',
-      [id],
-    );
-    if (!user) {
-      throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
-    }
-
-    // This endpoint replaces the effective role set. Use the RBAC endpoints for
-    // additive multi-role grants. Demotion must not leave supplemental admin grants.
-    db.transaction(() => {
-      assertCanModifyUser(callerId!, id);
-      assertNotLastSuperAdmin(id);
-      execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
-      execute('INSERT INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?)',
-        [id, LEGACY_RBAC_ROLE[role as LegacyRole], callerId]);
-      execute("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?", [role, id]);
-      invalidateAuthorization(id);
-    }).immediate();
-
-    // LMS-ADM-006: audit log for role change
-    auditLog({
-      action: 'CHANGE_ROLE',
-      actorId: callerId ?? 'unknown',
-      targetId: id,
-      details: `oldRole=${user.role} newRole=${role} email=${user.email}`,
-    });
-
-    res.json({
-      success: true,
-      data: { userId: id, email: user.email, role },
-    });
-  } catch (error) {
-    next(error);
-  }
+/** Retired API: explicit RBAC routes preserve multi-role grants and safe demotion. */
+export function patchUserRole(_req:AuthRequest,res:Response):void {
+  res.status(410).json({success:false,error:{code:'LEGACY_ROLE_ENDPOINT_RETIRED',
+    message:'Use the RBAC user-role endpoints, including PUT /api/v1/admin/users/:id/roles for atomic replacement.'}});
 }

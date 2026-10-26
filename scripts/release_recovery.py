@@ -423,6 +423,8 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
         image = inspect_image(runner, target, retained['tag'])
         require(image['Id'] == retained['image_id'] == target['services'][service]['image_id'] and
                 (image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == retained['revision'], 'RECOVERY_RETAINED_IMAGE_CHANGED')
+        if service == 'api':
+            pre.validate_image_authorization(image, Path(target['database']['host_path']))
         expected[service] = retained['image_id']
     base_url = validate_base_url(config.get('base_url'))
     # Stop the sole application writer and verify it is stopped BEFORE taking
@@ -491,6 +493,8 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
         for service in ('api', 'web'):
             image = inspect_image(runner, target, target['build_image_refs'][service])
             require((image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == target['approved_sha'], 'BUILT_IMAGE_SHA_MISMATCH')
+            if service == 'api':
+                pre.validate_image_authorization(image, Path(target['database']['host_path']))
             built[service] = image['Id']
         # Build may be slow: revalidate the original context and baseline just
         # before any replacement; ongoing financial activity blocks this mode.

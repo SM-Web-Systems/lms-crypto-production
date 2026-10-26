@@ -9,13 +9,16 @@ export type LegacyRole = 'student' | 'lecturer' | 'admin';
  * All RBAC role names from the `roles` table.
  * Matches the 12 system roles seeded by seedRbacData().
  */
-export type UserRole =
+export type BuiltInRole =
   | 'student' | 'super-student'
   | 'instructor' | 'teaching-assistant'
   | 'admin' | 'admin-2' | 'super-admin'
   | 'sponsor' | 'employer'
   | 'parent' | 'teacher'
   | 'custom-user';
+
+/** Custom RBAC names are valid; workspace and compatibility labels are separate. */
+export type UserRole = BuiltInRole | (string & {});
 
 export interface User {
   id: string;

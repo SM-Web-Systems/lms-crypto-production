@@ -44,7 +44,6 @@ async function globalSetup() {
   withFixtureDatabase(db => {
     for (const [email,role] of [['admin@test.com','role_admin'],['superadmin@test.com','role_super_admin']]) {
       db.prepare('INSERT OR IGNORE INTO user_roles(user_id,role_id) SELECT id,? FROM users WHERE email=?').run(role,email);
-      db.prepare("UPDATE users SET role='admin' WHERE email=?").run(email);
     }
     for (const email of ['sponsor-a@test.com','sponsor-b@test.com']) {
       db.prepare("INSERT OR IGNORE INTO user_roles(user_id,role_id) SELECT id,'role_sponsor' FROM users WHERE email=?").run(email);

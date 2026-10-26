@@ -741,6 +741,13 @@
       "provider",
       "processed_at",
       "payload"
+    ],
+    "authorization_migrations": [
+      "id",
+      "applied_at",
+      "source_snapshot_sha256",
+      "source_grants_sha256",
+      "review_reference"
     ]
   },
   "indexes": [
@@ -2603,6 +2610,13 @@
           "id"
         ]
       ],
+      "foreign": []
+    },
+    "authorization_migrations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [],
       "foreign": []
     }
   }

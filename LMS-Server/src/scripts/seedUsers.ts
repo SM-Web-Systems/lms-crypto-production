@@ -14,6 +14,7 @@ dotenv.config();
 
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { createRbacAccount } from '../services/rbacAccountService.js';
 import { db, close } from '../config/database.js';
 
 const STUDENT_EMAIL = 'student@smwebsystems.com';
@@ -25,20 +26,12 @@ const USERS = [
 async function seed() {
   try {
     const now = new Date().toISOString();
-    const insertUser = db.prepare(
-      `INSERT OR IGNORE INTO users (id, name, email, password_hash, role, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    );
-
     for (const u of USERS) {
-      const hash = await bcrypt.hash(u.password, 10);
-      const id = uuidv4();
-      const result = insertUser.run(id, u.name, u.email.toLowerCase(), hash, u.role, now, now);
-      if (result.changes > 0) {
-        console.log('Created:', u.email);
-      } else {
-        console.log('Skipped (already exists):', u.email);
-      }
+      if(db.prepare('SELECT id FROM users WHERE email=?').get(u.email.toLowerCase())) { console.log('Skipped existing identity'); continue; }
+      const hash=await bcrypt.hash(u.password,10);
+      createRbacAccount({name:u.name,email:u.email.toLowerCase(),passwordHash:hash,
+        initialRoleId:u.role==='admin'?'role_admin':'role_student'});
+      console.log('Created synthetic seed identity');
     }
 
     // Link student user to a student profile so they can use submissions

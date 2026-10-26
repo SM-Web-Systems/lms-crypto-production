@@ -17,6 +17,9 @@ function fixture(run) {
   const db = new Database(file);
   try {
     db.exec(schema);
+    // This suite inventories pre-cutover snapshots; runtime canonical schema has advanced.
+    db.exec('DROP TABLE authorization_migrations; DROP TRIGGER trg_auto_assign_user_role');
+    db.exec(readFileSync(new URL('../database/migrations/rbac-only-v1-legacy-trigger.sql',import.meta.url),'utf8'));
     db.prepare("INSERT INTO roles(id,name,label,is_system) VALUES('role_student','student','Student',1),('role_instructor','instructor','Instructor',1),('role_admin','admin','Admin',1),('role_sponsor','sponsor','Sponsor',1)").run();
     db.exec("INSERT INTO permissions(id,name,category,label) VALUES('submit','course.submit','course','Submit'),('manage','course.manage','course','Manage'); INSERT INTO role_permissions(role_id,permission_id) VALUES('role_student','submit'),('role_instructor','manage')");
     return run({db,file,directory, inspect:() => inspectSnapshot({database:file,snapshot:true,deployedSha:SHA})});

@@ -53,7 +53,7 @@ router.get('/:id', getUser);
  * /users/{id}/role:
  *   patch:
  *     tags: [Users]
- *     summary: Replace effective roles with a single legacy role and revoke existing sessions
+ *     summary: Retired legacy role endpoint (410); use RBAC role assignment/replacement
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path

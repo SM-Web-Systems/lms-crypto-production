@@ -328,6 +328,7 @@ describe('B5 — POST /courses/:courseId/completions/apply', () => {
   it('returns 422 WALLET_NOT_LINKED when no wallet', async () => {
     const { adminId, courseId } = seedBase();
     // Admin has no wallet in seedBase
+    db.prepare("INSERT INTO user_course_codes(user_id,course_code) VALUES(?,'TC-B-001')").run(adminId);
     const token = makeToken({ userId: adminId, email: 'admin-b@test.com', role: 'admin' });
     const res = await request(app)
       .post(`/api/v1/courses/${courseId}/completions/apply`)

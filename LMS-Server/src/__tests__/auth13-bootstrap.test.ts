@@ -114,22 +114,18 @@ describe('AUTH-13 real-process database bootstrap', { timeout: 60000 }, () => {
     const result = run(file); expect(result.status).not.toBe(0); expect(result.stderr).toContain('unique constraint');
     expect(readFileSync(file)).toEqual(before);
   });
-  it('recreates a missing role-assignment trigger during migration', () => {
-    const file = location(); canonical(file); const db = new Database(file);
-    db.exec('DROP TRIGGER trg_auto_assign_user_role');
-    db.close();
-    const result = run(file); expect(result.status, result.stderr).toBe(0);
-    // Verify the trigger was recreated
-    const check = new Database(file, { readonly: true });
-    expect(check.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get()).toBeTruthy();
-    check.close();
+  it('refuses a missing RBAC-only fence without repairing or writing the database',()=>{
+    const file=location();canonical(file);const db=new Database(file);
+    db.exec('DROP TRIGGER trg_auto_assign_user_role');db.close();const before=readFileSync(file);
+    const result=run(file);expect(result.status).not.toBe(0);expect(result.stderr).toContain('RBAC-only rollback fence');
+    expect(readFileSync(file)).toEqual(before);
   });
   it('rejects a changed canonical role-assignment trigger', () => {
     const file = location(); canonical(file); const db = new Database(file);
     db.exec('DROP TRIGGER trg_auto_assign_user_role');
     db.exec("CREATE TRIGGER trg_auto_assign_user_role AFTER INSERT ON users BEGIN INSERT INTO user_roles(user_id,role_id) VALUES(NEW.id,'role_super_admin'); END");
     db.close(); const before = readFileSync(file);
-    const result = run(file); expect(result.status).not.toBe(0); expect(result.stderr).toContain('role trigger');
+    const result = run(file); expect(result.status).not.toBe(0); expect(result.stderr).toContain('RBAC-only rollback fence');
     expect(readFileSync(file)).toEqual(before);
   });
   it('rolls back earlier additive migrations if a later migration fails', () => {
