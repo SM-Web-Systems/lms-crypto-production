@@ -2,6 +2,8 @@
 
 Date: 2026-10-26
 Review branch: `codex/rbac-client-retirement`
+Review PR: [#100](https://github.com/SM-Web-Systems/lms-crypto-production/pull/100)
+Implementation commit: `b1ae545e6b0a26cb08a2f8e31826744fc7f4cec2`; assess the latest exact PR head, including subsequent handover or validation fixes.
 Prerequisite: RBAC-STEP-02 / PR #99, implementation parent `360aa011ecde5304521cc5c5bbb119f28f682d10`
 Assessment target: the latest exact Step 3 PR head and its CI run, recorded in the PR description.
 Status: implementation for assessment; production and installed-device acceptance remain unverified.
@@ -33,7 +35,8 @@ Assess: teaching + learning accounts, custom roles, no grants with retained lear
 - Native profile shows all current labels. Shared client models no longer require a legacy role; the optional deprecated transport field is ignored.
 - Web/native verified session replacements discard the single-role hint. Login, Wallet exchange and foreground/focus refresh use current server context; existing generation/request guards prevent older requests or profile writes from restoring obsolete authorization.
 - Native and web authentication/provider flows, PKCE, immutable Wallet links and account-deletion/session safeguards are retained.
-- CI includes Mobile Tests & Typecheck in addition to backend, frontend, E2E and offline recovery jobs. These are unit/integration/type checks, not physical-device certification.
+- Metro explicitly includes the shared web source folder containing the dependency-free presentation helper. Metro and Jest resolve compiler-injected dependencies against the mobile lockfile, including when web dependencies are absent. This repository has independent lockfiles rather than package-manager workspaces; automatic workspace discovery does not include that sibling directory.
+- CI includes Mobile Tests, Typecheck & Bundle in addition to backend, frontend, E2E and offline recovery jobs. Android JavaScript export uses explicit loopback URLs and disables dotenv loading. This catches runtime module-resolution failures that typechecks and Jest alone do not detect. A JavaScript export is not an APK/AAB, native compilation or physical-device certification.
 
 Assess: cold start with saved token, foreground refresh, changed roles, revoked token, offline reconnect, Wallet sign-in cancellation and student/staff workspace handoffs. Check native profile and message peer choices with multiple/custom roles and no legacy response field.
 
@@ -76,6 +79,13 @@ cd ../LMS-Mobile
 npm ci
 npx tsc --noEmit
 npm test -- --runInBand
+$env:CI='1'
+$env:EXPO_NO_DOTENV='1'
+$env:EXPO_NO_TELEMETRY='1'
+$env:EXPO_PUBLIC_API_BASE_URL='http://127.0.0.1:4998/api/v1'
+$env:EXPO_PUBLIC_WEB_BASE_URL='http://127.0.0.1:4998'
+$env:EXPO_PUBLIC_AMMA_WALLET_URL='http://127.0.0.1:4999'
+npx expo export --platform android --output-dir dist/rbac-step3-android --max-workers 2
 ```
 
 The PR records final counts, skips, CI run/head and any local visual evidence. Scope includes `rbac-client-contracts`, `rbac-role-presentation`, role-management UI, scoped authorization, forum/search, web/native session and native messaging regressions. The protected production-copy test remains a server responsibility when that fixture is unavailable locally.
