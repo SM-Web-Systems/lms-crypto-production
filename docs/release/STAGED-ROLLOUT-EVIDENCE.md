@@ -368,11 +368,110 @@ sequenceDiagram
 - S2/S3 git base: resolved — added explicit "Git base" line to S2 and S3 headers.
 - S6→S10 DAG edge: transitively satisfied; not adding a direct edge to avoid clutter.
 
+## Independent spec review — 2026-10-27
+
+**Reviewer**: Independent review agent (S1-T08)
+**Scope**: W01-W04 individual specs, W05-W09 combined spec, PR #86 and #90 merge candidates
+
+### Spec review results
+
+| Spec | Verdict | Notes |
+| --- | --- | --- |
+| W01 (funding verification) | APPROVED_WITH_NOTES | `verifyTransaction` is async; `fundReward` is sync. Implementation must handle async/await. Note added to spec. |
+| W02 (cross-owner scope) | APPROVED_WITH_NOTES | `approveReward` fast-return at line 212-216 also bypasses scope. Added to spec code evidence section. |
+| W03 (allocation cap) | APPROVED | No issues. |
+| W04 (completion eligibility) | APPROVED_WITH_NOTES | Consider post-fix data audit for historically mis-triggered rewards. Note added to spec. |
+| W05-W09 (combined) | APPROVED_WITH_NOTES | W06: `resolveParentScopeType()` at `parent.ts:276` may already be partially implemented — needs re-investigation before coding. W07: needs discovery step. Notes added to spec. |
+
+### Merge candidate review results
+
+| PR | Verdict | Rationale |
+| --- | --- | --- |
+| #86 (playwright bump) | SAFE | Minor patch 1.62.1→1.64.1, dev-dependency only, CI green, merge-state CLEAN |
+| #90 (build-tool advisories) | SAFE | Pure dependency/config cleanup, no runtime code, CI green, MERGEABLE |
+
+### Resolution
+
+All review notes applied to spec files. No blocking findings. Specs ready for S2/S3 implementation.
+
+---
+
+## S1 head recheck — 2026-10-27
+
+Remote `main` confirmed at `cb5167cea5ff` (plan baseline). No drift since plan commit `4e54905`.
+
+| PR | Head SHA | CI | Mergeable | Drift from plan |
+| --- | --- | --- | --- | --- |
+| #86 | `4cfe93aa` | SUCCESS | MERGEABLE (CLEAN) | No |
+| #90 | `e35a3fb8` | SUCCESS | MERGEABLE | No |
+| #93 | `70cc27ec` | SUCCESS | MERGEABLE | No |
+
+---
+
+## S1 merge packet — 2026-10-27
+
+### Merge candidates
+
+Two PRs are confirmed ready to merge. No S1 task requires merging these PRs — the merge packet is presented for operator approval per the staged rollout protocol. These merges are prerequisites for S2+ work (specs reference "branch from main after S1 merges").
+
+#### Merge order
+
+| Order | PR | Branch | Head SHA | Base | CI | Merge state | Files changed | Scope |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | #86 | `dependabot/.../playwright/test-1.64.1` | `4cfe93aa` | main | SUCCESS | CLEAN | `e2e/package.json`, `e2e/package-lock.json` | Dev-dependency bump: @playwright/test 1.62.1→1.64.1 |
+| 2 | #90 | `codex/build-tool-advisories` | `e35a3fb8` | main | SUCCESS | MERGEABLE | `.github/workflows/ci.yml`, `LMS-Frontend/package.json`, `LMS-Frontend/package-lock.json`, `docs/release/2026-10-24-build-tool-advisories.md` | Build tool advisory fixes and CI config |
+
+**Justification**: Both PRs touch only dev-dependencies, CI config, or documentation. Zero runtime code changes. Zero file overlap between #86 and #90 — no conflict risk regardless of merge order. Order chosen by scope (narrower first).
+
+#### Conflict analysis
+
+- #86 vs #90: **No overlap**. #86 touches `e2e/` only. #90 touches `LMS-Frontend/`, `.github/`, `docs/`.
+- #86 vs main: CLEAN merge state confirmed by GitHub.
+- #90 vs main: MERGEABLE, 0 commits behind main.
+- #86 and #90 vs PR #93 (next merge after S1): **No overlap**. #93 touches `LMS-Server/src/config/database.ts` and `LMS-Server/src/services/`.
+
+#### Verification results (fresh, 2026-10-27)
+
+| PR | Verified at | CI result | Mergeable | Head unchanged from plan |
+| --- | --- | --- | --- | --- |
+| #86 | This session | SUCCESS | MERGEABLE (CLEAN) | Yes (`4cfe93aa`) |
+| #90 | This session | SUCCESS | MERGEABLE | Yes (`e35a3fb8`) |
+
+#### Post-merge expectations
+
+- Main advances from `cb5167ce` to include both merge commits.
+- No CI regressions expected (both are passing independently; no file overlap).
+- S2/S3 branches should be created from the resulting main HEAD.
+
+### Not ready for merge
+
+| PR | Reason | Required action |
+| --- | --- | --- |
+| #45 (cors) | CI FAILURE, mergeable UNKNOWN | Needs `@dependabot rebase` |
+| #50 (express-rate-limit) | CI FAILURE, mergeable UNKNOWN | Needs `@dependabot rebase` |
+| #53 (tailwind-merge) | CI FAILURE, mergeable UNKNOWN | Needs `@dependabot rebase` |
+| #70 (@types/node 22→24) | CI FAILURE, major version bump | Needs investigation + rebase |
+
+### Unresolved risks
+
+1. **PRs #45, #50, #53 are stale**: These safe minor-version Dependabot PRs have failing CI due to being behind main. A `@dependabot rebase` on each will trigger fresh CI. If they pass after rebase, they can be merged before or alongside S2 work.
+
+2. **PR #70 is a major version bump** (@types/node 22→24): Requires developer investigation for TypeScript compatibility. Deferred to D11.
+
+3. **D1 (production snapshot access)**, **D4 (minimum supported native build)**, **D5 (deployment approval)** remain operator gates. They do not block S1 merges or S2 work but block S6+, S11, and S10 respectively.
+
+4. **W01–W04 remain open**: The merge candidates (#86, #90) do not address any security findings. W01–W04 fixes are S2 scope — specs are ready, implementation has not begun.
+
+5. **W06 spec may need revision**: Independent review flagged that `resolveParentScopeType()` may already be partially implemented. Re-investigation during S3-T02 may reduce the scope of the fix.
+
+---
+
 ## Decision log
 
 | Date | Decision ID | Description | Owner | Status |
 | --- | --- | --- | --- | --- |
 | 2026-10-27 | — | Plan created in PLAN_ONLY mode | Plan session | PLAN_READY |
 | 2026-10-27 | — | Independent plan review completed; 5 findings resolved (2 rejected, 3 fixed) | Review agent | RESOLVED |
+| 2026-10-27 | — | S1 execution: specs written, reviewed, notes applied; merge candidates evaluated | S1 session | S1_COMPLETE |
 
 Pending decisions D1–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).

@@ -101,3 +101,11 @@ For all types, `reference` must be non-empty when an external source is claimed.
 **B. Async verification with pending state**: Add `pending_verification` state between `draft` and `pending_funding`. More complex; defers the problem. Not recommended for initial fix — synchronous verification is simpler and the existing state machine already has atomic transitions.
 
 **Recommended: Synchronous verification in the existing transaction** (described above). Smallest complete change. Reuses existing `verifyTransaction()`. Preserves the atomic ledger+state transition.
+
+## Implementation note (from independent review)
+
+`verifyTransaction()` in `paystackService.ts:84` is **async** (returns `Promise`). `fundReward()` is currently synchronous. The implementation must either:
+- Make `fundReward()` async (preferred — straightforward since callers are Express route handlers that already handle promises), or
+- Await the verification result before proceeding to the synchronous ledger/state-transition block.
+
+This does not change the spec's design — the verification is still synchronous from the caller's perspective (the HTTP response waits for verification). It is an implementation detail the developer must handle.

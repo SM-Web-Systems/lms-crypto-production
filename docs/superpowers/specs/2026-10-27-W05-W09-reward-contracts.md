@@ -46,6 +46,15 @@ The route determines scope type from URL structure alone, but the `resolveParent
 - `src/routes/parent.ts` — pass `req.body.targetType` to `resolveParentScopeType()`; pass resulting scope to `createReward()`
 - `src/__tests__/reward-parent.test.ts` — add family-scope creation test
 
+### Implementation note (from independent review)
+
+**Re-investigation required**: `resolveParentScopeType()` at `parent.ts:276` already accepts a `targetType` parameter, and the route handler at line 284 already calls it. The W06 problem statement assumes the plumbing is completely missing, but the function signature and call site suggest **partial implementation may already exist**. Before implementing:
+1. Read `resolveParentScopeType()` and its call site to determine if `targetType` is already extracted from `req.body`
+2. Check if `parent_family` scope path is tested
+3. If the plumbing exists, the fix may be limited to: (a) ensuring `req.body.targetType` is passed through, (b) adding validation, (c) adding tests
+
+This may reduce W06 from a feature addition to a test/validation gap. Re-investigate before writing implementation code.
+
 ### Acceptance
 - [ ] Parent creates child-scoped reward (default) — works as before
 - [ ] Parent creates family-scoped reward with `targetType: 'family'` — targets all family members

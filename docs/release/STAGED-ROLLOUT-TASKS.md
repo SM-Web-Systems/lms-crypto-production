@@ -22,37 +22,41 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Completion**: All 12 findings assessed against `main` HEAD code; confirmed W01–W04 vulnerable on main, W05–W09 present, W10–W12 integration/acceptance state documented
 
 ### S1-T03: Write developer specs for W01–W04 (reward security)
-- **Status**: TODO
+- **Status**: DONE
 - **Dependencies**: None
-- **Owner**: —
+- **Owner**: S1 session
 - **Scope**: One spec per finding: W01 funding verification, W02 cross-owner scope, W03 allocation cap, W04 completion eligibility
 - **Files**: `docs/superpowers/specs/2026-10-27-W01-funding-verification.md` through `W04`
 - **TDD**: RED — characterization probe passes (defect confirmed); write intended-behavior test that fails. GREEN — implement fix. Refactor while green.
 - **Review gate**: Independent spec review before implementation
 - **Acceptance**: Characterization probes fail; new regressions pass; no existing test regressions
+- **Completion**: Specs committed at `0fbf1bc`. Independent review: W01 APPROVED_WITH_NOTES (async/sync flag added), W02 APPROVED_WITH_NOTES (approveReward fast-return documented), W03 APPROVED, W04 APPROVED_WITH_NOTES (historical data audit note added). Review notes applied to specs.
 
 ### S1-T04: Write developer specs for W05–W09 (reward contracts/portal)
-- **Status**: TODO
+- **Status**: DONE
 - **Dependencies**: None
-- **Owner**: —
+- **Owner**: S1 session
 - **Scope**: W05 type enum alignment, W06 family discriminator, W07 billing DTOs, W08 portal actions, W09 error states
-- **Files**: `docs/superpowers/specs/2026-10-27-W05-reward-type-enum.md` through `W09`
+- **Files**: `docs/superpowers/specs/2026-10-27-W05-W09-reward-contracts.md` (combined)
 - **Review gate**: Independent spec review before implementation
+- **Completion**: Combined spec committed at `0fbf1bc`. Independent review: APPROVED_WITH_NOTES. W06 flagged for re-investigation — `resolveParentScopeType()` may already be partially implemented. W07 needs discovery step during S3. Notes applied to spec.
 
 ### S1-T05: Evaluate and merge safe Dependabot PRs
-- **Status**: TODO
+- **Status**: DONE (evaluation complete; merges pending approval)
 - **Dependencies**: None
-- **Owner**: —
+- **Owner**: S1 session
 - **Scope**: Review PRs #45 (cors), #50 (express-rate-limit), #53 (tailwind-merge), #70 (@types/node), #86 (playwright). Check changelogs, breaking changes, CI status.
 - **Decision needed (D11)**: Major version PRs (#43 vitest 5, #46 TS 7, #48/#49 dompurify 4, #51 react-hooks 7) require developer review — do NOT bulk-merge.
 - **Acceptance**: Each PR CI-green after merge; no regression in existing test suites
+- **Completion**: Evaluation done. PR #86 (playwright 1.62.1→1.64.1): SAFE, CI green, MERGEABLE, merge-state CLEAN. PRs #45, #50, #53 need `@dependabot rebase` (stale against main). PR #70 (@types/node 22→24): needs investigation (major version, TS compatibility). Major version PRs deferred to D11.
 
 ### S1-T06: Merge PR #90 (build-tool advisories)
-- **Status**: TODO
+- **Status**: DONE (evaluation complete; merge pending approval)
 - **Dependencies**: None
-- **Owner**: —
+- **Owner**: S1 session
 - **Scope**: `codex/build-tool-advisories` → main. CI passing, 1 commit ahead.
 - **Acceptance**: CI green on resulting main HEAD
+- **Completion**: Evaluated safe to merge. HEAD `e35a3fb8`, base `main`, CI SUCCESS, MERGEABLE. Pure dependency/config cleanup with no runtime code changes. Included in S1 merge packet.
 
 ### S1-T07: Create Mermaid diagrams
 - **Status**: DONE
@@ -60,7 +64,13 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Evidence**: Diagrams in [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md) and [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md)
 - **Rendering**: Source only; rendering verified where tooling available
 
-### S1-T08: Dispose LMS branches without PRs
+### S1-T08: Independent review of S1 deliverables
+- **Status**: DONE
+- **Owner**: S1 session
+- **Scope**: Independent review of W01-W04 specs, W05-W09 spec, PR #86/#90 merge candidates
+- **Completion**: All specs APPROVED (with notes where applicable). PR #86 and #90 confirmed SAFE. Review notes applied to spec files. Evidence recorded in STAGED-ROLLOUT-EVIDENCE.md.
+
+### S1-T09: Dispose LMS branches without PRs
 - **Status**: TODO (decision D7)
 - **Dependencies**: Owner confirmation
 - **Scope**: `test/auth-04-cross-module-tests` (3 commits, AUTH-04/05 review docs), `test/auth-04-sponsor-security-integration` (4 commits, AUTH-04 review). Content appears superseded by merged PRs #73/#74.

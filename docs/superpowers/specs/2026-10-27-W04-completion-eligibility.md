@@ -84,3 +84,13 @@ In `evaluateEligibility()`, when `reward.reward_type === 'course_completion'`:
 - [ ] Characterization probe W04 fails
 - [ ] Existing eligibility tests pass
 - [ ] Independent review completed
+
+## Implementation note (from independent review)
+
+**Historical data audit**: After deploying the fix, consider auditing the `reward_allocations` and `reward_eligibility_events` tables for historically mis-triggered rewards. Students who received `course_completion` rewards from a single lesson completion may have unearned allocations. The fix prevents future mis-triggers but does not retroactively correct existing data.
+
+This is a **post-fix follow-up** task, not a blocker for the fix itself. The audit query would identify allocations where:
+- `reward.reward_type = 'course_completion'`
+- The student's actual course progress at the time of eligibility was < 100%
+
+The results should be reviewed by the operator to decide on remediation (void, retain, or flag for manual review).

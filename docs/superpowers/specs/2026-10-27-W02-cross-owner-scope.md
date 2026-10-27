@@ -22,6 +22,13 @@ Reward read endpoints (`getReward`, `listRewards` by direct ID lookup) return an
    ```
    This returns the reward data (including all fields) to the caller without scope validation when the reward is in any non-funded state.
 
+5. **`approveReward()` fast-return**: lines 212-216:
+   ```ts
+   const current = getReward(rewardId);
+   if (current && current.status === 'approved') return current;
+   ```
+   Same pattern — returns reward data without scope check when already approved.
+
 ### Ripwire evidence
 
 - `validateScope` (rank 8): 9 callers — called by `createReward`, `activateReward`, `approveReward`, `cancelReward`, `fundReward`, `resolveAudienceMembers`. **Not called by** `getReward`, `getRewardRow`, `listRewards`, or any route-level read handler.
@@ -50,7 +57,7 @@ Reward read endpoints (`getReward`, `listRewards` by direct ID lookup) return an
 
 | File | Change |
 | --- | --- |
-| `src/services/rewards/rewardService.ts` | Add `getRewardScoped(rewardId, actorId)` that validates scope; use in all public read methods. Fix fast-returns in `activateReward`, `approveReward`. |
+| `src/services/rewards/rewardService.ts` | Add `getRewardScoped(rewardId, actorId)` that validates scope; use in all public read methods. Fix fast-returns in `activateReward` (line 169), `approveReward` (line 212). |
 | `src/routes/sponsor.ts` | Replace `getReward(id)` calls with `getRewardScoped(id, actorId)` |
 | `src/routes/teacher.ts` | Same |
 | `src/routes/parent.ts` | Same |
