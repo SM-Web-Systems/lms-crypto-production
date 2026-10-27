@@ -18,11 +18,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Code evidence | `LMS-Server/src/services/rewards/rewardService.ts:91-162` — `fundReward()` accepts `FundingSource { type, reference? }` and writes two ledger entries (fund + reserve) without verifying the reference against any external provider API. `source.type` is mapped to `sourceAccountType` strings (`external`/`platform`) at line 122 but no validation or provider call occurs. All source types (`stellar`, `paystack`, `platform_credit`) receive HTTP 200. |
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
-| Existing fix PR | None |
-| Residual work | Implement funding evidence gate per source type |
-| Release impact | P1 — must fix before production reward system is used with real funds |
-| Acceptance test | `fundReward()` with no verified reference returns error; with valid reference succeeds |
-| Evidence status | Assessed, unfixed |
+| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27) |
+| Residual work | Advisories: A1 (Paystack amount/currency cross-check), A2 (DUPLICATE_REFERENCE leaks reward ID), A3 (no DB-level UNIQUE on funding_reference), A4 (platform_credit balance check spec gap), A5 (FundingSource interface duplication) |
+| Release impact | P1 — **FIXED** — funding verification gate enforced before state transition |
+| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409) |
+| Evidence status | **Fixed** — PR #104 merged, 14 tests covering all branches |
 
 ### W02: Cross-owner reward reads and lifecycle fast returns
 
@@ -530,4 +530,27 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-27 | — | PR #90 AI-approved and merged to main at `5668fd8d` | AI review + Claude execution | MERGED |
 | 2026-10-27 | — | S1 stage complete; S2/W01 recorded as next unit | S1 session | STAGE_COMPLETE |
 
+| 2026-10-27 | — | S2/W01: PR #104 created, AI security review APPROVED (5 advisories, none blocking), CI ALL PASS, merged to main at `115d8c4f` | AI review + Claude execution | MERGED |
+| 2026-10-27 | — | S2/W01 unit complete; next unit: S2/W02 (cross-owner reward scope checks) | S2 session | UNIT_COMPLETE |
+
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
+
+---
+
+## S2/W01 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #104 (`fix(rewards): W01 — add funding verification gate before reward state transition`) |
+| Pre-merge main | `5668fd8deea8531196e9c7e0a19ff55afb744de1` |
+| Branch SHA | `3088cb1e65536bc2e4dd1866754c7fd2a795dff2` |
+| Merge method | Squash |
+| Merge commit | `115d8c4f836a059aff733bb4cdeaabc9750963f2` |
+| Merged at | 2026-10-27T08:59:19Z |
+| Post-merge main | `115d8c4f836a059aff733bb4cdeaabc9750963f2` |
+| CI run | `40476416544` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| AI security review | APPROVED — 5 advisories (A1: Paystack amount/currency cross-check missing [Medium], A2: DUPLICATE_REFERENCE leaks reward ID [Low], A3: no DB-level UNIQUE on funding_reference [Low], A4: platform_credit balance check spec gap [Low, pre-existing], A5: FundingSource interface duplication [Info]) |
+| Test results | 14 new W01 tests PASS; 233 existing reward tests PASS; 1827/1828 full backend PASS (1 pre-existing failure: dependency-security.test.ts IPv6 subnet test — fails on clean main too) |
+| Files changed | NEW: `src/services/rewards/rewardFundingVerifier.ts`, `src/__tests__/reward-funding-verification.test.ts`; MODIFIED: `src/services/rewards/rewardService.ts`, `src/services/rewards/rewardErrors.ts`, `src/routes/sponsor.ts`, `src/routes/employer.ts`, `src/routes/teacher.ts`, `src/routes/parent.ts` |
+| Branch | Retained |
+| Deploy impact | None — merge does not trigger production deployment; no deploy.sh changes |

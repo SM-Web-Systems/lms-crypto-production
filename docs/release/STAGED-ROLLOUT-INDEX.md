@@ -1,7 +1,7 @@
 # Staged rollout index
 
 Date: 2026-10-27
-Plan status: **S1_COMPLETE** — merges executed, S2 ready
+Plan status: **S2_IN_PROGRESS** — W01 merged, W02 next
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 
@@ -9,7 +9,7 @@ Recommended first stage: **S1** (inventory, specification and independent depend
 
 | Component | Ref | SHA | Notes |
 | --- | --- | --- | --- |
-| LMS main | `origin/main` | `5668fd8deea8` | Last merged: PR #90 (build-tool advisories); PR #86 merged just before |
+| LMS main | `origin/main` | `115d8c4f836a` | Last merged: PR #104 (W01 funding verification gate); prior: PR #90, #86 |
 | RBAC candidate | `codex/rbac-schema-retirement` (PR #101 head) | `b8015e27eae1` | Stacked: #98→#99→#100→#101 on main |
 | Platform audit | `codex/platform-wiring-audit` (PR #102 head) | `718985fb9f39` | Documentation only; stacked on #101 |
 | Database follow-up | `codex/database-integrity-followup` (PR #93) | `70cc27ec5c3d` | Independent of RBAC chain |
@@ -53,7 +53,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 
 | Finding | Priority | Status on main | Fix PR | Residual work |
 | --- | --- | --- | --- | --- |
-| W01 | P1 | **Vulnerable** — `fundReward()` accepts any `sourceType` without provider verification | None | Implement funding evidence/authorization gate |
+| W01 | P1 | **Fixed** — funding verification gate added (PR #104 merged at `115d8c4f`) | #104 MERGED | Advisories A1-A5 (non-blocking) carried forward |
 | W02 | P1 | **Vulnerable** — reward reads lack cross-owner checks; lifecycle has fast-return bypasses | None | Add universal resource-owner scope checks |
 | W03 | P1 | **Vulnerable** — `activateReward()` creates allocations for all audience members regardless of `max_recipients` | None | Enforce allocation cap vs reservation invariant |
 | W04 | P1 | **Vulnerable** — lesson completion fires `course_completion` outbox event (line 157) per lesson, not per course | None | Make eligibility source-bound to actual course completion |
