@@ -2,6 +2,10 @@
 
 Date: 2026-10-27. Review decision: **CHANGES_REQUIRED — W01 partially fixed**.
 
+Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). Document branch: `codex/platform-wiring-audit`. That name is a branch, not a GitHub repository. The original review packet is available at commit `223b262256fefdb83c28db929a92e6cbb5f686d4`.
+
+For explicit retrieval commands and the complete requested skills/specs/testing/loop workflow, use the [W01-R1 resume prompt](CLAUDE-SERVER-W01-R1-RESUME-PROMPT.md).
+
 This is a laptop review of the reported W01 completion, not a production exposure assessment. Claude owns server execution and merges. The owner has delegated approvals to AI; the [bounded-stage controller](CLAUDE-SERVER-AI-APPROVAL-STAGE-CONTROLLER.md) still applies. Do not start W02 until the remaining W01 acceptance criteria are satisfied.
 
 ## Reviewed evidence
@@ -61,7 +65,7 @@ R1, R2 and R3 are bounded work units, not permission requests. The next run exec
 ```text
 Execute S2/W01-R1 only. The owner delegates all approvals to AI; Claude handles merges. Do not start W02, W01-R2 or W01-R3, and do not deploy, migrate production, change live configuration or perform real funding.
 
-Read SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md from codex/platform-wiring-audit, the staged index/tasks/evidence, W01 spec and reward foundation section 5. Fetch the handover as a document without merging its unrelated base stack. Verify current full main/planning SHAs and reconcile changes since merge 115d8c4f836a059aff733bb4cdeaabc9750963f2. Preserve the PR #104 receipt; reopen W01 as PARTIALLY_FIXED / CHANGES_REQUIRED and record R1–R3. Hosted run 40476416544 reports 1827 passed, one skipped, not one failure.
+In repository SM-Web-Systems/lms-crypto-production (https://github.com/SM-Web-Systems/lms-crypto-production.git), read docs/release/SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md from branch codex/platform-wiring-audit. The original packet is at commit 223b262256fefdb83c28db929a92e6cbb5f686d4. codex/platform-wiring-audit is a branch, not an owner/repository name. Read the staged index/tasks/evidence, W01 spec and reward foundation section 5. Fetch the handover as a document without merging its unrelated base stack. Verify current full main/planning SHAs and reconcile changes since merge 115d8c4f836a059aff733bb4cdeaabc9750963f2. Preserve the PR #104 receipt; reopen W01 as PARTIALLY_FIXED / CHANGES_REQUIRED and record R1–R3. Hosted run 40476416544 reports 1827 passed, one skipped, not one failure.
 
 Use the required Superpowers workflow and Ponytail, Caveman and Ripwire. Check availability and record limitations honestly. Reuse existing specs, correct the nonexistent reward.admin_grant requirement against established reward.manage + independent-authorizer policy, then write a focused R1 developer spec, task checklist and authorization/accounting sequence diagram. Obtain independent AI review of this focused design before coding. Do not invent a credit store or silently preserve unsupported self-credit; where a trusted grant/credit mechanism cannot be established, reject that path and document the unavailable behavior. Do not widen scope to new financial features.
 
