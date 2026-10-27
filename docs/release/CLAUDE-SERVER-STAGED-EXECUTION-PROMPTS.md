@@ -2,6 +2,8 @@
 
 Use Prompt 1 first. Review its completed plan, then use Prompt 2 for one selected stage. These prompts narrow the [general assessment prompt](CLAUDE-SERVER-ROLLOUT-ASSESSMENT-PROMPT.md): planning does not authorize implementation, and selecting a stage does not authorize later stages. These documents do not execute anything on the laptop.
 
+The owner subsequently delegated approvals to AI and merge execution to Claude. For that continuation, apply the [AI approval and bounded-stage controller](CLAUDE-SERVER-AI-APPROVAL-STAGE-CONTROLLER.md): AI decisions replace human sign-off below, technical evidence gates remain, and stage boundaries serve as credit/recovery checkpoints.
+
 ## Prompt 1 — Assess and plan; stop before execution
 
 Copy into Claude Code on the server:

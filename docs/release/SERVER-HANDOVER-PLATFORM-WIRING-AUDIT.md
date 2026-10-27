@@ -31,6 +31,8 @@ Production accounts, private decision records and database exports stay with the
 
 ## Claude assessment and rollout prompts
 
+When continuing under the owner's delegation of all approvals to AI, use the [AI approval and bounded-stage controller](CLAUDE-SERVER-AI-APPROVAL-STAGE-CONTROLLER.md). It replaces human sign-off with independent AI review and recorded controller decisions, retains evidence/recovery gates, and limits each run to one work unit. Its S1 continuation directs Claude to revalidate and, if approved, merge #86 then #90, checkpoint the results and stop before S2.
+
 For **plan first, then execute one selected stage at a time**, use the [staged planning and execution prompts](CLAUDE-SERVER-STAGED-EXECUTION-PROMPTS.md). Prompt 1 stops at PLAN_READY; Prompt 2 executes the chosen stage, records evidence and stops at its boundary. These stage limits take precedence over continuous preparation across the entire backlog.
 
 Start a Claude server session with the [assessment and rollout prompt](CLAUDE-SERVER-ROLLOUT-ASSESSMENT-PROMPT.md). Its first task assesses this audit against current PR/source/server evidence, then prepares specs, Mermaid diagrams, iterative tasks and exact release batches. Routine preparation is delegated; production changes require the concrete batch decision described in the prompt.
