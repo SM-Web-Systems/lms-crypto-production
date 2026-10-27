@@ -102,7 +102,28 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Tests**: 14 new W01 tests PASS; 233 existing reward tests PASS; 1827/1828 full backend PASS (1 pre-existing failure)
 - **AI review**: APPROVED with 5 advisories (A1-A5, none blocking)
 - **CI**: All 4 checks PASS (run `40476416544`)
-- **Advisories carried forward**: A1 (Paystack amount/currency cross-check — future scope), A2 (DUPLICATE_REFERENCE error leaks reward ID), A3 (no DB-level UNIQUE on funding_reference), A4 (platform_credit balance check spec gap, pre-existing), A5 (FundingSource interface duplication)
+- **Advisories carried forward**: A1 (Paystack amount/currency cross-check — future scope), A2 (DUPLICATE_REFERENCE error leaks reward ID), A3 (no DB-level UNIQUE on funding_reference), A4 (platform_credit balance check spec gap — **now addressed by R1: platform_credit fails closed**), A5 (FundingSource interface duplication)
+
+### S2-T01-R1: Implement W01-R1 — internal funding authorization and credit backing
+- **Status**: IN_REVIEW
+- **Dependencies**: S2-T01 merged ✓, handover document review ✓
+- **Owner**: S2 session (AI-delegated)
+- **Spec**: `docs/superpowers/specs/2026-10-27-W01-R1-internal-funding-authorization.md`
+- **Branch**: `codex/w01r1-internal-funding-authorization` at `385e512`
+- **PR**: Pending creation (branch pushed, awaiting PR + CI)
+- **Problem**: S2-T01 (PR #104) added funding verification for external sources but left internal sources (`admin_grant`, `platform_credit`) passing through without `reward.manage` permission checks or conflict-of-interest enforcement. Identified in handover document `SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` at commit `223b262`.
+- **Implementation**:
+  - `rewardFundingVerifier.ts`: Added `FundingAuthorizationContext` interface and `verifyInternalAuthorization()` gate. Internal sources now require `reward.manage` permission + actor ≠ reward creator. `platform_credit` fails closed (INSUFFICIENT_CREDIT 402) after authorization. `admin_grant` proceeds after authorization.
+  - `rewardService.ts`: `fundReward()`, `fundRewardAsync()`, `fundRewardVerified()` pass authorization context to verifier. Added `reward.manage` scope bypass for admin-authorized funding. Added `getRewardFunderId()` for correct funder identification in cancel/release/refund/expire paths.
+  - 13 existing test files updated to use independent admin funding pattern (avoid trigger-assigned `role_admin` via `'lecturer'` legacy role for non-admin creators).
+- **Tests**: 11 new R1 security acceptance tests + 1841 total tests PASS (181 files, 0 failures)
+- **Independent security review**: APPROVED — 10/10 checklist items passed, no bypass vectors found, 2 minor pre-existing observations (not R1 regressions)
+- **R1 invariants enforced**:
+  1. `reward.manage` required for `admin_grant` and `platform_credit`
+  2. Conflict of interest: actorId ≠ rewardCreatorId
+  3. `platform_credit` unconditionally fails closed (no credit provisioning)
+  4. External sources (`stellar`, `paystack`) unaffected
+  5. Transaction atomicity: no partial ledger entries on authorization failure
 
 ### S2-T02: Implement W02 — cross-owner reward scope checks
 - **Status**: TODO

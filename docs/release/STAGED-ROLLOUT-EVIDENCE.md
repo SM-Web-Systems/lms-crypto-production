@@ -24,6 +24,23 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409) |
 | Evidence status | **Fixed** — PR #104 merged, 14 tests covering all branches |
 
+#### W01-R1: Internal funding authorization and credit backing
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W01-R1 |
+| Handover source | `docs/release/SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` at `223b262` |
+| Problem | PR #104 added funding verification for external sources but left internal sources (`admin_grant`, `platform_credit`) passing through the verifier without `reward.manage` permission checks or conflict-of-interest enforcement. Any user with scope access could self-fund via internal sources. |
+| Spec | `docs/superpowers/specs/2026-10-27-W01-R1-internal-funding-authorization.md` |
+| Branch | `codex/w01r1-internal-funding-authorization` at `385e512` |
+| Implementation | `rewardFundingVerifier.ts`: Added `FundingAuthorizationContext` + `verifyInternalAuthorization()` — checks `reward.manage` permission (live DB query via `hasPermission()`), checks actor ≠ creator. `platform_credit` unconditionally throws `INSUFFICIENT_CREDIT` (402) after auth. `rewardService.ts`: `fundReward`/`fundRewardAsync`/`fundRewardVerified` pass auth context; added `reward.manage` scope bypass; added `getRewardFunderId()` for cancel/release/refund/expire. |
+| Files changed | 2 core (`rewardFundingVerifier.ts`, `rewardService.ts`), 1 new test, 13 test files updated |
+| Test evidence | 11 R1 security acceptance tests + 1841 total (181 files, 0 failures) |
+| Independent review | APPROVED — 10/10 security checklist items PASS; no bypass vectors; 2 minor pre-existing observations |
+| Error codes | `SCOPE_DENIED` (403, no reward.manage), `CONFLICT_OF_INTEREST` (403, actor = creator), `INSUFFICIENT_CREDIT` (402, platform_credit fail-closed) |
+| Resolves advisory | A4 (platform_credit balance check spec gap) — now fails closed unconditionally |
+| Evidence status | **IN_REVIEW** — branch pushed, PR pending, CI pending |
+
 ### W02: Cross-owner reward reads and lifecycle fast returns
 
 | Field | Value |

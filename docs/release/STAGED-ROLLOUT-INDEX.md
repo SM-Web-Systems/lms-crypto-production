@@ -53,7 +53,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 
 | Finding | Priority | Status on main | Fix PR | Residual work |
 | --- | --- | --- | --- | --- |
-| W01 | P1 | **Fixed** — funding verification gate added (PR #104 merged at `115d8c4f`) | #104 MERGED | Advisories A1-A5 (non-blocking) carried forward |
+| W01 | P1 | **Fixed** — funding verification gate (PR #104 merged at `115d8c4f`); **R1 IN_REVIEW** — internal funding authorization enforced (`codex/w01r1-internal-funding-authorization` at `385e512`) | #104 MERGED; R1 branch pushed | A1-A3,A5 carried forward; A4 addressed by R1 (platform_credit fails closed) |
 | W02 | P1 | **Vulnerable** — reward reads lack cross-owner checks; lifecycle has fast-return bypasses | None | Add universal resource-owner scope checks |
 | W03 | P1 | **Vulnerable** — `activateReward()` creates allocations for all audience members regardless of `max_recipients` | None | Enforce allocation cap vs reservation invariant |
 | W04 | P1 | **Vulnerable** — lesson completion fires `course_completion` outbox event (line 157) per lesson, not per course | None | Make eligibility source-bound to actual course completion |
