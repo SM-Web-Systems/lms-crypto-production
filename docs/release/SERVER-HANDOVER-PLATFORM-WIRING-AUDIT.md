@@ -28,3 +28,9 @@ For each finding, record finding ID, reviewed application/image/artifact SHA, af
 Keep the [RBAC numbered handovers](SERVER-HANDOVER-RBAC-RETIREMENT.md) as separate prerequisite records. The open database/mobile/Wallet stacks and protected-copy/device/provider checks are listed under W10–W12. Historical production reports must not substitute for the current exact-image/client/database evidence.
 
 Production accounts, private decision records and database exports stay with the operator. The laptop audit made no SSH/server changes, live financial/provider operations, merges or deployments.
+
+## Claude assessment and rollout prompts
+
+Start a Claude server session with the [assessment and rollout prompt](CLAUDE-SERVER-ROLLOUT-ASSESSMENT-PROMPT.md). Its first task assesses this audit against current PR/source/server evidence, then prepares specs, Mermaid diagrams, iterative tasks and exact release batches. Routine preparation is delegated; production changes require the concrete batch decision described in the prompt.
+
+After the plan and ledger exist, the [scoped /loop companion](CLAUDE-SERVER-ROLLOUT-LOOP-PROMPT.md) can continue authorized preparation and CI monitoring. It cannot approve or perform a production release. These documents do not start a scheduled task, merge PRs or modify server state from the laptop.
