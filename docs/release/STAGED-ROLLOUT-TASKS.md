@@ -42,21 +42,21 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Completion**: Combined spec committed at `0fbf1bc`. Independent review: APPROVED_WITH_NOTES. W06 flagged for re-investigation — `resolveParentScopeType()` may already be partially implemented. W07 needs discovery step during S3. Notes applied to spec.
 
 ### S1-T05: Evaluate and merge safe Dependabot PRs
-- **Status**: DONE (evaluation complete; merges pending approval)
+- **Status**: DONE
 - **Dependencies**: None
 - **Owner**: S1 session
 - **Scope**: Review PRs #45 (cors), #50 (express-rate-limit), #53 (tailwind-merge), #70 (@types/node), #86 (playwright). Check changelogs, breaking changes, CI status.
 - **Decision needed (D11)**: Major version PRs (#43 vitest 5, #46 TS 7, #48/#49 dompurify 4, #51 react-hooks 7) require developer review — do NOT bulk-merge.
 - **Acceptance**: Each PR CI-green after merge; no regression in existing test suites
-- **Completion**: Evaluation done. PR #86 (playwright 1.62.1→1.64.1): SAFE, CI green, MERGEABLE, merge-state CLEAN. PRs #45, #50, #53 need `@dependabot rebase` (stale against main). PR #70 (@types/node 22→24): needs investigation (major version, TS compatibility). Major version PRs deferred to D11.
+- **Completion**: PR #86 **MERGED** to main at `c9e9c094` (AI-approved, independent review APPROVED). PRs #45, #50, #53 need `@dependabot rebase` (CI FAILURE, mergeable UNKNOWN). PR #70 needs investigation (major version). Major version PRs deferred to D11.
 
 ### S1-T06: Merge PR #90 (build-tool advisories)
-- **Status**: DONE (evaluation complete; merge pending approval)
+- **Status**: MERGED
 - **Dependencies**: None
 - **Owner**: S1 session
 - **Scope**: `codex/build-tool-advisories` → main. CI passing, 1 commit ahead.
 - **Acceptance**: CI green on resulting main HEAD
-- **Completion**: Evaluated safe to merge. HEAD `e35a3fb8`, base `main`, CI SUCCESS, MERGEABLE. Pure dependency/config cleanup with no runtime code changes. Included in S1 merge packet.
+- **Completion**: **MERGED** to main at `5668fd8d` (AI-approved, independent review APPROVED). HEAD was `e35a3fb8`, all 4 CI checks SUCCESS, merge state CLEAN. Main advanced from `c9e9c094` (post-#86) to `5668fd8d`.
 
 ### S1-T07: Create Mermaid diagrams
 - **Status**: DONE
@@ -70,11 +70,11 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Scope**: Independent review of W01-W04 specs, W05-W09 spec, PR #86/#90 merge candidates
 - **Completion**: All specs APPROVED (with notes where applicable). PR #86 and #90 confirmed SAFE. Review notes applied to spec files. Evidence recorded in STAGED-ROLLOUT-EVIDENCE.md.
 
-### S1-T09: Dispose LMS branches without PRs
-- **Status**: TODO (decision D7)
-- **Dependencies**: Owner confirmation
+### S1-T09: Dispose LMS branches without PRs (D7)
+- **Status**: DONE (AI retention decision)
+- **Owner**: S1 session
 - **Scope**: `test/auth-04-cross-module-tests` (3 commits, AUTH-04/05 review docs), `test/auth-04-sponsor-security-integration` (4 commits, AUTH-04 review). Content appears superseded by merged PRs #73/#74.
-- **Action**: Recommend retirement; owner to confirm
+- **Decision (D7)**: **RETAIN** — branches are retained without deletion in S1. Content is superseded but serves as audit trail. No branch deletion authorized in this work unit. Future disposition deferred to owner convenience.
 
 ---
 

@@ -1,7 +1,7 @@
 # Staged rollout index
 
 Date: 2026-10-27
-Plan status: **PLAN_READY**
+Plan status: **S1_COMPLETE** — merges executed, S2 ready
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 
@@ -9,12 +9,12 @@ Recommended first stage: **S1** (inventory, specification and independent depend
 
 | Component | Ref | SHA | Notes |
 | --- | --- | --- | --- |
-| LMS main | `origin/main` | `cb5167cea5ff` | Last merged: PR #96 (Compose overlay preflight) |
+| LMS main | `origin/main` | `5668fd8deea8` | Last merged: PR #90 (build-tool advisories); PR #86 merged just before |
 | RBAC candidate | `codex/rbac-schema-retirement` (PR #101 head) | `b8015e27eae1` | Stacked: #98→#99→#100→#101 on main |
 | Platform audit | `codex/platform-wiring-audit` (PR #102 head) | `718985fb9f39` | Documentation only; stacked on #101 |
 | Database follow-up | `codex/database-integrity-followup` (PR #93) | `70cc27ec5c3d` | Independent of RBAC chain |
 | Mobile chain | `codex/local-mobile-services` (PR #97 head) | `e1b0e8ee19bf` | Stacked: #92→#94→#95→#97; #92 is 14 behind main |
-| Build-tool advisories | `codex/build-tool-advisories` (PR #90) | `e35a3fb80b6e` | Independent of RBAC/mobile chains |
+| Build-tool advisories | PR #90 | `e35a3fb80b6e` | **MERGED** to main at `5668fd8d` |
 | Wallet main | `main` | `a65e19c202f2` | Last: resolve 7 LOW audit findings |
 | Wallet chain | `codex/local-mobile-services` (PR #4 head) | `2d63e98b7070` | Stacked: #2→#3→#4 on main |
 | Wallet Phase 5 | `fix/phase-5-1-independent-review` (PR #1) | `5b210886c6c3` | Draft; base is `worktree-rbac-billing-audit-2026-10-20` |
@@ -70,7 +70,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 
 | Stage ID | Purpose | Prerequisites | Permitted operations |
 | --- | --- | --- | --- |
-| **S1** | Inventory, specification and independent dependency merge | None | Read-only assessment, spec writing, safe dependency PR merges (#90, Dependabot) |
+| **S1** | Inventory, specification and independent dependency merge | None | ~~Read-only assessment, spec writing, safe dependency PR merges (#90, Dependabot)~~ **COMPLETE** — PRs #86 and #90 merged; specs written and reviewed |
 | **S2** | Reward security remediation (W01–W04) | S1 specs reviewed | Isolated development, TDD, review branch/PR |
 | **S3** | Reward contracts and portal completion (W05–W09) | S2 merged or independent | Isolated development, TDD, review branch/PR |
 | **S4** | Database integrity merge and validation (PR #93) | S1 | Merge after revalidation; no schema migration |
@@ -119,9 +119,11 @@ flowchart TD
 ### Merge order (GitHub integration)
 
 1. **Independent of RBAC chain** (can proceed in parallel):
-   - PR #90 (build-tool advisories) → main
+   - ~~PR #90 (build-tool advisories) → main~~ **MERGED** (`5668fd8d`)
+   - ~~PR #86 (playwright bump) → main~~ **MERGED** (`c9e9c094`)
    - PR #93 (database integrity) → main
-   - Safe Dependabot PRs (#45 cors, #50 express-rate-limit, #53 tailwind-merge, #70 @types/node, #86 playwright) → main
+   - Stale Dependabot PRs (#45 cors, #50 express-rate-limit, #53 tailwind-merge) → need `@dependabot rebase` then merge
+   - PR #70 (@types/node) → needs investigation (major version bump)
 2. **Mobile chain** (sequential after #93 merges for clean baseline):
    - PR #92 (rebase onto current main first) → main
    - PR #94 → retarget to main after #92 merges → main
@@ -165,7 +167,7 @@ No automatic startup migration exists. Both transitions are operator-initiated C
 | D4 | Supported installed native app versions / fleet gate | Server operator | S8, S11, S12 |
 | D5 | v1 deployment maintenance window and writer quiescence | Server operator | S10 |
 | D6 | Wallet Phase 5 branch disposition (9 branches without PRs): retain/promote-to-PR/abandon/defer — owner to specify per branch | Wallet owner | S9 |
-| D7 | LMS test/auth-04 branch retirement | Branch owner | S1 (non-blocking; disposition only) |
+| D7 | LMS test/auth-04 branch retention | AI retention decision | S1 — **RESOLVED**: branches retained, no deletion in S1. Content superseded by #73/#74 but retained for audit trail. |
 | D8 | PR #62 device verification draft disposition | Owner | S12 |
 | D9 | Compatibility window close condition (references D4's minimum supported build decision; D4 is decided first, D9 confirms the fleet meets it) | Server operator | S11 |
 | D10 | v2 contraction approval and recovery image proof | Server operator | S11 |

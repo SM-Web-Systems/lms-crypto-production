@@ -466,6 +466,57 @@ Two PRs are confirmed ready to merge. No S1 task requires merging these PRs — 
 
 ---
 
+## S1 merge execution — 2026-10-27
+
+### AI delegation
+
+Approvals delegated to AI per `docs/release/CLAUDE-SERVER-AI-APPROVAL-STAGE-CONTROLLER.md`. Independent AI review required for each merge candidate. Technical evidence gates preserved; AI approval cannot substitute for missing external evidence.
+
+### PR #86 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #86 (`build(deps-dev): bump @playwright/test from 1.62.1 to 1.64.1 in /e2e`) |
+| Pre-merge main | `cb5167cea5ffec8d985da6d51d9bc0e1f28ed9c3` |
+| Head SHA | `4cfe93aa9c99224285a7c53c337008eedbd83389` |
+| AI review verdict | APPROVED — dev-dependency only, all 4 CI checks SUCCESS, merge state CLEAN, zero file overlap with all other PRs |
+| Merge commit | `c9e9c0945cf5db91da304edd8b10a1e3a391d0ce` |
+| Post-merge main | `c9e9c0945cf5db91da304edd8b10a1e3a391d0ce` |
+| Branch | Retained (Dependabot auto-deletes) |
+
+### PR #90 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #90 (`fix(deps): resolve frontend parser findings and enforce build-tool audit gate`) |
+| Pre-merge main | `c9e9c0945cf5db91da304edd8b10a1e3a391d0ce` (after #86) |
+| Head SHA | `e35a3fb80b6e5dbe5879f311df92183bd27b06a3` |
+| Reassessment | MERGEABLE, CLEAN after main moved (post-#86). All 4 CI checks SUCCESS. Zero file overlap with #86. |
+| AI review verdict | APPROVED — security advisory fix (GHSA-rj75-hqrm-r3gf), CI tightening, CSS SHA256 identity proof, no runtime code changes |
+| Merge commit | `5668fd8deea8531196e9c7e0a19ff55afb744de1` |
+| Post-merge main | `5668fd8deea8531196e9c7e0a19ff55afb744de1` |
+| Branch | Retained |
+
+### D7 branch retention decision
+
+| Branch | Commits | Content | Decision |
+| --- | --- | --- | --- |
+| `test/auth-04-cross-module-tests` | 3 | AUTH-04/05 review docs | **RETAIN** — superseded by #73/#74 but serves as audit trail |
+| `test/auth-04-sponsor-security-integration` | 4 | AUTH-04 review | **RETAIN** — same rationale |
+
+No branch deletion performed in S1. Future disposition deferred to owner convenience.
+
+### Post-merge CI verification
+
+CI triggered on merge commit `5668fd8d`. Checks in progress at time of recording:
+- Backend Tests: in_progress
+- Frontend Tests & Build: in_progress  
+- Offline Monitoring and Restore: in_progress
+
+CI results should be verified at S2 start. If any check fails, the merge itself is not the cause (both PRs had independent CI SUCCESS and zero file overlap), but investigation would be required before branching S2 work from this main.
+
+---
+
 ## Decision log
 
 | Date | Decision ID | Description | Owner | Status |
@@ -473,5 +524,10 @@ Two PRs are confirmed ready to merge. No S1 task requires merging these PRs — 
 | 2026-10-27 | — | Plan created in PLAN_ONLY mode | Plan session | PLAN_READY |
 | 2026-10-27 | — | Independent plan review completed; 5 findings resolved (2 rejected, 3 fixed) | Review agent | RESOLVED |
 | 2026-10-27 | — | S1 execution: specs written, reviewed, notes applied; merge candidates evaluated | S1 session | S1_COMPLETE |
+| 2026-10-27 | — | AI approval delegation per CLAUDE-SERVER-AI-APPROVAL-STAGE-CONTROLLER.md | Owner | ACTIVE |
+| 2026-10-27 | D7 | LMS test/auth-04 branches: RETAIN without deletion | AI retention decision | RESOLVED |
+| 2026-10-27 | — | PR #86 AI-approved and merged to main at `c9e9c094` | AI review + Claude execution | MERGED |
+| 2026-10-27 | — | PR #90 AI-approved and merged to main at `5668fd8d` | AI review + Claude execution | MERGED |
+| 2026-10-27 | — | S1 stage complete; S2/W01 recorded as next unit | S1 session | STAGE_COMPLETE |
 
-Pending decisions D1–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
+Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
