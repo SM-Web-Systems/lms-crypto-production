@@ -1,0 +1,41 @@
+import {describe,it,expect,vi} from 'vitest';
+import request from 'supertest';
+import {v4 as uuid} from 'uuid';
+import app from '../app.js';
+import {db} from '../config/database.js';
+import {generateToken} from '../config/jwt.js';
+import {getUserPermissions} from '../middleware/rbac.js';
+import {createReward,fundRewardAsync} from '../services/rewards/rewardService.js';
+function fixture() {
+ const owner=uuid(),course=uuid(),cohort=uuid(),email=owner+'@review.invalid';
+ db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic sponsor',?,'hash','student')").run(owner,email);
+ db.prepare('DELETE FROM user_roles WHERE user_id=?').run(owner);
+ db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(owner);
+ db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Synthetic course',?)").run(course,'REVIEW-'+course);
+ db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Synthetic cohort')").run(cohort,owner,course);
+ const reward=()=>createReward(owner,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});
+ return {owner,token:generateToken({userId:owner,email,role:'student'}),reward};
+}
+describe('W01 merged-source characterization; passing confirms defects',()=>{
+ it('role-only sponsor still self-authorizes platform_credit and admin_grant over HTTP',async()=>{
+  const f=fixture();expect(getUserPermissions(f.owner)).not.toContain('reward.manage');
+  for(const sourceType of ['platform_credit','admin_grant']) {
+   const r=f.reward();const res=await request(app).post('/api/v1/sponsor/rewards/'+r.id+'/fund').set('Authorization','Bearer '+f.token).send({sourceType,idempotencyKey:uuid()});
+   expect(res.status).toBe(200);expect(res.body.data.status).toBe('funded');
+  }
+  const row=db.prepare("SELECT reserved_stroops FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(f.owner) as {reserved_stroops:number};
+  expect(row.reserved_stroops).toBe(20000000);
+ });
+ it('successful one-minor-unit unrelated-currency Paystack result funds a 10000000-stroop XLM reward',async()=>{
+  const f=fixture(),r=f.reward(),reference=uuid();const paystack=await import('../services/paystackService.js');
+  vi.spyOn(paystack,'verifyTransaction').mockResolvedValue({status:'success',reference,amount:1,currency:'ZAR',paid_at:'2026-10-27T00:00:00Z',channel:'card',metadata:{userId:'another-payer'}});
+  try {const funded=await fundRewardAsync(r.id,f.owner,{type:'paystack',reference},uuid());expect(funded.status).toBe('funded');expect(funded.amount_stroops).toBe(10000000);expect(funded.currency_code).toBe('XLM');}
+  finally{vi.restoreAllMocks();}
+ });
+ it('concurrent requests reuse the same successful Paystack reference for two rewards',async()=>{
+  const f=fixture(),a=f.reward(),b=f.reward(),reference=uuid();const paystack=await import('../services/paystackService.js');
+  vi.spyOn(paystack,'verifyTransaction').mockResolvedValue({status:'success',reference,amount:10000000,currency:'ZAR',paid_at:'2026-10-27T00:00:00Z',channel:'card',metadata:{}});
+  try {const results=await Promise.all([fundRewardAsync(a.id,f.owner,{type:'paystack',reference},uuid()),fundRewardAsync(b.id,f.owner,{type:'paystack',reference},uuid())]);expect(results.map(r=>r.status)).toEqual(['funded','funded']);const row=db.prepare("SELECT COUNT(*) count FROM reward_transactions WHERE funding_reference=? AND transaction_type='fund'").get(reference) as {count:number};expect(row.count).toBe(2);}
+  finally{vi.restoreAllMocks();}
+ });
+});

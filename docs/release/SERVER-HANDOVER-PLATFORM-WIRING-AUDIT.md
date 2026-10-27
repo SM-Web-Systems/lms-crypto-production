@@ -40,3 +40,7 @@ Start a Claude server session with the [assessment and rollout prompt](CLAUDE-SE
 The assessment includes every accessible branch and PR in both repositories, with paginated listings and a branch-to-PR disposition table. Branches without PRs, retained development/recovery work and squash-equivalent changes are explicitly assessed. Unpublished laptop-only branches and inaccessible remotes remain declared inventory gaps until their owner supplies evidence.
 
 After the plan and ledger exist, the [scoped /loop companion](CLAUDE-SERVER-ROLLOUT-LOOP-PROMPT.md) can continue authorized preparation and CI monitoring. It cannot approve or perform a production release. These documents do not start a scheduled task, merge PRs or modify server state from the laptop.
+
+## W01 completion review correction
+
+The [W01 review and bounded repair packet](SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md) assesses merged PR #104 against its approved criteria. W01 is partially fixed: internal-source authorization/backing, Paystack payment binding and atomic reference consumption remain blockers. It preserves the merge/CI receipt, records local runner limitations and supplies the next Claude prompt for W01-R1 only. Reconcile this review into the authoritative staged ledgers before advancing to W02.
