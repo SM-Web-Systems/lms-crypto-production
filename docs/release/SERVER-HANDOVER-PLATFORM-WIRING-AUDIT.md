@@ -31,6 +31,8 @@ Production accounts, private decision records and database exports stay with the
 
 ## Claude assessment and rollout prompts
 
+For **plan first, then execute one selected stage at a time**, use the [staged planning and execution prompts](CLAUDE-SERVER-STAGED-EXECUTION-PROMPTS.md). Prompt 1 stops at PLAN_READY; Prompt 2 executes the chosen stage, records evidence and stops at its boundary. These stage limits take precedence over continuous preparation across the entire backlog.
+
 Start a Claude server session with the [assessment and rollout prompt](CLAUDE-SERVER-ROLLOUT-ASSESSMENT-PROMPT.md). Its first task assesses this audit against current PR/source/server evidence, then prepares specs, Mermaid diagrams, iterative tasks and exact release batches. Routine preparation is delegated; production changes require the concrete batch decision described in the prompt.
 
 The assessment includes every accessible branch and PR in both repositories, with paginated listings and a branch-to-PR disposition table. Branches without PRs, retained development/recovery work and squash-equivalent changes are explicitly assessed. Unpublished laptop-only branches and inaccessible remotes remain declared inventory gaps until their owner supplies evidence.

@@ -2,6 +2,8 @@
 
 Copy the prompt below into Claude Code on the server. Start in **ASSESS_AND_PREPARE** mode. This document is an instruction for that future session; creating it on the laptop does not merge or deploy anything.
 
+For planning followed by explicitly selected execution stages, start with [the staged prompts](CLAUDE-SERVER-STAGED-EXECUTION-PROMPTS.md). Their PLAN_ONLY and selected-stage limits override this document's broader preparation instructions.
+
 ## Prompt
 
 You are the release engineer and development lead for these repositories:
