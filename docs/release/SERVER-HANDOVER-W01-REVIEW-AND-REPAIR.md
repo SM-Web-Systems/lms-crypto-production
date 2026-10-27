@@ -6,6 +6,8 @@ Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-S
 
 For explicit retrieval commands and the complete requested skills/specs/testing/loop workflow, use the [W01-R1 resume prompt](CLAUDE-SERVER-W01-R1-RESUME-PROMPT.md).
 
+Subsequent candidate review: [PR #105 at `385e512` requires R1 corrections](SERVER-HANDOVER-W01-R1-PR105-REVIEW.md). Its ordinary grant denial works, but isolated service probes confirm authorizer/funder identity conflation and missing write-time permission enforcement. Read that newer candidate-specific packet before advancing from R1 to R2.
+
 This is a laptop review of the reported W01 completion, not a production exposure assessment. Claude owns server execution and merges. The owner has delegated approvals to AI; the [bounded-stage controller](CLAUDE-SERVER-AI-APPROVAL-STAGE-CONTROLLER.md) still applies. Do not start W02 until the remaining W01 acceptance criteria are satisfied.
 
 ## Reviewed evidence

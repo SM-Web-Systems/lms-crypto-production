@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID as uuid} from 'node:crypto';
+import {db,_resetForTests,seedRbacData} from './src/config/database.js';
+import {createReward,fundReward,fundRewardAsync,cancelReward,getReward} from './src/services/rewards/rewardService.js';
+import {hasPermission} from './src/middleware/rbac.js';
+
+const schema=readFileSync(new URL('./database/schema.sql',import.meta.url),'utf8');
+function reset(){_resetForTests(schema);seedRbacData();}
+function user(admin=false){const id=uuid();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic review',?,'hash',?)").run(id,id+'@review.invalid',admin?'admin':'lecturer');if(!admin)db.prepare("INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(id);return id;}
+function fixture(){const creator=user(),admin=user(true),course=uuid(),cohort=uuid();db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Synthetic course',?)").run(course,'R1-'+course);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Synthetic cohort')").run(cohort,creator,course);const reward=createReward(creator,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});return {creator,admin,cohort,reward};}
+
+reset();
+{
+ const f=fixture();
+ assert.equal(hasPermission(f.creator,'reward.manage'),false);
+ assert.throws(()=>fundReward(f.reward.id,f.creator,{type:'admin_grant'},uuid()),(e:any)=>e.code==='SCOPE_DENIED');
+ assert.throws(()=>fundReward(f.reward.id,f.admin,{type:'platform_credit'},uuid()),(e:any)=>e.code==='INSUFFICIENT_CREDIT');
+ assert.equal(getReward(f.reward.id)!.status,'draft');
+ assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_transactions WHERE reward_id=?').get(f.reward.id) as any).n,0);
+ console.log('CONTROL_PASS: ordinary self-grant and unsupported credit denied; no ledger writes');
+}
+reset();
+{
+ const f=fixture();
+ const funded=fundReward(f.reward.id,f.admin,{type:'admin_grant'},uuid());
+ assert.equal(funded.status,'funded');
+ const entry=db.prepare("SELECT actor_user_id,destination_user_id FROM reward_transactions WHERE reward_id=? AND transaction_type='fund'").get(f.reward.id) as any;
+ assert.equal(entry.actor_user_id,f.admin);assert.equal(entry.destination_user_id,f.admin);
+ cancelReward(f.reward.id,f.creator,'synthetic review',uuid());
+ const adminBalance=db.prepare("SELECT available_stroops,reserved_stroops FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(f.admin) as any;
+ assert.equal(adminBalance.available_stroops,10000000);assert.equal(adminBalance.reserved_stroops,0);
+ assert.equal(db.prepare("SELECT id FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(f.creator),undefined);
+ console.log('DEFECT_CONFIRMED: authorizing admin is ledger funder and receives cancellation credit; creator has no funder account');
+}
+reset();
+{
+ const f=fixture();
+ // Valid relational state after scope ownership handoff: actor owns scope,
+ // while the recorded reward creator remains another user.
+ db.prepare('UPDATE sponsor_cohorts SET sponsor_user_id=? WHERE id=?').run(f.admin,f.cohort);
+ const pending=fundRewardAsync(f.reward.id,f.admin,{type:'admin_grant'},uuid());
+ // Deterministic direct-service interleaving. This is not a claim that a
+ // second HTTP handler runs between same-process promise microtasks.
+ db.prepare('DELETE FROM user_roles WHERE user_id=?').run(f.admin);
+ db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(f.admin);
+ assert.equal(hasPermission(f.admin,'reward.manage'),false);
+ const result=await pending;
+ assert.equal(result.status,'funded');
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM reward_transactions WHERE reward_id=? AND transaction_type='fund'").get(f.reward.id) as any).n,1);
+ console.log('DEFECT_CONFIRMED: grant commits after manage revocation when actor retains scope ownership');
+}
+console.log('REVIEW_RESULT: 1 control and 2 defect characterizations passed');
