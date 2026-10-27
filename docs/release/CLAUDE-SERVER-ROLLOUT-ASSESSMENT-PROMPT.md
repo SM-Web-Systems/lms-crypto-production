@@ -82,9 +82,17 @@ Prioritize validation of:
 
 Do not claim these are newly introduced by RBAC retirement. Determine actual deployed exposure separately. Any affected release needs a verified fix or an explicitly reviewed containment that demonstrably prevents exposure; never invent a feature flag or silently accept a P1.
 
-### 4. Inventory every outstanding PR and derive the order
+### 4. Inventory every branch and outstanding PR, then derive the order
 
 Fetch current metadata for both repositories. Inspect all open PRs and relevant merged/closed prerequisites, not only the seed list. Record number, title, base/head SHA, merge state, changed paths, review state, exact-head checks, schema/client assumptions, dependencies and recommended disposition.
+
+Paginate PR and branch listings to exhaustion; a default page or result limit is not a complete inventory. Enumerate all server-local branches, linked worktrees and branch refs on each relevant accessible remote, including branches with no PR, draft PRs, closed-but-unmerged PR branches and accessible fork heads associated with PRs. Capture the starting refs before any cleanup; do not automatically prune, delete or close anything.
+
+Build a branch-to-PR reconciliation table: repository, remote/local/worktree location, branch and pinned tip, upstream, associated PR(s), dirty/uncommitted-work status, ahead/behind and unique commits versus the verified default/release/deployed refs, deployment relevance, dependencies and disposition. Check squash/cherry-picked/equivalent changes against their actual diffs and intent: a branch reported as unmerged by ancestry alone may already be integrated, and a clean merge does not establish semantic compatibility.
+
+Give every discovered branch a recorded outcome: integrated/equivalent, covered by an existing PR, requires a new review PR, superseded, retain for development/recovery, defer, or blocked. Review unique branch-only work and propose a focused PR where needed. Recommend retirement separately; do not automatically delete a branch because it has no PR or appears old.
+
+Record discovery limits explicitly. The server cannot see unpublished laptop-only branches or inaccessible forks/remotes. Mark those inventories UNKNOWN and identify the narrow read-only ref/commit inventory needed from their owner; continue accessible work. Do not claim every branch is assessed while an inaccessible inventory or an undispositioned discovered branch remains.
 
 Seed candidates from the handovers, subject to live verification:
 
@@ -110,7 +118,7 @@ Use the session's actual date for filenames. Create an index under `docs/release
 
 Required durable artifacts:
 
-- Assessment and live PR inventory, including current running image/build provenance.
+- Assessment and complete branch-to-PR inventory, including discovery limits, current running image/build provenance and a disposition for every discovered branch and PR.
 - PR/deployment/migration dependency graph and numbered batch plan.
 - One developer spec and task plan for each independent blocker/remediation slice.
 - Checkbox backlog, progress ledger, decision log, blocker log and evidence index.

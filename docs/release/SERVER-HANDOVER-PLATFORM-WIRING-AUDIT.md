@@ -33,4 +33,6 @@ Production accounts, private decision records and database exports stay with the
 
 Start a Claude server session with the [assessment and rollout prompt](CLAUDE-SERVER-ROLLOUT-ASSESSMENT-PROMPT.md). Its first task assesses this audit against current PR/source/server evidence, then prepares specs, Mermaid diagrams, iterative tasks and exact release batches. Routine preparation is delegated; production changes require the concrete batch decision described in the prompt.
 
+The assessment includes every accessible branch and PR in both repositories, with paginated listings and a branch-to-PR disposition table. Branches without PRs, retained development/recovery work and squash-equivalent changes are explicitly assessed. Unpublished laptop-only branches and inaccessible remotes remain declared inventory gaps until their owner supplies evidence.
+
 After the plan and ledger exist, the [scoped /loop companion](CLAUDE-SERVER-ROLLOUT-LOOP-PROMPT.md) can continue authorized preparation and CI monitoring. It cannot approve or perform a production release. These documents do not start a scheduled task, merge PRs or modify server state from the laptop.
