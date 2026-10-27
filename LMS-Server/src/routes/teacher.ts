@@ -6,7 +6,7 @@ import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
 import {
   createReward,
-  fundReward,
+  fundRewardAsync,
   activateReward,
   approveReward,
   cancelReward,
@@ -252,9 +252,9 @@ router.post('/teacher/rewards', authenticate, requirePermission('reward.create')
 });
 
 // POST /teacher/rewards/:id/fund
-router.post('/teacher/rewards/:id/fund', authenticate, requirePermission('reward.fund'), (req: AuthRequest, res: Response): void => {
+router.post('/teacher/rewards/:id/fund', authenticate, requirePermission('reward.fund'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const reward = fundReward(req.params.id, req.user!.userId,
+    const reward = await fundRewardAsync(req.params.id, req.user!.userId,
       { type: req.body.sourceType, reference: req.body.reference },
       req.body.idempotencyKey);
     res.json({ success: true, data: reward });

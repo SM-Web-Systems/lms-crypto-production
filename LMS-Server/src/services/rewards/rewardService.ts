@@ -7,6 +7,7 @@ import { writeLedgerEntry } from './rewardLedger.js';
 import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
+import { verifyFundingSourceSync, verifyFundingSourceAsync } from './rewardFundingVerifier.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
   notifyRewardReleased,
@@ -87,6 +88,11 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
 /**
  * Fund a reward: transitions draft → pending_funding → funded.
  * Creates 2 ledger entries (fund + reserve) atomically.
+ *
+ * W01: Verifies funding evidence before the state transition.
+ * For external sources (stellar, paystack), use fundRewardAsync() which
+ * performs async provider verification. This synchronous entry point
+ * performs all checks that can be done synchronously.
  */
 export function fundReward(
   rewardId: string,
@@ -98,6 +104,10 @@ export function fundReward(
   if (idem.exists) {
     return getReward(rewardId)!;
   }
+
+  // W01: Synchronous verification gate — reference checks, source-type
+  // validation, and cross-reference idempotency.
+  verifyFundingSourceSync(source, rewardId);
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
@@ -135,6 +145,105 @@ export function fundReward(
     });
 
     // Ledger entry 2: reserve (funder.available → funder.reserved)
+    writeLedgerEntry({
+      rewardId,
+      transactionType: 'reserve',
+      amountStroops: totalExposure,
+      sourceAccountType: 'funder',
+      sourceBucket: 'available',
+      sourceUserId: actorId,
+      destinationAccountType: 'funder',
+      destinationBucket: 'reserved',
+      destinationUserId: actorId,
+      actorType: 'user',
+      actorUserId: actorId,
+      previousState: 'pending_funding',
+      newState: 'funded',
+      idempotencyKey: `${idempotencyKey}_reserve`,
+    });
+
+    assertTransition('pending_funding', 'funded');
+    updateRewardStatus(rewardId, 'funded');
+
+    return getRewardRow(rewardId)!;
+  });
+
+  return txn();
+}
+
+/**
+ * Async version of fundReward for external funding sources (paystack).
+ * Performs async provider verification, then delegates to the synchronous
+ * DB transaction. Route handlers use this for external source types.
+ */
+export async function fundRewardAsync(
+  rewardId: string,
+  actorId: string,
+  source: FundingSource,
+  idempotencyKey: string
+): Promise<RewardRow> {
+  const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
+  if (idem.exists) {
+    return getReward(rewardId)!;
+  }
+
+  // W01: Full async verification (includes external provider calls)
+  await verifyFundingSourceAsync(source, rewardId);
+
+  // Delegate to the synchronous DB transaction (skips sync verification
+  // since async verification is a superset)
+  return fundRewardVerified(rewardId, actorId, source, idempotencyKey);
+}
+
+/**
+ * Internal: fund a reward with pre-verified funding source.
+ * Skips verification (caller must have already verified).
+ */
+function fundRewardVerified(
+  rewardId: string,
+  actorId: string,
+  source: FundingSource,
+  idempotencyKey: string
+): RewardRow {
+  const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
+  if (idem.exists) {
+    return getReward(rewardId)!;
+  }
+
+  const txn = db.transaction(() => {
+    const reward = getRewardForUpdate(rewardId);
+    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+      throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
+    }
+
+    assertTransition(reward.status as RewardState, 'pending_funding');
+    updateRewardStatus(rewardId, 'pending_funding');
+
+    const amount = BigInt(reward.amount_stroops);
+    const maxRecipients = BigInt(reward.max_recipients ?? 1);
+    const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
+
+    getOrCreateAccount(actorId, 'funder', reward.currency_code ?? 'XLM');
+
+    writeLedgerEntry({
+      rewardId,
+      transactionType: 'fund',
+      amountStroops: totalExposure,
+      sourceAccountType: source.type === 'stellar' ? 'external' : source.type === 'paystack' ? 'external' : source.type === 'platform_credit' ? 'platform' : 'external',
+      sourceBucket: null,
+      sourceUserId: null,
+      destinationAccountType: 'funder',
+      destinationBucket: 'available',
+      destinationUserId: actorId,
+      actorType: 'user',
+      actorUserId: actorId,
+      previousState: 'draft',
+      newState: 'pending_funding',
+      fundingSourceType: source.type,
+      fundingReference: source.reference ?? null,
+      idempotencyKey: `${idempotencyKey}_fund`,
+    });
+
     writeLedgerEntry({
       rewardId,
       transactionType: 'reserve',

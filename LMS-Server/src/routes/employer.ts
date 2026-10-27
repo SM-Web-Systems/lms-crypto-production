@@ -13,7 +13,7 @@ import { ErrorCodes } from '../types/index.js';
 import { execute, query, queryOne } from '../config/database.js';
 import {
   createReward,
-  fundReward,
+  fundRewardAsync,
   activateReward,
   approveReward,
   cancelReward,
@@ -329,9 +329,9 @@ router.post(
   '/employer/rewards/:id/fund',
   authenticate,
   requirePermission('reward.fund'),
-  (req: AuthRequest, res: Response): void => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const reward = fundReward(
+      const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
         { type: req.body.sourceType, reference: req.body.reference },

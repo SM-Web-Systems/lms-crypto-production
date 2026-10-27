@@ -16,7 +16,7 @@ import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 import {
   createReward,
-  fundReward,
+  fundRewardAsync,
   activateReward,
   approveReward,
   cancelReward,
@@ -273,9 +273,9 @@ router.post(
   '/sponsor/rewards/:id/fund',
   authenticate,
   requirePermission('reward.fund'),
-  (req: AuthRequest, res: Response): void => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const reward = fundReward(
+      const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
         { type: req.body.sourceType, reference: req.body.reference },
