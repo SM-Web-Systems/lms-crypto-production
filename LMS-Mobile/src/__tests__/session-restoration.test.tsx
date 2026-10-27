@@ -8,6 +8,7 @@ import {ammaWalletService} from '@/services/ammaWalletService';
 import {getStoredToken,setStoredToken,clearStoredToken} from '@/lib/token';
 import {ApiRequestError} from '@/utils/apiError';
 import {mobileHome} from '@/utils/authorization';
+import api from '@/lib/api';
 import type {User} from '@/types/api';
 
 let mockToken:string|null='saved-token';
@@ -159,6 +160,19 @@ describe('A14 resilient native sessions',()=>{
     await act(async()=>fireEvent.press(screen.getByText('Retry clearing saved session')));
     await waitFor(()=>expect(screen.queryByText('Retry clearing saved session')).toBeNull());
     expect(mockToken).toBeNull();
+  });
+
+  it.each(['saved-token','new-token'])('a delayed old logout cannot clear or revoke a newer login when storage returns %s',async(returnedToken)=>{
+    renderSession();await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
+    let resolveOldToken!:(value:string)=>void;
+    (getStoredToken as jest.Mock).mockImplementationOnce(()=>new Promise<string>(resolve=>{resolveOldToken=resolve;}));
+    fireEvent.press(screen.getByText('Logout'));
+    await act(async()=>fireEvent.press(screen.getByText('Login')));
+    await waitFor(()=>expect(screen.getByText(sponsor.email)).toBeTruthy());
+    await act(async()=>resolveOldToken(returnedToken));
+    expect(screen.getByText(sponsor.email)).toBeTruthy();
+    expect(mockToken).toBe('new-token');expect(clearStoredToken).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
 });
