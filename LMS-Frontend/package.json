@@ -64,5 +64,8 @@
     "typescript": "^5.2.2",
     "vite": "^7.3.7",
     "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "postcss-selector-parser": "7.1.6"
   }
 }
