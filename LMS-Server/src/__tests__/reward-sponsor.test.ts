@@ -5,21 +5,30 @@ import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 
-function seedSponsor(): { sponsorId: string; token: string; cohortId: string; courseId: string; studentId: string } {
+function seedSponsor(): { sponsorId: string; token: string; adminToken: string; cohortId: string; courseId: string; studentId: string } {
   const sponsorId = uuidv4();
   const studentId = uuidv4();
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
+  // W01-R1: Use legacy role 'lecturer' for sponsor to avoid trigger auto-assigning
+  // role_admin (which has reward.manage). Sponsor should NOT have reward.manage.
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'lecturer')"
   ).run(sponsorId, `${sponsorId}@test.com`);
   db.prepare(
     "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
   ).run(studentId, `${studentId}@test.com`);
 
-  // Assign sponsor role with reward permissions
+  // Assign sponsor role with reward permissions (reward.fund but NOT reward.manage)
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+
+  // W01-R1: Create independent admin for internal funding authorization.
+  // The trigger auto-assigns role_admin (which has reward.manage).
+  const adminId = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
+  ).run(adminId, `${adminId}@test.com`);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`
@@ -29,8 +38,9 @@ function seedSponsor(): { sponsorId: string; token: string; cohortId: string; co
   ).run(cohortId, sponsorId, courseId);
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
 
-  const token = makeToken({ userId: sponsorId, email: `${sponsorId}@test.com`, role: 'admin' });
-  return { sponsorId, token, cohortId, courseId, studentId };
+  const token = makeToken({ userId: sponsorId, email: `${sponsorId}@test.com`, role: 'lecturer' });
+  const adminToken = makeToken({ userId: adminId, email: `${adminId}@test.com`, role: 'admin' });
+  return { sponsorId, token, adminToken, cohortId, courseId, studentId };
 }
 
 describe('Sponsor Reward Routes', () => {
@@ -66,8 +76,8 @@ describe('Sponsor Reward Routes', () => {
   });
 
   it('BR-S-3: POST /sponsor/rewards/:id/fund transitions to funded', async () => {
-    const { token, cohortId, sponsorId } = seedSponsor();
-    // Create reward first
+    const { token, adminToken, cohortId } = seedSponsor();
+    // Create reward first (sponsor creates)
     const create = await request(app)
       .post('/api/v1/sponsor/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -79,9 +89,10 @@ describe('Sponsor Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds (has reward.manage, ≠ creator)
     const res = await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         sourceType: 'admin_grant',
         idempotencyKey: `fund-${uuidv4()}`,
@@ -91,7 +102,7 @@ describe('Sponsor Reward Routes', () => {
   });
 
   it('BR-S-4: POST /sponsor/rewards/:id/activate transitions to active', async () => {
-    const { token, cohortId } = seedSponsor();
+    const { token, adminToken, cohortId } = seedSponsor();
     const create = await request(app)
       .post('/api/v1/sponsor/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -105,7 +116,7 @@ describe('Sponsor Reward Routes', () => {
 
     await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     const res = await request(app)
@@ -117,7 +128,7 @@ describe('Sponsor Reward Routes', () => {
   });
 
   it('BR-S-5: POST /sponsor/rewards/:id/cancel cancels active reward', async () => {
-    const { token, cohortId } = seedSponsor();
+    const { token, adminToken, cohortId } = seedSponsor();
     const create = await request(app)
       .post('/api/v1/sponsor/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -131,7 +142,7 @@ describe('Sponsor Reward Routes', () => {
 
     await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     await request(app)
@@ -187,7 +198,7 @@ describe('Sponsor Reward Routes', () => {
   });
 
   it('BR-S-8: GET /sponsor/rewards/:id/allocations returns allocations', async () => {
-    const { token, cohortId } = seedSponsor();
+    const { token, adminToken, cohortId } = seedSponsor();
     const create = await request(app)
       .post('/api/v1/sponsor/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -201,7 +212,7 @@ describe('Sponsor Reward Routes', () => {
 
     await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     await request(app)
@@ -217,7 +228,7 @@ describe('Sponsor Reward Routes', () => {
   });
 
   it('BR-S-9: GET /sponsor/rewards/:id/transactions returns ledger', async () => {
-    const { token, cohortId } = seedSponsor();
+    const { token, adminToken, cohortId } = seedSponsor();
     const create = await request(app)
       .post('/api/v1/sponsor/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -231,7 +242,7 @@ describe('Sponsor Reward Routes', () => {
 
     await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     const res = await request(app)

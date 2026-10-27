@@ -5,21 +5,27 @@ import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 
-function seedTeacher(): { teacherId: string; token: string; classId: string; studentId: string } {
+function seedTeacher(): { teacherId: string; token: string; adminToken: string; classId: string; studentId: string } {
   const teacherId = uuidv4();
   const studentId = uuidv4();
   const classId = uuidv4();
 
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Teacher', ?, 'hash', 'admin')").run(teacherId, `${teacherId}@test.com`);
+  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Teacher', ?, 'hash', 'lecturer')").run(teacherId, `${teacherId}@test.com`);
   db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')").run(studentId, `${studentId}@test.com`);
 
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(teacherId, 'role_teacher');
 
+  // W01-R1: Independent admin for funding authorization
+  const adminId = uuidv4();
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')").run(adminId, `${adminId}@test.com`);
+
   db.prepare('INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, ?, ?)').run(classId, 'Test Class', 'class', teacherId);
   db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(classId, studentId);
 
-  const token = makeToken({ userId: teacherId, email: `${teacherId}@test.com`, role: 'admin' });
-  return { teacherId, token, classId, studentId };
+  const token = makeToken({ userId: teacherId, email: `${teacherId}@test.com`, role: 'lecturer' });
+  const adminToken = makeToken({ userId: adminId, email: `${adminId}@test.com`, role: 'admin' });
+  return { teacherId, token, adminToken, classId, studentId };
 }
 
 describe('Teacher Reward Routes', () => {
@@ -40,7 +46,7 @@ describe('Teacher Reward Routes', () => {
   });
 
   it('CTR-T-2: POST /teacher/rewards/:id/fund transitions to funded', async () => {
-    const { token, classId } = seedTeacher();
+    const { token, adminToken, classId } = seedTeacher();
     const create = await request(app)
       .post('/api/v1/teacher/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -52,16 +58,17 @@ describe('Teacher Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds (has reward.manage, ≠ creator)
     const res = await request(app)
       .post(`/api/v1/teacher/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('funded');
   });
 
   it('CTR-T-3: POST /teacher/rewards/:id/activate transitions to active', async () => {
-    const { token, classId } = seedTeacher();
+    const { token, adminToken, classId } = seedTeacher();
     const create = await request(app)
       .post('/api/v1/teacher/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -73,9 +80,10 @@ describe('Teacher Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds
     await request(app)
       .post(`/api/v1/teacher/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     const res = await request(app)
@@ -126,7 +134,7 @@ describe('Teacher Reward Routes', () => {
   });
 
   it('CTR-T-6: POST /teacher/rewards/:id/cancel cancels reward', async () => {
-    const { token, classId } = seedTeacher();
+    const { token, adminToken, classId } = seedTeacher();
     const create = await request(app)
       .post('/api/v1/teacher/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -138,9 +146,10 @@ describe('Teacher Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds
     await request(app)
       .post(`/api/v1/teacher/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     const res = await request(app)

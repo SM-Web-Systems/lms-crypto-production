@@ -4,18 +4,28 @@
  * Validates funding evidence before a reward transitions to 'funded'.
  * Each FundingSourceType has type-specific verification. External sources
  * (stellar, paystack) require a verified transaction reference. Internal
- * sources (platform_credit, admin_grant) are validated locally.
+ * sources (platform_credit, admin_grant) require reward.manage permission
+ * and an independent authorizer (actor ≠ reward creator).
+ *
+ * W01-R1: Internal sources now enforce authorization policy from
+ * reward foundation spec section 5: reward.manage + independent authorizer.
+ * platform_credit fails closed (no credit provisioning mechanism).
  *
  * Two entry points:
  * - verifyFundingSourceSync: synchronous checks only (reference presence,
- *   cross-reference idempotency, stellar deny-by-default). Used by the
- *   synchronous fundReward() for internal source types.
+ *   cross-reference idempotency, stellar deny-by-default, internal auth).
+ *   Used by the synchronous fundReward() for internal source types.
  * - verifyFundingSourceAsync: full verification including async external
  *   provider calls (paystack verifyTransaction). Used by fundRewardAsync()
  *   for external source types in route handlers.
+ *
+ * NOTE: fundRewardVerified() is intentionally unexported. It skips
+ * verification because its only caller (fundRewardAsync) has already
+ * verified. Do not export or add direct callers without verification.
  */
 import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
+import { hasPermission } from '../../middleware/rbac.js';
 import { verifyTransaction } from '../paystackService.js';
 import type { FundingSourceType } from './rewardTypes.js';
 
@@ -25,13 +35,24 @@ export interface FundingSource {
 }
 
 /**
- * Synchronous funding verification. Checks reference requirements and
- * cross-reference idempotency. Rejects stellar (no Horizon client).
+ * Context required for internal funding authorization.
+ * Must be provided when verifying platform_credit or admin_grant.
+ */
+export interface FundingAuthorizationContext {
+  actorId: string;
+  rewardCreatorId: string;
+}
+
+/**
+ * Synchronous funding verification. Checks reference requirements,
+ * cross-reference idempotency, and internal source authorization.
+ * Rejects stellar (no Horizon client).
  * Does NOT contact external providers.
  */
 export function verifyFundingSourceSync(
   source: FundingSource,
   rewardId: string,
+  context?: FundingAuthorizationContext,
 ): void {
   // 1. Cross-reference idempotency (all types with a reference)
   if (source.reference) {
@@ -60,11 +81,17 @@ export function verifyFundingSourceSync(
       );
 
     case 'platform_credit':
-      // Internal mechanism — no external verification needed
-      break;
+      verifyInternalAuthorization(context, 'platform_credit');
+      // W01-R1: platform_credit fails closed — no credit provisioning exists.
+      throw new RewardError(
+        'INSUFFICIENT_CREDIT',
+        'Platform credit funding is not available: no credit provisioning mechanism is configured',
+        402,
+      );
 
     case 'admin_grant':
-      // Admin capability enforced by route middleware
+      verifyInternalAuthorization(context, 'admin_grant');
+      // Admin grant authorized by independent admin — proceed
       break;
 
     default: {
@@ -85,6 +112,7 @@ export function verifyFundingSourceSync(
 export async function verifyFundingSourceAsync(
   source: FundingSource,
   rewardId: string,
+  context?: FundingAuthorizationContext,
 ): Promise<void> {
   // 1. Cross-reference idempotency (all types with a reference)
   if (source.reference) {
@@ -108,9 +136,17 @@ export async function verifyFundingSourceAsync(
       break;
 
     case 'platform_credit':
-      break;
+      verifyInternalAuthorization(context, 'platform_credit');
+      // W01-R1: platform_credit fails closed — no credit provisioning exists.
+      throw new RewardError(
+        'INSUFFICIENT_CREDIT',
+        'Platform credit funding is not available: no credit provisioning mechanism is configured',
+        402,
+      );
 
     case 'admin_grant':
+      verifyInternalAuthorization(context, 'admin_grant');
+      // Admin grant authorized by independent admin — proceed
       break;
 
     default: {
@@ -121,6 +157,43 @@ export async function verifyFundingSourceAsync(
         402,
       );
     }
+  }
+}
+
+// ──── Internal Authorization (W01-R1) ────
+
+/**
+ * Verify that the actor is authorized to use internal funding sources.
+ * Enforces reward foundation spec section 5:
+ * - Actor must have reward.manage permission
+ * - Actor must NOT be the reward creator (conflict of interest)
+ */
+function verifyInternalAuthorization(
+  context: FundingAuthorizationContext | undefined,
+  sourceType: string,
+): void {
+  if (!context) {
+    throw new RewardError(
+      'SCOPE_DENIED',
+      `Internal funding source '${sourceType}' requires authorization context`,
+      403,
+    );
+  }
+
+  if (!hasPermission(context.actorId, 'reward.manage')) {
+    throw new RewardError(
+      'SCOPE_DENIED',
+      `Internal funding source '${sourceType}' requires reward.manage permission`,
+      403,
+    );
+  }
+
+  if (context.actorId === context.rewardCreatorId) {
+    throw new RewardError(
+      'CONFLICT_OF_INTEREST',
+      'The funding authorizer must not be the reward creator',
+      403,
+    );
   }
 }
 

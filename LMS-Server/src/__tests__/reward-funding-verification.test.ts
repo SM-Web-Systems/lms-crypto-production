@@ -22,6 +22,15 @@ function createUser(role = 'admin'): string {
   return id;
 }
 
+/** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
+function createIndependentAdmin(): string {
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+  ).run(id, `${id}@test.com`);
+  return id;
+}
+
 function createCohort(sponsorId: string): string {
   const courseId = uuidv4();
   const cohortId = uuidv4();
@@ -165,28 +174,64 @@ describe('W01: Funding verification gate', () => {
   });
 
   describe('Platform credit source type', () => {
-    it('allows platform_credit funding without reference (backward compatible)', () => {
+    it('rejects platform_credit with INSUFFICIENT_CREDIT (W01-R1: fails closed)', () => {
+      const sponsor = createUser();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+      const admin = createIndependentAdmin();
+
+      try {
+        fundReward(rewardId, admin, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+        expect.unreachable('Should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(RewardError);
+        const re = err as RewardError;
+        expect(re.code).toBe('INSUFFICIENT_CREDIT');
+        expect(re.statusCode).toBe(402);
+      }
+
+      // Reward remains in draft
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+    });
+
+    it('rejects platform_credit self-grant (W01-R1: conflict of interest)', () => {
       const sponsor = createUser();
       const cohortId = createCohort(sponsor);
       const rewardId = draftReward(sponsor, cohortId);
 
-      const funded = fundReward(
-        rewardId, sponsor, { type: 'platform_credit' }, `fund-${uuidv4()}`
-      );
-      expect(funded.status).toBe('funded');
+      expect(() =>
+        fundReward(rewardId, sponsor, { type: 'platform_credit' }, `fund-${uuidv4()}`)
+      ).toThrow(RewardError);
     });
   });
 
   describe('Admin grant source type', () => {
-    it('allows admin_grant funding without reference', () => {
+    it('allows admin_grant funding with independent admin (W01-R1)', () => {
+      const sponsor = createUser('admin');
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+      const admin = createIndependentAdmin();
+
+      const funded = fundReward(
+        rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`
+      );
+      expect(funded.status).toBe('funded');
+    });
+
+    it('rejects admin_grant self-grant (W01-R1: conflict of interest)', () => {
       const sponsor = createUser('admin');
       const cohortId = createCohort(sponsor);
       const rewardId = draftReward(sponsor, cohortId);
 
-      const funded = fundReward(
-        rewardId, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`
-      );
-      expect(funded.status).toBe('funded');
+      try {
+        fundReward(rewardId, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+        expect.unreachable('Should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(RewardError);
+        const re = err as RewardError;
+        expect(re.code).toBe('CONFLICT_OF_INTEREST');
+      }
     });
   });
 

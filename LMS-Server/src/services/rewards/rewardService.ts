@@ -8,6 +8,7 @@ import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
 import { verifyFundingSourceSync, verifyFundingSourceAsync } from './rewardFundingVerifier.js';
+import { hasPermission } from '../../middleware/rbac.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
   notifyRewardReleased,
@@ -105,13 +106,23 @@ export function fundReward(
     return getReward(rewardId)!;
   }
 
+  // W01-R1: Look up reward creator for internal source authorization context.
+  const rewardForAuth = getRewardRow(rewardId);
+  if (!rewardForAuth) {
+    throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+  }
+  const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
+
   // W01: Synchronous verification gate — reference checks, source-type
-  // validation, and cross-reference idempotency.
-  verifyFundingSourceSync(source, rewardId);
+  // validation, cross-reference idempotency, and internal source authorization.
+  verifyFundingSourceSync(source, rewardId, authContext);
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
-    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+    // W01-R1: reward.manage holders bypass scope validation (e.g., admin
+    // authorizing internal funding for a sponsor's reward).
+    const hasManage = hasPermission(actorId, 'reward.manage');
+    if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
 
@@ -187,8 +198,16 @@ export async function fundRewardAsync(
     return getReward(rewardId)!;
   }
 
-  // W01: Full async verification (includes external provider calls)
-  await verifyFundingSourceAsync(source, rewardId);
+  // W01-R1: Look up reward creator for internal source authorization context.
+  const rewardForAuth = getRewardRow(rewardId);
+  if (!rewardForAuth) {
+    throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+  }
+  const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
+
+  // W01: Full async verification (includes external provider calls
+  // and internal source authorization).
+  await verifyFundingSourceAsync(source, rewardId, authContext);
 
   // Delegate to the synchronous DB transaction (skips sync verification
   // since async verification is a superset)
@@ -198,6 +217,9 @@ export async function fundRewardAsync(
 /**
  * Internal: fund a reward with pre-verified funding source.
  * Skips verification (caller must have already verified).
+ * NOTE: This function is intentionally NOT exported. Its only caller
+ * (fundRewardAsync) has already performed full async verification.
+ * Do not export or add direct callers without verification.
  */
 function fundRewardVerified(
   rewardId: string,
@@ -212,7 +234,9 @@ function fundRewardVerified(
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
-    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+    // W01-R1: reward.manage holders bypass scope validation
+    const hasManage = hasPermission(actorId, 'reward.manage');
+    if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
 
@@ -361,7 +385,9 @@ export function cancelReward(
 
     assertTransition(reward.status as RewardState, 'cancelled');
 
-    const funderAccount = getAccount(reward.creator_user_id, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(rewardId, reward.creator_user_id);
+    const funderAccount = getAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
     if (funderAccount && Number(funderAccount.reserved_stroops) > 0) {
       const totalExposure = Number(calculateMaxExposure(
         BigInt(reward.amount_stroops),
@@ -381,10 +407,10 @@ export function cancelReward(
           amountStroops: remainingReserved,
           sourceAccountType: 'funder',
           sourceBucket: 'reserved',
-          sourceUserId: reward.creator_user_id,
+          sourceUserId: funderId,
           destinationAccountType: 'funder',
           destinationBucket: 'available',
-          destinationUserId: reward.creator_user_id,
+          destinationUserId: funderId,
           actorType: 'user',
           actorUserId: actorId,
           previousState: reward.status,
@@ -445,6 +471,8 @@ export function releaseAllocation(
       throw new RewardError('INVALID_STATE_TRANSITION', `Cannot release allocation in status '${allocation.status}'`);
     }
 
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(reward.id, reward.creator_user_id);
     writeLedgerEntry({
       rewardId: reward.id,
       allocationId,
@@ -452,7 +480,7 @@ export function releaseAllocation(
       amountStroops: allocation.amount_stroops,
       sourceAccountType: 'funder',
       sourceBucket: 'reserved',
-      sourceUserId: reward.creator_user_id,
+      sourceUserId: funderId,
       destinationAccountType: 'recipient',
       destinationBucket: 'available',
       destinationUserId: allocation.student_user_id,
@@ -531,6 +559,8 @@ export function refundAllocation(
       return { blocked: true, attemptId } as const;
     }
 
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(reward.id, reward.creator_user_id);
     writeLedgerEntry({
       rewardId: reward.id,
       allocationId,
@@ -541,7 +571,7 @@ export function refundAllocation(
       sourceUserId: allocation.student_user_id,
       destinationAccountType: 'funder',
       destinationBucket: 'available',
-      destinationUserId: reward.creator_user_id,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'released',
@@ -590,7 +620,9 @@ export function expireReward(
 
     assertTransition(reward.status as RewardState, 'expired');
 
-    const funderAccount = getAccount(reward.creator_user_id, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(rewardId, reward.creator_user_id);
+    const funderAccount = getAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
     if (funderAccount && Number(funderAccount.reserved_stroops) > 0) {
       const totalExposure = Number(calculateMaxExposure(
         BigInt(reward.amount_stroops),
@@ -610,10 +642,10 @@ export function expireReward(
           amountStroops: remainingReserved,
           sourceAccountType: 'funder',
           sourceBucket: 'reserved',
-          sourceUserId: reward.creator_user_id,
+          sourceUserId: funderId,
           destinationAccountType: 'funder',
           destinationBucket: 'available',
-          destinationUserId: reward.creator_user_id,
+          destinationUserId: funderId,
           actorType: 'system',
           actorUserId: null,
           previousState: reward.status,
@@ -732,6 +764,20 @@ function getAllocationForUpdate(allocationId: string): AllocationRow {
     throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
   }
   return alloc;
+}
+
+/**
+ * W01-R1: Look up who actually funded a reward from the ledger.
+ * With independent authorizer support, the funder may differ from the creator.
+ * Falls back to creator_user_id for rewards funded before this change.
+ */
+function getRewardFunderId(rewardId: string, creatorUserId: string): string {
+  const fundEntry = db.prepare(
+    `SELECT destination_user_id FROM reward_transactions
+     WHERE reward_id = ? AND transaction_type = 'fund'
+     ORDER BY created_at ASC LIMIT 1`
+  ).get(rewardId) as { destination_user_id: string } | undefined;
+  return fundEntry?.destination_user_id ?? creatorUserId;
 }
 
 function updateRewardStatus(rewardId: string, status: RewardState): void {
