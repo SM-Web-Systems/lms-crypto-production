@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
+import {validateDatabase} from './src/config/databaseBootstrap.js';
+const db=new Database(process.env.DATABASE_PATH!,{fileMustExist:true});
+db.pragma('foreign_keys = ON');
+try{
+ validateDatabase(db,true);
+ const index=()=>db.pragma("index_list('reward_transactions')").find((r:any)=>r.name==='idx_reward_txn_fund_ref_unique') as {unique:number};
+ assert.equal(index().unique,1);
+ console.log('CONTROL_PASS: actual upgraded database has UNIQUE reference index and passes final validation');
+ if(process.argv.includes('--weaken')){
+  // Synthetic unsupported-schema fixture, never a repair procedure.
+  db.exec("DROP INDEX idx_reward_txn_fund_ref_unique; CREATE INDEX idx_reward_txn_fund_ref_unique ON reward_transactions(funding_reference) WHERE funding_reference IS NOT NULL AND transaction_type = 'fund';");
+  assert.equal(index().unique,0);
+  validateDatabase(db,true);
+  console.log('DEFECT_CONFIRMED: final validation accepts same-name non-UNIQUE index');
+ }
+}finally{db.close();}

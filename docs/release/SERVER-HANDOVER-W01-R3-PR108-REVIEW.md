@@ -2,6 +2,8 @@
 
 Date: 2026-10-28. Decision: **CHANGES_REQUIRED — keep R3 and W01 open; do not advance to W02.** The clean-database guard works, but the upgrade path and legacy reference identity need correction.
 
+Subsequent review: [PR #109 resolves the original upgrade/identity defects but needs strict final validation](SERVER-HANDOVER-W01-R3C-PR109-REVIEW.md). Read that newer packet for the current narrow correction and acceptance requirements.
+
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). This packet is on documentation branch `codex/platform-wiring-audit`. Authoritative ledgers are on `codex/staged-rollout-plan` (PR #103). Neither branch is a separate repository.
 
 ## Verified receipt
