@@ -18,11 +18,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Code evidence | `LMS-Server/src/services/rewards/rewardService.ts:91-162` — `fundReward()` accepts `FundingSource { type, reference? }` and writes two ledger entries (fund + reserve) without verifying the reference against any external provider API. `source.type` is mapped to `sourceAccountType` strings (`external`/`platform`) at line 122 but no validation or provider call occurs. All source types (`stellar`, `paystack`, `platform_credit`) receive HTTP 200. |
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
-| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding) |
-| Residual work | R3 (atomic payment-reference consumption: concurrent access, retry, rollback — A3). Stellar Horizon client deferred separately (fail-closed is correct). A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) carried forward. |
-| Release impact | P1 — **PARTIALLY_FIXED** — funding verification gate + internal authorization + Paystack binding enforced; R3 (atomic consumption) remains |
-| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU |
-| Evidence status | **PARTIALLY_FIXED** — PRs #104, #105, #106, #107 merged (25 R1 + 12 R2 tests, 1866 passed / 1 skipped / 1867 total, 0 regressions); R3 (atomic consumption) blocking full W01 resolution. Stellar Horizon deferred separately. Paystack reward funding operationally unavailable (R2 is containment only). |
+| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding); **#108 MERGED** at `7a23f88` (2026-10-28, R3 atomic reference consumption) |
+| Residual work | Stellar Horizon client deferred separately (fail-closed is correct security posture). A1 (Paystack amount/currency cross-check — gated by R2 currency mismatch). A5 (FundingSource interface duplication — cosmetic, non-security). Paystack reward funding operationally unavailable (R2 containment only; enablement requires settlement policy, obligation binding, and ownership verification). |
+| Release impact | P1 — **FIXED (security containment)** — funding verification gate + internal authorization + Paystack binding + atomic reference consumption all enforced. External sources (Stellar, Paystack) fail closed. Remaining items are capability additions (Stellar Horizon client, Paystack settlement), not security gaps. |
+| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU; DB-level UNIQUE prevents concurrent reference consumption; error messages do not leak reward IDs |
+| Evidence status | **FIXED (security containment)** — PRs #104, #105, #106, #107, #108 merged (25 R1 + 12 R2 + 15 R3 tests; 183 files, 1882 passed, 0 failures, 0 regressions). Stellar Horizon deferred separately (fail-closed is correct). Paystack reward funding operationally unavailable (R2 is containment only). A2 resolved in R3. A3 resolved in R3. A5 cosmetic only. |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -70,9 +70,19 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Sub-finding ID | W01-R3 |
 | Scope | Atomic payment-reference consumption: one verified payment cannot fund competing rewards concurrently. Includes concurrent competing requests, same-operation retries, rollback correctness, provider-appropriate reference identity. Advisory A3 (no DB-level UNIQUE on funding_reference). |
 | Previous incorrect label | Was labeled "Stellar Horizon client" at `b62e923`. Corrected per original handover `SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` definition. |
-| Structural gap | `checkReferenceNotReused()` is a sequential application-level check (SELECT then INSERT in separate statements). Under concurrent requests, two transactions could both pass the check before either writes. DB-level UNIQUE constraint on `reward_transactions.funding_reference` is absent. |
-| Dependencies | R2 complete (R3 builds on R2's verified binding) |
-| Evidence status | **READY** — R2 merged; R3 design and implementation assessment next |
+| Structural gap (resolved) | `checkReferenceNotReused()` was a sequential application-level check (SELECT then INSERT in separate statements). Under concurrent requests, two transactions could both pass the check before either writes. Resolved by three-layer defense: (1) outer pre-check optimization, (2) `checkReferenceInTransaction()` inside write transaction, (3) partial UNIQUE index `idx_reward_txn_fund_ref_unique` as authoritative DB-level enforcement. |
+| Dependencies | R2 complete ✓ (R3 builds on R2's verified binding) |
+| Spec | `docs/superpowers/specs/2026-10-28-W01-R3-atomic-reference-consumption.md` |
+| Plan | `docs/superpowers/plans/2026-10-28-W01-R3-tdd-plan.md` |
+| Branch | `codex/w01r3-atomic-reference-consumption` at `b852d5c` |
+| PR | **#108 — MERGED** at `7a23f88` (2026-10-28) |
+| Implementation | `database.ts`: migration with duplicate detection + partial UNIQUE index creation. `schema.sql`: index for test DB init. `rewardFundingVerifier.ts`: `normalizeReference()`, `checkReferenceInTransaction()`, `isFundingReferenceConstraintViolation()`, A2 fix (no reward ID leak). `rewardService.ts`: three-layer defense in both `fundReward()` and `fundRewardVerified()` transaction bodies. |
+| Tests | 15 new R3 tests (T01-T13 with sub-tests) in `reward-atomic-reference.test.ts`; 183 files, 1882 passed, 0 failures, 0 regressions. All 25 R1 + 12 R2 tests preserved. |
+| Independent review | Spec review: APPROVED. Code review: APPROVED. |
+| CI | PR run `40716729026` (SUCCESS, 4 jobs); main post-merge run `40717848878` (SUCCESS, 4 jobs) |
+| Advisories resolved | A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference) |
+| Error codes | `DUPLICATE_REFERENCE` (409, reference already consumed — generic message, no reward ID) |
+| Evidence status | **MERGED** — PR #108 merged at `7a23f88`. W01 repair chain (R1+R2+R3) complete. |
 
 #### Deferred: Stellar Horizon integration
 
@@ -593,6 +603,8 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 
 | 2026-10-28 | — | S2/W01-R2: PR #107 created, AI spec review APPROVED_WITH_NOTES (6 findings resolved), AI code review APPROVED_WITH_NOTES (dead import fixed), CI ALL PASS, merged to main at `17d93f0` | AI review + Claude execution | MERGED |
 | 2026-10-28 | — | S2/W01-R2 unit complete; W01 PARTIALLY_FIXED; next unit: **R3 only** (W02 remains pending W01 security closure) | R2 session | UNIT_COMPLETE |
+| 2026-10-28 | — | S2/W01-R3: PR #108 created, AI spec review APPROVED, AI code review APPROVED, CI ALL PASS, merged to main at `7a23f88` | AI review + Claude execution | MERGED |
+| 2026-10-28 | — | S2/W01-R3 unit complete; **W01 FIXED (security containment)** — R1+R2+R3 repair chain complete. Advisories A2, A3 resolved. A1 gated by R2 currency mismatch. A5 cosmetic. Stellar/Paystack fail closed. Next: W02 (cross-owner scope) when S2 resumes | R3 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
@@ -615,3 +627,34 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | Files changed | NEW: `src/services/rewards/rewardFundingVerifier.ts`, `src/__tests__/reward-funding-verification.test.ts`; MODIFIED: `src/services/rewards/rewardService.ts`, `src/services/rewards/rewardErrors.ts`, `src/routes/sponsor.ts`, `src/routes/employer.ts`, `src/routes/teacher.ts`, `src/routes/parent.ts` |
 | Branch | Retained |
 | Deploy impact | None — merge does not trigger production deployment; no deploy.sh changes |
+
+## S2/W01-R3 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #108 (`fix(rewards): W01-R3 — atomic payment-reference consumption`) |
+| Pre-merge main | `17d93f0` (post-R2) |
+| Branch SHA | `b852d5c` |
+| Merge method | Squash |
+| Merge commit | `7a23f8829684bc031b0f9a9641bf9b881e170395` |
+| Merged at | 2026-10-28 |
+| Post-merge main | `7a23f8829684bc031b0f9a9641bf9b881e170395` |
+| PR CI run | `40716729026` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Post-merge CI run | `40717848878` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| AI review | Spec review: APPROVED. Code review: APPROVED. |
+| Test results | 15 new R3 tests PASS; 183 files, 1882 total, 0 failures, 0 regressions |
+| Files changed | MODIFIED: `src/config/database.ts`, `database/schema.sql`, `src/services/rewards/rewardFundingVerifier.ts`, `src/services/rewards/rewardService.ts`; NEW: `src/__tests__/reward-atomic-reference.test.ts` |
+| Advisories resolved | A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference) |
+| Branch | Retained |
+| Deploy impact | None — merge does not trigger production deployment |
+
+### W01 repair chain summary
+
+| Unit | PR | Merge SHA | Tests added | Scope |
+| --- | --- | --- | --- | --- |
+| W01 (base) | #104 | `115d8c4f` | 14 | Funding verification gate: Stellar denied, Paystack async, reference reuse check |
+| R1 | #105 | `8096b9b` | 23 (11+8+4) | Internal authorization: reward.manage, conflict-of-interest, grant ownership, TOCTOU recheck |
+| C1 | #106 | `fa187b8` | 2 | Interleaving regression: async TOCTOU proof |
+| R2 | #107 | `17d93f0` | 12 | Paystack binding: status, currency, amount, ownership; fail-closed for XLM+fiat |
+| R3 | #108 | `7a23f88` | 15 | Atomic reference consumption: UNIQUE index, three-layer defense, normalization, A2 fix |
+| **Total** | **5 PRs** | — | **66 tests** | **W01 security containment complete** |
