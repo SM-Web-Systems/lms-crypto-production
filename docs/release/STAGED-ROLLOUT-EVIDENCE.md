@@ -22,7 +22,7 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Residual work | R3 (atomic payment-reference consumption: concurrent access, retry, rollback — A3). Stellar Horizon client deferred separately (fail-closed is correct). A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) carried forward. |
 | Release impact | P1 — **PARTIALLY_FIXED** — funding verification gate + internal authorization + Paystack binding enforced; R3 (atomic consumption) remains |
 | Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU |
-| Evidence status | **PARTIALLY_FIXED** — PRs #104, #105, #106, #107 merged (25 R1 + 12 R2 tests, 1867 total/0 regressions); R3 (atomic consumption) blocking full W01 resolution. Stellar Horizon deferred separately. |
+| Evidence status | **PARTIALLY_FIXED** — PRs #104, #105, #106, #107 merged (25 R1 + 12 R2 tests, 1866 passed / 1 skipped / 1867 total, 0 regressions); R3 (atomic consumption) blocking full W01 resolution. Stellar Horizon deferred separately. Paystack reward funding operationally unavailable (R2 is containment only). |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -50,14 +50,14 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Sub-finding ID | W01-R2 |
 | Scope | Paystack payment binding: status verification, amount/currency binding, ownership verification, intended-funding-obligation validation. Advisory A1 (Paystack amount/currency cross-check). |
-| Currency gap | Rewards are XLM stroops; Paystack operates in fiat (USD/ZAR). No settlement/quote policy exists. Paystack funding of XLM rewards fails closed with `FUNDING_CURRENCY_MISMATCH` (402). Binding framework ready for future fiat rewards or settlement service. |
+| Currency gap | Rewards are XLM stroops; Paystack operates in fiat (USD/ZAR). No settlement/quote policy exists. Paystack funding of XLM rewards fails closed with `FUNDING_CURRENCY_MISMATCH` (402). **Operational Paystack reward funding is unavailable.** Enablement requires: returned-reference matching, trusted confirmed payment/reward-obligation binding, correct minor-unit conversion/quote policy, ownership and post-await obligation revalidation. The exported `verifyPaystackBinding` helper does not compare the returned reference, its `rewardId` context is unused, and the service does not revalidate a changed obligation after provider verification. |
 | Dependencies | R1 merged ✓, C1 merged ✓ |
 | Spec | `docs/superpowers/specs/2026-10-28-W01-R2-paystack-payment-binding.md` |
 | Plan | `docs/superpowers/plans/2026-10-28-W01-R2-tdd-plan.md` |
 | Branch | `codex/w01r2-paystack-payment-binding` at `0dce716` |
 | PR | **#107 — MERGED** at `17d93f0` (2026-10-28) |
 | Implementation | `rewardFundingVerifier.ts`: `PaystackBindingContext` interface, exported `verifyPaystackBinding()` with ordered checks (status → currency settlement → amount → ownership). `hasCurrencySettlementPath()` returns true only for direct currency match. `rewardService.ts`: `fundRewardAsync()` builds binding context from reward's authoritative DB row. `paystackService.ts`: extended with `customer.email`. `rewardErrors.ts`: 3 new error codes. |
-| Tests | 12 new R2 tests + 4 existing updated; 182 files, 1867 tests, 0 regressions. All 25 R1 tests preserved. |
+| Tests | 12 new R2 tests + 4 existing updated; 182 files, 1866 passed / 1 skipped / 1867 total, 0 regressions. All 25 R1 tests preserved. |
 | Independent review | Spec review: APPROVED_WITH_NOTES (6 findings resolved). Code review: APPROVED_WITH_NOTES (dead import fixed). |
 | Error codes | `FUNDING_CURRENCY_MISMATCH` (402), `FUNDING_AMOUNT_MISMATCH` (402), `FUNDING_OWNERSHIP_MISMATCH` (403) |
 | CI | PR run `40705200669` (SUCCESS); cleanup run `40705436715` (SUCCESS); main post-merge run `40706452331` (SUCCESS) |
@@ -72,7 +72,7 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Previous incorrect label | Was labeled "Stellar Horizon client" at `b62e923`. Corrected per original handover `SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` definition. |
 | Structural gap | `checkReferenceNotReused()` is a sequential application-level check (SELECT then INSERT in separate statements). Under concurrent requests, two transactions could both pass the check before either writes. DB-level UNIQUE constraint on `reward_transactions.funding_reference` is absent. |
 | Dependencies | R2 complete (R3 builds on R2's verified binding) |
-| Evidence status | **TODO** — pending R2 completion |
+| Evidence status | **READY** — R2 merged; R3 design and implementation assessment next |
 
 #### Deferred: Stellar Horizon integration
 
@@ -592,7 +592,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-27 | — | S2/W01 unit complete; next unit: S2/W02 (cross-owner reward scope checks) | S2 session | UNIT_COMPLETE |
 
 | 2026-10-28 | — | S2/W01-R2: PR #107 created, AI spec review APPROVED_WITH_NOTES (6 findings resolved), AI code review APPROVED_WITH_NOTES (dead import fixed), CI ALL PASS, merged to main at `17d93f0` | AI review + Claude execution | MERGED |
-| 2026-10-28 | — | S2/W01-R2 unit complete; W01 PARTIALLY_FIXED (R3 pending); next unit: R3 or W02 | R2 session | UNIT_COMPLETE |
+| 2026-10-28 | — | S2/W01-R2 unit complete; W01 PARTIALLY_FIXED; next unit: **R3 only** (W02 remains pending W01 security closure) | R2 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 

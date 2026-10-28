@@ -144,8 +144,8 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
   - `rewardService.ts`: `fundRewardAsync()` builds `PaystackBindingContext` from reward's authoritative DB row (amount_stroops × max_recipients, currency_code) and actor's email via `lookupUserEmail()`. Passes context to async verifier.
   - `paystackService.ts`: Extend `PaystackVerifyResponse` with optional `customer.email`.
   - `rewardErrors.ts`: Add `FUNDING_CURRENCY_MISMATCH` (402), `FUNDING_AMOUNT_MISMATCH` (402), `FUNDING_OWNERSHIP_MISMATCH` (403).
-- **Currency settlement gap**: Rewards are XLM (stroops); Paystack is fiat (USD/ZAR). No settlement policy exists. Paystack funding of XLM rewards fails closed with `FUNDING_CURRENCY_MISMATCH` (402). Binding framework ready for future fiat rewards or settlement service.
-- **Tests**: 12 new R2 tests (currency mismatch, amount mismatch, ownership mismatch, status binding, denial atomicity, direct verifier unit tests). 4 existing tests updated (acceptance → expects currency mismatch; cross-reference/idempotency tests migrated to admin_grant). 182 files, 1867 tests pass, 0 regressions. All 25 R1 tests preserved.
+- **Currency settlement gap**: Rewards are XLM (stroops); Paystack is fiat (USD/ZAR). No settlement policy exists. Paystack funding of XLM rewards fails closed with `FUNDING_CURRENCY_MISMATCH` (402). **Operational Paystack reward funding is unavailable.** Enablement requires: returned-reference matching, trusted payment/reward-obligation binding, minor-unit conversion/quote policy, ownership verification, and post-await obligation revalidation — each as a separate, independently reviewed capability gate.
+- **Tests**: 12 new R2 tests (currency mismatch, amount mismatch, ownership mismatch, status binding, denial atomicity, direct verifier unit tests). 4 existing tests updated (acceptance → expects currency mismatch; cross-reference/idempotency tests migrated to admin_grant). 182 files, 1866 passed / 1 skipped / 1867 total, 0 regressions. All 25 R1 tests preserved.
 - **Independent review**: Spec review: APPROVED_WITH_NOTES (6 findings, F1 HIGH resolved: error codes added to typed object; F2 MEDIUM resolved: direct verifier unit tests added; F3 MEDIUM resolved: all 4 Paystack mock sites updated). Code review: APPROVED_WITH_NOTES at `1ecff73` (dead import fixed at `0dce716`).
 - **CI**: PR run `40705200669` (SUCCESS, 3 jobs); cleanup run `40705436715` (SUCCESS); main post-merge run `40706452331` (SUCCESS).
 - **Acceptance criteria results**:
@@ -157,13 +157,13 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
   6. ✅ XLM + fiat = fail closed (T01, T07)
   7. ✅ Full match: `verifyPaystackBinding` passes (T13, direct unit test with USD context)
   8. ✅ Denial atomicity: reward state, ledger, accounts unchanged (T07, T08)
-  9. ✅ 25 R1 tests pass; 182 files, 1867 tests, 0 regressions
+  9. ✅ 25 R1 tests pass; 182 files, 1866 passed / 1 skipped / 1867 total, 0 regressions
   10. ✅ R3 atomic-consumption gate explicitly pending (documented in spec and ledger)
 - **Does NOT include**: Atomic concurrent-reference consumption (R3), Stellar Horizon client (deferred), W02–W04
 
 ### S2-T01-R3: Implement W01-R3 — atomic payment-reference consumption
-- **Status**: TODO
-- **Dependencies**: S2-T01-R2 complete
+- **Status**: IN_PROGRESS
+- **Dependencies**: S2-T01-R2 merged ✓ (PR #107 at `17d93f0`)
 - **Owner**: —
 - **Scope**: Atomic payment-reference consumption — one verified payment cannot fund competing rewards concurrently. Includes: concurrent competing requests (two rewards racing for the same reference), same-operation retries (idempotent retry must not double-consume), rollback correctness (failed transaction must not mark reference as consumed), provider-appropriate reference identity (Paystack reference string, Stellar tx hash). `checkReferenceNotReused()` is a sequential duplicate check; R3 must prove it holds under concurrent load or replace it with an atomic mechanism (DB-level UNIQUE constraint on funding_reference, or serialized consumption). Advisory A3 (no DB-level UNIQUE on funding_reference) is the primary structural gap.
 - **Acceptance criteria**:
