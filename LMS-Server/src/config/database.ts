@@ -1670,6 +1670,43 @@ function ensureRewardTables(): void {
     CREATE INDEX IF NOT EXISTS idx_reward_txn_idem ON reward_transactions(idempotency_key);
   `);
 
+  // W01-R3: Enforce atomic reference consumption at the database level.
+  // A partial UNIQUE index ensures each non-NULL funding_reference appears
+  // in at most one fund transaction. NULLs are excluded (internal grants).
+  const refIndexExists = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_reward_txn_fund_ref_unique'"
+  ).get();
+
+  if (!refIndexExists) {
+    // Check for pre-existing duplicate references before creating the index.
+    // If duplicates exist, abort startup — manual reconciliation required.
+    const duplicates = db.prepare(`
+      SELECT funding_reference, COUNT(*) as cnt
+      FROM reward_transactions
+      WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'
+      GROUP BY funding_reference
+      HAVING cnt > 1
+      LIMIT 10
+    `).all() as { funding_reference: string; cnt: number }[];
+
+    if (duplicates.length > 0) {
+      const diagnostic = duplicates
+        .map(d => `  reference="${d.funding_reference}" count=${d.cnt}`)
+        .join('\n');
+      throw new Error(
+        `W01-R3 migration blocked: ${duplicates.length} duplicate funding reference(s) found in reward_transactions.\n` +
+        `These must be reconciled before the uniqueness constraint can be enforced:\n${diagnostic}\n` +
+        `Run a separate reconciliation procedure to resolve these duplicates, then restart.`
+      );
+    }
+
+    db.exec(`
+      CREATE UNIQUE INDEX idx_reward_txn_fund_ref_unique
+        ON reward_transactions(funding_reference)
+        WHERE funding_reference IS NOT NULL AND transaction_type = 'fund';
+    `);
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS reward_eligibility_events (
       id              TEXT PRIMARY KEY,
