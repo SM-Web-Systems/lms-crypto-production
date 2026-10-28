@@ -2102,6 +2102,10 @@
         ],
         [
           "id"
+        ],
+        [
+          "WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'",
+          "funding_reference"
         ]
       ],
       "foreign": [

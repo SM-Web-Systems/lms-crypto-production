@@ -19,7 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../config/database.js';
-import { createReward, fundReward, getReward, cancelReward } from '../services/rewards/rewardService.js';
+import { createReward, fundReward, fundRewardAsync, getReward, cancelReward } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { validateDatabase } from '../config/databaseBootstrap.js';
 import { isFundingReferenceConstraintViolation } from '../services/rewards/rewardFundingVerifier.js';
@@ -35,6 +35,64 @@ const preR3SchemaSQL = schemaSQL.replace(
   /--\s*W01-R3:.*\nCREATE UNIQUE INDEX IF NOT EXISTS idx_reward_txn_fund_ref_unique[^;]*;/,
   '-- R3 index intentionally removed for pre-R3 simulation'
 );
+
+/**
+ * Create migration-only tables and columns required for validateDatabase(db, true).
+ * The post-migration check validates required-schema.json tables/columns, which
+ * includes tables and columns created by startup migrations (not in schema.sql).
+ */
+function applyMigrationOnlySchema(testDb: InstanceType<typeof Database>): void {
+  testDb.exec(`
+    CREATE TABLE IF NOT EXISTS announcements (
+      id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'general' CHECK (scope IN ('general', 'course')),
+      course_id TEXT REFERENCES courses(id) ON DELETE CASCADE,
+      author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      avatar_path TEXT, whatsapp TEXT, telegram TEXT,
+      linkedin_url TEXT, github_url TEXT, twitter_url TEXT,
+      website_url TEXT, custom_links TEXT DEFAULT '[]',
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS course_invites (
+      id TEXT PRIMARY KEY,
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      email TEXT NOT NULL, token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'revoked')),
+      created_at TEXT DEFAULT (datetime('now')), expires_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS conversation_reads (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      last_read_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, conversation_id)
+    );
+  `);
+  // Migration-only indexes on the new tables
+  testDb.exec(`
+    CREATE INDEX IF NOT EXISTS idx_announcements_scope ON announcements(scope);
+    CREATE INDEX IF NOT EXISTS idx_announcements_course ON announcements(course_id);
+    CREATE INDEX IF NOT EXISTS idx_announcements_created ON announcements(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_course_invites_course ON course_invites(course_id);
+    CREATE INDEX IF NOT EXISTS idx_course_invites_email ON course_invites(email);
+    CREATE INDEX IF NOT EXISTS idx_course_invites_token ON course_invites(token);
+    CREATE INDEX IF NOT EXISTS idx_conv_reads_user ON conversation_reads(user_id);
+  `);
+  // Migration-only columns on existing tables
+  const addCol = (table: string, col: string) => {
+    const cols = testDb.pragma(`table_info("${table}")`) as { name: string }[];
+    if (!cols.some(c => c.name === col)) testDb.exec(`ALTER TABLE "${table}" ADD COLUMN "${col}" TEXT`);
+  };
+  addCol('tenant_settings', 'reward_high_value_threshold');
+  addCol('users', 'auth_provider');
+  addCol('users', 'ammawallet_user_id');
+  addCol('users', 'reward_balance');
+}
 
 // ──── Test Helpers ────
 
@@ -662,6 +720,170 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
       const requiredPath = path.resolve(__dirname, '../../database/required-schema.json');
       const required = JSON.parse(fs.readFileSync(requiredPath, 'utf-8'));
       expect(required.indexes).toContain('idx_reward_txn_fund_ref_unique');
+    });
+  });
+
+  // ──── R3D new tests: strict final validation, async competition, rollback ────
+
+  describe('T17: Post-migration validation rejects same-name non-UNIQUE index (R3D-F1)', () => {
+    it('validateDatabase(db, true) refuses when idx_reward_txn_fund_ref_unique is not UNIQUE', () => {
+      // Create a DB with canonical schema + migration-only tables
+      const testDb = new Database(':memory:');
+      try {
+        testDb.exec(schemaSQL);
+        applyMigrationOnlySchema(testDb);
+
+        // Replace the UNIQUE index with a non-UNIQUE index of the same name
+        testDb.exec('DROP INDEX idx_reward_txn_fund_ref_unique');
+        testDb.exec(`
+          CREATE INDEX idx_reward_txn_fund_ref_unique
+            ON reward_transactions(funding_reference)
+            WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'
+        `);
+
+        // Verify the index exists but is NOT unique
+        const idxInfo = testDb.prepare(
+          "SELECT name, \"unique\" as is_unique FROM pragma_index_list('reward_transactions') WHERE name = 'idx_reward_txn_fund_ref_unique'"
+        ).get() as { name: string; is_unique: number } | undefined;
+        expect(idxInfo).toBeDefined();
+        expect(idxInfo!.is_unique).toBe(0); // confirms non-UNIQUE
+
+        // Post-migration validation must refuse this — the constraint is malformed
+        expect(() => validateDatabase(testDb, true)).toThrow(/missing unique constraint/);
+      } finally {
+        testDb.close();
+      }
+    });
+  });
+
+  describe('T18: Post-migration validation rejects wrong-definition same-name index (R3D-F1)', () => {
+    it('validateDatabase(db, true) refuses when idx_reward_txn_fund_ref_unique has wrong columns', () => {
+      const testDb = new Database(':memory:');
+      try {
+        testDb.exec(schemaSQL);
+        applyMigrationOnlySchema(testDb);
+
+        // Replace the UNIQUE index with a UNIQUE index on different columns
+        testDb.exec('DROP INDEX idx_reward_txn_fund_ref_unique');
+        testDb.exec(`
+          CREATE UNIQUE INDEX idx_reward_txn_fund_ref_unique
+            ON reward_transactions(idempotency_key)
+            WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'
+        `);
+
+        // Post-migration validation must refuse — wrong column definition
+        expect(() => validateDatabase(testDb, true)).toThrow(/missing unique constraint/);
+      } finally {
+        testDb.close();
+      }
+    });
+  });
+
+  describe('T19: Async competing fundRewardAsync calls (R3D-F2)', () => {
+    it('concurrent calls with same reference — one succeeds, one fails DUPLICATE_REFERENCE', async () => {
+      const sponsor = createUser('admin');
+      const cohortId = createCohort(sponsor);
+      const rewardA = draftReward(sponsor, cohortId);
+      const rewardB = draftReward(sponsor, cohortId);
+      const admin = createIndependentAdmin();
+      const reference = `grant_ref_${uuidv4()}`;
+
+      // Launch both async funding calls concurrently
+      const results = await Promise.allSettled([
+        fundRewardAsync(rewardA, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`),
+        fundRewardAsync(rewardB, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`),
+      ]);
+
+      const successes = results.filter(r => r.status === 'fulfilled');
+      const failures = results.filter(r => r.status === 'rejected');
+
+      // Exactly one succeeds and one fails
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+
+      // The failure must be DUPLICATE_REFERENCE
+      const rejection = (failures[0] as PromiseRejectedResult).reason;
+      expect(rejection).toBeInstanceOf(RewardError);
+      expect(rejection.code).toBe('DUPLICATE_REFERENCE');
+      expect(rejection.statusCode).toBe(409);
+
+      // Only one reward is funded; the other remains draft
+      const funded = successes[0] as PromiseFulfilledResult<{ status: string }>;
+      expect(funded.value.status).toBe('funded');
+
+      // Only one fund transaction exists for this reference
+      const txns = db.prepare(
+        "SELECT * FROM reward_transactions WHERE funding_reference = ? AND transaction_type = 'fund'"
+      ).all(reference);
+      expect(txns).toHaveLength(1);
+    });
+  });
+
+  describe('T20: Post-fund rollback frees reference — injected failure (R3D-F2)', () => {
+    it('transaction rollback after fund entry restores state, accounts, and frees reference', () => {
+      const sponsor = createUser('admin');
+      const cohortId = createCohort(sponsor);
+      const rewardA = draftReward(sponsor, cohortId);
+      const rewardB = draftReward(sponsor, cohortId);
+      const admin = createIndependentAdmin();
+      const reference = `grant_ref_${uuidv4()}`;
+
+      // Capture pre-rollback state
+      const preAccounts = db.prepare('SELECT * FROM reward_accounts').all();
+      const preTxns = db.prepare('SELECT * FROM reward_transactions').all();
+
+      // Simulate a fund transaction that writes the fund entry then fails
+      // before the reserve entry — the entire transaction must roll back.
+      expect(() => {
+        db.transaction(() => {
+          // Write the fund ledger entry (with the reference) — same as fundRewardVerified
+          db.prepare(`
+            INSERT INTO reward_transactions (
+              id, reward_id, source_account_type, destination_account_type,
+              destination_bucket, destination_user_id,
+              actor_type, actor_user_id,
+              transaction_type, amount_stroops, currency_code,
+              previous_state, new_state,
+              funding_source_type, funding_reference,
+              idempotency_key
+            ) VALUES (?, ?, 'external', 'funder', 'available', ?,
+              'user', ?, 'fund', 10000000, 'XLM',
+              'draft', 'pending_funding',
+              'admin_grant', ?, ?)
+          `).run(uuidv4(), rewardA, admin, admin, reference, `fund-${uuidv4()}`);
+
+          // Fund entry is now written inside the transaction.
+          // Inject failure before reserve entry — simulates a crash or error.
+          throw new Error('Injected failure after fund ledger entry');
+        }).immediate();
+      }).toThrow('Injected failure after fund ledger entry');
+
+      // Reference must be free — the transaction rolled back
+      const refTxns = db.prepare(
+        "SELECT * FROM reward_transactions WHERE funding_reference = ? AND transaction_type = 'fund'"
+      ).all(reference);
+      expect(refTxns).toHaveLength(0);
+
+      // State unchanged — no new transactions or accounts
+      const postAccounts = db.prepare('SELECT * FROM reward_accounts').all();
+      const postTxns = db.prepare('SELECT * FROM reward_transactions').all();
+      expect(postAccounts).toEqual(preAccounts);
+      expect(postTxns).toEqual(preTxns);
+
+      // Reward A still in draft (status not changed by the rolled-back transaction)
+      const rewardAState = getReward(rewardA)!;
+      expect(rewardAState.status).toBe('draft');
+
+      // Fund rewardB with the same reference — must succeed (reference is free)
+      const funded = fundReward(rewardB, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`);
+      expect(funded.status).toBe('funded');
+
+      // Only one fund transaction with this reference exists (rewardB's)
+      const finalTxns = db.prepare(
+        "SELECT reward_id FROM reward_transactions WHERE funding_reference = ? AND transaction_type = 'fund'"
+      ).all(reference) as { reward_id: string }[];
+      expect(finalTxns).toHaveLength(1);
+      expect(finalTxns[0].reward_id).toBe(rewardB);
     });
   });
 });
