@@ -162,38 +162,22 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Does NOT include**: Atomic concurrent-reference consumption (R3), Stellar Horizon client (deferred), W02–W04
 
 ### S2-T01-R3: Implement W01-R3 — atomic payment-reference consumption
-- **Status**: MERGED
+- **Status**: CHANGES_REQUIRED
 - **Dependencies**: S2-T01-R2 merged ✓ (PR #107 at `17d93f0`)
-- **Owner**: R3 session (AI-delegated)
+- **Owner**: R3 correction session (AI-delegated)
 - **Spec**: `docs/superpowers/specs/2026-10-28-W01-R3-atomic-reference-consumption.md`
 - **Plan**: `docs/superpowers/plans/2026-10-28-W01-R3-tdd-plan.md`
 - **Branch**: `codex/w01r3-atomic-reference-consumption` at `b852d5c`
-- **PR**: #108 — MERGED at `7a23f88` (2026-10-28)
-- **Implementation**:
-  - `database.ts`: Migration in `ensureRewardTables()` — duplicate detection query (bounded at 10), abort with diagnostics on conflicts, create partial UNIQUE index `idx_reward_txn_fund_ref_unique ON reward_transactions(funding_reference) WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'`
-  - `schema.sql`: Same index added for test DB initialization via `_resetForTests`
-  - `rewardFundingVerifier.ts`: `normalizeReference()` (empty/whitespace → NULL), `checkReferenceInTransaction()` (in-transaction claim), `isFundingReferenceConstraintViolation()` (distinguishes funding_reference UNIQUE from idempotency_key). Outer `checkReferenceNotReused()` changed to `SELECT 1` (A2: no reward ID leak). Both `verifyFundingSourceSync`/`verifyFundingSourceAsync` normalize before pre-check.
-  - `rewardService.ts`: `fundReward()` and `fundRewardVerified()` transaction bodies: normalize reference → in-transaction claim → try/catch on writeLedgerEntry for UNIQUE constraint belt-and-suspenders
-- **Three-layer defense**: (1) Outer pre-check optimization, (2) in-transaction `checkReferenceInTransaction()`, (3) partial UNIQUE index as authoritative DB-level enforcement
-- **Tests**: 15 new R3 tests in `reward-atomic-reference.test.ts` (T01–T13, with sub-tests); 183 files, 1882 passed, 0 failures, 0 regressions. All 25 R1 + 12 R2 tests preserved.
-- **Independent review**: Spec review: APPROVED. Code review: APPROVED.
-- **CI**: PR run `40716729026` (SUCCESS, 4 jobs); main post-merge run `40717848878` (SUCCESS, 4 jobs)
-- **Acceptance criteria results**:
-  1. ✅ Sequential competing fund (same ref, different rewards) → second gets DUPLICATE_REFERENCE 409 (T01)
-  2. ✅ DB-level uniqueness — direct INSERT bypass caught by UNIQUE constraint (T02)
-  3. ✅ Same-operation retry with idempotency key returns same reward (T03)
-  4. ✅ Rollback does not consume reference — retry succeeds after prior failure (T04)
-  5. ✅ Cancel does not release reference — re-fund with same ref blocked (T05)
-  6. ✅ TOCTOU simulation — DB catches application-layer bypass (T06)
-  7. ✅ NULL references unconstrained — multiple admin_grants without reference (T07)
-  8. ✅ Empty/whitespace normalized to NULL (T08, 3 sub-tests)
-  9. ✅ Error message does not leak reward ID — A2 resolved (T09)
-  10. ✅ Migration: clean bootstrap has index (T10)
-  11. ✅ Migration: upgrade adds index with no duplicates (T11)
-  12. ✅ Migration: diagnostic query identifies duplicates, aborts (T12)
-  13. ✅ Different references fund independently (T13)
-- **Advisories resolved**: A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference)
-- **Advisories remaining**: A1 (Paystack amount/currency cross-check — future scope, gated by R2 currency mismatch), A5 (FundingSource interface duplication — cosmetic)
+- **PR**: #108 — MERGED at `7a23f88` (2026-10-28) — **CHANGES_REQUIRED per independent review**
+- **Correction handover**: `docs/release/SERVER-HANDOVER-W01-R3-PR108-REVIEW.md` at `0d304dd` on `codex/platform-wiring-audit`
+- **Three-layer defense**: (1) Outer pre-check optimization, (2) in-transaction `checkReferenceInTransaction()`, (3) partial UNIQUE index — clean-database guard works, upgrade path and legacy reference identity need correction
+- **Prior evidence preserved**: PR #108 merge receipt, CI runs `40716729026` and `40717848878`, 15 R3 tests passing
+- **R3-F1 (P1)**: Existing pre-R3 database rejected before upgrade. `databaseBootstrap.ts` validates schema keys derived from `schema.sql` (which now includes the R3 partial UNIQUE index) against the opened database. Pre-R3 databases lack the index → `refuse('missing unique constraint (reward_transactions)')` → startup exits before `ensureRewardTables()` migration can add the index. Clean-schema tests do not detect this because they initialize from `schema.sql` directly.
+- **R3-F2 (P2)**: `normalizeReference()` trims nonblank references. Historical writer stored references verbatim. Raw UNIQUE index does not enforce trimmed canonical identity. Historical `" ref "` and new `"ref"` both remain as separate fund entries. Spec contradicts implementation: spec says opaque (no trim), implementation trims.
+- **R3-F3 (P2)**: Tests overstate coverage. T01 is sequential not concurrent. T02/T06 use nonexistent reward IDs and generic `toThrow()`. T04 does not inject a failure for genuine rollback. T11 checks already-created schema not actual upgrade. T12 creates one reference and asserts no duplicates.
+- **Correction scope**: (1) Narrow pre-migration exemption for additive R3 UNIQUE + strict post-migration enforcement. (2) Opaque reference identity — preserve exact nonblank references, no trimming. (3) Genuine acceptance regressions: old-file startup, valid-ID direct insert, injected rollback, real upgrade/migration, reference identity consistency.
+- **Advisories resolved in #108**: A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference) — these fixes remain valid
+- **Advisories remaining**: A1 (Paystack amount/currency — gated by R2), A5 (FundingSource duplication — cosmetic)
 - **Does NOT include**: Stellar Horizon client (deferred separately)
 
 ### Deferred: Stellar Horizon integration

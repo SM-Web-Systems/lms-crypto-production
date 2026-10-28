@@ -1,7 +1,7 @@
 # Staged rollout index
 
 Date: 2026-10-28
-Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment; R1+R2+R3 merged); W02 pending
+Plan status: **S2_IN_PROGRESS** — W01 PARTIALLY_FIXED (R1+R2 merged; R3 CHANGES_REQUIRED — upgrade path and reference identity need correction); W02 pending W01 closure
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 
@@ -53,7 +53,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 
 | Finding | Priority | Status on main | Fix PR | Residual work |
 | --- | --- | --- | --- | --- |
-| W01 | P1 | **FIXED (security containment)** — funding verification gate (#104); R1 internal auth (#105, C1 #106); R2 Paystack binding (#107); R3 atomic reference (#108 at `7a23f88`) | #104, #105, #106, #107, #108 all MERGED | Stellar Horizon deferred (fail-closed correct); A1 gated by R2 currency mismatch; A5 cosmetic; Paystack operationally unavailable (containment) |
+| W01 | P1 | **PARTIALLY_FIXED (R3 CHANGES_REQUIRED)** — funding verification gate (#104); R1 internal auth (#105, C1 #106); R2 Paystack binding (#107); R3 atomic reference (#108 merged, correction pending) | #104, #105, #106, #107, #108 MERGED; R3 correction pending | R3-F1 upgrade blocker, R3-F2 reference identity, R3-F3 test coverage; Stellar deferred; A1 gated; A5 cosmetic |
 | W02 | P1 | **Vulnerable** — reward reads lack cross-owner checks; lifecycle has fast-return bypasses | None | Add universal resource-owner scope checks |
 | W03 | P1 | **Vulnerable** — `activateReward()` creates allocations for all audience members regardless of `max_recipients` | None | Enforce allocation cap vs reservation invariant |
 | W04 | P1 | **Vulnerable** — lesson completion fires `course_completion` outbox event (line 157) per lesson, not per course | None | Make eligibility source-bound to actual course completion |

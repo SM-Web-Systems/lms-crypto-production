@@ -20,9 +20,9 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
 | Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding); **#108 MERGED** at `7a23f88` (2026-10-28, R3 atomic reference consumption) |
 | Residual work | Stellar Horizon client deferred separately (fail-closed is correct security posture). A1 (Paystack amount/currency cross-check — gated by R2 currency mismatch). A5 (FundingSource interface duplication — cosmetic, non-security). Paystack reward funding operationally unavailable (R2 containment only; enablement requires settlement policy, obligation binding, and ownership verification). |
-| Release impact | P1 — **FIXED (security containment)** — funding verification gate + internal authorization + Paystack binding + atomic reference consumption all enforced. External sources (Stellar, Paystack) fail closed. Remaining items are capability additions (Stellar Horizon client, Paystack settlement), not security gaps. |
+| Release impact | P1 — **PARTIALLY_FIXED (R3 CHANGES_REQUIRED)** — funding verification gate + internal authorization + Paystack binding enforced; atomic reference consumption guard works on clean databases but upgrade path and legacy reference identity need correction (R3-F1, R3-F2). External sources fail closed. |
 | Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU; DB-level UNIQUE prevents concurrent reference consumption; error messages do not leak reward IDs |
-| Evidence status | **FIXED (security containment)** — PRs #104, #105, #106, #107, #108 merged (25 R1 + 12 R2 + 15 R3 tests; 183 files, 1882 passed, 0 failures, 0 regressions). Stellar Horizon deferred separately (fail-closed is correct). Paystack reward funding operationally unavailable (R2 is containment only). A2 resolved in R3. A3 resolved in R3. A5 cosmetic only. |
+| Evidence status | **PARTIALLY_FIXED (R3 CHANGES_REQUIRED)** — PRs #104, #105, #106, #107, #108 merged (25 R1 + 12 R2 + 15 R3 tests; 183 files, 1882 passed, 0 failures, 0 regressions). R3 clean-database guard works; upgrade path (F1) and legacy reference identity (F2) need correction per `SERVER-HANDOVER-W01-R3-PR108-REVIEW.md`. Prior W01 closure conclusions superseded. A2/A3 fixes in #108 remain valid. Stellar Horizon deferred. Paystack operationally unavailable (R2 containment). |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -82,7 +82,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run `40716729026` (SUCCESS, 4 jobs); main post-merge run `40717848878` (SUCCESS, 4 jobs) |
 | Advisories resolved | A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference) |
 | Error codes | `DUPLICATE_REFERENCE` (409, reference already consumed — generic message, no reward ID) |
-| Evidence status | **MERGED** — PR #108 merged at `7a23f88`. W01 repair chain (R1+R2+R3) complete. |
+| Post-merge review | `docs/release/SERVER-HANDOVER-W01-R3-PR108-REVIEW.md` at `0d304dd` on `codex/platform-wiring-audit` — 3 findings: R3-F1 (P1, upgrade blocker), R3-F2 (P2, reference identity), R3-F3 (P2, test coverage). Local probes confirmed F1 and F2. |
+| R3-F1 | Pre-R3 database rejected before `ensureRewardTables()` migration. `databaseBootstrap.ts` validates keys from `schema.sql` (which includes R3 UNIQUE index) against the opened database. Pre-R3 databases lack the index → startup refuses before migration can add it. |
+| R3-F2 | `normalizeReference()` trims nonblank references; historical writer stored verbatim. Raw UNIQUE index does not enforce trimmed identity. Spec says opaque (no trim) but implementation trims. |
+| R3-F3 | Tests overstate coverage: T01 sequential not concurrent; T02/T06 use nonexistent reward IDs; T04 no injected failure; T11 checks already-created schema; T12 creates one ref and asserts no duplicates. |
+| Evidence status | **CHANGES_REQUIRED** — PR #108 merged at `7a23f88`; clean-database guard works but upgrade path (F1) and legacy reference identity (F2) need correction. Prior merge receipt and CI evidence preserved. W01 closure conclusions superseded. |
 
 #### Deferred: Stellar Horizon integration
 
@@ -604,7 +608,8 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-28 | — | S2/W01-R2: PR #107 created, AI spec review APPROVED_WITH_NOTES (6 findings resolved), AI code review APPROVED_WITH_NOTES (dead import fixed), CI ALL PASS, merged to main at `17d93f0` | AI review + Claude execution | MERGED |
 | 2026-10-28 | — | S2/W01-R2 unit complete; W01 PARTIALLY_FIXED; next unit: **R3 only** (W02 remains pending W01 security closure) | R2 session | UNIT_COMPLETE |
 | 2026-10-28 | — | S2/W01-R3: PR #108 created, AI spec review APPROVED, AI code review APPROVED, CI ALL PASS, merged to main at `7a23f88` | AI review + Claude execution | MERGED |
-| 2026-10-28 | — | S2/W01-R3 unit complete; **W01 FIXED (security containment)** — R1+R2+R3 repair chain complete. Advisories A2, A3 resolved. A1 gated by R2 currency mismatch. A5 cosmetic. Stellar/Paystack fail closed. Next: W02 (cross-owner scope) when S2 resumes | R3 session | UNIT_COMPLETE |
+| 2026-10-28 | — | ~~S2/W01-R3 unit complete; W01 FIXED (security containment)~~ **SUPERSEDED** — R3 CHANGES_REQUIRED per `SERVER-HANDOVER-W01-R3-PR108-REVIEW.md` (F1 upgrade blocker, F2 reference identity, F3 test coverage) | R3 session | SUPERSEDED |
+| 2026-10-28 | — | S2/W01-R3: CHANGES_REQUIRED — PR #108 merged guard works on clean databases; pre-R3 upgrade path rejected (F1), reference normalization disagrees with historical data (F2), tests overstate coverage (F3). Correction unit in progress. W01 closure deferred. | R3 correction session | CHANGES_REQUIRED |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
