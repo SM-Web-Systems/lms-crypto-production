@@ -48,12 +48,21 @@ function seedRewardScenario(): {
   return { sponsorId, studentId, cohortId, courseId };
 }
 
+/** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
+function createIndependentAdmin(): string {
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+  ).run(id, `${id}@test.com`);
+  return id;
+}
+
 function createFundedActiveReward(
   sponsorId: string,
   cohortId: string,
   amountStroops = '10000000',
   autoRelease = false,
-): string {
+): { rewardId: string; funderId: string } {
   const reward = createReward(sponsorId, {
     scopeType: 'sponsor_cohort',
     scopeId: cohortId,
@@ -62,9 +71,12 @@ function createFundedActiveReward(
     autoRelease,
     idempotencyKey: `idem-${uuidv4()}`,
   });
-  fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+  const adminId = createIndependentAdmin();
+  fundReward(reward.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
   activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
-  return reward.id;
+  // W01-R1 (F1): The financial beneficiary is the reward creator (sponsorId),
+  // not the authorizing admin. Return sponsorId as funderId.
+  return { rewardId: reward.id, funderId: sponsorId };
 }
 
 function makeAllocationEligible(allocationId: string): void {
@@ -82,14 +94,14 @@ function setRewardApproved(rewardId: string): void {
 describe('R13: Cancellation, Expiry, and Refunds', () => {
   it('R-LIFE-1: Cancel before release returns reserved funds to funder available', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId, funderId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     cancelReward(rewardId, sponsorId, 'no longer needed', `cancel-${uuidv4()}`);
 
     const reward = getReward(rewardId)!;
     expect(reward.status).toBe('cancelled');
 
-    const funder = getAccount(sponsorId, 'funder')!;
+    const funder = getAccount(funderId, 'funder')!;
     expect(funder.available_stroops).toBe(10000000);
     expect(funder.reserved_stroops).toBe(0);
 
@@ -100,12 +112,13 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     }
 
     // Reconciliation matches
-    const recon = reconcileAccount(sponsorId, 'funder');
+    const recon = reconcileAccount(funderId, 'funder');
     expect(recon.matches).toBe(true);
   });
 
   it('R-LIFE-2: Cancel after release only returns unreleased funds', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
+    const adminId = createIndependentAdmin();
 
     // Create a reward with 2 students
     const studentId2 = uuidv4();
@@ -123,7 +136,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
       autoRelease: false,
       idempotencyKey: `idem-${uuidv4()}`,
     });
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
 
     // Release first allocation
@@ -137,6 +150,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     const updated = getReward(reward.id)!;
     expect(updated.status).toBe('cancelled');
 
+    // W01-R1 (F1): Funder account belongs to the creator (sponsorId), not admin
     const funder = getAccount(sponsorId, 'funder')!;
     // Total funded: 5M * 2 = 10M; Released 5M; Cancelled should return 5M
     expect(funder.available_stroops).toBe(5000000);
@@ -148,12 +162,12 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-3: Expire returns reserved funds (system actor)', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId, funderId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     const result = expireReward(rewardId, `expire-${uuidv4()}`);
     expect(result.status).toBe('expired');
 
-    const funder = getAccount(sponsorId, 'funder')!;
+    const funder = getAccount(funderId, 'funder')!;
     expect(funder.available_stroops).toBe(10000000);
     expect(funder.reserved_stroops).toBe(0);
 
@@ -164,13 +178,13 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     expect(expireEntry.actor_type).toBe('system');
     expect(expireEntry.actor_user_id).toBeNull();
 
-    const recon = reconcileAccount(sponsorId, 'funder');
+    const recon = reconcileAccount(funderId, 'funder');
     expect(recon.matches).toBe(true);
   });
 
   it('R-LIFE-4: Expire cancels pending allocations', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId);
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId);
 
     expireReward(rewardId, `expire-${uuidv4()}`);
 
@@ -182,7 +196,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-5: Expire is idempotent', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId);
+    const { rewardId, funderId } = createFundedActiveReward(sponsorId, cohortId);
     const idemKey = `expire-${uuidv4()}`;
 
     const first = expireReward(rewardId, idemKey);
@@ -193,7 +207,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     expect(second.status).toBe('expired');
 
     // Balances unchanged
-    const funder = getAccount(sponsorId, 'funder')!;
+    const funder = getAccount(funderId, 'funder')!;
     expect(funder.available_stroops).toBe(10000000);
     expect(funder.reserved_stroops).toBe(0);
   });
@@ -217,7 +231,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-7: Refund blocked on insufficient recipient balance returns 409-like response', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     setRewardApproved(rewardId);
 
@@ -241,7 +255,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-7a: Blocked refund leaves all balances unchanged', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId, funderId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     setRewardApproved(rewardId);
 
@@ -254,12 +268,12 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     db.prepare('UPDATE reward_accounts SET available_stroops = 0 WHERE id = ?').run(recipientAccount.id);
 
     // Snapshot balances
-    const funderBefore = getAccount(sponsorId, 'funder')!;
+    const funderBefore = getAccount(funderId, 'funder')!;
 
     refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
 
     // Balances unchanged
-    const funderAfter = getAccount(sponsorId, 'funder')!;
+    const funderAfter = getAccount(funderId, 'funder')!;
     expect(funderAfter.available_stroops).toBe(funderBefore.available_stroops);
     expect(funderAfter.reserved_stroops).toBe(funderBefore.reserved_stroops);
 
@@ -269,7 +283,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-7b: Blocked refund leaves reward/allocation state unchanged', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     // Transition reward to approved so aggregate can update properly
     setRewardApproved(rewardId);
@@ -294,7 +308,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-7c: Blocked refund creates reward_refund_attempts record (NOT ledger entry)', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     setRewardApproved(rewardId);
 
@@ -325,6 +339,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-8: Group refund → partially_refunded', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
+    const funderId = createIndependentAdmin();
 
     const studentId2 = uuidv4();
     db.prepare(
@@ -341,7 +356,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
       autoRelease: false,
       idempotencyKey: `idem-${uuidv4()}`,
     });
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, funderId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
 
     // Set to approved so aggregate can transition
@@ -362,7 +377,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-9: All released allocs refunded → refunded', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     // Set to approved so aggregate can transition through released → refunded
     setRewardApproved(rewardId);
@@ -378,7 +393,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-10: Duplicate cancel is idempotent', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
     const idemKey = `cancel-${uuidv4()}`;
 
     const first = cancelReward(rewardId, sponsorId, 'test', idemKey);
@@ -390,7 +405,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-11: Expire with metadata stores system metadata', () => {
     const { sponsorId, cohortId } = seedRewardScenario();
-    const rewardId = createFundedActiveReward(sponsorId, cohortId, '10000000');
+    const { rewardId } = createFundedActiveReward(sponsorId, cohortId, '10000000');
 
     const metadata = { triggeredBy: 'scheduler', reason: 'past_expires_at' };
     expireReward(rewardId, `expire-${uuidv4()}`, metadata);

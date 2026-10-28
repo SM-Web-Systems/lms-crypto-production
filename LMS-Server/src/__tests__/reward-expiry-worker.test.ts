@@ -13,6 +13,15 @@ import {
 } from '../services/rewards/rewardService.js';
 import { v4 as uuidv4 } from 'uuid';
 
+/** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
+function createIndependentAdmin(): string {
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+  ).run(id, `${id}@test.com`);
+  return id;
+}
+
 function seedTestData() {
   const sponsorId = uuidv4();
   const studentId = uuidv4();
@@ -57,7 +66,8 @@ describe('Reward Expiry Worker — N3', () => {
       idempotencyKey: key,
     });
 
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `${key}-fund`);
+    const funderId = createIndependentAdmin();
+    fundReward(reward.id, funderId, { type: 'admin_grant' }, `${key}-fund`);
     activateReward(reward.id, sponsorId, `${key}-activate`);
 
     const result = processExpiredRewards();
@@ -82,7 +92,8 @@ describe('Reward Expiry Worker — N3', () => {
       idempotencyKey: key,
     });
 
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `${key}-fund`);
+    const funderId = createIndependentAdmin();
+    fundReward(reward.id, funderId, { type: 'admin_grant' }, `${key}-fund`);
     activateReward(reward.id, sponsorId, `${key}-activate`);
 
     processExpiredRewards();
@@ -106,7 +117,8 @@ describe('Reward Expiry Worker — N3', () => {
       idempotencyKey: key,
     });
 
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `${key}-fund`);
+    const funderId = createIndependentAdmin();
+    fundReward(reward.id, funderId, { type: 'admin_grant' }, `${key}-fund`);
     activateReward(reward.id, sponsorId, `${key}-activate`);
 
     // First expiry
@@ -138,7 +150,8 @@ describe('Reward Expiry Worker — N3', () => {
       idempotencyKey: key,
     });
 
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `${key}-fund`);
+    const funderId = createIndependentAdmin();
+    fundReward(reward.id, funderId, { type: 'admin_grant' }, `${key}-fund`);
     activateReward(reward.id, sponsorId, `${key}-activate`);
 
     processExpiredRewards();
@@ -162,7 +175,8 @@ describe('Reward Expiry Worker — N3', () => {
       expiresAt: pastDate,
       idempotencyKey: key1,
     });
-    fundReward(r1.id, data1.sponsorId, { type: 'platform_credit' }, `${key1}-fund`);
+    const funder1 = createIndependentAdmin();
+    fundReward(r1.id, funder1, { type: 'admin_grant' }, `${key1}-fund`);
     activateReward(r1.id, data1.sponsorId, `${key1}-activate`);
 
     const key2 = uuidv4();
@@ -175,7 +189,8 @@ describe('Reward Expiry Worker — N3', () => {
       expiresAt: pastDate,
       idempotencyKey: key2,
     });
-    fundReward(r2.id, data2.sponsorId, { type: 'platform_credit' }, `${key2}-fund`);
+    const funder2 = createIndependentAdmin();
+    fundReward(r2.id, funder2, { type: 'admin_grant' }, `${key2}-fund`);
     activateReward(r2.id, data2.sponsorId, `${key2}-activate`);
 
     const result = processExpiredRewards();

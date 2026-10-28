@@ -14,6 +14,15 @@ import {
   releaseAllocation,
 } from '../services/rewards/rewardService.js';
 
+/** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
+function createIndependentAdmin(): string {
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+  ).run(id, `${id}@test.com`);
+  return id;
+}
+
 function seedRefundScenario() {
   const sponsorId = uuidv4();
   const studentId = uuidv4();
@@ -45,7 +54,8 @@ function seedRefundScenario() {
     idempotencyKey: key,
   });
 
-  fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `${key}-fund`);
+  const funderId = createIndependentAdmin();
+  fundReward(reward.id, funderId, { type: 'admin_grant' }, `${key}-fund`);
   activateReward(reward.id, sponsorId, `${key}-activate`);
 
   // Mark allocation eligible and release

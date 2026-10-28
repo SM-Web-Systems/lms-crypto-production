@@ -25,13 +25,20 @@ function seedSponsorWithReleasedReward(): {
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
+  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'lecturer')"
   ).run(sponsorId, `${sponsorId}@test.com`);
   db.prepare(
     "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
   ).run(studentId, `${studentId}@test.com`);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+
+  // W01-R1: Independent admin for funding authorization
+  const adminId = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
+  ).run(adminId, `${adminId}@test.com`);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`
@@ -41,9 +48,9 @@ function seedSponsorWithReleasedReward(): {
   ).run(cohortId, sponsorId, courseId);
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
 
-  const token = makeToken({ userId: sponsorId, email: `${sponsorId}@test.com`, role: 'admin' });
+  const token = makeToken({ userId: sponsorId, email: `${sponsorId}@test.com`, role: 'lecturer' });
 
-  // Create → fund → activate
+  // Create → fund (independent admin) → activate
   const reward = createReward(sponsorId, {
     scopeType: 'sponsor_cohort',
     scopeId: cohortId,
@@ -52,7 +59,7 @@ function seedSponsorWithReleasedReward(): {
     autoRelease: false,
     idempotencyKey: `idem-${uuidv4()}`,
   });
-  fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+  fundReward(reward.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
   activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
 
   const allocs = db.prepare('SELECT id FROM reward_allocations WHERE reward_id = ?').all(reward.id) as Array<{ id: string }>;
@@ -81,13 +88,20 @@ function seedEmployerWithReward(): {
   const studentId = uuidv4();
   const groupId = uuidv4();
 
+  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Employer', ?, 'hash', 'admin')"
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Employer', ?, 'hash', 'lecturer')"
   ).run(employerId, `${employerId}@test.com`);
   db.prepare(
     "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
   ).run(studentId, `${studentId}@test.com`);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(employerId, 'role_employer');
+
+  // W01-R1: Independent admin for funding authorization
+  const adminId = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
+  ).run(adminId, `${adminId}@test.com`);
 
   db.prepare(
     `INSERT INTO user_groups (id, owner_user_id, group_type, name) VALUES (?, ?, 'team', 'Test Team')`
@@ -96,7 +110,7 @@ function seedEmployerWithReward(): {
     `INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)`
   ).run(groupId, studentId);
 
-  const token = makeToken({ userId: employerId, email: `${employerId}@test.com`, role: 'admin' });
+  const token = makeToken({ userId: employerId, email: `${employerId}@test.com`, role: 'lecturer' });
 
   const reward = createReward(employerId, {
     scopeType: 'employer_team',
@@ -106,7 +120,7 @@ function seedEmployerWithReward(): {
     autoRelease: false,
     idempotencyKey: `idem-${uuidv4()}`,
   });
-  fundReward(reward.id, employerId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+  fundReward(reward.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
   activateReward(reward.id, employerId, `act-${uuidv4()}`);
 
   const allocs = db.prepare('SELECT id FROM reward_allocations WHERE reward_id = ?').all(reward.id) as Array<{ id: string }>;
@@ -243,14 +257,15 @@ describe('R13 Admin Reconciliation', () => {
   });
 
   it('R13-RECON-3: Reconciliation does not expose raw user balances', async () => {
-    const { token } = seedAdminUser();
+    const { adminId, token } = seedAdminUser();
     // Seed some reward data
     const { sponsorId, cohortId } = (() => {
       const sid = uuidv4();
       const stid = uuidv4();
       const cid = uuidv4();
       const chid = uuidv4();
-      db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'admin')").run(sid, `${sid}@t.com`);
+      // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
+      db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sid, `${sid}@t.com`);
       db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'ST', ?, 'hash', 'student')").run(stid, `${stid}@t.com`);
       db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sid, 'role_sponsor');
       db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(cid, `C-${cid.slice(0,8)}`);
@@ -264,7 +279,8 @@ describe('R13 Admin Reconciliation', () => {
       rewardType: 'custom', amountStroops: '10000000',
       idempotencyKey: `idem-${uuidv4()}`,
     });
-    fundReward(rw.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+    // W01-R1: Independent admin funds (reuse seedAdminUser's admin)
+    fundReward(rw.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
 
     const res = await request(app)
       .get('/api/v1/admin/rewards/reconcile')

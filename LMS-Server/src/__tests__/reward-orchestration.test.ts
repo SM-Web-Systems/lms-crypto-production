@@ -48,6 +48,11 @@ function createParentLink(parentId: string, childId: string): void {
   ).run(uuidv4(), parentId, childId);
 }
 
+/** W01-R1: Create independent admin for funding authorization (has reward.manage, ≠ creator). */
+function createFundingAdmin(): string {
+  return createUser('admin');
+}
+
 describe('Reward Orchestration Service', () => {
   it('R-ORCH-1: createReward creates a draft reward', () => {
     const sponsor = createUser('admin');
@@ -105,6 +110,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-4: fundReward transitions draft → funded with 2 ledger entries', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const { cohortId } = createCohort(sponsor);
 
     const reward = createReward(sponsor, {
@@ -116,10 +122,10 @@ describe('Reward Orchestration Service', () => {
       idempotencyKey: `idem-${uuidv4()}`,
     });
 
-    const funded = fundReward(reward.id, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    const funded = fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     expect(funded.status).toBe('funded');
 
-    // Check funder account: available should be 0, reserved should be 20000000 (10M * 2)
+    // W01-R1 (F1): Funder account belongs to the reward creator, not the authorizing admin
     const account = getOrCreateAccount(sponsor, 'funder', 'XLM');
     expect(account.reserved_stroops).toBe(20000000);
 
@@ -133,6 +139,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-5: activateReward creates audience snapshot and allocations', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const student1 = createUser();
     const student2 = createUser();
     const { cohortId } = createCohort(sponsor);
@@ -148,7 +155,7 @@ describe('Reward Orchestration Service', () => {
       idempotencyKey: `idem-${uuidv4()}`,
     });
 
-    fundReward(reward.id, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     const activated = activateReward(reward.id, sponsor, `act-${uuidv4()}`);
 
     expect(activated.status).toBe('active');
@@ -160,6 +167,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-6: releaseAllocation moves funds to recipient', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const student = createUser();
     const { cohortId } = createCohort(sponsor);
     addCohortMember(cohortId, student);
@@ -172,7 +180,7 @@ describe('Reward Orchestration Service', () => {
       idempotencyKey: `idem-${uuidv4()}`,
     });
 
-    fundReward(reward.id, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsor, `act-${uuidv4()}`);
 
     // Mark allocation as eligible first
@@ -189,6 +197,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-7: cancelReward returns reserved funds and cancels allocations', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const student = createUser();
     const { cohortId } = createCohort(sponsor);
     addCohortMember(cohortId, student);
@@ -201,13 +210,13 @@ describe('Reward Orchestration Service', () => {
       idempotencyKey: `idem-${uuidv4()}`,
     });
 
-    fundReward(reward.id, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsor, `act-${uuidv4()}`);
 
     const cancelled = cancelReward(reward.id, sponsor, 'Testing cancellation', `cancel-${uuidv4()}`);
     expect(cancelled.status).toBe('cancelled');
 
-    // Funder reserved should be 0, available should have the funds back
+    // W01-R1 (F1): Funder account belongs to the reward creator, not the authorizing admin
     const account = getOrCreateAccount(sponsor, 'funder', 'XLM');
     expect(account.reserved_stroops).toBe(0);
     expect(account.available_stroops).toBe(5000000);
@@ -219,6 +228,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-8: refundAllocation moves funds back to funder', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const student = createUser();
     const { cohortId } = createCohort(sponsor);
     addCohortMember(cohortId, student);
@@ -231,7 +241,7 @@ describe('Reward Orchestration Service', () => {
       idempotencyKey: `idem-${uuidv4()}`,
     });
 
-    fundReward(reward.id, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsor, `act-${uuidv4()}`);
 
     const allocations = getRewardAllocations(reward.id);
@@ -245,6 +255,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-9: refundAllocation blocks when recipient has insufficient balance', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const student = createUser();
     const { cohortId } = createCohort(sponsor);
     addCohortMember(cohortId, student);
@@ -257,7 +268,7 @@ describe('Reward Orchestration Service', () => {
       idempotencyKey: `idem-${uuidv4()}`,
     });
 
-    fundReward(reward.id, sponsor, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsor, `act-${uuidv4()}`);
 
     const allocations = getRewardAllocations(reward.id);
@@ -298,6 +309,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-11: full lifecycle draft → funded → active → release → refund', () => {
     const parent = createUser('admin');
+    const admin = createFundingAdmin();
     const child = createUser();
     createParentLink(parent, child);
 
@@ -310,7 +322,7 @@ describe('Reward Orchestration Service', () => {
     });
     expect(reward.status).toBe('draft');
 
-    const funded = fundReward(reward.id, parent, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    const funded = fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     expect(funded.status).toBe('funded');
 
     const activated = activateReward(reward.id, parent, `act-${uuidv4()}`);
@@ -333,6 +345,7 @@ describe('Reward Orchestration Service', () => {
 
   it('R-ORCH-12: fundReward is idempotent', () => {
     const sponsor = createUser('admin');
+    const admin = createFundingAdmin();
     const { cohortId } = createCohort(sponsor);
 
     const reward = createReward(sponsor, {
@@ -344,8 +357,8 @@ describe('Reward Orchestration Service', () => {
     });
 
     const fundKey = `fund-${uuidv4()}`;
-    const r1 = fundReward(reward.id, sponsor, { type: 'admin_grant' }, fundKey);
-    const r2 = fundReward(reward.id, sponsor, { type: 'admin_grant' }, fundKey);
+    const r1 = fundReward(reward.id, admin, { type: 'admin_grant' }, fundKey);
+    const r2 = fundReward(reward.id, admin, { type: 'admin_grant' }, fundKey);
     expect(r1.id).toBe(r2.id);
     expect(r2.status).toBe('funded');
   });

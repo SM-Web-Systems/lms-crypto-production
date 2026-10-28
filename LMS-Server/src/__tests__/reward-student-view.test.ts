@@ -15,6 +15,15 @@ import {
   releaseAllocation,
 } from '../services/rewards/rewardService.js';
 
+/** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
+function createIndependentAdmin(): string {
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+  ).run(id, `${id}@test.com`);
+  return id;
+}
+
 function seedStudentWithReleasedReward(): {
   studentId: string;
   studentToken: string;
@@ -50,7 +59,8 @@ function seedStudentWithReleasedReward(): {
     autoRelease: false,
     idempotencyKey: `idem-${uuidv4()}`,
   });
-  fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+  const funderId = createIndependentAdmin();
+  fundReward(reward.id, funderId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
   activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
 
   // Make allocation eligible and release it
@@ -140,7 +150,8 @@ describe('R14 Student Rewards View', () => {
       rewardType: 'custom', amountStroops: '10000000',
       idempotencyKey: `idem-${uuidv4()}`,
     });
-    fundReward(reward.id, sponsorId, { type: 'platform_credit' }, `fund-${uuidv4()}`);
+    const funderId = createIndependentAdmin();
+    fundReward(reward.id, funderId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
     // Allocations are in 'pending' status — should NOT appear
 
