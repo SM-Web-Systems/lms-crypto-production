@@ -177,9 +177,10 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
   - **F1 FIXED**: `legacyUniqueExemptions` in `databaseBootstrap.ts` tolerates missing R3 UNIQUE pre-migration; `idx_reward_txn_fund_ref_unique` added to `required-schema.json` for post-migration enforcement. Pre-R3 databases now upgrade successfully.
   - **F2 FIXED**: `normalizeReference()` preserves exact nonblank values (opaque identity). Empty → null; all other values stored exactly as received. Consistent with historical writer and raw UNIQUE index.
   - **F3 FIXED**: T02/T06 use valid reward IDs with specific `isFundingReferenceConstraintViolation` assertion. T04 proves genuine rollback frees reference. T08 whitespace stored exactly. T11 real pre-R3 upgrade. T12 real duplicate rejection. T14 opaque identity. T15 F1 exemption. T16 required-schema.json.
-- **Tests**: 21 R3 tests (was 15); 183 files, 1888 passed, 0 failures, 0 regressions. All 25 R1 + 12 R2 tests preserved.
-- **Independent review**: R3C spec review: APPROVED_WITH_NOTES (notes incorporated). R3C code review: APPROVED (6/6 checklist PASS).
-- **CI**: PR #109 run `40728271331` (SUCCESS, 4 jobs); main post-merge run `40729467144` (SUCCESS, 4 jobs)
+- **Tests**: 25 R3 tests (was 21 at R3C, was 15 at R3); 183 files, 1892 passed, 0 failures, 0 regressions. All 25 R1 + 12 R2 tests preserved.
+- **Independent review**: R3C spec review: APPROVED_WITH_NOTES (notes incorporated). R3C code review: APPROVED (6/6 checklist PASS). R3D spec review: APPROVED_WITH_NOTES. R3D code review: APPROVED (7/7 checklist PASS).
+- **CI**: PR #109 run `40728271331` (SUCCESS, 4 jobs); main post-merge run `40729467144` (SUCCESS, 4 jobs). PR #110 run `40736862787` (SUCCESS, 4 jobs); main post-merge run `40738034939` (pending).
+- **R3D correction (PR #110)**: `legacyUniqueExemptions` restricted to pre-migration only (`afterMigrations=false`). `required-schema.json` `keys.reward_transactions.unique` includes partial UNIQUE signature. T17 (non-UNIQUE same-name rejects), T18 (wrong-definition rejects), T19 (concurrent `fundRewardAsync` competing calls), T20 (injected post-fund rollback). Merged at `1a5326ac` (2026-10-28).
 - **Advisories resolved**: A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference)
 - **Advisories remaining**: A1 (Paystack amount/currency — gated by R2 currency mismatch), A5 (FundingSource duplication — cosmetic)
 - **Does NOT include**: Stellar Horizon client (deferred separately)

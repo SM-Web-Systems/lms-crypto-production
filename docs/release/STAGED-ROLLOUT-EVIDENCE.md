@@ -18,11 +18,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Code evidence | `LMS-Server/src/services/rewards/rewardService.ts:91-162` — `fundReward()` accepts `FundingSource { type, reference? }` and writes two ledger entries (fund + reserve) without verifying the reference against any external provider API. `source.type` is mapped to `sourceAccountType` strings (`external`/`platform`) at line 122 but no validation or provider call occurs. All source types (`stellar`, `paystack`, `platform_credit`) receive HTTP 200. |
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
-| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding); **#108 MERGED** at `7a23f88` (2026-10-28, R3 atomic reference consumption); **#109 MERGED** at `a929836` (2026-10-28, R3C correction — F1/F2/F3) |
+| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding); **#108 MERGED** at `7a23f88` (2026-10-28, R3 atomic reference consumption); **#109 MERGED** at `a929836` (2026-10-28, R3C correction — F1/F2/F3); **#110 MERGED** at `1a5326ac` (2026-10-28, R3D strict final validation) |
 | Residual work | Stellar Horizon client deferred separately (fail-closed is correct security posture). A1 (Paystack amount/currency cross-check — gated by R2 currency mismatch). A5 (FundingSource interface duplication — cosmetic, non-security). Paystack reward funding operationally unavailable (R2 containment only; enablement requires settlement policy, obligation binding, and ownership verification). |
 | Release impact | P1 — **FIXED (security containment)** — funding verification gate + internal authorization + Paystack binding enforced; atomic reference consumption with three-layer defense (pre-check, in-transaction, UNIQUE index); pre-R3 upgrade path validated (F1 legacyUniqueExemptions); opaque reference identity consistent with historical data (F2); genuine acceptance regressions (F3). External sources fail closed. |
 | Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU; DB-level UNIQUE prevents concurrent reference consumption; error messages do not leak reward IDs; pre-R3 databases upgrade successfully; reference identity is opaque (no trimming) |
-| Evidence status | **FIXED (security containment)** — PRs #104, #105, #106, #107, #108, #109 merged (25 R1 + 12 R2 + 21 R3 tests; 183 files, 1888 passed, 0 failures, 0 regressions). R3C correction (PR #109) resolved upgrade blocker (F1), reference identity (F2), and test coverage (F3). A2/A3 advisories resolved. Stellar Horizon deferred (fail-closed, correct security posture). Paystack operationally unavailable (R2 containment). |
+| Evidence status | **FIXED (security containment)** — PRs #104, #105, #106, #107, #108, #109, #110 merged (25 R1 + 12 R2 + 25 R3 tests; 183 files, 1892 passed, 0 failures, 0 regressions). R3C correction (PR #109) resolved upgrade blocker (F1), reference identity (F2), and test coverage (F3). R3D (PR #110) resolved post-migration exemption gap and added async/rollback regressions. A2/A3 advisories resolved. Stellar Horizon deferred (fail-closed, correct security posture). Paystack operationally unavailable (R2 containment). |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -87,6 +87,25 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | R3-F2 | `normalizeReference()` trims nonblank references; historical writer stored verbatim. Raw UNIQUE index does not enforce trimmed identity. Spec says opaque (no trim) but implementation trims. |
 | R3-F3 | Tests overstate coverage: T01 sequential not concurrent; T02/T06 use nonexistent reward IDs; T04 no injected failure; T11 checks already-created schema; T12 creates one ref and asserts no duplicates. |
 | Evidence status | **MERGED (corrected)** — PR #108 merged at `7a23f88`; R3C correction PR #109 merged at `a929836`. F1 (upgrade blocker) fixed via `legacyUniqueExemptions` + `required-schema.json`. F2 (reference identity) fixed via opaque `normalizeReference()`. F3 (test coverage) fixed with 21 genuine regression tests (was 15). CI: PR #109 run `40728271331` SUCCESS; post-merge run `40729467144` SUCCESS. |
+
+#### W01-R3D: Strict final-constraint validation
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W01-R3D |
+| Scope | Post-migration validation gap: `legacyUniqueExemptions` applied unconditionally in `validateKeys()`, disabling strict UNIQUE enforcement after migrations. `required-schema.json` `keys.reward_transactions.unique` lacked partial UNIQUE signature. `required.indexes` checked name only, not UNIQUE status. |
+| Dependencies | R3C merged ✓ (PR #109 at `a929836`) |
+| Spec | `docs/superpowers/specs/2026-10-28-W01-R3D-strict-final-validation-spec.md` |
+| Handover | `docs/release/SERVER-HANDOVER-W01-R3C-PR109-REVIEW.md` at `564b2e8` on `codex/platform-wiring-audit` |
+| Branch | `codex/w01r3d-strict-final-validation` at `e13c702` |
+| PR | **#110 — MERGED** at `1a5326ac` (2026-10-28) |
+| Implementation | `databaseBootstrap.ts`: `validateKeys()` now accepts `afterMigrations = false` parameter; `legacyUniqueExemptions` applied only when `!afterMigrations`; baseline call site passes flag; required.keys call site passes `true`. `required-schema.json`: added partial UNIQUE signature `["WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'", "funding_reference"]` to `keys.reward_transactions.unique`. |
+| Tests | 4 new tests (T17-T20) in `reward-atomic-reference.test.ts`: T17 (post-migration rejects same-name non-UNIQUE index), T18 (post-migration rejects wrong-definition same-name index), T19 (concurrent `fundRewardAsync()` — one succeeds, one fails DUPLICATE_REFERENCE), T20 (injected post-fund rollback — transaction rolls back, reference freed, state/accounts clean). 25 total R3 tests (was 21); 183 files, 1892 passed, 0 failures, 0 regressions. |
+| Independent review | Spec review: APPROVED_WITH_NOTES. Code review: APPROVED (7/7 checklist PASS). |
+| CI | PR run `40736862787` (SUCCESS, 4 jobs); main post-merge run `40738034939` (pending verification) |
+| R3C-F1 resolution | Post-migration `validateKeys(db, table, contract, true)` now enforces full UNIQUE signature (exemption not applied). `required.keys.reward_transactions.unique` includes partial UNIQUE. A same-named non-UNIQUE index fails because `keys()` only returns `i.unique` in `actual.unique`. |
+| R3C-F2 resolution | T19 (async competing `fundRewardAsync()`) and T20 (injected post-fund rollback with state/accounts proof) close remaining test gaps from R3C-F2. |
+| Evidence status | **MERGED** — PR #110 merged at `1a5326ac`. All R3C findings resolved. W01 repair chain complete (R1+R2+R3+R3C+R3D). |
 
 #### Deferred: Stellar Horizon integration
 
