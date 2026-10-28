@@ -1,6 +1,6 @@
 # Staged rollout — evidence and finding ledger
 
-Date: 2026-10-27
+Date: 2026-10-28
 Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 
 ---
@@ -18,28 +18,30 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Code evidence | `LMS-Server/src/services/rewards/rewardService.ts:91-162` — `fundReward()` accepts `FundingSource { type, reference? }` and writes two ledger entries (fund + reserve) without verifying the reference against any external provider API. `source.type` is mapped to `sourceAccountType` strings (`external`/`platform`) at line 122 but no validation or provider call occurs. All source types (`stellar`, `paystack`, `platform_credit`) receive HTTP 200. |
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
-| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27) |
-| Residual work | Advisories: A1 (Paystack amount/currency cross-check), A2 (DUPLICATE_REFERENCE leaks reward ID), A3 (no DB-level UNIQUE on funding_reference), A4 (platform_credit balance check spec gap), A5 (FundingSource interface duplication) |
-| Release impact | P1 — **FIXED** — funding verification gate enforced before state transition |
-| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409) |
-| Evidence status | **Fixed** — PR #104 merged, 14 tests covering all branches |
+| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction) |
+| Residual work | R2 (Paystack payment binding: A1, A3), R3 (Stellar Horizon client); A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) |
+| Release impact | P1 — **PARTIALLY_FIXED** — funding verification gate + internal authorization enforced; Paystack binding and Stellar client remain |
+| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU |
+| Evidence status | **PARTIALLY_FIXED** — PRs #104 and #105 merged (25 R1 tests); R2/R3 blocking full resolution |
 
 #### W01-R1: Internal funding authorization and credit backing
 
 | Field | Value |
 | --- | --- |
 | Sub-finding ID | W01-R1 |
-| Handover source | `docs/release/SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` at `223b262` |
-| Problem | PR #104 added funding verification for external sources but left internal sources (`admin_grant`, `platform_credit`) passing through the verifier without `reward.manage` permission checks or conflict-of-interest enforcement. Any user with scope access could self-fund via internal sources. |
-| Spec | `docs/superpowers/specs/2026-10-27-W01-R1-internal-funding-authorization.md` |
-| Branch | `codex/w01r1-internal-funding-authorization` at `385e512` |
-| Implementation | `rewardFundingVerifier.ts`: Added `FundingAuthorizationContext` + `verifyInternalAuthorization()` — checks `reward.manage` permission (live DB query via `hasPermission()`), checks actor ≠ creator. `platform_credit` unconditionally throws `INSUFFICIENT_CREDIT` (402) after auth. `rewardService.ts`: `fundReward`/`fundRewardAsync`/`fundRewardVerified` pass auth context; added `reward.manage` scope bypass; added `getRewardFunderId()` for cancel/release/refund/expire. |
-| Files changed | 2 core (`rewardFundingVerifier.ts`, `rewardService.ts`), 1 new test, 13 test files updated |
-| Test evidence | 11 R1 security acceptance tests + 1841 total (181 files, 0 failures) |
-| Independent review | APPROVED — 10/10 security checklist items PASS; no bypass vectors; 2 minor pre-existing observations |
+| Handover source | `docs/release/SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` at `223b262`; correction handover `SERVER-HANDOVER-W01-R1-PR105-REVIEW.md` at `8c1b8cb` |
+| Problem | PR #104 left internal sources passing through without `reward.manage` or conflict-of-interest enforcement. Initial fix at `385e512` had two defects: F1 (admin became funder instead of creator) and F2 (no transaction-time recheck against TOCTOU). |
+| Spec | `docs/superpowers/specs/2026-10-27-W01-R1-internal-funding-authorization.md` (revised with F1/F2 invariants) |
+| Branch | `codex/w01r1-internal-funding-authorization` at `550bd9a` (corrected) |
+| PR | **#105 — MERGED** at `8096b9b` (2026-10-28) |
+| Implementation | `rewardFundingVerifier.ts`: `FundingAuthorizationContext` + exported `verifyInternalAuthorization()`. `rewardService.ts`: `isInternalSource()` helper; **F1**: `funderId = creator` for internal sources (financial beneficiary = creator, admin = audit actor); **F2**: `verifyInternalAuthorization()` called inside write transaction bodies before financial mutation. |
+| Files changed | 2 core (`rewardFundingVerifier.ts`, `rewardService.ts`), 1 new test file, 3 existing test files updated (lifecycle, orchestration, internal-funding-auth) |
+| Test evidence | 25 R1 tests: 11 authorization + 8 F1 ownership + 4 F2 pre-call revocation + 2 genuine interleaving; 1854 total (181 files). RED on `385e512`, GREEN on `8096b9b`. |
+| Closure C1 | PR #106 (`codex/w01r1-interleaving-regressions` at `51928fd`) — 2 genuine async TOCTOU regression tests |
+| Independent review | Initial: APPROVED (10/10); Correction review: APPROVED; Merge verification: `SERVER-HANDOVER-W01-R1-MERGE-VERIFICATION.md` at `ef87773` |
 | Error codes | `SCOPE_DENIED` (403, no reward.manage), `CONFLICT_OF_INTEREST` (403, actor = creator), `INSUFFICIENT_CREDIT` (402, platform_credit fail-closed) |
 | Resolves advisory | A4 (platform_credit balance check spec gap) — now fails closed unconditionally |
-| Evidence status | **IN_REVIEW** — branch pushed, PR pending, CI pending |
+| Evidence status | **MERGED** — PR #105 merged at `8096b9b`; C1 interleaving regressions in PR #106; R2/R3 pending |
 
 ### W02: Cross-owner reward reads and lifecycle fast returns
 

@@ -1,6 +1,6 @@
 # Staged rollout — task ledger
 
-Date: 2026-10-27
+Date: 2026-10-28
 Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 
 Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MERGED` `DEPLOYED` `ACCEPTED`
@@ -105,25 +105,43 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Advisories carried forward**: A1 (Paystack amount/currency cross-check — future scope), A2 (DUPLICATE_REFERENCE error leaks reward ID), A3 (no DB-level UNIQUE on funding_reference), A4 (platform_credit balance check spec gap — **now addressed by R1: platform_credit fails closed**), A5 (FundingSource interface duplication)
 
 ### S2-T01-R1: Implement W01-R1 — internal funding authorization and credit backing
-- **Status**: IN_REVIEW
+- **Status**: MERGED
 - **Dependencies**: S2-T01 merged ✓, handover document review ✓
 - **Owner**: S2 session (AI-delegated)
 - **Spec**: `docs/superpowers/specs/2026-10-27-W01-R1-internal-funding-authorization.md`
-- **Branch**: `codex/w01r1-internal-funding-authorization` at `385e512`
-- **PR**: Pending creation (branch pushed, awaiting PR + CI)
+- **Branch**: `codex/w01r1-internal-funding-authorization` at `550bd9a`
+- **PR**: #105 — MERGED at `8096b9b` (2026-10-28)
 - **Problem**: S2-T01 (PR #104) added funding verification for external sources but left internal sources (`admin_grant`, `platform_credit`) passing through without `reward.manage` permission checks or conflict-of-interest enforcement. Identified in handover document `SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` at commit `223b262`.
-- **Implementation**:
-  - `rewardFundingVerifier.ts`: Added `FundingAuthorizationContext` interface and `verifyInternalAuthorization()` gate. Internal sources now require `reward.manage` permission + actor ≠ reward creator. `platform_credit` fails closed (INSUFFICIENT_CREDIT 402) after authorization. `admin_grant` proceeds after authorization.
-  - `rewardService.ts`: `fundReward()`, `fundRewardAsync()`, `fundRewardVerified()` pass authorization context to verifier. Added `reward.manage` scope bypass for admin-authorized funding. Added `getRewardFunderId()` for correct funder identification in cancel/release/refund/expire paths.
-  - 13 existing test files updated to use independent admin funding pattern (avoid trigger-assigned `role_admin` via `'lecturer'` legacy role for non-admin creators).
-- **Tests**: 11 new R1 security acceptance tests + 1841 total tests PASS (181 files, 0 failures)
-- **Independent security review**: APPROVED — 10/10 checklist items passed, no bypass vectors found, 2 minor pre-existing observations (not R1 regressions)
+- **Implementation (initial at `385e512`, corrected at `550bd9a`)**:
+  - `rewardFundingVerifier.ts`: Added `FundingAuthorizationContext` interface and exported `verifyInternalAuthorization()` gate. Internal sources require `reward.manage` + actor ≠ creator. `platform_credit` fails closed (INSUFFICIENT_CREDIT 402). `admin_grant` proceeds after authorization.
+  - `rewardService.ts`: `fundReward()`, `fundRewardAsync()`, `fundRewardVerified()` pass authorization context. Added `isInternalSource()` helper. **R1-F1 (grant ownership)**: `funderId = creator` for internal sources; funder account, fund/reserve ledger entries, and cancel/release/refund/expire paths all use creator as financial beneficiary. Admin recorded as `actorUserId` for audit only. **R1-F2 (transaction-time recheck)**: `verifyInternalAuthorization()` called inside both transaction bodies before financial mutation — defense-in-depth against TOCTOU.
+  - 13 existing test files updated to use independent admin funding pattern.
+- **Correction**: PR #105 review (handover `SERVER-HANDOVER-W01-R1-PR105-REVIEW.md`) identified two defects in initial `385e512`: F1 (admin incorrectly became funder instead of creator) and F2 (no transaction-time recheck). Both fixed at `550bd9a`, merged at `8096b9b`.
+- **Tests**: 23 R1 tests (11 original + 8 F1 + 4 F2) + 1854 total (181 files); RED on `385e512`, GREEN on `8096b9b`
+- **Closure C1**: PR #106 (`codex/w01r1-interleaving-regressions` at `51928fd`) — 2 genuine async interleaving regression tests proving transaction-time recheck catches mid-flight permission revocation and creator-change TOCTOU
+- **Independent security review**: APPROVED — 10/10 checklist items passed; correction review APPROVED
+- **CI**: All checks PASS (runs `40572428530` for #105, `40644680249` for #106)
 - **R1 invariants enforced**:
   1. `reward.manage` required for `admin_grant` and `platform_credit`
   2. Conflict of interest: actorId ≠ rewardCreatorId
   3. `platform_credit` unconditionally fails closed (no credit provisioning)
   4. External sources (`stellar`, `paystack`) unaffected
   5. Transaction atomicity: no partial ledger entries on authorization failure
+  6. Grant ownership: internal-source funder = reward creator (not authorizing admin)
+  7. Transaction-time recheck: `verifyInternalAuthorization()` inside write transaction
+  8. Interleaving regression: TOCTOU between verifier and transaction proven and covered
+
+### S2-T01-R2: Implement W01-R2 — Paystack payment binding
+- **Status**: TODO
+- **Dependencies**: S2-T01-R1 merged ✓
+- **Owner**: —
+- **Scope**: Paystack amount/currency cross-check (advisory A1), funding_reference uniqueness (A3)
+
+### S2-T01-R3: Implement W01-R3 — Stellar Horizon client
+- **Status**: TODO
+- **Dependencies**: S2-T01-R1 merged ✓
+- **Owner**: —
+- **Scope**: Stellar transaction verification when Horizon client is configured
 
 ### S2-T02: Implement W02 — cross-owner reward scope checks
 - **Status**: TODO
