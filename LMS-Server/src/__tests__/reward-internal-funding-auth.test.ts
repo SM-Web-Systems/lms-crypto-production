@@ -25,6 +25,7 @@ import {
 import { expireReward } from '../services/rewards/rewardService.js';
 import { getAccount } from '../services/rewards/rewardBalanceService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
+import { hasPermission } from '../middleware/rbac.js';
 
 // ──── Test Helpers ────
 
@@ -469,22 +470,21 @@ describe('W01-R1: Internal funding authorization', () => {
     });
   });
 
-  // ──── R1-F2: Transaction-time authorization recheck ────
+  // ──── R1-F2: Pre-call authorization revocation ────
+  // These tests revoke permissions BEFORE calling the funding function.
+  // Both the outer verifier and the transaction-time recheck catch the issue.
+  // For genuine interleaving tests (mutation between promise creation and
+  // await), see the 'R1-F2 interleaving' describe block below.
 
-  describe('R1-F2: Transaction-time authorization recheck', () => {
-    it('rejects grant when reward.manage is revoked after initial verification (sync)', () => {
+  describe('R1-F2: Pre-call authorization revocation', () => {
+    it('rejects grant when reward.manage is revoked before funding call (sync)', () => {
       const sponsor = createSponsor();
       const admin = createAdmin();
       const cohortId = createCohort(sponsor);
       const rewardId = draftReward(sponsor, cohortId);
 
-      // Revoke reward.manage AFTER the reward is created but BEFORE funding
-      // This simulates the race: initial check passes, then permission is revoked
-      // before the DB transaction commits.
-      //
-      // In the current code, fundReward() checks authorization in verifyFundingSourceSync()
-      // before the transaction, then the transaction only checks hasPermission OR scope.
-      // We test that the transaction ALSO rechecks internal-source authorization.
+      // Revoke reward.manage BEFORE the funding call.
+      // Both the outer verifier and the transaction-time recheck will reject.
 
       // Step 1: Verify admin currently has permission (precondition)
       const hasManageBefore = db.prepare(
@@ -516,10 +516,10 @@ describe('W01-R1: Internal funding authorization', () => {
       expect(txns).toHaveLength(0);
     });
 
-    it('transaction rejects internal grant when admin retains scope but loses reward.manage', () => {
-      // This is the key R1-F2 scenario: admin has scope ownership (cohort transfer)
-      // but reward.manage was revoked. The transaction's hasManage || scope check
-      // must NOT allow scope ownership to substitute for internal-source permission.
+    it('rejects internal grant when admin retains scope but loses reward.manage', () => {
+      // Admin has scope ownership (cohort transfer) but reward.manage was revoked
+      // BEFORE the call. Scope ownership must not substitute for internal-source
+      // authorization — both the outer verifier and transaction recheck enforce this.
       const sponsor = createSponsor();
       const admin = createAdmin();
       const cohortId = createCohort(sponsor);
@@ -554,9 +554,9 @@ describe('W01-R1: Internal funding authorization', () => {
       expect(adminAccount).toBeNull();
     });
 
-    it('transaction rejects when actor becomes creator (conflict) after initial check', () => {
-      // Admin A != creator B at verification time, but reward creator changes to A
-      // before the transaction. The transaction must recheck independence.
+    it('rejects when creator changed to actor before funding call', () => {
+      // Creator changed to admin BEFORE the funding call.
+      // Both the outer verifier and the transaction-time recheck catch this.
       const sponsor = createSponsor();
       const admin = createAdmin();
       const cohortId = createCohort(sponsor);
@@ -582,7 +582,7 @@ describe('W01-R1: Internal funding authorization', () => {
       expect(reward.status).toBe('draft');
     });
 
-    it('async path rechecks authorization in transaction after verification', async () => {
+    it('async path rejects when reward.manage revoked before call (scope retained)', async () => {
       const sponsor = createSponsor();
       const admin = createAdmin();
       const cohortId = createCohort(sponsor);
@@ -593,7 +593,7 @@ describe('W01-R1: Internal funding authorization', () => {
         `UPDATE sponsor_cohorts SET sponsor_user_id = ? WHERE id = ?`
       ).run(admin, cohortId);
 
-      // Revoke reward.manage — admin still has scope
+      // Revoke reward.manage BEFORE the call — both verifier and recheck catch it
       db.prepare(
         `DELETE FROM role_permissions WHERE role_id = 'role_admin' AND permission_id = 'perm_reward_manage'`
       ).run();
@@ -602,6 +602,106 @@ describe('W01-R1: Internal funding authorization', () => {
         fundRewardAsync(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`)
       ).rejects.toThrow(RewardError);
 
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+
+      const txns = db.prepare(
+        'SELECT * FROM reward_transactions WHERE reward_id = ?'
+      ).all(rewardId);
+      expect(txns).toHaveLength(0);
+    });
+  });
+
+  // ──── R1-F2 interleaving: Genuine async TOCTOU regression ────
+  // These tests exploit the microtask boundary in fundRewardAsync.
+  // The admin is authorized when fundRewardAsync() is called, but state
+  // is mutated AFTER the promise is created and BEFORE its await resolves.
+  // Only the transaction-time recheck (not the outer verifier) catches these.
+
+  describe('R1-F2 interleaving: TOCTOU between verifier and transaction', () => {
+    it('rejects when reward.manage revoked between promise creation and await', async () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      // Give admin scope access so scope-based authorization alone would pass
+      db.prepare(
+        `UPDATE sponsor_cohorts SET sponsor_user_id = ? WHERE id = ?`
+      ).run(admin, cohortId);
+
+      // Precondition: admin has reward.manage right now
+      expect(hasPermission(admin, 'reward.manage')).toBe(true);
+
+      // Start the async funding — verifier passes (admin is authorized)
+      const pending = fundRewardAsync(
+        rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`
+      );
+
+      // Revoke reward.manage AFTER the promise is in flight.
+      // Replace admin role with sponsor role (has scope but not manage).
+      db.prepare('DELETE FROM user_roles WHERE user_id = ?').run(admin);
+      db.prepare(
+        "INSERT INTO user_roles (user_id, role_id) VALUES (?, 'role_sponsor')"
+      ).run(admin);
+
+      // Confirm revocation took effect
+      expect(hasPermission(admin, 'reward.manage')).toBe(false);
+
+      // The transaction-time recheck must catch the revocation
+      await expect(pending).rejects.toThrow(RewardError);
+
+      try {
+        await pending;
+      } catch (err) {
+        expect((err as RewardError).code).toBe('SCOPE_DENIED');
+      }
+
+      // No financial mutation occurred
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+
+      const txns = db.prepare(
+        'SELECT * FROM reward_transactions WHERE reward_id = ?'
+      ).all(rewardId);
+      expect(txns).toHaveLength(0);
+
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('rejects when creator changed to actor between promise creation and await', async () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      // Precondition: admin ≠ creator
+      const rewardBefore = getReward(rewardId)!;
+      expect(rewardBefore.creator_user_id).toBe(sponsor);
+      expect(rewardBefore.creator_user_id).not.toBe(admin);
+
+      // Start the async funding — verifier passes (admin ≠ creator)
+      const pending = fundRewardAsync(
+        rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`
+      );
+
+      // Change the reward's creator to admin AFTER the promise is in flight.
+      // This creates a conflict of interest that didn't exist at verification time.
+      db.prepare(
+        'UPDATE rewards SET creator_user_id = ? WHERE id = ?'
+      ).run(admin, rewardId);
+
+      // The transaction-time recheck must catch the conflict
+      await expect(pending).rejects.toThrow(RewardError);
+
+      try {
+        await pending;
+      } catch (err) {
+        expect((err as RewardError).code).toBe('CONFLICT_OF_INTEREST');
+      }
+
+      // No financial mutation occurred
       const reward = getReward(rewardId)!;
       expect(reward.status).toBe('draft');
 
