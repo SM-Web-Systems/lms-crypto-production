@@ -33,18 +33,18 @@ const legacyForeignKeyExemptions = new Set([
 ]);
 // W01-R3C: Partial UNIQUE index added by ensureRewardTables() migration.
 // Pre-R3 databases will not have this constraint yet. Tolerate its absence
-// during pre-migration validation; post-migration validation enforces it
-// via the required-schema.json indexes check.
+// during pre-migration validation only; post-migration validation enforces
+// the full UNIQUE signature via required-schema.json keys and indexes.
 const legacyUniqueExemptions = new Set([
   JSON.stringify(['reward_transactions', "WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'", 'funding_reference']),
 ]);
-function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<typeof keys>): void {
+function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<typeof keys>, afterMigrations = false): void {
   const actual = keys(db, table);
   if (JSON.stringify(actual.primary) !== JSON.stringify(contract.primary)) refuse(`missing primary key (${table})`);
   for (const kind of ['unique', 'foreign'] as const) {
     for (const signature of contract[kind]) {
       if (kind === 'foreign' && legacyForeignKeyExemptions.has(JSON.stringify([table, ...signature]))) continue;
-      if (kind === 'unique' && legacyUniqueExemptions.has(JSON.stringify([table, ...signature]))) continue;
+      if (kind === 'unique' && !afterMigrations && legacyUniqueExemptions.has(JSON.stringify([table, ...signature]))) continue;
       if (!actual[kind].some(k => JSON.stringify(k) === JSON.stringify(signature))) refuse(`missing ${kind} constraint (${table})`);
     }
   }
@@ -62,7 +62,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('integrity check failed');
   for (const table of baseline) {
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
-    validateKeys(db, table.name, table.keys);
+    validateKeys(db, table.name, table.keys, afterMigrations);
     for (const column of table.columns) {
       // This release's additive authorization migration is safe on existing databases.
       if (!afterMigrations && table.name === 'users' && column === 'authorization_version') continue;
@@ -98,7 +98,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
       const columns = db.pragma(`table_info("${table}")`) as { name: string }[];
       for (const name of names) if (!columns.some(c => c.name === name)) refuse(`incomplete migration (${table}.${name})`);
     }
-    for (const [table, contract] of Object.entries(required.keys)) validateKeys(db, table, contract);
+    for (const [table, contract] of Object.entries(required.keys)) validateKeys(db, table, contract, true);
     for (const index of required.indexes) {
       if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(index)) refuse(`missing required index (${index})`);
     }
