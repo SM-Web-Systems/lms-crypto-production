@@ -2,6 +2,8 @@
 
 Date: 2026-10-28. **R2 accepted as fail-closed containment; R3 is next.** This does not certify operational Paystack reward funding or deploy anything.
 
+Subsequent candidate review: [PR #108 needs upgrade/identity corrections](SERVER-HANDOVER-W01-R3-PR108-REVIEW.md). Its clean-database guard works, but R3/W01 closure is not accepted at merge `7a23f88`. Use that newer correction packet before advancing to W02.
+
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). Document branch: `codex/platform-wiring-audit`. Authoritative staged ledgers: `codex/staged-rollout-plan`, PR #103. These are branches inside the repository, not separate repositories.
 
 ## Verified R2 receipt and limits

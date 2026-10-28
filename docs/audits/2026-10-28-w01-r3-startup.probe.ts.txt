@@ -1,0 +1,7 @@
+if(process.argv.includes('--initialize-new')){
+ const bootstrap=await import('./src/config/databaseBootstrap.js');
+ bootstrap.requestNewDatabaseInitialization();
+}
+const {db}=await import('./src/config/database.js');
+console.log('STARTUP_OK');
+db.close();
