@@ -31,12 +31,20 @@ function keys(db: SqliteDatabase, table: string) {
 const legacyForeignKeyExemptions = new Set([
   JSON.stringify(['submissions', 'graded_by', 'users', 'id', 'NO ACTION', 'NO ACTION']),
 ]);
+// W01-R3C: Partial UNIQUE index added by ensureRewardTables() migration.
+// Pre-R3 databases will not have this constraint yet. Tolerate its absence
+// during pre-migration validation; post-migration validation enforces it
+// via the required-schema.json indexes check.
+const legacyUniqueExemptions = new Set([
+  JSON.stringify(['reward_transactions', "WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'", 'funding_reference']),
+]);
 function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<typeof keys>): void {
   const actual = keys(db, table);
   if (JSON.stringify(actual.primary) !== JSON.stringify(contract.primary)) refuse(`missing primary key (${table})`);
   for (const kind of ['unique', 'foreign'] as const) {
     for (const signature of contract[kind]) {
       if (kind === 'foreign' && legacyForeignKeyExemptions.has(JSON.stringify([table, ...signature]))) continue;
+      if (kind === 'unique' && legacyUniqueExemptions.has(JSON.stringify([table, ...signature]))) continue;
       if (!actual[kind].some(k => JSON.stringify(k) === JSON.stringify(signature))) refuse(`missing ${kind} constraint (${table})`);
     }
   }
