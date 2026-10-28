@@ -1,7 +1,9 @@
 # W01-R1: Internal funding authorization and credit backing
 
-Date: 2026-10-27 | Priority: P1 | Stage: S2-T01 (repair unit R1)
+Date: 2026-10-27 | Revised: 2026-10-28 | Priority: P1 | Stage: S2-T01 (repair unit R1)
+Status: **CHANGES_REQUIRED** → correcting R1-F1 (grant ownership) and R1-F2 (transaction-time auth)
 Source: `docs/release/SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` at `223b262`
+Review: `docs/release/SERVER-HANDOVER-W01-R1-PR105-REVIEW.md` at `8c1b8cb`
 Base: `main` at `115d8c4f836a059aff733bb4cdeaabc9750963f2` (PR #104 merged)
 
 ## 1. Problem
@@ -35,14 +37,24 @@ admin-2, super-admin) plus independent-authorizer enforcement.
 - Enforce actor ≠ reward creator (conflict-of-interest / self-enrichment)
 - Fail closed for `platform_credit` — no credit provisioning mechanism exists;
   reject with `INSUFFICIENT_CREDIT`
-- Audit evidence: ledger entries already record `actor_user_id` which IS the
-  authorizer for internal funding — no new column needed
+- **(F1 correction)** Grant ownership: derive the financial beneficiary (funder)
+  from the reward's `creator_user_id`, not the authorizing admin's `actorId`.
+  Admin is `actorUserId` (audit trail); creator is `destinationUserId` (financial
+  ownership). Cancel/expire/refund/release route back to the creator.
+- **(F2 correction)** Transaction-time recheck: enforce `verifyInternalAuthorization`
+  inside the write transaction immediately before financial mutation, using the
+  current reward's `creator_user_id`. Scope ownership must not substitute for
+  `reward.manage` on internal sources.
+- Audit evidence: ledger `actor_user_id` is the authorizing admin;
+  `destination_user_id` is the intended funder (creator)
 - Update all test fixtures that use self-grant `platform_credit`/`admin_grant`
-  to use legitimate independent authorization
-- RED/GREEN tests for every authorization gap
+  to use legitimate independent authorization; correct any that assert admin as
+  funder/beneficiary
+- RED/GREEN tests for every authorization gap including grant ownership and
+  transaction-time recheck
 
 **Out of scope (tracked separately):**
-- R2: Paystack amount/currency/ownership binding
+- R2: Paystack payment binding (amount/currency/ownership)
 - R3: Atomic reference consumption (race condition)
 - Credit provisioning system for `platform_credit` (would be a new feature)
 - A1-A3, A5 advisories from PR #104 review
@@ -59,6 +71,14 @@ admin-2, super-admin) plus independent-authorizer enforcement.
 5. Existing funded rewards remain valid — no retroactive changes.
 6. All test fixtures use legitimate funding (independent admin authorization or
    mocked external verification).
+7. **(F1)** For internal sources, the financial beneficiary (funder account,
+   ledger `destination_user_id`, cancel/expire/refund/release routing) is the
+   reward's `creator_user_id` — never the authorizing admin. The admin appears
+   only as `actor_user_id` in the ledger (audit trail).
+8. **(F2)** Internal-source authorization (`reward.manage` + independent
+   authorizer) is enforced inside the write transaction using the current
+   reward state, not only at the pre-transaction verification point. Scope
+   ownership alone does not authorize internal funding.
 
 ## 4. Authorization model
 
@@ -77,7 +97,7 @@ Route middleware: requirePermission('reward.fund')
     DB transaction: credit funder.available from nothing
 ```
 
-### Intended (R1 fix)
+### Intended (R1 fix, revised after F1/F2 correction)
 
 ```
 Route middleware: requirePermission('reward.fund')
@@ -87,15 +107,26 @@ Route middleware: requirePermission('reward.fund')
     Lookup reward.creator_user_id
          │
     verifyFundingSourceAsync(source, rewardId, { actorId, creatorId })
-         │
+         │                            ┌── Pre-transaction gate ──┐
     platform_credit → require reward.manage
                     → require actorId ≠ creatorId
                     → check platform credit balance (FAIL CLOSED: none exists)
     admin_grant     → require reward.manage
                     → require actorId ≠ creatorId
                     → record audit evidence (authorizer = actorId)
-         │
-    DB transaction: credit funder.available (admin_grant only)
+         │                            └──────────────────────────┘
+    DB transaction:
+      │  ┌── F2: Transaction-time recheck (defense-in-depth) ──┐
+      │  (internal sources only)
+      │  Re-read reward.creator_user_id from DB
+      │  verifyInternalAuthorization({ actorId, creatorId })
+      │  └──────────────────────────────────────────────────────┘
+      │  ┌── F1: Funder identity derivation ───────────────────┐
+      │  funderId = internal ? reward.creator_user_id : actorId
+      │  └──────────────────────────────────────────────────────┘
+      │  Create/get funder account for funderId (not actorId)
+      │  Ledger fund:   destinationUserId = funderId, actorUserId = actorId
+      │  Ledger reserve: source/destination = funderId, actorUserId = actorId
 ```
 
 ### Actors and permissions
@@ -198,29 +229,70 @@ Replace every `fundReward(rewardId, creatorId, { type: 'platform_credit' }, ...)
 `fundReward(rewardId, creatorId, { type: 'admin_grant' }, ...)` where creator = funder
 with the legitimate funding helper.
 
+### Step 6 (F1 correction): Derive funder from reward creator for internal sources
+
+In `fundReward()` and `fundRewardVerified()` transactions:
+```typescript
+const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+```
+Use `funderId` for `getOrCreateAccount`, `destinationUserId` in fund entry, and
+`sourceUserId`/`destinationUserId` in reserve entry. Keep `actorId` for `actorUserId`.
+
+### Step 7 (F2 correction): Recheck internal auth inside write transaction
+
+In both transaction bodies, before financial mutation:
+```typescript
+if (isInternalSource(source.type)) {
+  verifyInternalAuthorization(
+    { actorId, rewardCreatorId: reward.creator_user_id },
+    source.type,
+  );
+}
+```
+Export `verifyInternalAuthorization` from the verifier for transaction-time use.
+
+### Step 8: Update test assertions for funder identity
+
+Update lifecycle and orchestration tests that assert admin's funder account balances
+to instead assert the creator's funder account balances.
+
 ## 8. Test matrix
 
-### R1 security acceptance tests (NEW — must be RED first)
+### R1 security acceptance tests (23 total — original 11 + 12 F1/F2 corrections)
 
-| # | Test | Actor | Source | Expected | Current |
-|---|------|-------|--------|----------|---------|
-| 1 | Sponsor self-funds with platform_credit | sponsor (no reward.manage) | platform_credit | 403 SCOPE_DENIED | 200 ✗ |
-| 2 | Sponsor self-funds with admin_grant | sponsor (no reward.manage) | admin_grant | 403 SCOPE_DENIED | 200 ✗ |
-| 3 | Admin self-funds own reward with admin_grant | admin (creator = admin) | admin_grant | 403 CONFLICT_OF_INTEREST | 200 ✗ |
-| 4 | Independent admin funds with admin_grant | admin (≠ creator, has manage) | admin_grant | 200 funded | 200 ✓ |
-| 5 | Independent admin funds with platform_credit | admin (≠ creator, has manage) | platform_credit | 402 INSUFFICIENT_CREDIT | 200 ✗ |
-| 6 | Revoked admin (manage removed) tries admin_grant | user (manage revoked) | admin_grant | 403 SCOPE_DENIED | 200 ✗ |
-| 7 | External sources unaffected (stellar) | sponsor | stellar | 402 FUNDING_UNVERIFIED | 402 ✓ |
-| 8 | External sources unaffected (paystack verified) | sponsor | paystack (mocked) | 200 funded | 200 ✓ |
-| 9 | Audit evidence: authorizer recorded | admin (≠ creator) | admin_grant | actor_user_id = admin | N/A |
-| 10 | Zero-credit platform_credit | admin (≠ creator) | platform_credit | 402 INSUFFICIENT_CREDIT | 200 ✗ |
+| # | Test | Actor | Source | Expected | Status |
+|---|------|-------|--------|----------|--------|
+| 1 | Sponsor self-funds with platform_credit | sponsor (no reward.manage) | platform_credit | 403 SCOPE_DENIED | ✓ GREEN |
+| 2 | Sponsor self-funds with admin_grant | sponsor (no reward.manage) | admin_grant | 403 SCOPE_DENIED | ✓ GREEN |
+| 3 | Admin self-funds own reward with admin_grant | admin (creator = admin) | admin_grant | 403 CONFLICT_OF_INTEREST | ✓ GREEN |
+| 4 | Independent admin funds with admin_grant | admin (≠ creator, has manage) | admin_grant | 200 funded | ✓ GREEN |
+| 5 | Independent admin funds with platform_credit | admin (≠ creator, has manage) | platform_credit | 402 INSUFFICIENT_CREDIT | ✓ GREEN |
+| 6 | Revoked admin (manage removed) tries admin_grant | user (manage revoked) | admin_grant | 403 SCOPE_DENIED | ✓ GREEN |
+| 7 | External sources unaffected (stellar) | sponsor | stellar | 402 FUNDING_UNVERIFIED | ✓ GREEN |
+| 8 | Audit evidence: authorizer recorded | admin (≠ creator) | admin_grant | actor_user_id = admin | ✓ GREEN |
+| 9 | No ledger entries on auth failure | sponsor (no manage) | admin_grant | 0 transactions | ✓ GREEN |
+| 10 | Sponsor self-funds via async path | sponsor (no manage) | admin_grant | 403 SCOPE_DENIED | ✓ GREEN |
+| 11 | Admin self-funds platform_credit | admin (creator = admin) | platform_credit | 403 | ✓ GREEN |
+| **F1-1** | **Fund ledger credits creator, not admin** | admin (≠ creator) | admin_grant | dest = creator | ✓ GREEN (was RED) |
+| **F1-2** | **Reserve ledger under creator account** | admin (≠ creator) | admin_grant | src/dest = creator | ✓ GREEN (was RED) |
+| **F1-3** | **Funder account belongs to creator** | admin (≠ creator) | admin_grant | creator has account, admin does not | ✓ GREEN (was RED) |
+| **F1-4** | **Cancellation returns to creator** | admin (≠ creator) | admin_grant | creator.available = amount | ✓ GREEN (was RED) |
+| **F1-5** | **Expiry returns to creator** | admin (≠ creator) | admin_grant | creator.available = amount | ✓ GREEN (was RED) |
+| **F1-6** | **Release debits creator account** | admin (≠ creator) | admin_grant | creator.reserved = 0 | ✓ GREEN (was RED) |
+| **F1-7** | **Refund returns to creator** | admin (≠ creator) | admin_grant | creator.available = amount | ✓ GREEN (was RED) |
+| **F1-8** | **Async path credits creator** | admin (≠ creator) | admin_grant | dest = creator | ✓ GREEN (was RED) |
+| **F2-1** | **Sync: manage revoked → rejected** | admin (manage revoked) | admin_grant | 403, draft, no txns | ✓ GREEN |
+| **F2-2** | **Scope ownership ≠ internal-source auth** | admin (scope only, no manage) | admin_grant | 403, draft, no txns | ✓ GREEN |
+| **F2-3** | **Creator changed → conflict detected** | admin (became creator) | admin_grant | CONFLICT_OF_INTEREST | ✓ GREEN |
+| **F2-4** | **Async: manage revoked + scope → rejected** | admin (scope only) | admin_grant | 403, draft, no txns | ✓ GREEN |
 
-### Existing test impact
+### Existing test impact (corrected for F1 funder identity)
 
 | File | Tests affected | Action |
 |------|---------------|--------|
 | reward-funding-verification.test.ts | 2 (platform_credit, admin_grant pass-through) | Change to independent admin |
-| reward-lifecycle.test.ts | 3 fixtures | Change to independent admin |
+| reward-lifecycle.test.ts | 3 fixtures + balance assertions | Change to independent admin; assert creator (not admin) as funder |
+| reward-orchestration.test.ts | 2 balance assertions | Assert creator (not admin) as funder account owner |
 | reward-student-view.test.ts | 2 fixtures | Change to independent admin |
 | reward-expiry-worker.test.ts | 6 fixtures | Change to independent admin |
 | reward-eligibility.test.ts | 1 fixture | Change to independent admin |
@@ -260,7 +332,10 @@ sequenceDiagram
     V->>V: hasPermission(admin, 'reward.manage') → true
     V->>V: admin ≠ sponsor → true
     V-->>API: verified
-    API->>DB: writeLedgerEntry(fund + reserve)
+    Note over API,DB: F2: Transaction rechecks auth with current reward
+    Note over API,DB: F1: funderId = reward.creator (sponsor), not admin
+    API->>DB: writeLedgerEntry(fund: dest=sponsor, actor=admin)
+    API->>DB: writeLedgerEntry(reserve: src/dest=sponsor, actor=admin)
     API-->>A: 200 { status: funded }
 
     Note over S,DB: Scenario C — Admin funds own reward (REJECTED)
@@ -289,14 +364,21 @@ flowchart TD
     J -->|platform_credit| L{Platform credit balance?}
     L -->|None/insufficient| M[throw INSUFFICIENT_CREDIT 402]
     L -->|Sufficient| K
-    K --> N[DB Transaction: fund + reserve]
+    K --> N[DB Transaction]
     E -->|Verified| N
     E -->|Failed| O[throw FUNDING_UNVERIFIED 402]
     G --> P[No state change — reward stays draft]
     I --> P
     M --> P
     O --> P
-    N --> Q[Reward status: funded]
+    N --> N1{F2: Recheck internal auth?}
+    N1 -->|External source| N3[Derive funder = actorId]
+    N1 -->|Internal: still authorized| N2[F1: Derive funder = creator]
+    N1 -->|Internal: auth revoked| P
+    N2 --> N4[fund + reserve under creator account]
+    N3 --> N4b[fund + reserve under actor account]
+    N4 --> Q[Reward status: funded]
+    N4b --> Q
 
     style G fill:#ffcdd2
     style I fill:#ffcdd2
@@ -310,9 +392,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    W01_PR104[PR #104 merged: partial W01 fix] --> R1[W01-R1: Internal auth + backing]
-    R1 --> R2[W01-R2: Paystack binding]
-    R2 --> R3[W01-R3: Atomic reference consumption]
+    W01_PR104[PR #104 merged: partial W01 fix] --> R1[W01-R1: Internal auth + grant ownership + txn recheck]
+    R1 --> R2[W01-R2: Paystack payment binding]
+    R2 --> R3[W01-R3: Atomic payment-reference consumption]
     R3 --> W01_CLOSE[W01 ACCEPTED]
     W01_CLOSE --> W02[W02: Cross-owner scope checks]
 
@@ -329,11 +411,17 @@ flowchart TD
 
 ## 11. Acceptance criteria
 
-- [ ] All 10 R1 security tests pass (were RED, now GREEN)
-- [ ] No existing test regressions (1827+ pass count maintained)
-- [ ] `platform_credit` fails closed in all paths
-- [ ] `admin_grant` requires `reward.manage` + independent authorizer
-- [ ] All test fixtures use legitimate funding
-- [ ] Backend build succeeds (`npm run build`)
-- [ ] Independent security review APPROVED
-- [ ] Ledger correctly updated to PARTIALLY_FIXED with R1 done, R2/R3 outstanding
+- [x] All 23 R1 security tests pass (11 original + 8 F1 were RED→GREEN + 4 F2)
+- [x] No existing test regressions (1850+ pass count maintained; 1 pre-existing
+  `dependency-security.test.ts` failure unrelated to R1)
+- [x] `platform_credit` fails closed in all paths
+- [x] `admin_grant` requires `reward.manage` + independent authorizer
+- [x] **(F1)** Internal grants credit the reward creator, not the authorizing admin
+- [x] **(F1)** Cancel/expire/refund/release route funds to creator
+- [x] **(F2)** Internal-source authorization rechecked inside write transaction
+- [x] **(F2)** Scope ownership does not substitute for `reward.manage` on internal sources
+- [x] All test fixtures use legitimate funding with correct funder identity
+- [x] TypeScript build succeeds (`tsc --noEmit`)
+- [ ] Independent security review APPROVED against corrected head
+- [ ] CI checks pass on corrected head
+- [ ] Ledger correctly updated to PARTIALLY_FIXED with R1 corrected, R2/R3 outstanding

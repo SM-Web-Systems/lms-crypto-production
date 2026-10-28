@@ -167,8 +167,11 @@ export async function verifyFundingSourceAsync(
  * Enforces reward foundation spec section 5:
  * - Actor must have reward.manage permission
  * - Actor must NOT be the reward creator (conflict of interest)
+ *
+ * Exported so that the service layer can recheck this inside the
+ * write transaction (defense-in-depth against TOCTOU on the async path).
  */
-function verifyInternalAuthorization(
+export function verifyInternalAuthorization(
   context: FundingAuthorizationContext | undefined,
   sourceType: string,
 ): void {

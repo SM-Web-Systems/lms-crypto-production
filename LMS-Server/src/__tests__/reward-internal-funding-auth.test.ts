@@ -11,7 +11,19 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import './setup.js';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database.js';
-import { createReward, fundReward, fundRewardAsync, getReward } from '../services/rewards/rewardService.js';
+import {
+  createReward,
+  fundReward,
+  fundRewardAsync,
+  activateReward,
+  cancelReward,
+  releaseAllocation,
+  refundAllocation,
+  getReward,
+  getRewardAllocations,
+} from '../services/rewards/rewardService.js';
+import { expireReward } from '../services/rewards/rewardService.js';
+import { getAccount } from '../services/rewards/rewardBalanceService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 
 // ──── Test Helpers ────
@@ -281,6 +293,322 @@ describe('W01-R1: Internal funding authorization', () => {
         'SELECT * FROM reward_accounts WHERE user_id = ?'
       ).all(sponsor);
       expect(accounts).toHaveLength(0);
+    });
+  });
+
+  // ──── R1-F1: Grant ownership — funder is the reward creator, not the authorizer ────
+
+  describe('R1-F1: Grant ownership (funder identity)', () => {
+    /** Helper: make an allocation eligible. */
+    function makeEligible(allocationId: string): void {
+      db.prepare(
+        `UPDATE reward_allocations SET status = 'eligible', eligible_at = datetime('now') WHERE id = ?`
+      ).run(allocationId);
+    }
+
+    it('funding ledger credits the reward creator, not the authorizing admin', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+
+      // The fund entry's destination (beneficiary) must be the creator
+      const fundEntry = db.prepare(
+        `SELECT destination_user_id, actor_user_id FROM reward_transactions
+         WHERE reward_id = ? AND transaction_type = 'fund'`
+      ).get(rewardId) as { destination_user_id: string; actor_user_id: string };
+
+      expect(fundEntry.actor_user_id).toBe(admin);           // admin is the audited actor
+      expect(fundEntry.destination_user_id).toBe(sponsor);    // creator is the beneficiary
+    });
+
+    it('reserve ledger entry is under the creator account, not admin', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+
+      const reserveEntry = db.prepare(
+        `SELECT source_user_id, destination_user_id FROM reward_transactions
+         WHERE reward_id = ? AND transaction_type = 'reserve'`
+      ).get(rewardId) as { source_user_id: string; destination_user_id: string };
+
+      expect(reserveEntry.source_user_id).toBe(sponsor);
+      expect(reserveEntry.destination_user_id).toBe(sponsor);
+    });
+
+    it('funder account belongs to the creator with correct balances', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+
+      // Creator should have the funder account
+      const creatorAccount = getAccount(sponsor, 'funder');
+      expect(creatorAccount).not.toBeNull();
+      expect(creatorAccount!.reserved_stroops).toBe(10000000);
+
+      // Admin should NOT have a funder account
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('cancellation returns funds to the creator, not the authorizing admin', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+      activateReward(rewardId, sponsor, `act-${uuidv4()}`);
+      cancelReward(rewardId, sponsor, 'testing', `cancel-${uuidv4()}`);
+
+      // Creator gets the funds back
+      const creatorAccount = getAccount(sponsor, 'funder')!;
+      expect(creatorAccount.available_stroops).toBe(10000000);
+      expect(creatorAccount.reserved_stroops).toBe(0);
+
+      // Admin has no funder account
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('expiry returns funds to the creator, not the authorizing admin', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+      activateReward(rewardId, sponsor, `act-${uuidv4()}`);
+      expireReward(rewardId, `expire-${uuidv4()}`);
+
+      const creatorAccount = getAccount(sponsor, 'funder')!;
+      expect(creatorAccount.available_stroops).toBe(10000000);
+      expect(creatorAccount.reserved_stroops).toBe(0);
+
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('release debits the creator funder account, not the admin', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+      activateReward(rewardId, sponsor, `act-${uuidv4()}`);
+
+      const allocs = getRewardAllocations(rewardId);
+      makeEligible(allocs[0].id);
+      releaseAllocation(allocs[0].id, sponsor, `rel-${uuidv4()}`);
+
+      // Creator's reserved should decrease
+      const creatorAccount = getAccount(sponsor, 'funder')!;
+      expect(creatorAccount.reserved_stroops).toBe(0);
+
+      // Admin has no funder account
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('refund returns funds to the creator, not the authorizing admin', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+      activateReward(rewardId, sponsor, `act-${uuidv4()}`);
+
+      const allocs = getRewardAllocations(rewardId);
+      makeEligible(allocs[0].id);
+      releaseAllocation(allocs[0].id, sponsor, `rel-${uuidv4()}`);
+
+      // Refund
+      refundAllocation(allocs[0].id, sponsor, `refund-${uuidv4()}`);
+
+      // Refunded funds return to creator's available
+      const creatorAccount = getAccount(sponsor, 'funder')!;
+      expect(creatorAccount.available_stroops).toBe(10000000);
+      expect(creatorAccount.reserved_stroops).toBe(0);
+
+      // Admin still has no funder account
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('async path also credits the creator, not the authorizing admin', async () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      await fundRewardAsync(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+
+      const fundEntry = db.prepare(
+        `SELECT destination_user_id, actor_user_id FROM reward_transactions
+         WHERE reward_id = ? AND transaction_type = 'fund'`
+      ).get(rewardId) as { destination_user_id: string; actor_user_id: string };
+
+      expect(fundEntry.actor_user_id).toBe(admin);
+      expect(fundEntry.destination_user_id).toBe(sponsor);
+
+      const creatorAccount = getAccount(sponsor, 'funder');
+      expect(creatorAccount).not.toBeNull();
+
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+  });
+
+  // ──── R1-F2: Transaction-time authorization recheck ────
+
+  describe('R1-F2: Transaction-time authorization recheck', () => {
+    it('rejects grant when reward.manage is revoked after initial verification (sync)', () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      // Revoke reward.manage AFTER the reward is created but BEFORE funding
+      // This simulates the race: initial check passes, then permission is revoked
+      // before the DB transaction commits.
+      //
+      // In the current code, fundReward() checks authorization in verifyFundingSourceSync()
+      // before the transaction, then the transaction only checks hasPermission OR scope.
+      // We test that the transaction ALSO rechecks internal-source authorization.
+
+      // Step 1: Verify admin currently has permission (precondition)
+      const hasManageBefore = db.prepare(
+        `SELECT COUNT(*) as cnt FROM role_permissions rp
+         JOIN user_roles ur ON rp.role_id = ur.role_id
+         WHERE ur.user_id = ? AND rp.permission_id = 'perm_reward_manage'`
+      ).get(admin) as { cnt: number };
+      expect(hasManageBefore.cnt).toBeGreaterThan(0);
+
+      // Step 2: Revoke the permission
+      db.prepare(
+        `DELETE FROM role_permissions WHERE role_id = 'role_admin' AND permission_id = 'perm_reward_manage'`
+      ).run();
+
+      // Step 3: Now funding should fail — the sync verifier will catch it
+      // But critically, even if we bypass the verifier (as fundRewardVerified does
+      // in the async path), the transaction itself must also check.
+      expect(() =>
+        fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`)
+      ).toThrow(RewardError);
+
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+
+      // No ledger entries or accounts created
+      const txns = db.prepare(
+        'SELECT * FROM reward_transactions WHERE reward_id = ?'
+      ).all(rewardId);
+      expect(txns).toHaveLength(0);
+    });
+
+    it('transaction rejects internal grant when admin retains scope but loses reward.manage', () => {
+      // This is the key R1-F2 scenario: admin has scope ownership (cohort transfer)
+      // but reward.manage was revoked. The transaction's hasManage || scope check
+      // must NOT allow scope ownership to substitute for internal-source permission.
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      // Transfer cohort ownership to admin so admin has scope access
+      db.prepare(
+        `UPDATE sponsor_cohorts SET sponsor_user_id = ? WHERE id = ?`
+      ).run(admin, cohortId);
+
+      // Revoke reward.manage but admin retains scope ownership
+      db.prepare(
+        `DELETE FROM role_permissions WHERE role_id = 'role_admin' AND permission_id = 'perm_reward_manage'`
+      ).run();
+
+      // Funding should still be rejected: scope ownership must not substitute
+      // for internal-source authorization
+      expect(() =>
+        fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`)
+      ).toThrow(RewardError);
+
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+
+      // No financial mutation occurred
+      const txns = db.prepare(
+        'SELECT * FROM reward_transactions WHERE reward_id = ?'
+      ).all(rewardId);
+      expect(txns).toHaveLength(0);
+
+      const adminAccount = getAccount(admin, 'funder');
+      expect(adminAccount).toBeNull();
+    });
+
+    it('transaction rejects when actor becomes creator (conflict) after initial check', () => {
+      // Admin A != creator B at verification time, but reward creator changes to A
+      // before the transaction. The transaction must recheck independence.
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      // Change the reward's creator to admin after creation
+      // This simulates a concurrent modification
+      db.prepare('UPDATE rewards SET creator_user_id = ? WHERE id = ?').run(admin, rewardId);
+
+      // Now admin IS the creator — should be rejected as CONFLICT_OF_INTEREST
+      expect(() =>
+        fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`)
+      ).toThrow(RewardError);
+
+      try {
+        fundReward(rewardId, admin, { type: 'admin_grant' }, `fund-retry-${uuidv4()}`);
+      } catch (err) {
+        const re = err as RewardError;
+        expect(re.code).toBe('CONFLICT_OF_INTEREST');
+      }
+
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+    });
+
+    it('async path rechecks authorization in transaction after verification', async () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+
+      // Transfer cohort to admin so admin has scope access
+      db.prepare(
+        `UPDATE sponsor_cohorts SET sponsor_user_id = ? WHERE id = ?`
+      ).run(admin, cohortId);
+
+      // Revoke reward.manage — admin still has scope
+      db.prepare(
+        `DELETE FROM role_permissions WHERE role_id = 'role_admin' AND permission_id = 'perm_reward_manage'`
+      ).run();
+
+      await expect(
+        fundRewardAsync(rewardId, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`)
+      ).rejects.toThrow(RewardError);
+
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
+
+      const txns = db.prepare(
+        'SELECT * FROM reward_transactions WHERE reward_id = ?'
+      ).all(rewardId);
+      expect(txns).toHaveLength(0);
     });
   });
 });

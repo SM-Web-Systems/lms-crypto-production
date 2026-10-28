@@ -7,7 +7,7 @@ import { writeLedgerEntry } from './rewardLedger.js';
 import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
-import { verifyFundingSourceSync, verifyFundingSourceAsync } from './rewardFundingVerifier.js';
+import { verifyFundingSourceSync, verifyFundingSourceAsync, verifyInternalAuthorization } from './rewardFundingVerifier.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
@@ -119,6 +119,18 @@ export function fundReward(
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
+
+    // W01-R1 (F2 fix): Recheck internal-source authorization inside the
+    // transaction using the current reward state. This is defense-in-depth
+    // against TOCTOU: the outer verifier checked before the transaction,
+    // but permissions or reward ownership may have changed.
+    if (isInternalSource(source.type)) {
+      verifyInternalAuthorization(
+        { actorId, rewardCreatorId: reward.creator_user_id },
+        source.type,
+      );
+    }
+
     // W01-R1: reward.manage holders bypass scope validation (e.g., admin
     // authorizing internal funding for a sponsor's reward).
     const hasManage = hasPermission(actorId, 'reward.manage');
@@ -133,7 +145,11 @@ export function fundReward(
     const maxRecipients = BigInt(reward.max_recipients ?? 1);
     const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
 
-    getOrCreateAccount(actorId, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
+    // is the reward creator — not the authorizing admin. The admin is audited
+    // as actorUserId but financial ownership belongs to the creator.
+    const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+    getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
     // Ledger entry 1: fund (external → funder.available)
     writeLedgerEntry({
@@ -145,7 +161,7 @@ export function fundReward(
       sourceUserId: null,
       destinationAccountType: 'funder',
       destinationBucket: 'available',
-      destinationUserId: actorId,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'draft',
@@ -162,10 +178,10 @@ export function fundReward(
       amountStroops: totalExposure,
       sourceAccountType: 'funder',
       sourceBucket: 'available',
-      sourceUserId: actorId,
+      sourceUserId: funderId,
       destinationAccountType: 'funder',
       destinationBucket: 'reserved',
-      destinationUserId: actorId,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'pending_funding',
@@ -234,6 +250,17 @@ function fundRewardVerified(
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
+
+    // W01-R1 (F2 fix): Recheck internal-source authorization inside the
+    // transaction using the current reward state. The async verifier ran
+    // before this transaction; permissions or ownership may have changed.
+    if (isInternalSource(source.type)) {
+      verifyInternalAuthorization(
+        { actorId, rewardCreatorId: reward.creator_user_id },
+        source.type,
+      );
+    }
+
     // W01-R1: reward.manage holders bypass scope validation
     const hasManage = hasPermission(actorId, 'reward.manage');
     if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
@@ -247,7 +274,10 @@ function fundRewardVerified(
     const maxRecipients = BigInt(reward.max_recipients ?? 1);
     const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
 
-    getOrCreateAccount(actorId, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
+    // is the reward creator. The admin is audited as actorUserId.
+    const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+    getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
     writeLedgerEntry({
       rewardId,
@@ -258,7 +288,7 @@ function fundRewardVerified(
       sourceUserId: null,
       destinationAccountType: 'funder',
       destinationBucket: 'available',
-      destinationUserId: actorId,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'draft',
@@ -274,10 +304,10 @@ function fundRewardVerified(
       amountStroops: totalExposure,
       sourceAccountType: 'funder',
       sourceBucket: 'available',
-      sourceUserId: actorId,
+      sourceUserId: funderId,
       destinationAccountType: 'funder',
       destinationBucket: 'reserved',
-      destinationUserId: actorId,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'pending_funding',
@@ -737,6 +767,11 @@ export function getRewardTransactions(rewardId: string): unknown[] {
 }
 
 // ──── Internal Helpers ────
+
+/** Internal funding sources where the funder is the reward creator, not the actor. */
+function isInternalSource(sourceType: FundingSourceType): boolean {
+  return sourceType === 'admin_grant' || sourceType === 'platform_credit';
+}
 
 function getRewardRow(rewardId: string): RewardRow | null {
   return (db.prepare('SELECT * FROM rewards WHERE id = ?').get(rewardId) as RewardRow | undefined) ?? null;

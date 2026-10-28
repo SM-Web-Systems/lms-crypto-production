@@ -71,10 +71,12 @@ function createFundedActiveReward(
     autoRelease,
     idempotencyKey: `idem-${uuidv4()}`,
   });
-  const funderId = createIndependentAdmin();
-  fundReward(reward.id, funderId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+  const adminId = createIndependentAdmin();
+  fundReward(reward.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
   activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
-  return { rewardId: reward.id, funderId };
+  // W01-R1 (F1): The financial beneficiary is the reward creator (sponsorId),
+  // not the authorizing admin. Return sponsorId as funderId.
+  return { rewardId: reward.id, funderId: sponsorId };
 }
 
 function makeAllocationEligible(allocationId: string): void {
@@ -116,7 +118,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
   it('R-LIFE-2: Cancel after release only returns unreleased funds', () => {
     const { sponsorId, studentId, cohortId } = seedRewardScenario();
-    const funderId = createIndependentAdmin();
+    const adminId = createIndependentAdmin();
 
     // Create a reward with 2 students
     const studentId2 = uuidv4();
@@ -134,7 +136,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
       autoRelease: false,
       idempotencyKey: `idem-${uuidv4()}`,
     });
-    fundReward(reward.id, funderId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+    fundReward(reward.id, adminId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
 
     // Release first allocation
@@ -148,12 +150,13 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     const updated = getReward(reward.id)!;
     expect(updated.status).toBe('cancelled');
 
-    const funder = getAccount(funderId, 'funder')!;
+    // W01-R1 (F1): Funder account belongs to the creator (sponsorId), not admin
+    const funder = getAccount(sponsorId, 'funder')!;
     // Total funded: 5M * 2 = 10M; Released 5M; Cancelled should return 5M
     expect(funder.available_stroops).toBe(5000000);
     expect(funder.reserved_stroops).toBe(0);
 
-    const recon = reconcileAccount(funderId, 'funder');
+    const recon = reconcileAccount(sponsorId, 'funder');
     expect(recon.matches).toBe(true);
   });
 

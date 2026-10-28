@@ -125,8 +125,8 @@ describe('Reward Orchestration Service', () => {
     const funded = fundReward(reward.id, admin, { type: 'admin_grant' }, `fund-${uuidv4()}`);
     expect(funded.status).toBe('funded');
 
-    // W01-R1: Funder account belongs to the funding admin, not the creator
-    const account = getOrCreateAccount(admin, 'funder', 'XLM');
+    // W01-R1 (F1): Funder account belongs to the reward creator, not the authorizing admin
+    const account = getOrCreateAccount(sponsor, 'funder', 'XLM');
     expect(account.reserved_stroops).toBe(20000000);
 
     // Check ledger entries
@@ -216,8 +216,8 @@ describe('Reward Orchestration Service', () => {
     const cancelled = cancelReward(reward.id, sponsor, 'Testing cancellation', `cancel-${uuidv4()}`);
     expect(cancelled.status).toBe('cancelled');
 
-    // W01-R1: Funder account belongs to the funding admin, not the creator
-    const account = getOrCreateAccount(admin, 'funder', 'XLM');
+    // W01-R1 (F1): Funder account belongs to the reward creator, not the authorizing admin
+    const account = getOrCreateAccount(sponsor, 'funder', 'XLM');
     expect(account.reserved_stroops).toBe(0);
     expect(account.available_stroops).toBe(5000000);
 
