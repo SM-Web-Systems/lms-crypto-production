@@ -132,16 +132,39 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
   8. Interleaving regression: TOCTOU between verifier and transaction proven and covered
 
 ### S2-T01-R2: Implement W01-R2 — Paystack payment binding
-- **Status**: TODO
-- **Dependencies**: S2-T01-R1 merged ✓
-- **Owner**: —
-- **Scope**: Paystack amount/currency cross-check (advisory A1), funding_reference uniqueness (A3)
+- **Status**: IN_PROGRESS
+- **Dependencies**: S2-T01-R1 merged ✓, C1 merged (#106 at `fa187b8`) ✓
+- **Owner**: R2 session (AI-delegated)
+- **Scope**: Full Paystack payment binding — status verification (exists), amount/currency binding against reward's authoritative obligation (advisory A1), ownership verification (funder identity matches Paystack payer), intended-funding-obligation validation (payment-to-reward linkage). Currency settlement: rewards are XLM stroops, Paystack is fiat (USD); no settlement policy exists — fail closed and record gap per prompt guidance. Reference uniqueness (A3) is already enforced but remains under R3's atomic-consumption gate for concurrent access.
+- **Acceptance criteria**:
+  1. Paystack funding with wrong amount rejected (AMOUNT_MISMATCH)
+  2. Paystack funding with wrong currency rejected (CURRENCY_MISMATCH)
+  3. Paystack funding with wrong owner rejected (OWNERSHIP_MISMATCH)
+  4. Paystack funding for unrelated obligation rejected (OBLIGATION_MISMATCH)
+  5. Paystack funding with failed/pending/abandoned status rejected (exists, preserved)
+  6. XLM reward with Paystack fiat payment fails closed (no settlement path)
+  7. Legitimate fully-matching case passes (if supported binding exists)
+  8. Denial leaves reward state, accounts and ledger unchanged
+  9. All 25 R1 tests + existing W01 tests pass (no regression)
+  10. R3 atomic-consumption gate remains separately pending
+- **Does NOT include**: Atomic concurrent-reference consumption (R3), Stellar Horizon client (deferred), W02–W04
 
-### S2-T01-R3: Implement W01-R3 — Stellar Horizon client
+### S2-T01-R3: Implement W01-R3 — atomic payment-reference consumption
 - **Status**: TODO
-- **Dependencies**: S2-T01-R1 merged ✓
+- **Dependencies**: S2-T01-R2 complete
 - **Owner**: —
-- **Scope**: Stellar transaction verification when Horizon client is configured
+- **Scope**: Atomic payment-reference consumption — one verified payment cannot fund competing rewards concurrently. Includes: concurrent competing requests (two rewards racing for the same reference), same-operation retries (idempotent retry must not double-consume), rollback correctness (failed transaction must not mark reference as consumed), provider-appropriate reference identity (Paystack reference string, Stellar tx hash). `checkReferenceNotReused()` is a sequential duplicate check; R3 must prove it holds under concurrent load or replace it with an atomic mechanism (DB-level UNIQUE constraint on funding_reference, or serialized consumption). Advisory A3 (no DB-level UNIQUE on funding_reference) is the primary structural gap.
+- **Acceptance criteria**:
+  1. Two concurrent fund requests for different rewards with the same reference: exactly one succeeds
+  2. Retry of a successful fund with the same idempotency key returns the same result
+  3. Failed fund does not mark reference as consumed (retry succeeds)
+  4. DB-level uniqueness enforced (not just application-level check)
+- **Does NOT include**: Stellar Horizon client (deferred separately)
+
+### Deferred: Stellar Horizon integration
+- **Status**: DEFERRED
+- **Scope**: Stellar transaction verification when a Horizon client is configured. Currently fails closed (FUNDING_UNVERIFIED 402). Separate from W01 repair units — Stellar denied-by-default is correct security posture until a Horizon client integration is implemented and tested.
+- **Not a W01 repair unit**: Stellar's fail-closed behavior is the intended R1 result, not a gap requiring repair.
 
 ### S2-T02: Implement W02 — cross-owner reward scope checks
 - **Status**: TODO

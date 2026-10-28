@@ -1,7 +1,7 @@
 # Staged rollout index
 
 Date: 2026-10-28
-Plan status: **S2_IN_PROGRESS** — W01 partially fixed (R1 merged, R2/R3 pending), W02 next
+Plan status: **S2_IN_PROGRESS** — W01 partially fixed (R1 merged, R2/R3 pending), W01-R2 next; W02 pending W01 closure
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 
@@ -9,7 +9,7 @@ Recommended first stage: **S1** (inventory, specification and independent depend
 
 | Component | Ref | SHA | Notes |
 | --- | --- | --- | --- |
-| LMS main | `origin/main` | `8096b9b` | Last merged: PR #105 (W01-R1 internal funding authorization correction); prior: #104, #90, #86 |
+| LMS main | `origin/main` | `fa187b8` | Last merged: PR #106 (W01-R1-C1 interleaving regressions); prior: #105 (R1), #104, #90, #86 |
 | RBAC candidate | `codex/rbac-schema-retirement` (PR #101 head) | `b8015e27eae1` | Stacked: #98→#99→#100→#101 on main |
 | Platform audit | `codex/platform-wiring-audit` (PR #102 head) | `718985fb9f39` | Documentation only; stacked on #101 |
 | Database follow-up | `codex/database-integrity-followup` (PR #93) | `70cc27ec5c3d` | Independent of RBAC chain |
@@ -53,7 +53,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 
 | Finding | Priority | Status on main | Fix PR | Residual work |
 | --- | --- | --- | --- | --- |
-| W01 | P1 | **PARTIALLY_FIXED** — funding verification gate (#104 merged `115d8c4f`); R1 **MERGED** (#105 at `8096b9b`) — grant ownership + transaction-time recheck + interleaving regressions (#106) | #104 MERGED; #105 MERGED (R1 correction); #106 (C1 interleaving tests) | R2 (Paystack payment binding), R3 (Stellar Horizon client) pending; A1-A3,A5 carried forward |
+| W01 | P1 | **PARTIALLY_FIXED** — funding verification gate (#104 merged `115d8c4f`); R1 **MERGED** (#105 at `8096b9b`; C1 #106 at `fa187b8`) — grant ownership + transaction-time recheck + interleaving regressions | #104 MERGED; #105 MERGED (R1 correction); #106 MERGED (C1 interleaving tests) | R2 (Paystack payment binding: status/amount/currency/ownership/obligation), R3 (atomic payment-reference consumption: concurrency, retry, rollback) pending; Stellar Horizon client deferred separately; A1-A3,A5 carried forward |
 | W02 | P1 | **Vulnerable** — reward reads lack cross-owner checks; lifecycle has fast-return bypasses | None | Add universal resource-owner scope checks |
 | W03 | P1 | **Vulnerable** — `activateReward()` creates allocations for all audience members regardless of `max_recipients` | None | Enforce allocation cap vs reservation invariant |
 | W04 | P1 | **Vulnerable** — lesson completion fires `course_completion` outbox event (line 157) per lesson, not per course | None | Make eligibility source-bound to actual course completion |

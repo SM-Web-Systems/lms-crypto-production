@@ -19,10 +19,10 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
 | Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction) |
-| Residual work | R2 (Paystack payment binding: A1, A3), R3 (Stellar Horizon client); A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) |
+| Residual work | R2 (Paystack payment binding: status/amount/currency/ownership/obligation — A1), R3 (atomic payment-reference consumption: concurrent access, retry, rollback — A3). Stellar Horizon client deferred separately (fail-closed is correct). A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) carried forward. |
 | Release impact | P1 — **PARTIALLY_FIXED** — funding verification gate + internal authorization enforced; Paystack binding and Stellar client remain |
 | Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU |
-| Evidence status | **PARTIALLY_FIXED** — PRs #104 and #105 merged (25 R1 tests); R2/R3 blocking full resolution |
+| Evidence status | **PARTIALLY_FIXED** — PRs #104, #105, #106 merged (25 R1 tests + 2 C1 interleaving, 1855 total/1854 passed/1 skipped); R2 (Paystack binding) and R3 (atomic consumption) blocking full W01 resolution. Stellar Horizon deferred separately. |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -41,7 +41,37 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Independent review | Initial: APPROVED (10/10); Correction review: APPROVED; Merge verification: `SERVER-HANDOVER-W01-R1-MERGE-VERIFICATION.md` at `ef87773` |
 | Error codes | `SCOPE_DENIED` (403, no reward.manage), `CONFLICT_OF_INTEREST` (403, actor = creator), `INSUFFICIENT_CREDIT` (402, platform_credit fail-closed) |
 | Resolves advisory | A4 (platform_credit balance check spec gap) — now fails closed unconditionally |
-| Evidence status | **MERGED** — PR #105 merged at `8096b9b`; C1 interleaving regressions in PR #106; R2/R3 pending |
+| CI (corrected) | #105 PR run `40641432181`, #105 main run `40641989352` (SUCCESS); #106 PR run `40644680249`, #106 main run `40645163963` (SUCCESS); all 4 jobs SUCCESS per run. Main at `fa187b8` after #106 merge. |
+| Evidence status | **MERGED** — PR #105 merged at `8096b9b`; C1 interleaving regressions merged via PR #106 at `fa187b8`. R2 (Paystack binding) and R3 (atomic consumption) pending. Stellar Horizon client deferred separately. |
+
+#### W01-R2: Paystack payment binding (corrected identity)
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W01-R2 |
+| Scope | Paystack payment binding: status verification, amount/currency binding, ownership verification, intended-funding-obligation validation. Advisory A1 (Paystack amount/currency cross-check). |
+| Currency gap | Rewards are XLM stroops; Paystack operates in fiat (USD/ZAR). No settlement/quote policy exists in the codebase to convert between XLM and fiat. Per prompt guidance: fail closed where required evidence is absent. |
+| Dependencies | R1 merged ✓, C1 merged ✓ |
+| Evidence status | **IN_PROGRESS** — spec and implementation pending |
+
+#### W01-R3: Atomic payment-reference consumption (corrected identity)
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W01-R3 |
+| Scope | Atomic payment-reference consumption: one verified payment cannot fund competing rewards concurrently. Includes concurrent competing requests, same-operation retries, rollback correctness, provider-appropriate reference identity. Advisory A3 (no DB-level UNIQUE on funding_reference). |
+| Previous incorrect label | Was labeled "Stellar Horizon client" at `b62e923`. Corrected per original handover `SERVER-HANDOVER-W01-REVIEW-AND-REPAIR.md` definition. |
+| Structural gap | `checkReferenceNotReused()` is a sequential application-level check (SELECT then INSERT in separate statements). Under concurrent requests, two transactions could both pass the check before either writes. DB-level UNIQUE constraint on `reward_transactions.funding_reference` is absent. |
+| Dependencies | R2 complete (R3 builds on R2's verified binding) |
+| Evidence status | **TODO** — pending R2 completion |
+
+#### Deferred: Stellar Horizon integration
+
+| Field | Value |
+| --- | --- |
+| Scope | Stellar transaction verification via Horizon API client. Currently fails closed with FUNDING_UNVERIFIED (402) — correct security posture. |
+| Reason deferred | Not a security repair — Stellar's fail-closed behavior is the intended R1 outcome. Integration is a feature addition, not a vulnerability fix. Separate from W01 repair chain. |
+| Evidence status | **DEFERRED** — no timeline, not blocking W01 closure |
 
 ### W02: Cross-owner reward reads and lifecycle fast returns
 
