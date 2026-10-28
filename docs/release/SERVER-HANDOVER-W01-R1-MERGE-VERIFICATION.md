@@ -2,6 +2,8 @@
 
 Date: 2026-10-28. **Runtime corrections VERIFIED; two bounded evidence/test closure items remain.** No further runtime repair is identified by this review. Do not repeat the prior implementation or revert the merged improvement.
 
+Subsequent closure: [PR #106 verification and next R2 prompt](CLAUDE-SERVER-W01-R2-PROMPT.md) records the merged genuine interleaving tests and updated planning branch. R1 need not be reopened; correct the R3 task identity as R2's planning preflight, then proceed with R2 only.
+
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). This handover is on branch `codex/platform-wiring-audit`. Authoritative staged ledgers belong to **`codex/staged-rollout-plan` (PR #103)**, not this documentation branch. Neither branch name is a separate repository.
 
 ## Verified receipt
