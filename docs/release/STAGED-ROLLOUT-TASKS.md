@@ -162,22 +162,26 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Does NOT include**: Atomic concurrent-reference consumption (R3), Stellar Horizon client (deferred), W02–W04
 
 ### S2-T01-R3: Implement W01-R3 — atomic payment-reference consumption
-- **Status**: CHANGES_REQUIRED
+- **Status**: MERGED (corrected)
 - **Dependencies**: S2-T01-R2 merged ✓ (PR #107 at `17d93f0`)
-- **Owner**: R3 correction session (AI-delegated)
-- **Spec**: `docs/superpowers/specs/2026-10-28-W01-R3-atomic-reference-consumption.md`
-- **Plan**: `docs/superpowers/plans/2026-10-28-W01-R3-tdd-plan.md`
-- **Branch**: `codex/w01r3-atomic-reference-consumption` at `b852d5c`
-- **PR**: #108 — MERGED at `7a23f88` (2026-10-28) — **CHANGES_REQUIRED per independent review**
+- **Owner**: R3 session + R3C correction session (AI-delegated)
+- **Spec**: `docs/superpowers/specs/2026-10-28-W01-R3-atomic-reference-consumption.md` (original); `docs/superpowers/specs/2026-10-28-W01-R3C-correction-spec.md` (correction)
+- **Plan**: `docs/superpowers/plans/2026-10-28-W01-R3-tdd-plan.md` (original); `docs/superpowers/plans/2026-10-28-W01-R3C-tdd-plan.md` (correction)
+- **Branch (original)**: `codex/w01r3-atomic-reference-consumption` at `b852d5c`
+- **PR (original)**: #108 — MERGED at `7a23f88` (2026-10-28)
 - **Correction handover**: `docs/release/SERVER-HANDOVER-W01-R3-PR108-REVIEW.md` at `0d304dd` on `codex/platform-wiring-audit`
-- **Three-layer defense**: (1) Outer pre-check optimization, (2) in-transaction `checkReferenceInTransaction()`, (3) partial UNIQUE index — clean-database guard works, upgrade path and legacy reference identity need correction
-- **Prior evidence preserved**: PR #108 merge receipt, CI runs `40716729026` and `40717848878`, 15 R3 tests passing
-- **R3-F1 (P1)**: Existing pre-R3 database rejected before upgrade. `databaseBootstrap.ts` validates schema keys derived from `schema.sql` (which now includes the R3 partial UNIQUE index) against the opened database. Pre-R3 databases lack the index → `refuse('missing unique constraint (reward_transactions)')` → startup exits before `ensureRewardTables()` migration can add the index. Clean-schema tests do not detect this because they initialize from `schema.sql` directly.
-- **R3-F2 (P2)**: `normalizeReference()` trims nonblank references. Historical writer stored references verbatim. Raw UNIQUE index does not enforce trimmed canonical identity. Historical `" ref "` and new `"ref"` both remain as separate fund entries. Spec contradicts implementation: spec says opaque (no trim), implementation trims.
-- **R3-F3 (P2)**: Tests overstate coverage. T01 is sequential not concurrent. T02/T06 use nonexistent reward IDs and generic `toThrow()`. T04 does not inject a failure for genuine rollback. T11 checks already-created schema not actual upgrade. T12 creates one reference and asserts no duplicates.
-- **Correction scope**: (1) Narrow pre-migration exemption for additive R3 UNIQUE + strict post-migration enforcement. (2) Opaque reference identity — preserve exact nonblank references, no trimming. (3) Genuine acceptance regressions: old-file startup, valid-ID direct insert, injected rollback, real upgrade/migration, reference identity consistency.
-- **Advisories resolved in #108**: A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference) — these fixes remain valid
-- **Advisories remaining**: A1 (Paystack amount/currency — gated by R2), A5 (FundingSource duplication — cosmetic)
+- **Branch (correction)**: `codex/w01r3c-correction` at `0144357`
+- **PR (correction)**: #109 — MERGED at `a929836` (2026-10-28)
+- **Three-layer defense**: (1) Outer pre-check optimization, (2) in-transaction `checkReferenceInTransaction()`, (3) partial UNIQUE index as authoritative DB-level enforcement
+- **R3C corrections applied**:
+  - **F1 FIXED**: `legacyUniqueExemptions` in `databaseBootstrap.ts` tolerates missing R3 UNIQUE pre-migration; `idx_reward_txn_fund_ref_unique` added to `required-schema.json` for post-migration enforcement. Pre-R3 databases now upgrade successfully.
+  - **F2 FIXED**: `normalizeReference()` preserves exact nonblank values (opaque identity). Empty → null; all other values stored exactly as received. Consistent with historical writer and raw UNIQUE index.
+  - **F3 FIXED**: T02/T06 use valid reward IDs with specific `isFundingReferenceConstraintViolation` assertion. T04 proves genuine rollback frees reference. T08 whitespace stored exactly. T11 real pre-R3 upgrade. T12 real duplicate rejection. T14 opaque identity. T15 F1 exemption. T16 required-schema.json.
+- **Tests**: 21 R3 tests (was 15); 183 files, 1888 passed, 0 failures, 0 regressions. All 25 R1 + 12 R2 tests preserved.
+- **Independent review**: R3C spec review: APPROVED_WITH_NOTES (notes incorporated). R3C code review: APPROVED (6/6 checklist PASS).
+- **CI**: PR #109 run `40728271331` (SUCCESS, 4 jobs); main post-merge run `40729467144` (SUCCESS, 4 jobs)
+- **Advisories resolved**: A2 (DUPLICATE_REFERENCE no longer leaks reward ID), A3 (DB-level UNIQUE on funding_reference)
+- **Advisories remaining**: A1 (Paystack amount/currency — gated by R2 currency mismatch), A5 (FundingSource duplication — cosmetic)
 - **Does NOT include**: Stellar Horizon client (deferred separately)
 
 ### Deferred: Stellar Horizon integration

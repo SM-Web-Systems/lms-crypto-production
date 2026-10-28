@@ -18,11 +18,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Code evidence | `LMS-Server/src/services/rewards/rewardService.ts:91-162` — `fundReward()` accepts `FundingSource { type, reference? }` and writes two ledger entries (fund + reserve) without verifying the reference against any external provider API. `source.type` is mapped to `sourceAccountType` strings (`external`/`platform`) at line 122 but no validation or provider call occurs. All source types (`stellar`, `paystack`, `platform_credit`) receive HTTP 200. |
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
-| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding); **#108 MERGED** at `7a23f88` (2026-10-28, R3 atomic reference consumption) |
+| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding); **#108 MERGED** at `7a23f88` (2026-10-28, R3 atomic reference consumption); **#109 MERGED** at `a929836` (2026-10-28, R3C correction — F1/F2/F3) |
 | Residual work | Stellar Horizon client deferred separately (fail-closed is correct security posture). A1 (Paystack amount/currency cross-check — gated by R2 currency mismatch). A5 (FundingSource interface duplication — cosmetic, non-security). Paystack reward funding operationally unavailable (R2 containment only; enablement requires settlement policy, obligation binding, and ownership verification). |
-| Release impact | P1 — **PARTIALLY_FIXED (R3 CHANGES_REQUIRED)** — funding verification gate + internal authorization + Paystack binding enforced; atomic reference consumption guard works on clean databases but upgrade path and legacy reference identity need correction (R3-F1, R3-F2). External sources fail closed. |
-| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU; DB-level UNIQUE prevents concurrent reference consumption; error messages do not leak reward IDs |
-| Evidence status | **PARTIALLY_FIXED (R3 CHANGES_REQUIRED)** — PRs #104, #105, #106, #107, #108 merged (25 R1 + 12 R2 + 15 R3 tests; 183 files, 1882 passed, 0 failures, 0 regressions). R3 clean-database guard works; upgrade path (F1) and legacy reference identity (F2) need correction per `SERVER-HANDOVER-W01-R3-PR108-REVIEW.md`. Prior W01 closure conclusions superseded. A2/A3 fixes in #108 remain valid. Stellar Horizon deferred. Paystack operationally unavailable (R2 containment). |
+| Release impact | P1 — **FIXED (security containment)** — funding verification gate + internal authorization + Paystack binding enforced; atomic reference consumption with three-layer defense (pre-check, in-transaction, UNIQUE index); pre-R3 upgrade path validated (F1 legacyUniqueExemptions); opaque reference identity consistent with historical data (F2); genuine acceptance regressions (F3). External sources fail closed. |
+| Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU; DB-level UNIQUE prevents concurrent reference consumption; error messages do not leak reward IDs; pre-R3 databases upgrade successfully; reference identity is opaque (no trimming) |
+| Evidence status | **FIXED (security containment)** — PRs #104, #105, #106, #107, #108, #109 merged (25 R1 + 12 R2 + 21 R3 tests; 183 files, 1888 passed, 0 failures, 0 regressions). R3C correction (PR #109) resolved upgrade blocker (F1), reference identity (F2), and test coverage (F3). A2/A3 advisories resolved. Stellar Horizon deferred (fail-closed, correct security posture). Paystack operationally unavailable (R2 containment). |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -86,7 +86,7 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | R3-F1 | Pre-R3 database rejected before `ensureRewardTables()` migration. `databaseBootstrap.ts` validates keys from `schema.sql` (which includes R3 UNIQUE index) against the opened database. Pre-R3 databases lack the index → startup refuses before migration can add it. |
 | R3-F2 | `normalizeReference()` trims nonblank references; historical writer stored verbatim. Raw UNIQUE index does not enforce trimmed identity. Spec says opaque (no trim) but implementation trims. |
 | R3-F3 | Tests overstate coverage: T01 sequential not concurrent; T02/T06 use nonexistent reward IDs; T04 no injected failure; T11 checks already-created schema; T12 creates one ref and asserts no duplicates. |
-| Evidence status | **CHANGES_REQUIRED** — PR #108 merged at `7a23f88`; clean-database guard works but upgrade path (F1) and legacy reference identity (F2) need correction. Prior merge receipt and CI evidence preserved. W01 closure conclusions superseded. |
+| Evidence status | **MERGED (corrected)** — PR #108 merged at `7a23f88`; R3C correction PR #109 merged at `a929836`. F1 (upgrade blocker) fixed via `legacyUniqueExemptions` + `required-schema.json`. F2 (reference identity) fixed via opaque `normalizeReference()`. F3 (test coverage) fixed with 21 genuine regression tests (was 15). CI: PR #109 run `40728271331` SUCCESS; post-merge run `40729467144` SUCCESS. |
 
 #### Deferred: Stellar Horizon integration
 
@@ -609,7 +609,9 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-28 | — | S2/W01-R2 unit complete; W01 PARTIALLY_FIXED; next unit: **R3 only** (W02 remains pending W01 security closure) | R2 session | UNIT_COMPLETE |
 | 2026-10-28 | — | S2/W01-R3: PR #108 created, AI spec review APPROVED, AI code review APPROVED, CI ALL PASS, merged to main at `7a23f88` | AI review + Claude execution | MERGED |
 | 2026-10-28 | — | ~~S2/W01-R3 unit complete; W01 FIXED (security containment)~~ **SUPERSEDED** — R3 CHANGES_REQUIRED per `SERVER-HANDOVER-W01-R3-PR108-REVIEW.md` (F1 upgrade blocker, F2 reference identity, F3 test coverage) | R3 session | SUPERSEDED |
-| 2026-10-28 | — | S2/W01-R3: CHANGES_REQUIRED — PR #108 merged guard works on clean databases; pre-R3 upgrade path rejected (F1), reference normalization disagrees with historical data (F2), tests overstate coverage (F3). Correction unit in progress. W01 closure deferred. | R3 correction session | CHANGES_REQUIRED |
+| 2026-10-28 | — | ~~S2/W01-R3: CHANGES_REQUIRED~~ **SUPERSEDED** — R3C correction PR #109 merged at `a929836`. F1/F2/F3 all resolved. | R3 correction session | SUPERSEDED |
+| 2026-10-28 | — | S2/W01-R3C: PR #109 merged at `a929836`. F1 legacyUniqueExemptions, F2 opaque reference identity, F3 genuine regressions. 21 R3 tests, 1888 total, 0 failures. W01 security containment complete. | R3C session | MERGED |
+| 2026-10-28 | — | W01 FIXED (security containment): R1 internal auth ✓, R2 Paystack binding ✓, R3+R3C atomic reference ✓. 6 PRs (#104-#109), 58 new tests + C1 interleaving. Stellar deferred (fail-closed). Paystack operationally unavailable (R2 containment). | W01 assessment | FIXED |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
@@ -653,6 +655,28 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | Branch | Retained |
 | Deploy impact | None — merge does not trigger production deployment |
 
+## S2/W01-R3C merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #109 (`fix(rewards): W01-R3C — correction: upgrade path, reference identity, test coverage`) |
+| Pre-merge main | `7a23f8829684bc031b0f9a9641bf9b881e170395` (post-R3) |
+| Branch SHA | `014435703d1a44b86cc4bc3ee6e90d94f969f0b9` |
+| Merge method | Squash |
+| Merge commit | `a929836334d39246ef8def2c38497319e6ea98fb` |
+| Merged at | 2026-10-28 |
+| Post-merge main | `a929836334d39246ef8def2c38497319e6ea98fb` |
+| PR CI run | `40728271331` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Post-merge CI run | `40729467144` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| AI review | Spec review: APPROVED_WITH_NOTES (notes incorporated). Code review: APPROVED (6/6 checklist PASS). |
+| Test results | 21 R3 tests (was 15); 183 files, 1888 total, 0 failures, 0 regressions |
+| F1 fix | `legacyUniqueExemptions` in `databaseBootstrap.ts`; `idx_reward_txn_fund_ref_unique` in `required-schema.json` |
+| F2 fix | `normalizeReference()` — opaque identity: empty → null, all other values exact (no trim) |
+| F3 fix | T02/T06 valid IDs + specific assertions; T04 genuine rollback; T08 whitespace exact; T11 real upgrade; T12 real duplicates; T14 opaque identity; T15 F1 exemption; T16 required-schema |
+| Files changed | MODIFIED: `src/config/databaseBootstrap.ts`, `database/required-schema.json`, `src/services/rewards/rewardFundingVerifier.ts`, `src/__tests__/reward-atomic-reference.test.ts` |
+| Branch | Retained |
+| Deploy impact | None — merge does not trigger production deployment |
+
 ### W01 repair chain summary
 
 | Unit | PR | Merge SHA | Tests added | Scope |
@@ -662,4 +686,5 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | C1 | #106 | `fa187b8` | 2 | Interleaving regression: async TOCTOU proof |
 | R2 | #107 | `17d93f0` | 12 | Paystack binding: status, currency, amount, ownership; fail-closed for XLM+fiat |
 | R3 | #108 | `7a23f88` | 15 | Atomic reference consumption: UNIQUE index, three-layer defense, normalization, A2 fix |
-| **Total** | **5 PRs** | — | **66 tests** | **W01 security containment complete** |
+| R3C | #109 | `a929836` | +6 (21 total R3) | R3 correction: F1 legacyUniqueExemptions, F2 opaque identity, F3 genuine regressions |
+| **Total** | **6 PRs** | — | **72 tests** | **W01 security containment complete** |
