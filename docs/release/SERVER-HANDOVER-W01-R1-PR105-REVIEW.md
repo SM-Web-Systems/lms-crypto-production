@@ -2,6 +2,8 @@
 
 Review date: 2026-10-27. Decision: **CHANGES_REQUIRED**. R1 is not accepted for merge at the reviewed head.
 
+Historical candidate review: the decision above concerns `385e512` only. The [2026-10-28 merge verification](SERVER-HANDOVER-W01-R1-MERGE-VERIFICATION.md) verifies the corrected runtime at `8096b9b` and records the remaining test/evidence closure items. Read that newer packet for current disposition.
+
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). Implementation branch: `codex/w01r1-internal-funding-authorization`. This packet is on the documentation branch `codex/platform-wiring-audit`; neither branch name is a separate GitHub repository.
 
 ## Candidate and evidence

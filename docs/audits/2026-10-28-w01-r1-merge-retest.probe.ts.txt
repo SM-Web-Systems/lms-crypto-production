@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID as uuid} from 'node:crypto';
+import {db,_resetForTests,seedRbacData} from './src/config/database.js';
+import {createReward,fundReward,fundRewardAsync,cancelReward,getReward} from './src/services/rewards/rewardService.js';
+import {hasPermission} from './src/middleware/rbac.js';
+const schema=readFileSync(new URL('./database/schema.sql',import.meta.url),'utf8');
+function reset(){_resetForTests(schema);seedRbacData();}
+function user(admin=false){const id=uuid();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic review',?,'hash',?)").run(id,id+'@review.invalid',admin?'admin':'lecturer');if(!admin)db.prepare("INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(id);return id;}
+function fixture(){const creator=user(),admin=user(true),course=uuid(),cohort=uuid();db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Synthetic course',?)").run(course,'R1-'+course);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Synthetic cohort')").run(cohort,creator,course);const reward=createReward(creator,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});return {creator,admin,cohort,reward};}
+function noWrites(rewardId:string){assert.equal(getReward(rewardId)!.status,'draft');assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_transactions WHERE reward_id=?').get(rewardId) as any).n,0);assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_accounts').get() as any).n,0);}
+let passed=0,failed=0;
+async function check(name:string,body:()=>void|Promise<void>){reset();try{await body();passed++;console.log('PASS: '+name);}catch(e){failed++;console.log('FAIL: '+name+' — '+String(e));}}
+await check('ordinary self-grant and unsupported credit fail closed',()=>{
+ const f=fixture();assert.equal(hasPermission(f.creator,'reward.manage'),false);
+ assert.throws(()=>fundReward(f.reward.id,f.creator,{type:'admin_grant'},uuid()),(e:any)=>e.code==='SCOPE_DENIED');
+ assert.throws(()=>fundReward(f.reward.id,f.admin,{type:'platform_credit'},uuid()),(e:any)=>e.code==='INSUFFICIENT_CREDIT');noWrites(f.reward.id);
+});
+for(const asyncMode of [false,true])await check('grant ownership and cancellation beneficiary ('+(asyncMode?'async':'sync')+')',async()=>{
+ const f=fixture();const funded=asyncMode?await fundRewardAsync(f.reward.id,f.admin,{type:'admin_grant'},uuid()):fundReward(f.reward.id,f.admin,{type:'admin_grant'},uuid());
+ assert.equal(funded.status,'funded');
+ const fund=db.prepare("SELECT actor_user_id,destination_user_id FROM reward_transactions WHERE reward_id=? AND transaction_type='fund'").get(f.reward.id) as any;
+ assert.equal(fund.actor_user_id,f.admin);assert.equal(fund.destination_user_id,f.creator);
+ const reserve=db.prepare("SELECT source_user_id,destination_user_id FROM reward_transactions WHERE reward_id=? AND transaction_type='reserve'").get(f.reward.id) as any;
+ assert.equal(reserve.source_user_id,f.creator);assert.equal(reserve.destination_user_id,f.creator);
+ cancelReward(f.reward.id,f.creator,'synthetic review',uuid());
+ const balance=db.prepare("SELECT available_stroops,reserved_stroops FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(f.creator) as any;
+ assert.equal(balance.available_stroops,10000000);assert.equal(balance.reserved_stroops,0);
+ assert.equal(db.prepare("SELECT id FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(f.admin),undefined);
+});
+await check('revocation between verifier and transaction rejects despite retained scope',async()=>{
+ const f=fixture();db.prepare('UPDATE sponsor_cohorts SET sponsor_user_id=? WHERE id=?').run(f.admin,f.cohort);
+ const pending=fundRewardAsync(f.reward.id,f.admin,{type:'admin_grant'},uuid());
+ db.prepare('DELETE FROM user_roles WHERE user_id=?').run(f.admin);db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(f.admin);
+ assert.equal(hasPermission(f.admin,'reward.manage'),false);
+ await assert.rejects(pending,(e:any)=>e.code==='SCOPE_DENIED');noWrites(f.reward.id);
+});
+await check('creator change between verifier and transaction rejects conflict',async()=>{
+ const f=fixture();const pending=fundRewardAsync(f.reward.id,f.admin,{type:'admin_grant'},uuid());
+ db.prepare('UPDATE rewards SET creator_user_id=? WHERE id=?').run(f.admin,f.reward.id);
+ await assert.rejects(pending,(e:any)=>e.code==='CONFLICT_OF_INTEREST');noWrites(f.reward.id);
+});
+console.log(`RETEST_RESULT: ${passed} passed, ${failed} failed`);process.exitCode=failed?1:0;
