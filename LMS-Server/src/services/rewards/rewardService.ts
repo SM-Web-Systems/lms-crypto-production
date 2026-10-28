@@ -7,7 +7,14 @@ import { writeLedgerEntry } from './rewardLedger.js';
 import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
-import { verifyFundingSourceSync, verifyFundingSourceAsync, verifyInternalAuthorization } from './rewardFundingVerifier.js';
+import {
+  verifyFundingSourceSync,
+  verifyFundingSourceAsync,
+  verifyInternalAuthorization,
+  normalizeReference,
+  checkReferenceInTransaction,
+  isFundingReferenceConstraintViolation,
+} from './rewardFundingVerifier.js';
 import type { PaystackBindingContext } from './rewardFundingVerifier.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
@@ -146,6 +153,14 @@ export function fundReward(
     const maxRecipients = BigInt(reward.max_recipients ?? 1);
     const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
 
+    // W01-R3: Normalize and atomically claim the funding reference inside
+    // the transaction. The outer checkReferenceNotReused() is a pre-check
+    // optimization; this is the authoritative claim.
+    const normalizedRef = normalizeReference(source.reference);
+    if (normalizedRef) {
+      checkReferenceInTransaction(normalizedRef);
+    }
+
     // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
     // is the reward creator — not the authorizing admin. The admin is audited
     // as actorUserId but financial ownership belongs to the creator.
@@ -153,24 +168,37 @@ export function fundReward(
     getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
     // Ledger entry 1: fund (external → funder.available)
-    writeLedgerEntry({
-      rewardId,
-      transactionType: 'fund',
-      amountStroops: totalExposure,
-      sourceAccountType: source.type === 'stellar' ? 'external' : source.type === 'paystack' ? 'external' : source.type === 'platform_credit' ? 'platform' : 'external',
-      sourceBucket: null,
-      sourceUserId: null,
-      destinationAccountType: 'funder',
-      destinationBucket: 'available',
-      destinationUserId: funderId,
-      actorType: 'user',
-      actorUserId: actorId,
-      previousState: 'draft',
-      newState: 'pending_funding',
-      fundingSourceType: source.type,
-      fundingReference: source.reference ?? null,
-      idempotencyKey: `${idempotencyKey}_fund`,
-    });
+    try {
+      writeLedgerEntry({
+        rewardId,
+        transactionType: 'fund',
+        amountStroops: totalExposure,
+        sourceAccountType: source.type === 'stellar' ? 'external' : source.type === 'paystack' ? 'external' : source.type === 'platform_credit' ? 'platform' : 'external',
+        sourceBucket: null,
+        sourceUserId: null,
+        destinationAccountType: 'funder',
+        destinationBucket: 'available',
+        destinationUserId: funderId,
+        actorType: 'user',
+        actorUserId: actorId,
+        previousState: 'draft',
+        newState: 'pending_funding',
+        fundingSourceType: source.type,
+        fundingReference: normalizedRef,
+        idempotencyKey: `${idempotencyKey}_fund`,
+      });
+    } catch (err) {
+      // W01-R3: Belt-and-suspenders — catch UNIQUE constraint violation on
+      // funding_reference and convert to a controlled DUPLICATE_REFERENCE error.
+      if (isFundingReferenceConstraintViolation(err)) {
+        throw new RewardError(
+          'DUPLICATE_REFERENCE',
+          'This funding reference has already been consumed by another operation',
+          409,
+        );
+      }
+      throw err;
+    }
 
     // Ledger entry 2: reserve (funder.available → funder.reserved)
     writeLedgerEntry({
@@ -295,11 +323,19 @@ function fundRewardVerified(
     const maxRecipients = BigInt(reward.max_recipients ?? 1);
     const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
 
+    // W01-R3: Normalize and atomically claim the funding reference inside
+    // the transaction (same pattern as fundReward).
+    const normalizedRef = normalizeReference(source.reference);
+    if (normalizedRef) {
+      checkReferenceInTransaction(normalizedRef);
+    }
+
     // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
     // is the reward creator. The admin is audited as actorUserId.
     const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
     getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
+    try {
     writeLedgerEntry({
       rewardId,
       transactionType: 'fund',
@@ -315,9 +351,21 @@ function fundRewardVerified(
       previousState: 'draft',
       newState: 'pending_funding',
       fundingSourceType: source.type,
-      fundingReference: source.reference ?? null,
+      fundingReference: normalizedRef,
       idempotencyKey: `${idempotencyKey}_fund`,
     });
+    } catch (err) {
+      // W01-R3: Belt-and-suspenders — catch UNIQUE constraint violation on
+      // funding_reference and convert to a controlled DUPLICATE_REFERENCE error.
+      if (isFundingReferenceConstraintViolation(err)) {
+        throw new RewardError(
+          'DUPLICATE_REFERENCE',
+          'This funding reference has already been consumed by another operation',
+          409,
+        );
+      }
+      throw err;
+    }
 
     writeLedgerEntry({
       rewardId,

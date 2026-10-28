@@ -25,6 +25,12 @@
  *   provider calls (paystack verifyTransaction). Used by fundRewardAsync()
  *   for external source types in route handlers.
  *
+ * W01-R3: Atomic reference consumption. normalizeReference() eliminates
+ * empty/whitespace-only references. checkReferenceInTransaction() enforces
+ * uniqueness inside the write transaction. The partial UNIQUE index on
+ * funding_reference (fund transactions, non-NULL) is the authoritative
+ * database-level enforcement.
+ *
  * NOTE: fundRewardVerified() is intentionally unexported. It skips
  * verification because its only caller (fundRewardAsync) has already
  * verified. Do not export or add direct callers without verification.
@@ -74,9 +80,10 @@ export function verifyFundingSourceSync(
   rewardId: string,
   context?: FundingAuthorizationContext,
 ): void {
-  // 1. Cross-reference idempotency (all types with a reference)
-  if (source.reference) {
-    checkReferenceNotReused(source.reference, rewardId);
+  // 1. Cross-reference idempotency (all types with a normalized reference)
+  const normalizedRef = normalizeReference(source.reference);
+  if (normalizedRef) {
+    checkReferenceNotReused(normalizedRef, rewardId);
   }
 
   // 2. Type-specific synchronous checks
@@ -139,9 +146,10 @@ export async function verifyFundingSourceAsync(
   context?: FundingAuthorizationContext,
   paystackContext?: PaystackBindingContext,
 ): Promise<void> {
-  // 1. Cross-reference idempotency (all types with a reference)
-  if (source.reference) {
-    checkReferenceNotReused(source.reference, rewardId);
+  // 1. Cross-reference idempotency (all types with a normalized reference)
+  const normalizedRef = normalizeReference(source.reference);
+  if (normalizedRef) {
+    checkReferenceNotReused(normalizedRef, rewardId);
   }
 
   // 2. Type-specific verification
@@ -336,18 +344,77 @@ function hasCurrencySettlementPath(rewardCurrency: string, paystackCurrency: str
   return false;
 }
 
+/**
+ * W01-R3: Normalize a funding reference.
+ * - NULL/undefined → null
+ * - Empty string or whitespace-only → null
+ * - Otherwise → trimmed original (case-preserved, no lowercasing)
+ *
+ * Exported for use by the service layer before writing to the ledger.
+ */
+export function normalizeReference(ref: string | undefined | null): string | null {
+  if (ref == null) return null;
+  const trimmed = ref.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/**
+ * Outer pre-check: reject duplicate references before entering the write
+ * transaction. This is an optimization — the authoritative check is
+ * checkReferenceInTransaction() + the UNIQUE index.
+ *
+ * W01-R3 (A2 fix): Error message no longer leaks the conflicting reward's ID.
+ */
 function checkReferenceNotReused(reference: string, rewardId: string): void {
   const existing = db.prepare(
-    `SELECT reward_id FROM reward_transactions
+    `SELECT 1 FROM reward_transactions
      WHERE funding_reference = ? AND reward_id != ? AND transaction_type = 'fund'
      LIMIT 1`
-  ).get(reference, rewardId) as { reward_id: string } | undefined;
+  ).get(reference, rewardId);
 
   if (existing) {
     throw new RewardError(
       'DUPLICATE_REFERENCE',
-      `Funding reference '${reference}' is already used for reward ${existing.reward_id}`,
+      'This funding reference has already been consumed by another operation',
       409,
     );
   }
+}
+
+/**
+ * W01-R3: In-transaction reference uniqueness check.
+ * Must be called inside db.transaction() before writeLedgerEntry().
+ * Does NOT include reward_id exclusion — each reward can only have one
+ * fund transaction (state machine enforces draft → funded is one-way).
+ *
+ * Exported for use by the service layer inside write transactions.
+ */
+export function checkReferenceInTransaction(reference: string): void {
+  const existing = db.prepare(
+    `SELECT 1 FROM reward_transactions
+     WHERE funding_reference = ? AND transaction_type = 'fund'
+     LIMIT 1`
+  ).get(reference);
+
+  if (existing) {
+    throw new RewardError(
+      'DUPLICATE_REFERENCE',
+      'This funding reference has already been consumed by another operation',
+      409,
+    );
+  }
+}
+
+/**
+ * W01-R3: Check if a UNIQUE constraint violation is on the funding_reference
+ * partial index (not the idempotency_key UNIQUE constraint).
+ *
+ * Exported for use by the service layer's catch block around writeLedgerEntry().
+ */
+export function isFundingReferenceConstraintViolation(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as { code?: string }).code;
+  const msg = err.message;
+  return (code === 'SQLITE_CONSTRAINT_UNIQUE' || msg?.includes('UNIQUE constraint'))
+    && msg?.includes('funding_reference');
 }

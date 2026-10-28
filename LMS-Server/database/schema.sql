@@ -786,6 +786,10 @@ CREATE TABLE IF NOT EXISTS reward_transactions (
 CREATE INDEX IF NOT EXISTS idx_reward_txn_reward ON reward_transactions(reward_id);
 CREATE INDEX IF NOT EXISTS idx_reward_txn_allocation ON reward_transactions(allocation_id);
 CREATE INDEX IF NOT EXISTS idx_reward_txn_idem ON reward_transactions(idempotency_key);
+-- W01-R3: Atomic reference consumption — one non-NULL funding_reference per fund transaction
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reward_txn_fund_ref_unique
+  ON reward_transactions(funding_reference)
+  WHERE funding_reference IS NOT NULL AND transaction_type = 'fund';
 
 CREATE TABLE IF NOT EXISTS reward_eligibility_events (
   id              TEXT PRIMARY KEY,
