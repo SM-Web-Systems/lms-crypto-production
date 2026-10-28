@@ -33,7 +33,6 @@ import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { verifyTransaction } from '../paystackService.js';
-import { SUPPORTED_CURRENCIES } from './currencyConfig.js';
 import type { FundingSourceType } from './rewardTypes.js';
 
 export interface FundingSource {
