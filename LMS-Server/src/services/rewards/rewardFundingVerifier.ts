@@ -347,15 +347,20 @@ function hasCurrencySettlementPath(rewardCurrency: string, paystackCurrency: str
 /**
  * W01-R3: Normalize a funding reference.
  * - NULL/undefined → null
- * - Empty string or whitespace-only → null
- * - Otherwise → trimmed original (case-preserved, no lowercasing)
+ * - Empty string → null
+ * - All other values → exact original (opaque, case-preserved, no trimming)
+ *
+ * References are opaque provider-issued strings. The UNIQUE index and all
+ * lookups must use the same identity that is stored. No trimming or
+ * lowercasing — the previous writer stored verbatim and the database
+ * enforces on raw values.
  *
  * Exported for use by the service layer before writing to the ledger.
  */
 export function normalizeReference(ref: string | undefined | null): string | null {
   if (ref == null) return null;
-  const trimmed = ref.trim();
-  return trimmed.length === 0 ? null : trimmed;
+  if (ref.length === 0) return null;
+  return ref;
 }
 
 /**
