@@ -18,11 +18,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Code evidence | `LMS-Server/src/services/rewards/rewardService.ts:91-162` — `fundReward()` accepts `FundingSource { type, reference? }` and writes two ledger entries (fund + reserve) without verifying the reference against any external provider API. `source.type` is mapped to `sourceAccountType` strings (`external`/`platform`) at line 122 but no validation or provider call occurs. All source types (`stellar`, `paystack`, `platform_credit`) receive HTTP 200. |
 | Reproduction | Characterization probe W01 — POST fund request with arbitrary `sourceType` returns 200 |
 | Impacted users | Any user with scope access to a reward can fund it with unverified claims |
-| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction) |
-| Residual work | R2 (Paystack payment binding: status/amount/currency/ownership/obligation — A1), R3 (atomic payment-reference consumption: concurrent access, retry, rollback — A3). Stellar Horizon client deferred separately (fail-closed is correct). A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) carried forward. |
-| Release impact | P1 — **PARTIALLY_FIXED** — funding verification gate + internal authorization enforced; Paystack binding and Stellar client remain |
+| Existing fix PR | **#104 MERGED** at `115d8c4f836a` (2026-10-27); **#105 MERGED** at `8096b9b` (2026-10-28, R1 correction); **#107 MERGED** at `17d93f0` (2026-10-28, R2 Paystack binding) |
+| Residual work | R3 (atomic payment-reference consumption: concurrent access, retry, rollback — A3). Stellar Horizon client deferred separately (fail-closed is correct). A2 (DUPLICATE_REFERENCE leaks reward ID), A5 (FundingSource interface duplication) carried forward. |
+| Release impact | P1 — **PARTIALLY_FIXED** — funding verification gate + internal authorization + Paystack binding enforced; R3 (atomic consumption) remains |
 | Acceptance test | `fundReward()` with no verified reference returns FUNDING_UNVERIFIED (402); Paystack async path verifies transaction; stellar denied; cross-reward reference reuse returns DUPLICATE_REFERENCE (409); internal sources require `reward.manage` + independent authorizer; grant ownership = creator; transaction-time recheck catches TOCTOU |
-| Evidence status | **PARTIALLY_FIXED** — PRs #104, #105, #106 merged (25 R1 tests + 2 C1 interleaving, 1855 total/1854 passed/1 skipped); R2 (Paystack binding) and R3 (atomic consumption) blocking full W01 resolution. Stellar Horizon deferred separately. |
+| Evidence status | **PARTIALLY_FIXED** — PRs #104, #105, #106, #107 merged (25 R1 + 12 R2 tests, 1867 total/0 regressions); R3 (atomic consumption) blocking full W01 resolution. Stellar Horizon deferred separately. |
 
 #### W01-R1: Internal funding authorization and credit backing
 
@@ -50,9 +50,18 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Sub-finding ID | W01-R2 |
 | Scope | Paystack payment binding: status verification, amount/currency binding, ownership verification, intended-funding-obligation validation. Advisory A1 (Paystack amount/currency cross-check). |
-| Currency gap | Rewards are XLM stroops; Paystack operates in fiat (USD/ZAR). No settlement/quote policy exists in the codebase to convert between XLM and fiat. Per prompt guidance: fail closed where required evidence is absent. |
+| Currency gap | Rewards are XLM stroops; Paystack operates in fiat (USD/ZAR). No settlement/quote policy exists. Paystack funding of XLM rewards fails closed with `FUNDING_CURRENCY_MISMATCH` (402). Binding framework ready for future fiat rewards or settlement service. |
 | Dependencies | R1 merged ✓, C1 merged ✓ |
-| Evidence status | **IN_PROGRESS** — spec and implementation pending |
+| Spec | `docs/superpowers/specs/2026-10-28-W01-R2-paystack-payment-binding.md` |
+| Plan | `docs/superpowers/plans/2026-10-28-W01-R2-tdd-plan.md` |
+| Branch | `codex/w01r2-paystack-payment-binding` at `0dce716` |
+| PR | **#107 — MERGED** at `17d93f0` (2026-10-28) |
+| Implementation | `rewardFundingVerifier.ts`: `PaystackBindingContext` interface, exported `verifyPaystackBinding()` with ordered checks (status → currency settlement → amount → ownership). `hasCurrencySettlementPath()` returns true only for direct currency match. `rewardService.ts`: `fundRewardAsync()` builds binding context from reward's authoritative DB row. `paystackService.ts`: extended with `customer.email`. `rewardErrors.ts`: 3 new error codes. |
+| Tests | 12 new R2 tests + 4 existing updated; 182 files, 1867 tests, 0 regressions. All 25 R1 tests preserved. |
+| Independent review | Spec review: APPROVED_WITH_NOTES (6 findings resolved). Code review: APPROVED_WITH_NOTES (dead import fixed). |
+| Error codes | `FUNDING_CURRENCY_MISMATCH` (402), `FUNDING_AMOUNT_MISMATCH` (402), `FUNDING_OWNERSHIP_MISMATCH` (403) |
+| CI | PR run `40705200669` (SUCCESS); cleanup run `40705436715` (SUCCESS); main post-merge run `40706452331` (SUCCESS) |
+| Evidence status | **MERGED** — PR #107 merged at `17d93f0`. R3 (atomic consumption) pending. W01 remains PARTIALLY_FIXED. |
 
 #### W01-R3: Atomic payment-reference consumption (corrected identity)
 
@@ -581,6 +590,9 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 
 | 2026-10-27 | — | S2/W01: PR #104 created, AI security review APPROVED (5 advisories, none blocking), CI ALL PASS, merged to main at `115d8c4f` | AI review + Claude execution | MERGED |
 | 2026-10-27 | — | S2/W01 unit complete; next unit: S2/W02 (cross-owner reward scope checks) | S2 session | UNIT_COMPLETE |
+
+| 2026-10-28 | — | S2/W01-R2: PR #107 created, AI spec review APPROVED_WITH_NOTES (6 findings resolved), AI code review APPROVED_WITH_NOTES (dead import fixed), CI ALL PASS, merged to main at `17d93f0` | AI review + Claude execution | MERGED |
+| 2026-10-28 | — | S2/W01-R2 unit complete; W01 PARTIALLY_FIXED (R3 pending); next unit: R3 or W02 | R2 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 

@@ -132,21 +132,33 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
   8. Interleaving regression: TOCTOU between verifier and transaction proven and covered
 
 ### S2-T01-R2: Implement W01-R2 — Paystack payment binding
-- **Status**: IN_PROGRESS
+- **Status**: MERGED
 - **Dependencies**: S2-T01-R1 merged ✓, C1 merged (#106 at `fa187b8`) ✓
 - **Owner**: R2 session (AI-delegated)
-- **Scope**: Full Paystack payment binding — status verification (exists), amount/currency binding against reward's authoritative obligation (advisory A1), ownership verification (funder identity matches Paystack payer), intended-funding-obligation validation (payment-to-reward linkage). Currency settlement: rewards are XLM stroops, Paystack is fiat (USD); no settlement policy exists — fail closed and record gap per prompt guidance. Reference uniqueness (A3) is already enforced but remains under R3's atomic-consumption gate for concurrent access.
-- **Acceptance criteria**:
-  1. Paystack funding with wrong amount rejected (AMOUNT_MISMATCH)
-  2. Paystack funding with wrong currency rejected (CURRENCY_MISMATCH)
-  3. Paystack funding with wrong owner rejected (OWNERSHIP_MISMATCH)
-  4. Paystack funding for unrelated obligation rejected (OBLIGATION_MISMATCH)
-  5. Paystack funding with failed/pending/abandoned status rejected (exists, preserved)
-  6. XLM reward with Paystack fiat payment fails closed (no settlement path)
-  7. Legitimate fully-matching case passes (if supported binding exists)
-  8. Denial leaves reward state, accounts and ledger unchanged
-  9. All 25 R1 tests + existing W01 tests pass (no regression)
-  10. R3 atomic-consumption gate remains separately pending
+- **Spec**: `docs/superpowers/specs/2026-10-28-W01-R2-paystack-payment-binding.md`
+- **Plan**: `docs/superpowers/plans/2026-10-28-W01-R2-tdd-plan.md`
+- **Branch**: `codex/w01r2-paystack-payment-binding` at `0dce716`
+- **PR**: #107 — MERGED at `17d93f0` (2026-10-28)
+- **Implementation**:
+  - `rewardFundingVerifier.ts`: `PaystackBindingContext` interface, exported `verifyPaystackBinding()` with ordered checks: status → currency settlement → amount match → ownership (customer email). `hasCurrencySettlementPath()` returns true only for direct currency match.
+  - `rewardService.ts`: `fundRewardAsync()` builds `PaystackBindingContext` from reward's authoritative DB row (amount_stroops × max_recipients, currency_code) and actor's email via `lookupUserEmail()`. Passes context to async verifier.
+  - `paystackService.ts`: Extend `PaystackVerifyResponse` with optional `customer.email`.
+  - `rewardErrors.ts`: Add `FUNDING_CURRENCY_MISMATCH` (402), `FUNDING_AMOUNT_MISMATCH` (402), `FUNDING_OWNERSHIP_MISMATCH` (403).
+- **Currency settlement gap**: Rewards are XLM (stroops); Paystack is fiat (USD/ZAR). No settlement policy exists. Paystack funding of XLM rewards fails closed with `FUNDING_CURRENCY_MISMATCH` (402). Binding framework ready for future fiat rewards or settlement service.
+- **Tests**: 12 new R2 tests (currency mismatch, amount mismatch, ownership mismatch, status binding, denial atomicity, direct verifier unit tests). 4 existing tests updated (acceptance → expects currency mismatch; cross-reference/idempotency tests migrated to admin_grant). 182 files, 1867 tests pass, 0 regressions. All 25 R1 tests preserved.
+- **Independent review**: Spec review: APPROVED_WITH_NOTES (6 findings, F1 HIGH resolved: error codes added to typed object; F2 MEDIUM resolved: direct verifier unit tests added; F3 MEDIUM resolved: all 4 Paystack mock sites updated). Code review: APPROVED_WITH_NOTES at `1ecff73` (dead import fixed at `0dce716`).
+- **CI**: PR run `40705200669` (SUCCESS, 3 jobs); cleanup run `40705436715` (SUCCESS); main post-merge run `40706452331` (SUCCESS).
+- **Acceptance criteria results**:
+  1. ✅ Amount mismatch: `verifyPaystackBinding` rejects (T11, direct unit test)
+  2. ✅ Currency mismatch: `fundRewardAsync` rejects XLM+fiat (T01, T02, T07)
+  3. ✅ Ownership mismatch: `verifyPaystackBinding` rejects (T12, direct unit test)
+  4. ✅ Obligation: documented gap (no Paystack init for rewards); fail-closed via currency gate
+  5. ✅ Status binding: failed/pending/abandoned rejected (T04, T05, T06)
+  6. ✅ XLM + fiat = fail closed (T01, T07)
+  7. ✅ Full match: `verifyPaystackBinding` passes (T13, direct unit test with USD context)
+  8. ✅ Denial atomicity: reward state, ledger, accounts unchanged (T07, T08)
+  9. ✅ 25 R1 tests pass; 182 files, 1867 tests, 0 regressions
+  10. ✅ R3 atomic-consumption gate explicitly pending (documented in spec and ledger)
 - **Does NOT include**: Atomic concurrent-reference consumption (R3), Stellar Horizon client (deferred), W02–W04
 
 ### S2-T01-R3: Implement W01-R3 — atomic payment-reference consumption
