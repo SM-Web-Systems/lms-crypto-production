@@ -2,6 +2,8 @@
 
 Date: 2026-10-28. **Original upgrade and opaque-identity corrections verified. CHANGES_REQUIRED for final constraint validation and acceptance coverage.** This is a narrow R3 closure correction, not a repeat of the earlier W01 implementation. Do not start W02 or deploy from this packet.
 
+Historical candidate assessment: [PR #110 final verification and W02 prompt](CLAUDE-SERVER-W02-PROMPT.md) accepts W01 security containment at `1a5326ac` after exact-merge startup and funding-service rechecks. Read that newer packet for current disposition.
+
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). This document is on branch `codex/platform-wiring-audit`. Authoritative stage ledgers are on `codex/staged-rollout-plan` (PR #103).
 
 ## Verified receipt and resolved findings
