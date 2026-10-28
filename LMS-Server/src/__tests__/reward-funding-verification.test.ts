@@ -136,12 +136,12 @@ describe('W01: Funding verification gate', () => {
       vi.restoreAllMocks();
     });
 
-    it('accepts funding with paystack type and valid verified reference', async () => {
+    it('rejects paystack funding of XLM reward with fiat payment (W01-R2: currency mismatch)', async () => {
       const sponsor = createUser();
       const cohortId = createCohort(sponsor);
       const rewardId = draftReward(sponsor, cohortId);
 
-      // Mock verifyTransaction to succeed
+      // Mock verifyTransaction to succeed — but reward is XLM and payment is ZAR
       const paystackService = await import('../services/paystackService.js');
       vi.spyOn(paystackService, 'verifyTransaction').mockResolvedValue({
         status: 'success',
@@ -151,12 +151,25 @@ describe('W01: Funding verification gate', () => {
         paid_at: '2026-10-27T12:00:00Z',
         channel: 'card',
         metadata: {},
+        customer: { email: `${sponsor}@test.com` },
       });
 
-      const funded = await fundRewardAsync(
-        rewardId, sponsor, { type: 'paystack', reference: 'valid_paystack_ref' }, `fund-${uuidv4()}`
-      );
-      expect(funded.status).toBe('funded');
+      // W01-R2: Paystack funding of XLM rewards now fails closed —
+      // no settlement path between XLM and ZAR.
+      try {
+        await fundRewardAsync(
+          rewardId, sponsor, { type: 'paystack', reference: 'valid_paystack_ref' }, `fund-${uuidv4()}`
+        );
+        expect.unreachable('Should have thrown FUNDING_CURRENCY_MISMATCH');
+      } catch (err) {
+        expect(err).toBeInstanceOf(RewardError);
+        expect((err as RewardError).code).toBe('FUNDING_CURRENCY_MISMATCH');
+        expect((err as RewardError).statusCode).toBe(402);
+      }
+
+      // Reward remains in draft
+      const reward = getReward(rewardId)!;
+      expect(reward.status).toBe('draft');
 
       vi.restoreAllMocks();
     });
@@ -236,70 +249,48 @@ describe('W01: Funding verification gate', () => {
   });
 
   describe('Cross-reference idempotency', () => {
-    it('rejects duplicate reference used for a different reward', async () => {
-      const sponsor = createUser();
+    it('rejects duplicate reference used for a different reward (admin_grant path)', () => {
+      // W01-R2: Paystack can no longer fund XLM rewards (currency mismatch).
+      // Cross-reference idempotency is tested via admin_grant which still records
+      // a funding_reference in the ledger.
+      const sponsor = createUser('admin');
       const cohortId = createCohort(sponsor);
       const rewardId1 = draftReward(sponsor, cohortId);
       const rewardId2 = draftReward(sponsor, cohortId);
-      const reference = `paystack_ref_${uuidv4()}`;
+      const admin = createIndependentAdmin();
+      const reference = `grant_ref_${uuidv4()}`;
 
-      // Mock verifyTransaction to succeed
-      const paystackService = await import('../services/paystackService.js');
-      vi.spyOn(paystackService, 'verifyTransaction').mockResolvedValue({
-        status: 'success',
-        reference,
-        amount: 10000000,
-        currency: 'ZAR',
-        paid_at: '2026-10-27T12:00:00Z',
-        channel: 'card',
-        metadata: {},
-      });
-
-      // First reward funded successfully
-      const funded1 = await fundRewardAsync(
-        rewardId1, sponsor, { type: 'paystack', reference }, `fund-${uuidv4()}`
+      // First reward funded successfully with admin_grant and a reference
+      const funded1 = fundReward(
+        rewardId1, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`
       );
       expect(funded1.status).toBe('funded');
 
-      // Second reward with same reference must fail
-      await expect(
-        fundRewardAsync(rewardId2, sponsor, { type: 'paystack', reference }, `fund-${uuidv4()}`)
-      ).rejects.toThrow(RewardError);
+      // Second reward with same reference must fail (DUPLICATE_REFERENCE)
+      expect(() =>
+        fundReward(rewardId2, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`),
+      ).toThrow(RewardError);
 
       // Second reward remains in draft
       const reward2 = getReward(rewardId2)!;
       expect(reward2.status).toBe('draft');
-
-      vi.restoreAllMocks();
     });
 
-    it('allows same reference for same reward (transaction idempotency)', async () => {
-      const sponsor = createUser();
+    it('allows same reference for same reward (transaction idempotency via admin_grant)', () => {
+      const sponsor = createUser('admin');
       const cohortId = createCohort(sponsor);
       const rewardId = draftReward(sponsor, cohortId);
-      const reference = `paystack_ref_${uuidv4()}`;
+      const admin = createIndependentAdmin();
+      const reference = `grant_ref_${uuidv4()}`;
       const fundKey = `fund-${uuidv4()}`;
 
-      const paystackService = await import('../services/paystackService.js');
-      vi.spyOn(paystackService, 'verifyTransaction').mockResolvedValue({
-        status: 'success',
-        reference,
-        amount: 10000000,
-        currency: 'ZAR',
-        paid_at: '2026-10-27T12:00:00Z',
-        channel: 'card',
-        metadata: {},
-      });
-
-      const funded1 = await fundRewardAsync(rewardId, sponsor, { type: 'paystack', reference }, fundKey);
+      const funded1 = fundReward(rewardId, admin, { type: 'admin_grant', reference }, fundKey);
       expect(funded1.status).toBe('funded');
 
-      // Same idempotency key returns same result without re-verifying
-      const funded2 = await fundRewardAsync(rewardId, sponsor, { type: 'paystack', reference }, fundKey);
+      // Same idempotency key returns same result
+      const funded2 = fundReward(rewardId, admin, { type: 'admin_grant', reference }, fundKey);
       expect(funded2.status).toBe('funded');
       expect(funded1.id).toBe(funded2.id);
-
-      vi.restoreAllMocks();
     });
   });
 
@@ -320,28 +311,20 @@ describe('W01: Funding verification gate', () => {
       }
     });
 
-    it('returns DUPLICATE_REFERENCE with 409 for reused reference', async () => {
-      const sponsor = createUser();
+    it('returns DUPLICATE_REFERENCE with 409 for reused reference (admin_grant path)', () => {
+      // W01-R2: Paystack can no longer fund XLM rewards. Test duplicate
+      // reference detection via admin_grant path which records funding_reference.
+      const sponsor = createUser('admin');
       const cohortId = createCohort(sponsor);
       const rewardId1 = draftReward(sponsor, cohortId);
       const rewardId2 = draftReward(sponsor, cohortId);
-      const reference = `paystack_ref_${uuidv4()}`;
+      const admin = createIndependentAdmin();
+      const reference = `grant_ref_${uuidv4()}`;
 
-      const paystackService = await import('../services/paystackService.js');
-      vi.spyOn(paystackService, 'verifyTransaction').mockResolvedValue({
-        status: 'success',
-        reference,
-        amount: 10000000,
-        currency: 'ZAR',
-        paid_at: '2026-10-27T12:00:00Z',
-        channel: 'card',
-        metadata: {},
-      });
-
-      await fundRewardAsync(rewardId1, sponsor, { type: 'paystack', reference }, `fund-${uuidv4()}`);
+      fundReward(rewardId1, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`);
 
       try {
-        await fundRewardAsync(rewardId2, sponsor, { type: 'paystack', reference }, `fund-${uuidv4()}`);
+        fundReward(rewardId2, admin, { type: 'admin_grant', reference }, `fund-${uuidv4()}`);
         expect.unreachable('Should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(RewardError);
@@ -349,8 +332,6 @@ describe('W01: Funding verification gate', () => {
         expect(re.code).toBe('DUPLICATE_REFERENCE');
         expect(re.statusCode).toBe(409);
       }
-
-      vi.restoreAllMocks();
     });
   });
 

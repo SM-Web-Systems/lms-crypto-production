@@ -11,6 +11,12 @@
  * reward foundation spec section 5: reward.manage + independent authorizer.
  * platform_credit fails closed (no credit provisioning mechanism).
  *
+ * W01-R2: Paystack binding verifies status, currency, amount, and ownership.
+ * Rewards are XLM (stroops); Paystack is fiat (USD/ZAR). No settlement
+ * policy exists for XLM↔fiat conversion — Paystack funding of XLM rewards
+ * fails closed with FUNDING_CURRENCY_MISMATCH. The binding framework is
+ * ready for when fiat-denominated rewards or a settlement policy are added.
+ *
  * Two entry points:
  * - verifyFundingSourceSync: synchronous checks only (reference presence,
  *   cross-reference idempotency, stellar deny-by-default, internal auth).
@@ -27,6 +33,7 @@ import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { verifyTransaction } from '../paystackService.js';
+import { SUPPORTED_CURRENCIES } from './currencyConfig.js';
 import type { FundingSourceType } from './rewardTypes.js';
 
 export interface FundingSource {
@@ -41,6 +48,20 @@ export interface FundingSource {
 export interface FundingAuthorizationContext {
   actorId: string;
   rewardCreatorId: string;
+}
+
+/**
+ * W01-R2: Context for Paystack payment binding verification.
+ * Built from the reward's authoritative DB row — NOT from caller assertions.
+ */
+export interface PaystackBindingContext {
+  rewardId: string;
+  /** Expected amount in the payment currency's minor units (e.g., cents for USD). */
+  expectedAmountMinorUnits: number;
+  /** The reward's currency code (e.g., 'XLM'). Compared against Paystack's currency. */
+  expectedCurrency: string;
+  /** The funding actor's email address (from users table). */
+  actorEmail: string;
 }
 
 /**
@@ -108,11 +129,16 @@ export function verifyFundingSourceSync(
 /**
  * Full async funding verification. Includes all synchronous checks
  * plus async external provider verification (paystack).
+ *
+ * W01-R2: Paystack path now requires PaystackBindingContext for
+ * currency/amount/ownership binding. Context is built from the reward's
+ * authoritative DB row in the service layer.
  */
 export async function verifyFundingSourceAsync(
   source: FundingSource,
   rewardId: string,
   context?: FundingAuthorizationContext,
+  paystackContext?: PaystackBindingContext,
 ): Promise<void> {
   // 1. Cross-reference idempotency (all types with a reference)
   if (source.reference) {
@@ -132,7 +158,14 @@ export async function verifyFundingSourceAsync(
 
     case 'paystack':
       requireReference(source, 'Paystack');
-      await verifyPaystack(source);
+      if (!paystackContext) {
+        throw new RewardError(
+          'FUNDING_UNVERIFIED',
+          'Paystack funding requires binding context (reward amount, currency, actor)',
+          402,
+        );
+      }
+      await verifyPaystackBinding(source, paystackContext);
       break;
 
     case 'platform_credit':
@@ -212,16 +245,24 @@ function requireReference(source: FundingSource, label: string): void {
   }
 }
 
-async function verifyPaystack(source: FundingSource): Promise<void> {
+/**
+ * W01-R2: Full Paystack payment binding verification.
+ *
+ * Checks (in order):
+ * 1. Status: Paystack transaction must be 'success'
+ * 2. Currency: reward currency must have a settlement path to payment currency
+ * 3. Amount: payment amount must match expected obligation (when currencies settle)
+ * 4. Ownership: Paystack customer email must match funding actor's email
+ *
+ * Exported for direct unit testing (review finding F2).
+ */
+export async function verifyPaystackBinding(
+  source: FundingSource,
+  context: PaystackBindingContext,
+): Promise<void> {
+  let result: Awaited<ReturnType<typeof verifyTransaction>>;
   try {
-    const result = await verifyTransaction(source.reference!);
-    if (result.status !== 'success') {
-      throw new RewardError(
-        'FUNDING_UNVERIFIED',
-        `Paystack transaction status is '${result.status}', expected 'success'`,
-        402,
-      );
-    }
+    result = await verifyTransaction(source.reference!);
   } catch (err) {
     if (err instanceof RewardError) throw err;
     throw new RewardError(
@@ -230,6 +271,70 @@ async function verifyPaystack(source: FundingSource): Promise<void> {
       402,
     );
   }
+
+  // 1. Status binding
+  if (result.status !== 'success') {
+    throw new RewardError(
+      'FUNDING_UNVERIFIED',
+      `Paystack transaction status is '${result.status}', expected 'success'`,
+      402,
+    );
+  }
+
+  // 2. Currency settlement binding
+  // Check if the reward's currency has a direct settlement path to the
+  // Paystack payment currency. Currently only XLM is supported for rewards,
+  // and Paystack operates in fiat (USD, ZAR, NGN, etc.). No settlement
+  // policy or exchange rate service exists for XLM↔fiat conversion.
+  const paystackCurrency = result.currency;
+  const rewardCurrency = context.expectedCurrency;
+
+  if (!hasCurrencySettlementPath(rewardCurrency, paystackCurrency)) {
+    throw new RewardError(
+      'FUNDING_CURRENCY_MISMATCH',
+      `No settlement path between reward currency '${rewardCurrency}' and Paystack payment currency '${paystackCurrency}'. ` +
+      `Paystack funding requires the reward currency to match or have a configured settlement policy.`,
+      402,
+    );
+  }
+
+  // 3. Amount binding (only reachable when currencies have a settlement path)
+  if (result.amount !== context.expectedAmountMinorUnits) {
+    throw new RewardError(
+      'FUNDING_AMOUNT_MISMATCH',
+      `Paystack payment amount ${result.amount} does not match expected ${context.expectedAmountMinorUnits} (${paystackCurrency} minor units)`,
+      402,
+    );
+  }
+
+  // 4. Ownership binding — verify the Paystack customer matches the actor
+  const customerEmail = result.customer?.email;
+  if (!customerEmail || customerEmail.toLowerCase() !== context.actorEmail.toLowerCase()) {
+    throw new RewardError(
+      'FUNDING_OWNERSHIP_MISMATCH',
+      `Paystack payment customer does not match the funding actor`,
+      403,
+    );
+  }
+}
+
+/**
+ * Check whether a settlement path exists between the reward currency
+ * and the Paystack payment currency.
+ *
+ * Currently: only direct match is supported. If the reward currency
+ * is in SUPPORTED_CURRENCIES (XLM) and the Paystack currency is fiat,
+ * there is no settlement path. This function returns true only when
+ * both currencies are the same (e.g., both 'USD' — future use).
+ */
+function hasCurrencySettlementPath(rewardCurrency: string, paystackCurrency: string): boolean {
+  // Direct match: reward and payment are in the same currency
+  if (rewardCurrency.toUpperCase() === paystackCurrency.toUpperCase()) {
+    return true;
+  }
+  // No cross-currency settlement policy exists.
+  // Future: check a settlement/quote service here.
+  return false;
 }
 
 function checkReferenceNotReused(reference: string, rewardId: string): void {

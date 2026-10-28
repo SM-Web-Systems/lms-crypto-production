@@ -8,6 +8,7 @@ import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
 import { verifyFundingSourceSync, verifyFundingSourceAsync, verifyInternalAuthorization } from './rewardFundingVerifier.js';
+import type { PaystackBindingContext } from './rewardFundingVerifier.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
@@ -221,9 +222,29 @@ export async function fundRewardAsync(
   }
   const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
 
-  // W01: Full async verification (includes external provider calls
-  // and internal source authorization).
-  await verifyFundingSourceAsync(source, rewardId, authContext);
+  // W01-R2: Build Paystack binding context from the reward's authoritative state.
+  // This supplies trusted expected values (amount, currency, actor identity) that
+  // the verifier checks against the Paystack API response. The context is only
+  // used for paystack source type but is built unconditionally to keep the lookup
+  // outside the conditional (the reward row is already fetched above).
+  let paystackContext: PaystackBindingContext | undefined;
+  if (source.type === 'paystack') {
+    const totalExposure = Number(calculateMaxExposure(
+      BigInt(rewardForAuth.amount_stroops),
+      BigInt(rewardForAuth.max_recipients ?? 1),
+    ));
+    const actorEmail = lookupUserEmail(actorId);
+    paystackContext = {
+      rewardId,
+      expectedAmountMinorUnits: totalExposure,
+      expectedCurrency: rewardForAuth.currency_code ?? 'XLM',
+      actorEmail,
+    };
+  }
+
+  // W01: Full async verification (includes external provider calls,
+  // internal source authorization, and W01-R2 Paystack binding).
+  await verifyFundingSourceAsync(source, rewardId, authContext, paystackContext);
 
   // Delegate to the synchronous DB transaction (skips sync verification
   // since async verification is a superset)
@@ -813,6 +834,16 @@ function getRewardFunderId(rewardId: string, creatorUserId: string): string {
      ORDER BY created_at ASC LIMIT 1`
   ).get(rewardId) as { destination_user_id: string } | undefined;
   return fundEntry?.destination_user_id ?? creatorUserId;
+}
+
+/**
+ * W01-R2: Look up a user's email address for Paystack ownership binding.
+ * Returns empty string if user not found or has no email (verification
+ * will fail with FUNDING_OWNERSHIP_MISMATCH, which is correct).
+ */
+function lookupUserEmail(userId: string): string {
+  const row = db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as { email: string } | undefined;
+  return row?.email ?? '';
 }
 
 function updateRewardStatus(rewardId: string, status: RewardState): void {
