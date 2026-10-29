@@ -3,17 +3,33 @@ import { db } from '../../config/database.js';
 interface IdempotencyResult {
   exists: boolean;
   transactionId?: string;
+  /** W02-R1: reward_id stored in the original transaction, for cross-resource binding checks. */
+  rewardId?: string | null;
+  /** W02-R1: allocation_id stored in the original transaction, for cross-allocation binding checks. */
+  allocationId?: string | null;
+  /** W02-R1: transaction_type stored in the original transaction, for cross-action binding checks. */
+  transactionType?: string;
 }
 
 /**
  * Check if an idempotency key already exists in reward_transactions.
- * Returns the existing transaction ID if found.
+ * Returns the existing transaction ID plus the stored resource/action fields for
+ * replay binding (W02-R1). Callers must verify the stored resource and action
+ * match the current request before returning a replay result.
  */
 export function checkTransactionIdempotency(key: string): IdempotencyResult {
   const row = db.prepare(
-    'SELECT id FROM reward_transactions WHERE idempotency_key = ?'
-  ).get(key) as { id: string } | undefined;
-  return row ? { exists: true, transactionId: row.id } : { exists: false };
+    'SELECT id, reward_id, allocation_id, transaction_type FROM reward_transactions WHERE idempotency_key = ?'
+  ).get(key) as { id: string; reward_id: string | null; allocation_id: string | null; transaction_type: string } | undefined;
+  return row
+    ? {
+        exists: true,
+        transactionId: row.id,
+        rewardId: row.reward_id,
+        allocationId: row.allocation_id,
+        transactionType: row.transaction_type,
+      }
+    : { exists: false };
 }
 
 /**

@@ -73,9 +73,14 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
 
   const existing = checkRewardIdempotency(params.idempotencyKey);
   if (existing.exists) {
-    // W02: Scope check before returning idempotent result
     const cached = getReward(existing.rewardId!);
     if (!cached) throw new RewardError('REWARD_NOT_FOUND', 'Reward not found', 404);
+    // W02-R1: Bind replay to the original scope — reject key reuse for a different scope.
+    // An authorized actor requesting a different scope_id with the same key is a conflict.
+    if (cached.scope_type !== params.scopeType || cached.scope_id !== params.scopeId) {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different scope', 409);
+    }
+    // W02: Scope check before returning idempotent result
     if (!hasPermission(actorId, 'reward.manage') &&
         !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
       throw new RewardError('SCOPE_DENIED', `Actor does not have access to scope ${cached.scope_type}:${cached.scope_id}`, 403);
@@ -118,6 +123,11 @@ export function fundReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
+    // W02-R1: Bind replay to resource and action — reject cross-resource/cross-action key reuse.
+    // A key previously used for a different reward or action is a conflict, not a genuine retry.
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'fund') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
     // W02: Scope check before returning idempotent result
     const cached = getReward(rewardId);
     if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
@@ -254,6 +264,10 @@ export async function fundRewardAsync(
 ): Promise<RewardRow> {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
+    // W02-R1: Bind replay to resource and action
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'fund') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
     // W02: Scope check before returning idempotent result
     const cached = getReward(rewardId);
     if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
@@ -315,6 +329,10 @@ function fundRewardVerified(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
+    // W02-R1: Bind replay to resource and action (defense-in-depth)
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'fund') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
     // W02: Scope check before returning idempotent result (defense-in-depth)
     const cached = getReward(rewardId);
     if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
@@ -511,6 +529,10 @@ export function cancelReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_cancel`);
   if (idem.exists) {
+    // W02-R1: Bind replay to resource and action
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'cancel') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
     // W02: Scope check before returning idempotent result
     const cached = getReward(rewardId);
     if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
@@ -600,6 +622,10 @@ export function releaseAllocation(
 ): AllocationRow {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
+    // W02-R1: Bind replay to resource and action
+    if (idem.allocationId !== allocationId || idem.transactionType !== 'release') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
     // W02: Scope check before returning idempotent result
     const cachedAlloc = getAllocation(allocationId);
     if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
@@ -673,6 +699,10 @@ export function refundAllocation(
 ): AllocationRow | { blocked: true; attemptId: string } {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
+    // W02-R1: Bind replay to resource and action
+    if (idem.allocationId !== allocationId || idem.transactionType !== 'refund') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
     // W02: Scope check before returning idempotent result
     const cachedAlloc = getAllocation(allocationId);
     if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
@@ -772,7 +802,13 @@ export function expireReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_expire`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02-R1: Bind replay to resource (system actor — no scope check needed)
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'expire') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    return cached;
   }
 
   const txn = db.transaction(() => {
