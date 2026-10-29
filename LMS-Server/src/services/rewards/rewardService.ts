@@ -775,7 +775,12 @@ export function refundAllocation(
       throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
     }
 
-    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+    // W02-R2C: Add reward.manage bypass to the fresh write path — consistent with the
+    // replay path above and all other service operations. This allows admin reviewers
+    // (who hold reward.manage via role_admin+) to retry blocked refunds as the actual
+    // caller, without substituting the historical attempted_by_user_id for authority.
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
 
