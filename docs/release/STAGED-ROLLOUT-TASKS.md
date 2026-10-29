@@ -214,6 +214,18 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - CI: all 4 jobs PASS (run 40844990098); post-merge main PASS (40845800635)
 - Independent AI review: APPROVED (P2-1 null guard, P2-2 token role — both applied)
 
+#### W02-R1C PR #113 (intent binding + access-before-replay) — MERGED `88db657a` (2026-10-29)
+- C1: `createReward` keys now bind to `amount_stroops + reward_type + currency_code`; same-scope replay with different amount/type raises 409
+- C1: `fundReward` (sync/async/verified) keys now bind to `funding_source_type` and normalized `funding_reference`; different source or reference raises 409
+- C1: Opaque W01 reference identity preserved (`null === null` matches; no case normalization)
+- C2: All fast-return paths (fund×3, cancel, release, refund, expire) resolve+authorize requested resource before checking binding; unauthorized/missing target returns established 404 regardless of key
+- Fix 3 genuine-retry tests that previously generated new references on replay (R1-F1-1c, R1-HTTP-1, W02-G-7)
+- `checkTransactionIdempotency` upgraded to return `funding_source_type` and `funding_reference`
+- 16 new tests (idempotency-binding C1/C2 groups); 1953/1954 total passed (1 pre-existing skip)
+- CI: all 4 jobs PASS (run 40860417566, Backend 5m7s); post-merge main run 40861303452 in progress
+- Independent AI review: APPROVED (no P1 findings)
+- Review source: SERVER-HANDOVER-W02-R1-PR112-REVIEW.md at `d610f32` on `codex/platform-wiring-audit`
+
 #### W02-R2 — PENDING (separate run)
 - F2: nested action URLs ignore reward parent (sponsor/teacher/parent/employer release/refund routes)
 - F3: route/list tests use raw getters not HTTP; list test has MODULE_NOT_FOUND (require path bug); role fixtures have incidental roles

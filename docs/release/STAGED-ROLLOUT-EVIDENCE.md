@@ -123,8 +123,8 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Priority | P1 |
 | Current applicability | **PARTIALLY_FIXED on main** |
 | Code evidence | Original: `rewardService.ts` `getReward()` plain SELECT with no actor/scope filter; routes lacked validateScope; fast-returns bypassed scope. See original spec. |
-| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111 fixes this); idempotency key cross-reuse (PR #112 fixes this) |
-| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29) |
+| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111 fixes this); idempotency key cross-reuse (PR #112 fixes this); incomplete intent + access-before-replay order (PR #113 fixes this) |
+| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29), **#113 MERGED** `88db657a` (2026-10-29) |
 | Residual work | W02-R2: F2 nested action URLs ignore reward parent (release/refund routes); F3 route/list tests use raw getters, list test MODULE_NOT_FOUND, incidental roles in fixtures |
 | Evidence status | PARTIALLY_FIXED — W02-R2 pending
 
@@ -153,6 +153,20 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | Run 40844990098 — 4/4 PASS; post-merge main 40845800635 — SUCCESS |
 | Review | Independent AI review: APPROVED (P2-1 null guard, P2-2 token role — both applied before merge) |
 | Fixes | F1.1 cross-reward fund binding; F1.2 cross-action release/refund binding; F1.3 cross-scope create binding; F1.4 cross-reward cancel; F1.5/F1.6 cross-allocation release/refund; expireReward defense-in-depth |
+| Review disposition | CHANGES_REQUIRED — C1 (incomplete intent binding) and C2 (access-before-replay order) remain; see SERVER-HANDOVER-W02-R1-PR112-REVIEW.md at `d610f32` |
+
+#### W02-R1C PR #113 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#113](https://github.com/SM-Web-Systems/lms-crypto-production/pull/113) |
+| Branch | `codex/w02r1c-intent-access-order` |
+| Feature commit | `28ce83a` |
+| Merge commit | `88db657a` |
+| Tests | 16 new (reward-idempotency-binding.test.ts C1/C2 groups); 1953 total passed (+16 from #112 baseline); 1 pre-existing proxy-addr skip |
+| CI | Run 40860417566 — 4/4 PASS (Backend 5m7s, Frontend 50s, Offline 1m29s, E2E 1m26s); post-merge main run 40861303452 — SUCCESS (4/4: Offline 58s, Frontend 45s, Backend 3m56s, E2E 1m20s) |
+| Review | Independent AI review: APPROVED (no P1 findings) |
+| Fixes | C1: `createReward` binds to `amount_stroops + reward_type + currency_code`; `fundReward` binds to `funding_source_type + funding_reference` (opaque, W01 identity preserved). C2: all fast-return paths (fund×3, cancel, release, refund, expire) resolve+authorize before revealing binding; unauthorized/missing → established 404. Fix 3 genuine-retry tests (R1-F1-1c, R1-HTTP-1, W02-G-7) that previously generated new references on replay. |
 
 ### W03: Reward reservations smaller than issued allocations
 
@@ -657,6 +671,8 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-28 | — | ~~S2/W01-R3: CHANGES_REQUIRED~~ **SUPERSEDED** — R3C correction PR #109 merged at `a929836`. F1/F2/F3 all resolved. | R3 correction session | SUPERSEDED |
 | 2026-10-28 | — | S2/W01-R3C: PR #109 merged at `a929836`. F1 legacyUniqueExemptions, F2 opaque reference identity, F3 genuine regressions. 21 R3 tests, 1888 total, 0 failures. W01 security containment complete. | R3C session | MERGED |
 | 2026-10-28 | — | W01 FIXED (security containment): R1 internal auth ✓, R2 Paystack binding ✓, R3+R3C atomic reference ✓. 6 PRs (#104-#109), 58 new tests + C1 interleaving. Stellar deferred (fail-closed). Paystack operationally unavailable (R2 containment). | W01 assessment | FIXED |
+| 2026-10-29 | — | S2/W02: PR #111 merged `211c556c` (route/scope checks, 404 contract, 28 tests); PR #112 merged `87a9f40b` (replay binding F1, 18 tests). W02-R1 accepted. CHANGES_REQUIRED per SERVER-HANDOVER-W02-R1-PR112-REVIEW.md: C1 incomplete intent binding, C2 access-before-replay order. | W02-R1 session | MERGED |
+| 2026-10-29 | — | S2/W02-R1C: PR #113 merged `88db657a` (intent/access-order C1+C2, 16 tests, 1953 total). C1: createReward binds amount/type/currency; fundReward binds source+reference. C2: all fast-return paths authorize before revealing binding. Genuine-retry tests corrected (R1-F1-1c, R1-HTTP-1, W02-G-7). Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40861303452, 4/4). W02-R2 remains pending. | W02-R1C session | MERGED |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 

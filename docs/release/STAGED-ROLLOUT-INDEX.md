@@ -1,7 +1,7 @@
 # Staged rollout index
 
 Date: 2026-10-29
-Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment); W02 PARTIALLY_FIXED (PR #111 route/scope checks merged; PR #112 replay binding merged); W02-R2 remaining; W03/W04 pending
+Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment); W02 PARTIALLY_FIXED (PR #111 route/scope checks merged; PR #112 replay binding merged; PR #113 R1C intent/access-order merged); W02-R2 remaining; W03/W04 pending
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 
@@ -9,7 +9,7 @@ Recommended first stage: **S1** (inventory, specification and independent depend
 
 | Component | Ref | SHA | Notes |
 | --- | --- | --- | --- |
-| LMS main | `origin/main` | `87a9f40b` | Last merged: PR #112 (W02-R1 replay binding); prior: #111 (W02 route/scope), #110 (W01-R3D), #109 (R3C), #108 (R3), #107 (R2), #106 (C1), #105 (R1), #104, #90, #86 |
+| LMS main | `origin/main` | `88db657a` | Last merged: PR #113 (W02-R1C intent/access-order); prior: #112 (W02-R1 replay binding), #111 (W02 route/scope), #110 (W01-R3D), #109 (R3C), #108 (R3), #107 (R2), #106 (C1), #105 (R1), #104, #90, #86 |
 | RBAC candidate | `codex/rbac-schema-retirement` (PR #101 head) | `b8015e27eae1` | Stacked: #98→#99→#100→#101 on main |
 | Platform audit | `codex/platform-wiring-audit` (PR #102 head) | `718985fb9f39` | Documentation only; stacked on #101 |
 | Database follow-up | `codex/database-integrity-followup` (PR #93) | `70cc27ec5c3d` | Independent of RBAC chain |
@@ -54,7 +54,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 | Finding | Priority | Status on main | Fix PR | Residual work |
 | --- | --- | --- | --- | --- |
 | W01 | P1 | **FIXED (security containment)** — funding verification gate (#104); R1 internal auth (#105, C1 #106); R2 Paystack binding (#107); R3 atomic reference (#108); R3C correction (#109); R3D strict final validation (#110) | #104, #105, #106, #107, #108, #109, #110 MERGED | Stellar deferred (fail-closed); A1 gated by R2 currency mismatch; A5 cosmetic |
-| W02 | P1 | **PARTIALLY_FIXED** — PR #111 (route scope checks, 404 contract, 28 tests, merged `211c556c`); PR #112 (replay binding F1, 18 tests, merged `87a9f40b`); F2 nested-parent binding and F3 route/list coverage remain in W02-R2 | #111 MERGED, #112 MERGED | W02-R2 pending: nested action URL parent binding, real HTTP route tests for teacher/parent/employer, list import + role-only fixtures |
+| W02 | P1 | **PARTIALLY_FIXED** — PR #111 (route scope checks, 404 contract, 28 tests, merged `211c556c`); PR #112 (replay binding F1, 18 tests, merged `87a9f40b`); PR #113 (R1C intent/access-order C1+C2, 16 tests, merged `88db657a`); F2 nested-parent binding and F3 route/list coverage remain in W02-R2 | #111 MERGED, #112 MERGED, #113 MERGED | W02-R2 pending: nested action URL parent binding, real HTTP route tests for teacher/parent/employer, list import + role-only fixtures |
 | W03 | P1 | **Vulnerable** — `activateReward()` creates allocations for all audience members regardless of `max_recipients` | None | Enforce allocation cap vs reservation invariant |
 | W04 | P1 | **Vulnerable** — lesson completion fires `course_completion` outbox event (line 157) per lesson, not per course | None | Make eligibility source-bound to actual course completion |
 | W05 | P2 | **Present** — DB enum allows `individual, milestone, course_completion, grade, custom`; UI may offer types outside this set | None | Align UI choices with DB enum |
