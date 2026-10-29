@@ -121,12 +121,12 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Finding ID | W02 |
 | Priority | P1 |
-| Current applicability | **PARTIALLY_FIXED on main** |
+| Current applicability | **FIXED on main** |
 | Code evidence | Original: `rewardService.ts` `getReward()` plain SELECT with no actor/scope filter; routes lacked validateScope; fast-returns bypassed scope. See original spec. |
-| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111 fixes this); idempotency key cross-reuse (PR #112 fixes this); incomplete intent + access-before-replay order (PR #113 fixes this) |
-| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29), **#113 MERGED** `88db657a` (2026-10-29) |
-| Residual work | W02-R2: F2 nested action URLs ignore reward parent (release/refund routes); F3 route/list tests use raw getters, list test MODULE_NOT_FOUND, incidental roles in fixtures |
-| Evidence status | PARTIALLY_FIXED — W02-R2 pending
+| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111 fixes this); idempotency key cross-reuse (PR #112 fixes this); incomplete intent + access-before-replay order (PR #113 fixes this); nested action URL ignores reward parent (PR #114 fixes this) |
+| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29), **#113 MERGED** `88db657a` (2026-10-29), **#114 MERGED** `1229bd97` (2026-10-29) |
+| Residual work | None — W02 repair chain complete |
+| Evidence status | **FIXED** — W02 repair chain complete (PRs #111–#114, 99 new tests, 1990 passed, 0 regressions)
 
 #### W02 PR #111 merge receipt
 
@@ -167,6 +167,24 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | Run 40860417566 — 4/4 PASS (Backend 5m7s, Frontend 50s, Offline 1m29s, E2E 1m26s); post-merge main run 40861303452 — SUCCESS (4/4: Offline 58s, Frontend 45s, Backend 3m56s, E2E 1m20s) |
 | Review | Independent AI review: APPROVED (no P1 findings) |
 | Fixes | C1: `createReward` binds to `amount_stroops + reward_type + currency_code`; `fundReward` binds to `funding_source_type + funding_reference` (opaque, W01 identity preserved). C2: all fast-return paths (fund×3, cancel, release, refund, expire) resolve+authorize before revealing binding; unauthorized/missing → established 404. Fix 3 genuine-retry tests (R1-F1-1c, R1-HTTP-1, W02-G-7) that previously generated new references on replay. |
+
+#### W02-R2 PR #114 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#114](https://github.com/SM-Web-Systems/lms-crypto-production/pull/114) |
+| Branch | `codex/w02r2-nested-parent-binding` |
+| Feature commit | `f49174e` |
+| Merge commit | `1229bd97d6399dd8807ae8936d4a47917a806f91` |
+| Merged at | 2026-10-29T12:05:26Z |
+| Spec | `LMS-Server/docs/specs/w02-r2-nested-parent-binding-spec.md` |
+| Tests | 37 new (reward-nested-parent.test.ts); W02-R-1–R-8 replaced with real HTTP tests; W02-L-1 fixed; 1990/1991 total passed (1 pre-existing proxy-addr skip) |
+| CI | PR run 40869264008 — 4/4 PASS (Backend 5m21s); post-merge main run 40870444455 — SUCCESS (4/4: Frontend 1m7s, Backend 4m59s, Offline 1m19s, E2E 1m29s) |
+| Review | Independent AI review: APPROVED (no P1/P2 findings) |
+| F2 fixes | `releaseAllocation` and `refundAllocation` take new required 4th param `requestedRewardId`; replay path fails closed on missing parent, checks `allocation.reward_id === requestedRewardId` → 404 before scope/admin check; fresh write path checks parent match → 404 before scope check; 7 production callers updated (sponsor×2, teacher×1, parent×1, employer×2, rewardEligibilityService×1, adminRewards×1); 8 existing test files updated |
+| F3 fixes | W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 fixed (MODULE_NOT_FOUND → direct ESM import) |
+| Admin caller | `adminRewards.ts` retry route (missed in original spec) updated: passes `attempt.reward_id` from `reward_refund_attempts` table as 4th arg |
+| W02 closure | All four repair units (#111, #112, #113, #114) merged. W02 FIXED. |
 
 ### W03: Reward reservations smaller than issued allocations
 
@@ -673,6 +691,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-28 | — | W01 FIXED (security containment): R1 internal auth ✓, R2 Paystack binding ✓, R3+R3C atomic reference ✓. 6 PRs (#104-#109), 58 new tests + C1 interleaving. Stellar deferred (fail-closed). Paystack operationally unavailable (R2 containment). | W01 assessment | FIXED |
 | 2026-10-29 | — | S2/W02: PR #111 merged `211c556c` (route/scope checks, 404 contract, 28 tests); PR #112 merged `87a9f40b` (replay binding F1, 18 tests). W02-R1 accepted. CHANGES_REQUIRED per SERVER-HANDOVER-W02-R1-PR112-REVIEW.md: C1 incomplete intent binding, C2 access-before-replay order. | W02-R1 session | MERGED |
 | 2026-10-29 | — | S2/W02-R1C: PR #113 merged `88db657a` (intent/access-order C1+C2, 16 tests, 1953 total). C1: createReward binds amount/type/currency; fundReward binds source+reference. C2: all fast-return paths authorize before revealing binding. Genuine-retry tests corrected (R1-F1-1c, R1-HTTP-1, W02-G-7). Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40861303452, 4/4). W02-R2 remains pending. | W02-R1C session | MERGED |
+| 2026-10-29 | — | S2/W02-R2: PR #114 merged `1229bd97` (nested parent binding + real HTTP tests, 37 new tests, 1990 total). F2: releaseAllocation/refundAllocation take requestedRewardId; replay fails closed; 7 callers updated. F3: W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 MODULE_NOT_FOUND fixed. Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40870444455, 4/4). W02 FIXED — repair chain complete (#111, #112, #113, #114). | W02-R2 session | MERGED |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 

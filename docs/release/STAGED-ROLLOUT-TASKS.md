@@ -191,7 +191,7 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Not a W01 repair unit**: Stellar's fail-closed behavior is the intended R1 result, not a gap requiring repair.
 
 ### S2-T02: Implement W02 — cross-owner reward scope checks
-- **Status**: PARTIALLY_FIXED — W02-R1 merged; W02-R2 pending
+- **Status**: FIXED — W02 repair chain complete (#111, #112, #113, #114 all merged)
 - **Dependencies**: S1-T03 spec reviewed ✓
 - **Owner**: W02 session + W02-R1 session
 
@@ -222,14 +222,25 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - Fix 3 genuine-retry tests that previously generated new references on replay (R1-F1-1c, R1-HTTP-1, W02-G-7)
 - `checkTransactionIdempotency` upgraded to return `funding_source_type` and `funding_reference`
 - 16 new tests (idempotency-binding C1/C2 groups); 1953/1954 total passed (1 pre-existing skip)
-- CI: all 4 jobs PASS (run 40860417566, Backend 5m7s); post-merge main run 40861303452 in progress
+- CI: all 4 jobs PASS (run 40860417566, Backend 5m7s); post-merge main run 40861303452 SUCCESS (4/4)
 - Independent AI review: APPROVED (no P1 findings)
 - Review source: SERVER-HANDOVER-W02-R1-PR112-REVIEW.md at `d610f32` on `codex/platform-wiring-audit`
 
-#### W02-R2 — PENDING (separate run)
-- F2: nested action URLs ignore reward parent (sponsor/teacher/parent/employer release/refund routes)
-- F3: route/list tests use raw getters not HTTP; list test has MODULE_NOT_FOUND (require path bug); role fixtures have incidental roles
-- Scope: nested binding + real authenticated HTTP tests for teacher/parent/employer + list/role-only fixture fixes
+#### W02-R2 PR #114 (nested parent binding + real HTTP route tests) — MERGED `1229bd97` (2026-10-29)
+- **Spec**: `LMS-Server/docs/specs/w02-r2-nested-parent-binding-spec.md`
+- **Branch**: `codex/w02r2-nested-parent-binding` at `f49174e`
+- **Merge commit**: `1229bd97d6399dd8807ae8936d4a47917a806f91`
+- **F2 fix**: `releaseAllocation` and `refundAllocation` take new required 4th param `requestedRewardId: string`
+  - Replay path: fail closed on missing parent; check `allocation.reward_id === requestedRewardId` → 404 before scope/admin check; then scope/admin check → 404; then binding check → 409
+  - Fresh write path: check `allocation.reward_id === requestedRewardId` → 404 before existing scope check
+  - 7 production callers updated: sponsor.ts (×2), teacher.ts (×1), parent.ts (×1), employer.ts (×2), rewardEligibilityService.ts (×1), adminRewards.ts (×1)
+  - 8 existing test files updated (50+ call sites): reward-lifecycle, reward-orchestration, reward-refund-admin, reward-r13-routes, reward-idempotency-binding, reward-student-view, reward-internal-funding-auth, reward-cross-owner
+- **F3 fix**: W02-R-1 through W02-R-8 in `reward-cross-owner.test.ts` replaced with real HTTP supertest requests to /api/v1/{sponsor,teacher,parent,employer}/rewards/:id; W02-L-1 list test fixed (was MODULE_NOT_FOUND via require(), now direct ESM import with try/catch)
+- **37 new tests** in `reward-nested-parent.test.ts`: F2 service-level (mismatch, orphan, admin bypass in replay path), F2 HTTP regression guards, F3 authenticated route GET coverage (teacher/parent/employer ×3 each)
+- **1990/1991 total passed** (1 pre-existing local proxy-addr skip, passes in CI)
+- CI: all 4 jobs PASS (PR run 40869264008, Backend 5m21s); post-merge main run 40870444455 SUCCESS (4/4: Frontend 1m7s, Backend 4m59s, Offline 1m19s, E2E 1m29s)
+- Independent AI review: APPROVED (no P1/P2 findings)
+- W02 FIXED — all three repair units (#111, #112, #113, #114) merged
 
 ### S2-T03: Implement W03 — allocation cap enforcement
 - **Status**: TODO
