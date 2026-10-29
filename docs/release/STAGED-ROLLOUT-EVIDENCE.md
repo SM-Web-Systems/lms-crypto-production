@@ -123,10 +123,10 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Priority | P1 |
 | Current applicability | **FIXED on main** |
 | Code evidence | Original: `rewardService.ts` `getReward()` plain SELECT with no actor/scope filter; routes lacked validateScope; fast-returns bypassed scope. See original spec. |
-| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111 fixes this); idempotency key cross-reuse (PR #112 fixes this); incomplete intent + access-before-replay order (PR #113 fixes this); nested action URL ignores reward parent (PR #114 fixes this) |
-| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29), **#113 MERGED** `88db657a` (2026-10-29), **#114 MERGED** `1229bd97` (2026-10-29) |
+| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111); idempotency key cross-reuse (PR #112); incomplete intent + access-before-replay order (PR #113); nested action URL ignores reward parent (PR #114); admin retry substitutes historical owner for caller auth (PR #115) |
+| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29), **#113 MERGED** `88db657a` (2026-10-29), **#114 MERGED** `1229bd97` (2026-10-29), **#115 MERGED** `5cc386f` (2026-10-29) |
 | Residual work | None — W02 repair chain complete |
-| Evidence status | **FIXED** — W02 repair chain complete (PRs #111–#114, 99 new tests, 1990 passed, 0 regressions)
+| Evidence status | **FIXED** — W02 repair chain complete (PRs #111–#115, 107 new tests, 1999 passed, 0 regressions)
 
 #### W02 PR #111 merge receipt
 
@@ -184,7 +184,28 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | F2 fixes | `releaseAllocation` and `refundAllocation` take new required 4th param `requestedRewardId`; replay path fails closed on missing parent, checks `allocation.reward_id === requestedRewardId` → 404 before scope/admin check; fresh write path checks parent match → 404 before scope check; 7 production callers updated (sponsor×2, teacher×1, parent×1, employer×2, rewardEligibilityService×1, adminRewards×1); 8 existing test files updated |
 | F3 fixes | W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 fixed (MODULE_NOT_FOUND → direct ESM import) |
 | Admin caller | `adminRewards.ts` retry route (missed in original spec) updated: passes `attempt.reward_id` from `reward_refund_attempts` table as 4th arg |
-| W02 closure | All four repair units (#111, #112, #113, #114) merged. W02 FIXED. |
+| Review disposition | CHANGES_REQUIRED per SERVER-HANDOVER-W02-R2-PR114-REVIEW.md — admin retry caller auth (P1) remaining |
+
+#### W02-R2C PR #115 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#115](https://github.com/SM-Web-Systems/lms-crypto-production/pull/115) |
+| Branch | `codex/w02-r2c` |
+| Feature commit | `b1ef80e847b0cea22f78c9d991e97c36b91db423` |
+| Merge commit | `5cc386f594f87fd068a42fc3390523c3f7c925e1` |
+| Merged at | 2026-10-29 |
+| Spec | `docs/specs/W02-R2C-admin-refund-retry-caller-auth.md` |
+| Tests | 8 new (reward-admin-refund-caller-auth.test.ts); 1999 total passed, 0 regressions, TSC clean |
+| CI | PR run 40894071751 — 4/4 PASS; post-merge main run 40895057757 — SUCCESS (4/4) |
+| Review | Independent Opus review: APPROVED (no blocking findings) |
+| Defect | `requirePermission('reward.refund')` (sponsor capability) + `attempt.attempted_by_user_id` as actorId → unrelated sponsor with known attempt ID could refund foreign allocation |
+| Fix 1 | `adminRewards.ts:89` — `requirePermission('reward.refund_review')` (admin-only; sponsors denied before DB lookup) |
+| Fix 2 | `adminRewards.ts:115` — pass `actorId` (authenticated caller) not `attempted_by_user_id`; historical field preserved |
+| Fix 3 | `rewardService.ts:778` — `reward.manage` bypass on `refundAllocation` fresh write path, consistent with replay path |
+| RED evidence | RETRY-CALLER-1: unrelated sponsor 409 (not 403) pre-fix; RETRY-CALLER-2: unrelated sponsor 200 (not 403) with restored funds; RETRY-CALLER-3: 409 ALREADY_RESOLVED disclosed; RETRY-CALLER-4: 404 (not 403) on unknown ID |
+| Actor attribution | `resolved_by_user_id` = adminId ✓; `attempted_by_user_id` = original sponsor preserved ✓; audit `actor_user_id` = adminId ✓; ledger `actor_user_id` = adminId ✓ |
+| W02 closure | All five repair units (#111, #112, #113, #114, #115) merged. W02 FIXED. |
 
 ### W03: Reward reservations smaller than issued allocations
 
@@ -691,7 +712,8 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-28 | — | W01 FIXED (security containment): R1 internal auth ✓, R2 Paystack binding ✓, R3+R3C atomic reference ✓. 6 PRs (#104-#109), 58 new tests + C1 interleaving. Stellar deferred (fail-closed). Paystack operationally unavailable (R2 containment). | W01 assessment | FIXED |
 | 2026-10-29 | — | S2/W02: PR #111 merged `211c556c` (route/scope checks, 404 contract, 28 tests); PR #112 merged `87a9f40b` (replay binding F1, 18 tests). W02-R1 accepted. CHANGES_REQUIRED per SERVER-HANDOVER-W02-R1-PR112-REVIEW.md: C1 incomplete intent binding, C2 access-before-replay order. | W02-R1 session | MERGED |
 | 2026-10-29 | — | S2/W02-R1C: PR #113 merged `88db657a` (intent/access-order C1+C2, 16 tests, 1953 total). C1: createReward binds amount/type/currency; fundReward binds source+reference. C2: all fast-return paths authorize before revealing binding. Genuine-retry tests corrected (R1-F1-1c, R1-HTTP-1, W02-G-7). Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40861303452, 4/4). W02-R2 remains pending. | W02-R1C session | MERGED |
-| 2026-10-29 | — | S2/W02-R2: PR #114 merged `1229bd97` (nested parent binding + real HTTP tests, 37 new tests, 1990 total). F2: releaseAllocation/refundAllocation take requestedRewardId; replay fails closed; 7 callers updated. F3: W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 MODULE_NOT_FOUND fixed. Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40870444455, 4/4). W02 FIXED — repair chain complete (#111, #112, #113, #114). | W02-R2 session | MERGED |
+| 2026-10-29 | — | S2/W02-R2: PR #114 merged `1229bd97` (nested parent binding + real HTTP tests, 37 new tests, 1990 total). F2: releaseAllocation/refundAllocation take requestedRewardId; replay fails closed; 7 callers updated. F3: W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 MODULE_NOT_FOUND fixed. Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40870444455, 4/4). CHANGES_REQUIRED per SERVER-HANDOVER-W02-R2-PR114-REVIEW.md — admin retry caller auth (P1) remaining. | W02-R2 session | CHANGES_REQUIRED |
+| 2026-10-29 | — | S2/W02-R2C: PR #115 merged `5cc386f` (admin refund retry caller auth, 8 new tests, 1999 total). Fix: requirePermission('reward.refund_review') + pass actorId + reward.manage bypass on fresh refund path. RED tests confirmed failing on main; GREEN passing after fix. Independent Opus review APPROVED. Post-merge main CI SUCCESS (run 40895057757, 4/4). W02 FIXED — repair chain complete (#111, #112, #113, #114, #115). | W02-R2C session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 

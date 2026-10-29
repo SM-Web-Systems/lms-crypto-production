@@ -191,7 +191,7 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Not a W01 repair unit**: Stellar's fail-closed behavior is the intended R1 result, not a gap requiring repair.
 
 ### S2-T02: Implement W02 — cross-owner reward scope checks
-- **Status**: FIXED — W02 repair chain complete (#111, #112, #113, #114 all merged)
+- **Status**: FIXED — W02 repair chain complete (#111, #112, #113, #114, #115 all merged)
 - **Dependencies**: S1-T03 spec reviewed ✓
 - **Owner**: W02 session + W02-R1 session
 
@@ -240,7 +240,21 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **1990/1991 total passed** (1 pre-existing local proxy-addr skip, passes in CI)
 - CI: all 4 jobs PASS (PR run 40869264008, Backend 5m21s); post-merge main run 40870444455 SUCCESS (4/4: Frontend 1m7s, Backend 4m59s, Offline 1m19s, E2E 1m29s)
 - Independent AI review: APPROVED (no P1/P2 findings)
-- W02 FIXED — all three repair units (#111, #112, #113, #114) merged
+- Review disposition: CHANGES_REQUIRED per SERVER-HANDOVER-W02-R2-PR114-REVIEW.md — admin refund retry caller auth (P1 remaining)
+
+#### W02-R2C PR #115 (admin refund retry caller auth) — MERGED `5cc386f` (2026-10-29)
+- **Spec**: `docs/specs/W02-R2C-admin-refund-retry-caller-auth.md`
+- **Branch**: `codex/w02-r2c` at `b1ef80e`
+- **Merge commit**: `5cc386f594f87fd068a42fc3390523c3f7c925e1`
+- **Defect**: Retry endpoint used `requirePermission('reward.refund')` (sponsor capability) and passed `attempt.attempted_by_user_id` to `refundAllocation`, allowing foreign allocation refunds
+- **Fix 1**: `adminRewards.ts` — `requirePermission('reward.refund_review')` (admin-only); auth check fires before attempt lookup
+- **Fix 2**: `adminRewards.ts` — pass `actorId` (authenticated caller) to `refundAllocation`; `attempted_by_user_id` preserved as historical record
+- **Fix 3**: `rewardService.ts` — add `reward.manage` bypass to `refundAllocation` fresh write path, consistent with replay path
+- **8 new tests** (reward-admin-refund-caller-auth.test.ts): RETRY-CALLER-1–4 RED (unrelated sponsor 403, no mutation, no disclosure); RETRY-CALLER-5–8 GREEN (admin 200/409, actor attribution, historical owner preserved)
+- **1999 total tests** passed; TSC: clean
+- CI: all 4 jobs PASS (PR run 40894071751); post-merge main run 40895057757 SUCCESS (4/4)
+- Independent Opus review: APPROVED
+- W02 FIXED — all four repair units (#111, #112, #113, #114, #115) merged
 
 ### S2-T03: Implement W03 — allocation cap enforcement
 - **Status**: TODO
