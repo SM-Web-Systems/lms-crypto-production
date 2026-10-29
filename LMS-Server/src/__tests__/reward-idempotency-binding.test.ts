@@ -143,18 +143,21 @@ describe('W02-R1 F1.1: funding key bound to reward identity', () => {
     expect(rB.status).toBe('draft');
   });
 
-  it('R1-F1-1c: genuine fund retry on same reward returns funded state (positive control)', () => {
+  it('R1-F1-1c: genuine fund retry on same reward with same source and reference returns funded state (positive control)', () => {
     const admin = seedAdmin();
     const sponsor = seedSponsor();
     const cohort = seedCohort(sponsor);
 
     const rewardId = draftReward(sponsor, cohort);
     const idemKey = `fund-${uuidv4()}`;
+    // W02-R1C (C1 fix): genuine retry must use the same source type and reference.
+    // A different reference is a different request — not an idempotent retry.
+    const originalRef = `ref-${uuidv4()}`;
 
-    adminFund(rewardId, admin, idemKey);
+    fundReward(rewardId, admin, { type: 'admin_grant', reference: originalRef }, idemKey);
 
-    // Replay with same key, same reward → must succeed (idempotent)
-    const replayed = fundReward(rewardId, admin, { type: 'admin_grant', reference: `ref-${uuidv4()}` }, idemKey);
+    // Replay with same key, same reward, same source type, same reference → must succeed
+    const replayed = fundReward(rewardId, admin, { type: 'admin_grant', reference: originalRef }, idemKey);
     expect(replayed).not.toBeNull();
     expect(replayed.id).toBe(rewardId);
     expect(replayed.status).toBe('funded');
@@ -444,27 +447,29 @@ describe('W02-R1 F1.6: refund key bound to allocation identity', () => {
 
 describe('W02-R1: Authenticated HTTP — replay binding at route layer', () => {
 
-  it('R1-HTTP-1: admin fund replay (same reward, same key) via sponsor route returns 200', async () => {
+  it('R1-HTTP-1: admin fund replay (same reward, same key, same reference) via sponsor route returns 200', async () => {
+    // W02-R1C (C1 fix): genuine replay must use the same source type and reference.
     const admin = seedAdmin();
     const sponsor = seedSponsor();
     const cohort = seedCohort(sponsor);
     const rewardId = draftReward(sponsor, cohort);
     const idemKey = `http-fund-${uuidv4()}`;
+    const originalRef = `ref-${uuidv4()}`; // capture for reuse on replay
     const adminToken = makeToken({ userId: admin, email: `r1-${admin}@test.com`, role: 'admin' });
 
     // First fund via route
     const res1 = await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ sourceType: 'admin_grant', reference: `ref-${uuidv4()}`, idempotencyKey: idemKey });
+      .send({ sourceType: 'admin_grant', reference: originalRef, idempotencyKey: idemKey });
 
     expect(res1.status).toBe(200);
 
-    // Genuine replay → 200
+    // Genuine replay: same key, same reward, same source type, same reference → 200
     const res2 = await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/fund`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ sourceType: 'admin_grant', reference: `ref-${uuidv4()}`, idempotencyKey: idemKey });
+      .send({ sourceType: 'admin_grant', reference: originalRef, idempotencyKey: idemKey });
 
     expect(res2.status).toBe(200);
     expect(res2.body.data.id).toBe(rewardId);
@@ -559,5 +564,462 @@ describe('W02-R1: Genuine retry positives — unchanged authorized paths', () =>
     const replayed = releaseAllocation(allocId, sponsor, idemKey);
     expect(replayed.id).toBe(allocId);
     expect(replayed.status).toBe('released');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// W02-R1C: C1 — Request-intent binding (amount, reward_type, currency, source)
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('W02-R1C C1: createReward intent binding', () => {
+
+  it('R1C-C1-1: key used for create(amount=10M) throws IDEMPOTENCY_CONFLICT when reused with amount=20M', () => {
+    // Pre-fix: returns original reward silently (wrong amount ignored)
+    // Post-fix: 409 IDEMPOTENCY_CONFLICT — amount is canonical intent
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+    const idemKey = `create-${uuidv4()}`;
+
+    createReward(sponsor, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohort,
+      rewardType: 'custom',
+      amountStroops: '10000000',
+      idempotencyKey: idemKey,
+    });
+
+    let caught: RewardError | undefined;
+    try {
+      createReward(sponsor, {
+        scopeType: 'sponsor_cohort',
+        scopeId: cohort,
+        rewardType: 'custom',
+        amountStroops: '20000000', // different amount
+        idempotencyKey: idemKey,
+      });
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(caught!.statusCode).toBe(409);
+  });
+
+  it('R1C-C1-2: key used for create(rewardType=custom) throws IDEMPOTENCY_CONFLICT when reused with rewardType=milestone', () => {
+    // Pre-fix: returns original reward silently (type mismatch ignored)
+    // Post-fix: 409 IDEMPOTENCY_CONFLICT — reward_type is canonical intent
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+    const idemKey = `create-${uuidv4()}`;
+
+    createReward(sponsor, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohort,
+      rewardType: 'custom',
+      amountStroops: '10000000',
+      idempotencyKey: idemKey,
+    });
+
+    let caught: RewardError | undefined;
+    try {
+      createReward(sponsor, {
+        scopeType: 'sponsor_cohort',
+        scopeId: cohort,
+        rewardType: 'milestone', // different type
+        amountStroops: '10000000',
+        idempotencyKey: idemKey,
+      });
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(caught!.statusCode).toBe(409);
+  });
+
+  it('R1C-G-1: genuine createReward retry with identical intent returns original reward', () => {
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+    const idemKey = `create-${uuidv4()}`;
+
+    const original = createReward(sponsor, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohort,
+      rewardType: 'custom',
+      amountStroops: '10000000',
+      idempotencyKey: idemKey,
+    });
+
+    const replayed = createReward(sponsor, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohort,
+      rewardType: 'custom',
+      amountStroops: '10000000',
+      idempotencyKey: idemKey,
+    });
+
+    expect(replayed.id).toBe(original.id);
+    expect(replayed.amount_stroops).toBe(original.amount_stroops);
+    expect(replayed.reward_type).toBe(original.reward_type);
+  });
+
+  it('R1C-G-2: createReward with explicit XLM matches replay that omits currency (default XLM)', () => {
+    // Omitting currency and specifying 'XLM' are semantically identical;
+    // currency binding must treat them as equivalent (default normalization).
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+    const idemKey = `create-${uuidv4()}`;
+
+    const original = createReward(sponsor, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohort,
+      rewardType: 'custom',
+      amountStroops: '10000000',
+      currency: 'XLM', // explicit
+      idempotencyKey: idemKey,
+    });
+
+    // Retry omitting currency → defaults to XLM → must match
+    const replayed = createReward(sponsor, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohort,
+      rewardType: 'custom',
+      amountStroops: '10000000',
+      // currency omitted
+      idempotencyKey: idemKey,
+    });
+
+    expect(replayed.id).toBe(original.id);
+  });
+});
+
+describe('W02-R1C C1: fundReward source/reference intent binding', () => {
+
+  it('R1C-C1-4: key used for fund(admin_grant) throws IDEMPOTENCY_CONFLICT when reused with stellar', () => {
+    // Pre-fix: returns funded reward silently (source type mismatch ignored)
+    // Post-fix: 409 IDEMPOTENCY_CONFLICT — fundingSourceType is canonical intent
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardId = draftReward(sponsor, cohort);
+    const idemKey = `fund-${uuidv4()}`;
+    const originalRef = `ref-${uuidv4()}`;
+
+    // Fund with admin_grant
+    fundReward(rewardId, admin, { type: 'admin_grant', reference: originalRef }, idemKey);
+
+    // Replay with different source type (stellar)
+    let caught: RewardError | undefined;
+    try {
+      fundReward(rewardId, admin, { type: 'stellar', reference: originalRef }, idemKey);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(caught!.statusCode).toBe(409);
+  });
+
+  it('R1C-C1-5: key used for fund(ref=X) throws IDEMPOTENCY_CONFLICT when reused with ref=Y', () => {
+    // Pre-fix: returns funded reward silently (different reference ignored)
+    // Post-fix: 409 IDEMPOTENCY_CONFLICT — opaque reference identity is canonical
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardId = draftReward(sponsor, cohort);
+    const idemKey = `fund-${uuidv4()}`;
+    const originalRef = `ref-${uuidv4()}`;
+    const differentRef = `ref-${uuidv4()}`;
+
+    fundReward(rewardId, admin, { type: 'admin_grant', reference: originalRef }, idemKey);
+
+    let caught: RewardError | undefined;
+    try {
+      fundReward(rewardId, admin, { type: 'admin_grant', reference: differentRef }, idemKey);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(caught!.statusCode).toBe(409);
+  });
+
+  it('R1C-C1-5b: opaque reference identity — case difference is a conflict', () => {
+    // W01 opaque semantics: nonempty references are stored verbatim.
+    // 'TX-ABC' and 'tx-abc' are different references (no normalization).
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardId = draftReward(sponsor, cohort);
+    const idemKey = `fund-${uuidv4()}`;
+
+    fundReward(rewardId, admin, { type: 'admin_grant', reference: 'TX-OPAQUE' }, idemKey);
+
+    let caught: RewardError | undefined;
+    try {
+      fundReward(rewardId, admin, { type: 'admin_grant', reference: 'tx-opaque' }, idemKey);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(caught!.statusCode).toBe(409);
+  });
+
+  it('R1C-G-3: genuine fund retry with same source type and same reference returns funded reward', () => {
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardId = draftReward(sponsor, cohort);
+    const idemKey = `fund-${uuidv4()}`;
+    const ref = `ref-${uuidv4()}`;
+
+    fundReward(rewardId, admin, { type: 'admin_grant', reference: ref }, idemKey);
+    const replayed = fundReward(rewardId, admin, { type: 'admin_grant', reference: ref }, idemKey);
+
+    expect(replayed.id).toBe(rewardId);
+    expect(replayed.status).toBe('funded');
+  });
+
+  it('R1C-G-4: genuine fund retry with no reference on both sides returns funded reward', () => {
+    // null reference on original → null on replay → match (null === null)
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardId = draftReward(sponsor, cohort);
+    const idemKey = `fund-${uuidv4()}`;
+
+    fundReward(rewardId, admin, { type: 'admin_grant' }, idemKey);
+    const replayed = fundReward(rewardId, admin, { type: 'admin_grant' }, idemKey);
+
+    expect(replayed.id).toBe(rewardId);
+    expect(replayed.status).toBe('funded');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// W02-R1C: C2 — Access-before-replay order
+// Binding check must not precede resource authorization.
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('W02-R1C C2: access-before-replay order — fund path', () => {
+
+  it('R1C-C2-1: unauthorized actor using a mismatched fund key gets REWARD_NOT_FOUND 404 (not 409)', () => {
+    // Pre-fix: binding check fires first → 409 IDEMPOTENCY_CONFLICT leaks key info to unauth actor
+    // Post-fix: scope check fires first → 404 (same response as any unauthorized request)
+    const admin = seedAdmin();
+    const sponsorA = seedSponsor();
+    const sponsorB = seedSponsor();
+    const cohortA = seedCohort(sponsorA);
+    const cohortB = seedCohort(sponsorB);
+
+    const rewardA = draftReward(sponsorA, cohortA);
+    const rewardB = draftReward(sponsorB, cohortB);
+
+    // Fund rewardA with keyA → binding: keyA → rewardA/fund
+    const keyA = `fund-${uuidv4()}`;
+    const refA = `ref-${uuidv4()}`;
+    fundReward(rewardA, admin, { type: 'admin_grant', reference: refA }, keyA);
+
+    // sponsorA is unauthorized for rewardB (owned by sponsorB).
+    // sponsorA presents keyA (bound to rewardA, not rewardB) → binding mismatch.
+    // Pre-fix: 409 before scope check (leaks that keyA is in use).
+    // Post-fix: 404 after scope check (indistinguishable from any unauthorized fund attempt).
+    let caught: RewardError | undefined;
+    try {
+      fundReward(rewardB, sponsorA, { type: 'admin_grant', reference: `ref-${uuidv4()}` }, keyA);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('REWARD_NOT_FOUND');
+    expect(caught!.statusCode).toBe(404);
+  });
+
+  it('R1C-C2-2: fund on missing reward with any existing key returns REWARD_NOT_FOUND 404 (not 409)', () => {
+    // Pre-fix: binding check finds key → rewardA ≠ nonExistent → 409
+    // Post-fix: resource lookup fails → 404 (resource doesn't exist)
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardA = draftReward(sponsor, cohort);
+    const keyA = `fund-${uuidv4()}`;
+    const refA = `ref-${uuidv4()}`;
+    fundReward(rewardA, admin, { type: 'admin_grant', reference: refA }, keyA);
+
+    // Request fund on a non-existent reward ID using keyA (which is bound to rewardA)
+    const nonExistentId = uuidv4();
+    let caught: RewardError | undefined;
+    try {
+      fundReward(nonExistentId, admin, { type: 'admin_grant', reference: `ref-${uuidv4()}` }, keyA);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('REWARD_NOT_FOUND');
+    expect(caught!.statusCode).toBe(404);
+  });
+
+  it('R1C-C2-2b: authorized actor with compatible replay on own reward still returns success', () => {
+    // Regression guard: authorized replay with matching resource/intent must still succeed after C2 fix.
+    const admin = seedAdmin();
+    const sponsor = seedSponsor();
+    const cohort = seedCohort(sponsor);
+
+    const rewardId = draftReward(sponsor, cohort);
+    const idemKey = `fund-${uuidv4()}`;
+    const ref = `ref-${uuidv4()}`;
+
+    fundReward(rewardId, admin, { type: 'admin_grant', reference: ref }, idemKey);
+    const replayed = fundReward(rewardId, admin, { type: 'admin_grant', reference: ref }, idemKey);
+
+    expect(replayed.id).toBe(rewardId);
+    expect(replayed.status).toBe('funded');
+  });
+});
+
+describe('W02-R1C C2: access-before-replay order — cancel path', () => {
+
+  it('R1C-C2-3: unauthorized actor using a mismatched cancel key gets REWARD_NOT_FOUND 404 (not 409)', () => {
+    // Pre-fix: binding check fires before scope check → 409 leaks key info
+    // Post-fix: scope check fires first → 404
+    const admin = seedAdmin();
+    const sponsorA = seedSponsor();
+    const sponsorB = seedSponsor();
+    const cohortA = seedCohort(sponsorA);
+    const cohortB = seedCohort(sponsorB);
+
+    const rewardA = draftReward(sponsorA, cohortA);
+    const rewardB = draftReward(sponsorB, cohortB);
+    adminFund(rewardA, admin, `fund-${uuidv4()}`);
+    adminFund(rewardB, admin, `fund-${uuidv4()}`);
+
+    // sponsorA cancels rewardA with keyA → binding: keyA → rewardA/cancel
+    const keyA = `cancel-${uuidv4()}`;
+    cancelReward(rewardA, sponsorA, 'test', keyA);
+
+    // sponsorB (unauthorized for rewardA) uses keyA to cancel rewardA
+    // keyA is bound to rewardA — binding check PASSES, then scope check FAILS → 404
+    // (This is already correct in current code for matching key + unauth actor)
+    // The real C2 bug: sponsorB uses keyB (bound to rewardB) to cancel rewardA → should be 404
+    const keyB = `cancel-${uuidv4()}`;
+    cancelReward(rewardB, sponsorB, 'test', keyB);
+
+    // sponsorA (unauthorized for rewardB) uses keyB (bound to rewardB/cancel) to cancel rewardA
+    let caught: RewardError | undefined;
+    try {
+      cancelReward(rewardA, sponsorB, 'different-reason', keyA);
+      // keyA bound to rewardA, sponsorB unauthorized for rewardA → should be 404
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    expect(caught!.code).toBe('REWARD_NOT_FOUND');
+    expect(caught!.statusCode).toBe(404);
+  });
+
+  it('R1C-C2-3b: unauth actor + mismatched cancel key on target reward → 404 not 409', () => {
+    // The clearest C2 cancel case: sponsorB uses keyA (bound to rewardA/cancel) to cancel rewardB.
+    // sponsorA owns rewardA, sponsorB owns rewardB.
+    // keyA bound to rewardA/cancel. sponsorA is UNAUTHORIZED for rewardB.
+    // Pre-fix: keyA exists → binding: rewardA !== rewardB → 409 leaks to sponsorA
+    // Post-fix: getReward(rewardB) → found → sponsorA unauthorized → 404
+    const admin = seedAdmin();
+    const sponsorA = seedSponsor();
+    const sponsorB = seedSponsor();
+    const cohortA = seedCohort(sponsorA);
+    const cohortB = seedCohort(sponsorB);
+
+    const rewardA = draftReward(sponsorA, cohortA);
+    const rewardB = draftReward(sponsorB, cohortB);
+    adminFund(rewardA, admin, `fund-${uuidv4()}`);
+    adminFund(rewardB, admin, `fund-${uuidv4()}`);
+
+    const keyA = `cancel-${uuidv4()}`;
+    cancelReward(rewardA, sponsorA, 'test', keyA);
+
+    // sponsorA (unauthorized for rewardB) uses keyA (bound to rewardA) to cancel rewardB
+    let caught: RewardError | undefined;
+    try {
+      cancelReward(rewardB, sponsorA, 'test', keyA);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    // Pre-fix: 409 IDEMPOTENCY_CONFLICT (rewardA !== rewardB, binding check before scope)
+    // Post-fix: 404 REWARD_NOT_FOUND (sponsorA unauthorized for rewardB, scope before binding)
+    expect(caught!.code).toBe('REWARD_NOT_FOUND');
+    expect(caught!.statusCode).toBe(404);
+  });
+});
+
+describe('W02-R1C C2: access-before-replay order — release path', () => {
+
+  it('R1C-C2-4: unauthorized actor using a mismatched release key gets ALLOCATION_NOT_FOUND 404 (not 409)', () => {
+    // allocB released with keyB → keyB bound to allocB/release
+    // sponsorA (unauthorized for allocA's parent rewardA) uses keyB to release allocA
+    // Pre-fix: binding → allocB !== allocA → 409 (leaks key info to unauth actor)
+    // Post-fix: resolve allocA → scope check on rewardA → sponsorA unauthorized → 404
+    const admin = seedAdmin();
+    const sponsorA = seedSponsor();
+    const sponsorB = seedSponsor();
+    const cohortA = seedCohort(sponsorA);
+    const cohortB = seedCohort(sponsorB);
+
+    const rewardA = makeActiveReward(sponsorA, cohortA, admin);
+    const rewardB = makeActiveReward(sponsorB, cohortB, admin);
+    const allocA = makeEligibleAllocation(rewardA);
+    const allocB = makeEligibleAllocation(rewardB);
+
+    // Release allocB with keyB → keyB bound to allocB/release
+    const keyB = `release-${uuidv4()}`;
+    releaseAllocation(allocB, sponsorB, keyB);
+
+    // sponsorA is unauthorized for rewardB (owns rewardA, not rewardB).
+    // sponsorA uses keyB (bound to allocB/release) to release allocB.
+    // Wait — allocB's parent is rewardB which sponsorA doesn't own.
+    // So sponsorA is unauthorized for allocB too.
+    // Use a cleaner scenario: sponsorB uses keyB to release allocA (which belongs to rewardA, owned by sponsorA).
+    let caught: RewardError | undefined;
+    try {
+      // sponsorB (unauthorized for allocA's parent rewardA) uses keyB (bound to allocB) to release allocA
+      releaseAllocation(allocA, sponsorB, keyB);
+    } catch (e) { caught = e as RewardError; }
+
+    expect(caught).toBeDefined();
+    // Pre-fix: 409 IDEMPOTENCY_CONFLICT (allocB !== allocA, binding fires before scope check)
+    // Post-fix: 404 ALLOCATION_NOT_FOUND (sponsorB unauthorized for rewardA)
+    expect(caught!.code).toBe('ALLOCATION_NOT_FOUND');
+    expect(caught!.statusCode).toBe(404);
+  });
+});
+
+describe('W02-R1C C2: HTTP route — access-before-replay order', () => {
+
+  it('R1C-HTTP-C2-1: authenticated sponsor using mismatched fund key on foreign reward gets 404 not 409', async () => {
+    // sponsorA funds rewardA with keyA via service
+    // sponsorA (unauthorized for rewardB) presents keyA via HTTP fund endpoint on rewardB
+    // Pre-fix: binding fires first → 409 (leaks key association to HTTP client)
+    // Post-fix: scope check fires first → 404 (indistinguishable from any unauthorized fund request)
+    const admin = seedAdmin();
+    const sponsorA = seedSponsor();
+    const sponsorB = seedSponsor();
+    const cohortA = seedCohort(sponsorA);
+    const cohortB = seedCohort(sponsorB);
+
+    const rewardA = draftReward(sponsorA, cohortA);
+    const rewardB = draftReward(sponsorB, cohortB);
+
+    const keyA = `fund-${uuidv4()}`;
+    const refA = `ref-${uuidv4()}`;
+    fundReward(rewardA, admin, { type: 'admin_grant', reference: refA }, keyA);
+
+    // sponsorA authenticated, requests fund on rewardB (foreign) with keyA (bound to rewardA)
+    const sponsorAToken = makeToken({ userId: sponsorA, email: `r1c-${sponsorA}@test.com`, role: 'lecturer' });
+    const res = await request(app)
+      .post(`/api/v1/sponsor/rewards/${rewardB}/fund`)
+      .set('Authorization', `Bearer ${sponsorAToken}`)
+      .send({ sourceType: 'admin_grant', reference: `ref-${uuidv4()}`, idempotencyKey: keyA });
+
+    // Pre-fix: 409 IDEMPOTENCY_CONFLICT
+    // Post-fix: 404 (scope check returns not found)
+    expect(res.status).toBe(404);
   });
 });

@@ -9,18 +9,23 @@ interface IdempotencyResult {
   allocationId?: string | null;
   /** W02-R1: transaction_type stored in the original transaction, for cross-action binding checks. */
   transactionType?: string;
+  /** W02-R1C (C1): funding_source_type stored in the original fund transaction, for source-type intent binding. */
+  fundingSourceType?: string | null;
+  /** W02-R1C (C1): funding_reference stored in the original fund transaction (normalized, opaque). */
+  fundingReference?: string | null;
 }
 
 /**
  * Check if an idempotency key already exists in reward_transactions.
  * Returns the existing transaction ID plus the stored resource/action fields for
- * replay binding (W02-R1). Callers must verify the stored resource and action
- * match the current request before returning a replay result.
+ * replay binding (W02-R1), and funding source/reference for intent binding (W02-R1C C1).
+ * Callers must (1) resolve and authorize the requested resource, then (2) verify the
+ * stored resource, action, and intent match the current request (W02-R1C C2).
  */
 export function checkTransactionIdempotency(key: string): IdempotencyResult {
   const row = db.prepare(
-    'SELECT id, reward_id, allocation_id, transaction_type FROM reward_transactions WHERE idempotency_key = ?'
-  ).get(key) as { id: string; reward_id: string | null; allocation_id: string | null; transaction_type: string } | undefined;
+    'SELECT id, reward_id, allocation_id, transaction_type, funding_source_type, funding_reference FROM reward_transactions WHERE idempotency_key = ?'
+  ).get(key) as { id: string; reward_id: string | null; allocation_id: string | null; transaction_type: string; funding_source_type: string | null; funding_reference: string | null } | undefined;
   return row
     ? {
         exists: true,
@@ -28,6 +33,8 @@ export function checkTransactionIdempotency(key: string): IdempotencyResult {
         rewardId: row.reward_id,
         allocationId: row.allocation_id,
         transactionType: row.transaction_type,
+        fundingSourceType: row.funding_source_type,
+        fundingReference: row.funding_reference,
       }
     : { exists: false };
 }

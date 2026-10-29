@@ -553,12 +553,14 @@ describe('W02: Cross-owner reward scope checks', () => {
       const { cohortId } = createCohort(sponsor);
       const rewardId = draftReward(sponsor, 'sponsor_cohort', cohortId);
       const idemKey = `fund-${uuidv4()}`;
+      // W02-R1C (C1): genuine retry must use same source type and reference.
+      const originalRef = `ref-${uuidv4()}`;
 
       // First fund
-      fundReward(rewardId, admin, { type: 'admin_grant', reference: `ref-${uuidv4()}` }, idemKey);
+      fundReward(rewardId, admin, { type: 'admin_grant', reference: originalRef }, idemKey);
 
-      // Same authorized actor replays — should get result back
-      const replayed = fundReward(rewardId, admin, { type: 'admin_grant', reference: `ref-${uuidv4()}` }, idemKey);
+      // Same authorized actor replays with same source/reference — should get result back
+      const replayed = fundReward(rewardId, admin, { type: 'admin_grant', reference: originalRef }, idemKey);
       expect(replayed).not.toBeNull();
       expect(replayed.id).toBe(rewardId);
     });
