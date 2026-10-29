@@ -404,12 +404,12 @@ router.get(
       return;
     }
 
-    // WI-04: Ownership check — admin (reward.manage) bypasses; otherwise verify scope.
-    // Uses req._permissions cache populated by requirePermission above.
+    // W02: Ownership check — admin (reward.manage) bypasses; otherwise verify scope.
+    // 404 contract: do not confirm existence to unauthorized actors.
     const userId = req.user!.userId;
     if (!req._permissions!.has('reward.manage')) {
       if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
-        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
         return;
       }
     }
@@ -429,11 +429,11 @@ router.get(
       res.status(404).json({ success: false, error: { message: 'Reward not found' } });
       return;
     }
-    // WI-04: Ownership check — same pattern as GET /sponsor/rewards/:id
+    // W02: Ownership check — 404 contract
     const userId = req.user!.userId;
     if (!req._permissions!.has('reward.manage')) {
       if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
-        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
         return;
       }
     }
@@ -453,11 +453,11 @@ router.get(
       res.status(404).json({ success: false, error: { message: 'Reward not found' } });
       return;
     }
-    // WI-04: Ownership check — same pattern as GET /sponsor/rewards/:id
+    // W02: Ownership check — 404 contract
     const userId = req.user!.userId;
     if (!req._permissions!.has('reward.manage')) {
       if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
-        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
         return;
       }
     }
