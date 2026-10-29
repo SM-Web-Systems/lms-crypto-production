@@ -2,6 +2,8 @@
 
 Date: 2026-10-29. **CHANGES_REQUIRED — W02 is partially fixed, not closed. Next unit: W02-R1 idempotency binding only.** W01 security containment remains accepted. Do not start W03/W04 or deploy.
 
+Follow-up: PR #112 merged at `87a9f40b` and repairs the original three F1 examples. The [PR #112 verification and W02-R1C prompt](SERVER-HANDOVER-W02-R1-PR112-REVIEW.md) is the current next action: complete canonical-intent binding and access-before-replay. F2/F3 remain for W02-R2. The missing planning receipt noted below is now recorded at `faaefc3`; retain this earlier record as historical evidence.
+
 Independent review of this evidence packet and bounded correction prompt: **PASS — no corrections needed**. This approves the accuracy and scope of the handover, not the incomplete W02 implementation.
 
 Repository: [SM-Web-Systems/lms-crypto-production](https://github.com/SM-Web-Systems/lms-crypto-production). Documentation branch: `codex/platform-wiring-audit`. Authoritative planning branch: `codex/staged-rollout-plan`, PR #103. These are branches inside this repository, not repository names. Read this document without merging the unrelated RBAC/documentation base stack.

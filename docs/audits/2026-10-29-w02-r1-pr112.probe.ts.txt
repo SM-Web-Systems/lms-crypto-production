@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID as uuid} from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
+import {db,_resetForTests,seedRbacData} from './src/config/database.js';
+import {createReward,fundReward,fundRewardAsync,activateReward,releaseAllocation,refundAllocation,getRewardAllocations} from './src/services/rewards/rewardService.js';
+import {generateToken} from './src/config/jwt.js';
+import sponsorRouter from './src/routes/sponsor.js';
+const schema=readFileSync(new URL('./database/schema.sql',import.meta.url),'utf8');
+function reset(){_resetForTests(schema);seedRbacData();}
+function user(role='role_sponsor'){const id=uuid();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic R1 review',?,'hash','student')").run(id,id+'@review.invalid');db.prepare('DELETE FROM user_roles WHERE user_id=?').run(id);db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id,role);return id;}
+function cohort(owner:string){const course=uuid(),scope=uuid(),student=user('role_student');db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Review',?)").run(course,course);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Review')").run(scope,owner,course);db.prepare('INSERT INTO cohort_members(cohort_id,user_id) VALUES(?,?)').run(scope,student);return scope;}
+function params(scope:string,key=uuid()){return {scopeType:'sponsor_cohort' as const,scopeId:scope,rewardType:'custom',amountStroops:'10000000',idempotencyKey:key};}
+function draft(owner:string,scope:string){return createReward(owner,params(scope));}
+const conflict=(e:any)=>e.code==='IDEMPOTENCY_CONFLICT'&&e.statusCode===409;
+reset();
+{
+ const owner=user(),admin=user('role_admin'),scope=cohort(owner),a=draft(owner,scope),b=draft(owner,scope),key=uuid(),source={type:'admin_grant' as const,reference:uuid()};
+ fundReward(a.id,admin,source,key);
+ assert.throws(()=>fundReward(b.id,admin,source,key),conflict);
+ await assert.rejects(()=>fundRewardAsync(b.id,admin,source,key),conflict);
+ assert.equal(fundReward(a.id,admin,source,key).status,'funded');
+ assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_transactions').get() as any).n,2);
+ console.log('CONTROL_PASS: sync/async cross-reward fund retries reject; genuine same-intent retry writes nothing');
+}
+reset();
+{
+ const owner=user(),admin=user('role_admin'),scope=cohort(owner),r=draft(owner,scope);fundReward(r.id,admin,{type:'admin_grant',reference:uuid()},uuid());activateReward(r.id,owner,uuid());
+ const alloc=getRewardAllocations(r.id)[0],key=uuid();db.prepare("UPDATE reward_allocations SET status='eligible' WHERE id=?").run(alloc.id);
+ releaseAllocation(alloc.id,owner,key);assert.throws(()=>refundAllocation(alloc.id,owner,key),conflict);assert.equal(releaseAllocation(alloc.id,owner,key).status,'released');
+ const refundKey=uuid();refundAllocation(alloc.id,owner,refundKey);assert.equal((refundAllocation(alloc.id,owner,refundKey) as any).status,'refunded');
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM reward_transactions WHERE allocation_id=? AND transaction_type='refund'").get(alloc.id) as any).n,1);
+ console.log('CONTROL_PASS: cross-action key rejects; genuine release/refund retries preserve one financial operation');
+}
+reset();
+{
+ const owner=user(),a=cohort(owner),b=cohort(owner),p=params(a),r=createReward(owner,p);assert.throws(()=>createReward(owner,{...p,scopeId:b}),conflict);assert.equal(createReward(owner,p).id,r.id);
+ const changed=createReward(owner,{...p,amountStroops:'20000000'});assert.equal(changed.id,r.id);assert.equal(changed.amount_stroops,10000000);
+ console.log('REPRODUCED C1: same-scope create with changed amount returns original amount without conflict');
+}
+reset();
+{
+ const owner=user(),admin=user('role_admin'),scope=cohort(owner),r=draft(owner,scope),key=uuid(),source={type:'admin_grant' as const,reference:uuid()};fundReward(r.id,admin,source,key);
+ const returned=fundReward(r.id,admin,{type:'stellar',reference:uuid()},key);assert.equal(returned.status,'funded');
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM reward_transactions WHERE funding_source_type='stellar'").get() as any).n,0);
+ console.log('REPRODUCED C1: same-resource retry with different funding source/reference returns funded without matching stored funding intent');
+}
+reset();
+{
+ const owner=user(),foreign=user(),admin=user('role_admin'),scope=cohort(owner),r=draft(owner,scope),otherScope=cohort(foreign),other=draft(foreign,otherScope),key=uuid(),source={type:'admin_grant' as const,reference:uuid()};fundReward(r.id,admin,source,key);
+ const token=generateToken({userId:foreign,email:foreign+'@review.invalid',role:'student'}),app=express();app.use(express.json());app.use('/api/v1',sponsorRouter);
+ const replay=await request(app).post('/api/v1/sponsor/rewards/'+r.id+'/fund').set('Authorization','Bearer '+token).send({sourceType:'admin_grant',reference:source.reference,idempotencyKey:key});
+ const mismatch=await request(app).post('/api/v1/sponsor/rewards/'+r.id+'/fund').set('Authorization','Bearer '+token).send({sourceType:'admin_grant',reference:source.reference,idempotencyKey:uuid()});
+ // To isolate binding-order behavior without fresh funding-source checks, use a known key from a different reward.
+ const otherKey=uuid();fundReward(other.id,admin,{type:'admin_grant',reference:uuid()},otherKey);
+ const collision=await request(app).post('/api/v1/sponsor/rewards/'+r.id+'/fund').set('Authorization','Bearer '+token).send({sourceType:'admin_grant',reference:source.reference,idempotencyKey:otherKey});
+ assert.equal(replay.status,404);assert.equal(collision.status,409);assert.equal(collision.body.error.code,'IDEMPOTENCY_CONFLICT');
+ console.log('REPRODUCED C2: foreign resource returns404 for matching key but409 for cross-resource key before authorization (fresh-source denial='+mismatch.status+')');
+}
+console.log('RESULT: original three F1 repros fixed; canonical-intent and replay authorization-order gaps remain');
