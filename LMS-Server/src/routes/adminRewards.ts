@@ -86,7 +86,7 @@ router.get(
 router.post(
   '/refund-attempts/:id/retry',
   authenticate,
-  requirePermission('reward.refund'),
+  requirePermission('reward.refund_review'), // W02-R2C: administrative-review capability required
   (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { idempotencyKey } = req.body;
@@ -108,11 +108,15 @@ router.post(
       return;
     }
 
-    // Try the refund again using the original actor (who has scope access).
+    // W02-R2C: Authorize the actual authenticated caller, not the historical original actor.
+    // attempt.attempted_by_user_id is preserved as the historical record of who first attempted
+    // this refund, but it must never substitute for the caller's own authority.
+    // The caller has reward.refund_review; reward.manage (held by role_admin+) satisfies the
+    // service-layer scope bypass on the fresh write path.
     // W02-R2 (F2): Pass stored reward_id so service can verify allocation.reward_id matches.
     const result = refundAllocation(
       attempt.allocation_id as string,
-      attempt.attempted_by_user_id as string,
+      actorId,
       idempotencyKey,
       attempt.reward_id as string,
     );
