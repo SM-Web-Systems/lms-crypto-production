@@ -1,6 +1,6 @@
 # Staged rollout — task ledger
 
-Date: 2026-10-28
+Date: 2026-10-29
 Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 
 Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MERGED` `DEPLOYED` `ACCEPTED`
@@ -191,15 +191,33 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Not a W01 repair unit**: Stellar's fail-closed behavior is the intended R1 result, not a gap requiring repair.
 
 ### S2-T02: Implement W02 — cross-owner reward scope checks
-- **Status**: TODO
-- **Dependencies**: S1-T03 spec reviewed
-- **Owner**: —
-- **Files**: `LMS-Server/src/routes/sponsor.ts`, `teacher.ts`, `parent.ts`, `employer.ts`; `LMS-Server/src/services/rewards/rewardService.ts` (getReward, lines 541–542)
-- **Problem**: `getReward()` returns any reward by ID without checking if the requesting actor owns it or has scope access. Routes for different prefixes (sponsor/teacher/parent/employer) can read each other's rewards. Lifecycle endpoints (activate, approve) have scope checks via `validateScope()` but read endpoints do not.
-- **Intended behavior**: All reward read endpoints must verify the actor has scope access to the reward's `scope_type`/`scope_id`. Return 404 (not 403) for rewards outside the actor's scope.
-- **TDD RED**: Write test for sponsor reading a parent's reward → currently returns 200.
-- **TDD GREEN**: Add scope validation to reward read paths.
-- **Review**: Independent security review required
+- **Status**: PARTIALLY_FIXED — W02-R1 merged; W02-R2 pending
+- **Dependencies**: S1-T03 spec reviewed ✓
+- **Owner**: W02 session + W02-R1 session
+
+#### W02 PR #111 (route/scope checks) — MERGED `211c556c` (2026-10-28)
+- Route layer: scope validation on GET /:id, GET /:id/allocations, GET /:id/transactions in teacher.ts, parent.ts, employer.ts (matching sponsor.ts pattern)
+- Service layer: scope checks on lifecycle/idempotency fast-return paths (activateReward, approveReward, fundReward, cancelReward, releaseAllocation, refundAllocation, createReward)
+- 404 contract: read-path scope denial returns 404 (not 403) — do not confirm existence
+- 28 new tests (reward-cross-owner.test.ts); 5 updated in rbac-sponsor-isolation.test.ts
+- CI: Backend+Frontend+Offline+E2E all PASS (run 40827839081); post-merge main PASS (40828311942)
+- Independent AI review: APPROVED
+- Review disposition: [SERVER-HANDOVER-W02-PR111-REVIEW.md](SERVER-HANDOVER-W02-PR111-REVIEW.md) — CHANGES_REQUIRED (F1/F2/F3 remaining)
+
+#### W02-R1 PR #112 (replay binding) — MERGED `87a9f40b` (2026-10-29)
+- F1 fix: `checkTransactionIdempotency` now returns `reward_id`, `allocation_id`, `transaction_type`
+- Binding checks in all 7 fast-return paths: fund×3, cancel, release, refund, expire
+- Cross-resource/cross-action key reuse → IDEMPOTENCY_CONFLICT 409
+- createReward idempotency binds on scope_type + scope_id
+- New error code: IDEMPOTENCY_CONFLICT
+- 18 new tests (reward-idempotency-binding.test.ts); 1937 total passed
+- CI: all 4 jobs PASS (run 40844990098); post-merge main PASS (40845800635)
+- Independent AI review: APPROVED (P2-1 null guard, P2-2 token role — both applied)
+
+#### W02-R2 — PENDING (separate run)
+- F2: nested action URLs ignore reward parent (sponsor/teacher/parent/employer release/refund routes)
+- F3: route/list tests use raw getters not HTTP; list test has MODULE_NOT_FOUND (require path bug); role fixtures have incidental roles
+- Scope: nested binding + real authenticated HTTP tests for teacher/parent/employer + list/role-only fixture fixes
 
 ### S2-T03: Implement W03 — allocation cap enforcement
 - **Status**: TODO

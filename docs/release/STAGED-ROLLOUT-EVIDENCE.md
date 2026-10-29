@@ -121,12 +121,38 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Finding ID | W02 |
 | Priority | P1 |
-| Current applicability | **Confirmed on main** |
-| Code evidence | `rewardService.ts:541-542` — `getReward()` returns `getRewardRow(rewardId)` which is a plain `SELECT * FROM rewards WHERE id = ?` (line 601) with no actor/scope filter. Routes in `sponsor.ts`, `teacher.ts`, `parent.ts`, `employer.ts` call `getReward(req.params.rewardId)` without cross-checking the actor's scope against the reward's `scope_type`/`scope_id`. Lifecycle methods (`activateReward`, `approveReward`) do check `validateScope()`, but `activateReward` has a fast return at lines 169-172: `if (current && current.status !== 'funded') return current` — this returns the reward without scope validation. |
-| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID, receives 200 |
-| Existing fix PR | None |
-| Residual work | Add scope validation to all reward read paths; remove fast-return bypasses |
-| Evidence status | Assessed, unfixed |
+| Current applicability | **PARTIALLY_FIXED on main** |
+| Code evidence | Original: `rewardService.ts` `getReward()` plain SELECT with no actor/scope filter; routes lacked validateScope; fast-returns bypassed scope. See original spec. |
+| Reproduction | Characterization probe W02 — sponsor reads parent reward by ID (PR #111 fixes this); idempotency key cross-reuse (PR #112 fixes this) |
+| Existing fix PRs | **#111 MERGED** `211c556c` (2026-10-28), **#112 MERGED** `87a9f40b` (2026-10-29) |
+| Residual work | W02-R2: F2 nested action URLs ignore reward parent (release/refund routes); F3 route/list tests use raw getters, list test MODULE_NOT_FOUND, incidental roles in fixtures |
+| Evidence status | PARTIALLY_FIXED — W02-R2 pending
+
+#### W02 PR #111 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#111](https://github.com/SM-Web-Systems/lms-crypto-production/pull/111) |
+| Branch | `codex/w02-cross-owner-scope` |
+| Feature commit | `e3ac6d3` |
+| Merge commit | `211c556c` |
+| Tests | 28 new (reward-cross-owner.test.ts), 5 updated (rbac-sponsor-isolation.test.ts); 1919 total passed |
+| CI | Run 40827839081 — 4/4 PASS; post-merge main 40828311942 — SUCCESS |
+| Review | Independent AI review: APPROVED |
+| Review disposition | CHANGES_REQUIRED (F1 replay binding, F2 nested parent, F3 route evidence — see SERVER-HANDOVER-W02-PR111-REVIEW.md) |
+
+#### W02-R1 PR #112 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#112](https://github.com/SM-Web-Systems/lms-crypto-production/pull/112) |
+| Branch | `codex/w02r1-replay-binding` |
+| Feature commit | `95b605a` |
+| Merge commit | `87a9f40b` |
+| Tests | 18 new (reward-idempotency-binding.test.ts); 1937 total passed (+18 from #111 baseline) |
+| CI | Run 40844990098 — 4/4 PASS; post-merge main 40845800635 — SUCCESS |
+| Review | Independent AI review: APPROVED (P2-1 null guard, P2-2 token role — both applied before merge) |
+| Fixes | F1.1 cross-reward fund binding; F1.2 cross-action release/refund binding; F1.3 cross-scope create binding; F1.4 cross-reward cancel; F1.5/F1.6 cross-allocation release/refund; expireReward defense-in-depth |
 
 ### W03: Reward reservations smaller than issued allocations
 
