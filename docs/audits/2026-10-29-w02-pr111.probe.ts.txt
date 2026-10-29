@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID as uuid} from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
+import {db,_resetForTests,seedRbacData} from './src/config/database.js';
+import {createReward,fundReward,activateReward,releaseAllocation,refundAllocation,getReward,getRewardAllocations} from './src/services/rewards/rewardService.js';
+import {generateToken} from './src/config/jwt.js';
+import sponsorRouter from './src/routes/sponsor.js';
+import teacherRouter from './src/routes/teacher.js';
+import parentRouter from './src/routes/parent.js';
+import employerRouter from './src/routes/employer.js';
+const schema=readFileSync(new URL('./database/schema.sql',import.meta.url),'utf8');
+function reset(){_resetForTests(schema);seedRbacData();}
+function user(role='role_sponsor'){const id=uuid();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic review',?,'hash','student')").run(id,id+'@review.invalid');db.prepare('DELETE FROM user_roles WHERE user_id=?').run(id);db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id,role);return id;}
+function cohort(owner:string){const course=uuid(),scope=uuid(),student=user('role_student');db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Review',?)").run(course,course);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Review')").run(scope,owner,course);db.prepare('INSERT INTO cohort_members(cohort_id,user_id) VALUES(?,?)').run(scope,student);return scope;}
+function draft(owner:string,scope:string,key=uuid()){return createReward(owner,{scopeType:'sponsor_cohort',scopeId:scope,rewardType:'custom',amountStroops:'10000000',idempotencyKey:key});}
+function active(owner:string,scope:string,admin:string){const r=draft(owner,scope);fundReward(r.id,admin,{type:'admin_grant',reference:uuid()},uuid());activateReward(r.id,owner,uuid());return r;}
+reset();
+{
+ const owner=user(),admin=user('role_admin'),scope=cohort(owner),a=draft(owner,scope),b=draft(owner,scope),key=uuid();
+ fundReward(a.id,admin,{type:'admin_grant',reference:uuid()},key);
+ const returned=fundReward(b.id,admin,{type:'admin_grant',reference:uuid()},key);
+ assert.equal(returned.id,b.id);assert.equal(returned.status,'draft');assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_transactions WHERE reward_id=?').get(b.id) as any).n,0);
+ console.log('REPRODUCED F1a: funding key from reward A returns success for unfunded draft B; no B ledger');
+}
+reset();
+{
+ const owner=user(),admin=user('role_admin'),scope=cohort(owner),r=active(owner,scope,admin),alloc=getRewardAllocations(r.id)[0],key=uuid();
+ db.prepare("UPDATE reward_allocations SET status='eligible' WHERE id=?").run(alloc.id);
+ releaseAllocation(alloc.id,owner,key);
+ const result=refundAllocation(alloc.id,owner,key) as any;
+ assert.equal(result.status,'released');assert.equal((db.prepare("SELECT COUNT(*) n FROM reward_transactions WHERE allocation_id=? AND transaction_type='refund'").get(alloc.id) as any).n,0);
+ console.log('REPRODUCED F1b: refund accepts release operation key as successful replay without refund');
+}
+reset();
+{
+ const owner=user(),scopeA=cohort(owner),scopeB=cohort(owner),key=uuid(),a=draft(owner,scopeA,key),returned=draft(owner,scopeB,key);
+ assert.equal(returned.id,a.id);assert.equal(returned.scope_id,scopeA);
+ console.log('REPRODUCED F1c: create retry for scope B returns reward from scope A');
+}
+reset();
+{
+ const owner=user(),foreign=user(),admin=user('role_admin'),scope=cohort(owner),otherScope=cohort(foreign),r=active(owner,scope,admin),other=draft(foreign,otherScope),alloc=getRewardAllocations(r.id)[0];
+ db.prepare("UPDATE reward_allocations SET status='eligible' WHERE id=?").run(alloc.id);
+ const token=generateToken({userId:owner,email:owner+'@review.invalid',role:'student'});
+ const app=express();app.use(express.json());app.use('/api/v1',sponsorRouter);
+ const denied=await request(app).get('/api/v1/sponsor/rewards/'+other.id).set('Authorization','Bearer '+token);assert.equal(denied.status,404);
+ const response=await request(app).post('/api/v1/sponsor/rewards/'+other.id+'/allocations/'+alloc.id+'/release').set('Authorization','Bearer '+token).send({idempotencyKey:uuid()});
+ assert.equal(response.status,200);assert.equal(response.body.data.reward_id,r.id);assert.equal(response.body.data.status,'released');
+ console.log('REPRODUCED F2: real authenticated route releases allocation under unauthorized mismatched URL parent (parent GET=404, POST=200)');
+}
+reset();
+{
+ const app=express();app.use(express.json());app.use('/api/v1',teacherRouter,parentRouter,employerRouter);
+ for(const [prefix,groupType,scopeType,role] of [['teacher','class','teacher_class','role_teacher'],['parent','family','parent_family','role_parent'],['employer','team','employer_team','role_employer']]){
+   const owner=user(role),foreign=user(role),scope=uuid();db.prepare('INSERT INTO user_groups(id,name,group_type,owner_user_id) VALUES(?,?,?,?)').run(scope,'Review',groupType,owner);
+   const reward=createReward(owner,{scopeType:scopeType as any,scopeId:scope,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});
+   const ownerToken=generateToken({userId:owner,email:owner+'@review.invalid',role:'student'}),foreignToken=generateToken({userId:foreign,email:foreign+'@review.invalid',role:'student'});
+   for(const suffix of ['', '/allocations','/transactions']){
+     const path='/api/v1/'+prefix+'/rewards/'+reward.id+suffix;
+     assert.equal((await request(app).get(path).set('Authorization','Bearer '+ownerToken)).status,200);
+     assert.equal((await request(app).get(path).set('Authorization','Bearer '+foreignToken)).status,404);
+   }
+   console.log('CONTROL_PASS: real authenticated '+prefix+' detail/allocation/transaction GETs allow owner and reject foreign actor');
+ }
+}
+console.log('RESULT: four runtime reproductions and 18 route control requests confirmed on exact W02 merge; synthetic data only');
