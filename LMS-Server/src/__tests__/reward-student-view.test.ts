@@ -66,7 +66,7 @@ function seedStudentWithReleasedReward(): {
   // Make allocation eligible and release it
   const allocs = db.prepare('SELECT id FROM reward_allocations WHERE reward_id = ?').all(reward.id) as Array<{ id: string }>;
   db.prepare("UPDATE reward_allocations SET status = 'eligible', eligible_at = datetime('now') WHERE id = ?").run(allocs[0].id);
-  releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
+  releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, reward.id);
 
   const studentToken = makeToken({ userId: studentId, email: `${studentId}@test.com`, role: 'student' });
 

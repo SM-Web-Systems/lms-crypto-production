@@ -142,7 +142,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     // Release first allocation
     const allocs = getRewardAllocations(reward.id);
     makeAllocationEligible(allocs[0].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, reward.id);
 
     // Now cancel — should return only the unreleased portion
     cancelReward(reward.id, sponsorId, 'cancelled partially', `cancel-${uuidv4()}`);
@@ -238,14 +238,14 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     // Make allocation eligible and release
     const allocs = getRewardAllocations(rewardId);
     makeAllocationEligible(allocs[0].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, rewardId);
 
     // Drain recipient balance
     const recipientAccount = getAccount(studentId, 'recipient')!;
     db.prepare('UPDATE reward_accounts SET available_stroops = 0 WHERE id = ?').run(recipientAccount.id);
 
     // Refund should be blocked
-    const result = refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
+    const result = refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`, rewardId);
     expect('blocked' in result).toBe(true);
     if ('blocked' in result) {
       expect(result.blocked).toBe(true);
@@ -261,7 +261,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
     const allocs = getRewardAllocations(rewardId);
     makeAllocationEligible(allocs[0].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, rewardId);
 
     // Drain recipient
     const recipientAccount = getAccount(studentId, 'recipient')!;
@@ -270,7 +270,7 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     // Snapshot balances
     const funderBefore = getAccount(funderId, 'funder')!;
 
-    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
+    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`, rewardId);
 
     // Balances unchanged
     const funderAfter = getAccount(funderId, 'funder')!;
@@ -290,12 +290,12 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
     const allocs = getRewardAllocations(rewardId);
     makeAllocationEligible(allocs[0].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, rewardId);
 
     const recipientAccount = getAccount(studentId, 'recipient')!;
     db.prepare('UPDATE reward_accounts SET available_stroops = 0 WHERE id = ?').run(recipientAccount.id);
 
-    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
+    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`, rewardId);
 
     // Reward state unchanged (released)
     const reward = getReward(rewardId)!;
@@ -314,12 +314,12 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
     const allocs = getRewardAllocations(rewardId);
     makeAllocationEligible(allocs[0].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, rewardId);
 
     const recipientAccount = getAccount(studentId, 'recipient')!;
     db.prepare('UPDATE reward_accounts SET available_stroops = 0 WHERE id = ?').run(recipientAccount.id);
 
-    const result = refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
+    const result = refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`, rewardId);
     expect('blocked' in result).toBe(true);
 
     // Verify refund_attempts record exists
@@ -365,11 +365,11 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
     const allocs = getRewardAllocations(reward.id);
     makeAllocationEligible(allocs[0].id);
     makeAllocationEligible(allocs[1].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
-    releaseAllocation(allocs[1].id, sponsorId, `rel2-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, reward.id);
+    releaseAllocation(allocs[1].id, sponsorId, `rel2-${uuidv4()}`, reward.id);
 
     // Refund only the first
-    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
+    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`, reward.id);
 
     const updated = getReward(reward.id)!;
     expect(updated.status).toBe('partially_refunded');
@@ -384,8 +384,8 @@ describe('R13: Cancellation, Expiry, and Refunds', () => {
 
     const allocs = getRewardAllocations(rewardId);
     makeAllocationEligible(allocs[0].id);
-    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`);
-    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`);
+    releaseAllocation(allocs[0].id, sponsorId, `rel-${uuidv4()}`, rewardId);
+    refundAllocation(allocs[0].id, sponsorId, `refund-${uuidv4()}`, rewardId);
 
     const updated = getReward(rewardId)!;
     expect(updated.status).toBe('refunded');

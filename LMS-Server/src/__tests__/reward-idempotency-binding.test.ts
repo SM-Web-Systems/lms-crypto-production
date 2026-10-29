@@ -178,17 +178,17 @@ describe('W02-R1 F1.2: action bound to key — cross-action collision', () => {
 
     const idemKey = `r1action-${uuidv4()}`;
     // Release with key K
-    releaseAllocation(allocId, sponsor, idemKey);
+    releaseAllocation(allocId, sponsor, idemKey, rewardId);
 
     // Attempt refund with same key K
     // Expected: IDEMPOTENCY_CONFLICT 409
     // Current behavior (before fix): returns still-released allocation without performing refund
     expect(() => {
-      refundAllocation(allocId, sponsor, idemKey);
+      refundAllocation(allocId, sponsor, idemKey, rewardId);
     }).toThrow(RewardError);
 
     let caught: RewardError | undefined;
-    try { refundAllocation(allocId, sponsor, idemKey); } catch (e) { caught = e as RewardError; }
+    try { refundAllocation(allocId, sponsor, idemKey, rewardId); } catch (e) { caught = e as RewardError; }
     expect(caught).toBeDefined();
     expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
     expect(caught!.statusCode).toBe(409);
@@ -203,8 +203,8 @@ describe('W02-R1 F1.2: action bound to key — cross-action collision', () => {
     const allocId = makeEligibleAllocation(rewardId);
 
     const idemKey = `r1action-${uuidv4()}`;
-    releaseAllocation(allocId, sponsor, idemKey);
-    try { refundAllocation(allocId, sponsor, idemKey); } catch { /* expected */ }
+    releaseAllocation(allocId, sponsor, idemKey, rewardId);
+    try { refundAllocation(allocId, sponsor, idemKey, rewardId); } catch { /* expected */ }
 
     // Allocation must still be in 'released' state (not refunded)
     const allocs = getRewardAllocations(rewardId);
@@ -223,11 +223,11 @@ describe('W02-R1 F1.2: action bound to key — cross-action collision', () => {
     const releaseKey = `release-${uuidv4()}`;
     const refundKey = `refund-${uuidv4()}`;
 
-    releaseAllocation(allocId, sponsor, releaseKey);
-    refundAllocation(allocId, sponsor, refundKey);
+    releaseAllocation(allocId, sponsor, releaseKey, rewardId);
+    refundAllocation(allocId, sponsor, refundKey, rewardId);
 
     // Genuine refund replay with same refund key → must succeed
-    const replayed = refundAllocation(allocId, sponsor, refundKey);
+    const replayed = refundAllocation(allocId, sponsor, refundKey, rewardId);
     expect(replayed).not.toBeNull();
     expect('blocked' in replayed && replayed.blocked).toBeFalsy();
     expect((replayed as any).status).toBe('refunded');
@@ -242,10 +242,10 @@ describe('W02-R1 F1.2: action bound to key — cross-action collision', () => {
     const allocId = makeEligibleAllocation(rewardId);
 
     const idemKey = `release-${uuidv4()}`;
-    releaseAllocation(allocId, sponsor, idemKey);
+    releaseAllocation(allocId, sponsor, idemKey, rewardId);
 
     // Genuine release replay with same key → must succeed
-    const replayed = releaseAllocation(allocId, sponsor, idemKey);
+    const replayed = releaseAllocation(allocId, sponsor, idemKey, rewardId);
     expect(replayed).not.toBeNull();
     expect(replayed.id).toBe(allocId);
     expect(replayed.status).toBe('released');
@@ -393,14 +393,14 @@ describe('W02-R1 F1.5: release key bound to allocation identity', () => {
     const allocB = makeEligibleAllocation(rewardB);
 
     const idemKey = `release-${uuidv4()}`;
-    releaseAllocation(allocA, sponsorA, idemKey);
+    releaseAllocation(allocA, sponsorA, idemKey, rewardA);
 
     expect(() => {
-      releaseAllocation(allocB, sponsorB, idemKey);
+      releaseAllocation(allocB, sponsorB, idemKey, rewardB);
     }).toThrow(RewardError);
 
     let caught: RewardError | undefined;
-    try { releaseAllocation(allocB, sponsorB, idemKey); } catch (e) { caught = e as RewardError; }
+    try { releaseAllocation(allocB, sponsorB, idemKey, rewardB); } catch (e) { caught = e as RewardError; }
     expect(caught).toBeDefined();
     expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
     expect(caught!.statusCode).toBe(409);
@@ -425,18 +425,18 @@ describe('W02-R1 F1.6: refund key bound to allocation identity', () => {
 
     const releaseKeyA = `release-${uuidv4()}`;
     const releaseKeyB = `release-${uuidv4()}`;
-    releaseAllocation(allocA, sponsorA, releaseKeyA);
-    releaseAllocation(allocB, sponsorB, releaseKeyB);
+    releaseAllocation(allocA, sponsorA, releaseKeyA, rewardA);
+    releaseAllocation(allocB, sponsorB, releaseKeyB, rewardB);
 
     const idemKey = `refund-${uuidv4()}`;
-    refundAllocation(allocA, sponsorA, idemKey);
+    refundAllocation(allocA, sponsorA, idemKey, rewardA);
 
     expect(() => {
-      refundAllocation(allocB, sponsorB, idemKey);
+      refundAllocation(allocB, sponsorB, idemKey, rewardB);
     }).toThrow(RewardError);
 
     let caught: RewardError | undefined;
-    try { refundAllocation(allocB, sponsorB, idemKey); } catch (e) { caught = e as RewardError; }
+    try { refundAllocation(allocB, sponsorB, idemKey, rewardB); } catch (e) { caught = e as RewardError; }
     expect(caught).toBeDefined();
     expect(caught!.code).toBe('IDEMPOTENCY_CONFLICT');
     expect(caught!.statusCode).toBe(409);
@@ -560,8 +560,8 @@ describe('W02-R1: Genuine retry positives — unchanged authorized paths', () =>
     const allocId = makeEligibleAllocation(rewardId);
 
     const idemKey = `release-${uuidv4()}`;
-    releaseAllocation(allocId, sponsor, idemKey);
-    const replayed = releaseAllocation(allocId, sponsor, idemKey);
+    releaseAllocation(allocId, sponsor, idemKey, rewardId);
+    const replayed = releaseAllocation(allocId, sponsor, idemKey, rewardId);
     expect(replayed.id).toBe(allocId);
     expect(replayed.status).toBe('released');
   });
@@ -970,7 +970,7 @@ describe('W02-R1C C2: access-before-replay order — release path', () => {
 
     // Release allocB with keyB → keyB bound to allocB/release
     const keyB = `release-${uuidv4()}`;
-    releaseAllocation(allocB, sponsorB, keyB);
+    releaseAllocation(allocB, sponsorB, keyB, rewardB);
 
     // sponsorA is unauthorized for rewardB (owns rewardA, not rewardB).
     // sponsorA uses keyB (bound to allocB/release) to release allocB.
@@ -980,7 +980,7 @@ describe('W02-R1C C2: access-before-replay order — release path', () => {
     let caught: RewardError | undefined;
     try {
       // sponsorB (unauthorized for allocA's parent rewardA) uses keyB (bound to allocB) to release allocA
-      releaseAllocation(allocA, sponsorB, keyB);
+      releaseAllocation(allocA, sponsorB, keyB, rewardA);
     } catch (e) { caught = e as RewardError; }
 
     expect(caught).toBeDefined();

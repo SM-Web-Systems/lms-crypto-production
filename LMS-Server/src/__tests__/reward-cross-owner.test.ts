@@ -10,7 +10,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import './setup.js';
+import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
+import app from '../app.js';
 import { db } from '../config/database.js';
 import {
   createReward,
@@ -23,11 +25,13 @@ import {
   getReward,
   getRewardAllocations,
   getRewardTransactions,
+  listRewards,
 } from '../services/rewards/rewardService.js';
 import { expireReward } from '../services/rewards/rewardService.js';
 import { validateScope } from '../services/rewards/rewardScopeService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { hasPermission } from '../middleware/rbac.js';
+import { makeToken } from './helpers/auth.js';
 
 // ──── Test Helpers ────
 
@@ -267,15 +271,15 @@ describe('W02: Cross-owner reward scope checks', () => {
 
       const idemKey = `release-${uuidv4()}`;
       // Owner releases
-      releaseAllocation(allocations[0].id, sponsorA, idemKey);
+      releaseAllocation(allocations[0].id, sponsorA, idemKey, rewardId);
 
       // Foreign actor replays same idempotency key
       expect(() => {
-        releaseAllocation(allocations[0].id, sponsorB, idemKey);
+        releaseAllocation(allocations[0].id, sponsorB, idemKey, rewardId);
       }).toThrow(RewardError);
 
       try {
-        releaseAllocation(allocations[0].id, sponsorB, idemKey);
+        releaseAllocation(allocations[0].id, sponsorB, idemKey, rewardId);
       } catch (err) {
         const re = err as RewardError;
         expect(re.code).toBe('ALLOCATION_NOT_FOUND');
@@ -297,19 +301,19 @@ describe('W02: Cross-owner reward scope checks', () => {
       expect(allocations.length).toBeGreaterThan(0);
       db.prepare("UPDATE reward_allocations SET status = 'eligible' WHERE id = ?").run(allocations[0].id);
       const releaseKey = `release-${uuidv4()}`;
-      releaseAllocation(allocations[0].id, sponsorA, releaseKey);
+      releaseAllocation(allocations[0].id, sponsorA, releaseKey, rewardId);
 
       const idemKey = `refund-${uuidv4()}`;
       // Owner refunds
-      refundAllocation(allocations[0].id, sponsorA, idemKey);
+      refundAllocation(allocations[0].id, sponsorA, idemKey, rewardId);
 
       // Foreign actor replays same idempotency key
       expect(() => {
-        refundAllocation(allocations[0].id, sponsorB, idemKey);
+        refundAllocation(allocations[0].id, sponsorB, idemKey, rewardId);
       }).toThrow(RewardError);
 
       try {
-        refundAllocation(allocations[0].id, sponsorB, idemKey);
+        refundAllocation(allocations[0].id, sponsorB, idemKey, rewardId);
       } catch (err) {
         const re = err as RewardError;
         expect(re.code).toBe('ALLOCATION_NOT_FOUND');
@@ -360,121 +364,117 @@ describe('W02: Cross-owner reward scope checks', () => {
     });
   });
 
-  // ── Route-layer read tests (using service functions, mimicking route behavior) ──
+  // ── Route-layer read tests (real authenticated HTTP requests) ──
 
-  describe('Route-layer: foreign actor reads denied via getReward + validateScope', () => {
+  describe('Route-layer: foreign actor reads denied via real HTTP routes', () => {
 
-    it('W02-R-1: foreign sponsor cannot read reward by ID', () => {
+    it('W02-R-1: foreign sponsor reads reward by ID via HTTP → 404', async () => {
       const sponsorA = createSponsor();
       const sponsorB = createSponsor();
       const { cohortId } = createCohort(sponsorA);
       createCohort(sponsorB);
-
       const rewardId = draftReward(sponsorA, 'sponsor_cohort', cohortId);
-      const reward = getReward(rewardId)!;
+      const tokenA = makeToken({ userId: sponsorA, email: `r1-${sponsorA}@t.com`, role: 'lecturer' });
+      const tokenB = makeToken({ userId: sponsorB, email: `r1-${sponsorB}@t.com`, role: 'lecturer' });
 
-      // sponsorB cannot validate scope on sponsorA's cohort
-      expect(validateScope(sponsorB, reward.scope_type as any, reward.scope_id)).toBe(false);
-      // Admin can
-      const admin = createAdmin();
-      expect(hasPermission(admin, 'reward.manage')).toBe(true);
+      // Owner can read
+      const own = await request(app).get(`/api/v1/sponsor/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenA}`);
+      expect(own.status).toBe(200);
+      // Foreign sponsor gets 404
+      const foreign = await request(app).get(`/api/v1/sponsor/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenB}`);
+      expect(foreign.status).toBe(404);
     });
 
-    it('W02-R-2: foreign teacher cannot read reward by ID', () => {
+    it('W02-R-2: foreign teacher reads reward by ID via HTTP → 404', async () => {
       const teacherA = createTeacher();
       const teacherB = createTeacher();
       const { groupId } = createGroup(teacherA, 'class');
       createGroup(teacherB, 'class');
-
       const rewardId = draftReward(teacherA, 'teacher_class', groupId);
-      const reward = getReward(rewardId)!;
+      const tokenA = makeToken({ userId: teacherA, email: `r2-${teacherA}@t.com`, role: 'lecturer' });
+      const tokenB = makeToken({ userId: teacherB, email: `r2-${teacherB}@t.com`, role: 'lecturer' });
 
-      expect(validateScope(teacherB, reward.scope_type as any, reward.scope_id)).toBe(false);
-      expect(validateScope(teacherA, reward.scope_type as any, reward.scope_id)).toBe(true);
+      const own = await request(app).get(`/api/v1/teacher/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenA}`);
+      expect(own.status).toBe(200);
+      const foreign = await request(app).get(`/api/v1/teacher/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenB}`);
+      expect(foreign.status).toBe(404);
     });
 
-    it('W02-R-3: foreign parent cannot read reward by ID', () => {
+    it('W02-R-3: foreign parent reads reward by ID via HTTP → 404', async () => {
       const parentA = createParent();
       const parentB = createParent();
       const { groupId } = createGroup(parentA, 'family');
       createGroup(parentB, 'family');
-
       const rewardId = draftReward(parentA, 'parent_family', groupId);
-      const reward = getReward(rewardId)!;
+      const tokenA = makeToken({ userId: parentA, email: `r3-${parentA}@t.com`, role: 'lecturer' });
+      const tokenB = makeToken({ userId: parentB, email: `r3-${parentB}@t.com`, role: 'lecturer' });
 
-      expect(validateScope(parentB, reward.scope_type as any, reward.scope_id)).toBe(false);
-      expect(validateScope(parentA, reward.scope_type as any, reward.scope_id)).toBe(true);
+      const own = await request(app).get(`/api/v1/parent/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenA}`);
+      expect(own.status).toBe(200);
+      const foreign = await request(app).get(`/api/v1/parent/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenB}`);
+      expect(foreign.status).toBe(404);
     });
 
-    it('W02-R-4: foreign employer cannot read reward by ID', () => {
+    it('W02-R-4: foreign employer reads reward by ID via HTTP → 404', async () => {
       const employerA = createEmployer();
       const employerB = createEmployer();
       const { groupId } = createGroup(employerA, 'team');
       createGroup(employerB, 'team');
-
       const rewardId = draftReward(employerA, 'employer_team', groupId);
-      const reward = getReward(rewardId)!;
+      const tokenA = makeToken({ userId: employerA, email: `r4-${employerA}@t.com`, role: 'lecturer' });
+      const tokenB = makeToken({ userId: employerB, email: `r4-${employerB}@t.com`, role: 'lecturer' });
 
-      expect(validateScope(employerB, reward.scope_type as any, reward.scope_id)).toBe(false);
-      expect(validateScope(employerA, reward.scope_type as any, reward.scope_id)).toBe(true);
+      const own = await request(app).get(`/api/v1/employer/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenA}`);
+      expect(own.status).toBe(200);
+      const foreign = await request(app).get(`/api/v1/employer/rewards/${rewardId}`).set('Authorization', `Bearer ${tokenB}`);
+      expect(foreign.status).toBe(404);
     });
 
-    it('W02-R-5: foreign actor cannot read allocations', () => {
+    it('W02-R-5: foreign sponsor reads allocations via HTTP → 404', async () => {
       const sponsorA = createSponsor();
       const sponsorB = createSponsor();
       const admin = createAdmin();
       const { cohortId } = createCohort(sponsorA);
       createCohort(sponsorB);
-
       const rewardId = createActiveReward(sponsorA, 'sponsor_cohort', cohortId, admin);
-      const allocations = getRewardAllocations(rewardId);
-      expect(allocations.length).toBeGreaterThan(0);
+      const tokenB = makeToken({ userId: sponsorB, email: `r5-${sponsorB}@t.com`, role: 'lecturer' });
 
-      // Verify sponsorB has no scope access
-      const reward = getReward(rewardId)!;
-      expect(validateScope(sponsorB, reward.scope_type as any, reward.scope_id)).toBe(false);
+      const foreign = await request(app).get(`/api/v1/sponsor/rewards/${rewardId}/allocations`).set('Authorization', `Bearer ${tokenB}`);
+      expect(foreign.status).toBe(404);
     });
 
-    it('W02-R-6: foreign actor cannot read transactions', () => {
+    it('W02-R-6: foreign sponsor reads transactions via HTTP → 404', async () => {
       const sponsorA = createSponsor();
       const sponsorB = createSponsor();
       const admin = createAdmin();
       const { cohortId } = createCohort(sponsorA);
       createCohort(sponsorB);
-
       const rewardId = createFundedReward(sponsorA, 'sponsor_cohort', cohortId, admin);
-      const transactions = getRewardTransactions(rewardId);
-      expect(transactions.length).toBeGreaterThan(0);
+      const tokenB = makeToken({ userId: sponsorB, email: `r6-${sponsorB}@t.com`, role: 'lecturer' });
 
-      // Verify sponsorB has no scope access
-      const reward = getReward(rewardId)!;
-      expect(validateScope(sponsorB, reward.scope_type as any, reward.scope_id)).toBe(false);
+      const foreign = await request(app).get(`/api/v1/sponsor/rewards/${rewardId}/transactions`).set('Authorization', `Bearer ${tokenB}`);
+      expect(foreign.status).toBe(404);
     });
 
-    it('W02-R-7: cross-prefix foreign ID — teacher reads sponsor reward', () => {
+    it('W02-R-7: admin reads any reward via HTTP → 200 (reward.manage bypass)', async () => {
       const sponsor = createSponsor();
-      const teacher = createTeacher();
+      const admin = createAdmin();
       const { cohortId } = createCohort(sponsor);
-      createGroup(teacher, 'class');
-
       const rewardId = draftReward(sponsor, 'sponsor_cohort', cohortId);
-      const reward = getReward(rewardId)!;
+      const adminToken = makeToken({ userId: admin, email: `r7-${admin}@t.com`, role: 'admin' });
 
-      // Teacher has no scope access to sponsor_cohort
-      expect(validateScope(teacher, reward.scope_type as any, reward.scope_id)).toBe(false);
+      const res = await request(app).get(`/api/v1/sponsor/rewards/${rewardId}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.id).toBe(rewardId);
     });
 
-    it('W02-R-8: parent_child scope — foreign parent cannot read another parent child reward', () => {
-      const parentA = createParent();
-      const parentB = createParent();
-      const childA = createChildLink(parentA);
-      createChildLink(parentB);
+    it('W02-R-8: unauthenticated reads any reward → 401', async () => {
+      const sponsor = createSponsor();
+      const { cohortId } = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, 'sponsor_cohort', cohortId);
 
-      const rewardId = draftReward(parentA, 'parent_child', childA);
-      const reward = getReward(rewardId)!;
-
-      expect(validateScope(parentB, reward.scope_type as any, reward.scope_id)).toBe(false);
-      expect(validateScope(parentA, reward.scope_type as any, reward.scope_id)).toBe(true);
+      const res = await request(app).get(`/api/v1/sponsor/rewards/${rewardId}`);
+      expect(res.status).toBe(401);
     });
   });
 
@@ -651,7 +651,7 @@ describe('W02: Cross-owner reward scope checks', () => {
 
   describe('List scope tampering', () => {
 
-    it('W02-L-1: listRewards already validates scope — foreign actor gets SCOPE_DENIED', () => {
+    it('W02-L-1: listRewards already validates scope — foreign actor gets SCOPE_DENIED 403', () => {
       const sponsorA = createSponsor();
       const sponsorB = createSponsor();
       const { cohortId } = createCohort(sponsorA);
@@ -659,11 +659,15 @@ describe('W02: Cross-owner reward scope checks', () => {
 
       draftReward(sponsorA, 'sponsor_cohort', cohortId);
 
-      // SponsorB tries to list sponsorA's cohort rewards
-      expect(() => {
-        const { listRewards } = require('../services/rewards/rewardService.js');
+      // SponsorB tries to list sponsorA's cohort rewards — must throw SCOPE_DENIED.
+      // Static import (top of file) is used; no require() which causes MODULE_NOT_FOUND.
+      let caught: RewardError | undefined;
+      try {
         listRewards('sponsor_cohort', cohortId, sponsorB);
-      }).toThrow();
+      } catch (e) { caught = e as RewardError; }
+      expect(caught).toBeDefined();
+      expect(caught!.code).toBe('SCOPE_DENIED');
+      expect(caught!.statusCode).toBe(403);
     });
   });
 });

@@ -108,11 +108,13 @@ router.post(
       return;
     }
 
-    // Try the refund again using the original actor (who has scope access)
+    // Try the refund again using the original actor (who has scope access).
+    // W02-R2 (F2): Pass stored reward_id so service can verify allocation.reward_id matches.
     const result = refundAllocation(
       attempt.allocation_id as string,
       attempt.attempted_by_user_id as string,
       idempotencyKey,
+      attempt.reward_id as string,
     );
 
     if ('blocked' in result && result.blocked) {
