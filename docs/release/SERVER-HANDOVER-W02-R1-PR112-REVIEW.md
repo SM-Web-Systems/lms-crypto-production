@@ -2,6 +2,8 @@
 
 Date: 2026-10-29. **CHANGES_REQUIRED for R1 acceptance.** PR #112 is merged and fixes the three original F1 examples, but two explicit requirements of the R1 handover remain. Next unit: **W02-R1C only**, then stop. W02-R2 remains separate. W01 containment remains accepted; W03/W04 and deployment are excluded.
 
+Superseded disposition: PR #113 merged at `88db657a`; the named amount/type/currency, funding-source/reference and access-order corrections are verified and accepted with the explicit optional-setting retry limitation. Use the [R1C acceptance record and W02-R2 prompt](CLAUDE-SERVER-W02-R2-PROMPT.md) for the current next action. Preserve this review as the historical correction evidence.
+
 Independent review of this evidence packet and bounded correction prompt: **PASS — no corrections needed**. This approves the handover's accuracy and scope, not the still-incomplete R1 acceptance criteria.
 
 Repository: [SM-Web-Systems/lms-crypto-production](https://github.com/SM-Web-Systems/lms-crypto-production). Documentation branch: `codex/platform-wiring-audit`. Planning branch: `codex/staged-rollout-plan`, PR #103. Branch names are not repository names. Retrieve these documents without merging the unrelated documentation/RBAC base stack.

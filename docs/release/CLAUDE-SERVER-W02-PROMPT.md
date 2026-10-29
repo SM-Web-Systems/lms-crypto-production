@@ -6,6 +6,8 @@ Date: 2026-10-28. **W01 security containment accepted at `1a5326ac`; proceed to 
 
 Latest: PR #112 is merged at `87a9f40b`; use the [W02-R1C completion-correction handover](SERVER-HANDOVER-W02-R1-PR112-REVIEW.md) for the next bounded run. Original collision fixes are verified; canonical intent/access order and later W02-R2 still require acceptance.
 
+Current next action: PR #113 is verified at `88db657a`; see the [R1C acceptance and bounded W02-R2 prompt](CLAUDE-SERVER-W02-R2-PROMPT.md). Named R1C corrections are accepted with the documented optional-setting retry contract. Earlier next-action paragraphs are historical; do not repeat completed corrections or start W03.
+
 Independent review of this closure record and bounded W02 prompt: **PASS, no actionable revision needed**. Relative links, Markdown fences, requested workflow terms and diff whitespace are validated before commit. This does not claim W02 has been implemented.
 
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). Document branch: `codex/platform-wiring-audit`. Authoritative planning branch: `codex/staged-rollout-plan` (PR #103). These are branches inside the repository, not separate repositories.

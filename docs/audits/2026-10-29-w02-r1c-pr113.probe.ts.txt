@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID as uuid} from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
+import {db,_resetForTests,seedRbacData} from './src/config/database.js';
+import {createReward,fundReward,fundRewardAsync} from './src/services/rewards/rewardService.js';
+import {generateToken} from './src/config/jwt.js';
+import sponsorRouter from './src/routes/sponsor.js';
+const schema=readFileSync(new URL('./database/schema.sql',import.meta.url),'utf8');
+function reset(){_resetForTests(schema);seedRbacData();}
+function user(role='role_sponsor'){const id=uuid();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic R1C review',?,'hash','student')").run(id,id+'@review.invalid');db.prepare('DELETE FROM user_roles WHERE user_id=?').run(id);db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id,role);return id;}
+function cohort(owner:string){const course=uuid(),scope=uuid();db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Review',?)").run(course,course);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Review')").run(scope,owner,course);return scope;}
+function params(scope:string){return {scopeType:'sponsor_cohort' as const,scopeId:scope,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()};}
+const conflict=(e:any)=>e.code==='IDEMPOTENCY_CONFLICT'&&e.statusCode===409;
+reset();
+{
+ const owner=user(),admin=user('role_admin'),p=params(cohort(owner)),r=createReward(owner,p),source={type:'admin_grant' as const,reference:' Review-OPAQUE '},key=uuid();
+ assert.throws(()=>createReward(owner,{...p,amountStroops:'20000000'}),conflict);
+ assert.equal(createReward(owner,{...p,currency:'XLM'}).id,r.id);
+ fundReward(r.id,admin,source,key);
+ assert.throws(()=>fundReward(r.id,admin,{type:'stellar',reference:source.reference},key),conflict);
+ assert.throws(()=>fundReward(r.id,admin,{...source,reference:source.reference.trim()},key),conflict);
+ await assert.rejects(()=>fundRewardAsync(r.id,admin,{...source,reference:'other'},key),conflict);
+ assert.equal(fundReward(r.id,admin,source,key).status,'funded');
+ assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_transactions').get() as any).n,2);
+ console.log('CONTROL_PASS: amount/source/reference conflicts, opaque reference identity and genuine retries; no extra financial writes');
+}
+reset();
+{
+ const owner=user(),foreign=user(),admin=user('role_admin'),r=createReward(owner,params(cohort(owner))),other=createReward(foreign,params(cohort(foreign))),key=uuid(),otherKey=uuid(),source={type:'admin_grant' as const,reference:uuid()};
+ fundReward(r.id,admin,source,key);fundReward(other.id,admin,{type:'admin_grant',reference:uuid()},otherKey);
+ const token=generateToken({userId:foreign,email:foreign+'@review.invalid',role:'student'}),app=express();app.use(express.json());app.use('/api/v1',sponsorRouter);
+ for(const target of [r.id,uuid()])for(const requestKey of [key,otherKey]){
+  const response=await request(app).post('/api/v1/sponsor/rewards/'+target+'/fund').set('Authorization','Bearer '+token).send({sourceType:source.type,reference:source.reference,idempotencyKey:requestKey});assert.equal(response.status,404);
+ }
+ console.log('CONTROL_PASS: actual authenticated foreign/missing resource HTTP requests return404 for matching and conflicting used keys');
+}
+reset();
+{
+ const owner=user(),admin=user('role_admin'),p={...params(cohort(owner)),maxRecipients:1,autoRelease:true,eligibilityConfig:'{"minScore":80}',expiresAt:'2030-01-01T00:00:00.000Z'},r=createReward(owner,p);
+ const changedMax=createReward(owner,{...p,maxRecipients:5});assert.equal(changedMax.id,r.id);assert.equal(changedMax.max_recipients,1);
+ const changedMode=createReward(owner,{...p,autoRelease:false});assert.equal(changedMode.auto_release,1);
+ const changedEligibility=createReward(owner,{...p,eligibilityConfig:'{"minScore":100}'});assert.equal(changedEligibility.eligibility_config,p.eligibilityConfig);
+ const changedExpiry=createReward(owner,{...p,expiresAt:'2031-01-01T00:00:00.000Z'});assert.equal(changedExpiry.expires_at,p.expiresAt);
+ fundReward(r.id,admin,{type:'admin_grant',reference:uuid()},uuid());
+ assert.equal((db.prepare("SELECT amount_stroops FROM reward_transactions WHERE reward_id=? AND transaction_type='reserve'").get(r.id) as any).amount_stroops,10000000);
+ console.log('REPRODUCED: changed maxRecipients5 returns max1 and actual later reservation10M rather than requested50M; changed autoRelease, eligibility and expiry also return old values without conflict');
+ const token=generateToken({userId:owner,email:owner+'@review.invalid',role:'student'}),app=express();app.use(express.json());app.use('/api/v1',sponsorRouter);
+ const response=await request(app).post('/api/v1/sponsor/rewards').set('Authorization','Bearer '+token).send({...p,maxRecipients:5,autoRelease:false});
+ assert.equal(response.status,201);assert.equal(response.body.data.id,r.id);assert.equal(response.body.data.max_recipients,1);assert.equal(response.body.data.auto_release,1);
+ console.log('REPRODUCED: actual authenticated create endpoint returns201 for incompatible recipient cap/manual-approval request, retaining cap1/automatic release');
+}
+console.log('RESULT: named amount/funding/access-order fixes pass; financially meaningful creation options remain unbound');
