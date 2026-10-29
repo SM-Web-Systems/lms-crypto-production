@@ -73,7 +73,14 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
 
   const existing = checkRewardIdempotency(params.idempotencyKey);
   if (existing.exists) {
-    return getReward(existing.rewardId!)!;
+    // W02: Scope check before returning idempotent result
+    const cached = getReward(existing.rewardId!);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', 'Reward not found', 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('SCOPE_DENIED', `Actor does not have access to scope ${cached.scope_type}:${cached.scope_id}`, 403);
+    }
+    return cached;
   }
 
   const id = uuidv4();
@@ -111,7 +118,14 @@ export function fundReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02: Scope check before returning idempotent result
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    return cached;
   }
 
   // W01-R1: Look up reward creator for internal source authorization context.
@@ -240,7 +254,14 @@ export async function fundRewardAsync(
 ): Promise<RewardRow> {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02: Scope check before returning idempotent result
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    return cached;
   }
 
   // W01-R1: Look up reward creator for internal source authorization context.
@@ -294,7 +315,14 @@ function fundRewardVerified(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02: Scope check before returning idempotent result (defense-in-depth)
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    return cached;
   }
 
   const txn = db.transaction(() => {
@@ -400,6 +428,11 @@ function fundRewardVerified(
 export function activateReward(rewardId: string, actorId: string, _idempotencyKey: string): RewardRow {
   const current = getReward(rewardId);
   if (current && current.status !== 'funded') {
+    // W02: Scope check before returning cached/fast-return result
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, current.scope_type as ScopeType, current.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
     return current;
   }
 
@@ -444,6 +477,11 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
 export function approveReward(rewardId: string, actorId: string, _idempotencyKey: string): RewardRow {
   const current = getReward(rewardId);
   if (current && current.status === 'approved') {
+    // W02: Scope check before returning cached/fast-return result
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, current.scope_type as ScopeType, current.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
     return current;
   }
 
@@ -473,7 +511,14 @@ export function cancelReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_cancel`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02: Scope check before returning idempotent result
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    return cached;
   }
 
   const txn = db.transaction(() => {
@@ -555,7 +600,15 @@ export function releaseAllocation(
 ): AllocationRow {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
-    return getAllocation(allocationId)!;
+    // W02: Scope check before returning idempotent result
+    const cachedAlloc = getAllocation(allocationId);
+    if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    const parentReward = getRewardRow(cachedAlloc.reward_id);
+    if (parentReward && !hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, parentReward.scope_type as ScopeType, parentReward.scope_id)) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    return cachedAlloc;
   }
 
   const txn = db.transaction(() => {
@@ -620,7 +673,15 @@ export function refundAllocation(
 ): AllocationRow | { blocked: true; attemptId: string } {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
-    return getAllocation(allocationId)!;
+    // W02: Scope check before returning idempotent result
+    const cachedAlloc = getAllocation(allocationId);
+    if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    const parentReward = getRewardRow(cachedAlloc.reward_id);
+    if (parentReward && !hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, parentReward.scope_type as ScopeType, parentReward.scope_id)) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    return cachedAlloc;
   }
 
   const txn = db.transaction(() => {
