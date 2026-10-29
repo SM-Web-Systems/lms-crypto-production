@@ -59,15 +59,23 @@ of 404 when the key happens to exist.
 | `rewardType` | `reward_type` | `cached.reward_type !== params.rewardType` | Defines what kind of reward |
 | `currency` | `currency_code` | `cached.currency_code !== currency` | Defines the financial unit; `currency` already normalized to `'XLM'` default at top of function |
 
-**Intentionally non-binding (documented):**
+**Intentionally non-binding — first-accepted-value semantics (documented):**
 
-| Field | Rationale |
-|-------|-----------|
-| `maxRecipients` | Financial exposure is captured by `amount_stroops`; null/0/undefined normalization creates edge cases with no security benefit |
-| `autoRelease` | Behavioral config; not financially material |
-| `description` | Display/audit field |
-| `eligibilityConfig` | Operational config; managed separately |
-| `expiresAt` | Scheduling/operational; can be conceptually updated |
+These fields are not bound by the idempotency key. A replay that changes any of them receives
+the original configuration in the response without mutation. This is a documented compatibility
+limit, not an endorsement that the fields lack financial or operational impact.
+
+| Field | Note |
+|-------|------|
+| `maxRecipients` | Affects total funding exposure (`amount_stroops × maxRecipients` at lines 197–198, 401–402 of `rewardService.ts`). Binding it would require the idempotency service to read this column; the current design captures the first accepted value. A future requirement for full-request equality must be an explicit separate change. |
+| `autoRelease` | Determines manual-approval versus automatic-release flow — operationally significant. First-accepted value is retained on replay; changing it in a retry has no effect on the stored reward. |
+| `description` | Display/audit field. |
+| `eligibilityConfig` | Operational config; first-accepted value is retained. |
+| `expiresAt` | Scheduling/operational; first-accepted value is retained. |
+
+**Compatibility characterization:** callers must not assume a replay with changed optional settings
+updated the stored reward. The 201 response returns the existing configuration. API documentation
+and developer-facing specs must make this visible.
 
 **Default normalization:** `currency` is already computed as `params.currency ?? 'XLM'` before the
 idempotency check. Omitting currency is equivalent to `'XLM'` and will match a stored `'XLM'`

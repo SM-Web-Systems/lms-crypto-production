@@ -63,7 +63,7 @@ function seedRefundScenario() {
     `SELECT id FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?`
   ).get(reward.id, studentId) as { id: string };
   db.prepare(`UPDATE reward_allocations SET status = 'eligible', eligible_at = datetime('now') WHERE id = ?`).run(alloc.id);
-  releaseAllocation(alloc.id, sponsorId, `${key}-release`);
+  releaseAllocation(alloc.id, sponsorId, `${key}-release`, reward.id);
 
   // Drain recipient balance to create a blocked refund scenario
   db.prepare(

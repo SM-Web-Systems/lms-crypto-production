@@ -165,7 +165,7 @@ describe('R13 Sponsor Routes: approve, release, refund', () => {
 
     // Make eligible → release
     db.prepare("UPDATE reward_allocations SET status = 'eligible', eligible_at = datetime('now') WHERE id = ?").run(allocationId);
-    releaseAllocation(allocationId, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocationId, sponsorId, `rel-${uuidv4()}`, rewardId);
 
     const res = await request(app)
       .post(`/api/v1/sponsor/rewards/${rewardId}/allocations/${allocationId}/refund`)
@@ -180,7 +180,7 @@ describe('R13 Sponsor Routes: approve, release, refund', () => {
     const { token, rewardId, allocationId, sponsorId, studentId } = seedSponsorWithReleasedReward();
 
     db.prepare("UPDATE reward_allocations SET status = 'eligible', eligible_at = datetime('now') WHERE id = ?").run(allocationId);
-    releaseAllocation(allocationId, sponsorId, `rel-${uuidv4()}`);
+    releaseAllocation(allocationId, sponsorId, `rel-${uuidv4()}`, rewardId);
 
     // Drain recipient balance
     db.prepare("UPDATE reward_accounts SET available_stroops = 0 WHERE user_id = ? AND account_type = 'recipient'").run(studentId);

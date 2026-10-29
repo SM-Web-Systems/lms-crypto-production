@@ -409,7 +409,7 @@ describe('W01-R1: Internal funding authorization', () => {
 
       const allocs = getRewardAllocations(rewardId);
       makeEligible(allocs[0].id);
-      releaseAllocation(allocs[0].id, sponsor, `rel-${uuidv4()}`);
+      releaseAllocation(allocs[0].id, sponsor, `rel-${uuidv4()}`, rewardId);
 
       // Creator's reserved should decrease
       const creatorAccount = getAccount(sponsor, 'funder')!;
@@ -431,10 +431,10 @@ describe('W01-R1: Internal funding authorization', () => {
 
       const allocs = getRewardAllocations(rewardId);
       makeEligible(allocs[0].id);
-      releaseAllocation(allocs[0].id, sponsor, `rel-${uuidv4()}`);
+      releaseAllocation(allocs[0].id, sponsor, `rel-${uuidv4()}`, rewardId);
 
       // Refund
-      refundAllocation(allocs[0].id, sponsor, `refund-${uuidv4()}`);
+      refundAllocation(allocs[0].id, sponsor, `refund-${uuidv4()}`, rewardId);
 
       // Refunded funds return to creator's available
       const creatorAccount = getAccount(sponsor, 'funder')!;

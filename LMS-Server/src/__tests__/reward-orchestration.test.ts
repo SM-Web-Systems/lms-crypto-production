@@ -187,7 +187,7 @@ describe('Reward Orchestration Service', () => {
     const allocations = getRewardAllocations(reward.id);
     db.prepare(`UPDATE reward_allocations SET status = 'eligible' WHERE id = ?`).run(allocations[0].id);
 
-    const released = releaseAllocation(allocations[0].id, sponsor, `rel-${uuidv4()}`);
+    const released = releaseAllocation(allocations[0].id, sponsor, `rel-${uuidv4()}`, reward.id);
     expect(released.status).toBe('released');
 
     // Check recipient account
@@ -246,9 +246,9 @@ describe('Reward Orchestration Service', () => {
 
     const allocations = getRewardAllocations(reward.id);
     db.prepare(`UPDATE reward_allocations SET status = 'eligible' WHERE id = ?`).run(allocations[0].id);
-    releaseAllocation(allocations[0].id, sponsor, `rel-${uuidv4()}`);
+    releaseAllocation(allocations[0].id, sponsor, `rel-${uuidv4()}`, reward.id);
 
-    const result = refundAllocation(allocations[0].id, sponsor, `refund-${uuidv4()}`);
+    const result = refundAllocation(allocations[0].id, sponsor, `refund-${uuidv4()}`, reward.id);
     expect('blocked' in result).toBe(false);
     expect((result as any).status).toBe('refunded');
   });
@@ -273,13 +273,13 @@ describe('Reward Orchestration Service', () => {
 
     const allocations = getRewardAllocations(reward.id);
     db.prepare(`UPDATE reward_allocations SET status = 'eligible' WHERE id = ?`).run(allocations[0].id);
-    releaseAllocation(allocations[0].id, sponsor, `rel-${uuidv4()}`);
+    releaseAllocation(allocations[0].id, sponsor, `rel-${uuidv4()}`, reward.id);
 
     // Drain recipient balance
     const recipientAccount = getOrCreateAccount(student, 'recipient', 'XLM');
     db.prepare(`UPDATE reward_accounts SET available_stroops = '0' WHERE id = ?`).run(recipientAccount.id);
 
-    const result = refundAllocation(allocations[0].id, sponsor, `refund-${uuidv4()}`);
+    const result = refundAllocation(allocations[0].id, sponsor, `refund-${uuidv4()}`, reward.id);
     expect('blocked' in result && result.blocked).toBe(true);
   });
 
@@ -334,11 +334,11 @@ describe('Reward Orchestration Service', () => {
 
     // Make eligible and release
     db.prepare(`UPDATE reward_allocations SET status = 'eligible' WHERE id = ?`).run(allocations[0].id);
-    const released = releaseAllocation(allocations[0].id, parent, `rel-${uuidv4()}`);
+    const released = releaseAllocation(allocations[0].id, parent, `rel-${uuidv4()}`, reward.id);
     expect(released.status).toBe('released');
 
     // Refund
-    const refunded = refundAllocation(allocations[0].id, parent, `refund-${uuidv4()}`);
+    const refunded = refundAllocation(allocations[0].id, parent, `refund-${uuidv4()}`, reward.id);
     expect('blocked' in refunded).toBe(false);
     expect((refunded as any).status).toBe('refunded');
   });

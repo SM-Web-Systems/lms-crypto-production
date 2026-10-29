@@ -650,7 +650,8 @@ export function cancelReward(
 export function releaseAllocation(
   allocationId: string,
   actorId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  requestedRewardId: string
 ): AllocationRow {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
@@ -658,8 +659,14 @@ export function releaseAllocation(
     // parent reward) before revealing any key association.
     const cachedAlloc = getAllocation(allocationId);
     if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Fail closed on missing parent — no if(parentReward &&) skip.
     const parentReward = getRewardRow(cachedAlloc.reward_id);
-    if (parentReward && !hasPermission(actorId, 'reward.manage') &&
+    if (!parentReward) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Bind to requested URL parent before revealing any binding information.
+    if (cachedAlloc.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    if (!hasPermission(actorId, 'reward.manage') &&
         !validateScope(actorId, parentReward.scope_type as ScopeType, parentReward.scope_id)) {
       throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
     }
@@ -673,6 +680,11 @@ export function releaseAllocation(
   const txn = db.transaction(() => {
     const allocation = getAllocationForUpdate(allocationId);
     const reward = getRewardForUpdate(allocation.reward_id);
+
+    // W02-R2 (F2): Allocation must belong to the requested URL reward.
+    if (allocation.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
 
     if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
@@ -728,15 +740,22 @@ export function releaseAllocation(
 export function refundAllocation(
   allocationId: string,
   actorId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  requestedRewardId: string
 ): AllocationRow | { blocked: true; attemptId: string } {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
     // W02-R1C (C2): Resolve and authorize the actual requested allocation first.
     const cachedAlloc = getAllocation(allocationId);
     if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Fail closed on missing parent — no if(parentReward &&) skip.
     const parentReward = getRewardRow(cachedAlloc.reward_id);
-    if (parentReward && !hasPermission(actorId, 'reward.manage') &&
+    if (!parentReward) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Bind to requested URL parent before revealing any binding information.
+    if (cachedAlloc.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    if (!hasPermission(actorId, 'reward.manage') &&
         !validateScope(actorId, parentReward.scope_type as ScopeType, parentReward.scope_id)) {
       throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
     }
@@ -750,6 +769,11 @@ export function refundAllocation(
   const txn = db.transaction(() => {
     const allocation = getAllocationForUpdate(allocationId);
     const reward = getRewardForUpdate(allocation.reward_id);
+
+    // W02-R2 (F2): Allocation must belong to the requested URL reward.
+    if (allocation.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
 
     if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);

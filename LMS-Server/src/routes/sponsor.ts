@@ -345,7 +345,8 @@ router.post(
   requirePermission('reward.release'),
   (req: AuthRequest, res: Response): void => {
     try {
-      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
       res.json({ success: true, data: allocation });
     } catch (err) {
       handleRewardError(err, res);
@@ -360,7 +361,8 @@ router.post(
   requirePermission('reward.refund'),
   (req: AuthRequest, res: Response): void => {
     try {
-      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
       if ('blocked' in result) {
         res.status(409).json({ success: false, data: result });
         return;

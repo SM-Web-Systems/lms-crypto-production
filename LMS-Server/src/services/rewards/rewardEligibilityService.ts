@@ -219,7 +219,8 @@ function maybeAutoRelease(reward: RewardRow, studentUserId: string): void {
   if (!allocation) return;
 
   try {
-    releaseAllocation(allocation.id, reward.creator_user_id, `auto-release-${allocation.id}`);
+    // W02-R2 (F2): Pass actual parent reward.id — trusted internal caller.
+    releaseAllocation(allocation.id, reward.creator_user_id, `auto-release-${allocation.id}`, reward.id);
   } catch (err) {
     logger.error({ module: 'reward-auto-release', err, allocationId: allocation.id }, 'Auto-release failed');
   }
