@@ -2,6 +2,8 @@
 
 Date: 2026-10-29. **Accept the named W02-R1C amount/type/currency, funding-source/reference and access-order corrections at `88db657a`. Next unit: W02-R2 only.** W02 remains PARTIALLY_FIXED until nested-parent binding and effective route/list coverage pass final acceptance. W03/W04 and deployment remain excluded.
 
+Follow-up: PR #114 merged at `1229bd97` with working ordinary parent-binding and route/list repairs. A demonstrated administrative refund-retry caller authorization gap still blocks W02 closure. Use the [PR #114 review and W02-R2C prompt](SERVER-HANDOVER-W02-R2-PR114-REVIEW.md) as the current next action; do not repeat completed R2 implementation or start W03.
+
 Independent review of this acceptance record and bounded R2 prompt: **PASS — no accuracy or boundary corrections needed**. This approves the named R1C corrections and the next-stage scope, not W02-R2 implementation or overall W02 closure.
 
 Repository: [SM-Web-Systems/lms-crypto-production](https://github.com/SM-Web-Systems/lms-crypto-production). Documentation branch: `codex/platform-wiring-audit`. Authoritative planning branch: `codex/staged-rollout-plan` (PR #103). These are branches in this repository, not separate repositories. Read documents without merging the unrelated documentation/RBAC base stack.

@@ -8,6 +8,8 @@ Latest: PR #112 is merged at `87a9f40b`; use the [W02-R1C completion-correction 
 
 Current next action: PR #113 is verified at `88db657a`; see the [R1C acceptance and bounded W02-R2 prompt](CLAUDE-SERVER-W02-R2-PROMPT.md). Named R1C corrections are accepted with the documented optional-setting retry contract. Earlier next-action paragraphs are historical; do not repeat completed corrections or start W03.
 
+Latest review: PR #114 is merged at `1229bd97`; W02 remains **CHANGES_REQUIRED** for authenticated-caller authorization in administrative refund retry. See the [bounded W02-R2C handover](SERVER-HANDOVER-W02-R2-PR114-REVIEW.md). Preserve the working parent-binding/read fixes; no W03 progression yet.
+
 Independent review of this closure record and bounded W02 prompt: **PASS, no actionable revision needed**. Relative links, Markdown fences, requested workflow terms and diff whitespace are validated before commit. This does not claim W02 has been implemented.
 
 Repository: `SM-Web-Systems/lms-crypto-production` (`https://github.com/SM-Web-Systems/lms-crypto-production.git`). Document branch: `codex/platform-wiring-audit`. Authoritative planning branch: `codex/staged-rollout-plan` (PR #103). These are branches inside the repository, not separate repositories.
