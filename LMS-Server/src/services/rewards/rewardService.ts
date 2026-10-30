@@ -615,6 +615,10 @@ export function cancelReward(
         BigInt(reward.max_recipients ?? 1)
       ));
 
+      // W03-R1 note: this formula is only reached from states where no
+      // 'release_unused' entry can exist yet (state machine forbids
+      // cancelled from 'released'). If that precondition ever changes,
+      // the query must also subtract 'cancel', 'expire', 'release_unused' debits.
       const released = db.prepare(
         `SELECT COALESCE(SUM(amount_stroops), 0) as total
          FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
@@ -912,6 +916,10 @@ export function expireReward(
         BigInt(reward.max_recipients ?? 1)
       ));
 
+      // W03-R1 note: this formula is only reached from states where no
+      // 'release_unused' entry can exist yet (state machine forbids
+      // expired from 'released'). If that precondition ever changes,
+      // the query must also subtract 'cancel', 'expire', 'release_unused' debits.
       const released = db.prepare(
         `SELECT COALESCE(SUM(amount_stroops), 0) as total
          FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
