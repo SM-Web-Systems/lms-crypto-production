@@ -330,6 +330,18 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: Sonnet APPROVED — 5 LOW, 0 CRITICAL/HIGH/MEDIUM
 - **Total tests**: 26 new, all pass; 2130/2131 full suite (1 pre-existing), TSC clean
 
+### S2-T03-R5: Full-statement validation — table options and literal semantics (W03-R5)
+- **Status**: MERGED — PR #122 squash-merged to main HEAD `a58bf844` (2026-10-30)
+- **Dependencies**: S2-T03-R4 (W03-R4 PR #121) merged at `2f1c951`
+- **Owner**: AI (Claude Sonnet 4.6)
+- **Problem**: Two defects reproduced after W03-R4 merged. **F1**: `extractTableBody` (used in `detectSchemaVersion`) discards everything after the last `)` — a STRICT table's ` STRICT` suffix is stripped before comparison, body matches canonical source, migration proceeds and silently removes STRICT enforcement. **F2**: `canonicalizeDdl` post-loop `IF NOT EXISTS` regex fires on the full result including preserved string literals — `DEFAULT 'IF NOT EXISTS XLM'` was rewritten to `DEFAULT 'XLM'`, producing a false body match against canonical source.
+- **Files modified**: `src/scripts/migrateRewardTxnCheck.ts` (canonicalizeDdl pre-scan + post-loop regex removed; detectSchemaVersion suffix check + inline body extraction; extractTableBody docstring), `docs/superpowers/specs/2026-10-30-W03-R5-full-statement-validation.md`
+- **Test file**: `src/__tests__/reward-txn-check-migration.test.ts` (18 new W03-R5 tests: COMPAT-F5-STRICT 8, COMPAT-F5-LITERAL 5, COMPAT-F5-IFLITERAL 5; 98 total migration tests; 2148 full suite)
+- **Implementation**: F1: suffix check before body extraction in `detectSchemaVersion`; F2: pre-scan header mini-scanner strips IF NOT EXISTS before first `(` only.
+- **CI**: PR run 41080960636 — 4/4 PASS; post-merge main run 41082051339 — pending
+- **Independent review**: Opus APPROVED — CRITICAL none, HIGH none; 1 MEDIUM addressed (combined suffix test); LOW accepted
+- **Total tests**: 18 new, all pass; 2148 full suite, 0 regressions, TSC clean
+
 ### S2-T04: Implement W04 — course completion eligibility scoping
 - **Status**: TODO
 - **Dependencies**: S1-T03 spec reviewed

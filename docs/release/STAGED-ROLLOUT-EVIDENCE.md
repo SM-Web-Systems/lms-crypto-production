@@ -332,7 +332,22 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run 41071872186 — 4/4 PASS; post-merge main run 41073011635 — 4/4 PASS |
 | Review | Independent Sonnet: APPROVED — 5 LOW (IF NOT EXISTS in string literal latent, missing unit tests for string-literal `--` protection and unterminated block comment, multiline index implicit coverage, receipt value cosmetic), 0 CRITICAL/HIGH/MEDIUM |
 | Implementation | **F1/F2 fix**: `canonicalizeDdl()` token-aware comment stripping (preserves string literals and double-quoted identifiers verbatim; suppresses pending space before `)` so comment-removed DDL round-trips to canonical form); `extractTableBody()` extracts column/constraint body between first `(` and last `)` — table-name-agnostic, handles `"reward_transactions"` quoting after ALTER TABLE RENAME. `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` pre-computed at module load. `detectSchemaVersion()` uses exact body comparison — any deviation (OR 1=1, extra CHECK, column reorder, nullability drift, FK drift) returns `'unknown'`. `inventoryDependencies()` extended to full index DDL comparison via `SUPPORTED_INDEX_CANONICAL` map; wrong column/uniqueness/predicate triggers pre-mutation refusal. `INSERT INTO ... SELECT` replaced with explicit 23-column list. |
-| Evidence status | **MERGED** — PR #121 merged `2f1c951`; W03 fully closed (#117 + W03-R1 #118 + W03-R2 #119 + W03-R3 #120 + W03-R4 #121) |
+| Evidence status | **MERGED** — PR #121 merged `2f1c951`; two further defects reproduced post-merge (F1 STRICT suffix silently removed, F2 IF NOT EXISTS rewrites string literal) — corrected by W03-R5 PR #122, see entry below. |
+
+#### W03-R5: Full-statement validation — table options and literal semantics (F1 STRICT suffix, F2 IF NOT EXISTS literal)
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W03-R5 |
+| Problem | Two defects reproduced after W03-R4 merged at `2f1c951`. **F1**: `detectSchemaVersion` called `extractTableBody(canonicalizeDdl(row.sql))`; `extractTableBody` discards everything after the last `)`. A STRICT table stored as `CREATE TABLE reward_transactions (...) STRICT` had ` STRICT` stripped before body comparison; body matched canonical source → returned `'source'` → migration proceeded → STRICT enforcement silently removed. **F2**: `canonicalizeDdl` ended with `result.replace(/\bIF\s+NOT\s+EXISTS\s+/gi, '')` applied to the full result including preserved string literal content. `DEFAULT 'IF NOT EXISTS XLM' CHECK (currency_code IN ('IF NOT EXISTS XLM'))` was rewritten to `DEFAULT 'XLM' ...` → body falsely matched canonical source → migration considered unnecessary. |
+| Spec | `docs/superpowers/specs/2026-10-30-W03-R5-full-statement-validation.md` |
+| Branch | `codex/w03-r5-full-statement-validation` at `752c6b7` |
+| PR | [#122](https://github.com/SM-Web-Systems/lms-crypto-production/pull/122) — merged `a58bf844` (2026-10-30) |
+| Tests | 18 new (COMPAT-F5-STRICT: 8, COMPAT-F5-LITERAL: 5, COMPAT-F5-IFLITERAL: 5); 98 migration tests total; 2148 full suite, TSC clean |
+| CI | PR run 41080960636 — 4/4 PASS; post-merge main run 41082051339 — pending |
+| Review | Independent Opus: APPROVED — CRITICAL none, HIGH none; MEDIUM-3 combined STRICT+WITHOUT ROWID suffix test added pre-merge; LOW-4 extractTableBody docstring updated; other LOW findings (no-paren consistency, minimal test DDL isolation, validateDatabase assertion specificity) accepted |
+| Implementation | **F1 fix**: `detectSchemaVersion` checks `canonical.slice(lastParen + 1).trim()` before body extraction; any non-empty suffix (STRICT, WITHOUT ROWID, or combinations) → `'unknown'`. Eliminates `extractTableBody()` call from detection path (inline extraction used instead). **F2 fix**: post-loop global `IF NOT EXISTS` regex removed from `canonicalizeDdl`; replaced by pre-scan mini-scanner on the statement header (text before first `(`) that handles double-quoted identifiers verbatim and leaves body string literals untouched. |
+| Evidence status | **MERGED** — PR #122 merged `a58bf844`; W03 fully closed (#117 + W03-R1 #118 + W03-R2 #119 + W03-R3 #120 + W03-R4 #121 + W03-R5 #122) |
 
 #### W03 PR #119 receipt (W03-R2)
 
@@ -375,6 +390,20 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run 41071872186 — 4/4 PASS; post-merge main run 41073011635 — 4/4 PASS |
 | Review | Independent Sonnet: APPROVED (5 LOW, 0 CRITICAL/HIGH/MEDIUM) |
 | Main HEAD | `2f1c951`
+
+#### W03 PR #122 receipt (W03-R5)
+
+| Field | Value |
+| --- | --- |
+| PR | [#122](https://github.com/SM-Web-Systems/lms-crypto-production/pull/122) (`fix(W03-R5): full-statement validation — preserve table options and literal semantics`) |
+| Branch | `codex/w03-r5-full-statement-validation` |
+| Reviewed head | `752c6b7` |
+| Merge commit | `a58bf844` |
+| Merged at | 2026-10-30 |
+| Tests | 18 new; 2148 total, 0 regressions, TSC clean |
+| CI | PR run 41080960636 — 4/4 PASS; post-merge main run 41082051339 — pending |
+| Review | Independent Opus: APPROVED (0 CRITICAL/HIGH, 1 MEDIUM addressed, LOW accepted) |
+| Main HEAD | `a58bf844`
 
 ### W04: Premature and cross-course completion eligibility
 
@@ -873,6 +902,8 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-30 | — | S2/W03-R1: PR #118 merged `5b3c180` (reconcile unused reservation on below-cap completion, 19 new tests, 2051 total). New `release_unused` transaction type; reconciliation fires atomically at `released` transition; remaining reserved computed from per-reward ledger history; idempotency via UNIQUE constraint. All 26 W03 tests pass unmodified. Independent Opus APPROVED (HIGH: schema migration note in spec §9; MEDIUM: precondition comments applied pre-merge). CI run 41020058620 — 4/4 PASS. W03 + W03-R1 FIXED — stranded reservation path closed. | W03-R1 session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R2: PR #119 merged `bc3e0df` (existing-ledger CHECK constraint upgrade, 35 new tests, 2086 total). Offline migration script with plan/apply modes, full reconstruction in single transaction, fingerprint-based schema detection, partial-swap guard. `validateDatabase()` preflight refuses pre-W03-R2 databases. Independent Opus APPROVED (8/8 criteria PASS; LOW partial-swap gap addressed pre-merge). CI run 41037935927 — 4/4 PASS. W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119). Main HEAD `bc3e0df`. | W03-R2 session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R3: Three post-merge defects in W03-R2 independently reproduced and corrected. F1: `normalizeDdl()` comment-strip + exact multi-token pattern match replaces substring bypass. F2: `inventoryDependencies()` inventories non-autoindex indexes/triggers/views and refuses before mutation if unknown objects found. F3: pre-migration FK/integrity checks moved before PRAGMAs; post-reconstruction checks + receipt write moved inside `conn.transaction()` block for atomic rollback. PR #120 merged `fc59ec2`, 20 new tests (19 W03-R3 + 1 Opus MEDIUM _new-only), 2103 total, 0 regressions, TSC clean. Independent Opus APPROVED (3 LOW, 1 MEDIUM — all addressed pre-merge). PR CI run 41047876413 — 4/4 PASS; post-merge CI run 41048706028 — 4/4 PASS. W03 fully closed (PR #117 + #118 + #119 + #120). Main HEAD `fc59ec2`. | W03-R3 session | UNIT_COMPLETE |
+| 2026-10-30 | — | S2/W03-R4: Two post-merge defects in W03-R3 independently reproduced and corrected. F1: `detectSchemaVersion` substring match accepted `CHECK (... OR 1=1)` appended to target DDL as `'target'` — constraint was permissive, migration no-oped leaving broken constraint. F2: Source DDL with extra `CHECK (amount_stroops < 1000)` still matched source patterns; migration proceeded and silently dropped the extra CHECK. Fix: replace substring matching with exact canonicalized-DDL body comparison; `canonicalizeDdl()` token-aware (string literals + identifiers preserved verbatim; pendingSpace suppresses space before `)`); `extractTableBody()` extracts body between first/last parens; `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` pre-computed at module load; `SUPPORTED_INDEX_CANONICAL` map for full index DDL comparison; explicit 23-column INSERT SELECT. PR #121 merged `2f1c951`, 26 new tests (COMPAT-F4), 80 migration tests total, 2130/2131 full suite (1 pre-existing), TSC clean. Independent Sonnet APPROVED (5 LOW, 0 CRITICAL/HIGH/MEDIUM). PR CI run 41071872186 — 4/4 PASS; post-merge CI run 41073011635 — 4/4 PASS. Main HEAD `2f1c951`. | W03-R4 session | UNIT_COMPLETE |
+| 2026-10-30 | — | S2/W03-R5: Two post-merge defects in W03-R4 independently reproduced and corrected. F1: `detectSchemaVersion` called `extractTableBody(canonicalizeDdl(row.sql))`; `extractTableBody` discards suffix after last `)` — STRICT table's ` STRICT` suffix stripped before comparison, body matched canonical source, migration proceeded and silently removed STRICT enforcement. F2: `canonicalizeDdl` post-loop global `IF NOT EXISTS` regex fired on full result including preserved string literals — `DEFAULT 'IF NOT EXISTS XLM'` rewritten to `DEFAULT 'XLM'`, producing false body match. F1 fix: suffix check `canonical.slice(lastParen + 1).trim() !== ''` → `'unknown'` before body extraction. F2 fix: post-loop regex removed; pre-scan mini-scanner strips IF NOT EXISTS from statement header only (before first `(`), double-quoted identifiers in header preserved verbatim. PR #122 merged `a58bf844`, 18 new tests (COMPAT-F5-STRICT 8, COMPAT-F5-LITERAL 5, COMPAT-F5-IFLITERAL 5), 98 migration tests total, 2148 full suite, TSC clean. Independent Opus APPROVED (0 CRITICAL/HIGH, 1 MEDIUM addressed, LOW accepted). PR CI run 41080960636 — 4/4 PASS; post-merge CI run 41082051339 — pending. Main HEAD `a58bf844`. | W03-R5 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
