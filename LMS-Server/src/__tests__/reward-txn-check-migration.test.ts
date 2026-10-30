@@ -1552,3 +1552,409 @@ describe('COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection', ()
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// W03-R4 tests: Authoritative complete-schema compatibility
+//
+// F1: permissive target CHECK (OR 1=1) was falsely accepted
+// F2: additional source CHECK was silently removed
+//
+// W03-R4 requirement-to-test map:
+//  COMPAT-F4    — F1: permissive OR target detected; prove SQLite accepts bad rows on fixture
+//  COMPAT-F4F2  — F2: extra source CHECK detected as unknown; apply refuses before mutation
+//  COMPAT-F4-MUTATIONS — complete-schema mutations (missing/altered checks, nullability, FK, columns)
+//  COMPAT-F4-TOKENS — comment/string literal tokenization
+//  COMPAT-F4-INDEX  — index drift under supported names
+//  COMPAT-F4-REPO   — actual repo fixture files produce correct classification
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const TARGET_SCHEMA_PATH = path.resolve(__dirname, '../../database/schema.sql');
+const TARGET_SCHEMA = fs.readFileSync(TARGET_SCHEMA_PATH, 'utf-8');
+
+// Permissive target: OR 1=1 appended to the transaction_type CHECK
+const PERMISSIVE_TARGET_SCHEMA = TARGET_SCHEMA.replace(
+  "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'))",
+  "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused') OR 1=1)"
+);
+
+// Extra CHECK on source: add a table-level CHECK after the last constraint
+const EXTRA_CHECK_SOURCE_SCHEMA = OLD_SCHEMA.replace(
+  "  CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund'))\n);",
+  "  CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund')),\n  CHECK (amount_stroops < 1000)\n);"
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F4: F1 — permissive target CHECK is detected and refused
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused', () => {
+  it('COMPAT-F4-0: SQLite itself accepts NOT_A_REAL_KIND on permissive fixture (proves bypass)', () => {
+    const { dbPath, conn } = makeTempDb(PERMISSIVE_TARGET_SCHEMA);
+    try {
+      // Must not throw — the weakened constraint allows any transaction_type
+      expect(() => {
+        conn.exec(
+          `INSERT INTO reward_transactions ` +
+          `(id, source_account_type, destination_account_type, destination_bucket, actor_type, ` +
+          ` actor_user_id, transaction_type, amount_stroops, currency_code, previous_state, new_state, idempotency_key) ` +
+          `VALUES ('bad-1','external','funder','available','system',NULL,'NOT_A_REAL_KIND',1,'XLM','draft','funded','ik-f4-bad')`
+        );
+      }).not.toThrow();
+      // Canonical target would reject this:
+      const { dbPath: dbPath2, conn: conn2 } = makeTempDb(TARGET_SCHEMA);
+      try {
+        expect(() => {
+          conn2.exec(
+            `INSERT INTO reward_transactions ` +
+            `(id, source_account_type, destination_account_type, destination_bucket, actor_type, ` +
+            ` actor_user_id, transaction_type, amount_stroops, currency_code, previous_state, new_state, idempotency_key) ` +
+            `VALUES ('bad-2','external','funder','available','system',NULL,'NOT_A_REAL_KIND',1,'XLM','draft','funded','ik-f4-bad2')`
+          );
+        }).toThrow(/CHECK constraint failed/i);
+      } finally {
+        conn2.close();
+        cleanupTempDb(dbPath2);
+      }
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-1: detectSchemaVersion returns unknown for permissive target DDL (not target)', () => {
+    const { dbPath, conn } = makeTempDb(PERMISSIVE_TARGET_SCHEMA);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-2: planUpgrade throws for permissive target DDL (not alreadyAtTarget)', () => {
+    const { dbPath, conn } = makeTempDb(PERMISSIVE_TARGET_SCHEMA);
+    conn.close();
+    try {
+      expect(() => planUpgrade(dbPath)).toThrow(/unsupported|unknown/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-3: applyUpgrade throws for permissive target DDL; original DDL and no receipt', () => {
+    const { dbPath, conn } = makeTempDb(PERMISSIVE_TARGET_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.close();
+    let threw = false;
+    try { applyUpgrade(dbPath); } catch { threw = true; }
+    expect(threw).toBe(true);
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('unknown');
+      expect(verify.prepare('SELECT 1 FROM system_config WHERE key = ?').get(MIGRATION_ID)).toBeUndefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-4: validateDatabase (bootstrap preflight) refuses permissive target DDL', () => {
+    const { dbPath, conn } = makeTempDb(PERMISSIVE_TARGET_SCHEMA);
+    conn.close();
+    const inspection = new Database(dbPath, { readonly: true });
+    try {
+      expect(() => validateDatabase(inspection)).toThrow(/unrecogni|unknown|unsupported/i);
+    } finally {
+      inspection.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F4F2: F2 — additional source CHECK is detected and refused
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F4F2: F2 — additional source CHECK refuses before mutation', () => {
+  it('COMPAT-F4F2-1: detectSchemaVersion returns unknown for source DDL with extra CHECK (not source)', () => {
+    const { dbPath, conn } = makeTempDb(EXTRA_CHECK_SOURCE_SCHEMA);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4F2-2: planUpgrade throws for source DDL with extra CHECK', () => {
+    const { dbPath, conn } = makeTempDb(EXTRA_CHECK_SOURCE_SCHEMA);
+    conn.close();
+    try {
+      expect(() => planUpgrade(dbPath)).toThrow(/unsupported|unknown/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4F2-3: applyUpgrade throws for extra CHECK; original DDL and data preserved, no receipt', () => {
+    const { dbPath, conn } = makeTempDb(EXTRA_CHECK_SOURCE_SCHEMA);
+    seedMinimalFixtures(conn);
+    const rowsBefore = (conn.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
+    // Read original DDL before close
+    const origDdl = (conn.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'").get() as { sql: string }).sql;
+    conn.close();
+
+    let threw = false;
+    try { applyUpgrade(dbPath); } catch { threw = true; }
+    expect(threw).toBe(true);
+
+    const verify = new Database(dbPath);
+    try {
+      // Schema must be unchanged
+      expect(detectSchemaVersion(verify)).toBe('unknown');
+      const afterDdl = (verify.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'").get() as { sql: string }).sql;
+      expect(afterDdl).toBe(origDdl);
+      // Data preserved
+      expect((verify.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c).toBe(rowsBefore);
+      // No receipt
+      expect(verify.prepare('SELECT 1 FROM system_config WHERE key = ?').get(MIGRATION_ID)).toBeUndefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F4-MUTATIONS: complete-schema structural mutations return 'unknown'
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F4-MUTATIONS: structural schema mutations classified unknown', () => {
+  function sourceMutated(find: string, replace: string): string {
+    const result = OLD_SCHEMA.replace(find, replace);
+    if (result === OLD_SCHEMA) throw new Error(`Pattern not found: ${find}`);
+    return result;
+  }
+  function targetMutated(find: string, replace: string): string {
+    const result = TARGET_SCHEMA.replace(find, replace);
+    if (result === TARGET_SCHEMA) throw new Error(`Pattern not found: ${find}`);
+    return result;
+  }
+
+  const cases: Array<{ name: string; schema: string }> = [
+    {
+      name: 'source missing actor check',
+      schema: sourceMutated(
+        "  CHECK ((actor_type = 'system' AND actor_user_id IS NULL) OR (actor_type = 'user' AND actor_user_id IS NOT NULL)),\n",
+        ''
+      ),
+    },
+    {
+      name: 'source missing source-user compound check',
+      schema: sourceMutated(
+        "  CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire'))),\n",
+        ''
+      ),
+    },
+    {
+      name: 'source extra OR alternative in fund check',
+      schema: sourceMutated(
+        "OR (transaction_type != 'fund'))\n);",
+        "OR (transaction_type != 'fund') OR 1=1)\n);"
+      ),
+    },
+    {
+      name: 'source changed actor_type NOT NULL to nullable',
+      schema: sourceMutated(
+        "  actor_type               TEXT NOT NULL DEFAULT 'user' CHECK (actor_type IN ('user', 'system')),",
+        "  actor_type               TEXT DEFAULT 'user' CHECK (actor_type IN ('user', 'system')),"
+      ),
+    },
+    {
+      name: 'source changed amount_stroops DEFAULT added',
+      schema: sourceMutated(
+        "  amount_stroops           INTEGER NOT NULL CHECK (amount_stroops > 0),",
+        "  amount_stroops           INTEGER NOT NULL DEFAULT 0 CHECK (amount_stroops > 0),"
+      ),
+    },
+    {
+      name: 'source changed FK ON DELETE for reward_id',
+      schema: sourceMutated(
+        "  reward_id                TEXT REFERENCES rewards(id) ON DELETE RESTRICT,",
+        "  reward_id                TEXT REFERENCES rewards(id) ON DELETE CASCADE,"
+      ),
+    },
+    {
+      name: 'source added extra column',
+      schema: sourceMutated(
+        "  created_at               TEXT NOT NULL DEFAULT (datetime('now')),",
+        "  created_at               TEXT NOT NULL DEFAULT (datetime('now')),\n  extra_col                TEXT,"
+      ),
+    },
+    {
+      name: 'source column order changed (amount_stroops before transaction_type)',
+      schema: sourceMutated(
+        "  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),\n  amount_stroops           INTEGER NOT NULL CHECK (amount_stroops > 0),",
+        "  amount_stroops           INTEGER NOT NULL CHECK (amount_stroops > 0),\n  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),"
+      ),
+    },
+    {
+      name: 'target transaction_type wrong IN list (missing release_unused from one check only)',
+      schema: targetMutated(
+        "  CHECK ((transaction_type IN ('reserve', 'cancel', 'expire', 'release_unused') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire', 'release_unused'))),",
+        "  CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire'))),"
+      ),
+    },
+  ];
+
+  for (const { name, schema } of cases) {
+    it(`COMPAT-F4-MUTATIONS: '${name}' returns unknown`, () => {
+      let dbPath = '';
+      let conn: SqliteDatabase | null = null;
+      try {
+        const tmp = makeTempDb(schema);
+        dbPath = tmp.dbPath;
+        conn = tmp.conn;
+        expect(detectSchemaVersion(conn)).toBe('unknown');
+      } finally {
+        conn?.close();
+        if (dbPath) cleanupTempDb(dbPath);
+      }
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F4-TOKENS: comment/string literal tokenization
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F4-TOKENS: comment and string literal tokenization', () => {
+  it('COMPAT-F4-TOKENS-1: block comment containing realistic text does not affect classification', () => {
+    // Source DDL with a SQL comment containing target-like text — should still classify as source
+    const WITH_COMMENT = OLD_SCHEMA.replace(
+      "  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),",
+      "  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')), /* was: IN ('fund',...,'release_unused') */"
+    );
+    const { dbPath, conn } = makeTempDb(WITH_COMMENT);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('source');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-TOKENS-2: string literal containing comment chars does not strip literal content', () => {
+    // source_account_type CHECK contains string literals with no special chars, but
+    // we test that a -- inside a string literal does not truncate the following content
+    // Use a schema where a reason column DEFAULT contains '--' literally (edge case)
+    const WITH_COMMENT_IN_STRING = OLD_SCHEMA.replace(
+      "  reason                   TEXT,",
+      "  reason                   TEXT DEFAULT '--placeholder',"
+    );
+    const { dbPath, conn } = makeTempDb(WITH_COMMENT_IN_STRING);
+    try {
+      // The modification changes the schema — it should be 'unknown' (not source),
+      // since it has a DEFAULT that is not in the canonical source DDL
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F4-INDEX: index drift under supported names
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F4-INDEX: index drift under supported names refused', () => {
+  it('COMPAT-F4-INDEX-1: idx_reward_txn_reward on wrong column refused before mutation', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    // Replace the correct index with one on a different column
+    conn.exec('DROP INDEX idx_reward_txn_reward');
+    conn.exec('CREATE INDEX idx_reward_txn_reward ON reward_transactions(allocation_id)');
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath)).toThrow(/drifted|unexpected|definition/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-INDEX-2: idx_reward_txn_fund_ref_unique replaced with non-unique index refused', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.exec('DROP INDEX idx_reward_txn_fund_ref_unique');
+    conn.exec("CREATE INDEX idx_reward_txn_fund_ref_unique ON reward_transactions(funding_reference) WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'");
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath)).toThrow(/drifted|unexpected|definition/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-INDEX-3: idx_reward_txn_fund_ref_unique with altered predicate refused', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.exec('DROP INDEX idx_reward_txn_fund_ref_unique');
+    conn.exec("CREATE UNIQUE INDEX idx_reward_txn_fund_ref_unique ON reward_transactions(funding_reference) WHERE funding_reference IS NOT NULL");
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath)).toThrow(/drifted|unexpected|definition/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F4-REPO: actual repo fixture files produce correct classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F4-REPO: actual repository schema files classified correctly', () => {
+  it('COMPAT-F4-REPO-1: database from schema-v117-fixture.sql is classified source', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('source');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-REPO-2: database from current schema.sql is classified target', () => {
+    const { dbPath, conn } = makeTempDb(TARGET_SCHEMA);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('target');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-REPO-3: after successful migration from v117 fixture, detectSchemaVersion returns target', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.close();
+    const result = applyUpgrade(dbPath);
+    expect(result.success).toBe(true);
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('target');
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F4-REPO-4: planUpgrade on current schema.sql fixture reports alreadyAtTarget', () => {
+    const { dbPath, conn } = makeTempDb(TARGET_SCHEMA);
+    conn.close();
+    try {
+      const plan = planUpgrade(dbPath);
+      expect(plan.alreadyAtTarget).toBe(true);
+      expect(plan.wouldApply).toBe(false);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+});
