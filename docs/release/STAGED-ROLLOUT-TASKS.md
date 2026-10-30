@@ -306,6 +306,18 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: Opus APPROVED — 8/8 criteria PASS; LOW partial-swap detection gap addressed pre-merge
 - **Total tests**: 35 new, all pass; 2086 full suite, 0 regressions, TSC clean; 2051 prior suite unmodified
 
+### S2-T03-R3: Migration validation corrections — F1 comment bypass, F2 object inventory, F3 transaction boundary (W03-R3)
+- **Status**: MERGED — PR #120 squash-merged to main HEAD `fc59ec2` (2026-10-30)
+- **Dependencies**: S2-T03-R2 (W03-R2 PR #119) merged
+- **Owner**: AI (Claude Sonnet 4.6)
+- **Problem**: Three post-merge defects in W03-R2. F1: `detectSchemaVersion` uses `sql.includes("'release_unused'")` — a SQL comment anywhere in pre-W03-R2 DDL bypasses schema detection; same bypass in `databaseBootstrap.validateDatabase`. F2: `applyUpgrade` hardcodes 4 `CREATE INDEX` statements; operator-added indexes/triggers silently dropped without warning. F3: `PRAGMA foreign_key_check` ran after `migrate()` commit — pre-existing FK violations cause operation to report failure but database already has target schema + receipt written (irreversible partial state).
+- **Files modified**: `src/scripts/migrateRewardTxnCheck.ts` (normalizeDdl, SUPPORTED_INDEX_NAMES, inventoryDependencies, fixed detectSchemaVersion, planUpgrade, applyUpgrade), `src/config/databaseBootstrap.ts` (import detectSchemaVersion, replace F1-vulnerable substring check)
+- **Test file**: `src/__tests__/reward-txn-check-migration.test.ts` (20 new W03-R3 tests appended to existing 35; 55 total migration tests; 2103 full suite)
+- **Implementation**: `normalizeDdl()` strips `/* */` block and `--` line comments then collapses whitespace; `detectSchemaVersion()` requires both target multi-token patterns, or both source patterns + zero `'release_unused'` tokens in normalized DDL. `inventoryDependencies()` queries `sqlite_master` for non-autoindex indexes, triggers, and views; refuses with actionable diagnostic before any mutation. Pre-migration `foreign_key_check` + `integrity_check` + `inventoryDependencies` all execute before PRAGMAs. Post-reconstruction checks + receipt write moved inside `conn.transaction()` for atomic rollback on failure.
+- **CI**: PR run 41047876413 — 4/4 PASS; post-merge main run 41048706028 — 4/4 PASS; post-merge main HEAD `fc59ec2`
+- **Independent review**: Opus APPROVED — 3 LOW (normalizeDdl comment, legacy_alter_table OFF, error message wording), 1 MEDIUM (untested _new-only partial-swap) — all addressed pre-merge
+- **Total tests**: 20 new, all pass; 2103 full suite (1 pre-existing skip), 0 regressions, TSC clean; 35 W03-R2 tests unmodified
+
 ### S2-T04: Implement W04 — course completion eligibility scoping
 - **Status**: TODO
 - **Dependencies**: S1-T03 spec reviewed

@@ -302,7 +302,22 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run 41037935927 — 4/4 PASS; post-merge main HEAD `bc3e0df` |
 | Review | Independent Opus: APPROVED — 8/8 criteria PASS; LOW partial-swap detection gap addressed pre-merge |
 | Implementation | `src/scripts/migrateRewardTxnCheck.ts`: `--plan`/`--apply` offline migration, full table reconstruction in single transaction, `detectSchemaVersion()` fingerprint detection, partial-swap detection. `databaseBootstrap.ts`: `validateDatabase()` preflight refuses pre-W03-R2 schema. `package.json`: `db:migrate-reward-txn-check` script. |
-| Evidence status | **MERGED** — PR #119 merged `bc3e0df`; W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119) |
+| Evidence status | **MERGED** — PR #119 merged `bc3e0df`. Three post-merge defects (F1 comment bypass, F2 silent object loss, F3 post-commit validation) corrected by W03-R3 PR #120 — see entry below. |
+
+#### W03-R3: Migration validation corrections (F1/F2/F3)
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W03-R3 |
+| Problem | Three independently reproduced defects in W03-R2 migration (`migrateRewardTxnCheck.ts`, `databaseBootstrap.ts`) found after PR #119 merged at `bc3e0df`. **F1**: `detectSchemaVersion` used `sql.includes("'release_unused'")` — a SQL comment `/* 'release_unused' */` in an otherwise pre-W03-R2 DDL causes function to return `'target'`, marking an un-upgraded schema as already migrated. Same bypass present in `databaseBootstrap.validateDatabase`. **F2**: `applyUpgrade` hardcodes exactly 4 `CREATE INDEX` statements; any additional operator-added indexes or triggers on `reward_transactions` are silently dropped without warning. **F3**: `applyUpgrade` ran `PRAGMA foreign_key_check` **after** the `migrate()` commit; if pre-existing FK violations exist, operation reports failure but database already has `reward_transactions` at target schema + migration receipt written — an irreversible partial state. |
+| Spec | `docs/superpowers/specs/2026-10-30-W03-R3-migration-corrections.md` |
+| Branch | `codex/w03-r3-migration-corrections` at reviewed head |
+| PR | [#120](https://github.com/SM-Web-Systems/lms-crypto-production/pull/120) — merged `fc59ec2` (2026-10-30) |
+| Tests | 20 new (19 W03-R3 behavioral + 1 Opus MEDIUM _new-only partial-swap); 2103 total passed (1 pre-existing skip), 0 regressions, TSC clean |
+| CI | PR run 41047876413 — 4/4 PASS; post-merge CI run 41048706028 — 4/4 PASS; post-merge main HEAD `fc59ec2` |
+| Review | Independent Opus: APPROVED — 3 LOW (normalizeDdl comment, legacy_alter_table OFF, error message wording), 1 MEDIUM (untested _new-only partial-swap) — all addressed pre-merge |
+| Implementation | **F1 fix**: `normalizeDdl()` strips block/line comments and collapses whitespace before pattern matching; `detectSchemaVersion()` requires both target multi-token patterns (or both source patterns + zero `'release_unused'` tokens) rather than single substring. `databaseBootstrap.ts` imports `detectSchemaVersion` rather than reimplementing the check. **F2 fix**: `inventoryDependencies()` queries `sqlite_master` for non-autoindex indexes, triggers (by tbl_name), and views (by SQL LIKE); refuses with actionable diagnostic before any mutation if unknown objects found. **F3 fix**: Pre-migration `foreign_key_check` + `integrity_check` + `inventoryDependencies` all run before PRAGMAs; post-reconstruction checks AND receipt write moved inside `conn.transaction()` block so any failure auto-rolls back with no receipt written. |
+| Evidence status | **MERGED** — PR #120 merged `fc59ec2`; W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119 + W03-R3 PR #120) |
 
 #### W03 PR #119 receipt (W03-R2)
 
@@ -317,6 +332,20 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run 41037935927 — 4/4 PASS; post-merge main HEAD `bc3e0df` |
 | Review | Independent Opus: APPROVED (8/8 criteria PASS; LOW: partial-swap detection → addressed pre-merge) |
 | Main HEAD | `bc3e0df`
+
+#### W03 PR #120 receipt (W03-R3)
+
+| Field | Value |
+| --- | --- |
+| PR | [#120](https://github.com/SM-Web-Systems/lms-crypto-production/pull/120) (`fix(migration): W03-R3 — correct comment-bypass, dependency inventory, and transaction boundary`) |
+| Branch | `codex/w03-r3-migration-corrections` |
+| Reviewed head | reviewed head (pre-merge) |
+| Merge commit | `fc59ec2` |
+| Merged at | 2026-10-30 |
+| Tests | 20 new; 2103 total (1 pre-existing skip), 0 regressions, TSC clean |
+| CI | PR run 41047876413 — 4/4 PASS; post-merge main run 41048706028 — 4/4 PASS |
+| Review | Independent Opus: APPROVED (3 LOW, 1 MEDIUM — all addressed pre-merge) |
+| Main HEAD | `fc59ec2`
 
 ### W04: Premature and cross-course completion eligibility
 
@@ -814,6 +843,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-29 | — | S2/W02-R2C: PR #115 merged `5cc386f` (admin refund retry caller auth, 8 new tests, 1999 total). Fix: requirePermission('reward.refund_review') + pass actorId + reward.manage bypass on fresh refund path. RED tests confirmed failing on main; GREEN passing after fix. Independent Opus review APPROVED. Post-merge main CI SUCCESS (run 40895057757, 4/4). W02 FIXED — repair chain complete (#111, #112, #113, #114, #115). | W02-R2C session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R1: PR #118 merged `5b3c180` (reconcile unused reservation on below-cap completion, 19 new tests, 2051 total). New `release_unused` transaction type; reconciliation fires atomically at `released` transition; remaining reserved computed from per-reward ledger history; idempotency via UNIQUE constraint. All 26 W03 tests pass unmodified. Independent Opus APPROVED (HIGH: schema migration note in spec §9; MEDIUM: precondition comments applied pre-merge). CI run 41020058620 — 4/4 PASS. W03 + W03-R1 FIXED — stranded reservation path closed. | W03-R1 session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R2: PR #119 merged `bc3e0df` (existing-ledger CHECK constraint upgrade, 35 new tests, 2086 total). Offline migration script with plan/apply modes, full reconstruction in single transaction, fingerprint-based schema detection, partial-swap guard. `validateDatabase()` preflight refuses pre-W03-R2 databases. Independent Opus APPROVED (8/8 criteria PASS; LOW partial-swap gap addressed pre-merge). CI run 41037935927 — 4/4 PASS. W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119). Main HEAD `bc3e0df`. | W03-R2 session | UNIT_COMPLETE |
+| 2026-10-30 | — | S2/W03-R3: Three post-merge defects in W03-R2 independently reproduced and corrected. F1: `normalizeDdl()` comment-strip + exact multi-token pattern match replaces substring bypass. F2: `inventoryDependencies()` inventories non-autoindex indexes/triggers/views and refuses before mutation if unknown objects found. F3: pre-migration FK/integrity checks moved before PRAGMAs; post-reconstruction checks + receipt write moved inside `conn.transaction()` block for atomic rollback. PR #120 merged `fc59ec2`, 20 new tests (19 W03-R3 + 1 Opus MEDIUM _new-only), 2103 total, 0 regressions, TSC clean. Independent Opus APPROVED (3 LOW, 1 MEDIUM — all addressed pre-merge). PR CI run 41047876413 — 4/4 PASS; post-merge CI run 41048706028 — 4/4 PASS. W03 fully closed (PR #117 + #118 + #119 + #120). Main HEAD `fc59ec2`. | W03-R3 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
