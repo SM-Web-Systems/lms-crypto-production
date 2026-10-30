@@ -338,7 +338,7 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Files modified**: `src/scripts/migrateRewardTxnCheck.ts` (canonicalizeDdl pre-scan + post-loop regex removed; detectSchemaVersion suffix check + inline body extraction; extractTableBody docstring), `docs/superpowers/specs/2026-10-30-W03-R5-full-statement-validation.md`
 - **Test file**: `src/__tests__/reward-txn-check-migration.test.ts` (18 new W03-R5 tests: COMPAT-F5-STRICT 8, COMPAT-F5-LITERAL 5, COMPAT-F5-IFLITERAL 5; 98 total migration tests; 2148 full suite)
 - **Implementation**: F1: suffix check before body extraction in `detectSchemaVersion`; F2: pre-scan header mini-scanner strips IF NOT EXISTS before first `(` only.
-- **CI**: PR run 41080960636 — 4/4 PASS; post-merge main run 41082051339 — pending
+- **CI**: PR run 41080960636 — 4/4 PASS; post-merge main run 41082051339 — 4/4 PASS
 - **Independent review**: Opus APPROVED — CRITICAL none, HIGH none; 1 MEDIUM addressed (combined suffix test); LOW accepted
 - **Total tests**: 18 new, all pass; 2148 full suite, 0 regressions, TSC clean
 
