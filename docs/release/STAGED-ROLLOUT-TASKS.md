@@ -318,6 +318,18 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: Opus APPROVED — 3 LOW (normalizeDdl comment, legacy_alter_table OFF, error message wording), 1 MEDIUM (untested _new-only partial-swap) — all addressed pre-merge
 - **Total tests**: 20 new, all pass; 2103 full suite (1 pre-existing skip), 0 regressions, TSC clean; 35 W03-R2 tests unmodified
 
+### S2-T03-R4: Authoritative complete-schema validation — F1 permissive OR, F2 extra CHECK (W03-R4)
+- **Status**: PR OPEN — PR #121 pending CI
+- **Dependencies**: S2-T03-R3 (W03-R3 PR #120) merged at `fc59ec2`
+- **Owner**: AI (Claude Sonnet 4.6)
+- **Problem**: Two defects reproduced after W03-R3 merged. **F1**: `detectSchemaVersion` substring match accepted `CHECK (... OR 1=1)` appended to target DDL as `'target'` — constraint was permissive, migration no-oped leaving broken constraint. **F2**: Extra table-level `CHECK (amount_stroops < 1000)` in source DDL still matched source patterns; migration proceeded and silently dropped the extra CHECK.
+- **Files modified**: `src/scripts/migrateRewardTxnCheck.ts` (canonicalizeDdl, extractTableBody, CANONICAL_SOURCE_BODY, CANONICAL_TARGET_BODY, SUPPORTED_INDEX_CANONICAL, REWARD_TXN_COLUMNS, detectSchemaVersion, inventoryDependencies, applyUpgrade)
+- **Test file**: `src/__tests__/reward-txn-check-migration.test.ts` (26 new W03-R4 tests; 80 total migration tests; 2130/2131 full suite)
+- **Implementation**: `canonicalizeDdl()` token-aware comment stripping with `pendingSpace`-before-`)` suppression; `extractTableBody()` body extraction between first/last parens. Exact `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` comparison replaces substring patterns. `SUPPORTED_INDEX_CANONICAL` map verifies full index DDL, not just names. Explicit 23-column `INSERT INTO ... SELECT` list.
+- **CI**: PR run 41071872186 — pending
+- **Independent review**: Sonnet APPROVED — 5 LOW, 0 CRITICAL/HIGH/MEDIUM
+- **Total tests**: 26 new, all pass; 2130/2131 full suite (1 pre-existing), TSC clean
+
 ### S2-T04: Implement W04 — course completion eligibility scoping
 - **Status**: TODO
 - **Dependencies**: S1-T03 spec reviewed

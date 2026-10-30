@@ -317,7 +317,22 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run 41047876413 — 4/4 PASS; post-merge CI run 41048706028 — 4/4 PASS; post-merge main HEAD `fc59ec2` |
 | Review | Independent Opus: APPROVED — 3 LOW (normalizeDdl comment, legacy_alter_table OFF, error message wording), 1 MEDIUM (untested _new-only partial-swap) — all addressed pre-merge |
 | Implementation | **F1 fix**: `normalizeDdl()` strips block/line comments and collapses whitespace before pattern matching; `detectSchemaVersion()` requires both target multi-token patterns (or both source patterns + zero `'release_unused'` tokens) rather than single substring. `databaseBootstrap.ts` imports `detectSchemaVersion` rather than reimplementing the check. **F2 fix**: `inventoryDependencies()` queries `sqlite_master` for non-autoindex indexes, triggers (by tbl_name), and views (by SQL LIKE); refuses with actionable diagnostic before any mutation if unknown objects found. **F3 fix**: Pre-migration `foreign_key_check` + `integrity_check` + `inventoryDependencies` all run before PRAGMAs; post-reconstruction checks AND receipt write moved inside `conn.transaction()` block so any failure auto-rolls back with no receipt written. |
-| Evidence status | **MERGED** — PR #120 merged `fc59ec2`; W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119 + W03-R3 PR #120) |
+| Evidence status | **MERGED** — PR #120 merged `fc59ec2`. Two further defects reproduced post-merge (F1 permissive-OR accepted as target, F2 extra source CHECK silently removed) — corrected by W03-R4 PR #121, see entry below. |
+
+#### W03-R4: Authoritative complete-schema validation (F1 permissive OR, F2 extra CHECK)
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W03-R4 |
+| Problem | Two defects reproduced after W03-R3 merged at `fc59ec2`. **F1**: `detectSchemaVersion` substring match accepted `CHECK (... OR 1=1)` appended to target DDL as `'target'`; constraint was permissive (SQLite accepted any `transaction_type` value); migration no-oped leaving DB with broken constraint. **F2**: Source DDL with extra `CHECK (amount_stroops < 1000)` still matched source patterns; migration proceeded and silently dropped the extra CHECK. |
+| Spec | `docs/superpowers/specs/2026-10-30-W03-R4-authoritative-schema-validation.md` |
+| Branch | `codex/w03-r4-authoritative-schema-validation` at `9c77ea5` |
+| PR | [#121](https://github.com/SM-Web-Systems/lms-crypto-production/pull/121) — pending CI |
+| Tests | 26 new (COMPAT-F4 group: F1/F2 chain, 9 structural mutations, tokenization, index drift, repo fixture); 80 migration tests total; 2130/2131 full suite (1 pre-existing dependency-security), TSC clean |
+| CI | PR run 41071872186 — pending |
+| Review | Independent Sonnet: APPROVED — 5 LOW (IF NOT EXISTS in string literal latent, missing unit tests for string-literal `--` protection and unterminated block comment, multiline index implicit coverage, receipt value cosmetic), 0 CRITICAL/HIGH/MEDIUM |
+| Implementation | **F1/F2 fix**: `canonicalizeDdl()` token-aware comment stripping (preserves string literals and double-quoted identifiers verbatim; suppresses pending space before `)` so comment-removed DDL round-trips to canonical form); `extractTableBody()` extracts column/constraint body between first `(` and last `)` — table-name-agnostic, handles `"reward_transactions"` quoting after ALTER TABLE RENAME. `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` pre-computed at module load. `detectSchemaVersion()` uses exact body comparison — any deviation (OR 1=1, extra CHECK, column reorder, nullability drift, FK drift) returns `'unknown'`. `inventoryDependencies()` extended to full index DDL comparison via `SUPPORTED_INDEX_CANONICAL` map; wrong column/uniqueness/predicate triggers pre-mutation refusal. `INSERT INTO ... SELECT` replaced with explicit 23-column list. |
+| Evidence status | **PR OPEN** — awaiting CI and merge |
 
 #### W03 PR #119 receipt (W03-R2)
 
@@ -346,6 +361,20 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | CI | PR run 41047876413 — 4/4 PASS; post-merge main run 41048706028 — 4/4 PASS |
 | Review | Independent Opus: APPROVED (3 LOW, 1 MEDIUM — all addressed pre-merge) |
 | Main HEAD | `fc59ec2`
+
+#### W03 PR #121 receipt (W03-R4)
+
+| Field | Value |
+| --- | --- |
+| PR | [#121](https://github.com/SM-Web-Systems/lms-crypto-production/pull/121) (`fix(W03-R4): authoritative complete-schema validation for reward_transactions migration`) |
+| Branch | `codex/w03-r4-authoritative-schema-validation` |
+| Reviewed head | `9c77ea5` |
+| Merge commit | pending |
+| Merged at | pending |
+| Tests | 26 new; 2130/2131 (1 pre-existing dependency-security), TSC clean |
+| CI | PR run 41071872186 — pending |
+| Review | Independent Sonnet: APPROVED (5 LOW, 0 CRITICAL/HIGH/MEDIUM) |
+| Main HEAD | pending
 
 ### W04: Premature and cross-course completion eligibility
 
