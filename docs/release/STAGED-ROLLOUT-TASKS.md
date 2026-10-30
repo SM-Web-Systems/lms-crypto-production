@@ -282,6 +282,18 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: Opus APPROVED (confirmed D1/D2/D3 all addressed, null-cap consistent, atomicity sound)
 - **Total tests**: 26 new, all pass; full suite regression-clean (pre-existing proxyaddr IPv6 failure on main unrelated)
 
+### S2-T03-R1: Reconcile unused reservation on below-cap completion (W03-R1)
+- **Status**: MERGED — PR #118 squash-merged to main HEAD `5b3c180` (2026-10-30)
+- **Dependencies**: S2-T03 (W03 PR #117) merged
+- **Owner**: AI (Claude Sonnet 4.6)
+- **Problem**: After W03, `activateReward` creates `audience.length` allocations; funding reserved `amount * cap`. After full release, `(cap - audience) * amount` stroops permanently stranded in `funder.reserved` — no code path to return them.
+- **Files modified**: `rewardTypes.ts`, `src/config/database.ts`, `database/schema.sql`, `rewardLedger.ts`, `rewardService.ts`
+- **Test file**: `src/__tests__/reward-reservation-reconciliation.test.ts` (19 tests)
+- **Implementation**: New `release_unused` transaction type (funder.reserved → funder.available). `reconcileUnusedReservation()` fires atomically in `updateRewardAggregateStatus` on `released` transition. Remaining reserved = `SUM(reserve) - SUM(release+cancel+expire+release_unused)` per reward_id. Idempotency key `release-unused-{rewardId}` with UNIQUE constraint. Cancel/expire unchanged.
+- **CI**: PR run 41020058620 — 4/4 PASS; post-merge main run → `5b3c180`
+- **Independent review**: Opus APPROVED (HIGH: schema migration documented in spec §9; MEDIUM: precondition comments applied pre-merge)
+- **Total tests**: 19 new, all pass; 2051 full suite, 0 regressions, TSC clean; 26 W03 tests unmodified
+
 ### S2-T04: Implement W04 — course completion eligibility scoping
 - **Status**: TODO
 - **Dependencies**: S1-T03 spec reviewed

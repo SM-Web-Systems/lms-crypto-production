@@ -258,6 +258,37 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Review | Independent Opus: APPROVED WITH FINDINGS (all resolved) |
 | Main HEAD | `655e11c`
 
+#### W03-R1: Reconcile unused reservation on below-cap completion
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W03-R1 |
+| Problem | After W03 (#117), `activateReward` creates only `audience.length` allocations. Funding reserved `amount * cap` stroops. Releasing all allocations returns only `audience * amount` to funder — `(cap - audience) * amount` permanently stranded in `funder.reserved`. `processExpiredRewards` skips `released` rewards (returns `{processed:0}`) — no reconciliation path. |
+| Spec | `docs/superpowers/specs/2026-10-30-W03-R1-reservation-reconciliation.md` |
+| Branch | `codex/w03-r1-reservation-reconciliation` at `fa18f2d` |
+| PR | [#118](https://github.com/SM-Web-Systems/lms-crypto-production/pull/118) — merged `5b3c180` (2026-10-30) |
+| Tests | 19 new (reward-reservation-reconciliation.test.ts); 2051 total passed, 0 regressions, TSC clean |
+| CI | PR run 41020058620 — 4/4 PASS (Backend 5m12s, Frontend 1m7s, Offline 1m12s, E2E 1m11s); post-merge main `5b3c180` |
+| Review | Independent Opus: APPROVED — 1 HIGH (schema migration for existing prod DBs — documented in spec §9 Limitations), 1 MEDIUM (cancel/expire precondition comments — addressed in commit `fa18f2d` before merge) |
+| Implementation | New `release_unused` transaction type: funder.reserved → funder.available. `updateRewardAggregateStatus` atomically calls `reconcileUnusedReservation()` on `released` transition. Remaining reserved computed from per-reward ledger history: `SUM(reserve) - SUM(release+cancel+expire+release_unused)`. Idempotency key `release-unused-{rewardId}` with UNIQUE constraint. Cancel/expire formulas unchanged (unreachable from `released`). |
+| Files | `rewardTypes.ts` (add `release_unused`), `database.ts` + `schema.sql` (CHECK constraint), `rewardLedger.ts` (handle case), `rewardService.ts` (reconciliation logic), new test file, new spec |
+| All W03 tests | 26 W03 tests (#117) pass unmodified |
+| Evidence status | **MERGED** — PR #118 merged `5b3c180`; W03 + W03-R1 fully closed |
+
+#### W03 PR #118 receipt (W03-R1)
+
+| Field | Value |
+| --- | --- |
+| PR | [#118](https://github.com/SM-Web-Systems/lms-crypto-production/pull/118) |
+| Branch | `codex/w03-r1-reservation-reconciliation` |
+| Reviewed head | `fa18f2d` |
+| Merge commit | `5b3c180` |
+| Merged at | 2026-10-30 |
+| Tests | 19 new; 2051 total, 0 regressions, TSC clean |
+| CI | PR run 41020058620 — 4/4 PASS; post-merge main HEAD `5b3c180` |
+| Review | Independent Opus: APPROVED (HIGH: schema migration note → spec §9; MEDIUM: precondition comments → applied pre-merge) |
+| Main HEAD | `5b3c180`
+
 ### W04: Premature and cross-course completion eligibility
 
 | Field | Value |
@@ -752,6 +783,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-29 | — | S2/W02-R1C: PR #113 merged `88db657a` (intent/access-order C1+C2, 16 tests, 1953 total). C1: createReward binds amount/type/currency; fundReward binds source+reference. C2: all fast-return paths authorize before revealing binding. Genuine-retry tests corrected (R1-F1-1c, R1-HTTP-1, W02-G-7). Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40861303452, 4/4). W02-R2 remains pending. | W02-R1C session | MERGED |
 | 2026-10-29 | — | S2/W02-R2: PR #114 merged `1229bd97` (nested parent binding + real HTTP tests, 37 new tests, 1990 total). F2: releaseAllocation/refundAllocation take requestedRewardId; replay fails closed; 7 callers updated. F3: W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 MODULE_NOT_FOUND fixed. Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40870444455, 4/4). CHANGES_REQUIRED per SERVER-HANDOVER-W02-R2-PR114-REVIEW.md — admin retry caller auth (P1) remaining. | W02-R2 session | CHANGES_REQUIRED |
 | 2026-10-29 | — | S2/W02-R2C: PR #115 merged `5cc386f` (admin refund retry caller auth, 8 new tests, 1999 total). Fix: requirePermission('reward.refund_review') + pass actorId + reward.manage bypass on fresh refund path. RED tests confirmed failing on main; GREEN passing after fix. Independent Opus review APPROVED. Post-merge main CI SUCCESS (run 40895057757, 4/4). W02 FIXED — repair chain complete (#111, #112, #113, #114, #115). | W02-R2C session | UNIT_COMPLETE |
+| 2026-10-30 | — | S2/W03-R1: PR #118 merged `5b3c180` (reconcile unused reservation on below-cap completion, 19 new tests, 2051 total). New `release_unused` transaction type; reconciliation fires atomically at `released` transition; remaining reserved computed from per-reward ledger history; idempotency via UNIQUE constraint. All 26 W03 tests pass unmodified. Independent Opus APPROVED (HIGH: schema migration note in spec §9; MEDIUM: precondition comments applied pre-merge). CI run 41020058620 — 4/4 PASS. W03 + W03-R1 FIXED — stranded reservation path closed. | W03-R1 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
