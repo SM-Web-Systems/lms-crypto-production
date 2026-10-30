@@ -9,7 +9,7 @@ Recommended first stage: **S1** (inventory, specification and independent depend
 
 | Component | Ref | SHA | Notes |
 | --- | --- | --- | --- |
-| LMS main | `origin/main` | `5cc386f594f87fd068a42fc3390523c3f7c925e1` | Last merged: PR #115 (W02-R2C admin retry caller auth); prior: #114 (W02-R2 nested parent binding), #113 (W02-R1C), #112 (W02-R1), #111 (W02), #110 (W01-R3D), #109 (R3C), #108 (R3), #107 (R2), #106 (C1), #105 (R1), #104, #90, #86 |
+| LMS main | `origin/main` | `e306cf9b54ecf5acf0d4ed0825abcea57a1d724b` | Last merged: PR #116 (W02-R2C closure follow-up — F1 error contract + F2 visibility policy); prior: #115 (W02-R2C admin retry caller auth), #114 (W02-R2 nested parent binding), #113 (W02-R1C), #112 (W02-R1), #111 (W02), #110 (W01-R3D), #109 (R3C), #108 (R3), #107 (R2), #106 (C1), #105 (R1), #104, #90, #86 |
 | RBAC candidate | `codex/rbac-schema-retirement` (PR #101 head) | `b8015e27eae1` | Stacked: #98→#99→#100→#101 on main |
 | Platform audit | `codex/platform-wiring-audit` (PR #102 head) | `718985fb9f39` | Documentation only; stacked on #101 |
 | Database follow-up | `codex/database-integrity-followup` (PR #93) | `70cc27ec5c3d` | Independent of RBAC chain |
