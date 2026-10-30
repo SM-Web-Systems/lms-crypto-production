@@ -81,16 +81,18 @@ export function getNextStates(
  * Derive the aggregate reward status from its allocation states.
  * Used to determine if reward should move to released/partially_released/refunded etc.
  */
+// W03: maxRecipients parameter removed — after activation the allocation count is final.
+// Using maxRecipients as denominator caused below-cap activations (members < cap) to
+// strand funds in 'partially_released' forever. allocations.length is always correct.
 export function deriveAggregateStatus(
-  allocations: Array<{ status: AllocationState }>,
-  maxRecipients?: number | null
+  allocations: Array<{ status: AllocationState }>
 ): RewardState | null {
   if (allocations.length === 0) return null;
 
   const released = allocations.filter(a => a.status === 'released').length;
   const refunded = allocations.filter(a => a.status === 'refunded').length;
   const terminal = allocations.filter(a => ['released', 'cancelled', 'refunded'].includes(a.status)).length;
-  const total = maxRecipients ?? allocations.length;
+  const total = allocations.length;
 
   // All released allocations have been refunded
   if (released === 0 && refunded > 0) return 'refunded';

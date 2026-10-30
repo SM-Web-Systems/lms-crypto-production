@@ -6,7 +6,7 @@ import { getOrCreateAccount, getAccount } from './rewardBalanceService.js';
 import { writeLedgerEntry } from './rewardLedger.js';
 import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
-import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
+import { parseStroops, calculateMaxExposure, validateCurrency, MAX_RECIPIENTS } from './currencyConfig.js';
 import {
   verifyFundingSourceSync,
   verifyFundingSourceAsync,
@@ -63,7 +63,17 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
   validateCurrency(currency);
 
   const amount = parseStroops(params.amountStroops);
-  if (params.maxRecipients != null && params.maxRecipients > 0) {
+  // W03: Validate max_recipients at creation boundary.
+  // null/undefined is allowed (deferred cap; funding uses ?? 1 fallback).
+  // 0, negative, fractional, non-numeric, and > MAX_RECIPIENTS are rejected.
+  if (params.maxRecipients !== undefined && params.maxRecipients !== null) {
+    if (!Number.isInteger(params.maxRecipients) || params.maxRecipients <= 0 || params.maxRecipients > MAX_RECIPIENTS) {
+      throw new RewardError(
+        'INVALID_RECIPIENT_COUNT',
+        `max_recipients must be a positive integer no greater than ${MAX_RECIPIENTS}`,
+        400,
+      );
+    }
     calculateMaxExposure(amount, BigInt(params.maxRecipients));
   }
 
@@ -502,6 +512,19 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
 
     if (members.length === 0) {
       throw new RewardError('NO_AUDIENCE', 'No audience members found for this scope', 400);
+    }
+
+    // W03: Enforce allocation cap against funded capacity.
+    // effectiveCap = max_recipients ?? 1 mirrors the funding formula in fundReward/fundRewardVerified.
+    // A null cap reserves for 1 recipient; activating against a larger audience would
+    // create monetary obligations exceeding the reservation.
+    const effectiveCap = reward.max_recipients ?? 1;
+    if (members.length > effectiveCap) {
+      throw new RewardError(
+        'AUDIENCE_EXCEEDS_CAP',
+        `Audience has ${members.length} members but effective cap is ${effectiveCap}`,
+        400,
+      );
     }
 
     createAudienceSnapshot(rewardId, members);
@@ -1067,7 +1090,7 @@ function updateRewardAggregateStatus(rewardId: string): void {
   const reward = getRewardRow(rewardId);
   if (!reward) return;
 
-  const aggregateStatus = deriveAggregateStatus(allocations, reward.max_recipients);
+  const aggregateStatus = deriveAggregateStatus(allocations);
   if (aggregateStatus) {
     const currentStatus = reward.status as RewardState;
     try {
