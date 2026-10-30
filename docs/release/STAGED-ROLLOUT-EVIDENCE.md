@@ -327,12 +327,12 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Problem | Two defects reproduced after W03-R3 merged at `fc59ec2`. **F1**: `detectSchemaVersion` substring match accepted `CHECK (... OR 1=1)` appended to target DDL as `'target'`; constraint was permissive (SQLite accepted any `transaction_type` value); migration no-oped leaving DB with broken constraint. **F2**: Source DDL with extra `CHECK (amount_stroops < 1000)` still matched source patterns; migration proceeded and silently dropped the extra CHECK. |
 | Spec | `docs/superpowers/specs/2026-10-30-W03-R4-authoritative-schema-validation.md` |
 | Branch | `codex/w03-r4-authoritative-schema-validation` at `9c77ea5` |
-| PR | [#121](https://github.com/SM-Web-Systems/lms-crypto-production/pull/121) — pending CI |
+| PR | [#121](https://github.com/SM-Web-Systems/lms-crypto-production/pull/121) — merged `2f1c951` (2026-10-30) |
 | Tests | 26 new (COMPAT-F4 group: F1/F2 chain, 9 structural mutations, tokenization, index drift, repo fixture); 80 migration tests total; 2130/2131 full suite (1 pre-existing dependency-security), TSC clean |
-| CI | PR run 41071872186 — pending |
+| CI | PR run 41071872186 — 4/4 PASS; post-merge main run 41073011635 — 4/4 PASS |
 | Review | Independent Sonnet: APPROVED — 5 LOW (IF NOT EXISTS in string literal latent, missing unit tests for string-literal `--` protection and unterminated block comment, multiline index implicit coverage, receipt value cosmetic), 0 CRITICAL/HIGH/MEDIUM |
 | Implementation | **F1/F2 fix**: `canonicalizeDdl()` token-aware comment stripping (preserves string literals and double-quoted identifiers verbatim; suppresses pending space before `)` so comment-removed DDL round-trips to canonical form); `extractTableBody()` extracts column/constraint body between first `(` and last `)` — table-name-agnostic, handles `"reward_transactions"` quoting after ALTER TABLE RENAME. `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` pre-computed at module load. `detectSchemaVersion()` uses exact body comparison — any deviation (OR 1=1, extra CHECK, column reorder, nullability drift, FK drift) returns `'unknown'`. `inventoryDependencies()` extended to full index DDL comparison via `SUPPORTED_INDEX_CANONICAL` map; wrong column/uniqueness/predicate triggers pre-mutation refusal. `INSERT INTO ... SELECT` replaced with explicit 23-column list. |
-| Evidence status | **PR OPEN** — awaiting CI and merge |
+| Evidence status | **MERGED** — PR #121 merged `2f1c951`; W03 fully closed (#117 + W03-R1 #118 + W03-R2 #119 + W03-R3 #120 + W03-R4 #121) |
 
 #### W03 PR #119 receipt (W03-R2)
 
@@ -369,12 +369,12 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | PR | [#121](https://github.com/SM-Web-Systems/lms-crypto-production/pull/121) (`fix(W03-R4): authoritative complete-schema validation for reward_transactions migration`) |
 | Branch | `codex/w03-r4-authoritative-schema-validation` |
 | Reviewed head | `9c77ea5` |
-| Merge commit | pending |
-| Merged at | pending |
+| Merge commit | `2f1c951` |
+| Merged at | 2026-10-30 |
 | Tests | 26 new; 2130/2131 (1 pre-existing dependency-security), TSC clean |
-| CI | PR run 41071872186 — pending |
+| CI | PR run 41071872186 — 4/4 PASS; post-merge main run 41073011635 — 4/4 PASS |
 | Review | Independent Sonnet: APPROVED (5 LOW, 0 CRITICAL/HIGH/MEDIUM) |
-| Main HEAD | pending
+| Main HEAD | `2f1c951`
 
 ### W04: Premature and cross-course completion eligibility
 
