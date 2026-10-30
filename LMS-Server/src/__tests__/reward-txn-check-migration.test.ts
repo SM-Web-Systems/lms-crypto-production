@@ -2,9 +2,11 @@
  * reward-txn-check-migration.test.ts
  *
  * W03-R2 — Behavioral tests for the reward_transactions CHECK constraint upgrade.
+ * W03-R3 — Regression tests for migration correction (F1/F2/F3).
  *
  * Baseline: 5b3c180 (W03-R1 unused reservation reconciliation, PR #118)
- * Branch:   codex/w03-r2-ledger-check-upgrade
+ * W03-R3 base: bc3e0df (W03-R2 merged, PR #119)
+ * Branch:   codex/w03-r3-migration-corrections
  *
  * These tests work with file-backed SQLite databases to exercise the real migration
  * lifecycle (startup, plan, apply, rollback, backup/restore). Each test that needs a
@@ -13,7 +15,7 @@
  * Tests that need the in-memory singleton (COMPAT-REGRESSION, COMPAT-E2E-LIFECYCLE)
  * import './setup.js' and use the normal _resetForTests path.
  *
- * Requirement-to-test map:
+ * W03-R2 requirement-to-test map:
  *  COMPAT-REPRO          — Req 1: #117-schema + services → CHECK failure
  *  COMPAT-PLAN           — Req 2: plan mode is read-only; refusal behaviours
  *  COMPAT-APPLY-PRESERVE — Req 3: apply preserves all rows and unrelated records
@@ -26,6 +28,12 @@
  *  COMPAT-REGRESSION     — Req 10: existing 26+19 tests still pass (in-memory)
  *  COMPAT-PREFLIGHT      — Req 11: databaseBootstrap rejects old; accepts target
  *  COMPAT-RESTORE-PATH   — Req 12: restore path rehearsed; no financial row deletion
+ *
+ * W03-R3 requirement-to-test map:
+ *  COMPAT-F1             — F1: comment-bypass classification; fake receipts; preflight
+ *  COMPAT-F2             — F2: extra index/trigger/view → refusal before mutation
+ *  COMPAT-F3             — F3: pre-existing FK violation refused before commit
+ *  COMPAT-PARTIAL-SWAP-EXT — Partial-swap extended: both tables / stale artifact
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -1101,6 +1109,423 @@ describe('COMPAT-RESTORE-PATH: rollback path constraints', () => {
       expect(row).toBeDefined();
       expect(row!['transaction_type']).toBe('cancel');
       expect(row!['amount_stroops']).toBe(100);
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// W03-R3: COMPAT-F1 — False target classification (comment bypass)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('COMPAT-F1: comment-bypass classification correction', () => {
+  // F1 attack: inject /* 'release_unused' */ as a SQL comment in the old schema's
+  // transaction_type CHECK. The raw DDL contains the token but the constraint is
+  // unchanged. SQLite preserves comments verbatim in sqlite_master.sql.
+  const OLD_SCHEMA_WITH_COMMENT = OLD_SCHEMA.replace(
+    "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire'))",
+    "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire') /* 'release_unused' */)"
+  );
+
+  it('COMPAT-F1-1: comment containing release_unused → detectSchemaVersion returns source (not target)', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA_WITH_COMMENT);
+    try {
+      const stored = conn.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'"
+      ).get() as { sql: string };
+      // Confirm SQLite preserved the comment (F1 precondition)
+      expect(stored.sql).toContain("'release_unused'");
+      // F1 fix: must return 'source' not 'target'
+      expect(detectSchemaVersion(conn)).toBe('source');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F1-2: comment bypass → planUpgrade reports wouldApply:true (does not skip upgrade)', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA_WITH_COMMENT);
+    conn.close();
+    const report = planUpgrade(dbPath);
+    expect(report.wouldApply).toBe(true);
+    expect(report.alreadyAtTarget).toBe(false);
+    expect(report.schemaVersion).toBe('source');
+    cleanupTempDb(dbPath);
+  });
+
+  it('COMPAT-F1-3: comment bypass → applyUpgrade actually migrates (not a no-op)', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA_WITH_COMMENT);
+    conn.close();
+    const result = applyUpgrade(dbPath);
+    expect(result.alreadyAtTarget).toBe(false);
+    expect(result.success).toBe(true);
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('target');
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F1-4: target txn_type CHECK but old compound check → unknown (not target or source)', () => {
+    // DDL has release_unused in transaction_type CHECK but not in compound check
+    const halfTargetSchema = OLD_SCHEMA.replace(
+      "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire'))",
+      "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'))"
+    );
+    const { dbPath, conn } = makeTempDb(halfTargetSchema);
+    expect(detectSchemaVersion(conn)).toBe('unknown');
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow(/unsupported|unknown/i);
+
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('unknown');
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F1-5: permissive OR branch in compound check → unknown (not certified as target)', () => {
+    const permissiveSchema = OLD_SCHEMA.replace(
+      "CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire')))",
+      "CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire')) OR transaction_type = 'release_unused')"
+    );
+    const { dbPath, conn } = makeTempDb(permissiveSchema);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F1-6: fake system_config migration receipt → planUpgrade still reports wouldApply:true', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.prepare(
+      "INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by) VALUES (?, datetime('now'), datetime('now'), NULL)"
+    ).run(MIGRATION_ID);
+    conn.close();
+    const report = planUpgrade(dbPath);
+    expect(report.wouldApply).toBe(true);
+    expect(report.schemaVersion).toBe('source');
+    cleanupTempDb(dbPath);
+  });
+
+  it('COMPAT-F1-7: comment bypass → validateDatabase throws (preflight not fooled by comment)', () => {
+    const { conn } = makeTempDb(OLD_SCHEMA_WITH_COMMENT);
+    let threw = false;
+    try {
+      validateDatabase(conn);
+    } catch {
+      threw = true;
+    } finally {
+      conn.close();
+    }
+    expect(threw).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// W03-R3: COMPAT-F2 — Silent schema-object loss (dependency inventory)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('COMPAT-F2: dependency inventory and refusal for unsupported objects', () => {
+  it('COMPAT-F2-1: extra index on reward_transactions → planUpgrade throws with actionable message', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.exec('CREATE INDEX idx_test_extra_amount ON reward_transactions(amount_stroops)');
+    conn.close();
+    expect(() => planUpgrade(dbPath)).toThrow(/unsupported|unexpected|idx_test_extra_amount/i);
+    cleanupTempDb(dbPath);
+  });
+
+  it('COMPAT-F2-2: extra index → applyUpgrade throws; schema, extra index and data unchanged', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    const fixtures = seedMinimalFixtures(conn);
+    const rewardId = uuidv4();
+    conn.prepare(
+      `INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type,
+        amount_stroops, status, idempotency_key)
+       VALUES (?, ?, 'sponsor_cohort', ?, 'individual', 100, 'active', ?)`
+    ).run(rewardId, fixtures.sponsorId, fixtures.cohortId, uuidv4());
+    conn.exec('CREATE INDEX idx_test_extra_amount ON reward_transactions(amount_stroops)');
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow(/unsupported|unexpected|idx_test_extra_amount/i);
+
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('source');
+      const idx = verify.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_test_extra_amount'"
+      ).get();
+      expect(idx).toBeDefined(); // extra index still present
+      expect(verify.prepare('SELECT 1 FROM system_config WHERE key = ?').get(MIGRATION_ID)).toBeUndefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F2-3: extra trigger → applyUpgrade throws; trigger and source schema unchanged', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.exec(
+      `CREATE TRIGGER trg_test_guard BEFORE DELETE ON reward_transactions BEGIN SELECT RAISE(ABORT, 'synthetic guard'); END`
+    );
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow(/unsupported|unexpected|trg_test_guard/i);
+
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('source');
+      expect(verify.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='trg_test_guard'"
+      ).get()).toBeDefined();
+      expect(verify.prepare('SELECT 1 FROM system_config WHERE key = ?').get(MIGRATION_ID)).toBeUndefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F2-4: dependent view on reward_transactions → applyUpgrade throws before mutation', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.exec(
+      `CREATE VIEW reward_txn_summary AS SELECT reward_id, COUNT(*) as c FROM reward_transactions GROUP BY reward_id`
+    );
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow(/unsupported|unexpected|view|reward_txn_summary/i);
+
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('source');
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F2-5: known-only objects (4 standard indexes, no triggers/views) → applyUpgrade succeeds', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.close();
+    const result = applyUpgrade(dbPath);
+    expect(result.success).toBe(true);
+    expect(result.alreadyAtTarget).toBe(false);
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('target');
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F2-6: after successful apply, all 4 known indexes present and fund_ref UNIQUE enforced', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.close();
+    applyUpgrade(dbPath);
+
+    const verify = new Database(dbPath);
+    verify.pragma('foreign_keys = ON');
+    try {
+      for (const name of [
+        'idx_reward_txn_reward',
+        'idx_reward_txn_allocation',
+        'idx_reward_txn_idem',
+        'idx_reward_txn_fund_ref_unique',
+      ]) {
+        expect(verify.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(name)).toBeDefined();
+      }
+      // Behavioral proof: idx_reward_txn_fund_ref_unique still enforces uniqueness
+      const adminId = (verify.prepare('SELECT id FROM users LIMIT 1').get() as { id: string }).id;
+      const cohortId = (verify.prepare('SELECT id FROM sponsor_cohorts LIMIT 1').get() as { id: string }).id;
+      const rewardId = uuidv4();
+      verify.prepare(
+        `INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type,
+          amount_stroops, status, idempotency_key) VALUES (?, ?, 'sponsor_cohort', ?, 'individual', 100, 'draft', ?)`
+      ).run(rewardId, adminId, cohortId, uuidv4());
+
+      const ref = `stellar-${uuidv4()}`;
+      verify.prepare(`
+        INSERT INTO reward_transactions (id, reward_id, source_account_type, source_bucket,
+          destination_account_type, destination_bucket, destination_user_id,
+          actor_type, actor_user_id, transaction_type, amount_stroops,
+          previous_state, new_state, funding_source_type, funding_reference, idempotency_key)
+        VALUES (?, ?, 'external', NULL, 'funder', 'available', ?, 'user', ?, 'fund', 100,
+                'draft', 'funded', 'stellar', ?, ?)
+      `).run(uuidv4(), rewardId, adminId, adminId, ref, uuidv4());
+
+      expect(() => {
+        verify.prepare(`
+          INSERT INTO reward_transactions (id, reward_id, source_account_type, source_bucket,
+            destination_account_type, destination_bucket, destination_user_id,
+            actor_type, actor_user_id, transaction_type, amount_stroops,
+            previous_state, new_state, funding_source_type, funding_reference, idempotency_key)
+          VALUES (?, ?, 'external', NULL, 'funder', 'available', ?, 'user', ?, 'fund', 100,
+                  'draft', 'funded', 'stellar', ?, ?)
+        `).run(uuidv4(), rewardId, adminId, adminId, ref, uuidv4());
+      }).toThrow(/UNIQUE constraint failed/);
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// W03-R3: COMPAT-F3 — Validation failure after irreversible commit
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('COMPAT-F3: pre-migration validation and commit boundary', () => {
+  it('COMPAT-F3-1: pre-existing FK violation → applyUpgrade refuses before reconstruction; source schema and no receipt', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE fk_orphan_holder (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE RESTRICT
+    )`);
+    conn.prepare('INSERT INTO fk_orphan_holder (id, user_id) VALUES (?, ?)').run('orphan-1', 'nonexistent-user-id');
+    conn.pragma('foreign_keys = ON');
+    conn.close();
+
+    let threw = false;
+    let threwMessage = '';
+    try {
+      applyUpgrade(dbPath);
+    } catch (err) {
+      threw = true;
+      threwMessage = err instanceof Error ? err.message : String(err);
+    }
+    expect(threw).toBe(true);
+    expect(threwMessage).toMatch(/pre.?exist|foreign.?key|fk|violation/i);
+
+    const verify = new Database(dbPath);
+    try {
+      // Critical: reward_transactions must still be at SOURCE schema
+      expect(detectSchemaVersion(verify)).toBe('source');
+      expect(verify.prepare('SELECT 1 FROM system_config WHERE key = ?').get(MIGRATION_ID)).toBeUndefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F3-2: clean source DB → pre-checks pass; applyUpgrade succeeds with clean post-migration', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.close();
+
+    const result = applyUpgrade(dbPath);
+    expect(result.success).toBe(true);
+    expect(result.alreadyAtTarget).toBe(false);
+
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('target');
+      expect(verify.pragma('integrity_check', { simple: true })).toBe('ok');
+      expect((verify.pragma('foreign_key_check') as unknown[]).length).toBe(0);
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F3-3: after FK refusal, all original transaction rows preserved with exact values, no receipt', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    const fixtures = seedMinimalFixtures(conn);
+    const rewardId = uuidv4();
+    conn.prepare(
+      `INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type,
+        amount_stroops, status, idempotency_key)
+       VALUES (?, ?, 'sponsor_cohort', ?, 'individual', 100, 'active', ?)`
+    ).run(rewardId, fixtures.sponsorId, fixtures.cohortId, uuidv4());
+    conn.prepare(`
+      INSERT INTO reward_transactions (
+        id, reward_id, source_account_type, source_bucket, source_user_id,
+        destination_account_type, destination_bucket, destination_user_id,
+        actor_type, actor_user_id, transaction_type, amount_stroops,
+        previous_state, new_state, idempotency_key
+      ) VALUES (?, ?, 'funder', 'reserved', ?, 'funder', 'available', ?,
+                'user', ?, 'cancel', 100, 'active', 'cancelled', ?)
+    `).run(uuidv4(), rewardId, fixtures.adminId, fixtures.adminId, fixtures.adminId, uuidv4());
+
+    const rowsBefore = conn.prepare('SELECT * FROM reward_transactions ORDER BY created_at').all();
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE fk_orphan_holder3 (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id))`);
+    conn.prepare('INSERT INTO fk_orphan_holder3 VALUES (?, ?)').run('o1', 'ghost-user');
+    conn.pragma('foreign_keys = ON');
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow();
+
+    const verify = new Database(dbPath);
+    try {
+      const rowsAfter = verify.prepare('SELECT * FROM reward_transactions ORDER BY created_at').all();
+      expect(rowsAfter).toHaveLength(rowsBefore.length);
+      for (let i = 0; i < rowsBefore.length; i++) {
+        expect(rowsAfter[i]).toEqual(rowsBefore[i]);
+      }
+      expect(verify.prepare('SELECT 1 FROM system_config WHERE key = ?').get(MIGRATION_ID)).toBeUndefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// W03-R3: COMPAT-PARTIAL-SWAP-EXT — Extended partial-swap artifact detection
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection', () => {
+  it('COMPAT-PARTIAL-SWAP-EXT-1: both reward_transactions and _new exist → refuses; original unchanged', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.exec(`CREATE TABLE reward_transactions_new (id TEXT PRIMARY KEY, x TEXT)`);
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow(/partial.?swap|reward_transactions_new/i);
+
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('source');
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-PARTIAL-SWAP-EXT-2: after stale _new manual cleanup, safe rerun succeeds', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    seedMinimalFixtures(conn);
+    conn.exec(`CREATE TABLE reward_transactions_new (id TEXT PRIMARY KEY, x TEXT)`);
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow();
+
+    // Operator removes the stale artifact
+    const fixConn = new Database(dbPath);
+    fixConn.exec('DROP TABLE reward_transactions_new');
+    fixConn.close();
+
+    const result = applyUpgrade(dbPath);
+    expect(result.success).toBe(true);
+    const verify = new Database(dbPath);
+    try {
+      expect(detectSchemaVersion(verify)).toBe('target');
     } finally {
       verify.close();
       cleanupTempDb(dbPath);
