@@ -294,6 +294,18 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: Opus APPROVED (HIGH: schema migration documented in spec §9; MEDIUM: precondition comments applied pre-merge)
 - **Total tests**: 19 new, all pass; 2051 full suite, 0 regressions, TSC clean; 26 W03 tests unmodified
 
+### S2-T03-R2: Existing-ledger CHECK constraint upgrade for release_unused (W03-R2)
+- **Status**: MERGED — PR #119 squash-merged to main HEAD `bc3e0df` (2026-10-30)
+- **Dependencies**: S2-T03-R1 (W03-R1 PR #118) merged
+- **Owner**: AI (Claude Sonnet 4.6)
+- **Problem**: `CREATE TABLE IF NOT EXISTS reward_transactions` in W03-R1 is a no-op on existing databases. DBs initialized under #117 still carry old CHECK constraints lacking `'release_unused'`. `reconcileUnusedReservation()` fails with `SqliteError: CHECK constraint failed`.
+- **Files modified**: `src/scripts/migrateRewardTxnCheck.ts` (new), `src/config/databaseBootstrap.ts`, `package.json`, `database/migrations/002-reward-transactions-check-upgrade.sql` (new)
+- **Test file**: `src/__tests__/reward-txn-check-migration.test.ts` (35 tests covering all 12 spec requirements)
+- **Implementation**: Offline migration script with `--plan`/`--apply` modes. Full table reconstruction in single transaction (rename→create→copy→drop→rename→4 indexes→system_config). `detectSchemaVersion()` fingerprint-based detection. `validateDatabase()` preflight refuses pre-W03-R2 schema with actionable diagnostic. Partial-swap detection per spec §3.4.
+- **CI**: PR run 41037935927 — 4/4 PASS; post-merge main HEAD `bc3e0df`
+- **Independent review**: Opus APPROVED — 8/8 criteria PASS; LOW partial-swap detection gap addressed pre-merge
+- **Total tests**: 35 new, all pass; 2086 full suite, 0 regressions, TSC clean; 2051 prior suite unmodified
+
 ### S2-T04: Implement W04 — course completion eligibility scoping
 - **Status**: TODO
 - **Dependencies**: S1-T03 spec reviewed

@@ -289,6 +289,35 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Review | Independent Opus: APPROVED (HIGH: schema migration note → spec §9; MEDIUM: precondition comments → applied pre-merge) |
 | Main HEAD | `5b3c180`
 
+#### W03-R2: Existing-ledger CHECK constraint upgrade for release_unused
+
+| Field | Value |
+| --- | --- |
+| Sub-finding ID | W03-R2 |
+| Problem | `CREATE TABLE IF NOT EXISTS` in W03-R1 is a no-op on existing tables. Databases initialized under #117 still carry old `reward_transactions` CHECK constraints lacking `'release_unused'`. `reconcileUnusedReservation()` fails with `SqliteError: CHECK constraint failed: transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')`. |
+| Spec | `docs/superpowers/specs/2026-10-30-W03-R2-ledger-check-upgrade.md` |
+| Branch | `codex/w03-r2-ledger-check-upgrade` at `9f6ed5d` |
+| PR | [#119](https://github.com/SM-Web-Systems/lms-crypto-production/pull/119) — merged `bc3e0df` (2026-10-30) |
+| Tests | 35 new (reward-txn-check-migration.test.ts, all 12 spec requirements); 2086 total passed, 0 regressions, TSC clean |
+| CI | PR run 41037935927 — 4/4 PASS; post-merge main HEAD `bc3e0df` |
+| Review | Independent Opus: APPROVED — 8/8 criteria PASS; LOW partial-swap detection gap addressed pre-merge |
+| Implementation | `src/scripts/migrateRewardTxnCheck.ts`: `--plan`/`--apply` offline migration, full table reconstruction in single transaction, `detectSchemaVersion()` fingerprint detection, partial-swap detection. `databaseBootstrap.ts`: `validateDatabase()` preflight refuses pre-W03-R2 schema. `package.json`: `db:migrate-reward-txn-check` script. |
+| Evidence status | **MERGED** — PR #119 merged `bc3e0df`; W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119) |
+
+#### W03 PR #119 receipt (W03-R2)
+
+| Field | Value |
+| --- | --- |
+| PR | [#119](https://github.com/SM-Web-Systems/lms-crypto-production/pull/119) |
+| Branch | `codex/w03-r2-ledger-check-upgrade` |
+| Reviewed head | `9f6ed5d` |
+| Merge commit | `bc3e0df` |
+| Merged at | 2026-10-30 |
+| Tests | 35 new; 2086 total, 0 regressions, TSC clean |
+| CI | PR run 41037935927 — 4/4 PASS; post-merge main HEAD `bc3e0df` |
+| Review | Independent Opus: APPROVED (8/8 criteria PASS; LOW: partial-swap detection → addressed pre-merge) |
+| Main HEAD | `bc3e0df`
+
 ### W04: Premature and cross-course completion eligibility
 
 | Field | Value |
@@ -784,6 +813,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-29 | — | S2/W02-R2: PR #114 merged `1229bd97` (nested parent binding + real HTTP tests, 37 new tests, 1990 total). F2: releaseAllocation/refundAllocation take requestedRewardId; replay fails closed; 7 callers updated. F3: W02-R-1–R-8 replaced with real HTTP supertest tests; W02-L-1 MODULE_NOT_FOUND fixed. Independent AI review APPROVED. Post-merge main CI SUCCESS (run 40870444455, 4/4). CHANGES_REQUIRED per SERVER-HANDOVER-W02-R2-PR114-REVIEW.md — admin retry caller auth (P1) remaining. | W02-R2 session | CHANGES_REQUIRED |
 | 2026-10-29 | — | S2/W02-R2C: PR #115 merged `5cc386f` (admin refund retry caller auth, 8 new tests, 1999 total). Fix: requirePermission('reward.refund_review') + pass actorId + reward.manage bypass on fresh refund path. RED tests confirmed failing on main; GREEN passing after fix. Independent Opus review APPROVED. Post-merge main CI SUCCESS (run 40895057757, 4/4). W02 FIXED — repair chain complete (#111, #112, #113, #114, #115). | W02-R2C session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R1: PR #118 merged `5b3c180` (reconcile unused reservation on below-cap completion, 19 new tests, 2051 total). New `release_unused` transaction type; reconciliation fires atomically at `released` transition; remaining reserved computed from per-reward ledger history; idempotency via UNIQUE constraint. All 26 W03 tests pass unmodified. Independent Opus APPROVED (HIGH: schema migration note in spec §9; MEDIUM: precondition comments applied pre-merge). CI run 41020058620 — 4/4 PASS. W03 + W03-R1 FIXED — stranded reservation path closed. | W03-R1 session | UNIT_COMPLETE |
+| 2026-10-30 | — | S2/W03-R2: PR #119 merged `bc3e0df` (existing-ledger CHECK constraint upgrade, 35 new tests, 2086 total). Offline migration script with plan/apply modes, full reconstruction in single transaction, fingerprint-based schema detection, partial-swap guard. `validateDatabase()` preflight refuses pre-W03-R2 databases. Independent Opus APPROVED (8/8 criteria PASS; LOW partial-swap gap addressed pre-merge). CI run 41037935927 — 4/4 PASS. W03 fully closed (PR #117 + W03-R1 PR #118 + W03-R2 PR #119). Main HEAD `bc3e0df`. | W03-R2 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 

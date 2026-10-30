@@ -1,7 +1,7 @@
 # Staged rollout index
 
 Date: 2026-10-30
-Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment); W02 FIXED (PR #111–#115 + #116 closure follow-up); W03 FIXED (PR #117 + W03-R1 PR #118); W04 pending
+Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment); W02 FIXED (PR #111–#115 + #116 closure follow-up); W03 FIXED (PR #117 + W03-R1 PR #118 + W03-R2 PR #119); W04 pending
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 
@@ -9,7 +9,7 @@ Recommended first stage: **S1** (inventory, specification and independent depend
 
 | Component | Ref | SHA | Notes |
 | --- | --- | --- | --- |
-| LMS main | `origin/main` | `5b3c180` | Last merged: PR #118 (W03-R1 unused reservation reconciliation — 19 tests); prior: #117 (W03 allocation cap — D1/D2/D3, 26 tests), #116 (W02-R2C closure follow-up), #115 (W02-R2C admin retry caller auth), #114 (W02-R2 nested parent binding), #113 (W02-R1C), #112 (W02-R1), #111 (W02), #110 (W01-R3D), #109 (R3C), #108 (R3), #107 (R2), #106 (C1), #105 (R1), #104, #90, #86 |
+| LMS main | `origin/main` | `bc3e0df` | Last merged: PR #119 (W03-R2 existing-ledger CHECK upgrade — 35 tests); prior: #118 (W03-R1 unused reservation reconciliation — 19 tests), #117 (W03 allocation cap — D1/D2/D3, 26 tests), #116 (W02-R2C closure follow-up), #115 (W02-R2C admin retry caller auth), #114 (W02-R2 nested parent binding), #113 (W02-R1C), #112 (W02-R1), #111 (W02), #110 (W01-R3D), #109 (R3C), #108 (R3), #107 (R2), #106 (C1), #105 (R1), #104, #90, #86 |
 | RBAC candidate | `codex/rbac-schema-retirement` (PR #101 head) | `b8015e27eae1` | Stacked: #98→#99→#100→#101 on main |
 | Platform audit | `codex/platform-wiring-audit` (PR #102 head) | `718985fb9f39` | Documentation only; stacked on #101 |
 | Database follow-up | `codex/database-integrity-followup` (PR #93) | `70cc27ec5c3d` | Independent of RBAC chain |
@@ -55,7 +55,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 | --- | --- | --- | --- | --- |
 | W01 | P1 | **FIXED (security containment)** — funding verification gate (#104); R1 internal auth (#105, C1 #106); R2 Paystack binding (#107); R3 atomic reference (#108); R3C correction (#109); R3D strict final validation (#110) | #104, #105, #106, #107, #108, #109, #110 MERGED | Stellar deferred (fail-closed); A1 gated by R2 currency mismatch; A5 cosmetic |
 | W02 | P1 | **FIXED** — PR #111 (route scope checks, 404 contract, 28 tests, `211c556c`); PR #112 (replay binding F1, 18 tests, `87a9f40b`); PR #113 (R1C intent/access-order C1+C2, 16 tests, `88db657a`); PR #114 (nested parent binding + real HTTP tests, 37 tests, `1229bd97`); PR #115 (R2C admin retry caller auth, 8 tests, merge `5cc386f`) | #111–#115 MERGED | None — W02 repair chain complete |
-| W03 | P1 | **FIXED** — PR #117 (D1 cap enforcement, D2 creation validation, D3 aggregate denominator, 26 tests, `655e11c`); PR #118 W03-R1 (unused reservation reconciliation, `release_unused` type, 19 tests, main HEAD `5b3c180`) | #117, #118 MERGED | None — W03 + W03-R1 fully closed |
+| W03 | P1 | **FIXED** — PR #117 (D1 cap enforcement, D2 creation validation, D3 aggregate denominator, 26 tests, `655e11c`); PR #118 W03-R1 (unused reservation reconciliation, `release_unused` type, 19 tests, `5b3c180`); PR #119 W03-R2 (existing-ledger CHECK upgrade, offline migration, preflight, 35 tests, main HEAD `bc3e0df`) | #117, #118, #119 MERGED | None — W03 fully closed |
 | W04 | P1 | **Vulnerable** — lesson completion fires `course_completion` outbox event (line 157) per lesson, not per course | None | Make eligibility source-bound to actual course completion |
 | W05 | P2 | **Present** — DB enum allows `individual, milestone, course_completion, grade, custom`; UI may offer types outside this set | None | Align UI choices with DB enum |
 | W06 | P2 | **Present** — parent reward routes use `childId` as `scopeId` but no family discriminator in the request body | None | Add family/child discriminator to parent reward API |
