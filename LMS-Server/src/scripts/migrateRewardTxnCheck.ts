@@ -466,6 +466,7 @@ export function applyUpgrade(
 
     // ── Phase 3: Post-commit verification ────────────────────────────────────
 
+    conn.exec('PRAGMA legacy_alter_table = OFF');
     conn.exec('PRAGMA foreign_keys = ON');
     foreignKeysRestored = true;
 

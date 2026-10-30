@@ -1491,6 +1491,26 @@ describe('COMPAT-F3: pre-migration validation and commit boundary', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection', () => {
+  it('COMPAT-PARTIAL-SWAP-EXT-0: only _new exists (original missing) → refuses with partial-swap message', () => {
+    // Simulate the most dangerous partial-swap: original table was already dropped
+    // but rename to reward_transactions never completed.
+    const { dbPath, conn } = makeTempDb('CREATE TABLE reward_transactions_new (id TEXT PRIMARY KEY, x TEXT)');
+    conn.close();
+
+    expect(() => applyUpgrade(dbPath)).toThrow(/partial.?swap|reward_transactions_new/i);
+
+    const verify = new Database(dbPath);
+    try {
+      // _new table must still be present (not dropped by a cleanup side-effect)
+      expect(verify.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reward_transactions_new'"
+      ).get()).toBeDefined();
+    } finally {
+      verify.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
   it('COMPAT-PARTIAL-SWAP-EXT-1: both reward_transactions and _new exist → refuses; original unchanged', () => {
     const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
     seedMinimalFixtures(conn);
