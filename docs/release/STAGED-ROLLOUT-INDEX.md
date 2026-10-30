@@ -1,7 +1,7 @@
 # Staged rollout index
 
-Date: 2026-10-29
-Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment); W02 FIXED (PR #111 route/scope checks, #112 replay binding, #113 R1C intent/access-order, #114 nested parent binding, #115 R2C admin retry caller auth); W03/W04 pending
+Date: 2026-10-30
+Plan status: **S2_IN_PROGRESS** — W01 FIXED (security containment); W02 FIXED (PR #111–#115 + #116 closure follow-up); W03/W04 pending
 Plan branch: `codex/staged-rollout-plan`
 Recommended first stage: **S1** (inventory, specification and independent dependency work)
 

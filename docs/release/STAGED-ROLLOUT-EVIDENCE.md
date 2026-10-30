@@ -207,6 +207,21 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Actor attribution | `resolved_by_user_id` = adminId ✓; `attempted_by_user_id` = original sponsor preserved ✓; audit `actor_user_id` = adminId ✓; ledger `actor_user_id` = adminId ✓ |
 | W02 closure | All five repair units (#111, #112, #113, #114, #115) merged. W02 FIXED. |
 
+#### W02 Closure Follow-Up PR #116 receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#116](https://github.com/SM-Web-Systems/lms-crypto-production/pull/116) |
+| Branch | `codex/w02-closure-follow-up` |
+| Merge commit | `e306cf9` |
+| Merged at | 2026-10-30 |
+| Tests | 7 new (reward-refund-retry-error-contract.test.ts); 2006 total passed, 0 regressions, TSC clean |
+| CI | PR run 41004888708 — 4/4 PASS; post-merge main run 41005306755 — SUCCESS (4/4) |
+| Review | Independent Opus review: APPROVED (all 7 points) |
+| F1 | `adminRewards.ts` retry handler missing try-catch for `RewardError` → HTTP 500 on inconsistent `attempt.reward_id`; fix: `handleRewardError` + try-catch (established `sponsor.ts` pattern) |
+| F2 | `reward.refund_review` grants global attempt visibility (consistent with list endpoint — no scope filter); 409/404 responses on retry are expected and non-disclosing; mutation requires `reward.manage` or scope ownership; `reward.refund_review`-only foreign retry → 403 SCOPE_DENIED (not 500) after fix |
+| Main HEAD | `e306cf9` (W02 fully closed, no residual defects) |
+
 ### W03: Reward reservations smaller than issued allocations
 
 | Field | Value |

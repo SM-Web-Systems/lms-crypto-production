@@ -256,6 +256,17 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - Independent Opus review: APPROVED
 - W02 FIXED — all four repair units (#111, #112, #113, #114, #115) merged
 
+#### W02 Closure Follow-Up PR #116 — MERGED `e306cf9` (2026-10-30)
+- **Branch**: `codex/w02-closure-follow-up`
+- **Spec**: `docs/specs/W02-R2C-admin-refund-retry-caller-auth.md` (updated to COMPLETE)
+- **F1 fix**: `adminRewards.ts` retry handler `handleRewardError` + try-catch — inconsistent `attempt.reward_id` now returns 404 (not 500); `reward.refund_review`-only scope denial returns 403 (not 500)
+- **F2 policy**: `reward.refund_review` global visibility documented and tested; 409/404 consistent with list endpoint; mutation boundary at `reward.manage`/scope ownership
+- **7 new tests** (reward-refund-retry-error-contract.test.ts): F1-ERROR-1/2, F2-REVIEW-1/2/3, F2-MANAGE-1, F2-LIST-1
+- **2006 total tests** passed, 0 regressions, TSC clean
+- CI: PR run 41004888708 — 4/4 PASS; post-merge main run 41005306755 — SUCCESS (4/4)
+- Independent Opus review: APPROVED (all 7 points)
+- **W02 fully closed** — main HEAD: `e306cf9`
+
 ### S2-T03: Implement W03 — allocation cap enforcement
 - **Status**: TODO
 - **Dependencies**: S1-T03 spec reviewed
