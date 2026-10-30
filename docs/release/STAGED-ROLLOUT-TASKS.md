@@ -268,14 +268,19 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **W02 fully closed** — main HEAD: `e306cf9`
 
 ### S2-T03: Implement W03 — allocation cap enforcement
-- **Status**: TODO
+- **Status**: MERGED — PR #117 squash-merged to main HEAD `655e11c` (2026-10-30)
 - **Dependencies**: S1-T03 spec reviewed
-- **Owner**: —
-- **Files**: `LMS-Server/src/services/rewards/rewardService.ts` (activateReward, lines 168–207)
-- **Problem**: `activateReward()` at line 198 creates an allocation for every audience member via `for (const memberId of members)`. If `members.length > max_recipients`, total allocations exceed the reserved fund. `deriveAggregateStatus()` uses `const total = maxRecipients ?? allocations.length` (line 93 in rewardStateMachine.ts) which masks the overallocation.
-- **Intended behavior**: Before creating allocations, verify `members.length <= max_recipients` (when set). If audience exceeds cap, reject activation or truncate with explicit creator notification. Total allocated stroops must never exceed total reserved.
-- **TDD RED**: Write test creating reward with `maxRecipients: 1` and audience of 3 → currently creates 3 allocations.
-- **TDD GREEN**: Add cap check in `activateReward()` before allocation loop.
+- **Owner**: AI (Claude Sonnet 4.6)
+- **Files modified**: `LMS-Server/src/services/rewards/rewardErrors.ts`, `rewardService.ts`, `rewardStateMachine.ts`
+- **Test file**: `LMS-Server/src/__tests__/reward-allocation-cap.test.ts` (26 tests)
+- **Defects fixed**:
+  - **D1**: `activateReward()` now checks `members.length > (reward.max_recipients ?? 1)` before allocation loop; throws `AUDIENCE_EXCEEDS_CAP` (400) — fund and reservation preserved, user must correct audience or raise cap
+  - **D2**: `createReward()` validates `max_recipients` at creation boundary: must be positive integer ≤ `MAX_RECIPIENTS` (10 000); throws `INVALID_RECIPIENT_COUNT` (400)
+  - **D3**: `deriveAggregateStatus()` `maxRecipients` parameter removed; denominator is always `allocations.length` — below-cap activations (members < cap) no longer strand rewards in `partially_released`
+- **Null-cap policy**: `max_recipients = null` → effective cap of 1 at activation, matching funding formula (`amount ?? 1`)
+- **CI**: PR run 41011071843 — 4/4 PASS; post-merge main run 41011716903 — 4/4 SUCCESS
+- **Independent review**: Opus APPROVED (confirmed D1/D2/D3 all addressed, null-cap consistent, atomicity sound)
+- **Total tests**: 26 new, all pass; full suite regression-clean (pre-existing proxyaddr IPv6 failure on main unrelated)
 
 ### S2-T04: Implement W04 — course completion eligibility scoping
 - **Status**: TODO

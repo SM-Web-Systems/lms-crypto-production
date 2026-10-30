@@ -228,12 +228,35 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Finding ID | W03 |
 | Priority | P1 |
-| Current applicability | **Confirmed on main** |
-| Code evidence | `rewardService.ts:168-207` — `activateReward()` resolves audience via `resolveAudienceMembers()` (line 182), then at line 198 `for (const memberId of members) { insertAlloc.run(...) }` creates one allocation per member at `reward.amount_stroops` each. If `members.length > max_recipients`, total allocated amount = `amount_stroops * members.length` exceeds the reserved amount = `amount_stroops * max_recipients`. The only check is `members.length === 0` (line 188). `deriveAggregateStatus()` in `rewardStateMachine.ts:93` uses `const total = maxRecipients ?? allocations.length` — when `maxRecipients` is set, it caps the total but the allocations already exist. |
-| Reproduction | Characterization probe W03 — reward with maxRecipients=1, audience=2, creates 2 allocations |
-| Existing fix PR | None |
-| Residual work | Enforce `members.length <= max_recipients` before allocation; or select first N members |
-| Evidence status | Assessed, unfixed |
+| Current applicability | **FIXED** — PR #117, merge commit `655e11c` (2026-10-30) |
+| Code evidence | `rewardService.ts` — `activateReward()` created one allocation per audience member with no cap check. Funding reserved `amount_stroops * (max_recipients ?? 1)`; activation could allocate multiples. Also: null cap accepted as unlimited (prior spec error); `createReward` stored invalid max_recipients; `deriveAggregateStatus` phantom denominator stranded below-cap rewards. |
+| Spec | `docs/superpowers/specs/2026-10-30-W03-allocation-cap-revised.md` (supersedes 2026-10-27; resolves null-cap contradiction) |
+| Branch | `codex/w03-allocation-cap` at `fe14174` |
+| PR | [#117](https://github.com/SM-Web-Systems/lms-crypto-production/pull/117) — merged `655e11c` (2026-10-30) |
+| Tests | 26 new (reward-allocation-cap.test.ts); 2032 total passed, 0 regressions, TSC clean |
+| CI | PR run 41011071843 — 4/4 PASS; post-merge main run 41011716903 — SUCCESS (4/4) |
+| Review | Independent Opus review: APPROVED WITH FINDINGS — monetary safety, atomicity, D2 completeness confirmed; 3 low/informational findings resolved |
+| D1 | `activateReward`: `effectiveCap = max_recipients ?? 1`; `members.length > effectiveCap` → `AUDIENCE_EXCEEDS_CAP` (400); atomic rollback |
+| D2 | `createReward`: rejects 0/negative/fractional/non-numeric/> MAX_RECIPIENTS → `INVALID_RECIPIENT_COUNT` (400); null allowed |
+| D3 | `deriveAggregateStatus`: removed maxRecipients param; uses `allocations.length`; fixes below-cap fund stranding |
+| Null-cap policy | null = effective cap 1 (matches `?? 1` funding formula); null ≠ unlimited (prior spec corrected) |
+| Reproduction | Characterization probe W03 — reward with maxRecipients=1, audience=2: 2 allocations (RED confirmed) |
+| Residual | Legacy already-activated overallocated rewards not corrected — operator assessment required |
+| Evidence status | **FIXED** — PR #117 merged `655e11c`; post-merge 4/4 CI SUCCESS |
+
+#### W03 PR #117 receipt
+
+| Field | Value |
+| --- | --- |
+| PR | [#117](https://github.com/SM-Web-Systems/lms-crypto-production/pull/117) |
+| Branch | `codex/w03-allocation-cap` |
+| Reviewed head | `fe14174` |
+| Merge commit | `655e11c` |
+| Merged at | 2026-10-30 |
+| Tests | 26 new; 2032 total, 0 regressions, TSC clean |
+| CI | PR run 41011071843 — 4/4 PASS; post-merge main run 41011716903 — SUCCESS (4/4) |
+| Review | Independent Opus: APPROVED WITH FINDINGS (all resolved) |
+| Main HEAD | `655e11c`
 
 ### W04: Premature and cross-course completion eligibility
 
