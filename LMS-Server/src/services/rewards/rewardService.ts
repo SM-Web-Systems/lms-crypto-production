@@ -4,7 +4,7 @@ import { RewardError } from './rewardErrors.js';
 import { validateScope, resolveAudienceMembers, createAudienceSnapshot } from './rewardScopeService.js';
 import { getOrCreateAccount, getAccount } from './rewardBalanceService.js';
 import { writeLedgerEntry } from './rewardLedger.js';
-import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
+import { assertTransition, validateTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency, MAX_RECIPIENTS } from './currencyConfig.js';
 import {
@@ -615,6 +615,10 @@ export function cancelReward(
         BigInt(reward.max_recipients ?? 1)
       ));
 
+      // W03-R1 note: this formula is only reached from states where no
+      // 'release_unused' entry can exist yet (state machine forbids
+      // cancelled from 'released'). If that precondition ever changes,
+      // the query must also subtract 'cancel', 'expire', 'release_unused' debits.
       const released = db.prepare(
         `SELECT COALESCE(SUM(amount_stroops), 0) as total
          FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
@@ -912,6 +916,10 @@ export function expireReward(
         BigInt(reward.max_recipients ?? 1)
       ));
 
+      // W03-R1 note: this formula is only reached from states where no
+      // 'release_unused' entry can exist yet (state machine forbids
+      // expired from 'released'). If that precondition ever changes,
+      // the query must also subtract 'cancel', 'expire', 'release_unused' debits.
       const released = db.prepare(
         `SELECT COALESCE(SUM(amount_stroops), 0) as total
          FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
@@ -1091,13 +1099,71 @@ function updateRewardAggregateStatus(rewardId: string): void {
   if (!reward) return;
 
   const aggregateStatus = deriveAggregateStatus(allocations);
-  if (aggregateStatus) {
-    const currentStatus = reward.status as RewardState;
-    try {
-      assertTransition(currentStatus, aggregateStatus);
-      updateRewardStatus(rewardId, aggregateStatus);
-    } catch {
-      // Not a valid transition from current state — skip
-    }
+  if (!aggregateStatus) return;
+
+  const currentStatus = reward.status as RewardState;
+  if (!validateTransition(currentStatus, aggregateStatus)) return;
+
+  updateRewardStatus(rewardId, aggregateStatus);
+
+  // W03-R1: When all allocations resolve and the reward reaches 'released',
+  // return any unused reservation (capacity reserved for below-cap slots) to
+  // the funder's available bucket. This fires exactly once — inside the same
+  // transaction as the status transition — keyed on the reward ID.
+  if (aggregateStatus === 'released') {
+    reconcileUnusedReservation(rewardId, reward, currentStatus);
   }
+}
+
+/**
+ * W03-R1: Return any remaining reserved balance for this reward to the funder's
+ * available bucket when the reward reaches 'released' state.
+ *
+ * Computes the outstanding reservation from reward-specific ledger history — not
+ * from the cap formula — to remain correct regardless of any prior partial returns
+ * and independent of another reward's account balance.
+ *
+ * Must be called inside an active db.transaction() (the caller's outer transaction).
+ */
+function reconcileUnusedReservation(
+  rewardId: string,
+  reward: RewardRow,
+  previousStatus: RewardState,
+): void {
+  // Sum all 'reserve' credits for this reward (the total that was reserved at funding).
+  const { total: totalReserved } = db.prepare(
+    `SELECT COALESCE(SUM(amount_stroops), 0) as total
+     FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'reserve'`
+  ).get(rewardId) as { total: number };
+
+  // Sum all reservation debits: releases, cancels, expires, and any prior release_unused.
+  const { total: totalDebited } = db.prepare(
+    `SELECT COALESCE(SUM(amount_stroops), 0) as total
+     FROM reward_transactions
+     WHERE reward_id = ? AND transaction_type IN ('release', 'cancel', 'expire', 'release_unused')`
+  ).get(rewardId) as { total: number };
+
+  const remainingReserved = totalReserved - totalDebited;
+  if (remainingReserved <= 0) return;
+
+  // W01-R1: use the actual funder from the ledger (may differ from creator with independent authorizer).
+  const funderId = getRewardFunderId(rewardId, reward.creator_user_id);
+
+  writeLedgerEntry({
+    rewardId,
+    transactionType: 'release_unused',
+    amountStroops: remainingReserved,
+    sourceAccountType: 'funder',
+    sourceBucket: 'reserved',
+    sourceUserId: funderId,
+    destinationAccountType: 'funder',
+    destinationBucket: 'available',
+    destinationUserId: funderId,
+    actorType: 'system',
+    actorUserId: null,
+    previousState: previousStatus,
+    newState: 'released',
+    idempotencyKey: `release-unused-${rewardId}`,
+    reason: 'Unused reservation returned on below-cap completion',
+  });
 }
