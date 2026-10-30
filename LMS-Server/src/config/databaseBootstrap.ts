@@ -2,6 +2,7 @@ import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { detectSchemaVersion } from '../scripts/migrateRewardTxnCheck.js';
 
 // Only the explicit CLI can request creation, before importing database.ts.
 // Neither server arguments nor an environment flag authorize initialization.
@@ -90,14 +91,20 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
   if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
-  const txnRow = db.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'"
-  ).get() as { sql: string } | undefined;
-  if (txnRow && !txnRow.sql.includes("'release_unused'")) {
+  // W03-R3 F1 fix: use comment-aware detectSchemaVersion instead of raw substring check.
+  // A SQL comment containing 'release_unused' must not bypass this preflight.
+  const txnSchemaVersion = detectSchemaVersion(db);
+  if (txnSchemaVersion === 'source') {
     refuse(
-      "reward_transactions CHECK constraint is pre-W03-R2; " +
+      "reward_transactions CHECK constraint is pre-W03-R2 (missing release_unused); " +
       "run: npm run db:migrate-reward-txn-check -- --apply DATABASE_PATH " +
       "before starting the application"
+    );
+  }
+  if (txnSchemaVersion === 'unknown') {
+    refuse(
+      "reward_transactions CHECK constraint has an unrecognised schema (neither source nor target); " +
+      "manual investigation required before starting the application"
     );
   }
   if ((db.pragma('table_info(nft_credentials)') as { name: string; notnull: number }[]).find(c => c.name === 'quiz_id')?.notnull) refuse('legacy NFT constraint');
