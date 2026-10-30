@@ -13,7 +13,7 @@ export type AllocationState = typeof ALLOCATION_STATES[number];
 export const SCOPE_TYPES = ['sponsor_cohort', 'employer_team', 'parent_child', 'parent_family', 'teacher_class'] as const;
 export type ScopeType = typeof SCOPE_TYPES[number];
 
-export const TRANSACTION_TYPES = ['fund', 'reserve', 'release', 'cancel', 'refund', 'expire'] as const;
+export const TRANSACTION_TYPES = ['fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'] as const;
 export type TransactionType = typeof TRANSACTION_TYPES[number];
 
 export const ACCOUNT_TYPES = ['funder', 'recipient', 'platform'] as const;

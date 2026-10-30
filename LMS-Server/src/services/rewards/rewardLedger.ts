@@ -74,8 +74,10 @@ export function writeLedgerEntry(params: LedgerEntryParams): string {
       break;
     }
     case 'cancel':
-    case 'expire': {
+    case 'expire':
+    case 'release_unused': {
       // Funder reserved → funder available
+      // release_unused: unused capacity after below-cap completion (W03-R1)
       const acct = getOrCreateAccount(params.sourceUserId!, 'funder');
       debitReserved(acct.id, params.amountStroops);
       creditAvailable(acct.id, params.amountStroops);
