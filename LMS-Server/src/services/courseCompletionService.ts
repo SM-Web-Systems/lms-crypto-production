@@ -3,6 +3,10 @@
  *
  * Calculates whether a student meets a course's NFT eligibility requirements.
  * Used by the NFT application routes to gate the "apply" action.
+ *
+ * W04 additions:
+ * - isCourseCompleteForReward: strict DB-backed predicate for reward eligibility
+ * - getCourseProgress: fixed cross-course submission and quiz scope bugs
  */
 
 import { query, queryOne } from '../config/database.js';
@@ -40,6 +44,74 @@ export interface CourseProgress {
   canApplyForCertificate: boolean;
 }
 
+/**
+ * W04: Authoritative course completion predicate for reward eligibility.
+ *
+ * Stricter than getCourseProgress (used for NFT certificates):
+ * - Always requires ALL lesson items complete (no threshold shortcut)
+ * - Verifies quiz.course_id === courseId — cross-course quizzes do not satisfy the gate
+ * - Verifies submission.course_id === courseId — cross-course submissions do not satisfy
+ * - Returns false for empty courses and non-existent courses (fail-closed)
+ */
+export function isCourseCompleteForReward(userId: string, courseId: string): boolean {
+  const course = queryOne<{ sections: string }>(
+    'SELECT sections FROM courses WHERE id = ?',
+    [courseId]
+  );
+  if (!course) return false;
+
+  const sections: CourseSection[] = parseFlatSections(course.sections || '[]');
+  const allItems = sections.flatMap((s) => s.items);
+  if (allItems.length === 0) return false; // empty course — fail-closed
+
+  // 1. Lesson gate: ALL items required (W04 strict default for reward payout)
+  const completedRows = query<{ item_id: string }>(
+    'SELECT item_id FROM lesson_completions WHERE user_id = ? AND course_id = ? AND completed_at IS NOT NULL',
+    [userId, courseId]
+  );
+  const completedSet = new Set(completedRows.map((r) => r.item_id));
+  if (!allItems.every((item) => completedSet.has(item.id))) return false;
+
+  // 2. Quiz gate (course-scoped: quiz must belong to this course)
+  const reqs = queryOne<CourseCompletionRequirements>(
+    'SELECT * FROM course_completion_requirements WHERE course_id = ?',
+    [courseId]
+  );
+  const requiredIds: string[] = JSON.parse(reqs?.required_quiz_ids ?? '[]');
+  const minScore = reqs?.min_quiz_score ?? DEFAULT_REQS.min_quiz_score;
+
+  for (const quizId of requiredIds) {
+    const quiz = queryOne<{ passing_score: number; course_id: string | null }>(
+      'SELECT passing_score, course_id FROM quizzes WHERE id = ?',
+      [quizId]
+    );
+    // Cross-course guard: quiz must exist and belong to this course
+    if (!quiz || quiz.course_id !== courseId) return false;
+
+    const completion = queryOne<{ passed: number; score: number }>(
+      'SELECT passed, score FROM quiz_completions WHERE quiz_id = ? AND user_id = ?',
+      [quizId, userId]
+    );
+    if (!completion || completion.passed !== 1 || (completion.score ?? 0) < minScore) return false;
+  }
+
+  // 3. Submission gate (course-scoped)
+  if (reqs?.require_submissions) {
+    const student = queryOne<{ id: string }>(
+      'SELECT id FROM students WHERE user_id = ?',
+      [userId]
+    );
+    if (!student) return false;
+    const approved = queryOne<{ id: string }>(
+      "SELECT id FROM submissions WHERE student_id = ? AND course_id = ? AND status = 'approved'",
+      [student.id, courseId]
+    );
+    if (!approved) return false;
+  }
+
+  return true;
+}
+
 /** Return the requirements row for a course, or null if none configured. */
 export function getRequirements(courseId: string): CourseCompletionRequirements | null {
   return queryOne<CourseCompletionRequirements>(
@@ -51,6 +123,10 @@ export function getRequirements(courseId: string): CourseCompletionRequirements 
 /**
  * Calculate a student's completion progress for a course.
  * Returns meetsAllRequirements=false when the course does not exist.
+ *
+ * W04 fixes:
+ * - hasApprovedSubmission now requires submission.course_id = courseId
+ * - Required quizzes must have quiz.course_id = courseId (cross-course quiz = not passed)
  */
 export function getCourseProgress(userId: string, courseId: string): CourseProgress {
   const course = queryOne<{ sections: string }>(
@@ -95,15 +171,27 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
   const lessonOk =
     !reqs.require_all_lessons || completedLessonItems >= totalLessonItems;
 
-  // 3. Check required quizzes
+  // 3. Check required quizzes (W04 fix: verify quiz.course_id = courseId)
   const requiredIds: string[] = JSON.parse(reqs.required_quiz_ids || '[]');
   const requiredQuizzes: QuizProgressItem[] = [];
 
   for (const quizId of requiredIds) {
-    const quiz = queryOne<{ title: string; passing_score: number }>(
-      'SELECT title, passing_score FROM quizzes WHERE id = ?',
+    const quiz = queryOne<{ title: string; passing_score: number; course_id: string | null }>(
+      'SELECT title, passing_score, course_id FROM quizzes WHERE id = ?',
       [quizId]
     );
+    // Cross-course quiz guard: if quiz belongs to a different course, treat as not passed
+    if (!quiz || quiz.course_id !== courseId) {
+      requiredQuizzes.push({
+        quizId,
+        quizTitle: quiz?.title ?? 'Unknown (cross-course quiz)',
+        required: true,
+        passed: false,
+        score: null,
+        passingScore: reqs.min_quiz_score,
+      });
+      continue;
+    }
     const completion = queryOne<{ passed: number; score: number }>(
       'SELECT passed, score FROM quiz_completions WHERE quiz_id = ? AND user_id = ?',
       [quizId, userId]
@@ -114,7 +202,7 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
 
     requiredQuizzes.push({
       quizId,
-      quizTitle: quiz?.title ?? 'Unknown',
+      quizTitle: quiz.title,
       required: true,
       passed: passedQuiz,
       score: completion?.score ?? null,
@@ -124,7 +212,7 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
 
   const allRequiredQuizzesPassed = requiredQuizzes.every((q) => q.passed);
 
-  // 4. Check submissions
+  // 4. Check submissions (W04 fix: filter by course_id)
   let hasApprovedSubmission = true; // default: not required → satisfied
   if (reqs.require_submissions) {
     const student = queryOne<{ id: string }>(
@@ -133,8 +221,8 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
     );
     if (student) {
       const approved = queryOne<{ id: string }>(
-        "SELECT id FROM submissions WHERE student_id = ? AND status = 'approved'",
-        [student.id]
+        "SELECT id FROM submissions WHERE student_id = ? AND course_id = ? AND status = 'approved'",
+        [student.id, courseId]
       );
       hasApprovedSubmission = !!approved;
     } else {
