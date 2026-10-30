@@ -51,6 +51,7 @@ import {
   planUpgrade,
   applyUpgrade,
   detectSchemaVersion,
+  canonicalizeDdl,
   MIGRATION_ID,
 } from '../scripts/migrateRewardTxnCheck.js';
 
@@ -1956,5 +1957,312 @@ describe('COMPAT-F4-REPO: actual repository schema files classified correctly', 
     } finally {
       cleanupTempDb(dbPath);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPAT-F5: W03-R5 — Full-statement validation: table options + literal semantics
+//  COMPAT-F5-STRICT    — F1: STRICT/WITHOUT ROWID suffix → classified unknown; refuse plan/apply/preflight
+//  COMPAT-F5-LITERAL   — F2: changed string literal → classified unknown; refuse plan/apply/preflight
+//  COMPAT-F5-IFLITERAL — canonicalizeDdl: IF NOT EXISTS preserved inside literals; header-only stripping
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Helper: create a minimal file-backed DB with only the reward_transactions table.
+// Used for STRICT/WITHOUT ROWID tests where the full schema is not needed.
+function makeMinimalRewardTxnDb(ddl: string): { dbPath: string; conn: SqliteDatabase } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lms-w03r5-'));
+  const dbPath = path.join(dir, 'test.db');
+  const conn = new Database(dbPath);
+  conn.exec(ddl);
+  return { dbPath, conn };
+}
+
+// Minimal reward_transactions — source-like structure with STRICT table option.
+const MINIMAL_STRICT_SOURCE_DDL = `CREATE TABLE reward_transactions (
+  id TEXT PRIMARY KEY,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),
+  amount_stroops INTEGER NOT NULL CHECK (amount_stroops > 0),
+  currency_code TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK ((transaction_type = 'fund') OR (transaction_type != 'fund'))
+) STRICT;`;
+
+// Minimal reward_transactions — target-like structure with STRICT table option.
+const MINIMAL_STRICT_TARGET_DDL = `CREATE TABLE reward_transactions (
+  id TEXT PRIMARY KEY,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused')),
+  amount_stroops INTEGER NOT NULL CHECK (amount_stroops > 0),
+  currency_code TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK ((transaction_type = 'fund') OR (transaction_type != 'fund'))
+) STRICT;`;
+
+// Minimal reward_transactions — source-like structure with WITHOUT ROWID table option.
+const MINIMAL_WITHOUT_ROWID_SOURCE_DDL = `CREATE TABLE reward_transactions (
+  id TEXT PRIMARY KEY,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),
+  amount_stroops INTEGER NOT NULL CHECK (amount_stroops > 0),
+  currency_code TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK ((transaction_type = 'fund') OR (transaction_type != 'fund'))
+) WITHOUT ROWID;`;
+
+// Changed-literal variant: currency_code DEFAULT and CHECK in the reward_transactions
+// table use 'IF NOT EXISTS XLM' instead of 'XLM'. This triggers F2 before the fix
+// (post-loop regex rewrites literal content, making the body appear to match source).
+// Targets reward_transactions specifically because the same pattern appears in several
+// earlier tables in the schema — String.replace() would replace the wrong one.
+function makeChangedCurrencyLiteralSchema(base: string): string {
+  const tableStart = base.indexOf('CREATE TABLE IF NOT EXISTS reward_transactions');
+  if (tableStart === -1) throw new Error('reward_transactions block not found in schema');
+  const nextCreate = base.indexOf('\nCREATE ', tableStart + 1);
+  const tableEnd = nextCreate === -1 ? base.length : nextCreate;
+  const tableBlock = base.slice(tableStart, tableEnd).replace(
+    "DEFAULT 'XLM' CHECK (currency_code IN ('XLM'))",
+    "DEFAULT 'IF NOT EXISTS XLM' CHECK (currency_code IN ('IF NOT EXISTS XLM'))"
+  );
+  return base.slice(0, tableStart) + tableBlock + base.slice(tableEnd);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix detected and refused
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused', () => {
+  it('COMPAT-F5-STRICT-0: PRAGMA table_list strict=1 precondition — SQLite confirms STRICT table', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_STRICT_SOURCE_DDL);
+    try {
+      const rows = conn.prepare("PRAGMA table_list").all() as { name: string; strict: number }[];
+      const txn = rows.find(r => r.name === 'reward_transactions');
+      expect(txn).toBeDefined();
+      expect(txn!.strict).toBe(1);
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-1: detectSchemaVersion returns unknown for STRICT source variant', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_STRICT_SOURCE_DDL);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-2: planUpgrade throws Unsupported schema for STRICT source DB', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_STRICT_SOURCE_DDL);
+    conn.close();
+    try {
+      expect(() => planUpgrade(dbPath)).toThrow('Unsupported schema');
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-3: applyUpgrade refuses STRICT source; STRICT preserved in sqlite_master', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_STRICT_SOURCE_DDL);
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath)).toThrow('Unsupported schema');
+      // Verify the DDL in sqlite_master still includes STRICT — not silently removed
+      const verify = new Database(dbPath);
+      try {
+        const row = verify.prepare(
+          "SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'"
+        ).get() as { sql: string } | undefined;
+        expect(row).toBeDefined();
+        expect(row!.sql.toUpperCase()).toContain('STRICT');
+      } finally {
+        verify.close();
+      }
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-4: validateDatabase refuses STRICT source DB with actionable diagnostic', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_STRICT_SOURCE_DDL);
+    conn.close();
+    let dbConn: SqliteDatabase | undefined;
+    try {
+      dbConn = new Database(dbPath);
+      expect(() => validateDatabase(dbConn!)).toThrow();
+    } finally {
+      dbConn?.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-5: detectSchemaVersion returns unknown for STRICT target variant', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_STRICT_TARGET_DDL);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-6: detectSchemaVersion returns unknown for WITHOUT ROWID source variant', () => {
+    const { dbPath, conn } = makeMinimalRewardTxnDb(MINIMAL_WITHOUT_ROWID_SOURCE_DDL);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-STRICT-7: detectSchemaVersion returns unknown for combined STRICT, WITHOUT ROWID suffix', () => {
+    const combinedDdl = `CREATE TABLE reward_transactions (
+  id TEXT PRIMARY KEY,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),
+  amount_stroops INTEGER NOT NULL CHECK (amount_stroops > 0),
+  currency_code TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK ((transaction_type = 'fund') OR (transaction_type != 'fund'))
+) STRICT, WITHOUT ROWID;`;
+    const { dbPath, conn } = makeMinimalRewardTxnDb(combinedDdl);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F5-LITERAL: F2 — changed string literal classified unknown and refused
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F5-LITERAL: F2 — changed currency literal classified unknown and refused', () => {
+  it('COMPAT-F5-LITERAL-0: SQLite proof — INSERT XLM rejected; INSERT IF NOT EXISTS XLM accepted', () => {
+    // Minimal table with changed currency CHECK — proves the literal changes actual behavior
+    const { dbPath, conn } = makeMinimalRewardTxnDb(`CREATE TABLE reward_transactions (
+  id TEXT PRIMARY KEY,
+  currency_code TEXT NOT NULL DEFAULT 'IF NOT EXISTS XLM' CHECK (currency_code IN ('IF NOT EXISTS XLM'))
+);`);
+    try {
+      expect(() => conn.prepare(
+        "INSERT INTO reward_transactions (id, currency_code) VALUES ('t1', 'XLM')"
+      ).run()).toThrow();
+      expect(() => conn.prepare(
+        "INSERT INTO reward_transactions (id, currency_code) VALUES ('t2', 'IF NOT EXISTS XLM')"
+      ).run()).not.toThrow();
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-LITERAL-1: detectSchemaVersion returns unknown for changed-literal source schema', () => {
+    const changedSchema = makeChangedCurrencyLiteralSchema(OLD_SCHEMA);
+    const { dbPath, conn } = makeTempDb(changedSchema);
+    try {
+      expect(detectSchemaVersion(conn)).toBe('unknown');
+    } finally {
+      conn.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-LITERAL-2: planUpgrade throws Unsupported schema for changed-literal source DB', () => {
+    const changedSchema = makeChangedCurrencyLiteralSchema(OLD_SCHEMA);
+    const { dbPath, conn } = makeTempDb(changedSchema);
+    conn.close();
+    try {
+      expect(() => planUpgrade(dbPath)).toThrow('Unsupported schema');
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-LITERAL-3: applyUpgrade refuses changed-literal source; DDL in sqlite_master unchanged', () => {
+    const changedSchema = makeChangedCurrencyLiteralSchema(OLD_SCHEMA);
+    const { dbPath, conn } = makeTempDb(changedSchema);
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath)).toThrow('Unsupported schema');
+      // DDL still has the original changed literal — migration did not rewrite it
+      const verify = new Database(dbPath);
+      try {
+        const row = verify.prepare(
+          "SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'"
+        ).get() as { sql: string } | undefined;
+        expect(row).toBeDefined();
+        expect(row!.sql).toContain("'IF NOT EXISTS XLM'");
+      } finally {
+        verify.close();
+      }
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  it('COMPAT-F5-LITERAL-4: validateDatabase refuses changed-literal source DB', () => {
+    const changedSchema = makeChangedCurrencyLiteralSchema(OLD_SCHEMA);
+    const { dbPath, conn } = makeTempDb(changedSchema);
+    conn.close();
+    let dbConn: SqliteDatabase | undefined;
+    try {
+      dbConn = new Database(dbPath);
+      expect(() => validateDatabase(dbConn!)).toThrow();
+    } finally {
+      dbConn?.close();
+      cleanupTempDb(dbPath);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPAT-F5-IFLITERAL: canonicalizeDdl — IF NOT EXISTS preserved in literals; header-only stripping
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside literals', () => {
+  it('COMPAT-F5-IFLITERAL-0: IF NOT EXISTS inside single-quoted DEFAULT literal is preserved verbatim', () => {
+    const ddl = `CREATE TABLE t (currency_code TEXT NOT NULL DEFAULT 'IF NOT EXISTS XLM' CHECK (currency_code IN ('XLM')))`;
+    const result = canonicalizeDdl(ddl);
+    expect(result).toContain("DEFAULT 'IF NOT EXISTS XLM'");
+  });
+
+  it('COMPAT-F5-IFLITERAL-1: IF NOT EXISTS inside CHECK expression string literal is preserved verbatim', () => {
+    const ddl = `CREATE TABLE t (currency_code TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('IF NOT EXISTS XLM')))`;
+    const result = canonicalizeDdl(ddl);
+    expect(result).toContain("('IF NOT EXISTS XLM')");
+  });
+
+  it('COMPAT-F5-IFLITERAL-2: IF NOT EXISTS in CREATE TABLE header is stripped; body literals intact', () => {
+    const ddl = `CREATE TABLE IF NOT EXISTS reward_transactions (
+  currency_code TEXT NOT NULL DEFAULT 'IF NOT EXISTS XLM' CHECK (currency_code IN ('IF NOT EXISTS XLM'))
+)`;
+    const result = canonicalizeDdl(ddl);
+    // Header stripped
+    expect(result).not.toMatch(/\bIF\s+NOT\s+EXISTS\s+reward_transactions/i);
+    // Body literals preserved
+    expect(result).toContain("DEFAULT 'IF NOT EXISTS XLM'");
+    expect(result).toContain("('IF NOT EXISTS XLM')");
+  });
+
+  it('COMPAT-F5-IFLITERAL-3: parentheses inside quoted string do not confuse body extraction', () => {
+    const ddl = `CREATE TABLE t (note TEXT NOT NULL DEFAULT '(special)')`;
+    const result = canonicalizeDdl(ddl);
+    // The quoted string with parens is preserved verbatim; canonical form ends with )
+    expect(result).toContain("DEFAULT '(special)'");
+    expect(result.endsWith(')')).toBe(true);
+  });
+
+  it('COMPAT-F5-IFLITERAL-4: double-quoted table name in header is not stripped', () => {
+    const ddl = `CREATE TABLE "IF NOT EXISTS" (id TEXT PRIMARY KEY)`;
+    const result = canonicalizeDdl(ddl);
+    // Double-quoted identifier — preserved as-is (it's a valid table name)
+    expect(result).toContain('"IF NOT EXISTS"');
   });
 });

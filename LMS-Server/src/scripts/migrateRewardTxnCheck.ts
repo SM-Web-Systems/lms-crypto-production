@@ -122,7 +122,7 @@ function sourceCreateTable(tableName: string): string {
 )`;
 }
 
-// ── Safe DDL canonicalization (W03-R4) ───────────────────────────────────────
+// ── Safe DDL canonicalization (W03-R5) ───────────────────────────────────────
 
 /**
  * Token-aware DDL canonicalization:
@@ -130,59 +130,105 @@ function sourceCreateTable(tableName: string): string {
  *     Content inside single-quoted string literals and double-quoted identifiers
  *     is preserved verbatim — '--' or slash-star inside a literal is NOT a comment.
  *   - Collapses all whitespace sequences to a single space, trims.
- *   - Strips "IF NOT EXISTS " (defensive; SQLite already strips it from stored DDL).
+ *   - Strips "IF NOT EXISTS " from the statement header (text before the first '(') only.
+ *     A mini-scanner handles double-quoted identifiers in the header verbatim, so a
+ *     table named "IF NOT EXISTS" is not altered.
  *
  * W03-R4: replaces the previous regex-based normalizeDdl that incorrectly stripped
  * '--' inside string literals (e.g. DEFAULT '--placeholder' was partially truncated).
  *
+ * W03-R5 (F2 fix): the post-loop global IF NOT EXISTS regex is removed. Instead,
+ * IF NOT EXISTS is stripped only from the pre-'(' header via a mini-scanner.
+ * This prevents the regex from rewriting string literal contents such as
+ * DEFAULT 'IF NOT EXISTS XLM', which would produce a false body match.
+ *
  * Exported for use by databaseBootstrap.ts.
  */
 export function canonicalizeDdl(ddl: string): string {
+  // ── Pre-scan: strip IF NOT EXISTS from header (before first '(') only ────────
+  // IF NOT EXISTS is syntactically valid only in the CREATE TABLE/INDEX header.
+  // Stripping it only from the pre-'(' portion avoids rewriting string literal content.
+  const firstParen = ddl.indexOf('(');
+  let input: string;
+  if (firstParen !== -1) {
+    const header = ddl.slice(0, firstParen);
+    let strippedHeader = '';
+    let hi = 0;
+    while (hi < header.length) {
+      if (header[hi] === '"') {
+        // Double-quoted identifier in header — preserve verbatim
+        let j = hi + 1;
+        while (j < header.length) {
+          if (header[j] === '"' && j + 1 < header.length && header[j + 1] === '"') { j += 2; }
+          else if (header[j] === '"') { j++; break; }
+          else { j++; }
+        }
+        strippedHeader += header.slice(hi, j);
+        hi = j;
+      } else {
+        const m = header.slice(hi).match(/^IF\s+NOT\s+EXISTS\s+/i);
+        if (m) {
+          // Replace IF NOT EXISTS with a single space to avoid merging surrounding tokens
+          strippedHeader += ' ';
+          hi += m[0].length;
+        } else {
+          strippedHeader += header[hi];
+          hi++;
+        }
+      }
+    }
+    input = strippedHeader + ddl.slice(firstParen);
+  } else {
+    // No '(' found — no body. Strip IF NOT EXISTS globally as a safe fallback.
+    input = ddl.replace(/\bIF\s+NOT\s+EXISTS\s+/gi, '');
+  }
+
+  // ── Character-by-character loop (unchanged from W03-R4) ──────────────────────
   let result = '';
   let pendingSpace = false; // true when whitespace/comment was seen but not yet flushed
   let i = 0;
-  const n = ddl.length;
+  const n = input.length;
 
   while (i < n) {
-    if (ddl[i] === "'") {
+    if (input[i] === "'") {
       // Single-quoted string literal — '' is the escape for a literal quote
       let j = i + 1;
       while (j < n) {
-        if (ddl[j] === "'" && j + 1 < n && ddl[j + 1] === "'") { j += 2; }
-        else if (ddl[j] === "'") { j++; break; }
+        if (input[j] === "'" && j + 1 < n && input[j + 1] === "'") { j += 2; }
+        else if (input[j] === "'") { j++; break; }
         else { j++; }
       }
       if (pendingSpace && result.length > 0) { result += ' '; pendingSpace = false; }
-      result += ddl.slice(i, j);
+      result += input.slice(i, j);
       i = j;
-    } else if (ddl[i] === '"') {
+    } else if (input[i] === '"') {
       // Double-quoted identifier — "" is the escape
       let j = i + 1;
       while (j < n) {
-        if (ddl[j] === '"' && j + 1 < n && ddl[j + 1] === '"') { j += 2; }
-        else if (ddl[j] === '"') { j++; break; }
+        if (input[j] === '"' && j + 1 < n && input[j + 1] === '"') { j += 2; }
+        else if (input[j] === '"') { j++; break; }
         else { j++; }
       }
       if (pendingSpace && result.length > 0) { result += ' '; pendingSpace = false; }
-      result += ddl.slice(i, j);
+      result += input.slice(i, j);
       i = j;
-    } else if (ddl[i] === '/' && i + 1 < n && ddl[i + 1] === '*') {
+    } else if (input[i] === '/' && i + 1 < n && input[i + 1] === '*') {
       // Block comment — treat as whitespace (pending space, suppress before ')')
       let j = i + 2;
-      while (j + 1 < n && !(ddl[j] === '*' && ddl[j + 1] === '/')) { j++; }
+      while (j + 1 < n && !(input[j] === '*' && input[j + 1] === '/')) { j++; }
       pendingSpace = true;
       i = j + 2;
-    } else if (ddl[i] === '-' && i + 1 < n && ddl[i + 1] === '-') {
+    } else if (input[i] === '-' && i + 1 < n && input[i + 1] === '-') {
       // Line comment — treat as whitespace
       let j = i + 2;
-      while (j < n && ddl[j] !== '\n') { j++; }
+      while (j < n && input[j] !== '\n') { j++; }
       pendingSpace = true;
       i = j;
-    } else if (ddl[i] === ' ' || ddl[i] === '\t' || ddl[i] === '\n' || ddl[i] === '\r') {
+    } else if (input[i] === ' ' || input[i] === '\t' || input[i] === '\n' || input[i] === '\r') {
       // Whitespace — defer to pendingSpace
       pendingSpace = true;
       i++;
-    } else if (ddl[i] === ')') {
+    } else if (input[i] === ')') {
       // Suppress any pending space immediately before ')'
       pendingSpace = false;
       result += ')';
@@ -190,12 +236,12 @@ export function canonicalizeDdl(ddl: string): string {
     } else {
       // Any other character — flush pending space first
       if (pendingSpace && result.length > 0) { result += ' '; pendingSpace = false; }
-      result += ddl[i];
+      result += input[i];
       i++;
     }
   }
 
-  result = result.replace(/\bIF\s+NOT\s+EXISTS\s+/gi, '');
+  // No post-loop IF NOT EXISTS regex — removed in W03-R5 (F2 fix).
   return result;
 }
 
@@ -203,12 +249,15 @@ export function canonicalizeDdl(ddl: string): string {
  * Extract the column/constraint body from a CREATE TABLE DDL string.
  * Returns everything between the first '(' and last ')', trimmed.
  *
- * This makes detectSchemaVersion independent of whether the table name is quoted
- * ('CREATE TABLE reward_transactions (...)') or double-quoted
- * ('CREATE TABLE "reward_transactions" (...)' — the form SQLite stores after
- * ALTER TABLE RENAME). Both have identical bodies.
+ * Used only for pre-computing CANONICAL_SOURCE_BODY and CANONICAL_TARGET_BODY at
+ * module load. The source/target DDL templates have no suffix and no IF NOT EXISTS,
+ * so extractTableBody is safe on those inputs.
  *
- * Applied after canonicalizeDdl.
+ * W03-R5: detectSchemaVersion no longer calls this function directly — it performs
+ * suffix detection (F1 fix) and inline body extraction from canonicalizeDdl output.
+ * Both the quoted ('reward_transactions') and double-quoted ('"reward_transactions"',
+ * stored by SQLite after ALTER TABLE RENAME) table name forms produce identical bodies
+ * because the header is discarded.
  */
 function extractTableBody(ddl: string): string {
   const first = ddl.indexOf('(');
@@ -263,6 +312,13 @@ const REWARD_TXN_COLUMNS = [
  *   F2 (extra table-level CHECK): extra clause changes body → 'unknown'
  *   Missing checks, changed nullability, added columns, reordered: all → 'unknown'
  *   '--' inside a string literal: preserved (not stripped as comment)
+ *
+ * W03-R5 fix:
+ *   F1 (STRICT/WITHOUT ROWID suffix): non-whitespace after last ')' → 'unknown'.
+ *     Without this check, extractTableBody strips the suffix and returns the body
+ *     unchanged, allowing a STRICT table to be silently downgraded during migration.
+ *   F2 (changed literal): canonicalizeDdl no longer rewrites string literal content,
+ *     so DEFAULT 'IF NOT EXISTS XLM' is preserved and produces a body mismatch → 'unknown'.
  */
 export function detectSchemaVersion(conn: SqliteDatabase): SchemaVersion {
   const row = conn.prepare(
@@ -271,7 +327,16 @@ export function detectSchemaVersion(conn: SqliteDatabase): SchemaVersion {
 
   if (!row) return 'absent';
 
-  const body = extractTableBody(canonicalizeDdl(row.sql));
+  const canonical = canonicalizeDdl(row.sql);
+
+  // F1 fix (W03-R5): check for unsupported table option suffix (STRICT, WITHOUT ROWID, etc.)
+  // extractTableBody would silently discard a suffix — detect it here before extraction.
+  const lastParen = canonical.lastIndexOf(')');
+  if (lastParen === -1) return 'unknown';
+  const suffix = canonical.slice(lastParen + 1).trim();
+  if (suffix.length > 0) return 'unknown';
+
+  const body = canonical.slice(canonical.indexOf('(') + 1, lastParen).trim();
 
   if (body === CANONICAL_TARGET_BODY) return 'target';
   if (body === CANONICAL_SOURCE_BODY) return 'source';
