@@ -181,6 +181,24 @@ export function applyUpgrade(
   let foreignKeysRestored = false;
 
   try {
+    // Partial-swap detection (spec §3.4): if reward_transactions_new is present
+    // without reward_transactions, a prior interrupted apply left the database in
+    // a half-swapped state that SQLite WAL recovery did not resolve.
+    // Refuse before any mutation — manual recovery required.
+    const newTableExists = conn.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reward_transactions_new'"
+    ).get();
+    const origTableExists = conn.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reward_transactions'"
+    ).get();
+    if (newTableExists && !origTableExists) {
+      throw new Error(
+        `Partial-swap detected: reward_transactions_new exists but reward_transactions does not. ` +
+        `An interrupted prior migration left the database in an inconsistent state. ` +
+        `Manual recovery required: restore from pre-apply backup.`
+      );
+    }
+
     const schemaVersion = detectSchemaVersion(conn);
 
     if (schemaVersion === 'target' || schemaVersion === 'absent') {
