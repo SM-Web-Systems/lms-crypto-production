@@ -90,6 +90,16 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
   if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
+  const txnRow = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='reward_transactions'"
+  ).get() as { sql: string } | undefined;
+  if (txnRow && !txnRow.sql.includes("'release_unused'")) {
+    refuse(
+      "reward_transactions CHECK constraint is pre-W03-R2; " +
+      "run: npm run db:migrate-reward-txn-check -- --apply DATABASE_PATH " +
+      "before starting the application"
+    );
+  }
   if ((db.pragma('table_info(nft_credentials)') as { name: string; notnull: number }[]).find(c => c.name === 'quiz_id')?.notnull) refuse('legacy NFT constraint');
   if (!(db.pragma('foreign_key_list(quizzes)') as { from: string; on_delete: string }[]).some(f => f.from === 'course_id' && f.on_delete === 'SET NULL')) refuse('legacy quiz foreign key');
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND (sql LIKE '%_users_old%' OR sql LIKE '%_nft_creds_b0_old%')").get()) refuse('stale foreign key references');

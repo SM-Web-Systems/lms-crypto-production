@@ -95,6 +95,16 @@ function seedMinimalFixtures(conn: SqliteDatabase): {
   studentIds: string[];
   cohortId: string;
 } {
+  // Seed roles required by the trg_auto_assign_user_role trigger
+  for (const [id, name, label] of [
+    ['role_admin', 'admin', 'Administrator'],
+    ['role_student', 'student', 'Student'],
+  ]) {
+    conn.prepare(
+      "INSERT OR IGNORE INTO roles (id, name, label, description, is_system) VALUES (?, ?, ?, '', 1)"
+    ).run(id, name, label);
+  }
+
   const adminId = uuidv4();
   const sponsorId = uuidv4();
   conn.prepare(
@@ -357,13 +367,14 @@ describe('COMPAT-APPLY-PRESERVE: apply preserves ledger rows and unrelated data'
        VALUES (?, ?, 'sponsor_cohort', ?, 'individual', 100, 'funded', ?)`
     ).run(rewardId, sponsorId, cohortId, uuidv4());
 
-    // Insert pre-existing transactions using OLD types (no release_unused)
+    // Insert pre-existing transactions using OLD types (no release_unused).
+    // Use 'reserve' (not 'fund') to avoid needing funding_source_type NOT NULL.
     const txn1 = {
       id: uuidv4(), rewardId, idem: uuidv4(),
-      type: 'fund', sourceType: 'external', sourceBucket: null,
-      sourceUser: null, destType: 'funder', destBucket: 'available',
+      type: 'reserve', sourceType: 'funder', sourceBucket: 'available',
+      sourceUser: adminId, destType: 'funder', destBucket: 'reserved',
       destUser: adminId, actorType: 'user', actorUser: adminId,
-      amount: 500, prev: 'draft', next: 'funded',
+      amount: 500, prev: 'funded', next: 'active',
     };
     const txn2 = {
       id: uuidv4(), rewardId, idem: uuidv4(),
@@ -823,26 +834,27 @@ describe('COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via s
   it('COMPAT-E2E-1: cap=5/audience=3 → 500 reserved, 300 distributed, 200 returned exactly once', () => {
     const sponsorId = makeSponsor();
     const adminId = makeAdmin();
-    const { cohortId, studentIds } = makeCohortWithMembers(sponsorId, 3);
+    const { cohortId } = makeCohortWithMembers(sponsorId, 3);
 
-    const result = createReward(
-      sponsorId,
-      { scopeType: 'sponsor_cohort', scopeId: cohortId },
-      { rewardType: 'individual', amountStroops: 100, maxRecipients: 5,
-        description: 'E2E test', idempotencyKey: uuidv4() }
-    );
-    expect(result.success).toBe(true);
-    const rewardId = result.reward!.id;
+    const reward = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohortId,
+      rewardType: 'individual',
+      amountStroops: '100',
+      maxRecipients: 5,
+      description: 'E2E test',
+      idempotencyKey: uuidv4(),
+    });
+    const rewardId = reward.id;
 
-    const funded = fundReward(rewardId, adminId, { type: 'admin_grant' }, uuidv4());
-    expect(funded.success).toBe(true);
+    fundReward(rewardId, adminId, { type: 'admin_grant' }, uuidv4());
 
-    const funderAcctAfterFund = getAccount(adminId, 'funder');
+    // admin_grant credits the reward creator's (sponsorId) funder account
+    const funderAcctAfterFund = getAccount(sponsorId, 'funder');
     // admin_grant: reserves amount * cap = 100 * 5 = 500
     expect(funderAcctAfterFund!.reserved_stroops).toBe(500);
 
-    const activated = activateReward(rewardId, adminId, uuidv4());
-    expect(activated.success).toBe(true);
+    activateReward(rewardId, sponsorId, uuidv4());
 
     makeAllocationsEligible(rewardId);
 
@@ -852,17 +864,16 @@ describe('COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via s
     ).all(rewardId) as { id: string; student_user_id: string }[];
     expect(allocations).toHaveLength(3);
 
-    // Release all 3 allocations
+    // Release all 3 allocations (scope holder = sponsorId)
     for (const alloc of allocations) {
-      const r = releaseAllocation(alloc.id, alloc.student_user_id, adminId, rewardId);
-      expect(r.success).toBe(true);
+      releaseAllocation(alloc.id, sponsorId, uuidv4(), rewardId);
     }
 
     // Reward should now be 'released'
     const rewardRow = db.prepare('SELECT status FROM rewards WHERE id = ?').get(rewardId) as { status: string };
     expect(rewardRow.status).toBe('released');
 
-    const funderAcctFinal = getAccount(adminId, 'funder');
+    const funderAcctFinal = getAccount(sponsorId, 'funder');
     // 500 reserved - 300 released - 200 release_unused = 0 reserved
     expect(funderAcctFinal!.reserved_stroops).toBe(0);
 
@@ -880,9 +891,11 @@ describe('COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via s
     }
 
     // Ledger totals: 500 debited from funder.reserved (300 release + 200 release_unused)
-    const txns = getRewardTransactions(rewardId, adminId);
-    const releaseCount = txns.transactions.filter(t => t.transaction_type === 'release').length;
-    const unusedCount = txns.transactions.filter(t => t.transaction_type === 'release_unused').length;
+    const txns = db.prepare(
+      "SELECT transaction_type FROM reward_transactions WHERE reward_id = ? ORDER BY created_at"
+    ).all(rewardId) as { transaction_type: string }[];
+    const releaseCount = txns.filter(t => t.transaction_type === 'release').length;
+    const unusedCount = txns.filter(t => t.transaction_type === 'release_unused').length;
     expect(releaseCount).toBe(3);
     expect(unusedCount).toBe(1);
   });
@@ -890,17 +903,20 @@ describe('COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via s
   it('COMPAT-E2E-2: exact-cap completion (cap=3, audience=3) → no release_unused entry', () => {
     const sponsorId = makeSponsor();
     const adminId = makeAdmin();
-    const { cohortId, studentIds } = makeCohortWithMembers(sponsorId, 3);
+    const { cohortId } = makeCohortWithMembers(sponsorId, 3);
 
-    const result = createReward(
-      sponsorId,
-      { scopeType: 'sponsor_cohort', scopeId: cohortId },
-      { rewardType: 'individual', amountStroops: 100, maxRecipients: 3,
-        description: 'Exact cap test', idempotencyKey: uuidv4() }
-    );
-    const rewardId = result.reward!.id;
+    const reward = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohortId,
+      rewardType: 'individual',
+      amountStroops: '100',
+      maxRecipients: 3,
+      description: 'Exact cap test',
+      idempotencyKey: uuidv4(),
+    });
+    const rewardId = reward.id;
     fundReward(rewardId, adminId, { type: 'admin_grant' }, uuidv4());
-    activateReward(rewardId, adminId, uuidv4());
+    activateReward(rewardId, sponsorId, uuidv4());
     makeAllocationsEligible(rewardId);
 
     const allocations = db.prepare(
@@ -908,7 +924,7 @@ describe('COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via s
     ).all(rewardId) as { id: string; student_user_id: string }[];
 
     for (const alloc of allocations) {
-      releaseAllocation(alloc.id, alloc.student_user_id, adminId, rewardId);
+      releaseAllocation(alloc.id, sponsorId, uuidv4(), rewardId);
     }
 
     const unusedEntries = db.prepare(
@@ -916,7 +932,8 @@ describe('COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via s
     ).all(rewardId);
     expect(unusedEntries).toHaveLength(0);
 
-    const funderAcct = getAccount(adminId, 'funder');
+    // admin_grant credits sponsorId's funder account
+    const funderAcct = getAccount(sponsorId, 'funder');
     expect(funderAcct!.reserved_stroops).toBe(0);
   });
 });
@@ -947,17 +964,20 @@ describe('COMPAT-REGRESSION: in-memory suite sentinel', () => {
     const adminId = makeAdmin();
     const { cohortId } = makeCohortWithMembers(sponsorId, 1);
 
-    const result = createReward(
-      sponsorId,
-      { scopeType: 'sponsor_cohort', scopeId: cohortId },
-      { rewardType: 'individual', amountStroops: 100, maxRecipients: 1,
-        description: 'cancel test', idempotencyKey: uuidv4() }
-    );
-    const rewardId = result.reward!.id;
+    const reward = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort',
+      scopeId: cohortId,
+      rewardType: 'individual',
+      amountStroops: '100',
+      maxRecipients: 1,
+      description: 'cancel test',
+      idempotencyKey: uuidv4(),
+    });
+    const rewardId = reward.id;
     fundReward(rewardId, adminId, { type: 'admin_grant' }, uuidv4());
 
-    const cancelled = cancelReward(rewardId, adminId, uuidv4(), 'test cancel');
-    expect(cancelled.success).toBe(true);
+    // Only scope holder (sponsor) can cancel; reason comes before idempotencyKey
+    cancelReward(rewardId, sponsorId, 'test cancel', uuidv4());
 
     const cancelTxns = db.prepare(
       "SELECT * FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'cancel'"
@@ -1008,7 +1028,7 @@ describe('COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement', () 
     // Insert migration key in system_config but leave old schema
     const { conn } = makeTempDb(OLD_SCHEMA);
     conn.prepare(
-      "INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by) VALUES (?, '2026-10-30', datetime('now'), 'test')"
+      "INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by) VALUES (?, '2026-10-30', datetime('now'), NULL)"
     ).run(MIGRATION_ID);
     let threw = false;
     try {
