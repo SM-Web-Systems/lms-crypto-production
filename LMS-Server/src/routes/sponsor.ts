@@ -37,7 +37,7 @@ function parseSponsorDateRange(req: AuthRequest, res: Response): {from:string|nu
   const valid = (v: unknown): v is string => typeof v === 'string' && ISO_DATE_RE.test(v)
     && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0,10) === v;
   if ((from !== undefined && !valid(from)) || (to !== undefined && !valid(to)) || (typeof from === 'string' && typeof to === 'string' && from > to)) {
-    res.status(400).json({success:false,error:{message:'Use valid YYYY-MM-DD dates with From before To.'}});
+    res.status(400).json({success:false,error:{code:'INVALID_DATE_RANGE',message:'Use valid YYYY-MM-DD dates with From before To.'}});
     return 'error';
   }
   // Exclusive next-day boundary works for SQLite timestamps and ISO timestamps.
@@ -213,10 +213,10 @@ router.get(
     if (range === 'error') return;
 
     const scope = req.query.scope ?? 'own';
-    if (scope !== 'own' && scope !== 'cohort') {res.status(400).json({success:false,error:{message:'scope must be own or cohort'}});return;}
+    if (scope !== 'own' && scope !== 'cohort') {res.status(400).json({success:false,error:{code:'INVALID_SCOPE',message:'scope must be own or cohort'}});return;}
     const permissions = new Set(getUserPermissions(userId));
     if (scope === 'cohort' && (!permissions.has('billing.view_all') || !permissions.has('cohort.view_own'))) {
-      res.status(403).json({success:false,error:{message:'Cohort billing access is required'}});return;
+      res.status(403).json({success:false,error:{code:'INSUFFICIENT_PERMISSIONS',message:'Cohort billing access is required'}});return;
     }
     const conditions = [scope === 'own' ? 'p.user_id = ?' : `p.user_id <> ? AND EXISTS (
       SELECT 1 FROM cohort_members cm JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id

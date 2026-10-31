@@ -3,6 +3,7 @@
  */
 
 import api from './api';
+import { assertApiSuccess } from '../utils/apiError';
 
 export interface EmployerDashboardData {
   totalTeams: number;
@@ -17,15 +18,31 @@ export interface EmployerTeam {
   member_count: number;
 }
 
+// Raw wire shape from GET /employer/billing (snake_case from SQL)
+interface EmployerBillingRaw {
+  payments: Array<{
+    id: string;
+    course_id: string;
+    amount_cents: number;
+    currency: string;
+    payment_method: string;
+    status: string;
+    created_at: string;
+  }>;
+  total: number;
+}
+
 export interface EmployerBilling {
   payments: Array<{
-    paymentId: string;
+    id: string;
+    courseId: string;
     amountCents: number;
     currency: string;
+    paymentMethod: string;
     status: string;
     createdAt: string;
   }>;
-  totalSpent: number;
+  total: number;  // count of own payments; NOT a monetary aggregate
 }
 
 export const employerService = {
@@ -53,7 +70,19 @@ export const employerService = {
   },
 
   async getBilling(): Promise<EmployerBilling> {
-    const res = await api.get<{ success: boolean; data: EmployerBilling }>('/employer/billing');
-    return res.data.data;
+    const res = await api.get<{ success: boolean; data: EmployerBillingRaw }>('/employer/billing');
+    const raw = assertApiSuccess(res, 'Failed to load billing history');
+    return {
+      payments: raw.payments.map((p) => ({
+        id: p.id,
+        courseId: p.course_id,
+        amountCents: p.amount_cents,
+        currency: p.currency,
+        paymentMethod: p.payment_method,
+        status: p.status,
+        createdAt: p.created_at,
+      })),
+      total: raw.total,
+    };
   },
 };
