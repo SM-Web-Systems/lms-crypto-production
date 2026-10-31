@@ -406,12 +406,15 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 **Rollback**: Each W05–W09 fix is a separate PR. Revert the specific merge commit if regressions appear. W05–W09 are P2; a revert restores the current state which has DB-level guards (W05) or cosmetic/UX issues only.
 
 ### S3-T01: Implement W05 — reward type enum alignment
-- **Status**: TODO
+- **Status**: MERGED
 - **Dependencies**: S1-T04 spec reviewed
-- **Owner**: —
-- **Files**: `LMS-Server/src/config/database.ts` (line 1570–1572), `LMS-Frontend/src/` (reward creation forms)
-- **Problem**: DB CHECK constraint allows `individual, milestone, course_completion, grade, custom`. UI may present additional type choices not in this set.
-- **Acceptance**: All UI-presented types match DB enum; invalid types rejected at API level
+- **Owner**: W05 session (2026-10-31)
+- **Files**: `LMS-Server/src/services/rewards/rewardTypes.ts`, `rewardErrors.ts`, `rewardService.ts`, `LMS-Server/src/__tests__/reward-r13-routes.test.ts`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
+- **Problem**: DB CHECK constraint allows `individual, milestone, course_completion, grade, custom`. Frontend offered `completion`/`achievement` (both invalid). `createReward()` had no runtime type validation — invalid value triggered unhandled SQLite 500.
+- **Fix**: Export `REWARD_TYPES` constant and `RewardType` from backend `rewardTypes.ts`; add `INVALID_REWARD_TYPE` error code; add runtime membership validation at start of `createReward()` (before currency/scope/idempotency checks); fix frontend select to show `custom`/`individual`/`milestone`; `course_completion`/`grade` documented as requiring eligibility config not in current form (W06 follow-up); fix `RewardComponents.test.tsx` fixture from `'completion'` to `'custom'`
+- **Evidence**: PR #126 MERGED, main HEAD `13c6b20`; CI: Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS; 29 W05 tests (W5-T1–T20) + 625 backend reward tests + 515 frontend tests all pass; independent review APPROVED
+- **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W05-reward-type-alignment.md`
+- **Acceptance**: All UI-presented types match DB enum; invalid types rejected at API level; no silent remapping; no DB writes on rejection
 
 ### S3-T02: Implement W06 — family/child discriminator
 - **Status**: TODO

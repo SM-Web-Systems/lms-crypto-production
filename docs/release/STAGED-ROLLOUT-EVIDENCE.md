@@ -424,10 +424,11 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Finding ID | W05 |
 | Priority | P2 |
-| Current applicability | **Present on main** |
-| Code evidence | `database.ts:1570-1572` — `reward_type TEXT NOT NULL CHECK (reward_type IN ('individual', 'milestone', 'course_completion', 'grade', 'custom'))`. UI reward creation forms may offer types beyond this set (e.g., `attendance`, `participation`). The INSERT would fail with a CHECK constraint violation at the DB level. |
-| Existing fix PR | None |
-| Evidence status | Assessed; DB-level guard prevents data corruption but UI shows broken options |
+| Current applicability | **FIXED on main** (`13c6b20`) |
+| Code evidence | `database.ts:1570-1572` — `reward_type TEXT NOT NULL CHECK (reward_type IN ('individual', 'milestone', 'course_completion', 'grade', 'custom'))`. Actual invalid values in UI were `completion` and `achievement` (not `attendance`/`participation` as originally noted). `createReward()` had zero runtime validation — invalid type triggered unhandled SQLite CHECK violation → raw 500 instead of controlled 400. |
+| Existing fix PR | **#126 MERGED** at `13c6b20` (2026-10-31) |
+| Fix summary | (1) Export `REWARD_TYPES` constant and `RewardType` from `rewardTypes.ts`. (2) Add `INVALID_REWARD_TYPE` to `REWARD_ERROR_CODES`. (3) Add runtime membership validation at start of `createReward()` — rejects non-string, null, empty, padded, wrong-cased, and unlisted values with 400 `INVALID_REWARD_TYPE` before any DB write. (4) Fix `RewardDashboard.tsx` select: remove `completion`/`achievement`, add `individual`/`milestone`. `course_completion`/`grade` not shown (require eligibility config); documented for W06 follow-up. (5) Frontend `CreateRewardParams.rewardType: RewardType`. (6) Fix `RewardComponents.test.tsx` fixture from `'completion'` to `'custom'`. |
+| Evidence status | **FIXED** — PR #126 merged, main HEAD `13c6b20`; CI: all 4 jobs PASS; 29 W05 tests (W5-T1–T20) covering all 4 creation routes, direct service calls, edge cases, no-DB-write proof, idempotency; 625 backend reward tests PASS; 515 frontend tests PASS; TypeScript builds clean; independent review APPROVED (no blocking findings) |
 
 ### W06: Family reward requests omit required discriminator
 
@@ -1079,3 +1080,39 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W04-R1 | #124 | `aaf0bec` | 48 | Complete staff-mark + submission-approval producers; reject conflicting sponsor_cohort bindings |
 | W04-R2 | #125 | `a946c0f` | +3 (51 total) | Fail closed on deleted scope; F1-H-5 rollback trigger proof; F3-U-5 corrected |
 | **Total** | **22+ PRs** | — | **384+ tests** | **S2 complete — W01–W04+R2 all FIXED** |
+
+## S3/W05 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #126 (`feat(W05): align reward creation types across DB, API and frontend`) |
+| Pre-merge main | `a946c0f` (post-W04-R2) |
+| Branch head | `b5723f4` (codex/w05-reward-type-alignment) |
+| Merge method | Squash |
+| Merge commit | `13c6b20` |
+| Merged at | 2026-10-31 |
+| Post-merge main | `13c6b20` |
+| PR CI run | `41190960062` — Backend Tests PASS (3m31s), Frontend Tests & Build PASS (1m5s), E2E Tests PASS (1m26s), Offline Monitoring PASS (57s) |
+| AI review | Independent review (sonnet): APPROVED — no blocking findings; 2 informational observations (no auth+valid-type regression test; W5-T19/T20 use direct service rather than HTTP route) |
+| Test results | 29/29 W05 tests PASS; 625 backend reward tests PASS; 515 frontend tests PASS; 0 regressions |
+| Files changed | MODIFIED: `LMS-Server/src/services/rewards/rewardTypes.ts`, `rewardErrors.ts`, `rewardService.ts`, `LMS-Server/src/__tests__/reward-r13-routes.test.ts`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`; NEW: `LMS-Server/docs/superpowers/specs/2026-10-31-W05-reward-type-alignment.md`, `docs/release/CLAUDE-SERVER-W05-PROMPT.md` |
+| Branch | Deleted (worktree retained locally at `/home/webadmin/worktrees/w05`) |
+| Deploy impact | None — no schema migration required; runtime validation addition only |
+
+### W05 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `e1af3b5` | docs(W05): add reward-type alignment spec and test matrix |
+| `b5723f4` | feat(W05): align reward creation types — REWARD_TYPES constant, runtime validation, fix frontend select |
+| `13c6b20` | Squash merge commit to main |
+
+### S3 stage progress
+
+| Unit | PR | Merge SHA | Tests added | Status |
+| --- | --- | --- | --- | --- |
+| W05 | #126 | `13c6b20` | 29 | FIXED |
+| W06 | — | — | — | TODO |
+| W07 | — | — | — | TODO |
+| W08 | — | — | — | TODO |
+| W09 | — | — | — | TODO |
