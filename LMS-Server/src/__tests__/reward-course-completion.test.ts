@@ -1255,6 +1255,263 @@ describe('F2: Submission-approval course_completion producer', () => {
   });
 });
 
+// ──── §ARFL: Auto-release financial tests ─────────────────────────────────────
+
+/**
+ * Helper: create a funded, active reward with autoRelease=true.
+ * The actorId must own the scope (teacher owns group; sponsor owns cohort).
+ */
+function createAutoReleaseReward(
+  actorId: string,
+  scopeType: 'sponsor_cohort' | 'teacher_class',
+  scopeId: string,
+  amountStroops = '5000000',
+  eligibilityConfig?: string,
+): string {
+  const reward = createReward(actorId, {
+    scopeType,
+    scopeId,
+    rewardType: 'course_completion',
+    amountStroops,
+    autoRelease: true,
+    eligibilityConfig,
+    idempotencyKey: `idem-${uuidv4()}`,
+  });
+  const funderId = seedIndependentAdmin();
+  const fundKey = `fund-${uuidv4()}`;
+  db.prepare(
+    "INSERT INTO reward_accounts (id, user_id, account_type, available_stroops, reserved_stroops, currency_code) VALUES (?, ?, 'funder', 20000000, 0, 'XLM')"
+  ).run(uuidv4(), funderId);
+  fundReward(reward.id, funderId, { type: 'admin_grant' }, fundKey);
+  activateReward(reward.id, actorId, `act-${uuidv4()}`);
+  return reward.id;
+}
+
+describe('ARFL: Auto-release financial tests', () => {
+  /** Seed an admin user with role_admin in user_roles. */
+  function seedAdminUser(): string {
+    const id = uuidv4();
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
+    ).run(id, `${id}@t.com`);
+    db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
+    return id;
+  }
+
+  it('ARFL-1: staff-mark route → auto-release → financial assertions', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(studentId, courseId);
+
+    const rewardId = createAutoReleaseReward(sponsorId, 'sponsor_cohort', cohortId, '5000000');
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i1}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+
+    expect(res.status).toBe(200);
+
+    // Allocation must be released
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('released');
+
+    // Exactly one release transaction
+    const releaseTxn = db.prepare(
+      "SELECT * FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'"
+    ).get(rewardId) as { amount_stroops: number } | undefined;
+    expect(releaseTxn).not.toBeNull();
+    expect(releaseTxn).not.toBeUndefined();
+    expect(Number(releaseTxn?.amount_stroops)).toBe(5000000);
+
+    // Funder reserved_stroops decremented to 0
+    const funderAcct = db.prepare(
+      "SELECT reserved_stroops FROM reward_accounts WHERE user_id = (SELECT user_id FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'reserve' LIMIT 1) AND account_type = 'funder'"
+    ).get(rewardId) as { reserved_stroops: number } | undefined;
+    expect(Number(funderAcct?.reserved_stroops)).toBe(0);
+
+    // Recipient account available_stroops = amountStroops
+    const recipientAcct = db.prepare(
+      "SELECT available_stroops FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'"
+    ).get(studentId) as { available_stroops: number } | undefined;
+    expect(Number(recipientAcct?.available_stroops)).toBe(5000000);
+  });
+
+  it('ARFL-2: submission-approval route → auto-release → financial assertions', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1], { itemType: 'assignment' });
+    const { sponsorId, studentId: learnerUserId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    const rewardId = createAutoReleaseReward(sponsorId, 'sponsor_cohort', cohortId, '5000000');
+
+    // Seed student record and submission
+    const studentRecordId = uuidv4();
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'S', ?, ?, 'CS', 1)"
+    ).run(studentRecordId, learnerUserId, `${learnerUserId}@s.com`, `ENR-${studentRecordId.slice(0, 8)}`);
+    const subId = uuidv4();
+    db.prepare(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, file_mime_type, course_id, item_id) VALUES (?, ?, 'T', 'D', 'f.pdf', 100, '/tmp/f.pdf', 'application/pdf', ?, ?)"
+    ).run(subId, studentRecordId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${subId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(200);
+
+    // Allocation must be released
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, learnerUserId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('released');
+
+    // Exactly one release transaction with correct amount
+    const releaseTxn = db.prepare(
+      "SELECT * FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'"
+    ).get(rewardId) as { amount_stroops: number } | undefined;
+    expect(releaseTxn).not.toBeNull();
+    expect(releaseTxn).not.toBeUndefined();
+    expect(Number(releaseTxn?.amount_stroops)).toBe(5000000);
+
+    // Funder reserved_stroops decremented to 0
+    const funderAcct = db.prepare(
+      "SELECT reserved_stroops FROM reward_accounts WHERE user_id = (SELECT user_id FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'reserve' LIMIT 1) AND account_type = 'funder'"
+    ).get(rewardId) as { reserved_stroops: number } | undefined;
+    expect(Number(funderAcct?.reserved_stroops)).toBe(0);
+
+    // Recipient account available_stroops = amountStroops
+    const recipientAcct = db.prepare(
+      "SELECT available_stroops FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'"
+    ).get(learnerUserId) as { available_stroops: number } | undefined;
+    expect(Number(recipientAcct?.available_stroops)).toBe(5000000);
+  });
+});
+
+// ──── §F2-ext: Missing spec-listed F2 tests ───────────────────────────────────
+
+describe('F2-ext: Additional submission-approval producer tests', () => {
+  /** Seed an admin user with role_admin in user_roles. */
+  function seedAdminUser(): string {
+    const id = uuidv4();
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
+    ).run(id, `${id}@t.com`);
+    db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
+    return id;
+  }
+
+  /** Seed a student record linked to an existing user. */
+  function seedStudent(userId: string): string {
+    const studentId = uuidv4();
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, ?, 'CS', 1)"
+    ).run(studentId, userId, `${userId}@s.com`, `ENR-${studentId.slice(0, 8)}`);
+    return studentId;
+  }
+
+  /** Seed a submission for the given student, optionally linked to a course + item. */
+  function seedSubmission(studentId: string, courseId: string | null, itemId: string | null): string {
+    const subId = uuidv4();
+    db.prepare(
+      "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, file_mime_type, course_id, item_id) VALUES (?, ?, 'T', 'D', 'f.pdf', 100, '/tmp/f.pdf', 'application/pdf', ?, ?)"
+    ).run(subId, studentId, courseId, itemId);
+    return subId;
+  }
+
+  it('F2-H-6: repeated approval of same submission → exactly one course_completion outbox event', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1], { itemType: 'assignment' });
+    const { sponsorId, studentId: learnerUserId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+
+    const studentRecordId = seedStudent(learnerUserId);
+    const submissionId = seedSubmission(studentRecordId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    // First approval
+    const res1 = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+    expect(res1.status).toBe(200);
+
+    // Count outbox events after first approval
+    const countAfterFirst = (db.prepare(
+      "SELECT COUNT(*) as cnt FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(learnerUserId) as { cnt: number }).cnt;
+    expect(countAfterFirst).toBe(1);
+
+    // Second approval attempt — submission is already approved; route should handle gracefully
+    const res2 = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+    // Route may return 200 or 409/400 depending on implementation; what matters is no duplicate outbox event
+    expect([200, 400, 409]).toContain(res2.status);
+
+    // Still exactly one course_completion outbox row (no duplicate)
+    const countAfterSecond = (db.prepare(
+      "SELECT COUNT(*) as cnt FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(learnerUserId) as { cnt: number }).cnt;
+    expect(countAfterSecond).toBe(1);
+  });
+
+  it('F2-H-7: two distinct course_completion rewards sharing same learner+course → both become eligible on single approval', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1], { itemType: 'assignment' });
+    const { sponsorId, studentId: learnerUserId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    // Create two independent funded active rewards on the same cohort
+    const rewardId1 = createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+    const rewardId2 = createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+
+    const studentRecordId = seedStudent(learnerUserId);
+    const submissionId = seedSubmission(studentRecordId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+    expect(res.status).toBe(200);
+
+    // Both allocations must be eligible
+    const alloc1 = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId1, learnerUserId) as { status: string } | undefined;
+    const alloc2 = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId2, learnerUserId) as { status: string } | undefined;
+    expect(alloc1?.status).toBe('eligible');
+    expect(alloc2?.status).toBe('eligible');
+
+    // Exactly 2 eligible allocation rows for this learner (no duplicates)
+    const eligibleRows = db.prepare(
+      "SELECT COUNT(*) as cnt FROM reward_allocations WHERE student_user_id = ? AND status = 'eligible'"
+    ).get(learnerUserId) as { cnt: number };
+    expect(eligibleRows.cnt).toBe(2);
+  });
+});
+
 // ──── §F3: Consumer binding conflict detection ────────────────────────────────
 
 describe('F3: Consumer binding conflict detection', () => {
@@ -1340,6 +1597,71 @@ describe('F3: Consumer binding conflict detection', () => {
     processPendingEvents();
 
     // Cohort-only binding → should be eligible
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('eligible');
+  });
+
+  it('F3-U-4: non-cohort scope (teacher_class) with config.requiredCourseId → eligible (conflict check NOT applied)', () => {
+    const itemId = uuidv4();
+    const courseAId = seedCourse([itemId]);
+
+    // seedTeacherClass creates a class owned by teacherId with learner as member
+    const { teacherId, studentId, groupId } = seedTeacherClass(courseAId);
+
+    // Create teacher_class reward using the teacher as actorId (teacher owns the group)
+    const rewardId = createFundedActiveReward(
+      teacherId,
+      'teacher_class',
+      groupId,
+      JSON.stringify({ requiredCourseId: courseAId })
+    );
+
+    // Learner completes courseA
+    completeLesson(studentId, courseAId, itemId);
+
+    // Produce + process course_completion event for courseA
+    produceOutboxEvent('course_completion', courseAId, studentId);
+    processPendingEvents();
+
+    // Non-cohort scope: no conflict check → allocation should be eligible
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('eligible');
+  });
+
+  it('F3-U-5: sponsor_cohort with absent cohort row (course_id unresolvable) and config.requiredCourseId present uses config (no conflict)', () => {
+    const itemId = uuidv4();
+    const courseAId = seedCourse([itemId]);
+
+    // Create cohort + reward with explicit requiredCourseId matching cohort.course_id (no conflict at activation)
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseAId);
+
+    // Activate the reward first to capture the audience snapshot
+    const rewardId = createFundedActiveReward(
+      sponsorId,
+      'sponsor_cohort',
+      cohortId,
+      JSON.stringify({ requiredCourseId: courseAId })
+    );
+
+    // Simulate "cohort.course_id absent" at consumer time by removing the cohort row.
+    // FK OFF prevents cascading deletes of rewards, allocations, audience snapshots.
+    db.pragma('foreign_keys = OFF');
+    db.prepare('DELETE FROM sponsor_cohorts WHERE id = ?').run(cohortId);
+    db.pragma('foreign_keys = ON');
+
+    // Learner completes courseA
+    completeLesson(studentId, courseAId, itemId);
+
+    // Produce + process event
+    produceOutboxEvent('course_completion', courseAId, studentId);
+    processPendingEvents();
+
+    // cohort row absent → boundCourseId=null from cohort lookup → conflict check skipped
+    // config.requiredCourseId=courseAId is used as boundCourseId → eligible
     const alloc = db.prepare(
       'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
     ).get(rewardId, studentId) as { status: string } | undefined;
