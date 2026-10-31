@@ -296,14 +296,41 @@ router.post(
       return;
     }
 
-    execute(
-      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
-       VALUES (?, ?, ?, ?, ?, ?, 100)
-       ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
-       WHERE completed_at IS NULL`,
-      [uuidv4(), userId, courseId, itemId, sectionId, callerId]
-    );
+    // W04-R1 F1: Atomic transaction — primary write + course_completion outbox event
+    const staffMarkWrite = db.transaction(() => {
+      execute(
+        `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+         VALUES (?, ?, ?, ?, ?, ?, 100)
+         ON CONFLICT (user_id, course_id, item_id)
+         DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+         WHERE completed_at IS NULL`,
+        [uuidv4(), userId, courseId, itemId, sectionId, callerId]
+      );
+
+      // W04-R1 F1: Only emit course_completion when the TARGET LEARNER's course is genuinely complete.
+      // Use userId (the learner) not callerId (the staff reviewer) — critical identity invariant.
+      if (isCourseCompleteForReward(userId, courseId)) {
+        produceOutboxEvent('course_completion', courseId, userId);
+      }
+    });
+
+    try {
+      staffMarkWrite();
+    } catch (err) {
+      logger.error({ module: 'staff-lesson-completion', err, courseId, userId }, 'Atomic staff lesson completion + outbox write failed');
+      res.status(500).json({
+        success: false,
+        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Failed to complete lesson' },
+      });
+      return;
+    }
+
+    // Process pending outbox events (retryable, outside transaction)
+    try {
+      processPendingEvents();
+    } catch (err) {
+      logger.error({ module: 'reward-eligibility', err, courseId, userId }, 'Reward event processing failed');
+    }
 
     res.json({ success: true, data: { userId, courseId, itemId, sectionId } });
   }

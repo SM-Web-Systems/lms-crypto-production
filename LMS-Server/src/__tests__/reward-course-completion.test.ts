@@ -847,6 +847,148 @@ describe('end-to-end course_completion reward flow (W04)', () => {
   });
 });
 
+// ──── §F1: Staff-mark route course_completion producer ───────────────────────
+
+describe('F1: Staff-mark route course_completion producer', () => {
+  /** Seed an admin user with role_admin in user_roles (grants course.grade + course.delete). */
+  function seedAdminUser(): string {
+    const id = uuidv4();
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
+    ).run(id, `${id}@t.com`);
+    db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
+    return id;
+  }
+
+  /** Seed a user with course.grade but NOT course.delete — requireCourseScope will deny unless in course_lecturers. */
+  function seedInstructorWithoutScope(): string {
+    const id = uuidv4();
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Lect', ?, 'h', 'lecturer')"
+    ).run(id, `${id}@t.com`);
+    db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_instructor')").run(id);
+    return id;
+  }
+
+  it('F1-H-1: admin staff-mark of final item → outbox row + allocation eligible', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(studentId, courseId);
+
+    const rewardId = createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i1}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+
+    expect(res.status).toBe(200);
+
+    // Outbox row must exist
+    const outboxRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(studentId);
+    expect(outboxRow).not.toBeNull();
+    expect(outboxRow).not.toBeUndefined();
+
+    // Allocation must be eligible (processPendingEvents was called inside the route)
+    const alloc = db.prepare(
+      "SELECT status FROM reward_allocations WHERE reward_id=? AND student_user_id=?"
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('eligible');
+  });
+
+  it('F1-H-2: admin staff-mark of non-final item → no course_completion outbox event', async () => {
+    const [i1, i2, i3] = [uuidv4(), uuidv4(), uuidv4()];
+    const courseId = seedCourse([i1, i2, i3]);
+    const { studentId } = seedSponsorCohort(courseId);
+    enrollStudent(studentId, courseId);
+
+    // Learner has item 1 done; staff marks item 2 (not the final item — i3 remains)
+    completeLesson(studentId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i2}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+
+    expect(res.status).toBe(200);
+
+    // No course_completion outbox event — i3 still incomplete
+    const outboxRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(studentId);
+    expect(outboxRow).toBeUndefined();
+  });
+
+  it('F1-H-3: outbox event recipient is the TARGET LEARNER, not the staff reviewer', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(studentId, courseId);
+
+    createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i1}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+
+    expect(res.status).toBe(200);
+
+    // The outbox event must be for the learner (studentId), NOT the admin (adminId)
+    const learnerRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(studentId);
+    expect(learnerRow).not.toBeUndefined();
+
+    const adminRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(adminId);
+    expect(adminRow).toBeUndefined();
+  });
+
+  it('F1-H-4: user with course.grade but not assigned to course gets 403, no state change', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1]);
+    const { studentId } = seedSponsorCohort(courseId);
+    enrollStudent(studentId, courseId);
+
+    // role_instructor has course.grade but NOT course.delete → requireCourseScope checks course_lecturers
+    const instructorId = seedInstructorWithoutScope();
+    const token = generateToken({ userId: instructorId, email: `${instructorId}@t.com`, role: 'lecturer' });
+
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i1}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send();
+
+    expect(res.status).toBe(403);
+
+    // No lesson_completions row written
+    const completion = db.prepare(
+      'SELECT * FROM lesson_completions WHERE user_id=? AND course_id=? AND item_id=?'
+    ).get(studentId, courseId, i1);
+    expect(completion).toBeUndefined();
+
+    // No outbox event
+    const outboxRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE student_user_id=?"
+    ).get(studentId);
+    expect(outboxRow).toBeUndefined();
+  });
+});
+
 // ──── §7: W03 monetary preservation regressions ───────────────────────────────
 
 describe('W03 monetary preservation (regression guard)', () => {
