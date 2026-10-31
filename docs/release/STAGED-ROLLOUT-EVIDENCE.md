@@ -1116,3 +1116,41 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W07 | — | — | — | TODO |
 | W08 | — | — | — | TODO |
 | W09 | — | — | — | TODO |
+
+## S3/W05-R1 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #127 (`fix(W05-R1): safe INVALID_REWARD_TYPE error construction and follow-up tracking`) |
+| Pre-merge main | `13c6b20` (post-W05) |
+| Branch head | `c551473` (codex/w05-r1-error-safety) |
+| Merge method | Squash |
+| Merge commit | `4ab2801` |
+| Merged at | 2026-10-31 |
+| Post-merge main | `4ab2801` |
+| PR CI run | `41192886736` — Backend Tests PASS (3m33s), Frontend Tests & Build PASS (1m6s), E2E Tests PASS (1m0s), Offline Monitoring PASS (1m20s) |
+| AI review | Independent review (sonnet): APPROVED — no blocking findings; 1 informational (W5R1-R4 label not carried in new test section; 403 path covered by unchanged middleware and existing tests) |
+| Test results | 637 backend reward tests PASS (12 new W05-R1); 16 frontend component tests PASS (3 new W05-R1); 0 regressions |
+| RED reproduction | `{"rewardType": {"toString": null}}` → 500 INTERNAL_ERROR before fix; → 400 INVALID_REWARD_TYPE after fix. `{"rewardType": {"toString": "custom"}}` same. Both reproduced through actual HTTP route with authenticated authorized sponsor, valid scope, synthetic SQLite. |
+| Files changed | MODIFIED: `LMS-Server/src/services/rewards/rewardService.ts`, `LMS-Server/src/__tests__/reward-r13-routes.test.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`; NEW: `LMS-Server/docs/superpowers/specs/2026-10-31-W05-R1-error-safety.md` |
+| Branch | Deleted (worktree retained locally at `/home/webadmin/worktrees/w05-r1`) |
+| Deploy impact | None — no schema migration; single-line error message change only |
+
+### W05-R1 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `e084052` | docs(W05-R1): spec for safe invalid-type error construction and follow-up tracking |
+| `c551473` | fix(W05-R1): safe INVALID_REWARD_TYPE error; fix follow-up comment; add regression coverage |
+| `4ab2801` | Squash merge commit to main |
+
+### S3 stage progress (updated)
+
+| Unit | PR | Merge SHA | Tests added | Status |
+| --- | --- | --- | --- | --- |
+| W05 | #126 | `13c6b20` | 29 | FIXED |
+| W05-R1 | #127 | `4ab2801` | 12 | FIXED |
+| W06 | — | — | — | TODO |
+| W07 | — | — | — | TODO |
+| W08 | — | — | — | TODO |
+| W09 | — | — | — | TODO |

@@ -411,10 +411,21 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Owner**: W05 session (2026-10-31)
 - **Files**: `LMS-Server/src/services/rewards/rewardTypes.ts`, `rewardErrors.ts`, `rewardService.ts`, `LMS-Server/src/__tests__/reward-r13-routes.test.ts`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
 - **Problem**: DB CHECK constraint allows `individual, milestone, course_completion, grade, custom`. Frontend offered `completion`/`achievement` (both invalid). `createReward()` had no runtime type validation — invalid value triggered unhandled SQLite 500.
-- **Fix**: Export `REWARD_TYPES` constant and `RewardType` from backend `rewardTypes.ts`; add `INVALID_REWARD_TYPE` error code; add runtime membership validation at start of `createReward()` (before currency/scope/idempotency checks); fix frontend select to show `custom`/`individual`/`milestone`; `course_completion`/`grade` documented as requiring eligibility config not in current form (W06 follow-up); fix `RewardComponents.test.tsx` fixture from `'completion'` to `'custom'`
+- **Fix**: Export `REWARD_TYPES` constant and `RewardType` from backend `rewardTypes.ts`; add `INVALID_REWARD_TYPE` error code; add runtime membership validation at start of `createReward()` (before currency/scope/idempotency checks); fix frontend select to show `custom`/`individual`/`milestone`; `course_completion`/`grade` documented as requiring eligibility config not in current form; fix `RewardComponents.test.tsx` fixture from `'completion'` to `'custom'`
 - **Evidence**: PR #126 MERGED, main HEAD `13c6b20`; CI: Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS; 29 W05 tests (W5-T1–T20) + 625 backend reward tests + 515 frontend tests all pass; independent review APPROVED
 - **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W05-reward-type-alignment.md`
 - **Acceptance**: All UI-presented types match DB enum; invalid types rejected at API level; no silent remapping; no DB writes on rejection
+
+### S3-T01-R1: W05-R1 — safe error construction and follow-up tracking
+- **Status**: MERGED
+- **Dependencies**: S3-T01 MERGED
+- **Owner**: W05-R1 session (2026-10-31)
+- **Files**: `LMS-Server/src/services/rewards/rewardService.ts`, `LMS-Server/src/__tests__/reward-r13-routes.test.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
+- **Problem**: `createReward()` used `String(params.rewardType)` in the RewardError message. JSON objects with non-callable `toString` (e.g. `{toString:null}`) caused `String()` to throw `TypeError`, escaping to global handler → 500 instead of 400. Additionally, comments inaccurately assigned `course_completion`/`grade` form input follow-up to W06 (which is parent child/family targeting).
+- **Fix**: Replace `String(params.rewardType)` with constant safe message `REWARD_TYPES.join(', ')`; remove W06 attribution from comments; add `FOLLOW-UP(course-grade-form-inputs)` references.
+- **Evidence**: PR #127 MERGED, main HEAD `4ab2801`; CI: Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS; 12 W05-R1 tests + 637 backend reward tests all pass; independent review APPROVED
+- **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W05-R1-error-safety.md`
+- **Acceptance**: Malformed object input → 400 INVALID_REWARD_TYPE; no TypeError escapes; follow-up tracking accurate
 
 ### S3-T02: Implement W06 — family/child discriminator
 - **Status**: TODO
