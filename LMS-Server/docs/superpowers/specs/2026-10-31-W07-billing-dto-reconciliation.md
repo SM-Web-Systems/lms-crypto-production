@@ -1,7 +1,7 @@
 # W07 — Billing DTO and permission-contract reconciliation
 
 Date: 2026-10-31
-Status: IMPLEMENTING
+Status: MERGED — 60fb174 on main (2026-10-31)
 Spec ID: W07
 Preceding: W06-R3 (`2026-10-31-W06-R3-blocked-refund-epoch.md`)
 
@@ -210,18 +210,18 @@ flowchart TD
 
 ## Implementation checklist
 
-- [ ] Commit spec (this file)
-- [ ] Write RED tests:
-  - [ ] W7-FE-1: employer adapter passes wire response → all fields `undefined`/`totalSpent` appears
-  - [ ] W7-FE-2: sponsor adapter with `success:false` response → does NOT throw
-  - [ ] W7-BE-1: sponsor billing errors return `error.code`
-- [ ] Apply Fix 1 (employer mapper)
-- [ ] Apply Fix 2 (sponsor assertApiSuccess)
-- [ ] Apply Fix 3 (sponsor route error codes)
-- [ ] Verify all W7 tests GREEN + no regressions
-- [ ] Independent review
-- [ ] PR + CI + merge
-- [ ] Update planning branch documentation
+- [x] Commit spec (this file)
+- [x] Write RED tests:
+  - [x] W7-FE-1: employer adapter passes wire response → all fields `undefined`/`totalSpent` appears
+  - [x] W7-FE-2: sponsor adapter with `success:false` response → does NOT throw
+  - [x] W7-BE-1: sponsor billing errors return `error.code`
+- [x] Apply Fix 1 (employer mapper)
+- [x] Apply Fix 2 (sponsor assertApiSuccess)
+- [x] Apply Fix 3 (sponsor route error codes)
+- [x] Verify all W7 tests GREEN + no regressions
+- [x] Independent review
+- [x] PR + CI + merge
+- [x] Update planning branch documentation
 
 ---
 
@@ -230,11 +230,11 @@ flowchart TD
 | Field | Value |
 |---|---|
 | Baseline main SHA | `22ec76f` (W06-R3 spec closure) |
-| Spec commit | pending |
-| Fix commit | pending |
-| RED | W7-FE-1 FAIL (paymentId undefined, totalSpent wrong count); W7-FE-2 FAIL (error silently ignored); W7-BE-1 FAIL (missing code field) |
-| GREEN | pending |
-| PR | pending |
-| CI candidate | pending |
-| Merge SHA | pending |
-| CI main | pending |
+| Spec commit | `d9337cf` docs(W07): spec for billing DTO and permission-contract reconciliation |
+| Fix commit | `e123717` fix(W07): reconcile billing DTO, client mapper, and error-code contract |
+| RED | W7-FE-1 FAIL (paymentId/totalSpent undefined); W7-FE-3 FAIL (TypeError not ApiRequestError); W7-FE-6 FAIL (same); W7-BE-1a/b FAIL (no INVALID_DATE_RANGE); W7-BE-2 FAIL (no INVALID_SCOPE); W7-BE-3 FAIL (no INSUFFICIENT_PERMISSIONS — fixed test setup) |
+| GREEN | 27 new tests pass; 193 BE / 56 FE files all pass; tsc clean; Vite build clean |
+| PR | #132 |
+| CI candidate | 41230762143 — Backend 5m36s PASS, Frontend 52s PASS, E2E 1m13s PASS, Offline 1m23s PASS |
+| Merge SHA | `60fb174` (2026-10-31T18:50Z) |
+| CI main | 41231333646 — in progress |
