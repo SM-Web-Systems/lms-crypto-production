@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RewardStatusBadge, formatStroops, formatStroopsShort } from '../../components/RewardStatusBadge';
 
@@ -70,7 +70,7 @@ const STUDENT_REWARDS = [
 ];
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe('RewardStatusBadge', () => {
@@ -382,5 +382,283 @@ describe('W06 Frontend — parent target discriminator', () => {
 
     rerender(<RewardDashboard role="parent" scopeId="s1" targetType="family" />);
     await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 's1', 'family'));
+  });
+});
+
+// ──── Helper ────
+
+function makeReward(overrides: Partial<{ id: string; description: string; status: string }> = {}) {
+  return {
+    id: overrides.id ?? 'r1',
+    creator_user_id: 'creator1',
+    scope_type: 'parent_child',
+    scope_id: 'scope1',
+    reward_type: 'custom',
+    amount_stroops: 10000000,
+    max_recipients: null as null,
+    currency_code: 'XLM',
+    description: overrides.description ?? 'A reward',
+    auto_release: 0,
+    status: overrides.status ?? 'active',
+    expires_at: null as null,
+    funded_at: null as null,
+    activated_at: null as null,
+    released_at: null as null,
+    cancelled_at: null as null,
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-01T00:00:00Z',
+  };
+}
+
+describe('W06-R1: stale response guard', () => {
+  // W6R1-FE-1: child→family same scopeId — late child success must not replace family rows
+  it('W6R1-FE-1: late child response does not overwrite current family rows', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveChild!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const childDeferred = new Promise<any[]>(r => { resolveChild = r; });
+
+    // First call (child): deferred; second call (family): immediate
+    mockListRewards
+      .mockImplementationOnce(() => childDeferred)
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+
+    // Wait for child request to be in flight
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 'shared-scope', 'child'));
+
+    // Switch to family target
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+
+    // Family response arrives immediately and should show
+    await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+
+    // Now resolve the deferred child request with a child-specific reward
+    await act(async () => {
+      resolveChild([makeReward({ id: 'child-r1', description: 'Child reward' })]);
+    });
+
+    // Family row must still be present; child row must NOT have replaced it
+    expect(screen.getByText('Family reward')).toBeInTheDocument();
+    expect(screen.queryByText('Child reward')).not.toBeInTheDocument();
+  });
+
+  // W6R1-FE-2: family→child — late family success must not replace child rows
+  it('W6R1-FE-2: late family response does not overwrite current child rows', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveFamily!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const familyDeferred = new Promise<any[]>(r => { resolveFamily = r; });
+
+    mockListRewards
+      .mockImplementationOnce(() => familyDeferred)
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />
+    );
+
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 'shared-scope', 'family'));
+
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />);
+
+    await waitFor(() => expect(screen.getByText('Child reward')).toBeInTheDocument());
+
+    await act(async () => {
+      resolveFamily([makeReward({ id: 'fam-r1', description: 'Family reward' })]);
+    });
+
+    expect(screen.getByText('Child reward')).toBeInTheDocument();
+    expect(screen.queryByText('Family reward')).not.toBeInTheDocument();
+  });
+
+  // W6R1-FE-3: late rejection after current success — current data stays, no stale error shown
+  it('W6R1-FE-3: late rejection from stale request does not obscure current data', async () => {
+    let rejectOld!: (e: Error) => void;
+    const oldDeferred = new Promise<never>((_, r) => { rejectOld = r; });
+
+    // Old request (child) will reject late; new request (family) succeeds
+    mockListRewards
+      .mockImplementationOnce(() => oldDeferred)
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="scope1" targetType="child" />
+    );
+
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 'scope1', 'child'));
+
+    rerender(<RewardDashboard role="parent" scopeId="scope1" targetType="family" />);
+
+    await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+
+    // Reject the stale child request
+    await act(async () => {
+      rejectOld(new Error('Network failure'));
+    });
+
+    // Family data still shown, no error from stale request
+    expect(screen.getByText('Family reward')).toBeInTheDocument();
+    expect(screen.queryByText('Network failure')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Could not load rewards/)).not.toBeInTheDocument();
+  });
+
+  // W6R1-FE-4: re-visit of same scopeId wins over deferred first visit
+  // Refresh button is disabled during loading, so we trigger an out-of-order scenario
+  // by using a scopeId A → B → A cycle: first visit A is deferred, second visit A is newer.
+  it('W6R1-FE-4: re-visit of same scopeId wins over deferred first visit', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveFirst!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const firstDeferred = new Promise<any[]>(r => { resolveFirst = r; });
+
+    // Call 1 (scopeA first visit): deferred
+    // Call 2 (scopeB transit): immediate empty
+    // Call 3 (scopeA second visit): immediate with newer data
+    mockListRewards
+      .mockImplementationOnce(() => firstDeferred)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([makeReward({ id: 'new-r1', description: 'Second visit A' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="scopeA" targetType="family" />
+    );
+
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledTimes(1));
+
+    // Transition to scopeB — cancels the pending first visit
+    rerender(<RewardDashboard role="parent" scopeId="scopeB" targetType="family" />);
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledTimes(2));
+
+    // Return to scopeA — second visit resolves immediately with newer data
+    rerender(<RewardDashboard role="parent" scopeId="scopeA" targetType="family" />);
+    await waitFor(() => expect(screen.getByText('Second visit A')).toBeInTheDocument());
+
+    // First visit resolves late — must NOT overwrite second visit
+    await act(async () => {
+      resolveFirst([makeReward({ id: 'old-r1', description: 'First visit A stale' })]);
+    });
+
+    expect(screen.getByText('Second visit A')).toBeInTheDocument();
+    expect(screen.queryByText('First visit A stale')).not.toBeInTheDocument();
+  });
+
+  // W6R1-FE-5: switch to empty scopeId — old result must not repopulate
+  it('W6R1-FE-5: switch to empty scopeId invalidates pending old request', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveOld!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const oldDeferred = new Promise<any[]>(r => { resolveOld = r; });
+
+    mockListRewards.mockImplementationOnce(() => oldDeferred);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="scope1" targetType="family" />
+    );
+
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledTimes(1));
+
+    // Switch to empty scopeId
+    rerender(<RewardDashboard role="parent" scopeId="" targetType="family" />);
+
+    // Old request resolves with data
+    await act(async () => {
+      resolveOld([makeReward({ id: 'old-r1', description: 'Old reward after scope cleared' })]);
+    });
+
+    expect(screen.queryByText('Old reward after scope cleared')).not.toBeInTheDocument();
+  });
+
+  // W6R1-FE-6: unmount while pending — no state update after unmount
+  it('W6R1-FE-6: unmount while load is pending does not commit state', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveLate!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deferred = new Promise<any[]>(r => { resolveLate = r; });
+
+    mockListRewards.mockImplementationOnce(() => deferred);
+
+    const { unmount } = render(
+      <RewardDashboard role="parent" scopeId="scope1" targetType="family" />
+    );
+
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledTimes(1));
+
+    unmount();
+
+    // Resolve after unmount — should not throw or produce act() warning
+    await act(async () => {
+      resolveLate([makeReward({ id: 'r1', description: 'Post-unmount reward' })]);
+    });
+    // No assertion needed beyond no thrown error
+  });
+
+  // W6R1-FE-7: performAction error across target switch — stale error must not appear on new target
+  // Uses cancelReward (no special UI state needed — we mock it directly).
+  // The mock for cancelReward is vi.fn() at the top of the file; we override it per-test.
+  it('W6R1-FE-7: performAction error after target switch does not show stale error on new target', async () => {
+    let rejectCancel!: (e: Error) => void;
+    const cancelDeferred = new Promise<never>((_, r) => { rejectCancel = r; });
+
+    // Provide an active reward (shows Cancel button)
+    const activeReward = makeReward({ id: 'child-r1', description: 'Child reward', status: 'active' });
+    mockListRewards
+      .mockResolvedValueOnce([activeReward])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward', status: 'active' })]);
+
+    // Import the mocked service to control cancelReward
+    const { rewardService: svc } = await import('../../services/rewardService');
+    vi.mocked(svc.cancelReward).mockImplementationOnce(() => cancelDeferred as never);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+
+    await waitFor(() => expect(screen.getByText('Child reward')).toBeInTheDocument());
+
+    // Click the Cancel button on the child reward
+    const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
+    fireEvent.click(cancelBtn);
+
+    // Switch to family target while cancel is in flight
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+
+    await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+
+    // Reject the in-flight cancel — it was for the old (child) target
+    await act(async () => { rejectCancel(new Error('Cancel failed on child reward')); });
+
+    // Family data still shown, no stale error from old target
+    expect(screen.getByText('Family reward')).toBeInTheDocument();
+    expect(screen.queryByText('Cancel failed on child reward')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Failed to cancel/)).not.toBeInTheDocument();
+  });
+
+  // W6R1-FE-8: late old-target error does not obscure current data
+  it('W6R1-FE-8: late old-target error does not overwrite current family data', async () => {
+    let rejectChild!: (e: Error) => void;
+    const childDeferred = new Promise<never>((_, r) => { rejectChild = r; });
+
+    mockListRewards
+      .mockImplementationOnce(() => childDeferred)
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="scope1" targetType="child" />
+    );
+
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 'scope1', 'child'));
+
+    rerender(<RewardDashboard role="parent" scopeId="scope1" targetType="family" />);
+
+    await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+
+    await act(async () => { rejectChild(new Error('Child load failed')); });
+
+    expect(screen.getByText('Family reward')).toBeInTheDocument();
+    expect(screen.queryByText('Child load failed')).not.toBeInTheDocument();
   });
 });
