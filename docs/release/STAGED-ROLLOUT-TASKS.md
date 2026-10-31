@@ -439,6 +439,17 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Acceptance**: Invalid targetType rejected before DB; omitted targetType preserves legacy; valid child/family resolved to correct scope; frontend carries targetType correctly; no W01–W05 regressions
 - **Residual**: Per-child rewards UI in ParentDashboard not yet rendered (pre-existing, W08 scope)
 
+### S3-T02-R1: W06-R1 — stale response guard in RewardDashboard
+- **Status**: MERGED
+- **Dependencies**: S3-T02 MERGED
+- **Owner**: W06-R1 session (2026-10-31)
+- **Files**: `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
+- **Problem**: `load()` committed state unconditionally — a pending old-target promise could resolve after a prop change (role/scopeId/targetType) and replace current-target data. Both stale successes and stale errors/empty results were unguarded.
+- **Fix**: Added `reqIdRef` (monotonic counter) captured per `load()` invocation; all state commits (`setRewards`, `setState`, `setError`) gated on `reqIdRef.current === myReqId`. Added `targetKeyRef` (`${role}|${scopeId}|${targetType??''}`); `performAction`'s post-mutation `load()` and `setError` gated on `targetKeyRef.current === myTargetKey`. `useEffect` cleanup increments counter on dep change / unmount. `beforeEach` changed to `vi.resetAllMocks()` to flush implementation queues between deferred-promise tests.
+- **Evidence**: PR #129 MERGED, main HEAD `1a5288a`; CI: Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS; 8 W06-R1 tests + 531/531 frontend pass; independent review APPROVED_WITH_NOTES
+- **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R1-stale-response-guard.md`
+- **Acceptance**: Late stale success does not overwrite current-target data; late stale rejection does not set error on current target; performAction spinner always clears; StrictMode double-invoke safe; unmount safe
+
 ### S3-T03: Implement W07 — billing DTO alignment
 - **Status**: TODO
 - **Dependencies**: S1-T04 spec reviewed

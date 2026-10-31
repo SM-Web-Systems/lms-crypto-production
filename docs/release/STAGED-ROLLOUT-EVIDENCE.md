@@ -1173,6 +1173,29 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `280e009` | feat(W06): validate and carry parent child/family target discriminator |
 | `1988457` | Squash merge commit to main |
 
+### S3/W06-R1 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Date | 2026-10-31 |
+| PR | #129 (`feat(W06-R1): stale response guard in RewardDashboard`) |
+| Branch | `codex/w06-r1-stale-response` |
+| Base SHA | `1988457` (W06) |
+| Merge commit | `1a5288a` |
+| Post-merge main | `1a5288a` |
+| CI run | `41198984010` — Backend Tests PASS (5m53s), Frontend Tests & Build PASS (1m7s), E2E Tests PASS (1m6s), Offline Monitoring PASS (1m25s) |
+| Test results | 531/531 frontend PASS; 8 new W06-R1 frontend tests; 0 regressions |
+| Independent review | APPROVED_WITH_NOTES — 1 minor: `targetKey` redundant in `useCallback` dep array (harmless); 1 minor: `!scopeId` early-return not gated (safe, correct desired state) |
+| Files changed | MODIFIED: `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`; SPEC: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R1-stale-response-guard.md` |
+
+### W06-R1 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `092145e` | docs(W06-R1): spec for stale response guard — reqId + targetKey identity |
+| `a8ec480` | feat(W06-R1): stale response guard in RewardDashboard (reqId + targetKey) |
+| `1a5288a` | Squash merge commit to main |
+
 ### S3 stage progress (updated)
 
 | Unit | PR | Merge SHA | Tests added | Status |
@@ -1180,6 +1203,7 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W05 | #126 | `13c6b20` | 29 | FIXED |
 | W05-R1 | #127 | `4ab2801` | 12 | FIXED |
 | W06 | #128 | `1988457` | 25 | FIXED |
+| W06-R1 | #129 | `1a5288a` | 8 | FIXED |
 | W07 | — | — | — | TODO |
 | W08 | — | — | — | TODO |
 | W09 | — | — | — | TODO |
