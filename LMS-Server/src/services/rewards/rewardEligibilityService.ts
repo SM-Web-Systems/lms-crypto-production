@@ -267,12 +267,10 @@ export function evaluateEligibility(
         .get(reward.scope_id) as { course_id: string } | undefined;
       boundCourseId = cohort?.course_id ?? null;
     }
-    // eligibilityConfig.requiredCourseId takes precedence (already conflict-checked at activation)
-    const parsedConfig = reward.eligibility_config
-      ? (JSON.parse(reward.eligibility_config) as Record<string, unknown>)
-      : null;
-    if (typeof parsedConfig?.requiredCourseId === 'string') {
-      boundCourseId = parsedConfig.requiredCourseId;
+    // eligibilityConfig.requiredCourseId takes precedence (already conflict-checked at activation).
+    // Reuse the already-parsed `config` to avoid a second JSON.parse of the same string.
+    if (typeof config?.requiredCourseId === 'string') {
+      boundCourseId = config.requiredCourseId as string;
     }
 
     // Fail closed: no bound course derivable → ineligible
