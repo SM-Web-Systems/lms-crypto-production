@@ -21,7 +21,10 @@ export type AllocationState = 'pending' | 'eligible' | 'released' | 'cancelled' 
 export type ScopeType = 'sponsor_cohort' | 'employer_team' | 'parent_child' | 'parent_family' | 'teacher_class';
 
 // W05: Canonical reward types must mirror the backend DB CHECK constraint exactly.
-// course_completion and grade require eligibility config not available in the current creation form.
+// course_completion and grade are valid DB types but require eligibilityConfig inputs
+// (course/grade binding) not present in the current creation form.
+// FOLLOW-UP(course-grade-form-inputs): add requiredCourseId/grade-config fields to expose them.
+// This is separate from W06 (parent child/family targeting discriminator).
 export const REWARD_TYPES = ['individual', 'milestone', 'course_completion', 'grade', 'custom'] as const;
 export type RewardType = typeof REWARD_TYPES[number];
 

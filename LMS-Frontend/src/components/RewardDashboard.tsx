@@ -132,8 +132,10 @@ const RewardCreateForm: React.FC<{
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
             >
               {/* W05: Only canonical DB types. course_completion and grade require
-                  eligibilityConfig (course/grade binding) not supplied by this form;
-                  they can be created via direct API with appropriate config (follow-up W06). */}
+                  eligibilityConfig inputs (course/grade binding) not present in this form.
+                  FOLLOW-UP(course-grade-form-inputs): expose course_completion and grade
+                  only after adding requiredCourseId / grade-config fields. This is separate
+                  from W06 (parent child/family discriminator). */}
               <option value="custom">Custom</option>
               <option value="individual">Individual Achievement</option>
               <option value="milestone">Milestone</option>

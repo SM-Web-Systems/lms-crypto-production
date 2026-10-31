@@ -599,3 +599,188 @@ describe('W05 Reward Type Validation — direct service calls', () => {
     }
   });
 });
+
+// ──── W05-R1 Error Safety: malformed JSON objects with non-callable toString ────
+
+describe('W05-R1 Error Safety — HTTP routes (malformed object inputs)', () => {
+  // W5R1-T1: JSON object with toString: null — String() would throw TypeError before fix
+  it('W5R1-T1: object with toString:null → 400 INVALID_REWARD_TYPE, not 500', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: { toString: null }, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+    expect(res.body.error.message).not.toContain('Cannot convert');
+  });
+
+  // W5R1-T2: JSON object with toString: "custom" (string property, not a function)
+  it('W5R1-T2: object with toString:"custom" → 400 INVALID_REWARD_TYPE, not 500', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: { toString: 'custom' }, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+    expect(res.body.error.message).not.toContain('Cannot convert');
+  });
+
+  // W5R1-T1/T2: no DB rows created by malformed input
+  it('W5R1-T1b: malformed object input creates no reward row', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const countBefore = (db.prepare('SELECT COUNT(*) as n FROM rewards').get() as { n: number }).n;
+    await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: { toString: null }, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    const countAfter = (db.prepare('SELECT COUNT(*) as n FROM rewards').get() as { n: number }).n;
+    expect(countAfter).toBe(countBefore);
+  });
+
+  // W5R1-T6: employer route
+  it('W5R1-T6: employer route — object with toString:null → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, groupId } = seedEmployerForCreate();
+    const res = await request(app)
+      .post('/api/v1/employer/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: groupId, rewardType: { toString: null }, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5R1-T7: teacher route
+  it('W5R1-T7: teacher route — object with toString:null → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, classId } = seedTeacherForCreate();
+    const res = await request(app)
+      .post('/api/v1/teacher/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: classId, rewardType: { toString: null }, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5R1-T8: parent route
+  it('W5R1-T8: parent route — object with toString:null → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, childId } = seedParentForCreate();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: childId, targetType: 'child', rewardType: { toString: null }, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5R1-R3: unauthenticated canonical request still 401
+  it('W5R1-R3: unauthenticated canonical request → 401, not 400', async () => {
+    const { cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .send({ scopeId: cohortId, rewardType: 'custom', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('W05-R1 Error Safety — direct service calls', () => {
+  function seedSponsor() {
+    const sponsorId = uuidv4();
+    const cohortId = uuidv4();
+    const courseId = uuidv4();
+    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+    db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
+    db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
+    return { sponsorId, cohortId };
+  }
+
+  // W5R1-T3: non-callable toString — String(obj) would throw
+  it('W5R1-T3: object with non-callable toString → RewardError INVALID_REWARD_TYPE without TypeError', () => {
+    const { sponsorId, cohortId } = seedSponsor();
+    const badInput = Object.defineProperty({}, 'toString', { value: null });
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort', scopeId: cohortId,
+        rewardType: badInput as unknown as string,
+        amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}`,
+      });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('INVALID_REWARD_TYPE');
+      expect((err as RewardError).statusCode).toBe(400);
+    }
+  });
+
+  // W5R1-T4: null-prototype object — no inherited toString
+  it('W5R1-T4: Object.create(null) → RewardError INVALID_REWARD_TYPE', () => {
+    const { sponsorId, cohortId } = seedSponsor();
+    const nullProto = Object.create(null) as Record<string, unknown>;
+    nullProto.key = 'value';
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort', scopeId: cohortId,
+        rewardType: nullProto as unknown as string,
+        amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}`,
+      });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('INVALID_REWARD_TYPE');
+    }
+  });
+
+  // W5R1-T5: object with Symbol.toPrimitive that throws
+  it('W5R1-T5: object with throwing Symbol.toPrimitive → RewardError INVALID_REWARD_TYPE', () => {
+    const { sponsorId, cohortId } = seedSponsor();
+    const throwingObj = {
+      [Symbol.toPrimitive]() { throw new Error('conversion hook should not be called'); },
+    };
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort', scopeId: cohortId,
+        rewardType: throwingObj as unknown as string,
+        amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}`,
+      });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('INVALID_REWARD_TYPE');
+    }
+  });
+
+  // W5R1-R5: valid same-key replay unchanged
+  it('W5R1-R5: valid same-key replay still returns same reward', () => {
+    const { sponsorId, cohortId } = seedSponsor();
+    const idemKey = `idem-${uuidv4()}`;
+    const r1 = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort', scopeId: cohortId,
+      rewardType: 'custom', amountStroops: '10000000', idempotencyKey: idemKey,
+    });
+    const r2 = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort', scopeId: cohortId,
+      rewardType: 'custom', amountStroops: '10000000', idempotencyKey: idemKey,
+    });
+    expect(r2.id).toBe(r1.id);
+  });
+
+  // W5R1-R6: incompatible valid type → IDEMPOTENCY_CONFLICT unchanged
+  it('W5R1-R6: incompatible valid type replay → IDEMPOTENCY_CONFLICT', () => {
+    const { sponsorId, cohortId } = seedSponsor();
+    const idemKey = `idem-${uuidv4()}`;
+    createReward(sponsorId, {
+      scopeType: 'sponsor_cohort', scopeId: cohortId,
+      rewardType: 'custom', amountStroops: '10000000', idempotencyKey: idemKey,
+    });
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort', scopeId: cohortId,
+        rewardType: 'individual', amountStroops: '10000000', idempotencyKey: idemKey,
+      });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('IDEMPOTENCY_CONFLICT');
+    }
+  });
+});
