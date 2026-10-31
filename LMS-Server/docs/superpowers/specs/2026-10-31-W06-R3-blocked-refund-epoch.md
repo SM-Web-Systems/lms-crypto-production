@@ -1,7 +1,7 @@
 # W06-R3 — Guard the blocked-refund message by target visit
 
 Date: 2026-10-31
-Status: IMPLEMENTING
+Status: REVIEW_PASSED — candidate `a3241df`; PR pending merge
 Spec ID: W06-R3
 Preceding: W06-R2 (`2026-10-31-W06-R2-create-ownership-guard.md`)
 
@@ -93,15 +93,15 @@ blocked-refund branch was the sole missed site.
 
 ## Implementation checklist
 
-- [ ] Commit spec
-- [ ] Write RED test (FE-10): deferred refund A→B→A; blocked result must not appear on new visit
-- [ ] Write passing test (FE-11): same-visit blocked refund still shows message and clears spinner
-- [ ] Write passing test (FE-12): old blocked response with new visit's operation pending cannot clear spinner or set error
-- [ ] Verify FE-10 RED, FE-11+FE-12 GREEN before fix
-- [ ] Apply one-line guard: add `&& targetEpochRef.current === myEpoch` to blocked-refund `setError`
-- [ ] Verify all 3 W06-R3 tests GREEN + all 540 prior tests unaffected
-- [ ] Independent review
-- [ ] Create PR; CI passes; merge
+- [x] Commit spec — `d73fafa`
+- [x] Write RED test (FE-10): deferred refund A→B→A; blocked result must not appear on new visit
+- [x] Write passing test (FE-11): same-visit blocked refund still shows message and clears spinner
+- [x] Write passing test (FE-12): old blocked response with new visit's operation pending cannot clear spinner or set error
+- [x] Verify FE-10 RED, FE-11+FE-12 GREEN before fix — FE-10 FAIL + FE-12 FAIL without epoch guard (confirmed via stash)
+- [x] Apply one-line guard: add `&& targetEpochRef.current === myEpoch` to blocked-refund `setError` — `a3241df`
+- [x] Verify all 3 W06-R3 tests GREEN + all 38 prior component tests unaffected — 41/41 PASS; typecheck clean; build clean
+- [x] Independent review — APPROVED (no findings); epoch guard confirmed correct and complete; no other unguarded state calls found
+- [ ] Create PR; CI passes; merge — pending
 
 ---
 
@@ -109,6 +109,26 @@ blocked-refund branch was the sole missed site.
 
 | ID | Scenario | Expected (GREEN) | RED before fix? |
 |---|---|---|---|
-| FE-10 | Deferred refund A→B→A: blocked result resolves on second scopeA visit | New scopeA data visible; no blocked-refund message | YES |
-| FE-11 | Same-visit blocked refund | Blocked message displayed; spinner cleared | NO (already passing) |
-| FE-12 | Old blocked response while new visit's operation is pending | New operation's spinner not cleared; no error set | NO (already passing — finally is guarded) |
+| FE-10 | Deferred refund A→B→A: blocked result resolves on second scopeA visit | New scopeA data visible; no blocked-refund message | YES — FAIL confirmed |
+| FE-11 | Same-visit blocked refund | Blocked message displayed; spinner cleared | NO (already passing before and after fix) |
+| FE-12 | Old blocked response while new visit's operation is pending | New operation's spinner not cleared; no error set | YES — FAIL confirmed (stale setError fires without epoch guard) |
+
+---
+
+## Evidence
+
+| Field | Value |
+|---|---|
+| Baseline main SHA | `01117903` (PR #130 — W06-R2 epoch guard for create/mutation/allocation) |
+| Spec commit | `d73fafa` |
+| Fix + tests commit | `a3241df` |
+| RED baseline | FE-10 FAIL (stale blocked message on revisit); FE-12 FAIL (stale setError cleared new op); FE-11 PASS |
+| GREEN | 41/41 component tests PASS; TypeScript clean; build clean |
+| FE-10 assertion | `expect(screen.queryByText(/Refund blocked/)).not.toBeInTheDocument()` — rendered state, not source text |
+| FE-11 assertion | `expect(screen.getByText(/Refund blocked/)).toBeInTheDocument()` + button re-enabled |
+| FE-12 assertion | Cancel button still disabled after old refund resolves; no blocked message |
+| Independent review | APPROVED — no findings. Reproduction confirmed; fix complete and consistent; no other unguarded state calls; `finally` spinner path unaffected |
+| PR | pending |
+| CI candidate | pending |
+| Merge SHA | pending |
+| CI main | pending |
