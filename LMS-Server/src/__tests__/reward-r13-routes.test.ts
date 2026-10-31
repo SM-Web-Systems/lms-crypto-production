@@ -10,6 +10,7 @@ import {
   activateReward,
   releaseAllocation,
 } from '../services/rewards/rewardService.js';
+import { RewardError } from '../services/rewards/rewardErrors.js';
 
 // ──── Seed Helpers ────
 
@@ -290,5 +291,311 @@ describe('R13 Admin Reconciliation', () => {
     const body = JSON.stringify(res.body);
     // Must not contain user IDs in the response
     expect(body).not.toContain(sponsorId);
+  });
+});
+
+// ──── W05 Reward Type Validation ────
+
+function seedSponsorForCreate(): { sponsorId: string; token: string; cohortId: string } {
+  const sponsorId = uuidv4();
+  const cohortId = uuidv4();
+  const courseId = uuidv4();
+  const studentId = uuidv4();
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sp', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'St', ?, 'hash', 'student')").run(studentId, `${studentId}@t.com`);
+  db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+  db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
+  db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
+  db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
+  const token = makeToken({ userId: sponsorId, email: `${sponsorId}@t.com`, role: 'lecturer' });
+  return { sponsorId, token, cohortId };
+}
+
+function seedEmployerForCreate(): { employerId: string; token: string; groupId: string } {
+  const employerId = uuidv4();
+  const groupId = uuidv4();
+  const studentId = uuidv4();
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Em', ?, 'hash', 'lecturer')").run(employerId, `${employerId}@t.com`);
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'St', ?, 'hash', 'student')").run(studentId, `${studentId}@t.com`);
+  db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(employerId, 'role_employer');
+  db.prepare(`INSERT INTO user_groups (id, owner_user_id, group_type, name) VALUES (?, ?, 'team', 'T')`).run(groupId, employerId);
+  db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(groupId, studentId);
+  const token = makeToken({ userId: employerId, email: `${employerId}@t.com`, role: 'lecturer' });
+  return { employerId, token, groupId };
+}
+
+function seedTeacherForCreate(): { teacherId: string; token: string; classId: string } {
+  const teacherId = uuidv4();
+  const classId = uuidv4();
+  const studentId = uuidv4();
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Tc', ?, 'hash', 'lecturer')").run(teacherId, `${teacherId}@t.com`);
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'St', ?, 'hash', 'student')").run(studentId, `${studentId}@t.com`);
+  db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(teacherId, 'role_teacher');
+  db.prepare(`INSERT INTO user_groups (id, owner_user_id, group_type, name) VALUES (?, ?, 'class', 'C')`).run(classId, teacherId);
+  db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(classId, studentId);
+  const token = makeToken({ userId: teacherId, email: `${teacherId}@t.com`, role: 'lecturer' });
+  return { teacherId, token, classId };
+}
+
+function seedParentForCreate(): { parentId: string; token: string; childId: string } {
+  const parentId = uuidv4();
+  const childId = uuidv4();
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Pa', ?, 'hash', 'lecturer')").run(parentId, `${parentId}@t.com`);
+  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Ch', ?, 'hash', 'student')").run(childId, `${childId}@t.com`);
+  db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(parentId, 'role_parent');
+  db.prepare("INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')").run(uuidv4(), parentId, childId);
+  const token = makeToken({ userId: parentId, email: `${parentId}@t.com`, role: 'lecturer' });
+  return { parentId, token, childId };
+}
+
+describe('W05 Reward Type Validation — HTTP routes', () => {
+  // W5-T1: completion is not a canonical DB type
+  it('W5-T1: POST /sponsor/rewards rejects completion → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: 'completion', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T2: achievement is not a canonical DB type
+  it('W5-T2: POST /sponsor/rewards rejects achievement → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: 'achievement', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T3: missing type
+  it('W5-T3: POST /sponsor/rewards rejects missing rewardType → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T4: empty string
+  it('W5-T4: POST /sponsor/rewards rejects empty rewardType → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: '', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T5: whitespace-padded value
+  it('W5-T5: POST /sponsor/rewards rejects whitespace-padded rewardType → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: ' custom', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T6: wrong case
+  it('W5-T6: POST /sponsor/rewards rejects wrong-cased rewardType → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: 'Custom', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T7: numeric type
+  it('W5-T7: POST /sponsor/rewards rejects numeric rewardType → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: 123, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T8 through W5-T12: all five canonical types accepted via sponsor route
+  for (const rewardType of ['individual', 'milestone', 'course_completion', 'grade', 'custom'] as const) {
+    it(`W5-T-valid: POST /sponsor/rewards accepts canonical type '${rewardType}' → 201 draft`, async () => {
+      const { token, cohortId } = seedSponsorForCreate();
+      const res = await request(app)
+        .post('/api/v1/sponsor/rewards')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ scopeId: cohortId, rewardType, amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+      expect(res.status).toBe(201);
+      expect(res.body.data.status).toBe('draft');
+      expect(res.body.data.reward_type).toBe(rewardType);
+    });
+  }
+
+  // W5-T13: employer route rejects invalid type
+  it('W5-T13: POST /employer/rewards rejects completion → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, groupId } = seedEmployerForCreate();
+    const res = await request(app)
+      .post('/api/v1/employer/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: groupId, rewardType: 'completion', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T14: teacher route rejects invalid type
+  it('W5-T14: POST /teacher/rewards rejects achievement → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, classId } = seedTeacherForCreate();
+    const res = await request(app)
+      .post('/api/v1/teacher/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: classId, rewardType: 'achievement', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T15: parent route rejects invalid type
+  it('W5-T15: POST /parent/rewards rejects completion → 400 INVALID_REWARD_TYPE', async () => {
+    const { token, childId } = seedParentForCreate();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: childId, targetType: 'child', rewardType: 'completion', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  // W5-T18: invalid type produces no DB records
+  it('W5-T18: invalid type leaves rewards table unchanged', async () => {
+    const { token, cohortId } = seedSponsorForCreate();
+    const countBefore = (db.prepare('SELECT COUNT(*) as n FROM rewards').get() as { n: number }).n;
+    const res = await request(app)
+      .post('/api/v1/sponsor/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: cohortId, rewardType: 'completion', amountStroops: '10000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    const countAfter = (db.prepare('SELECT COUNT(*) as n FROM rewards').get() as { n: number }).n;
+    expect(countAfter).toBe(countBefore);
+  });
+});
+
+describe('W05 Reward Type Validation — direct service calls', () => {
+  // W5-T16: direct service call with invalid type
+  it('W5-T16: createReward() throws RewardError INVALID_REWARD_TYPE for invalid type', () => {
+    const sponsorId = uuidv4();
+    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+    const cohortId = uuidv4();
+    const courseId = uuidv4();
+    db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
+    db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
+
+    expect(() =>
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort',
+        scopeId: cohortId,
+        rewardType: 'invalid_type',
+        amountStroops: '10000000',
+        idempotencyKey: `idem-${uuidv4()}`,
+      })
+    ).toThrow(RewardError);
+
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort',
+        scopeId: cohortId,
+        rewardType: 'invalid_type',
+        amountStroops: '10000000',
+        idempotencyKey: `idem-${uuidv4()}`,
+      });
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('INVALID_REWARD_TYPE');
+      expect((err as RewardError).statusCode).toBe(400);
+    }
+  });
+
+  // W5-T17: null type via service
+  it('W5-T17: createReward() throws INVALID_REWARD_TYPE for null rewardType', () => {
+    const sponsorId = uuidv4();
+    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+    const cohortId = uuidv4();
+    const courseId = uuidv4();
+    db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
+    db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
+
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort',
+        scopeId: cohortId,
+        rewardType: null as unknown as string,
+        amountStroops: '10000000',
+        idempotencyKey: `idem-${uuidv4()}`,
+      });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('INVALID_REWARD_TYPE');
+    }
+  });
+
+  // W5-T19: valid same-key replay preserves existing behavior
+  it('W5-T19: valid same-key replay returns cached reward unchanged', () => {
+    const sponsorId = uuidv4();
+    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+    const cohortId = uuidv4();
+    const courseId = uuidv4();
+    db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
+    db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
+
+    const idemKey = `idem-${uuidv4()}`;
+    const r1 = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort', scopeId: cohortId,
+      rewardType: 'custom', amountStroops: '10000000', idempotencyKey: idemKey,
+    });
+    const r2 = createReward(sponsorId, {
+      scopeType: 'sponsor_cohort', scopeId: cohortId,
+      rewardType: 'custom', amountStroops: '10000000', idempotencyKey: idemKey,
+    });
+    expect(r2.id).toBe(r1.id);
+    expect(r2.reward_type).toBe('custom');
+  });
+
+  // W5-T20: incompatible valid type reuse produces IDEMPOTENCY_CONFLICT
+  it('W5-T20: same key different valid type → IDEMPOTENCY_CONFLICT not INVALID_REWARD_TYPE', () => {
+    const sponsorId = uuidv4();
+    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+    const cohortId = uuidv4();
+    const courseId = uuidv4();
+    db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
+    db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
+
+    const idemKey = `idem-${uuidv4()}`;
+    createReward(sponsorId, {
+      scopeType: 'sponsor_cohort', scopeId: cohortId,
+      rewardType: 'custom', amountStroops: '10000000', idempotencyKey: idemKey,
+    });
+
+    try {
+      createReward(sponsorId, {
+        scopeType: 'sponsor_cohort', scopeId: cohortId,
+        rewardType: 'individual', amountStroops: '10000000', idempotencyKey: idemKey,
+      });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RewardError);
+      expect((err as RewardError).code).toBe('IDEMPOTENCY_CONFLICT');
+    }
   });
 });

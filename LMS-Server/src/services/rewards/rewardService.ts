@@ -17,6 +17,7 @@ import {
 } from './rewardFundingVerifier.js';
 import type { PaystackBindingContext } from './rewardFundingVerifier.js';
 import { hasPermission } from '../../middleware/rbac.js';
+import { REWARD_TYPES } from './rewardTypes.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
   notifyRewardReleased,
@@ -59,6 +60,11 @@ export interface RewardFilters {
  * Create a new reward in draft state.
  */
 export function createReward(actorId: string, params: CreateRewardParams): RewardRow {
+  // W05: Validate reward type before any other check so invalid types never reach DB.
+  if (typeof params.rewardType !== 'string' || !(REWARD_TYPES as ReadonlyArray<string>).includes(params.rewardType)) {
+    throw new RewardError('INVALID_REWARD_TYPE', `Invalid reward type: ${String(params.rewardType)}`, 400);
+  }
+
   const currency = params.currency ?? 'XLM';
   validateCurrency(currency);
 

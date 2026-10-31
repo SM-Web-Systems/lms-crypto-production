@@ -39,11 +39,11 @@ const SAMPLE_REWARDS = [
     creator_user_id: 'creator1',
     scope_type: 'sponsor_cohort',
     scope_id: 'cohort1',
-    reward_type: 'completion',
+    reward_type: 'custom',
     amount_stroops: 10000000,
     max_recipients: null,
     currency_code: 'XLM',
-    description: 'Course completion reward',
+    description: 'Custom reward',
     auto_release: 0,
     status: 'active',
     expires_at: null,
@@ -59,7 +59,7 @@ const SAMPLE_REWARDS = [
 const STUDENT_REWARDS = [
   {
     allocationId: 'a1',
-    rewardType: 'completion',
+    rewardType: 'custom',
     amountStroops: 10000000,
     currencyCode: 'XLM',
     status: 'released',
@@ -125,7 +125,7 @@ describe('RewardDashboard', () => {
     });
 
     expect(mockListRewards).toHaveBeenCalledWith('sponsor', 'cohort1');
-    expect(screen.getByText('completion')).toBeInTheDocument();
+    expect(screen.getByText('custom')).toBeInTheDocument();
     expect(screen.getByText('1.00 XLM')).toBeInTheDocument();
   });
 
@@ -193,7 +193,7 @@ describe('StudentRewardsPanel', () => {
     render(<StudentRewardsPanel />);
 
     await waitFor(() => {
-      expect(screen.getByText('completion')).toBeInTheDocument();
+      expect(screen.getByText('custom')).toBeInTheDocument();
     });
 
     expect(screen.getByText('1.00 XLM')).toBeInTheDocument();
