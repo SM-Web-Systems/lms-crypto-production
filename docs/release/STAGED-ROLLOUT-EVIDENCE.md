@@ -1267,7 +1267,7 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | Closure commit | `d9cfc00` docs(W07): record merge receipt and close spec |
 | CI candidate | 41230762143 — Backend 5m36s PASS, Frontend 52s PASS, E2E 1m13s PASS, Offline 1m23s PASS |
 | Merge SHA | `60fb174` (2026-10-31T18:50Z) |
-| CI main | 41231333646 — in progress |
+| CI main | 41231333646 — 4/4 PASS (Frontend 1m5s, Backend 5m+, E2E, Offline) |
 | Test results | 17 new BE tests (billing-contract-w07) + 10 new FE tests (billing-service-w07) = 27 total; 193 BE files / 2269 tests all PASS; 56 FE files / 553 tests all PASS; tsc clean; Vite build clean; independent review PASS |
 | Files changed | MODIFIED: `LMS-Frontend/src/services/employerService.ts`, `LMS-Frontend/src/services/sponsorService.ts`, `LMS-Server/src/routes/sponsor.ts`; NEW: `LMS-Frontend/src/__tests__/billing-service-w07.test.ts`, `LMS-Server/src/__tests__/billing-contract-w07.test.ts`; SPEC: `LMS-Server/docs/superpowers/specs/2026-10-31-W07-billing-dto-reconciliation.md` |
 
