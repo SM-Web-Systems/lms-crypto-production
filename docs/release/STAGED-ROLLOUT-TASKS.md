@@ -428,10 +428,16 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Acceptance**: Malformed object input → 400 INVALID_REWARD_TYPE; no TypeError escapes; follow-up tracking accurate
 
 ### S3-T02: Implement W06 — family/child discriminator
-- **Status**: TODO
+- **Status**: MERGED
 - **Dependencies**: S1-T04 spec reviewed
-- **Files**: `LMS-Server/src/routes/parent.ts` (reward creation around line 290)
-- **Problem**: Parent reward creation uses `childId` as `scopeId` but the request body does not include a family discriminator to distinguish family-group vs individual-child targeting.
+- **Owner**: W06 session (2026-10-31)
+- **Files**: `LMS-Server/src/services/rewards/rewardErrors.ts`, `LMS-Server/src/routes/parent.ts`, `LMS-Server/src/__tests__/reward-parent.test.ts`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/pages/ParentDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
+- **Problem**: `resolveParentScopeType()` mapped only `'family'` → `parent_family`; invalid supplied values silently defaulted to `parent_child`. GET route unsafely cast query param. Frontend had no `targetType` in create params or list query.
+- **Fix**: Added strict validation (`undefined`/`'child'`/`'family'` accepted; any other value → 400 `INVALID_TARGET_TYPE`). Removed unsafe `as string` cast. Added `INVALID_TARGET_TYPE` to error codes. Frontend: `targetType` added to `CreateRewardParams`, `listRewards`, `RewardDashboard` props, and `ParentDashboard` group rendering.
+- **Evidence**: PR #128 MERGED, main HEAD `1988457`; CI: Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS; 25 W06 tests (20 backend + 5 frontend) + 2251/2252 backend + 523/523 frontend pass; independent review APPROVED_WITH_NOTES
+- **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-parent-target-discriminator.md`
+- **Acceptance**: Invalid targetType rejected before DB; omitted targetType preserves legacy; valid child/family resolved to correct scope; frontend carries targetType correctly; no W01–W05 regressions
+- **Residual**: Per-child rewards UI in ParentDashboard not yet rendered (pre-existing, W08 scope)
 
 ### S3-T03: Implement W07 — billing DTO alignment
 - **Status**: TODO

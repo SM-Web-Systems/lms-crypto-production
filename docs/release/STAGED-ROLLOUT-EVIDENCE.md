@@ -430,16 +430,22 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | Fix summary | (1) Export `REWARD_TYPES` constant and `RewardType` from `rewardTypes.ts`. (2) Add `INVALID_REWARD_TYPE` to `REWARD_ERROR_CODES`. (3) Add runtime membership validation at start of `createReward()` — rejects non-string, null, empty, padded, wrong-cased, and unlisted values with 400 `INVALID_REWARD_TYPE` before any DB write. (4) Fix `RewardDashboard.tsx` select: remove `completion`/`achievement`, add `individual`/`milestone`. `course_completion`/`grade` not shown (require eligibility config); documented for W06 follow-up. (5) Frontend `CreateRewardParams.rewardType: RewardType`. (6) Fix `RewardComponents.test.tsx` fixture from `'completion'` to `'custom'`. |
 | Evidence status | **FIXED** — PR #126 merged, main HEAD `13c6b20`; CI: all 4 jobs PASS; 29 W05 tests (W5-T1–T20) covering all 4 creation routes, direct service calls, edge cases, no-DB-write proof, idempotency; 625 backend reward tests PASS; 515 frontend tests PASS; TypeScript builds clean; independent review APPROVED (no blocking findings) |
 
-### W06: Family reward requests omit required discriminator
+### W06: Parent target discriminator missing strict validation
 
 | Field | Value |
 | --- | --- |
 | Finding ID | W06 |
 | Priority | P2 |
-| Current applicability | **Present on main** |
-| Code evidence | `parent.ts:290` — parent reward creation passes `scopeId: childId` but there is no `targetType` field in the request body to distinguish family-group rewards from individual-child rewards. The `scopeType` is hardcoded in the route handler. |
-| Existing fix PR | None |
-| Evidence status | Assessed, unfixed |
+| Current applicability | **FIXED** — PR #128 MERGED, main HEAD `1988457` |
+| Code evidence | `parent.ts:277–280` — `resolveParentScopeType()` mapped `'family'` → `parent_family` but silently defaulted all other values (including invalid supplied values) to `parent_child`. GET route cast `req.query.targetType as string` unsafely. Frontend `CreateRewardParams` had no `targetType`; `listRewards` sent no `targetType` query param; `ParentDashboard` passed no `targetType` to `RewardDashboard`. |
+| Fix summary | Backend: `resolveParentScopeType` now accepts exactly `undefined` (legacy) / `'child'` / `'family'`; any other supplied value → 400 `INVALID_TARGET_TYPE` (constant safe message, no coercion). Added `INVALID_TARGET_TYPE` to `REWARD_ERROR_CODES`. Removed unsafe `as string` cast on GET query. Frontend: added `targetType?: 'child'\|'family'` to `CreateRewardParams` and `listRewards`; `RewardDashboard` accepts and carries `targetType` through create/list; `ParentDashboard` passes `targetType='family'` for group rewards. |
+| Spec | `LMS-Server/docs/superpowers/specs/2026-10-31-W06-parent-target-discriminator.md` |
+| PR | **#128 MERGED** at `1988457` (2026-10-31) |
+| CI | Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Test evidence | 20 backend tests (W6-B-1 through W6-B-20) + 5 frontend tests (W6-FE-1 through W6-FE-5); 2251/2252 backend pass (1 pre-existing dependency-security failure unchanged); 523/523 frontend pass |
+| Independent review | APPROVED_WITH_NOTES — LOW: ParentDashboard has no per-child rewards section (pre-existing scope, not W06 defect) |
+| Residual | Per-child `targetType='child'` rewards UI in ParentDashboard not rendered (W08 scope) |
+| Evidence status | **FIXED** |
 
 ### W07: Billing permissions and DTOs inconsistent
 
@@ -1144,13 +1150,36 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `c551473` | fix(W05-R1): safe INVALID_REWARD_TYPE error; fix follow-up comment; add regression coverage |
 | `4ab2801` | Squash merge commit to main |
 
+### S3/W06 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Date | 2026-10-31 |
+| PR | #128 (`feat(W06): validate and carry parent child/family target discriminator`) |
+| Branch | `codex/w06-parent-discriminator` |
+| Base SHA | `4ab2801` (W05-R1) |
+| Merge commit | `1988457` |
+| Post-merge main | `1988457` |
+| CI run | `41196064908` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Test results | 2251/2252 backend PASS (1 pre-existing dependency-security failure unchanged); 523/523 frontend PASS; 20 new backend tests + 5 new frontend tests |
+| Independent review | APPROVED_WITH_NOTES |
+| Files changed | MODIFIED: `LMS-Server/src/services/rewards/rewardErrors.ts`, `LMS-Server/src/routes/parent.ts`, `LMS-Server/src/__tests__/reward-parent.test.ts`, `LMS-Frontend/src/services/rewardService.ts`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/pages/ParentDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`; NEW: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-parent-target-discriminator.md` |
+
+### W06 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `675d295` | docs(W06): spec for parent child/family target discriminator |
+| `280e009` | feat(W06): validate and carry parent child/family target discriminator |
+| `1988457` | Squash merge commit to main |
+
 ### S3 stage progress (updated)
 
 | Unit | PR | Merge SHA | Tests added | Status |
 | --- | --- | --- | --- | --- |
 | W05 | #126 | `13c6b20` | 29 | FIXED |
 | W05-R1 | #127 | `4ab2801` | 12 | FIXED |
-| W06 | — | — | — | TODO |
+| W06 | #128 | `1988457` | 25 | FIXED |
 | W07 | — | — | — | TODO |
 | W08 | — | — | — | TODO |
 | W09 | — | — | — | TODO |
