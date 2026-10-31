@@ -1,6 +1,7 @@
 /**
- * TeacherDashboard — Phase G: Teacher dashboard with classes, analytics, billing.
+ * TeacherDashboard — Phase G: Teacher dashboard with classes and rewards.
  * Uses URL path to determine which section to display.
+ * Analytics and Billing routes redirect to /teacher (deferred — FOLLOW-UP(teacher-analytics-billing-ui)).
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -16,8 +17,6 @@ import {
   AlertCircle,
   LayoutDashboard,
   Plus,
-  BarChart2,
-  CreditCard,
   BookOpen,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
@@ -28,16 +27,15 @@ const TeacherDashboard: React.FC = () => {
   const [dashboard, setDashboard] = useState<TeacherDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const section = location.pathname.includes('/rewards')
     ? 'rewards'
     : location.pathname.includes('/classes')
       ? 'classes'
-      : location.pathname.includes('/analytics')
-        ? 'analytics'
-        : location.pathname.includes('/billing')
-          ? 'billing'
-          : 'dashboard';
+      : 'dashboard';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +53,21 @@ const TeacherDashboard: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleCreateClass = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newClassName.trim();
+    if (!name) return;
+    setCreateError(null);
+    try {
+      await teacherService.createClass(name);
+      setCreating(false);
+      setNewClassName('');
+      load();
+    } catch (err) {
+      setCreateError(getErrorMessage(err, 'Failed to create class'));
+    }
+  }, [newClassName, load]);
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
 
@@ -117,11 +130,34 @@ const TeacherDashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-neutral-900">Your Classes</h2>
-                <Button variant="primary" size="sm" type="button">
-                  <Plus className="h-4 w-4 mr-1" aria-hidden />
-                  New Class
-                </Button>
+                {!creating && (
+                  <Button variant="primary" size="sm" type="button" onClick={() => { setCreating(true); setCreateError(null); }}>
+                    <Plus className="h-4 w-4 mr-1" aria-hidden />
+                    New Class
+                  </Button>
+                )}
               </div>
+
+              {creating && (
+                <form onSubmit={handleCreateClass} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    className="border border-neutral-300 rounded px-3 py-1.5 text-sm flex-1"
+                    placeholder="Class name"
+                    value={newClassName}
+                    onChange={(e) => setNewClassName(e.target.value)}
+                    autoFocus
+                  />
+                  <Button variant="primary" size="sm" type="submit" disabled={!newClassName.trim()}>
+                    Create
+                  </Button>
+                  <Button variant="outline" size="sm" type="button" onClick={() => { setCreating(false); setNewClassName(''); setCreateError(null); }}>
+                    Cancel
+                  </Button>
+                  {createError && <p className="text-xs text-red-600">{createError}</p>}
+                </form>
+              )}
+
               {dashboard.classes.length === 0 ? (
                 <p className="text-neutral-500 text-sm py-8 text-center">No classes created yet.</p>
               ) : (
@@ -148,26 +184,6 @@ const TeacherDashboard: React.FC = () => {
               ) : (
                 <p className="text-neutral-500 text-sm py-8 text-center">Create a class first to manage rewards.</p>
               )}
-            </div>
-          )}
-
-          {section === 'analytics' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                <BarChart2 className="h-5 w-5 text-accent-teal" aria-hidden />
-                Analytics
-              </h2>
-              <p className="text-neutral-500 text-sm py-8 text-center">Analytics data will appear here.</p>
-            </div>
-          )}
-
-          {section === 'billing' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-accent-teal" aria-hidden />
-                Billing
-              </h2>
-              <p className="text-neutral-500 text-sm py-8 text-center">Billing data will appear here.</p>
             </div>
           )}
         </>

@@ -590,9 +590,7 @@ function App() {
               path="/employer/billing"
               element={
                 <ProtectedRoute allowedRole="employer">
-                  <Layout>
-                    <EmployerDashboard />
-                  </Layout>
+                  <Navigate to="/employer" replace />
                 </ProtectedRoute>
               }
             />
@@ -632,9 +630,7 @@ function App() {
               path="/parent/wallets"
               element={
                 <ProtectedRoute allowedRole="parent">
-                  <Layout>
-                    <ParentDashboard />
-                  </Layout>
+                  <Navigate to="/parent" replace />
                 </ProtectedRoute>
               }
             />
@@ -642,9 +638,7 @@ function App() {
               path="/parent/groups"
               element={
                 <ProtectedRoute allowedRole="parent">
-                  <Layout>
-                    <ParentDashboard />
-                  </Layout>
+                  <Navigate to="/parent" replace />
                 </ProtectedRoute>
               }
             />
@@ -652,9 +646,7 @@ function App() {
               path="/parent/billing"
               element={
                 <ProtectedRoute allowedRole="parent">
-                  <Layout>
-                    <ParentDashboard />
-                  </Layout>
+                  <Navigate to="/parent" replace />
                 </ProtectedRoute>
               }
             />
@@ -694,9 +686,7 @@ function App() {
               path="/teacher/analytics"
               element={
                 <ProtectedRoute allowedRole="teacher">
-                  <Layout>
-                    <TeacherDashboard />
-                  </Layout>
+                  <Navigate to="/teacher" replace />
                 </ProtectedRoute>
               }
             />
@@ -704,9 +694,7 @@ function App() {
               path="/teacher/billing"
               element={
                 <ProtectedRoute allowedRole="teacher">
-                  <Layout>
-                    <TeacherDashboard />
-                  </Layout>
+                  <Navigate to="/teacher" replace />
                 </ProtectedRoute>
               }
             />
