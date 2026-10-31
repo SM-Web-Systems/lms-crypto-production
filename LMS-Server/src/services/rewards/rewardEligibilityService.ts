@@ -265,14 +265,37 @@ export function evaluateEligibility(
     if (reward.scope_type === 'sponsor_cohort') {
       const cohort = db.prepare('SELECT course_id FROM sponsor_cohorts WHERE id = ?')
         .get(reward.scope_id) as { course_id: string } | undefined;
-      boundCourseId = cohort?.course_id ?? null;
+      // W04-R2: Fail closed when cohort is deleted post-activation.
+      // config.requiredCourseId can disambiguate a live scope; it cannot substitute
+      // for deleted scope authority. The audience snapshot preserves membership but
+      // is not a substitute for the scope entity that granted creation authority.
+      if (!cohort) return 'ineligible';
+      boundCourseId = cohort.course_id;
       // W04-R1 F3: Detect post-activation binding drift.
       // If eligibilityConfig.requiredCourseId was set at activation time (conflict-checked),
       // but the cohort's course_id has since changed, the binding is now ambiguous.
       // Fail closed: return ineligible rather than silently using the stale config value.
-      if (boundCourseId && typeof config?.requiredCourseId === 'string' && config.requiredCourseId !== boundCourseId) {
+      if (typeof config?.requiredCourseId === 'string' && config.requiredCourseId !== boundCourseId) {
         return 'ineligible';
       }
+    } else if (
+      reward.scope_type === 'teacher_class' ||
+      reward.scope_type === 'employer_team' ||
+      reward.scope_type === 'parent_family'
+    ) {
+      // W04-R2: Fail closed when user_groups scope entity is deleted post-activation.
+      const groupType = reward.scope_type === 'employer_team' ? 'team'
+        : reward.scope_type === 'parent_family' ? 'family'
+        : 'class';
+      const scopeGroup = db.prepare('SELECT id FROM user_groups WHERE id = ? AND group_type = ?')
+        .get(reward.scope_id, groupType) as { id: string } | undefined;
+      if (!scopeGroup) return 'ineligible';
+    } else if (reward.scope_type === 'parent_child') {
+      // W04-R2: Fail closed when parent-child link is deleted post-activation.
+      const link = db.prepare(
+        "SELECT id FROM user_links WHERE parent_user_id = ? AND child_user_id = ? AND link_type = 'parent'"
+      ).get(reward.creator_user_id, reward.scope_id) as { id: string } | undefined;
+      if (!link) return 'ineligible';
     }
     // eligibilityConfig.requiredCourseId takes precedence (already conflict-checked at activation).
     // Reuse the already-parsed `config` to avoid a second JSON.parse of the same string.
