@@ -1,7 +1,7 @@
 # W08 — Truthful portal availability and capability-scoped actions
 
 Date: 2026-10-31
-Status: IN_PROGRESS
+Status: MERGED — 88212bd on main (2026-10-31)
 Spec ID: W08
 Preceding: W07 (`2026-10-31-W07-billing-dto-reconciliation.md`)
 
@@ -208,19 +208,19 @@ Update `G-NAV-2`, `G-NAV-3`, `G-NAV-4` to remove assertions for deferred items:
 
 ## Implementation checklist
 
-- [ ] Commit spec (this file)
-- [ ] Write RED tests (W8-NAV-1/2/3, W8-ROUTE-1/2/3/4/5, W8-REWARD-1/2, W8-CLASS-1, W8-TEAM-1, W8-PARENT-1)
-- [ ] Apply Fix 1 (remove deferred nav items from Layout.tsx)
-- [ ] Apply Fix 2 (redirect deferred routes in App.tsx)
-- [ ] Apply Fix 3 (remove Fund from ACTIONS in RewardDashboard.tsx)
-- [ ] Apply Fix 4 (wire New Class button in TeacherDashboard.tsx; remove dead sections)
-- [ ] Apply Fix 5 (wire New Team button in EmployerDashboard.tsx; remove dead section)
-- [ ] Apply Fix 6 (fix parent rewards blank in ParentDashboard.tsx; remove dead sections)
-- [ ] Apply Fix 7 (update phase-g-frontend.test.tsx stale nav assertions)
-- [ ] Verify all W8 tests GREEN + no regressions
-- [ ] Independent review
-- [ ] PR + CI + merge
-- [ ] Update planning branch documentation
+- [x] Commit spec (this file)
+- [x] Write RED tests (W8-NAV-1/2/3, W8-ROUTE-1/2/3/4/5, W8-REWARD-1/2, W8-CLASS-1, W8-TEAM-1, W8-PARENT-1)
+- [x] Apply Fix 1 (remove deferred nav items from Layout.tsx)
+- [x] Apply Fix 2 (redirect deferred routes in App.tsx)
+- [x] Apply Fix 3 (remove Fund from ACTIONS in RewardDashboard.tsx)
+- [x] Apply Fix 4 (wire New Class button in TeacherDashboard.tsx; remove dead sections)
+- [x] Apply Fix 5 (wire New Team button in EmployerDashboard.tsx; remove dead section)
+- [x] Apply Fix 6 (fix parent rewards blank in ParentDashboard.tsx; remove dead sections)
+- [x] Apply Fix 7 (update phase-g-frontend.test.tsx stale nav assertions)
+- [x] Verify all W8 tests GREEN + no regressions
+- [x] Independent review
+- [x] PR + CI + merge
+- [x] Update planning branch documentation
 
 ---
 
@@ -229,11 +229,12 @@ Update `G-NAV-2`, `G-NAV-3`, `G-NAV-4` to remove assertions for deferred items:
 | Field | Value |
 |-------|-------|
 | Baseline main SHA | `60fb174` (W07 merge) |
-| Spec commit | TBD |
-| Fix commit | TBD |
-| RED | TBD |
-| GREEN | TBD |
-| PR | TBD |
-| CI candidate | TBD |
-| Merge SHA | TBD |
-| CI main | TBD |
+| Spec commit | `d2b2df9` docs(W08): spec for portal action scoping and availability contract |
+| RED commit | `fadc340` test(W08): RED baseline for portal action scoping |
+| Fix commit | `e4a31f7` fix(W08): scope portal actions to implemented, authorized workflows |
+| RED | W8-NAV-1/2/3 FAIL (deferred items shown); W8-ROUTE-1/2/3/4/5 FAIL (placeholder rendered); W8-REWARD-1/2/4 FAIL (Fund shown); W8-CLASS-1 FAIL (no form); W8-TEAM-1 FAIL (no form); W8-PARENT-1 FAIL (blank); W8-INT-1 FAIL (placeholder) |
+| GREEN | 21 new tests pass; 574/574 FE (57 files) pass; tsc clean; Vite build clean |
+| PR | #133 |
+| CI candidate | 41234200028 — Backend PASS, Frontend PASS, E2E PASS, Offline PASS (4/4) |
+| Merge SHA | `88212bd` (2026-10-31) |
+| CI main | 41234738552 — 4/4 PASS |
