@@ -266,6 +266,13 @@ export function evaluateEligibility(
       const cohort = db.prepare('SELECT course_id FROM sponsor_cohorts WHERE id = ?')
         .get(reward.scope_id) as { course_id: string } | undefined;
       boundCourseId = cohort?.course_id ?? null;
+      // W04-R1 F3: Detect post-activation binding drift.
+      // If eligibilityConfig.requiredCourseId was set at activation time (conflict-checked),
+      // but the cohort's course_id has since changed, the binding is now ambiguous.
+      // Fail closed: return ineligible rather than silently using the stale config value.
+      if (boundCourseId && typeof config?.requiredCourseId === 'string' && config.requiredCourseId !== boundCourseId) {
+        return 'ineligible';
+      }
     }
     // eligibilityConfig.requiredCourseId takes precedence (already conflict-checked at activation).
     // Reuse the already-parsed `config` to avoid a second JSON.parse of the same string.

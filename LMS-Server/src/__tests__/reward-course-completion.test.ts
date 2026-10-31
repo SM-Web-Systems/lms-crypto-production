@@ -1254,3 +1254,95 @@ describe('F2: Submission-approval course_completion producer', () => {
     expect(adminRow).toBeUndefined();
   });
 });
+
+// ──── §F3: Consumer binding conflict detection ────────────────────────────────
+
+describe('F3: Consumer binding conflict detection', () => {
+  it('F3-U-1: conflicting cohort/config state → ineligible after drift', () => {
+    const itemId = uuidv4();
+    const courseAId = seedCourse([itemId]);
+    const courseBId = seedCourse([uuidv4()]); // the drifted-to course
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseAId);
+    enrollStudent(studentId, courseAId);
+
+    // Create reward with requiredCourseId=A (matches cohort at activation time → no conflict)
+    const rewardId = createFundedActiveReward(
+      sponsorId,
+      'sponsor_cohort',
+      cohortId,
+      JSON.stringify({ requiredCourseId: courseAId })
+    );
+
+    // Simulate post-activation drift: cohort now points to course B
+    db.prepare('UPDATE sponsor_cohorts SET course_id = ? WHERE id = ?').run(courseBId, cohortId);
+
+    // Complete course A for student
+    completeLesson(studentId, courseAId, itemId);
+
+    // Produce and process event for course A
+    produceOutboxEvent('course_completion', courseAId, studentId);
+    processPendingEvents();
+
+    // Binding conflict → allocation should NOT become eligible
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('pending'); // not eligible
+  });
+
+  it('F3-U-2: matching cohort/config (no drift) → eligible', () => {
+    const itemId = uuidv4();
+    const courseAId = seedCourse([itemId]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseAId);
+    enrollStudent(studentId, courseAId);
+
+    // Create reward with requiredCourseId=A — cohort also points to A (no conflict)
+    const rewardId = createFundedActiveReward(
+      sponsorId,
+      'sponsor_cohort',
+      cohortId,
+      JSON.stringify({ requiredCourseId: courseAId })
+    );
+
+    // No drift — cohort still points to courseAId
+
+    // Complete course A for student
+    completeLesson(studentId, courseAId, itemId);
+
+    produceOutboxEvent('course_completion', courseAId, studentId);
+    processPendingEvents();
+
+    // No conflict → allocation should be eligible
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('eligible');
+  });
+
+  it('F3-U-3: no config.requiredCourseId — cohort-only binding still works', () => {
+    const itemId = uuidv4();
+    const courseAId = seedCourse([itemId]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseAId);
+    enrollStudent(studentId, courseAId);
+
+    // Create reward WITHOUT requiredCourseId in eligibility_config
+    const rewardId = createFundedActiveReward(
+      sponsorId,
+      'sponsor_cohort',
+      cohortId
+      // no eligibilityConfig passed
+    );
+
+    // Complete course A for student
+    completeLesson(studentId, courseAId, itemId);
+
+    produceOutboxEvent('course_completion', courseAId, studentId);
+    processPendingEvents();
+
+    // Cohort-only binding → should be eligible
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('eligible');
+  });
+});
