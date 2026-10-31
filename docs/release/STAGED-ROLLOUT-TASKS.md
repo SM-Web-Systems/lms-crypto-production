@@ -450,6 +450,17 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R1-stale-response-guard.md`
 - **Acceptance**: Late stale success does not overwrite current-target data; late stale rejection does not set error on current target; performAction spinner always clears; StrictMode double-invoke safe; unmount safe
 
+### S3-T02-R2: W06-R2 — create-completion and operation ownership guard
+- **Status**: MERGED
+- **Dependencies**: S3-T02-R1 MERGED
+- **Owner**: W06-R2 session (2026-10-31)
+- **Files**: `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
+- **Problem**: W06-R1's `reqIdRef` guarded list-response state commits but not callback initiation. An old `onCreated` callback could call `load()`, increment `reqIdRef`, become the new request owner, and overwrite valid current-target state. The same gap affected `performAction` finally (stuck spinner), `toggleAllocations` catch (unguarded error path), and form auto-close on target change.
+- **Fix**: Added `targetEpochRef` (monotonic counter incremented ONLY in `useEffect` cleanup, not in `load()`). `capturedEpoch` snapshotted at render time. `onCreated`, `toggleAllocations` catch, and `performAction` finally epoch-guarded. Cleanup also resets form + spinner state. A→B→A revisits correctly handled because epoch advances at every target change even when `targetKey` is textually identical.
+- **Evidence**: PR #130 MERGED, main HEAD `01117903`; CI: Backend Tests PASS (5m22s), Frontend Tests & Build PASS (50s), E2E Tests PASS (1m5s), Offline Monitoring PASS (1m20s); 9 W06-R2 tests + 540/540 frontend pass; independent review APPROVED
+- **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R2-create-ownership-guard.md`
+- **Acceptance**: Deferred create completion after target switch does not reload old target; A→B→A revisit blocks old epoch callback; form auto-closes on target change; old operation finally does not clear new operation spinner
+
 ### S3-T03: Implement W07 — billing DTO alignment
 - **Status**: TODO
 - **Dependencies**: S1-T04 spec reviewed

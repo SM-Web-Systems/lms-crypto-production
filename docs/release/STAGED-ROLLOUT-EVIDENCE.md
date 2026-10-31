@@ -1196,6 +1196,29 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `a8ec480` | feat(W06-R1): stale response guard in RewardDashboard (reqId + targetKey) |
 | `1a5288a` | Squash merge commit to main |
 
+### S3/W06-R2 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Date | 2026-10-31 |
+| PR | #130 (`feat(W06-R2): target epoch guard for create-completion and operation ownership`) |
+| Branch | `codex/w06-r2-create-ownership` |
+| Base SHA | `1a5288a` (W06-R1) |
+| Merge commit | `01117903` |
+| Post-merge main | `01117903` |
+| CI run | `41201368815` — Backend Tests PASS (5m22s), Frontend Tests & Build PASS (50s), E2E Tests PASS (1m5s), Offline Monitoring PASS (1m20s) |
+| Test results | 540/540 frontend PASS; 9 new W06-R2 frontend tests; 0 regressions |
+| Independent review | APPROVED — all 8 spec items verified correct; epoch pattern sound, no aliasing risk; A→B→A identity collision case confirmed handled |
+| Files changed | MODIFIED: `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`; SPEC: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R2-create-ownership-guard.md` |
+
+### W06-R2 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `340a23a` | docs(W06-R2): spec for create-completion and operation ownership guard |
+| `09dee32` | feat(W06-R2): add target epoch guard for create-completion and operation ownership |
+| `01117903` | Merge commit to main |
+
 ### S3 stage progress (updated)
 
 | Unit | PR | Merge SHA | Tests added | Status |
@@ -1204,6 +1227,7 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W05-R1 | #127 | `4ab2801` | 12 | FIXED |
 | W06 | #128 | `1988457` | 25 | FIXED |
 | W06-R1 | #129 | `1a5288a` | 8 | FIXED |
+| W06-R2 | #130 | `01117903` | 9 | FIXED |
 | W07 | — | — | — | TODO |
 | W08 | — | — | — | TODO |
 | W09 | — | — | — | TODO |
