@@ -343,14 +343,23 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Total tests**: 18 new, all pass; 2148 full suite, 0 regressions, TSC clean
 
 ### S2-T04: Implement W04 — course completion eligibility scoping
-- **Status**: TODO
+- **Status**: COMPLETE
 - **Dependencies**: S1-T03 spec reviewed
-- **Owner**: —
-- **Files**: `LMS-Server/src/routes/lessonCompletions.ts` (line 157), `LMS-Server/src/services/rewards/rewardEligibilityService.ts` (evaluateEligibility, lines 137–198)
-- **Problem**: Line 157 fires `produceOutboxEvent('course_completion', courseId, ...)` on every individual lesson completion, not on actual course completion. `evaluateEligibility()` matches `reward_type === 'course_completion' && event.event_type === 'course_completion'` (line 191) but does not verify the student actually completed the full course. Also does not verify the event's courseId matches the reward's scope.
-- **Intended behavior**: Fire `course_completion` outbox event only when all required lessons in a course are completed (or use a separate completion check). Eligibility must verify the event's source course matches the reward's scope.
-- **TDD RED**: Write test where single lesson completion triggers reward for `course_completion` type → currently triggers. Write test where unrelated course completion triggers reward → currently triggers.
-- **TDD GREEN**: Fix outbox event production and eligibility evaluation.
+- **Owner**: Claude
+- **PR**: #123 — `fix(W04): genuine course-completion gating and course-bound reward eligibility`
+- **Merge commit**: `4285048` on main (2026-10-31)
+- **Files changed**: `LMS-Server/src/routes/lessonCompletions.ts`, `LMS-Server/src/controllers/quizzesController.ts`, `LMS-Server/src/services/rewards/rewardEligibilityService.ts`, `LMS-Server/src/services/rewards/rewardService.ts`, `LMS-Server/src/services/courseCompletionService.ts`, `LMS-Frontend/package.json`, `LMS-Frontend/package-lock.json`, `LMS-Server/package-lock.json`
+- **Implementation**:
+  - `isCourseCompleteForReward()` — strict DB-backed predicate: all lessons + course-scoped quizzes + approved submission; fail-closed for empty/nonexistent courses
+  - Producer guard in `lessonCompletions.ts` — `course_completion` outbox event only fires when `isCourseCompleteForReward()` returns true
+  - Producer guard in `quizzesController.ts` — same gate on quiz pass; emits event when full course now complete
+  - Consumer binding in `evaluateEligibility()` — independently derives `boundCourseId` from `sponsor_cohort.course_id` or `eligibilityConfig.requiredCourseId`; verifies event source matches; verifies DB proof
+  - Activation-time binding: `activateReward()` validates and conflict-checks course binding before scope validation
+  - Dedup reset: completed-but-ineligible outbox rows reset to pending (ineligible→eligible upgrade path); only `eligible` records block re-evaluation
+  - `getCourseProgress` backward-compat: null-safe cross-course quiz guard for legacy unattached quizzes (NFT cert path only)
+- **Tests**: 30/30 W04 tests pass; 2179/2179 full suite, 0 regressions, TSC clean
+- **Independent review**: Opus APPROVED_WITH_NOTES (0 CRITICAL/HIGH; 2 MEDIUM pre-existing staff-mark and submission approval producer gaps not blocking; 4 LOW — LOW-1 addressed in `daedff6`)
+- **Completion**: PR #123 merged `4285048`; post-merge CI run 41172329492 — 4/4 PASS
 
 ---
 

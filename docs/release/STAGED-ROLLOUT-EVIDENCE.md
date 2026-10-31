@@ -904,6 +904,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-30 | — | S2/W03-R3: Three post-merge defects in W03-R2 independently reproduced and corrected. F1: `normalizeDdl()` comment-strip + exact multi-token pattern match replaces substring bypass. F2: `inventoryDependencies()` inventories non-autoindex indexes/triggers/views and refuses before mutation if unknown objects found. F3: pre-migration FK/integrity checks moved before PRAGMAs; post-reconstruction checks + receipt write moved inside `conn.transaction()` block for atomic rollback. PR #120 merged `fc59ec2`, 20 new tests (19 W03-R3 + 1 Opus MEDIUM _new-only), 2103 total, 0 regressions, TSC clean. Independent Opus APPROVED (3 LOW, 1 MEDIUM — all addressed pre-merge). PR CI run 41047876413 — 4/4 PASS; post-merge CI run 41048706028 — 4/4 PASS. W03 fully closed (PR #117 + #118 + #119 + #120). Main HEAD `fc59ec2`. | W03-R3 session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R4: Two post-merge defects in W03-R3 independently reproduced and corrected. F1: `detectSchemaVersion` substring match accepted `CHECK (... OR 1=1)` appended to target DDL as `'target'` — constraint was permissive, migration no-oped leaving broken constraint. F2: Source DDL with extra `CHECK (amount_stroops < 1000)` still matched source patterns; migration proceeded and silently dropped the extra CHECK. Fix: replace substring matching with exact canonicalized-DDL body comparison; `canonicalizeDdl()` token-aware (string literals + identifiers preserved verbatim; pendingSpace suppresses space before `)`); `extractTableBody()` extracts body between first/last parens; `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` pre-computed at module load; `SUPPORTED_INDEX_CANONICAL` map for full index DDL comparison; explicit 23-column INSERT SELECT. PR #121 merged `2f1c951`, 26 new tests (COMPAT-F4), 80 migration tests total, 2130/2131 full suite (1 pre-existing), TSC clean. Independent Sonnet APPROVED (5 LOW, 0 CRITICAL/HIGH/MEDIUM). PR CI run 41071872186 — 4/4 PASS; post-merge CI run 41073011635 — 4/4 PASS. Main HEAD `2f1c951`. | W03-R4 session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R5: Two post-merge defects in W03-R4 independently reproduced and corrected. F1: `detectSchemaVersion` called `extractTableBody(canonicalizeDdl(row.sql))`; `extractTableBody` discards suffix after last `)` — STRICT table's ` STRICT` suffix stripped before comparison, body matched canonical source, migration proceeded and silently removed STRICT enforcement. F2: `canonicalizeDdl` post-loop global `IF NOT EXISTS` regex fired on full result including preserved string literals — `DEFAULT 'IF NOT EXISTS XLM'` rewritten to `DEFAULT 'XLM'`, producing false body match. F1 fix: suffix check `canonical.slice(lastParen + 1).trim() !== ''` → `'unknown'` before body extraction. F2 fix: post-loop regex removed; pre-scan mini-scanner strips IF NOT EXISTS from statement header only (before first `(`), double-quoted identifiers in header preserved verbatim. PR #122 merged `a58bf844`, 18 new tests (COMPAT-F5-STRICT 8, COMPAT-F5-LITERAL 5, COMPAT-F5-IFLITERAL 5), 98 migration tests total, 2148 full suite, TSC clean. Independent Opus APPROVED (0 CRITICAL/HIGH, 1 MEDIUM addressed, LOW accepted). PR CI run 41080960636 — 4/4 PASS; post-merge CI run 41082051339 — 4/4 PASS. Main HEAD `a58bf844`. | W03-R5 session | UNIT_COMPLETE |
+| 2026-10-31 | — | S2/W04: Genuine course-completion gating and course-bound reward eligibility. Six defect classes fixed: (1) `isCourseCompleteForReward()` — strict fail-closed DB predicate (all lessons, course-scoped quizzes, approved submission). (2) Producer guard in `lessonCompletions.ts` — `course_completion` outbox event only fires when full course confirmed. (3) Producer guard in `quizzesController.ts` — same gate on quiz pass. (4) Consumer binding in `evaluateEligibility()` — derives `boundCourseId` from scope, verifies event source + DB proof; forged/stale payloads cannot substitute. (5) Activation-time binding — `activateReward()` validates and conflict-checks course binding. (6) Dedup reset — completed-ineligible outbox rows reset to pending; only eligible records block re-evaluation; ineligible→eligible upgrade path via UPDATE before INSERT. Additional: `getCourseProgress` null-safe guard for legacy unattached quizzes preserves NFT cert backward-compat. PR #123 merged `4285048`, 30 W04 tests, 2179 full suite, 0 regressions, TSC clean. Independent Opus APPROVED_WITH_NOTES (0 CRITICAL/HIGH; 2 MEDIUM pre-existing staff-mark and submission approval producer paths — not blocking; 4 LOW — LOW-1 addressed in `daedff6`). Dep CVEs fixed: GHSA-mrwp-f3q8-3g9p (follow-redirects, high) and GHSA-g3hv-75wg-m249 (minimatch, moderate) via npm overrides. PR CI run 41171993257 — 4/4 PASS; post-merge CI run 41172329492 — 4/4 PASS. Main HEAD `4285048`. | W04 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
@@ -980,3 +981,42 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | R3 | #108 | `7a23f88` | 15 | Atomic reference consumption: UNIQUE index, three-layer defense, normalization, A2 fix |
 | R3C | #109 | `a929836` | +6 (21 total R3) | R3 correction: F1 legacyUniqueExemptions, F2 opaque identity, F3 genuine regressions |
 | **Total** | **6 PRs** | — | **72 tests** | **W01 security containment complete** |
+
+## S2/W04 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #123 (`fix(W04): genuine course-completion gating and course-bound reward eligibility`) |
+| Pre-merge main | `a58bf844` (post-W03-R5) |
+| Branch head | `2cebc65` (codex/w04-course-completion-gating) |
+| Merge method | Merge commit |
+| Merge commit | `4285048` |
+| Merged at | 2026-10-31 |
+| Post-merge main | `4285048` |
+| PR CI run | `41171993257` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Post-merge CI run | `41172329492` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| AI review | Independent Opus: APPROVED_WITH_NOTES. 0 CRITICAL/HIGH. 2 MEDIUM (pre-existing staff-mark and submission-approval producer paths — not blocking). 4 LOW (LOW-1 addressed in `daedff6`). |
+| Test results | 30/30 W04 tests PASS; 2179/2179 full suite, 0 failures, 0 regressions, TSC clean |
+| Files changed | NEW: `src/services/courseCompletionService.ts` (`isCourseCompleteForReward`); MODIFIED: `src/routes/lessonCompletions.ts`, `src/controllers/quizzesController.ts`, `src/services/rewards/rewardEligibilityService.ts`, `src/services/rewards/rewardService.ts`, `LMS-Frontend/package.json`, `LMS-Frontend/package-lock.json`, `LMS-Server/package-lock.json` |
+| Branch | Retained |
+| Deploy impact | None — merge does not trigger production deployment; no schema migration required |
+
+### W04 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `914f4b7` | fix(W04): complete course-completion gating — producer guard, consumer proof, dedup reset |
+| `daedff6` | refactor(W04): eliminate duplicate eligibility_config JSON.parse (LOW-1) |
+| `a9343a1` | fix(deps): npm audit fix — resolve high-severity follow-redirects CVE (GHSA-mrwp-f3q8-3g9p) |
+| `2cebc65` | fix(deps): resolve frontend high + moderate advisory CVEs via overrides (GHSA-g3hv-75wg-m249) |
+| `4285048` | Merge commit to main |
+
+### S2 repair chain summary (W01–W04)
+
+| Unit | PR | Merge SHA | Tests added | Scope |
+| --- | --- | --- | --- | --- |
+| W01 | #104–#110 | `a929836`→`6e58b60` | 72 | Funding verification gate, internal auth, Paystack binding, atomic reference |
+| W02 | #111–#116 | `211c556c`→`4f1fe73` | 87 | Route scope checks, replay binding, parent binding, admin retry auth |
+| W03 | #117–#122 | `655e11c`→`a58bf844` | 144 | Allocation cap, reservation reconciliation, ledger CHECK upgrade, migration validation |
+| W04 | #123 | `4285048` | 30 | Course-completion gating: producer guard, consumer binding + DB proof, dedup reset |
+| **Total** | **20+ PRs** | — | **333+ tests** | **S2 complete — W01–W04 all FIXED** |
