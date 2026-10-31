@@ -14,6 +14,7 @@ import {
   type Reward,
   type RewardAllocation,
   type CreateRewardParams,
+  type RewardType,
 } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
 import {
@@ -65,7 +66,7 @@ const RewardCreateForm: React.FC<{
   onCreated: () => void;
   onClose: () => void;
 }> = ({ role, scopeId, onCreated, onClose }) => {
-  const [rewardType, setRewardType] = useState('custom');
+  const [rewardType, setRewardType] = useState<RewardType>('custom');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [autoRelease, setAutoRelease] = useState(false);
@@ -127,12 +128,15 @@ const RewardCreateForm: React.FC<{
             <select
               id="reward-type"
               value={rewardType}
-              onChange={(e) => setRewardType(e.target.value)}
+              onChange={(e) => setRewardType(e.target.value as RewardType)}
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
             >
+              {/* W05: Only canonical DB types. course_completion and grade require
+                  eligibilityConfig (course/grade binding) not supplied by this form;
+                  they can be created via direct API with appropriate config (follow-up W06). */}
               <option value="custom">Custom</option>
-              <option value="completion">Completion</option>
-              <option value="achievement">Achievement</option>
+              <option value="individual">Individual Achievement</option>
+              <option value="milestone">Milestone</option>
             </select>
           </div>
 

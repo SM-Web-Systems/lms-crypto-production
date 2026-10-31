@@ -20,6 +20,11 @@ export type AllocationState = 'pending' | 'eligible' | 'released' | 'cancelled' 
 
 export type ScopeType = 'sponsor_cohort' | 'employer_team' | 'parent_child' | 'parent_family' | 'teacher_class';
 
+// W05: Canonical reward types must mirror the backend DB CHECK constraint exactly.
+// course_completion and grade require eligibility config not available in the current creation form.
+export const REWARD_TYPES = ['individual', 'milestone', 'course_completion', 'grade', 'custom'] as const;
+export type RewardType = typeof REWARD_TYPES[number];
+
 export interface Reward {
   id: string;
   creator_user_id: string;
@@ -78,7 +83,7 @@ export interface StudentReward {
 
 export interface CreateRewardParams {
   scopeId: string;
-  rewardType: string;
+  rewardType: RewardType;
   amountStroops: string;
   maxRecipients?: number;
   autoRelease?: boolean;
