@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {randomUUID as uuid} from 'node:crypto';
+import {db} from './src/config/database.js';
+import {createReward,fundReward} from './src/services/rewards/rewardService.js';
+const creator=uuid(),admin=uuid(),course=uuid(),cohort=uuid(),reference=uuid();
+db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic owner',?,'hash','lecturer')").run(creator,creator+'@review.invalid');
+db.prepare("INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(creator);
+db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic admin',?,'hash','admin')").run(admin,admin+'@review.invalid');
+db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Synthetic course',?)").run(course,'RC-'+course);
+db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Synthetic cohort')").run(cohort,creator,course);
+const reward=()=>createReward(creator,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});
+const a=reward(),b=reward();fundReward(a.id,admin,{type:'admin_grant',reference},uuid());
+// Controlled alternate-writer insertion with valid parent IDs. This only
+// demonstrates ledger uniqueness, not a duplicate through the public API.
+db.prepare("INSERT INTO reward_transactions(id,reward_id,source_account_type,destination_account_type,destination_bucket,destination_user_id,actor_type,actor_user_id,transaction_type,amount_stroops,currency_code,previous_state,new_state,funding_source_type,funding_reference,idempotency_key) VALUES(?,?,'external','funder','available',?,'user',?,'fund',10000000,'XLM','draft','pending_funding','admin_grant',?,?)").run(uuid(),b.id,creator,admin,reference,uuid());
+assert.equal((db.prepare("SELECT COUNT(*) n FROM reward_transactions WHERE funding_reference=? AND transaction_type='fund'").get(reference) as any).n,2);
+console.log('WRITER_PROBE: two fund rows share one exact reference; all parent IDs valid');
+db.close();
