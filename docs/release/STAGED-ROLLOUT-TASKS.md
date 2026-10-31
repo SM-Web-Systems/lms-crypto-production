@@ -361,6 +361,22 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: Opus APPROVED_WITH_NOTES (0 CRITICAL/HIGH; 2 MEDIUM pre-existing staff-mark and submission approval producer gaps not blocking; 4 LOW — LOW-1 addressed in `daedff6`)
 - **Completion**: PR #123 merged `4285048`; post-merge CI run 41172329492 — 4/4 PASS
 
+### S2-T04-R1: Implement W04-R1 — complete producer paths and reject conflicting bindings
+- **Status**: COMPLETE
+- **Dependencies**: S2-T04 (W04 PR #123) merged
+- **Owner**: Claude
+- **PR**: #124 — `fix(W04-R1): complete producer paths and reject conflicting course bindings`
+- **Merge commit**: `aaf0bec` on main (2026-10-31)
+- **Files changed**: `LMS-Server/src/routes/lessonCompletions.ts`, `LMS-Server/src/controllers/submissionsController.ts`, `LMS-Server/src/services/rewards/rewardEligibilityService.ts`, `LMS-Server/src/__tests__/reward-course-completion.test.ts`, `LMS-Server/docs/superpowers/specs/2026-10-31-W04-R1-producer-consumer-fixes.md`
+- **Problem**: Three gaps identified by independent review of W04 (PR #123): F1 — staff-mark route (`lessonCompletions.ts`) never emitted `course_completion` outbox event; F2 — submission-approval path (`submissionsController.ts`) auto-completed course items but never checked or emitted `course_completion`; F3 — `evaluateEligibility()` sponsor_cohort consumer silently overwrote `boundCourseId` with `config.requiredCourseId` even when cohort's `course_id` had drifted post-activation to a different course.
+- **Implementation**:
+  - F1 — `lessonCompletions.ts` staff-mark route: wrapped in `db.transaction()`, calls `isCourseCompleteForReward(req.params.userId, courseId)` (learner identity), emits `course_completion` outbox event inside transaction, calls `processPendingEvents()` outside
+  - F2 — `submissionsController.ts` `reviewSubmission()`: added `isCourseCompleteForReward(studentRecord.user_id, course_id)` + `produceOutboxEvent('course_completion')` inside existing `db.transaction()` after lesson auto-complete; preserves `grade_approved` semantics
+  - F3 — `rewardEligibilityService.ts` `evaluateEligibility()` sponsor_cohort branch: conflict check before `requiredCourseId` overwrite — if `boundCourseId && config.requiredCourseId && they differ` → return `'ineligible'`; fail-closed on post-activation binding drift
+- **Tests**: 48/48 W04-R1 tests pass in `reward-course-completion.test.ts`; 0 regressions; post-review additions: ARFL-1/2 (auto-release financial assertions), F2-H-6/7 (duplicate event prevention, multi-reward), F3-U-4/5 (teacher_class bypass, absent cohort fallback)
+- **Independent review**: APPROVED_WITH_NOTES (2 Important findings addressed pre-merge: missing ARFL financial tests and missing spec-listed F2-H-6/7, F3-U-4/5 tests; minor: F1-H-5 transaction failure injection deferred pending harness change)
+- **Completion**: PR #124 squash-merged `aaf0bec`; PR CI run 41185493672 — 4/4 PASS; post-merge CI run 41185913301 — in progress at record time
+
 ---
 
 ## S3 — Reward contracts and portal completion (W05–W09)

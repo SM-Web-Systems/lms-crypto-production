@@ -905,6 +905,7 @@ CI results should be verified at S2 start. If any check fails, the merge itself 
 | 2026-10-30 | — | S2/W03-R4: Two post-merge defects in W03-R3 independently reproduced and corrected. F1: `detectSchemaVersion` substring match accepted `CHECK (... OR 1=1)` appended to target DDL as `'target'` — constraint was permissive, migration no-oped leaving broken constraint. F2: Source DDL with extra `CHECK (amount_stroops < 1000)` still matched source patterns; migration proceeded and silently dropped the extra CHECK. Fix: replace substring matching with exact canonicalized-DDL body comparison; `canonicalizeDdl()` token-aware (string literals + identifiers preserved verbatim; pendingSpace suppresses space before `)`); `extractTableBody()` extracts body between first/last parens; `CANONICAL_SOURCE_BODY`/`CANONICAL_TARGET_BODY` pre-computed at module load; `SUPPORTED_INDEX_CANONICAL` map for full index DDL comparison; explicit 23-column INSERT SELECT. PR #121 merged `2f1c951`, 26 new tests (COMPAT-F4), 80 migration tests total, 2130/2131 full suite (1 pre-existing), TSC clean. Independent Sonnet APPROVED (5 LOW, 0 CRITICAL/HIGH/MEDIUM). PR CI run 41071872186 — 4/4 PASS; post-merge CI run 41073011635 — 4/4 PASS. Main HEAD `2f1c951`. | W03-R4 session | UNIT_COMPLETE |
 | 2026-10-30 | — | S2/W03-R5: Two post-merge defects in W03-R4 independently reproduced and corrected. F1: `detectSchemaVersion` called `extractTableBody(canonicalizeDdl(row.sql))`; `extractTableBody` discards suffix after last `)` — STRICT table's ` STRICT` suffix stripped before comparison, body matched canonical source, migration proceeded and silently removed STRICT enforcement. F2: `canonicalizeDdl` post-loop global `IF NOT EXISTS` regex fired on full result including preserved string literals — `DEFAULT 'IF NOT EXISTS XLM'` rewritten to `DEFAULT 'XLM'`, producing false body match. F1 fix: suffix check `canonical.slice(lastParen + 1).trim() !== ''` → `'unknown'` before body extraction. F2 fix: post-loop regex removed; pre-scan mini-scanner strips IF NOT EXISTS from statement header only (before first `(`), double-quoted identifiers in header preserved verbatim. PR #122 merged `a58bf844`, 18 new tests (COMPAT-F5-STRICT 8, COMPAT-F5-LITERAL 5, COMPAT-F5-IFLITERAL 5), 98 migration tests total, 2148 full suite, TSC clean. Independent Opus APPROVED (0 CRITICAL/HIGH, 1 MEDIUM addressed, LOW accepted). PR CI run 41080960636 — 4/4 PASS; post-merge CI run 41082051339 — 4/4 PASS. Main HEAD `a58bf844`. | W03-R5 session | UNIT_COMPLETE |
 | 2026-10-31 | — | S2/W04: Genuine course-completion gating and course-bound reward eligibility. Six defect classes fixed: (1) `isCourseCompleteForReward()` — strict fail-closed DB predicate (all lessons, course-scoped quizzes, approved submission). (2) Producer guard in `lessonCompletions.ts` — `course_completion` outbox event only fires when full course confirmed. (3) Producer guard in `quizzesController.ts` — same gate on quiz pass. (4) Consumer binding in `evaluateEligibility()` — derives `boundCourseId` from scope, verifies event source + DB proof; forged/stale payloads cannot substitute. (5) Activation-time binding — `activateReward()` validates and conflict-checks course binding. (6) Dedup reset — completed-ineligible outbox rows reset to pending; only eligible records block re-evaluation; ineligible→eligible upgrade path via UPDATE before INSERT. Additional: `getCourseProgress` null-safe guard for legacy unattached quizzes preserves NFT cert backward-compat. PR #123 merged `4285048`, 30 W04 tests, 2179 full suite, 0 regressions, TSC clean. Independent Opus APPROVED_WITH_NOTES (0 CRITICAL/HIGH; 2 MEDIUM pre-existing staff-mark and submission approval producer paths — not blocking; 4 LOW — LOW-1 addressed in `daedff6`). Dep CVEs fixed: GHSA-mrwp-f3q8-3g9p (follow-redirects, high) and GHSA-g3hv-75wg-m249 (minimatch, moderate) via npm overrides. PR CI run 41171993257 — 4/4 PASS; post-merge CI run 41172329492 — 4/4 PASS. Main HEAD `4285048`. | W04 session | UNIT_COMPLETE |
+| 2026-10-31 | — | S2/W04-R1: Complete producer paths (F1 staff-mark, F2 submission-approval) and reject conflicting course bindings (F3 sponsor_cohort drift). Three fixes: F1 — `lessonCompletions.ts` staff-mark route wraps in `db.transaction()`, calls `isCourseCompleteForReward(req.params.userId, courseId)` (learner identity, not staff), emits `course_completion` outbox event inside transaction, processes outside. F2 — `submissionsController.ts` `reviewSubmission()` adds `isCourseCompleteForReward(studentRecord.user_id, course_id)` check + `produceOutboxEvent('course_completion')` inside existing `db.transaction()` after lesson auto-complete. F3 — `rewardEligibilityService.ts` `evaluateEligibility()` sponsor_cohort branch detects post-activation binding drift: if both `cohort.course_id` and `config.requiredCourseId` are set and differ, returns `'ineligible'` immediately before overwriting. Additionally: 6 auto-release financial tests (ARFL-1/2) and 4 missing spec-listed tests (F2-H-6/7, F3-U-4/5) added post-review. PR #124 squash-merged `aaf0bec`, 48 total W04-R1 tests in `reward-course-completion.test.ts`, 0 regressions, TSC clean. PR CI run 41185493672 — 4/4 PASS; post-merge CI run 41185913301 — in progress at record time. Main HEAD `aaf0bec`. | W04-R1 session | UNIT_COMPLETE |
 
 Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-INDEX.md).
 
@@ -1011,7 +1012,37 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `2cebc65` | fix(deps): resolve frontend high + moderate advisory CVEs via overrides (GHSA-g3hv-75wg-m249) |
 | `4285048` | Merge commit to main |
 
-### S2 repair chain summary (W01–W04)
+## S2/W04-R1 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #124 (`fix(W04-R1): complete producer paths and reject conflicting course bindings`) |
+| Pre-merge main | `4285048` (post-W04) |
+| Branch head | `8d72784` (codex/w04-r1) |
+| Merge method | Squash |
+| Merge commit | `aaf0bec` |
+| Merged at | 2026-10-31 |
+| Post-merge main | `aaf0bec` |
+| PR CI run | `41185493672` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Post-merge CI run | `41185913301` — in progress at record time |
+| AI review | Independent review: APPROVED_WITH_NOTES (2 Important findings addressed pre-merge: ARFL-1/2 auto-release financial tests added; F2-H-6/7, F3-U-4/5 missing spec-listed tests added). |
+| Test results | 48/48 W04-R1 tests PASS; 0 regressions |
+| Files changed | MODIFIED: `LMS-Server/src/routes/lessonCompletions.ts`, `LMS-Server/src/controllers/submissionsController.ts`, `LMS-Server/src/services/rewards/rewardEligibilityService.ts`; MODIFIED: `LMS-Server/src/__tests__/reward-course-completion.test.ts`; NEW: `LMS-Server/docs/superpowers/specs/2026-10-31-W04-R1-producer-consumer-fixes.md` |
+| Branch | Deleted (worktree retained locally) |
+| Deploy impact | None — merge does not trigger production deployment; no schema migration required |
+
+### W04-R1 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `cd75919` | docs(W04-R1): spec, TDD plan, test matrix for F1/F2/F3 producer-consumer fixes |
+| `6b04e74` | fix(W04-R1 F1): atomic staff-mark route with course_completion producer |
+| `7794649` | fix(W04-R1 F2): add course_completion producer to submission-approval path |
+| `594bf1f` | fix(W04-R1 F3): reject conflicting sponsor_cohort bindings in consumer |
+| `8d72784` | test(W04-R1): add auto-release financial tests and missing spec-listed coverage |
+| `aaf0bec` | Squash merge commit to main |
+
+### S2 repair chain summary (W01–W04-R1)
 
 | Unit | PR | Merge SHA | Tests added | Scope |
 | --- | --- | --- | --- | --- |
@@ -1019,4 +1050,5 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W02 | #111–#116 | `211c556c`→`4f1fe73` | 87 | Route scope checks, replay binding, parent binding, admin retry auth |
 | W03 | #117–#122 | `655e11c`→`a58bf844` | 144 | Allocation cap, reservation reconciliation, ledger CHECK upgrade, migration validation |
 | W04 | #123 | `4285048` | 30 | Course-completion gating: producer guard, consumer binding + DB proof, dedup reset |
-| **Total** | **20+ PRs** | — | **333+ tests** | **S2 complete — W01–W04 all FIXED** |
+| W04-R1 | #124 | `aaf0bec` | 48 | Complete staff-mark + submission-approval producers; reject conflicting sponsor_cohort bindings |
+| **Total** | **21+ PRs** | — | **381+ tests** | **S2 complete — W01–W04+R1 all FIXED** |
