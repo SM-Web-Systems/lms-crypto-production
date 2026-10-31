@@ -461,6 +461,17 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R2-create-ownership-guard.md`
 - **Acceptance**: Deferred create completion after target switch does not reload old target; A→B→A revisit blocks old epoch callback; form auto-closes on target change; old operation finally does not clear new operation spinner
 
+### S3-T02-R3: W06-R3 — blocked-refund epoch guard
+- **Status**: MERGED
+- **Dependencies**: S3-T02-R2 MERGED
+- **Owner**: W06-R3 session (2026-10-31)
+- **Files**: `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`
+- **Problem**: W06-R2 added `targetEpochRef` and guarded all async state writes in `performAction` with `targetEpochRef.current === myEpoch`. The blocked-refund branch was the sole missed site — its `setError` only checked `targetKeyRef.current === myTargetKey` (textual key), not the epoch. An A→B→A revisit has the same textual key but a different epoch, so the stale blocked message from the first visit fired on the new visit's render.
+- **Fix**: Added `&& targetEpochRef.current === myEpoch` to the blocked-refund `setError` condition, making it consistent with every other `performAction` async state write. The `finally` epoch guard (already correct per W06-R2) is unchanged.
+- **Evidence**: PR #131 MERGED, main HEAD `530315e`; CI: Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS; 3 new W06-R3 tests (FE-10 RED→GREEN, FE-11 same-visit positive, FE-12 old blocked cannot clear new spinner) + 41/41 frontend pass; independent review APPROVED
+- **Spec**: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R3-blocked-refund-epoch.md`
+- **Acceptance**: A→B→A deferred blocked refund does not show stale message on revisit; same-visit blocked refund still shown correctly; old blocked response cannot clear new visit's spinner
+
 ### S3-T03: Implement W07 — billing DTO alignment
 - **Status**: TODO
 - **Dependencies**: S1-T04 spec reviewed

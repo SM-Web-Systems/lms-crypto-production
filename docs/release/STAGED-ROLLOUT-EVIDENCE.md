@@ -1219,6 +1219,30 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `09dee32` | feat(W06-R2): add target epoch guard for create-completion and operation ownership |
 | `01117903` | Merge commit to main |
 
+### S3/W06-R3 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Date | 2026-10-31 |
+| PR | #131 (`fix(W06-R3): blocked-refund epoch guard in performAction`) |
+| Branch | `codex/w06-r3-blocked-refund-epoch` |
+| Base SHA | `01117903` (W06-R2) |
+| Merge commit | `530315e` |
+| Post-merge main | `530315e` |
+| CI candidate run | `41225248711` — Backend Tests PASS (5m24s), Frontend Tests & Build PASS (1m8s), E2E Tests PASS (1m25s), Offline Monitoring PASS (1m27s) |
+| CI main run | `41225816125` — Backend Tests PASS (5m3s), Frontend Tests & Build PASS (56s), E2E Tests PASS (1m35s), Offline Monitoring PASS (1m3s) |
+| Test results | 41/41 frontend PASS; 3 new W06-R3 tests (FE-10 RED→GREEN, FE-11 same-visit positive, FE-12 old blocked cannot clear new spinner); 0 regressions |
+| Independent review | APPROVED — no findings; epoch guard confirmed correct and complete; no other unguarded state calls found; `finally` spinner path unaffected |
+| Files changed | MODIFIED: `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx`; SPEC: `LMS-Server/docs/superpowers/specs/2026-10-31-W06-R3-blocked-refund-epoch.md` |
+
+### W06-R3 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `d73fafa` | docs(W06-R3): spec for blocked-refund epoch guard |
+| `a3241df` | fix(W06-R3): add epoch guard to blocked-refund setError in performAction |
+| `530315e` | Merge commit to main |
+
 ### S3 stage progress (updated)
 
 | Unit | PR | Merge SHA | Tests added | Status |
@@ -1228,6 +1252,7 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W06 | #128 | `1988457` | 25 | FIXED |
 | W06-R1 | #129 | `1a5288a` | 8 | FIXED |
 | W06-R2 | #130 | `01117903` | 9 | FIXED |
+| W06-R3 | #131 | `530315e` | 3 | FIXED |
 | W07 | — | — | — | TODO |
 | W08 | — | — | — | TODO |
 | W09 | — | — | — | TODO |
