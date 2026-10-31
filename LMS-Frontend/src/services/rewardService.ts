@@ -84,6 +84,10 @@ export interface StudentReward {
   createdAt: string;
 }
 
+// W06: Parent-only discriminator. Optional to preserve backward compatibility
+// for omitted-child callers and non-parent roles.
+export type ParentTargetType = 'child' | 'family';
+
 export interface CreateRewardParams {
   scopeId: string;
   rewardType: RewardType;
@@ -94,6 +98,8 @@ export interface CreateRewardParams {
   eligibilityConfig?: Record<string, unknown>;
   expiresAt?: string;
   idempotencyKey: string;
+  /** W06: parent role only. 'child' or 'family'. Omit for legacy parent_child behavior. */
+  targetType?: ParentTargetType;
 }
 
 type ApiRes<T> = { success: boolean; data: T };
@@ -114,10 +120,10 @@ function prefix(role: string): string {
 // ──── Service ────
 
 export const rewardService = {
-  /** List rewards for a scope */
-  async listRewards(role: string, scopeId: string): Promise<Reward[]> {
+  /** List rewards for a scope. targetType is parent-role only: 'child' or 'family'. */
+  async listRewards(role: string, scopeId: string, targetType?: ParentTargetType): Promise<Reward[]> {
     const res = await api.get<ApiRes<Reward[]>>(`${prefix(role)}/rewards`, {
-      params: { scopeId },
+      params: targetType !== undefined ? { scopeId, targetType } : { scopeId },
     });
     return res.data.data;
   },
