@@ -987,6 +987,74 @@ describe('F1: Staff-mark route course_completion producer', () => {
     ).get(studentId);
     expect(outboxRow).toBeUndefined();
   });
+
+  it('F1-H-5: outbox INSERT failure rolls back lesson_completion atomically (SQLite TEMP trigger)', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(studentId, courseId);
+
+    const rewardId = createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    // Install TEMP BEFORE INSERT trigger that aborts any course_completion outbox insert.
+    // Uses RAISE(ABORT) which triggers SQLite transaction rollback.
+    db.exec(`
+      CREATE TEMP TRIGGER force_outbox_fail
+      BEFORE INSERT ON main.reward_event_outbox
+      WHEN NEW.event_type = 'course_completion'
+      BEGIN
+        SELECT RAISE(ABORT, 'synthetic-outbox-failure');
+      END
+    `);
+
+    let res;
+    try {
+      res = await request(app)
+        .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i1}/complete`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send();
+    } finally {
+      // Always drop the trigger so subsequent assertions can write freely
+      db.exec('DROP TRIGGER IF EXISTS force_outbox_fail');
+    }
+
+    // Route must return 500 (the transaction failure is surfaced as an internal error)
+    expect(res.status).toBe(500);
+
+    // lesson_completion must be absent — the transaction rolled back
+    const lc = db.prepare(
+      'SELECT id FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
+    ).get(studentId, courseId, i1);
+    expect(lc).toBeUndefined();
+
+    // No outbox row written (trigger fired before insert completed)
+    const outboxAfterFail = db.prepare(
+      "SELECT id FROM reward_event_outbox WHERE student_user_id = ?"
+    ).get(studentId);
+    expect(outboxAfterFail).toBeUndefined();
+
+    // Allocation stays pending (no eligible event)
+    const allocAfterFail = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(allocAfterFail?.status).toBe('pending');
+
+    // Retry without trigger → succeeds (proves safe retry semantics)
+    const res2 = await request(app)
+      .post(`/api/v1/courses/${courseId}/students/${studentId}/lessons/${i1}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send();
+    expect(res2.status).toBe(200);
+
+    // After retry: allocation eligible
+    const allocAfterRetry = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(allocAfterRetry?.status).toBe('eligible');
+  });
 });
 
 // ──── §7: W03 monetary preservation regressions ───────────────────────────────
@@ -1397,6 +1465,58 @@ describe('ARFL: Auto-release financial tests', () => {
     ).get(learnerUserId) as { available_stroops: number } | undefined;
     expect(Number(recipientAcct?.available_stroops)).toBe(5000000);
   });
+
+  it('ARFL-3: deleted scope + auto_release=true → no money moves, allocation stays pending', () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1]);
+    const { sponsorId, studentId, cohortId } = seedSponsorCohort(courseId);
+
+    const rewardId = createAutoReleaseReward(sponsorId, 'sponsor_cohort', cohortId, '5000000');
+
+    // Snapshot the funder's reserved_stroops before deletion
+    const funderBefore = db.prepare(
+      "SELECT user_id, reserved_stroops FROM reward_accounts WHERE user_id IN (SELECT user_id FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'reserve' LIMIT 1) AND account_type = 'funder'"
+    ).get(rewardId) as { user_id: string; reserved_stroops: number } | undefined;
+    expect(funderBefore).not.toBeUndefined();
+    const funderUserId = funderBefore!.user_id;
+    const reservedBefore = Number(funderBefore!.reserved_stroops);
+
+    // Delete cohort WITH FK ON — rewards.scope_id has no FK so no constraint violation
+    db.prepare('DELETE FROM sponsor_cohorts WHERE id = ?').run(cohortId);
+
+    // Verify no FK violations
+    const fkViolations = db.pragma('foreign_key_check') as unknown[];
+    expect(fkViolations).toHaveLength(0);
+
+    // Learner completes the course
+    completeLesson(studentId, courseId, i1);
+    produceOutboxEvent('course_completion', courseId, studentId);
+    processPendingEvents();
+
+    // Allocation must stay pending (not eligible, not released)
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('pending');
+
+    // No release transaction
+    const releaseTxn = db.prepare(
+      "SELECT id FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'"
+    ).get(rewardId);
+    expect(releaseTxn).toBeUndefined();
+
+    // Funder reserved_stroops unchanged — no money moved
+    const funderAfter = db.prepare(
+      "SELECT reserved_stroops FROM reward_accounts WHERE user_id = ? AND account_type = 'funder'"
+    ).get(funderUserId) as { reserved_stroops: number } | undefined;
+    expect(Number(funderAfter?.reserved_stroops)).toBe(reservedBefore);
+
+    // No recipient account created for student
+    const recipientAcct = db.prepare(
+      "SELECT available_stroops FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'"
+    ).get(studentId);
+    expect(recipientAcct).toBeUndefined();
+  });
 });
 
 // ──── §F2-ext: Missing spec-listed F2 tests ───────────────────────────────────
@@ -1632,7 +1752,7 @@ describe('F3: Consumer binding conflict detection', () => {
     expect(alloc?.status).toBe('eligible');
   });
 
-  it('F3-U-5: sponsor_cohort with absent cohort row (course_id unresolvable) and config.requiredCourseId present uses config (no conflict)', () => {
+  it('F3-U-5: sponsor_cohort deleted post-activation fails closed — config cannot substitute for deleted scope authority', () => {
     const itemId = uuidv4();
     const courseAId = seedCourse([itemId]);
 
@@ -1647,10 +1767,54 @@ describe('F3: Consumer binding conflict detection', () => {
       JSON.stringify({ requiredCourseId: courseAId })
     );
 
-    // Simulate "cohort.course_id absent" at consumer time by removing the cohort row.
-    // FK OFF prevents cascading deletes of rewards, allocations, audience snapshots.
-    db.pragma('foreign_keys = OFF');
+    // Delete the cohort row WITH FK enforcement ON.
+    // rewards.scope_id has no FK to sponsor_cohorts — deletion succeeds.
+    // cohort_members cascade-deleted (expected); reward + audience snapshot preserved.
     db.prepare('DELETE FROM sponsor_cohorts WHERE id = ?').run(cohortId);
+
+    // Verify no FK violations: rewards.scope_id is plain TEXT, not a FK reference.
+    const fkViolations = db.pragma('foreign_key_check') as unknown[];
+    expect(fkViolations).toHaveLength(0);
+
+    // Learner completes courseA
+    completeLesson(studentId, courseAId, itemId);
+
+    // Produce + process event
+    produceOutboxEvent('course_completion', courseAId, studentId);
+    processPendingEvents();
+
+    // W04-R2 fix: cohort row absent → fail closed → allocation stays pending.
+    // config.requiredCourseId cannot substitute for missing scope authority.
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
+    ).get(rewardId, studentId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('pending');
+
+    // No eligible eligibility_event may be written
+    const eligResult = db.prepare(
+      "SELECT result FROM reward_eligibility_events WHERE reward_id = ? AND student_user_id = ? AND result = 'eligible'"
+    ).get(rewardId, studentId);
+    expect(eligResult).toBeUndefined();
+  });
+
+  it('F3-U-6: teacher_class with deleted user_group scope fails closed', () => {
+    const itemId = uuidv4();
+    const courseAId = seedCourse([itemId]);
+
+    const { teacherId, studentId, groupId } = seedTeacherClass(courseAId);
+
+    // Activate reward with config.requiredCourseId (required for non-cohort scopes at activation)
+    const rewardId = createFundedActiveReward(
+      teacherId,
+      'teacher_class',
+      groupId,
+      JSON.stringify({ requiredCourseId: courseAId })
+    );
+
+    // Delete the user_groups row. user_group_members cascades; rewards.scope_id is plain TEXT.
+    // Use FK OFF only to avoid cascade-blocking on user_group_members FK.
+    db.pragma('foreign_keys = OFF');
+    db.prepare('DELETE FROM user_groups WHERE id = ?').run(groupId);
     db.pragma('foreign_keys = ON');
 
     // Learner completes courseA
@@ -1660,11 +1824,16 @@ describe('F3: Consumer binding conflict detection', () => {
     produceOutboxEvent('course_completion', courseAId, studentId);
     processPendingEvents();
 
-    // cohort row absent → boundCourseId=null from cohort lookup → conflict check skipped
-    // config.requiredCourseId=courseAId is used as boundCourseId → eligible
+    // W04-R2 fix: user_group absent → fail closed → allocation stays pending.
     const alloc = db.prepare(
       'SELECT status FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?'
     ).get(rewardId, studentId) as { status: string } | undefined;
-    expect(alloc?.status).toBe('eligible');
+    expect(alloc?.status).toBe('pending');
+
+    // No eligible eligibility_event written
+    const eligResult = db.prepare(
+      "SELECT result FROM reward_eligibility_events WHERE reward_id = ? AND student_user_id = ? AND result = 'eligible'"
+    ).get(rewardId, studentId);
+    expect(eligResult).toBeUndefined();
   });
 });
