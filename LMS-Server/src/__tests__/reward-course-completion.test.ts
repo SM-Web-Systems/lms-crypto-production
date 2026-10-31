@@ -1048,3 +1048,209 @@ describe('W03 monetary preservation (regression guard)', () => {
     expect(alloc?.status).toBe('pending'); // not triggered by course_completion
   });
 });
+
+// ──── §F2: Submission-approval course_completion producer ─────────────────────
+
+describe('F2: Submission-approval course_completion producer', () => {
+  /** Seed an admin user with role_admin in user_roles (grants course.grade + course.delete). */
+  function seedAdminUser(): string {
+    const id = uuidv4();
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
+    ).run(id, `${id}@t.com`);
+    db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
+    return id;
+  }
+
+  /** Seed a student record linked to an existing user. */
+  function seedStudent(userId: string): string {
+    const studentId = uuidv4();
+    db.prepare(
+      "INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Student', ?, ?, 'CS', 1)"
+    ).run(studentId, userId, `${userId}@s.com`, `ENR-${studentId.slice(0, 8)}`);
+    return studentId;
+  }
+
+  /** Seed a submission for the given student, optionally linked to a course + item. */
+  function seedSubmission(studentId: string, courseId: string | null, itemId: string | null): string {
+    const subId = uuidv4();
+    db.prepare(
+      `INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, file_mime_type, course_id, item_id)
+       VALUES (?, ?, 'T', 'D', 'f.pdf', 100, '/tmp/f.pdf', 'application/pdf', ?, ?)`
+    ).run(subId, studentId, courseId, itemId);
+    return subId;
+  }
+
+  it('F2-H-1: approval of assignment as final requirement → both grade_approved AND course_completion in outbox; allocation eligible', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1], { itemType: 'assignment' });
+    const { sponsorId, studentId: learnerUserId, cohortId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    const rewardId = createFundedActiveReward(sponsorId, 'sponsor_cohort', cohortId);
+
+    // Seed student record linked to the learner user
+    const studentRecordId = seedStudent(learnerUserId);
+
+    // Seed a submission for this student, linked to course + item
+    const submissionId = seedSubmission(studentRecordId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(200);
+
+    // grade_approved must be in outbox
+    const gradeRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='grade_approved' AND event_source_id=? AND student_user_id=?"
+    ).get(submissionId, learnerUserId);
+    expect(gradeRow).not.toBeUndefined();
+
+    // course_completion must be in outbox (this is the bug fix)
+    const completionRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND event_source_id=? AND student_user_id=?"
+    ).get(courseId, learnerUserId);
+    expect(completionRow).not.toBeUndefined();
+
+    // Allocation must be eligible
+    const alloc = db.prepare(
+      'SELECT status FROM reward_allocations WHERE reward_id=? AND student_user_id=?'
+    ).get(rewardId, learnerUserId) as { status: string } | undefined;
+    expect(alloc?.status).toBe('eligible');
+  });
+
+  it('F2-H-2: rejected submission does NOT produce course_completion', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1], { itemType: 'assignment' });
+    const { studentId: learnerUserId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    const studentRecordId = seedStudent(learnerUserId);
+    const submissionId = seedSubmission(studentRecordId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'rejected', feedback: 'Not good enough' });
+
+    expect(res.status).toBe(200);
+
+    // No course_completion outbox row
+    const completionRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(learnerUserId);
+    expect(completionRow).toBeUndefined();
+
+    // No grade_approved either (only fires for approved)
+    const gradeRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='grade_approved' AND student_user_id=?"
+    ).get(learnerUserId);
+    expect(gradeRow).toBeUndefined();
+  });
+
+  it('F2-H-3: approval when submission has no course linkage (courseId=null) → grade_approved only, no course_completion', async () => {
+    const userId = seedUser();
+    const studentRecordId = seedStudent(userId);
+
+    // Submission with no course/item linkage
+    const submissionId = seedSubmission(studentRecordId, null, null);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(200);
+
+    // grade_approved should still fire
+    const gradeRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='grade_approved' AND event_source_id=? AND student_user_id=?"
+    ).get(submissionId, userId);
+    expect(gradeRow).not.toBeUndefined();
+
+    // No course_completion (no course linkage)
+    const completionRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(userId);
+    expect(completionRow).toBeUndefined();
+  });
+
+  it('F2-H-4: approval when course item does not satisfy final requirement (other lessons incomplete) → grade_approved but no course_completion', async () => {
+    const [i1, i2] = [uuidv4(), uuidv4()];
+    // 2-item course: i1=lesson, i2=assignment
+    const courseId = seedCourse([i1, i2]);
+    const { studentId: learnerUserId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    // learner has NOT completed the lesson item i1
+    const studentRecordId = seedStudent(learnerUserId);
+
+    // Submission only for the assignment item i2
+    const submissionId = seedSubmission(studentRecordId, courseId, i2);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(200);
+
+    // grade_approved fires
+    const gradeRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='grade_approved' AND student_user_id=?"
+    ).get(learnerUserId);
+    expect(gradeRow).not.toBeUndefined();
+
+    // No course_completion — lesson gate not passed
+    const completionRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(learnerUserId);
+    expect(completionRow).toBeUndefined();
+  });
+
+  it('F2-H-5: identity — course_completion event recipient is student user_id, not reviewer', async () => {
+    const [i1] = [uuidv4()];
+    const courseId = seedCourse([i1], { itemType: 'assignment' });
+    const { studentId: learnerUserId } = seedSponsorCohort(courseId);
+    enrollStudent(learnerUserId, courseId);
+
+    const studentRecordId = seedStudent(learnerUserId);
+    const submissionId = seedSubmission(studentRecordId, courseId, i1);
+
+    const adminId = seedAdminUser();
+    const adminToken = generateToken({ userId: adminId, email: `${adminId}@t.com`, role: 'admin' });
+
+    const res = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'approved' });
+
+    expect(res.status).toBe(200);
+
+    // The course_completion event must belong to the learner, not the admin
+    const learnerRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(learnerUserId);
+    expect(learnerRow).not.toBeUndefined();
+
+    // No event attributed to the reviewer/admin
+    const adminRow = db.prepare(
+      "SELECT * FROM reward_event_outbox WHERE event_type='course_completion' AND student_user_id=?"
+    ).get(adminId);
+    expect(adminRow).toBeUndefined();
+  });
+});
