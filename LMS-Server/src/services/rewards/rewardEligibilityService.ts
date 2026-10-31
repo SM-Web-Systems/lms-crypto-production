@@ -12,12 +12,22 @@ import { HIGH_VALUE_THRESHOLD_STROOPS } from './currencyConfig.js';
 import type { RewardRow, AllocationRow } from './rewardTypes.js';
 import logger from '../../utils/logger.js';
 import { notifyRewardEligible } from './rewardNotificationService.js';
+import { isCourseCompleteForReward } from '../courseCompletionService.js';
 
 // ──── Outbox Event Production ────
 
 /**
- * Insert an outbox event. Uses INSERT OR IGNORE so duplicate
- * (event_type, event_source_id, student_user_id) tuples are silently skipped.
+ * Insert or reset an outbox event for reward eligibility processing.
+ *
+ * Dedup policy for (event_type, event_source_id, student_user_id):
+ * - No existing row → INSERT new pending row.
+ * - Existing row with status 'pending' or 'in_progress' → no-op (already queued).
+ * - Existing row with status 'completed' AND an 'eligible' eligibility record exists
+ *   → no-op (reward already paid; do not replay).
+ * - Existing row with status 'completed' but NO 'eligible' eligibility record
+ *   → reset to 'pending' so a genuine later completion can be re-evaluated.
+ *   This prevents a premature-ineligible outbox row from permanently blocking
+ *   a student who subsequently satisfies all requirements.
  */
 export function produceOutboxEvent(
   eventType: 'course_completion' | 'quiz_pass' | 'milestone' | 'grade_approved' | 'custom',
@@ -25,11 +35,43 @@ export function produceOutboxEvent(
   studentUserId: string,
   eventData?: Record<string, unknown>,
 ): void {
-  db.prepare(
-    `INSERT OR IGNORE INTO reward_event_outbox
-     (id, event_type, event_source_id, student_user_id, event_data, status)
-     VALUES (?, ?, ?, ?, ?, 'pending')`
-  ).run(uuidv4(), eventType, eventSourceId, studentUserId, eventData ? JSON.stringify(eventData) : null);
+  const existing = db.prepare(
+    `SELECT id, status FROM reward_event_outbox
+     WHERE event_type = ? AND event_source_id = ? AND student_user_id = ?`
+  ).get(eventType, eventSourceId, studentUserId) as { id: string; status: string } | undefined;
+
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO reward_event_outbox
+       (id, event_type, event_source_id, student_user_id, event_data, status)
+       VALUES (?, ?, ?, ?, ?, 'pending')`
+    ).run(uuidv4(), eventType, eventSourceId, studentUserId, eventData ? JSON.stringify(eventData) : null);
+    return;
+  }
+
+  // Already pending or in_progress — nothing to do.
+  if (existing.status === 'pending' || existing.status === 'in_progress') return;
+
+  // Completed row: only reset if no eligible record exists for this tuple.
+  // If an eligible record exists the reward has already been paid — do not re-trigger.
+  if (existing.status === 'completed') {
+    const hasEligible = db.prepare(
+      `SELECT 1 FROM reward_eligibility_events
+       WHERE event_type = ? AND event_source_id = ? AND student_user_id = ? AND result = 'eligible'
+       LIMIT 1`
+    ).get(eventType, eventSourceId, studentUserId);
+
+    if (!hasEligible) {
+      // Reset to pending for re-evaluation (ineligible→eligible upgrade path).
+      db.prepare(
+        `UPDATE reward_event_outbox
+         SET status = 'pending', attempt_count = 0, error_message = NULL,
+             completed_at = NULL, last_attempt_at = NULL,
+             event_data = COALESCE(?, event_data)
+         WHERE id = ?`
+      ).run(eventData ? JSON.stringify(eventData) : null, existing.id);
+    }
+  }
 }
 
 // ──── Outbox Event Processing ────
@@ -99,16 +141,30 @@ function processEvent(event: OutboxEvent): void {
       const result = evaluateEligibility(event, reward);
       if (result === 'already_processed') continue;
 
-      // Record eligibility event
-      db.prepare(
-        `INSERT OR IGNORE INTO reward_eligibility_events
-         (id, reward_id, event_type, event_source_id, student_user_id, result, idempotency_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        uuidv4(), reward.id, event.event_type, event.event_source_id,
-        event.student_user_id, result,
-        `elig-${reward.id}-${event.event_type}-${event.event_source_id}-${event.student_user_id}`
-      );
+      const eligKey = `elig-${reward.id}-${event.event_type}-${event.event_source_id}-${event.student_user_id}`;
+
+      if (result === 'eligible') {
+        // Upgrade a pre-existing ineligible record to eligible (W04-D-1 re-evaluation path).
+        // If no ineligible record exists, fall through to fresh insert.
+        const upgraded = db.prepare(
+          `UPDATE reward_eligibility_events SET result = 'eligible'
+           WHERE reward_id = ? AND event_type = ? AND event_source_id = ? AND student_user_id = ?
+           AND result = 'ineligible'`
+        ).run(reward.id, event.event_type, event.event_source_id, event.student_user_id);
+        if (upgraded.changes === 0) {
+          db.prepare(
+            `INSERT OR IGNORE INTO reward_eligibility_events
+             (id, reward_id, event_type, event_source_id, student_user_id, result, idempotency_key)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          ).run(uuidv4(), reward.id, event.event_type, event.event_source_id, event.student_user_id, result, eligKey);
+        }
+      } else {
+        db.prepare(
+          `INSERT OR IGNORE INTO reward_eligibility_events
+           (id, reward_id, event_type, event_source_id, student_user_id, result, idempotency_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).run(uuidv4(), reward.id, event.event_type, event.event_source_id, event.student_user_id, result, eligKey);
+      }
 
       if (result === 'eligible') {
         markAllocationEligible(reward, event.student_user_id);
@@ -138,13 +194,16 @@ export function evaluateEligibility(
   event: OutboxEvent,
   reward: RewardRow,
 ): 'eligible' | 'ineligible' | 'already_processed' {
-  // Check if already processed
+  // Check if already processed.
+  // Only skip if the existing record is 'eligible' (payment dispatched — immutable).
+  // An 'ineligible' record allows re-evaluation: the student may have genuinely completed
+  // the course after a premature event produced an ineligible result (W04-D-1 re-evaluation path).
   const existing = db.prepare(
-    `SELECT id FROM reward_eligibility_events
+    `SELECT result FROM reward_eligibility_events
      WHERE reward_id = ? AND event_type = ? AND event_source_id = ? AND student_user_id = ?`
-  ).get(reward.id, event.event_type, event.event_source_id, event.student_user_id);
+  ).get(reward.id, event.event_type, event.event_source_id, event.student_user_id) as { result: string } | undefined;
 
-  if (existing) return 'already_processed';
+  if (existing?.result === 'eligible') return 'already_processed';
 
   // Parse eligibility config if present
   const config = reward.eligibility_config ? JSON.parse(reward.eligibility_config) : null;
@@ -193,6 +252,35 @@ export function evaluateEligibility(
   }
   if (reward.reward_type === 'grade' && event.event_type !== 'grade_approved') {
     return 'ineligible';
+  }
+
+  // W04: course_completion consumer verification.
+  // The producer guard ensures genuine events, but the consumer independently verifies:
+  // 1. The event's source course matches the reward's authoritative bound course.
+  // 2. The learner has actual DB-backed completion proof for that course.
+  // This prevents forged payloads and cross-course eligibility regardless of event content.
+  if (reward.reward_type === 'course_completion') {
+    // Derive bound course: sponsor_cohort uses cohort.course_id; others use eligibilityConfig.requiredCourseId.
+    let boundCourseId: string | null = null;
+    if (reward.scope_type === 'sponsor_cohort') {
+      const cohort = db.prepare('SELECT course_id FROM sponsor_cohorts WHERE id = ?')
+        .get(reward.scope_id) as { course_id: string } | undefined;
+      boundCourseId = cohort?.course_id ?? null;
+    }
+    // eligibilityConfig.requiredCourseId takes precedence (already conflict-checked at activation).
+    // Reuse the already-parsed `config` to avoid a second JSON.parse of the same string.
+    if (typeof config?.requiredCourseId === 'string') {
+      boundCourseId = config.requiredCourseId as string;
+    }
+
+    // Fail closed: no bound course derivable → ineligible
+    if (!boundCourseId) return 'ineligible';
+
+    // Course binding check: event must be for the reward's bound course
+    if (event.event_source_id !== boundCourseId) return 'ineligible';
+
+    // DB proof: learner must have genuine completion evidence in the database
+    if (!isCourseCompleteForReward(event.student_user_id, boundCourseId)) return 'ineligible';
   }
 
   return 'eligible';
