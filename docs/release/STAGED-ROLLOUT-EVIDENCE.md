@@ -1042,7 +1042,33 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `8d72784` | test(W04-R1): add auto-release financial tests and missing spec-listed coverage |
 | `aaf0bec` | Squash merge commit to main |
 
-### S2 repair chain summary (W01–W04-R1)
+## S2/W04-R2 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #125 (`fix(W04-R2): fail closed on deleted reward scope; add rollback proof (F1-H-5)`) |
+| Pre-merge main | `aaf0bec` (post-W04-R1) |
+| Merge method | Merge commit |
+| Merge commit | `a946c0f` |
+| Merged at | 2026-10-31 |
+| Post-merge main | `a946c0f` |
+| PR CI run | `41187941595` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| Post-merge CI run | `41188285283` — Backend Tests PASS, Frontend Tests & Build PASS, E2E Tests PASS, Offline Monitoring PASS |
+| AI review | Task review (sonnet): FINDINGS (F3-U-6 FK ON consistency, F3-U-4 stale name) → Scoped re-review (haiku): APPROVED after fixes applied |
+| Test results | 51/51 W04-R2 tests PASS; 0 regressions |
+| Files changed | MODIFIED: `LMS-Server/src/services/rewards/rewardEligibilityService.ts`, `LMS-Server/src/__tests__/reward-course-completion.test.ts`; NEW: `LMS-Server/docs/superpowers/specs/2026-10-31-W04-R2-deleted-scope-fail-closed.md`, `docs/release/CLAUDE-SERVER-W04-R2-PROMPT.md` |
+| Branch | codex/w04-r2 |
+| Deploy impact | None — no schema migration required |
+
+### W04-R2 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `09233db` | fix(W04-R2): fail closed on deleted reward scope; add rollback proof (F1-H-5) |
+| `94c373e` | fix(W04-R2): address review findings — F3-U-6 FK consistency; F3-U-4 name |
+| `a946c0f` | Merge commit to main |
+
+### S2 repair chain summary (W01–W04-R2)
 
 | Unit | PR | Merge SHA | Tests added | Scope |
 | --- | --- | --- | --- | --- |
@@ -1051,4 +1077,5 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W03 | #117–#122 | `655e11c`→`a58bf844` | 144 | Allocation cap, reservation reconciliation, ledger CHECK upgrade, migration validation |
 | W04 | #123 | `4285048` | 30 | Course-completion gating: producer guard, consumer binding + DB proof, dedup reset |
 | W04-R1 | #124 | `aaf0bec` | 48 | Complete staff-mark + submission-approval producers; reject conflicting sponsor_cohort bindings |
-| **Total** | **21+ PRs** | — | **381+ tests** | **S2 complete — W01–W04+R1 all FIXED** |
+| W04-R2 | #125 | `a946c0f` | +3 (51 total) | Fail closed on deleted scope; F1-H-5 rollback trigger proof; F3-U-5 corrected |
+| **Total** | **22+ PRs** | — | **384+ tests** | **S2 complete — W01–W04+R2 all FIXED** |

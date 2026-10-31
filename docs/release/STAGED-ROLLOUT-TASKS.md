@@ -377,6 +377,26 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Independent review**: APPROVED_WITH_NOTES (2 Important findings addressed pre-merge: missing ARFL financial tests and missing spec-listed F2-H-6/7, F3-U-4/5 tests; minor: F1-H-5 transaction failure injection deferred pending harness change)
 - **Completion**: PR #124 squash-merged `aaf0bec`; PR CI run 41185493672 — 4/4 PASS; post-merge CI run 41185913301 — 4/4 PASS
 
+### S2-T04-R2: Implement W04-R2 — fail closed on deleted reward scope; F1-H-5 rollback proof
+- **Status**: COMPLETE
+- **Dependencies**: S2-T04-R1 (W04-R1 PR #124) merged
+- **Owner**: Claude
+- **PR**: #125 — `fix(W04-R2): fail closed on deleted reward scope; add rollback proof (F1-H-5)`
+- **Merge commit**: `a946c0f` on main (2026-10-31)
+- **Files changed**: `LMS-Server/src/services/rewards/rewardEligibilityService.ts`, `LMS-Server/src/__tests__/reward-course-completion.test.ts`, `LMS-Server/docs/superpowers/specs/2026-10-31-W04-R2-deleted-scope-fail-closed.md`, `docs/release/CLAUDE-SERVER-W04-R2-PROMPT.md`
+- **Problem**: Two residuals from W04-R1. F-deleted — when `sponsor_cohort` row deleted post-activation, `evaluateEligibility()` fell through to `config.requiredCourseId` and returned `'eligible'`; `rewards.scope_id` has no FK to `sponsor_cohorts` so DB cannot enforce this. Same pattern for `teacher_class`/`employer_team`/`parent_family` (user_groups) and `parent_child` (user_links). F3-U-5 test previously expected `'eligible'` (permissive baseline — wrong). F1-H-5 was deferred in W04-R1 ("harness limitation") but W04-R2 confirmed it is feasible using a SQLite TEMP BEFORE INSERT trigger.
+- **Implementation**:
+  - `rewardEligibilityService.ts` `evaluateEligibility()` sponsor_cohort branch: `if (!cohort) return 'ineligible'` immediately after cohort lookup — before `config.requiredCourseId` assignment
+  - Same pattern: user_groups existence check for teacher_class/employer_team/parent_family; user_links check for parent_child
+  - `config.requiredCourseId` overwrite only reachable when scope entity is confirmed present
+  - F3-U-5: corrected to expect `'pending'` (not `'eligible'`); deletion uses FK ON + `PRAGMA foreign_key_check` assertion proving no DB violation
+  - F3-U-6 (new): teacher_class with deleted user_group → ineligible; same FK ON + foreign_key_check pattern
+  - ARFL-3 (new): deleted scope + auto_release=true → allocation stays pending, funder reserved_stroops unchanged, no release transaction, no recipient account
+  - F1-H-5 (new): TEMP BEFORE INSERT trigger (`RAISE(ABORT)`) forces outbox INSERT failure; staff-mark returns 500; lesson_completion + outbox row absent (full transaction rollback); retry after trigger drop → 200, allocation eligible
+- **Tests**: 51/51 W04-R2 tests pass; 0 regressions
+- **Independent review**: Task review (sonnet) FINDINGS — F3-U-6 FK consistency (moderate), F3-U-4 stale test name (low); Scoped re-review (haiku) APPROVED after fixes
+- **Completion**: PR #125 merged `a946c0f`; PR CI run 41187941595 — 4/4 PASS; post-merge CI run 41188285283 — 4/4 PASS
+
 ---
 
 ## S3 — Reward contracts and portal completion (W05–W09)
