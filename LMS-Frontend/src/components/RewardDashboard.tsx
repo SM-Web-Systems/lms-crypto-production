@@ -5,7 +5,7 @@
  * and lifecycle action buttons based on current state.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
@@ -217,7 +217,23 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const [showCreate, setShowCreate] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // W06-R1: monotonic request counter — incremented at the start of every load() call.
+  // Each invocation captures its generation; state is only committed when
+  // reqIdRef.current still matches, guarding against stale responses from prior targets
+  // or superseded same-target refreshes. Effect cleanup also increments on target change
+  // and unmount so any pending promise from the previous identity is invalidated.
+  const reqIdRef = useRef(0);
+
+  // W06-R1: current target identity key for performAction post-mutation guards.
+  // Kept current on every render so performAction can detect a target switch that
+  // occurred while its mutation was in flight.
+  const targetKey = `${role}|${scopeId}|${targetType ?? ''}`;
+  const targetKeyRef = useRef(targetKey);
+  targetKeyRef.current = targetKey;
+
   const load = useCallback(async () => {
+    // Increment first: invalidates any outstanding request for the previous identity.
+    const myReqId = ++reqIdRef.current;
     if (!scopeId) { setState('empty'); return; }
     setState('loading');
     setError('');
@@ -225,15 +241,22 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     try {
       // W06: pass targetType so parent child/family list uses the correct scope
       const data = await rewardService.listRewards(role, scopeId, targetType);
+      // Guard: discard if a newer request superseded this one (target switch or refresh)
+      if (reqIdRef.current !== myReqId) return;
       setRewards(data);
       setState(data.length > 0 ? 'data' : 'empty');
     } catch (err) {
+      if (reqIdRef.current !== myReqId) return;
       setError(getErrorMessage(err, 'Could not load rewards'));
       setState('error');
     }
   }, [role, scopeId, targetType]);
 
-  useEffect(() => { load(); }, [load]);
+  // Cleanup invalidates any pending load when deps change (target switch) or on unmount.
+  useEffect(() => {
+    load();
+    return () => { ++reqIdRef.current; };
+  }, [load]);
 
   const toggleAllocations = useCallback(async (rewardId: string) => {
     if (expanded[rewardId]) {
@@ -253,6 +276,10 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     const key = `${action}-${rewardId}-${allocId ?? ''}`;
     setActionLoading(key);
     const idem = `${action}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // W06-R1: capture target identity at action start.
+    // If the target changes while the mutation is in flight, we skip the post-mutation
+    // load and error-set — the mutation itself is preserved on the original target.
+    const myTargetKey = targetKey;
     try {
       switch (action) {
         case 'fund':
@@ -274,20 +301,27 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
           if (allocId) {
             const refundResult = await rewardService.refundAllocation(role, rewardId, allocId, idem);
             if (refundResult && 'blocked' in refundResult && refundResult.blocked) {
-              setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
+              if (targetKeyRef.current === myTargetKey) {
+                setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
+              }
               setActionLoading(null);
               return;
             }
           }
           break;
       }
-      await load();
+      // Only reload if still on the same target; do not remap mutation refresh to new target.
+      if (targetKeyRef.current === myTargetKey) {
+        await load();
+      }
     } catch (err) {
-      setError(getErrorMessage(err, `Failed to ${action} reward`));
+      if (targetKeyRef.current === myTargetKey) {
+        setError(getErrorMessage(err, `Failed to ${action} reward`));
+      }
     } finally {
       setActionLoading(null);
     }
-  }, [role, load]);
+  }, [role, scopeId, targetType, targetKey, load]);
 
   return (
     <div data-testid="reward-dashboard">
