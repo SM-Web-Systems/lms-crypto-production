@@ -1723,7 +1723,7 @@ describe('F3: Consumer binding conflict detection', () => {
     expect(alloc?.status).toBe('eligible');
   });
 
-  it('F3-U-4: non-cohort scope (teacher_class) with config.requiredCourseId → eligible (conflict check NOT applied)', () => {
+  it('F3-U-4: teacher_class with live scope and config.requiredCourseId → eligible', () => {
     const itemId = uuidv4();
     const courseAId = seedCourse([itemId]);
 
@@ -1811,11 +1811,14 @@ describe('F3: Consumer binding conflict detection', () => {
       JSON.stringify({ requiredCourseId: courseAId })
     );
 
-    // Delete the user_groups row. user_group_members cascades; rewards.scope_id is plain TEXT.
-    // Use FK OFF only to avoid cascade-blocking on user_group_members FK.
-    db.pragma('foreign_keys = OFF');
+    // Delete the user_groups row WITH FK ON.
+    // user_group_members cascades (ON DELETE CASCADE), no violation.
+    // rewards.scope_id has no FK to user_groups — same property as sponsor_cohorts.
     db.prepare('DELETE FROM user_groups WHERE id = ?').run(groupId);
-    db.pragma('foreign_keys = ON');
+
+    // Verify no FK violations: rewards.scope_id is plain TEXT, not a FK reference.
+    const fkViolations = db.pragma('foreign_key_check') as unknown[];
+    expect(fkViolations).toHaveLength(0);
 
     // Learner completes courseA
     completeLesson(studentId, courseAId, itemId);
