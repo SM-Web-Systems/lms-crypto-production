@@ -237,4 +237,4 @@ flowchart TD
 | PR | #132 |
 | CI candidate | 41230762143 — Backend 5m36s PASS, Frontend 52s PASS, E2E 1m13s PASS, Offline 1m23s PASS |
 | Merge SHA | `60fb174` (2026-10-31T18:50Z) |
-| CI main | 41231333646 — in progress |
+| CI main | 41231333646 — 4/4 PASS |
