@@ -375,7 +375,7 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
   - F3 — `rewardEligibilityService.ts` `evaluateEligibility()` sponsor_cohort branch: conflict check before `requiredCourseId` overwrite — if `boundCourseId && config.requiredCourseId && they differ` → return `'ineligible'`; fail-closed on post-activation binding drift
 - **Tests**: 48/48 W04-R1 tests pass in `reward-course-completion.test.ts`; 0 regressions; post-review additions: ARFL-1/2 (auto-release financial assertions), F2-H-6/7 (duplicate event prevention, multi-reward), F3-U-4/5 (teacher_class bypass, absent cohort fallback)
 - **Independent review**: APPROVED_WITH_NOTES (2 Important findings addressed pre-merge: missing ARFL financial tests and missing spec-listed F2-H-6/7, F3-U-4/5 tests; minor: F1-H-5 transaction failure injection deferred pending harness change)
-- **Completion**: PR #124 squash-merged `aaf0bec`; PR CI run 41185493672 — 4/4 PASS; post-merge CI run 41185913301 — in progress at record time
+- **Completion**: PR #124 squash-merged `aaf0bec`; PR CI run 41185493672 — 4/4 PASS; post-merge CI run 41185913301 — 4/4 PASS
 
 ---
 
