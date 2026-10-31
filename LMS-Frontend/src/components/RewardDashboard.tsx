@@ -231,6 +231,13 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const targetKeyRef = useRef(targetKey);
   targetKeyRef.current = targetKey;
 
+  // W06-R2: target epoch — incremented ONLY in useEffect cleanup (target change / unmount).
+  // Unlike reqIdRef (incremented every load()), epoch changes only when the target identity
+  // changes. Callbacks capture capturedEpoch at render time; if epoch advanced before the
+  // callback fires, the callback is from a prior target visit and is silently dropped.
+  const targetEpochRef = useRef(0);
+  const capturedEpoch = targetEpochRef.current;
+
   const load = useCallback(async () => {
     // Increment first: invalidates any outstanding request for the previous identity.
     const myReqId = ++reqIdRef.current;
@@ -253,9 +260,16 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   }, [role, scopeId, targetType]);
 
   // Cleanup invalidates any pending load when deps change (target switch) or on unmount.
+  // W06-R2: also increments epoch so stale callbacks from the old target are silenced,
+  // and resets form + spinner state so neither leaks into the new target's render.
   useEffect(() => {
     load();
-    return () => { ++reqIdRef.current; };
+    return () => {
+      ++reqIdRef.current;
+      ++targetEpochRef.current;
+      setShowCreate(false);
+      setActionLoading(null);
+    };
   }, [load]);
 
   const toggleAllocations = useCallback(async (rewardId: string) => {
@@ -263,12 +277,19 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
       setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
       return;
     }
+    // W06-R2: capture epoch so async success/error can verify they're still on the same target.
+    const myEpoch = targetEpochRef.current;
     setExpanded((prev) => ({ ...prev, [rewardId]: 'loading' }));
     try {
       const allocs = await rewardService.getAllocations(role, rewardId);
-      setExpanded((prev) => (prev[rewardId] === 'loading' ? { ...prev, [rewardId]: allocs } : prev));
+      // Existing guard: only apply if still loading (reqId guard discards via setExpanded({}));
+      // W06-R2: also discard if target switched since this call started.
+      setExpanded((prev) => (prev[rewardId] === 'loading' && targetEpochRef.current === myEpoch ? { ...prev, [rewardId]: allocs } : prev));
     } catch {
-      setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
+      // W06-R2: epoch guard — don't mutate new target's expansion state on old target's error.
+      if (targetEpochRef.current === myEpoch) {
+        setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
+      }
     }
   }, [expanded, role]);
 
@@ -280,6 +301,9 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     // If the target changes while the mutation is in flight, we skip the post-mutation
     // load and error-set — the mutation itself is preserved on the original target.
     const myTargetKey = targetKey;
+    // W06-R2: capture epoch at action start so the finally spinner-clear can be guarded
+    // against old-target operations clearing a new-target operation's spinner.
+    const myEpoch = targetEpochRef.current;
     try {
       switch (action) {
         case 'fund':
@@ -304,22 +328,27 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
               if (targetKeyRef.current === myTargetKey) {
                 setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
               }
-              setActionLoading(null);
+              // W06-R2: removed setActionLoading(null) here — finally handles it with epoch guard.
               return;
             }
           }
           break;
       }
-      // Only reload if still on the same target; do not remap mutation refresh to new target.
-      if (targetKeyRef.current === myTargetKey) {
+      // W06-R1+R2: only reload if still on the same target (key) AND same target visit (epoch).
+      if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
         await load();
       }
     } catch (err) {
-      if (targetKeyRef.current === myTargetKey) {
+      // W06-R1+R2: only surface error if still on the same target key and epoch.
+      if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
         setError(getErrorMessage(err, `Failed to ${action} reward`));
       }
     } finally {
-      setActionLoading(null);
+      // W06-R2: only clear spinner if still on the same target visit.
+      // Without this guard an old operation's finally would clear a new operation's spinner.
+      if (targetEpochRef.current === myEpoch) {
+        setActionLoading(null);
+      }
     }
   }, [role, scopeId, targetType, targetKey, load]);
 
@@ -538,7 +567,13 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
           role={role}
           scopeId={scopeId}
           targetType={targetType}
-          onCreated={() => { setShowCreate(false); load(); }}
+          onCreated={() => {
+            // W06-R2: capturedEpoch was snapshotted at render time. If the target changed
+            // since this render, the epoch advanced and this callback is stale — drop it.
+            if (targetEpochRef.current !== capturedEpoch) return;
+            setShowCreate(false);
+            load();
+          }}
           onClose={() => setShowCreate(false)}
         />
       )}

@@ -662,3 +662,336 @@ describe('W06-R1: stale response guard', () => {
     expect(screen.queryByText('Child load failed')).not.toBeInTheDocument();
   });
 });
+
+describe('W06-R2: create and operation ownership guard', () => {
+  // W6R2-FE-1: Primary reproduction — deferred child create resolves after family switch.
+  // MUST FAIL before epoch guard, PASS after.
+  it('W6R2-FE-1: deferred child create does not reload child list after family switch', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveCreate!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const createDeferred = new Promise<any>(r => { resolveCreate = r; });
+    mockCreateReward.mockImplementationOnce(() => createDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward data' })])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward data' })])
+      .mockResolvedValueOnce([makeReward({ id: 'child-r2', description: 'Stale child reload' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText('Child reward data')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+
+    // Switch to family while child create is in flight
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(screen.getByText('Family reward data')).toBeInTheDocument());
+
+    // Resolve child create — epoch guard must block stale child reload
+    await act(async () => { resolveCreate({ id: 'new-r', status: 'draft', reward_type: 'custom' }); });
+
+    expect(screen.getByText('Family reward data')).toBeInTheDocument();
+    expect(screen.queryByText('Stale child reload')).not.toBeInTheDocument();
+    // Only 2 list calls (child initial + family); no stale 3rd call
+    expect(mockListRewards).toHaveBeenCalledTimes(2);
+  });
+
+  // W6R2-FE-2: Reverse direction — family create → switch to child
+  it('W6R2-FE-2: deferred family create does not reload family list after child switch', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveCreate!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const createDeferred = new Promise<any>(r => { resolveCreate = r; });
+    mockCreateReward.mockImplementationOnce(() => createDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward data' })])
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward data' })])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r2', description: 'Stale family reload' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />
+    );
+    await waitFor(() => expect(screen.getByText('Family reward data')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />);
+    await waitFor(() => expect(screen.getByText('Child reward data')).toBeInTheDocument());
+
+    await act(async () => { resolveCreate({ id: 'new-r', status: 'draft', reward_type: 'custom' }); });
+
+    expect(screen.getByText('Child reward data')).toBeInTheDocument();
+    expect(screen.queryByText('Stale family reload')).not.toBeInTheDocument();
+    expect(mockListRewards).toHaveBeenCalledTimes(2);
+  });
+
+  // W6R2-FE-3: Old create resolves while new target's list is still pending.
+  // Old create must not invalidate the valid pending list request.
+  it('W6R2-FE-3: old create completion cannot invalidate current pending list request', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveCreate!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const createDeferred = new Promise<any>(r => { resolveCreate = r; });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveFamilyList!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const familyListDeferred = new Promise<any[]>(r => { resolveFamilyList = r; });
+    mockCreateReward.mockImplementationOnce(() => createDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward data' })])
+      .mockImplementationOnce(() => familyListDeferred)  // family list: deferred
+      .mockResolvedValueOnce([makeReward({ id: 'stale', description: 'Stale child reload' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText('Child reward data')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+
+    // Switch to family — family list is now pending
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledTimes(2));
+
+    // Resolve old child create while family list is pending — must not hijack reqId
+    await act(async () => { resolveCreate({ id: 'new-r', status: 'draft', reward_type: 'custom' }); });
+
+    // Now resolve the pending family list — must win (not discarded)
+    await act(async () => {
+      resolveFamilyList([makeReward({ id: 'fam-r1', description: 'Family reward data' })]);
+    });
+
+    expect(screen.getByText('Family reward data')).toBeInTheDocument();
+    expect(screen.queryByText('Stale child reload')).not.toBeInTheDocument();
+    expect(mockListRewards).toHaveBeenCalledTimes(2);
+  });
+
+  // W6R2-FE-4: A→B→A — old first-visit create resolves on second visit.
+  // Epoch must distinguish A@T1 from A@T3 even with identical textual key.
+  it('W6R2-FE-4: A→B→A: old first-visit create cannot initiate reload on second visit', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveCreate!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const createDeferred = new Promise<any>(r => { resolveCreate = r; });
+    mockCreateReward.mockImplementationOnce(() => createDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'a1-r1', description: 'First visit A' })])   // call 1
+      .mockResolvedValueOnce([])                                                              // call 2: B
+      .mockResolvedValueOnce([makeReward({ id: 'a2-r1', description: 'Second visit A' })])  // call 3: A again
+      .mockResolvedValueOnce([makeReward({ id: 'stale', description: 'Stale A reload' })]);  // call 4: must not happen
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="scopeA" targetType="family" />
+    );
+    await waitFor(() => expect(screen.getByText('First visit A')).toBeInTheDocument());
+
+    // Open form and submit on first A visit
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+
+    // A → B
+    rerender(<RewardDashboard role="parent" scopeId="scopeB" targetType="family" />);
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledTimes(2));
+
+    // B → A (second visit)
+    rerender(<RewardDashboard role="parent" scopeId="scopeA" targetType="family" />);
+    await waitFor(() => expect(screen.getByText('Second visit A')).toBeInTheDocument());
+
+    // Resolve old first-A create — epoch must block stale reload
+    await act(async () => { resolveCreate({ id: 'new-r', status: 'draft', reward_type: 'custom' }); });
+
+    expect(screen.getByText('Second visit A')).toBeInTheDocument();
+    expect(screen.queryByText('Stale A reload')).not.toBeInTheDocument();
+    expect(mockListRewards).toHaveBeenCalledTimes(3); // only 3 (not 4)
+  });
+
+  // W6R2-FE-5: Old create failure after switch — form's error is internal, does not reach dashboard.
+  // Behavioral test; passes before and after fix (existing correct behavior preserved).
+  it('W6R2-FE-5: old create failure after switch does not show error in new dashboard', async () => {
+    let rejectCreate!: (e: Error) => void;
+    const createDeferred = new Promise<never>((_, r) => { rejectCreate = r; });
+    mockCreateReward.mockImplementationOnce(() => createDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward data' })])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward data' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText('Child reward data')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(screen.getByText('Family reward data')).toBeInTheDocument());
+
+    await act(async () => { rejectCreate(new Error('Child create failed')); });
+
+    expect(screen.getByText('Family reward data')).toBeInTheDocument();
+    expect(screen.queryByText('Child create failed')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Failed to create/)).not.toBeInTheDocument();
+  });
+
+  // W6R2-FE-6: Old create must not close the new target's form.
+  // After switch the old create resolves; it must not call setShowCreate(false) on the new form.
+  it('W6R2-FE-6: old create completion does not close currently-open form on new target', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveOldCreate!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const oldCreateDeferred = new Promise<any>(r => { resolveOldCreate = r; });
+    mockCreateReward.mockImplementationOnce(() => oldCreateDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([])   // child (empty)
+      .mockResolvedValueOnce([]);  // family (empty)
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText(/No rewards yet/)).toBeInTheDocument());
+
+    // Open form and submit child create (deferred)
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+
+    // Switch to family
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(screen.getByText(/No rewards yet/)).toBeInTheDocument());
+
+    // Open form on new target (or it may already be open without fix — either way ensure dialog present)
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+    // Resolve old child create — MUST NOT close the family form
+    await act(async () => {
+      resolveOldCreate({ id: 'child-new', status: 'draft', reward_type: 'custom' });
+    });
+
+    // Family form must still be open
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  // W6R2-FE-7: toggleAllocations result after switch must not populate new target's state.
+  // Behavioral test — success path already guarded by setExpanded({}); verifying end-to-end.
+  it('W6R2-FE-7: stale getAllocations result is not applied to new target', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveAllocs!: (v: any[]) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allocDeferred = new Promise<any[]>(r => { resolveAllocs = r; });
+    mockGetAllocations.mockImplementationOnce(() => allocDeferred);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward' })])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText('Child reward')).toBeInTheDocument());
+
+    // Expand child reward (getAllocations in flight)
+    fireEvent.click(screen.getByRole('button', { name: /Expand allocations/i }));
+    await waitFor(() => expect(mockGetAllocations).toHaveBeenCalledTimes(1));
+
+    // Switch to family — expanded state cleared by load()
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+
+    // Resolve old getAllocations — must not update new target's expanded state
+    await act(async () => {
+      resolveAllocs([{
+        id: 'a1',
+        student_user_id: 'student001abc',
+        amount_stroops: 10000000,
+        status: 'eligible',
+      }]);
+    });
+
+    expect(screen.queryByText(/student001abc/)).not.toBeInTheDocument();
+  });
+
+  // W6R2-FE-8: Form must close automatically when target changes.
+  it('W6R2-FE-8: form closes when target changes', async () => {
+    mockListRewards
+      .mockResolvedValueOnce([])  // child (empty)
+      .mockResolvedValueOnce([]); // family (empty)
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText(/No rewards yet/)).toBeInTheDocument());
+
+    // Open form on child
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+    // Switch to family — cleanup must close the form
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/No rewards yet/)).toBeInTheDocument());
+  });
+
+  // W6R2-FE-9: performAction spinner is cleared on target change; old-target finally
+  // cannot clear a new operation's spinner.
+  it('W6R2-FE-9: spinner cleared on target change; old-target finally does not clear new op spinner', async () => {
+    let resolveOldCancel!: () => void;
+    const oldCancelDeferred = new Promise<void>(r => { resolveOldCancel = r; });
+    let resolveNewCancel!: () => void;
+    const newCancelDeferred = new Promise<void>(r => { resolveNewCancel = r; });
+
+    const { rewardService: svc } = await import('../../services/rewardService');
+    vi.mocked(svc.cancelReward)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockImplementationOnce(() => oldCancelDeferred as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockImplementationOnce(() => newCancelDeferred as any);
+    mockListRewards
+      .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward', status: 'active' })])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r1', description: 'Family reward', status: 'active' })])
+      .mockResolvedValueOnce([makeReward({ id: 'fam-r2', description: 'Family reward updated', status: 'active' })]);
+
+    const { rerender } = render(
+      <RewardDashboard role="parent" scopeId="shared-scope" targetType="child" />
+    );
+    await waitFor(() => expect(screen.getByText('Child reward')).toBeInTheDocument());
+
+    // Click Cancel on child — spinner starts
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled());
+
+    // Switch to family — cleanup must clear spinner
+    rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
+    await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+
+    // Family Cancel must be ENABLED (cleanup cleared old spinner)
+    expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled();
+
+    // Click Cancel on family reward — new spinner starts
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled());
+
+    // Resolve old child cancel — epoch-guarded finally must NOT clear family spinner
+    await act(async () => { resolveOldCancel(); });
+    expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled();
+
+    // Resolve new family cancel — spinner clears normally, list refreshes
+    await act(async () => { resolveNewCancel(); });
+    await waitFor(() => expect(screen.getByText('Family reward updated')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled();
+  });
+});
