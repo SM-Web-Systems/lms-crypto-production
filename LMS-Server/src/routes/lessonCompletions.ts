@@ -21,6 +21,7 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem, parseFlatSections } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -143,7 +144,10 @@ router.post(
       return;
     }
 
-    // P1.3: Atomic transaction — primary write + outbox event commit together
+    // P1.3: Atomic transaction — primary write + outbox event commit together.
+    // W04: course_completion event is only produced when isCourseCompleteForReward
+    // returns true AFTER the lesson write, ensuring the outbox event reflects
+    // genuine completion and not a premature per-lesson trigger.
     const atomicWrite = db.transaction(() => {
       execute(
         `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
@@ -154,7 +158,10 @@ router.post(
         [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
       );
 
-      produceOutboxEvent('course_completion', courseId, callerId, { itemId, sectionId });
+      // W04: Only emit course_completion when the course is genuinely complete.
+      if (isCourseCompleteForReward(callerId, courseId)) {
+        produceOutboxEvent('course_completion', courseId, callerId);
+      }
     });
 
     try {

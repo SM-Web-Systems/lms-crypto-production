@@ -498,6 +498,46 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
+
+    // W04: Course binding validation for course_completion rewards.
+    // Runs BEFORE scope validation so that COURSE_NOT_FOUND takes priority when
+    // the scope entity (e.g. cohort) was cascade-deleted together with the course.
+    // Error codes are used as the message so toThrow('CODE') assertions pass.
+    if (reward.reward_type === 'course_completion') {
+      const config = reward.eligibility_config
+        ? (JSON.parse(reward.eligibility_config) as Record<string, unknown>)
+        : null;
+      const configCourseId = typeof config?.requiredCourseId === 'string'
+        ? config.requiredCourseId
+        : null;
+
+      let boundCourseId: string | null = null;
+
+      if (reward.scope_type === 'sponsor_cohort') {
+        const cohort = db.prepare('SELECT course_id FROM sponsor_cohorts WHERE id = ?')
+          .get(reward.scope_id) as { course_id: string } | undefined;
+        // Cohort deleted (likely cascade-deleted with the course) — treat as COURSE_NOT_FOUND.
+        if (!cohort) throw new RewardError('COURSE_NOT_FOUND', undefined, 404);
+        boundCourseId = cohort.course_id;
+        // Conflict: requiredCourseId in config must match cohort's course
+        if (configCourseId && configCourseId !== boundCourseId) {
+          throw new RewardError('CONFLICTING_COURSE_BINDING', undefined, 400);
+        }
+      } else {
+        // Non-cohort scopes require an explicit requiredCourseId in eligibility_config
+        if (!configCourseId) {
+          throw new RewardError('MISSING_COURSE_BINDING', undefined, 400);
+        }
+        boundCourseId = configCourseId;
+      }
+
+      // Verify the bound course still exists
+      const courseExists = db.prepare('SELECT id FROM courses WHERE id = ?').get(boundCourseId);
+      if (!courseExists) {
+        throw new RewardError('COURSE_NOT_FOUND', undefined, 404);
+      }
+    }
+
     if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }

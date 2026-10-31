@@ -180,8 +180,11 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
       'SELECT title, passing_score, course_id FROM quizzes WHERE id = ?',
       [quizId]
     );
-    // Cross-course quiz guard: if quiz belongs to a different course, treat as not passed
-    if (!quiz || quiz.course_id !== courseId) {
+    // Cross-course quiz guard (W04 fix, backward-compat for getCourseProgress):
+    // Only reject quizzes that explicitly belong to a *different* course.
+    // Quizzes with course_id = NULL are legacy "unattached" quizzes — still valid here.
+    // (isCourseCompleteForReward uses the stricter form: course_id must equal courseId.)
+    if (!quiz || (quiz.course_id !== null && quiz.course_id !== courseId)) {
       requiredQuizzes.push({
         quizId,
         quizTitle: quiz?.title ?? 'Unknown (cross-course quiz)',

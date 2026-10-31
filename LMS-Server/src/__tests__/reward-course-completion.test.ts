@@ -707,8 +707,9 @@ describe('producer guards (HTTP)', () => {
     const outboxRow = db.prepare(
       "SELECT * FROM reward_event_outbox WHERE event_type = 'course_completion' AND event_source_id = ? AND student_user_id = ?"
     ).get(courseId, studentId);
-    // No event yet — only 1 of 2 lessons done
-    expect(outboxRow).toBeNull();
+    // No event yet — only 1 of 2 lessons done.
+    // better-sqlite3 .get() returns undefined (not null) for missing rows.
+    expect(outboxRow).toBeUndefined();
   });
 
   it('W04-P-2: completing final lesson emits course_completion event', async () => {
@@ -781,8 +782,9 @@ describe('end-to-end course_completion reward flow (W04)', () => {
     enrollStudent(studentId, courseId);
 
     const quizId = uuidv4();
+    // Question uses type/correctIndex format expected by scoreSubmission; options[0]='A' is correct.
     db.prepare(
-      "INSERT INTO quizzes (id, title, questions, passing_score, course_id) VALUES (?, 'Q', '[{\"id\":\"q1\",\"text\":\"Q\",\"options\":[\"A\",\"B\"],\"correct\":0}]', 70, ?)"
+      "INSERT INTO quizzes (id, title, questions, passing_score, course_id) VALUES (?, 'Q', '[{\"id\":\"q1\",\"type\":\"multiple_choice\",\"question\":\"Q\",\"options\":[\"A\",\"B\"],\"correctIndex\":0}]', 70, ?)"
     ).run(quizId, courseId);
     db.prepare(
       'INSERT INTO course_completion_requirements (id, course_id, require_all_lessons, lesson_threshold, required_quiz_ids, min_quiz_score, require_submissions) VALUES (?, ?, 1, 0, ?, 70, 0)'
@@ -804,11 +806,11 @@ describe('end-to-end course_completion reward flow (W04)', () => {
     let alloc = allocations.find((a) => a.student_user_id === studentId);
     expect(alloc?.status).toBe('pending');
 
-    // Submit and pass quiz
+    // Submit and pass quiz — object format { questionId: answerValue }; options[0]='A' is correct.
     await request(app)
       .post(`/api/v1/quizzes/${quizId}/submit`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ answers: [{ questionId: 'q1', answer: '0' }] });
+      .send({ answers: { q1: 'A' } });
 
     allocations = getRewardAllocations(rewardId);
     alloc = allocations.find((a) => a.student_user_id === studentId);
