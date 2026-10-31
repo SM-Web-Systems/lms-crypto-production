@@ -184,3 +184,256 @@ describe('Parent Reward Routes', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ──── W06: Parent target discriminator — validation and propagation ────
+
+describe('W06: parent target discriminator', () => {
+  // ── Characterize existing behavior (should already pass) ──
+
+  it('W6-B-1: POST targetType=child → 201, parent_child', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'child', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(201);
+    expect(res.body.data.scope_type).toBe('parent_child');
+  });
+
+  it('W6-B-2: POST targetType=family → 201, parent_family', async () => {
+    const { token, familyId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'family', scopeId: familyId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(201);
+    expect(res.body.data.scope_type).toBe('parent_family');
+  });
+
+  it('W6-B-3: POST omitted targetType → 201, parent_child (legacy)', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(201);
+    expect(res.body.data.scope_type).toBe('parent_child');
+  });
+
+  // ── Invalid POST values — controlled 400 ──
+
+  it('W6-B-4: POST targetType=FAMILY (case variation) → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'FAMILY', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it("W6-B-5: POST targetType='' (empty string) → 400 INVALID_TARGET_TYPE", async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: '', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-6: POST targetType=null → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: null, scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-7: POST targetType=123 (number) → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 123, scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-8: POST targetType=[] (array) → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: [], scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-9: POST targetType={} (object) → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: {}, scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it("W6-B-10: POST targetType='child ' (padded string) → 400 INVALID_TARGET_TYPE", async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'child ', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-11: GET ?targetType=INVALID → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .get(`/api/v1/parent/rewards?scopeId=${childId}&targetType=INVALID`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-12: GET repeated query ?targetType=child&targetType=family (array) → 400 INVALID_TARGET_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .get(`/api/v1/parent/rewards?scopeId=${childId}&targetType=child&targetType=family`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+  });
+
+  it('W6-B-13: GET ?targetType=family returns parent_family rewards', async () => {
+    const { token, familyId } = seedParent();
+    await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'family', scopeId: familyId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+
+    const res = await request(app)
+      .get(`/api/v1/parent/rewards?scopeId=${familyId}&targetType=family`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    const rewards = res.body.data;
+    expect(rewards.length).toBeGreaterThanOrEqual(1);
+    expect(rewards[0].scope_type).toBe('parent_family');
+  });
+
+  it('W6-B-14: same scopeId as both child user and family group — targetType controls scope_type', async () => {
+    // Seed parent with both child + family
+    const { token, childId, familyId } = seedParent();
+
+    const childRes = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'child', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(childRes.status).toBe(201);
+    expect(childRes.body.data.scope_type).toBe('parent_child');
+
+    const familyRes = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'family', scopeId: familyId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(familyRes.status).toBe(201);
+    expect(familyRes.body.data.scope_type).toBe('parent_family');
+
+    // Confirm both rewards are independently stored with correct scope
+    expect(childRes.body.data.scope_type).not.toBe(familyRes.body.data.scope_type);
+  });
+
+  it('W6-B-15: same idempotency key with different targetType → 409 IDEMPOTENCY_CONFLICT', async () => {
+    const { token, childId, familyId } = seedParent();
+    const key = `idem-${uuidv4()}`;
+
+    const first = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'child', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: key });
+    expect(first.status).toBe(201);
+
+    // Same key, different targetType — must conflict
+    const second = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'family', scopeId: familyId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: key });
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+  });
+
+  it('W6-B-16: invalid targetType does not consume idempotency key — valid reuse succeeds', async () => {
+    const { token, childId } = seedParent();
+    const key = `idem-${uuidv4()}`;
+
+    // First request: invalid targetType → rejected 400
+    const bad = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'INVALID', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: key });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.code).toBe('INVALID_TARGET_TYPE');
+
+    // Same key with valid targetType → should succeed (key was not consumed)
+    const good = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'child', scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: key });
+    expect(good.status).toBe(201);
+  });
+
+  it('W6-B-17: foreign family (not owner) → 403 SCOPE_DENIED', async () => {
+    const { token } = seedParent();
+    // Create a second parent that owns a different family
+    const { familyId: otherFamilyId } = seedParent();
+
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'family', scopeId: otherFamilyId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(403);
+  });
+
+  it('W6-B-18: wrong group_type (non-family) with targetType=family → 403', async () => {
+    const { parentId, token } = seedParent();
+    // Create a group owned by this parent but with group_type != family
+    const nonFamilyGroupId = uuidv4();
+    db.prepare('INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, ?, ?)').run(nonFamilyGroupId, 'Not A Family', 'class', parentId);
+
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'family', scopeId: nonFamilyGroupId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(403);
+  });
+
+  // ── No-regression checks ──
+
+  it('W6-B-19: W05 invalid reward type still rejects with INVALID_REWARD_TYPE', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: 'child', scopeId: childId, rewardType: 'completion', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_REWARD_TYPE');
+  });
+
+  it('W6-B-20: error message constant — INVALID_TARGET_TYPE body does not serialize rejected input', async () => {
+    const { token, childId } = seedParent();
+    const res = await request(app)
+      .post('/api/v1/parent/rewards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ targetType: { toString: null }, scopeId: childId, rewardType: 'custom', amountStroops: '5000000', idempotencyKey: `idem-${uuidv4()}` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_TARGET_TYPE');
+    // Error message must not attempt to serialize/coerce the rejected input
+    expect(res.body.error.message).not.toContain('[object');
+    expect(res.body.error.message).toMatch(/Accepted values: child, family/);
+  });
+});

@@ -15,6 +15,7 @@ import {
   type RewardAllocation,
   type CreateRewardParams,
   type RewardType,
+  type ParentTargetType,
 } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
 import {
@@ -45,6 +46,8 @@ interface RewardDashboardProps {
   scopeLabel?: string;
   /** Whether to show refund button (sponsor/employer only) */
   canRefund?: boolean;
+  /** W06: parent role only — 'child' or 'family'. Omit for legacy parent_child behavior. */
+  targetType?: ParentTargetType;
 }
 
 type ViewState = 'loading' | 'error' | 'empty' | 'data';
@@ -63,9 +66,10 @@ const ACTIONS: Record<string, Array<{ key: string; label: string; icon: typeof P
 const RewardCreateForm: React.FC<{
   role: string;
   scopeId: string;
+  targetType?: ParentTargetType;
   onCreated: () => void;
   onClose: () => void;
-}> = ({ role, scopeId, onCreated, onClose }) => {
+}> = ({ role, scopeId, targetType, onCreated, onClose }) => {
   const [rewardType, setRewardType] = useState<RewardType>('custom');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -102,6 +106,7 @@ const RewardCreateForm: React.FC<{
         autoRelease,
         description: description || undefined,
         idempotencyKey: `create-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        ...(targetType !== undefined && { targetType }),
       };
       await rewardService.createReward(role, params);
       onCreated();
@@ -203,6 +208,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   scopeId,
   scopeLabel,
   canRefund = false,
+  targetType,
 }) => {
   const [state, setState] = useState<ViewState>('loading');
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -217,14 +223,15 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     setError('');
     setExpanded({});
     try {
-      const data = await rewardService.listRewards(role, scopeId);
+      // W06: pass targetType so parent child/family list uses the correct scope
+      const data = await rewardService.listRewards(role, scopeId, targetType);
       setRewards(data);
       setState(data.length > 0 ? 'data' : 'empty');
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load rewards'));
       setState('error');
     }
-  }, [role, scopeId]);
+  }, [role, scopeId, targetType]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -496,6 +503,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
         <RewardCreateForm
           role={role}
           scopeId={scopeId}
+          targetType={targetType}
           onCreated={() => { setShowCreate(false); load(); }}
           onClose={() => setShowCreate(false)}
         />

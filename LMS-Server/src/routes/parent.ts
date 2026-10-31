@@ -274,9 +274,19 @@ function handleRewardError(err: unknown, res: Response): void {
   }
 }
 
-function resolveParentScopeType(targetType?: string): ScopeType {
-  if (targetType === 'family') return 'parent_family';
-  return 'parent_child';
+// W06: Validate and resolve parent targetType discriminator.
+// Accepts: undefined (omitted) → parent_child (legacy); 'child' → parent_child; 'family' → parent_family.
+// Any explicitly supplied invalid value → controlled 400 INVALID_TARGET_TYPE.
+// Does NOT coerce, String(), serialize, or invoke hooks on rejected input.
+function resolveParentScopeType(rawTargetType: unknown): ScopeType {
+  if (rawTargetType === undefined) return 'parent_child';
+  if (rawTargetType === 'child')   return 'parent_child';
+  if (rawTargetType === 'family')  return 'parent_family';
+  throw new RewardError(
+    'INVALID_TARGET_TYPE',
+    'Invalid target type. Accepted values: child, family',
+    400,
+  );
 }
 
 // POST /parent/rewards — create draft reward with target_type
@@ -358,7 +368,8 @@ router.post('/parent/rewards/:id/allocations/:allocId/release', authenticate, re
 router.get('/parent/rewards', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
   try {
     const scopeId = req.query.scopeId as string;
-    const scopeType = resolveParentScopeType(req.query.targetType as string);
+    // W06: pass raw query value — resolveParentScopeType handles all shapes (string/array/object/undefined)
+    const scopeType = resolveParentScopeType(req.query.targetType);
     if (!scopeId) {
       res.status(400).json({ success: false, error: { message: 'scopeId required' } });
       return;

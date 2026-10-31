@@ -125,7 +125,8 @@ describe('RewardDashboard', () => {
       expect(screen.getByText('Alpha Cohort', { exact: false })).toBeInTheDocument();
     });
 
-    expect(mockListRewards).toHaveBeenCalledWith('sponsor', 'cohort1');
+    // W06: listRewards now passes targetType as 3rd arg; undefined when not provided
+    expect(mockListRewards).toHaveBeenCalledWith('sponsor', 'cohort1', undefined);
     expect(screen.getByText('custom')).toBeInTheDocument();
     expect(screen.getByText('1.00 XLM')).toBeInTheDocument();
   });
@@ -141,7 +142,8 @@ describe('RewardDashboard', () => {
       expect(screen.getByText('Dev Team', { exact: false })).toBeInTheDocument();
     });
 
-    expect(mockListRewards).toHaveBeenCalledWith('employer', 'team1');
+    // W06: listRewards now passes targetType as 3rd arg; undefined when not provided
+    expect(mockListRewards).toHaveBeenCalledWith('employer', 'team1', undefined);
   });
 
   it('R-FE-3: renders for parent role', async () => {
@@ -303,5 +305,82 @@ describe('W05-R1 Frontend select/payload coverage', () => {
 
     const [, params] = mockCreateReward.mock.calls[0] as [string, { rewardType: string }];
     expect(params.rewardType).toBe('individual');
+  });
+});
+
+describe('W06 Frontend — parent target discriminator', () => {
+  // W6-FE-1: RewardDashboard parent+targetType='family' passes targetType to listRewards
+  it('W6-FE-1: parent role with targetType=family calls listRewards with targetType argument', async () => {
+    mockListRewards.mockResolvedValue([]);
+
+    render(<RewardDashboard role="parent" scopeId="fam1" targetType="family" />);
+
+    await waitFor(() => {
+      expect(mockListRewards).toHaveBeenCalledWith('parent', 'fam1', 'family');
+    });
+  });
+
+  // W6-FE-2: Non-parent role with no targetType passes undefined as 3rd arg (not 'family'/'child')
+  it('W6-FE-2: sponsor role without targetType calls listRewards with undefined targetType', async () => {
+    mockListRewards.mockResolvedValue([]);
+
+    render(<RewardDashboard role="sponsor" scopeId="cohort1" />);
+
+    await waitFor(() => {
+      // Sponsor passes no targetType — must not send 'family' or 'child'
+      expect(mockListRewards).toHaveBeenCalledWith('sponsor', 'cohort1', undefined);
+    });
+    const [,, passedTargetType] = mockListRewards.mock.calls[0] as [string, string, string | undefined];
+    expect(passedTargetType).toBeUndefined();
+  });
+
+  // W6-FE-3: createReward includes targetType when parent role passes it
+  it('W6-FE-3: parent createReward includes targetType=family in POST params', async () => {
+    mockListRewards.mockResolvedValue([]);
+    mockCreateReward.mockResolvedValue({ id: 'r-new', status: 'draft', reward_type: 'custom' });
+
+    render(<RewardDashboard role="parent" scopeId="fam1" targetType="family" />);
+
+    await waitFor(() => expect(screen.getByText('New Reward')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() => expect(mockCreateReward).toHaveBeenCalledOnce());
+
+    const [, params] = mockCreateReward.mock.calls[0] as [string, { targetType?: string }];
+    expect(params.targetType).toBe('family');
+  });
+
+  // W6-FE-4: sponsor role does not include targetType in POST params
+  it('W6-FE-4: sponsor role createReward does not send targetType', async () => {
+    mockListRewards.mockResolvedValue([]);
+    mockCreateReward.mockResolvedValue({ id: 'r-new', status: 'draft', reward_type: 'custom' });
+
+    render(<RewardDashboard role="sponsor" scopeId="cohort1" />);
+
+    await waitFor(() => expect(screen.getByText('New Reward')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText(/Amount/i)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() => expect(mockCreateReward).toHaveBeenCalledOnce());
+
+    const [, params] = mockCreateReward.mock.calls[0] as [string, { targetType?: string }];
+    expect(params.targetType).toBeUndefined();
+  });
+
+  // W6-FE-5: targetType in useCallback dependency — re-fetch when targetType changes
+  it('W6-FE-5: re-renders with new targetType trigger separate listRewards calls', async () => {
+    mockListRewards.mockResolvedValue([]);
+    const { rerender } = render(<RewardDashboard role="parent" scopeId="s1" targetType="child" />);
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 's1', 'child'));
+
+    rerender(<RewardDashboard role="parent" scopeId="s1" targetType="family" />);
+    await waitFor(() => expect(mockListRewards).toHaveBeenCalledWith('parent', 's1', 'family'));
   });
 });

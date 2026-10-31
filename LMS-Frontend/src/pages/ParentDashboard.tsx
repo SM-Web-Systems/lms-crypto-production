@@ -141,7 +141,7 @@ const ParentDashboard: React.FC = () => {
             <div className="space-y-6">
               {groups.length > 0 ? (
                 groups.map((g) => (
-                  <RewardDashboard key={g.id} role="parent" scopeId={g.id} scopeLabel={g.name} />
+                  <RewardDashboard key={g.id} role="parent" scopeId={g.id} scopeLabel={g.name} targetType="family" />
                 ))
               ) : (
                 <p className="text-neutral-500 text-sm py-8 text-center">Create a family group first to manage rewards.</p>
