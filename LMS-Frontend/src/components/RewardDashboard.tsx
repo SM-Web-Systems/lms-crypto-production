@@ -325,7 +325,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
           if (allocId) {
             const refundResult = await rewardService.refundAllocation(role, rewardId, allocId, idem);
             if (refundResult && 'blocked' in refundResult && refundResult.blocked) {
-              if (targetKeyRef.current === myTargetKey) {
+              // W06-R3: add epoch guard so A→B→A old blocked response does not fire on new visit.
+              if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
                 setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
               }
               // W06-R2: removed setActionLoading(null) here — finally handles it with epoch guard.

@@ -995,3 +995,169 @@ describe('W06-R2: create and operation ownership guard', () => {
     expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled();
   });
 });
+
+// Helper: a released reward with one released allocation for refund tests.
+function makeReleasedRewardWithAlloc(rewardId = 'r-refund', allocId = 'a-refund') {
+  const reward = makeReward({ id: rewardId, description: 'Refundable reward', status: 'released' });
+  const alloc = {
+    id: allocId,
+    student_user_id: 'student-refund-001',
+    amount_stroops: 10000000,
+    status: 'released' as const,
+  };
+  return { reward, alloc };
+}
+
+describe('W06-R3: blocked-refund epoch guard', () => {
+  // FE-10: deferred refund A→B→A — blocked result must NOT appear on second scopeA visit.
+  // This is the RED test: before fix the setError fires because only targetKey is checked.
+  it('W6R3-FE-10: deferred blocked refund A→B→A does not show stale blocked message on revisit', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveRefund!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const refundDeferred = new Promise<any>(r => { resolveRefund = r; });
+
+    // Import refundAllocation mock from the module mock
+    const { rewardService } = await import('../../services/rewardService');
+    vi.mocked(rewardService.refundAllocation).mockImplementationOnce(() => refundDeferred as any);
+
+    const { reward: rewardA, alloc } = makeReleasedRewardWithAlloc();
+    const rewardScopeB = makeReward({ id: 'r-scopeb', description: 'ScopeB reward', status: 'released' });
+    const rewardA2 = makeReward({ id: 'r-a2', description: 'ScopeA revisit reward', status: 'released' });
+
+    mockListRewards
+      .mockResolvedValueOnce([rewardA])          // scopeA first visit
+      .mockResolvedValueOnce([rewardScopeB])      // scopeB
+      .mockResolvedValueOnce([rewardA2]);         // scopeA second visit (if triggered, but should not be triggered by old refund)
+    mockGetAllocations.mockResolvedValueOnce([alloc]);
+
+    const { rerender } = render(
+      <RewardDashboard role="sponsor" scopeId="scopeA" canRefund />
+    );
+    await waitFor(() => expect(screen.getByText('Refundable reward')).toBeInTheDocument());
+
+    // Expand allocations for the scopeA reward
+    fireEvent.click(screen.getByRole('button', { name: /Expand allocations/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).toBeInTheDocument());
+
+    // Click Refund — refundAllocation deferred
+    fireEvent.click(screen.getByRole('button', { name: /Refund/i }));
+    await waitFor(() => expect(vi.mocked(rewardService.refundAllocation)).toHaveBeenCalledTimes(1));
+
+    // Switch to scopeB — epoch increments to 1
+    rerender(<RewardDashboard role="sponsor" scopeId="scopeB" canRefund />);
+    await waitFor(() => expect(screen.getByText('ScopeB reward')).toBeInTheDocument());
+
+    // Switch back to scopeA — epoch increments to 2 — new visit renders new data
+    rerender(<RewardDashboard role="sponsor" scopeId="scopeA" canRefund />);
+    await waitFor(() => expect(screen.getByText('ScopeA revisit reward')).toBeInTheDocument());
+
+    // Resolve old blocked refund from first scopeA visit
+    await act(async () => {
+      resolveRefund({ blocked: true, attemptId: 'synthetic-old-attempt' });
+    });
+
+    // Blocked message must NOT appear — it belongs to the old visit
+    expect(screen.queryByText(/Refund blocked/)).not.toBeInTheDocument();
+    // New visit data still visible
+    expect(screen.getByText('ScopeA revisit reward')).toBeInTheDocument();
+  });
+
+  // FE-11: same-visit blocked refund must still display the message and clear its spinner.
+  // This is the positive case: legitimate blocked feedback must not be suppressed.
+  it('W6R3-FE-11: same-visit blocked refund shows message and clears spinner', async () => {
+    const { rewardService } = await import('../../services/rewardService');
+    vi.mocked(rewardService.refundAllocation).mockResolvedValueOnce(
+      { blocked: true, attemptId: 'synthetic-same-visit' } as any
+    );
+
+    const { reward, alloc } = makeReleasedRewardWithAlloc();
+    mockListRewards.mockResolvedValueOnce([reward]);
+    mockGetAllocations.mockResolvedValueOnce([alloc]);
+
+    render(<RewardDashboard role="sponsor" scopeId="scopeA" canRefund />);
+    await waitFor(() => expect(screen.getByText('Refundable reward')).toBeInTheDocument());
+
+    // Expand to see Refund button
+    fireEvent.click(screen.getByRole('button', { name: /Expand allocations/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).toBeInTheDocument());
+
+    // Refund button must be enabled before click
+    expect(screen.getByRole('button', { name: /Refund/i })).not.toBeDisabled();
+
+    // Click Refund — resolves with blocked result
+    fireEvent.click(screen.getByRole('button', { name: /Refund/i }));
+
+    // Blocked message must appear for same-visit blocked response
+    await waitFor(() => expect(screen.getByText(/Refund blocked/)).toBeInTheDocument());
+
+    // Spinner must be cleared (button re-enabled) after blocked response
+    await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).not.toBeDisabled());
+  });
+
+  // FE-12: old blocked response with new visit's operation pending must not clear new op's spinner.
+  // Tests that the epoch-guarded finally still works correctly after the fix.
+  it('W6R3-FE-12: old blocked response does not clear new visit pending operation spinner', async () => {
+    const { rewardService } = await import('../../services/rewardService');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveOldRefund!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const oldRefundDeferred = new Promise<any>(r => { resolveOldRefund = r; });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let resolveNewCancel!: (v: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newCancelDeferred = new Promise<any>(r => { resolveNewCancel = r; });
+
+    vi.mocked(rewardService.refundAllocation).mockImplementationOnce(() => oldRefundDeferred as any);
+    vi.mocked(rewardService.cancelReward).mockImplementationOnce(() => newCancelDeferred as any);
+
+    const { reward: rewardA, alloc } = makeReleasedRewardWithAlloc('r-aba', 'a-aba');
+    const rewardScopeB = makeReward({ id: 'r-b', description: 'ScopeB reward', status: 'active' });
+    const rewardA2 = makeReward({ id: 'r-a2', description: 'ScopeA revisit reward', status: 'active' });
+
+    mockListRewards
+      .mockResolvedValueOnce([rewardA])           // scopeA first visit
+      .mockResolvedValueOnce([rewardScopeB])       // scopeB
+      .mockResolvedValueOnce([rewardA2])           // scopeA second visit
+      .mockResolvedValueOnce([rewardA2]);          // post-cancel reload on second scopeA visit
+    mockGetAllocations.mockResolvedValueOnce([alloc]);
+
+    const { rerender } = render(
+      <RewardDashboard role="sponsor" scopeId="scopeA" canRefund />
+    );
+    await waitFor(() => expect(screen.getByText('Refundable reward')).toBeInTheDocument());
+
+    // Expand and click Refund on first scopeA visit — deferred
+    fireEvent.click(screen.getByRole('button', { name: /Expand allocations/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Refund/i }));
+    await waitFor(() => expect(vi.mocked(rewardService.refundAllocation)).toHaveBeenCalledTimes(1));
+
+    // Switch to scopeB
+    rerender(<RewardDashboard role="sponsor" scopeId="scopeB" canRefund />);
+    await waitFor(() => expect(screen.getByText('ScopeB reward')).toBeInTheDocument());
+
+    // Switch back to scopeA
+    rerender(<RewardDashboard role="sponsor" scopeId="scopeA" canRefund />);
+    await waitFor(() => expect(screen.getByText('ScopeA revisit reward')).toBeInTheDocument());
+
+    // Start new operation on second scopeA visit
+    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled());
+
+    // Resolve old blocked refund — must NOT clear new op's spinner, must NOT set error
+    await act(async () => {
+      resolveOldRefund({ blocked: true, attemptId: 'synthetic-old' });
+    });
+
+    // New op's spinner must still be showing (Cancel still disabled)
+    expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled();
+    // No blocked-refund message from old visit
+    expect(screen.queryByText(/Refund blocked/)).not.toBeInTheDocument();
+
+    // Resolve new cancel — spinner clears normally
+    await act(async () => { resolveNewCancel(undefined); });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled());
+  });
+});
