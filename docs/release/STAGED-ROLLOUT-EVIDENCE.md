@@ -1253,6 +1253,28 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W06-R1 | #129 | `1a5288a` | 8 | FIXED |
 | W06-R2 | #130 | `01117903` | 9 | FIXED |
 | W06-R3 | #131 | `530315e` | 3 | FIXED |
-| W07 | — | — | — | TODO |
+| W07 | #132 | `60fb174` | 27 | FIXED |
 | W08 | — | — | — | TODO |
 | W09 | — | — | — | TODO |
+
+### S3/W07 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #132 (`fix(W07): reconcile billing DTO, client mapper, and error-code contract`) |
+| Spec commit | `d9337cf` docs(W07): spec |
+| Fix commit | `e123717` fix(W07): employer mapper + sponsor assertApiSuccess + error codes |
+| Closure commit | `d9cfc00` docs(W07): record merge receipt and close spec |
+| CI candidate | 41230762143 — Backend 5m36s PASS, Frontend 52s PASS, E2E 1m13s PASS, Offline 1m23s PASS |
+| Merge SHA | `60fb174` (2026-10-31T18:50Z) |
+| CI main | 41231333646 — in progress |
+| Test results | 17 new BE tests (billing-contract-w07) + 10 new FE tests (billing-service-w07) = 27 total; 193 BE files / 2269 tests all PASS; 56 FE files / 553 tests all PASS; tsc clean; Vite build clean; independent review PASS |
+| Files changed | MODIFIED: `LMS-Frontend/src/services/employerService.ts`, `LMS-Frontend/src/services/sponsorService.ts`, `LMS-Server/src/routes/sponsor.ts`; NEW: `LMS-Frontend/src/__tests__/billing-service-w07.test.ts`, `LMS-Server/src/__tests__/billing-contract-w07.test.ts`; SPEC: `LMS-Server/docs/superpowers/specs/2026-10-31-W07-billing-dto-reconciliation.md` |
+
+### W07 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `d9337cf` | docs(W07): spec for billing DTO and permission-contract reconciliation |
+| `e123717` | fix(W07): reconcile billing DTO, client mapper, and error-code contract |
+| `60fb174` | Merge commit to main |

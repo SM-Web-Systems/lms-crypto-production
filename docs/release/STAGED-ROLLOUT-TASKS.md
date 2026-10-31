@@ -473,9 +473,13 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Acceptance**: A→B→A deferred blocked refund does not show stale message on revisit; same-visit blocked refund still shown correctly; old blocked response cannot clear new visit's spinner
 
 ### S3-T03: Implement W07 — billing DTO alignment
-- **Status**: TODO
+- **Status**: MERGED
 - **Dependencies**: S1-T04 spec reviewed
-- **Files**: `LMS-Server/src/routes/sponsor.ts` (billing routes)
+- **Owner**: W07 session (2026-10-31)
+- **Problem**: D1 employer getBilling no mapper (all fields undefined); D2 sponsor getBilling skips assertApiSuccess (silent success:false); D3/D4/D5 sponsor billing route errors missing error.code
+- **Fix**: Added EmployerBillingRaw + snake→camelCase mapper + assertApiSuccess (D1); sponsor assertApiSuccess + null→undefined for optional fields (D2); INVALID_DATE_RANGE/INVALID_SCOPE/INSUFFICIENT_PERMISSIONS codes (D3/D4/D5)
+- **Evidence**: PR #132 MERGED, main HEAD `60fb174`; CI 4/4 PASS; 27 tests (17 BE + 10 FE); PASS independent review
+- **Acceptance**: All billing DTOs map correctly; success:false propagates as ApiRequestError; all sponsor billing errors carry stable code
 
 ### S3-T04: Implement W08 — portal action scoping
 - **Status**: TODO
