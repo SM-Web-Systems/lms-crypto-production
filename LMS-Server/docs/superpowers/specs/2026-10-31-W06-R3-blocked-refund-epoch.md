@@ -1,7 +1,7 @@
 # W06-R3 — Guard the blocked-refund message by target visit
 
 Date: 2026-10-31
-Status: REVIEW_PASSED — candidate `a3241df`; PR pending merge
+Status: MERGED — `530315e` on main (2026-10-31)
 Spec ID: W06-R3
 Preceding: W06-R2 (`2026-10-31-W06-R2-create-ownership-guard.md`)
 
@@ -101,7 +101,7 @@ blocked-refund branch was the sole missed site.
 - [x] Apply one-line guard: add `&& targetEpochRef.current === myEpoch` to blocked-refund `setError` — `a3241df`
 - [x] Verify all 3 W06-R3 tests GREEN + all 38 prior component tests unaffected — 41/41 PASS; typecheck clean; build clean
 - [x] Independent review — APPROVED (no findings); epoch guard confirmed correct and complete; no other unguarded state calls found
-- [ ] Create PR; CI passes; merge — pending
+- [x] Create PR; CI passes; merge — PR #131, CI candidate `41225248711` 4/4 PASS, merged `530315e`, CI main `41225816125` 4/4 PASS
 
 ---
 
@@ -128,7 +128,7 @@ blocked-refund branch was the sole missed site.
 | FE-11 assertion | `expect(screen.getByText(/Refund blocked/)).toBeInTheDocument()` + button re-enabled |
 | FE-12 assertion | Cancel button still disabled after old refund resolves; no blocked message |
 | Independent review | APPROVED — no findings. Reproduction confirmed; fix complete and consistent; no other unguarded state calls; `finally` spinner path unaffected |
-| PR | pending |
-| CI candidate | pending |
-| Merge SHA | pending |
-| CI main | pending |
+| PR | #131 (`fix(W06-R3): blocked-refund epoch guard in performAction`) |
+| CI candidate | `41225248711` — Backend Tests PASS (5m24s), Frontend Tests & Build PASS (1m8s), E2E Tests PASS (1m25s), Offline Monitoring PASS (1m27s) |
+| Merge SHA | `530315e` (2026-10-31T17:42:19Z) |
+| CI main | `41225816125` — Backend Tests PASS (5m3s), Frontend Tests & Build PASS (56s), E2E Tests PASS (1m35s), Offline Monitoring PASS (1m3s) |
