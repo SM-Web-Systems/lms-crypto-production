@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RewardStatusBadge, formatStroops, formatStroopsShort } from '../../components/RewardStatusBadge';
 
 // Mock rewardService for RewardDashboard and StudentRewardsPanel
@@ -225,5 +226,82 @@ describe('StudentRewardsPanel', () => {
     await waitFor(() => {
       expect(screen.getByText(/No rewards received yet/)).toBeInTheDocument();
     });
+  });
+});
+
+describe('W05-R1 Frontend select/payload coverage', () => {
+  // W5R1-FE1: invalid options absent from create form select
+  it('W5R1-FE1: completion and achievement are not selectable options', async () => {
+    mockListRewards.mockResolvedValue([]);
+
+    render(<RewardDashboard role="sponsor" scopeId="cohort1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('New Reward')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('New Reward'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Type')).toBeInTheDocument();
+    });
+
+    const select = screen.getByLabelText('Type') as HTMLSelectElement;
+    const optionValues = Array.from(select.options).map((o) => o.value);
+    expect(optionValues).not.toContain('completion');
+    expect(optionValues).not.toContain('achievement');
+  });
+
+  // W5R1-FE2a: default select value is 'custom' and form submits it unchanged
+  it('W5R1-FE2a: default type is custom and createReward is called with rewardType "custom"', async () => {
+    mockListRewards.mockResolvedValue([]);
+    mockCreateReward.mockResolvedValue({ id: 'r-new', status: 'draft', reward_type: 'custom' });
+
+    render(<RewardDashboard role="sponsor" scopeId="cohort1" />);
+
+    await waitFor(() => expect(screen.getByText('New Reward')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText('Type')).toBeInTheDocument());
+
+    // Default value should be 'custom'
+    const select = screen.getByLabelText('Type') as HTMLSelectElement;
+    expect(select.value).toBe('custom');
+
+    // Fill amount and submit
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() => {
+      expect(mockCreateReward).toHaveBeenCalledOnce();
+    });
+
+    const [, params] = mockCreateReward.mock.calls[0] as [string, { rewardType: string }];
+    expect(params.rewardType).toBe('custom');
+  });
+
+  // W5R1-FE2b: selecting 'individual' submits exact string 'individual'
+  it('W5R1-FE2b: selecting individual submits exact canonical string', async () => {
+    mockListRewards.mockResolvedValue([]);
+    mockCreateReward.mockResolvedValue({ id: 'r-new2', status: 'draft', reward_type: 'individual' });
+
+    const user = userEvent.setup();
+    render(<RewardDashboard role="sponsor" scopeId="cohort1" />);
+
+    await waitFor(() => expect(screen.getByText('New Reward')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText('Type')).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText('Type'), 'individual');
+    expect((screen.getByLabelText('Type') as HTMLSelectElement).value).toBe('individual');
+
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() => {
+      expect(mockCreateReward).toHaveBeenCalledOnce();
+    });
+
+    const [, params] = mockCreateReward.mock.calls[0] as [string, { rewardType: string }];
+    expect(params.rewardType).toBe('individual');
   });
 });
