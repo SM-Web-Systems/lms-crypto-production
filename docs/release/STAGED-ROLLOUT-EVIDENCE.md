@@ -464,10 +464,10 @@ Index: [STAGED-ROLLOUT-INDEX.md](STAGED-ROLLOUT-INDEX.md)
 | --- | --- |
 | Finding ID | W08 |
 | Priority | P2 |
-| Current applicability | **Present on main** |
-| Code evidence | `TeacherDashboard.tsx`, `ParentDashboard.tsx`, `EmployerDashboard.tsx`, `SponsorDashboard.tsx` — dashboard components render action buttons/links for features that are not fully implemented (e.g., reward management, billing, reports for roles that don't have complete backend support). |
-| Existing fix PR | None |
-| Evidence status | Assessed; UI exposure confirmed |
+| Current applicability | **FIXED — PR #133, main HEAD `88212bd`** |
+| Code evidence | `TeacherDashboard.tsx`, `ParentDashboard.tsx`, `EmployerDashboard.tsx` — dashboard components render action buttons/links for features that are not fully implemented. Layout.tsx navigationMap included deferred paths. RewardDashboard Fund button always failed server-side. |
+| Fix PR | #133 MERGED |
+| Evidence status | Fixed: 6 deferred nav links removed; 6 deferred routes redirect; Fund button removed; New Class/Team buttons wired; parent rewards blank fixed. Deferred items documented as FOLLOW-UP entries. |
 
 ### W09: Failed loads look like empty data
 
@@ -1120,7 +1120,7 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W05 | #126 | `13c6b20` | 29 | FIXED |
 | W06 | — | — | — | TODO |
 | W07 | — | — | — | TODO |
-| W08 | — | — | — | TODO |
+| W08 | #133 | `88212bd` | 21 | FIXED |
 | W09 | — | — | — | TODO |
 
 ## S3/W05-R1 merge receipt
@@ -1254,7 +1254,7 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | W06-R2 | #130 | `01117903` | 9 | FIXED |
 | W06-R3 | #131 | `530315e` | 3 | FIXED |
 | W07 | #132 | `60fb174` | 27 | FIXED |
-| W08 | — | — | — | TODO |
+| W08 | #133 | `88212bd` | 21 | FIXED |
 | W09 | — | — | — | TODO |
 
 ### S3/W07 merge receipt
@@ -1278,3 +1278,37 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `d9337cf` | docs(W07): spec for billing DTO and permission-contract reconciliation |
 | `e123717` | fix(W07): reconcile billing DTO, client mapper, and error-code contract |
 | `60fb174` | Merge commit to main |
+
+### S3/W08 merge receipt
+
+| Field | Value |
+| --- | --- |
+| PR | #133 (`fix(W08): scope portal actions to implemented, authorized workflows`) |
+| Spec commit | `d2b2df9` docs(W08): spec for portal action scoping and availability contract |
+| RED commit | `fadc340` test(W08): RED baseline for portal action scoping |
+| Fix commit | `e4a31f7` fix(W08): scope portal actions to implemented, authorized workflows |
+| CI candidate | 41234200028 — Backend PASS, Frontend 1m6s PASS, E2E 1m28s PASS, Offline 1m9s PASS (4/4) |
+| Merge SHA | `88212bd` (2026-10-31) |
+| CI main | 41234738552 — 4/4 PASS |
+| Test results | 21 new FE tests (portal-action-scoping-w08); 574/574 FE tests pass (57 files); tsc clean; Vite build clean; independent review APPROVED |
+| Files changed | MODIFIED: `LMS-Frontend/src/App.tsx`, `LMS-Frontend/src/components/Layout.tsx`, `LMS-Frontend/src/components/RewardDashboard.tsx`, `LMS-Frontend/src/pages/TeacherDashboard.tsx`, `LMS-Frontend/src/pages/EmployerDashboard.tsx`, `LMS-Frontend/src/pages/ParentDashboard.tsx`, `LMS-Frontend/src/__tests__/pages/phase-g-frontend.test.tsx`; NEW: `LMS-Frontend/src/__tests__/portal-action-scoping-w08.test.tsx`, `LMS-Server/docs/superpowers/specs/2026-10-31-W08-portal-action-scoping.md` |
+
+### Deferred (FOLLOW-UP entries from W08)
+
+| FOLLOW-UP tag | Description |
+| --- | --- |
+| FOLLOW-UP(employer-billing-ui) | Employer billing page UI — backend GET /employer/billing exists (W07 DTO fixed); route redirects to /employer |
+| FOLLOW-UP(parent-wallet-group-billing-ui) | Parent wallets, groups, billing pages — no backend wallet/group-billing routes yet |
+| FOLLOW-UP(teacher-analytics-billing-ui) | Teacher analytics and billing pages — backend routes exist; frontend pages deferred |
+| FOLLOW-UP(reward-funding-workflow) | Reward Fund action — platform_credit always fails; portal roles lack reward.manage; full funding workflow deferred |
+| FOLLOW-UP(per-child-rewards-ui) | Per-child rewards panel in ParentDashboard — family group rewards shown; individual child rewards UI deferred |
+| FOLLOW-UP(course-grade-form-inputs) | course_completion/grade reward types in creation form — eligibility config required |
+
+### W08 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `d2b2df9` | docs(W08): spec for portal action scoping and availability contract |
+| `fadc340` | test(W08): RED baseline for portal action scoping |
+| `e4a31f7` | fix(W08): scope portal actions to implemented, authorized workflows |
+| `88212bd` | Merge commit to main |
