@@ -1,6 +1,7 @@
 /**
- * ParentDashboard — Phase G: Parent dashboard with children, wallets, groups, billing.
+ * ParentDashboard — Phase G: Parent dashboard with children and rewards.
  * Uses URL path to determine which section to display.
+ * Wallets, Groups, Billing routes redirect to /parent (deferred — FOLLOW-UP(parent-wallet-group-billing-ui)).
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -15,8 +16,6 @@ import {
   RefreshCw,
   AlertCircle,
   LayoutDashboard,
-  Wallet,
-  CreditCard,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -32,13 +31,7 @@ const ParentDashboard: React.FC = () => {
     ? 'rewards'
     : location.pathname.includes('/children')
       ? 'children'
-      : location.pathname.includes('/wallets')
-        ? 'wallets'
-        : location.pathname.includes('/groups')
-          ? 'groups'
-          : location.pathname.includes('/billing')
-            ? 'billing'
-            : 'dashboard';
+      : 'dashboard';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,17 +120,7 @@ const ParentDashboard: React.FC = () => {
             </div>
           )}
 
-          {section === 'wallets' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-accent-teal" aria-hidden />
-                Wallets
-              </h2>
-              <p className="text-neutral-500 text-sm py-8 text-center">Wallet information will appear here.</p>
-            </div>
-          )}
-
-          {section === 'rewards' && groups.length > 0 && (
+          {section === 'rewards' && (
             <div className="space-y-6">
               {groups.length > 0 ? (
                 groups.map((g) => (
@@ -146,23 +129,6 @@ const ParentDashboard: React.FC = () => {
               ) : (
                 <p className="text-neutral-500 text-sm py-8 text-center">Create a family group first to manage rewards.</p>
               )}
-            </div>
-          )}
-
-          {section === 'groups' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-neutral-900">Groups</h2>
-              <p className="text-neutral-500 text-sm py-8 text-center">Group management will appear here.</p>
-            </div>
-          )}
-
-          {section === 'billing' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-accent-teal" aria-hidden />
-                Billing
-              </h2>
-              <p className="text-neutral-500 text-sm py-8 text-center">Billing data will appear here.</p>
             </div>
           )}
         </>

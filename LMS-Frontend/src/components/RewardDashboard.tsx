@@ -27,7 +27,6 @@ import {
   Loader2,
   Plus,
   X,
-  DollarSign,
   Play,
   XCircle,
   Check,
@@ -52,10 +51,11 @@ interface RewardDashboardProps {
 
 type ViewState = 'loading' | 'error' | 'empty' | 'data';
 
-// Actions available per reward state
+// Actions available per reward state.
+// draft/pending_funding omitted: platform_credit is the only funded source and is
+// unconditionally rejected server-side (INSUFFICIENT_CREDIT). Portal roles also lack
+// reward.manage → SCOPE_DENIED before reaching funding. Deferred: FOLLOW-UP(reward-funding-workflow)
 const ACTIONS: Record<string, Array<{ key: string; label: string; icon: typeof Play }>> = {
-  draft:                     [{ key: 'fund', label: 'Fund', icon: DollarSign }],
-  pending_funding:           [{ key: 'fund', label: 'Fund', icon: DollarSign }],
   funded:                    [{ key: 'activate', label: 'Activate', icon: Play }, { key: 'cancel', label: 'Cancel', icon: XCircle }],
   active:                    [{ key: 'cancel', label: 'Cancel', icon: XCircle }],
   eligible_pending_approval: [{ key: 'approve', label: 'Approve', icon: Check }],

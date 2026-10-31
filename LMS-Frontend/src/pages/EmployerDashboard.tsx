@@ -1,6 +1,7 @@
 /**
  * EmployerDashboard — Phase G: Employer dashboard with team management.
- * Reads URL path to show the appropriate section (dashboard/teams/billing).
+ * Reads URL path to show the appropriate section (dashboard/teams/rewards).
+ * Billing route redirects to /employer (deferred — FOLLOW-UP(employer-billing-ui)).
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -16,7 +17,6 @@ import {
   AlertCircle,
   LayoutDashboard,
   Plus,
-  CreditCard,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -27,15 +27,16 @@ const EmployerDashboard: React.FC = () => {
   const [teams, setTeams] = useState<EmployerTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Determine active section from URL
   const section = location.pathname.includes('/rewards')
     ? 'rewards'
     : location.pathname.includes('/teams')
       ? 'teams'
-      : location.pathname.includes('/billing')
-        ? 'billing'
-        : 'dashboard';
+      : 'dashboard';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +58,21 @@ const EmployerDashboard: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleCreateTeam = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newTeamName.trim();
+    if (!name) return;
+    setCreateError(null);
+    try {
+      await employerService.createTeam(name);
+      setCreating(false);
+      setNewTeamName('');
+      load();
+    } catch (err) {
+      setCreateError(getErrorMessage(err, 'Failed to create team'));
+    }
+  }, [newTeamName, load]);
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
 
@@ -121,11 +137,34 @@ const EmployerDashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-neutral-900">Your Teams</h2>
-                <Button variant="primary" size="sm" type="button">
-                  <Plus className="h-4 w-4 mr-1" aria-hidden />
-                  New Team
-                </Button>
+                {!creating && (
+                  <Button variant="primary" size="sm" type="button" onClick={() => { setCreating(true); setCreateError(null); }}>
+                    <Plus className="h-4 w-4 mr-1" aria-hidden />
+                    New Team
+                  </Button>
+                )}
               </div>
+
+              {creating && (
+                <form onSubmit={handleCreateTeam} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    className="border border-neutral-300 rounded px-3 py-1.5 text-sm flex-1"
+                    placeholder="Team name"
+                    value={newTeamName}
+                    onChange={(e) => setNewTeamName(e.target.value)}
+                    autoFocus
+                  />
+                  <Button variant="primary" size="sm" type="submit" disabled={!newTeamName.trim()}>
+                    Create
+                  </Button>
+                  <Button variant="outline" size="sm" type="button" onClick={() => { setCreating(false); setNewTeamName(''); setCreateError(null); }}>
+                    Cancel
+                  </Button>
+                  {createError && <p className="text-xs text-red-600">{createError}</p>}
+                </form>
+              )}
+
               {teams.length === 0 ? (
                 <p className="text-neutral-500 text-sm py-8 text-center">No teams created yet.</p>
               ) : (
@@ -159,17 +198,6 @@ const EmployerDashboard: React.FC = () => {
               ) : (
                 <p className="text-neutral-500 text-sm py-8 text-center">Create a team first to manage rewards.</p>
               )}
-            </div>
-          )}
-
-          {/* Billing section */}
-          {section === 'billing' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-accent-teal" aria-hidden />
-                Billing
-              </h2>
-              <p className="text-neutral-500 text-sm py-8 text-center">Billing data will appear here.</p>
             </div>
           )}
 
