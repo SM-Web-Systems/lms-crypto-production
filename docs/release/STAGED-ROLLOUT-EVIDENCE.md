@@ -1477,3 +1477,65 @@ Two gaps identified after W09-R1:
 | `6348b6f` | fix(W09-R3): student error states and independently settling parent requests |
 | `8984559` | fix(W09-R3): make progress_error button exclusion explicit per review |
 | `662b013` | Merge commit to main |
+
+---
+
+## W09-R4 — Truthful student progress and application status
+
+### W09-R4 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Finding | W09-R4 (deferred finding 1d from W09-R3 + related checklist defect 1e) |
+| Priority | P2 |
+| PR | #140 (`fix(W09-R4): truthful student progress and application status`) |
+| Spec commit | `27c27e3` docs(W09-R4): spec — truthful progress and application status |
+| RED test commit | `061ff5e` test(W09-R4): RED tests for checklist three-state and app fetch failure |
+| Fix commit | `c00671d` fix(W09-R4): three-state checklist and application fetch failure |
+| TSC fix commit | `64b934e` fix(W09-R4): remove unused act import from test file |
+| Review resolution commit | `c912c62` fix(W09-R4): MINOR-1 scoped app retry effect; MINOR-3/4 comment/guard |
+| Merge commit | `d08286a` (to main, 2026-11-01) |
+| Base SHA | `662b013` (W09-R3) |
+| Main HEAD after merge | `d08286a` |
+| CI | Frontend PASS, Backend PASS, Offline PASS (run 41310556554); E2E PASS (post-merge) |
+| Test results | 665/665 frontend PASS; 26 new W09-R4 tests (loading-states-w09r4.test.tsx); 0 regressions |
+| Independent review | APPROVED_WITH_NOTES; MINOR-1 (app retry scoping), MINOR-3 (comment clarity), MINOR-4 (unreachable else) all resolved pre-merge |
+| Files changed | MODIFIED: `LMS-Frontend/src/pages/StudentDashboard.tsx`, `LMS-Frontend/src/components/dashboard/CertEligibilitySection.tsx`; NEW: `LMS-Frontend/src/__tests__/loading-states-w09r4.test.tsx`, `docs/release/W09-R4-spec.md` |
+
+### W09-R4 defects fixed
+
+**Checklist three-state `hasCompletedLesson` (finding 1e)**: `progressMap` alone was used to derive lesson completion. When all per-course progress requests failed, `progressMap` was empty; `.some()` returned `false`, rendering the "Complete your first lesson" step as confirmed-incomplete (empty circle) instead of unknown (minus icon). Fixed: if `progressErrorIds.size > 0` and no confirmed positive, derive `null` (unknown).
+
+**Per-course application fetch failure (deferred finding 1d)**: `getCourseApplications` rejection was silently caught as `[]` → stored as `null` in `appStatusMap`. Unknown application status was indistinguishable from confirmed "no application", potentially showing "Request certificate" for a student who had already applied. Fixed via `appErrorIds: Set<string>` state — failures are tracked separately; no entry is written to `appStatusMap` for failed courses. `CertEligibilitySection` renders an accessible amber alert with retry; the "Request certificate" button and `handleApplyCertificate` are suppressed when `appFailed`.
+
+**Three-state `hasApplied` (same pattern)**: `hasApplied` checklist derivation follows the same three-state logic as `hasCompletedLesson`, using `appErrorIds` instead of `progressErrorIds`.
+
+**App retry scoping (MINOR-1)**: The app retry effect is scoped to `[user, courses, appRetryCount]` and only re-fetches applications. It merges results into existing `appStatusMap` with `setAppStatusMap((prev) => ({...prev, ...newApps}))` to preserve statuses committed via `handleAppStatusChange` (apply successes, 409 recoveries).
+
+### W09-R4 requirement coverage
+
+| Requirement group | IDs | Status |
+| --- | --- | --- |
+| R1 — Three-state `hasCompletedLesson` | R1-1 through R1-7 | All GREEN |
+| R2 — Three-state `hasApplied` | R2-1 through R2-7 | All GREEN |
+| R3 — App fetch failure display | R3-1 through R3-8 | All GREEN |
+| R4 — Progress retry | R4-1 | GREEN |
+| R5 — 409 and known app status preservation | R5-1, R5-2 | GREEN |
+| R6 — Late/out-of-order results | R6-1, R6-2 | GREEN |
+| R7 — W06–W09-R3 regression preservation | R7-1 through R7-4 | GREEN |
+
+### FOLLOW-UP closure
+
+- `FOLLOW-UP(student-app-error-display)`: **CLOSED** — W09-R4 PR #140 implements per-course application fetch failure tracking and display. The deferred cosmetic window (false display before 409 self-correction on action click) is eliminated by the upfront `appFailed` guard; no residual application-status correctness gap remains.
+- `FOLLOW-UP(student-dashboard-error-states)`: **CLOSED** — originally deferred at W09-R1; fully addressed across W09-R3 (quiz/course/progress error states) and W09-R4 (application error state).
+
+### W09-R4 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `27c27e3` | docs(W09-R4): spec — truthful progress and application status |
+| `061ff5e` | test(W09-R4): RED tests for checklist three-state and app fetch failure |
+| `c00671d` | fix(W09-R4): three-state checklist and application fetch failure |
+| `64b934e` | fix(W09-R4): remove unused act import from test file |
+| `c912c62` | fix(W09-R4): MINOR-1 scoped app retry effect; MINOR-3/4 comment/guard |
+| `d08286a` | Merge commit to main |

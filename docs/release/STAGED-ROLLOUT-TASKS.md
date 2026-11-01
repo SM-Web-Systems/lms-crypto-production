@@ -487,9 +487,10 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Files**: `LMS-Frontend/src/pages/TeacherDashboard.tsx`, `ParentDashboard.tsx`, `EmployerDashboard.tsx`, `SponsorDashboard.tsx`
 
 ### S3-T05: Implement W09 — truthful error/loading states
-- **Status**: TODO
+- **Status**: MERGED
 - **Dependencies**: S1-T04 spec reviewed
 - **Files**: Frontend dashboard/list components
+- **Completion**: W09 FIXED via PR #136–#140 (main HEAD `d08286a`). W09-R4 (PR #140) resolved deferred FOLLOW-UP(student-app-error-display): three-state `hasCompletedLesson`/`hasApplied` checklist derivation, per-course `appErrorIds` tracking, inline app fetch error display with retry, `handleApplyCertificate` guard. 26 new tests; 665/665 total FE tests pass; independent review APPROVED_WITH_NOTES (all findings resolved); CI 4/4 PASS.
 
 ---
 
