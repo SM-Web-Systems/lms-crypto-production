@@ -490,7 +490,7 @@ Status key: `TODO` `IN_PROGRESS` `BLOCKED` `IN_REVIEW` `DONE` | Post-merge: `MER
 - **Status**: MERGED
 - **Dependencies**: S1-T04 spec reviewed
 - **Files**: Frontend dashboard/list components
-- **Completion**: W09 FIXED via PR #136–#141 (main HEAD `8841fcb`). W09-R4 (PR #140) resolved FOLLOW-UP(student-app-error-display). W09-R5 (PR #141) resolved retry-window bug: `appLoadingIds` state prevents `setAppErrorIds(new Set())` eager clear; scoped retry (only failed courses); scoped `setAppErrorIds` merge; mutation preservation; 19 new tests; 684/684 total FE tests pass; independent review APPROVED; CI 4/4 PASS.
+- **Completion**: W09 FIXED via PR #136–#141 (main HEAD `8841fcb`). W09-R4 (PR #140) resolved FOLLOW-UP(student-app-error-display). W09-R5 (PR #141) resolved retry-window bug: `appLoadingIds` state prevents `setAppErrorIds(new Set())` eager clear; scoped retry (only failed courses); scoped `setAppErrorIds` merge; mutation preservation; 19 new tests; 684/684 total FE tests pass; independent review APPROVED; CI 4/4 PASS. **W09-R6** (PR #142): investigated documented residual limitation (courses-effect full-replace vs. app retry/mutation concurrency) — no user-facing defect demonstrated through product controls; `coursesLoading` skeleton guard prevents cert-button access during any courses-effect run; 10 regression tests committed; 694/694 FE tests pass; CI pending.
 
 ---
 

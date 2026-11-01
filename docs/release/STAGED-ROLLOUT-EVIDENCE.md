@@ -1595,3 +1595,54 @@ Concurrent courses-effect re-fetch (`coursesRetryCount++`) does a full replace o
 | `9e830bb` | fix(W09-R5): appLoadingIds state prevents retry window from showing cert button |
 | `0b8a2fb` | fix(W09-R5): clarify cleanup comment per independent review (LOW) |
 | `8841fcb` | Merge commit to main |
+
+## W09-R6 — Concurrent application and course refresh ownership investigation
+
+### W09-R6 investigation receipt
+
+| Field | Value |
+| --- | --- |
+| Finding | W09-R6 (investigation of documented W09-R5 residual limitation) |
+| Priority | P2 |
+| PR | #142 (`investigate(W09-R6): concurrent app/course refresh ownership — no defect via product controls`) |
+| Spec commit | `a83f31b` docs(W09-R6): spec — concurrent app/course refresh ownership investigation |
+| Test commit | `3731eca` test(W09-R6): regression tests — concurrent app/course refresh ownership |
+| Base SHA | `8841fcb` (W09-R5 merge) |
+| CI | Pending (PR #142) |
+| Test results | 694/694 frontend PASS (10 new W09-R6 tests; 684 pre-existing); TypeScript clean; 0 regressions |
+| Files changed | NEW: `LMS-Frontend/src/__tests__/loading-states-w09r6.test.tsx`, `docs/release/W09-R6-spec.md` |
+
+### W09-R6 finding
+
+**No user-facing defect demonstrated through explicit product controls.**
+
+The W09-R5 spec noted that a concurrent courses-effect re-fetch does a full replace of `appStatusMap`, which could theoretically overwrite a pending application committed by an app retry merge or `handleAppStatusChange`. Three interleavings investigated:
+
+1. **Full course refresh + app retry overlap**: The retry-button conditions (`coursesError !== null` for course retry; `appErrorIds` non-empty for app retry) are mutually exclusive in the product UI — users cannot trigger both simultaneously through reachable controls.
+
+2. **Apply before courses-effect fetch returns (stale overwrite)**: `setCoursesLoading(true)` is set synchronously at the start of every courses-effect run. `CertEligibilitySection` shows a skeleton, hiding the cert button. The button only re-appears after the courses effect fully settles and `appStatusMap` is already committed. No user interaction is possible during the courses-effect run.
+
+3. **One course stalls, user switches/unmounts**: W09-R5 cleanup guards (`cancelled = true`, `setAppLoadingIds(new Set())`) prevent stale commits. Per-course independent retry (W09-R5) preserves independent course sections.
+
+**Residual untested path**: An auth token refresh (non-UI-controlled `user` reference change) could re-trigger the courses effect while an app retry is in-flight. However, `user` is a dependency of the app retry effect, so its change triggers the app retry cleanup (`cancelled = true`) before the retry's `.then()` can commit. The narrow window where the merge could commit before cleanup is not triggerable through product controls.
+
+### W09-R6 test coverage
+
+| Test group | IDs | Verified |
+| --- | --- | --- |
+| C1 — coursesLoading skeleton prevents cert-button access | C1-1, C1-2 | GREEN |
+| C2 — App retry / handleAppStatusChange commit after courses effect | C2-1, C2-2 | GREEN |
+| C4 — Identity change cancels in-flight retry | C4-1 | GREEN |
+| C5 — Multi-course independent status preserved | C5-1, C5-2 | GREEN |
+| C6 — Courses-effect full replace is authoritative | C6-1, C6-2, C6-3 | GREEN |
+
+### W09-R6 conclusion
+
+W09/S3 qualification is preserved. No code change was made. Regression tests are committed to record the tested schedules and prevent future refactors from silently removing the `coursesLoading` skeleton guard or cleanup semantics that protect against the theoretical race.
+
+### W09-R6 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `a83f31b` | docs(W09-R6): spec — concurrent app/course refresh ownership investigation |
+| `3731eca` | test(W09-R6): regression tests — concurrent app/course refresh ownership |
