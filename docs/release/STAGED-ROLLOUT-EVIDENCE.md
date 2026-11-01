@@ -1432,3 +1432,48 @@ Two gaps identified after W09-R1:
 | `3ab886e` | docs(W09-R2): specify parent state ownership |
 | `29fd9e3` | fix(W09-R2): isolate parent dashboard state by user |
 | `bee4989` | Merge commit to main |
+
+---
+
+## W09-R3 — Student error states and independently settling parent requests
+
+### W09-R3 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Finding | W09-R3 |
+| Priority | P2 |
+| PR | #139 (`fix(W09-R3): student error states and independently settling parent requests`) |
+| Spec commit | `5c449d8` docs(W09-R3): spec — student error states, parent independent settling, deferred app display |
+| Fix commits | `6348b6f` fix(W09-R3): student error states and independently settling parent requests; `8984559` fix(W09-R3): make progress_error button exclusion explicit per review |
+| Merge commit | `662b013` (to main, 2026-11-01) |
+| Base SHA | `bee4989` (W09-R2) |
+| Main HEAD after merge | `662b013` |
+| CI | Frontend PASS, Backend PASS, E2E PASS, Offline PASS (run 41284277756) |
+| Test results | 639/639 frontend PASS; 12 new W09-R3 tests; 1 W09 test updated (W9-PARENT-5 assertion corrected for independent settling); 0 regressions |
+| Independent review | Conducted; LOW finding (implicit progress_error button guard) resolved pre-merge |
+| Files changed | MODIFIED: `LMS-Frontend/src/pages/ParentDashboard.tsx`, `LMS-Frontend/src/pages/StudentDashboard.tsx`, `LMS-Frontend/src/components/dashboard/EngagementStats.tsx`, `LMS-Frontend/src/components/dashboard/OnboardingChecklist.tsx`, `LMS-Frontend/src/components/dashboard/CertEligibilitySection.tsx`, `LMS-Frontend/src/__tests__/loading-states-w09.test.tsx`; NEW: `LMS-Frontend/src/__tests__/loading-states-w09r3.test.tsx`, `docs/release/W09-R3-spec.md` |
+
+### W09-R3 defects fixed
+
+**StudentDashboard silent suppressions**:
+- `getCompletionsForUser` failure → `quizCompletionsError`; `EngagementStats` shows error indicator instead of false "0 quizzes passed"; checklist quiz step rendered as unknown (`null` → dash icon)
+- `fetchCourses` failure → `coursesError`; `CertEligibilitySection` shows accessible error + retry; checklist course-dependent steps (`enrolled`, `hasCompletedLesson`, `hasApplied`) rendered as unknown
+- `getCourseProgress` failure → `progressErrorIds`; `CertEligibilitySection` shows "Eligibility unavailable" badge instead of false "not_eligible" claim; apply button explicitly excluded when `displayState === 'progress_error'`
+
+**ParentDashboard independent settling**: `Promise.allSettled` batch replaced with independent `.then`/`.catch` per section; each section renders as soon as its own request settles; `reqIdRef` guard preserved for both sections independently.
+
+**W9-PARENT-5 test updated**: with independent settling, `/parent/rewards` shows groups error (not dashboard error) when both fail — assertion corrected to match actual section-scoped behavior.
+
+### Deferred (FOLLOW-UP entries from W09-R3)
+
+- `FOLLOW-UP(student-app-error-display)`: `getCourseApplications` failure → `null` in `appStatusMap` → false "no application" display; 409 recovery path mitigates worst case but initial display remains incorrect
+
+### W09-R3 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `5c449d8` | docs(W09-R3): spec |
+| `6348b6f` | fix(W09-R3): student error states and independently settling parent requests |
+| `8984559` | fix(W09-R3): make progress_error button exclusion explicit per review |
+| `662b013` | Merge commit to main |
