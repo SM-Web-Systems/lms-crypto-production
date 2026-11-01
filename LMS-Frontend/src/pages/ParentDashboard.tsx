@@ -26,6 +26,7 @@ const ParentDashboard: React.FC = () => {
   const [groups, setGroups] = useState<ParentGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
 
   const section = location.pathname.includes('/rewards')
     ? 'rewards'
@@ -36,18 +37,23 @@ const ParentDashboard: React.FC = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const [data, grps] = await Promise.all([
-        parentService.getDashboard(),
-        parentService.getGroups().catch(() => [] as ParentGroup[]),
-      ]);
-      setDashboard(data);
-      setGroups(grps);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not load parent data.'));
-    } finally {
-      setLoading(false);
+    setGroupsError(null);
+    const [dashboardResult, groupsResult] = await Promise.allSettled([
+      parentService.getDashboard(),
+      parentService.getGroups(),
+    ]);
+    if (dashboardResult.status === 'rejected') {
+      setError(getErrorMessage(dashboardResult.reason, 'Could not load parent data.'));
+    } else {
+      setDashboard(dashboardResult.value);
     }
+    if (groupsResult.status === 'rejected') {
+      setGroupsError(getErrorMessage(groupsResult.reason, 'Could not load family groups.'));
+      setGroups([]);
+    } else {
+      setGroups(groupsResult.value);
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -122,7 +128,17 @@ const ParentDashboard: React.FC = () => {
 
           {section === 'rewards' && (
             <div className="space-y-6">
-              {groups.length > 0 ? (
+              {groupsError ? (
+                <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900" role="alert">
+                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
+                  <div className="flex-1">
+                    <p className="text-sm">{groupsError}</p>
+                    <Button variant="outline" size="sm" type="button" className="mt-2" onClick={load}>
+                      Try again
+                    </Button>
+                  </div>
+                </div>
+              ) : groups.length > 0 ? (
                 groups.map((g) => (
                   <RewardDashboard key={g.id} role="parent" scopeId={g.id} scopeLabel={g.name} targetType="family" />
                 ))
