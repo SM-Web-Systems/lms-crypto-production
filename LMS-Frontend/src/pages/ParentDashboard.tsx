@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
-const ParentDashboard: React.FC = () => {
+const ParentDashboardContent: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const [dashboard, setDashboard] = useState<ParentDashboardData | null>(null);
@@ -51,6 +51,7 @@ const ParentDashboard: React.FC = () => {
     // Guard: discard entire batch if a newer request has started since this one was initiated.
     if (reqIdRef.current !== myReqId) return;
     if (dashboardResult.status === 'rejected') {
+      setDashboard(null);
       setError(getErrorMessage(dashboardResult.reason, 'Could not load parent data.'));
     } else {
       setDashboard(dashboardResult.value);
@@ -166,6 +167,13 @@ const ParentDashboard: React.FC = () => {
       )}
     </div>
   );
+};
+
+// A new identity must never inherit another parent's data or outstanding requests.
+// The key resets all view state synchronously and cleanup invalidates old requests.
+const ParentDashboard: React.FC = () => {
+  const { user } = useAuth();
+  return user?.id ? <ParentDashboardContent key={user.id} /> : null;
 };
 
 export default ParentDashboard;
