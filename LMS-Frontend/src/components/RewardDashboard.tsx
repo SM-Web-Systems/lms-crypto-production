@@ -238,6 +238,15 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   // capability changes propagate immediately without stale closures.
   const canCreate = hasCapability(user, 'reward.create');
 
+  // W08-R2: keep a ref to the current user so performAction always reads the
+  // latest auth state at invocation time without adding user to useCallback deps.
+  // Adding user directly to deps would recreate performAction on every background
+  // token refresh (every 60 s + tab-focus), even when permissions are unchanged.
+  // The ref is updated synchronously every render, so by the time any click handler
+  // fires, userRef.current holds the user from the most recent render.
+  const userRef = useRef(user);
+  userRef.current = user;
+
   // W06-R1: monotonic request counter — incremented at the start of every load() call.
   // Each invocation captures its generation; state is only committed when
   // reqIdRef.current still matches, guarding against stale responses from prior targets
@@ -323,10 +332,15 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   }, [expanded, role]);
 
   const performAction = useCallback(async (action: string, rewardId: string, allocId?: string) => {
-    // W08-R1: submission guard — verify capability at invocation time in case it was
-    // revoked after the button was rendered but before the user clicked.
+    // W08-R1/R2: submission guard — verify capability at invocation time.
+    // userRef.current is always the user from the latest render (updated every render
+    // via `userRef.current = user`), so this guard reflects current permissions even
+    // though user is not in the dep array.  Excluding user from deps avoids recreating
+    // performAction on every background token refresh (N1 finding, independent review).
+    // Explicit !requiredCap guard makes unknown-action fail-closed behaviour clear (N2).
+    const currentUser = userRef.current;
     const requiredCap = ACTION_CAPABILITY[action] ?? '';
-    if (!hasCapability(user, requiredCap)) return;
+    if (!requiredCap || !hasCapability(currentUser, requiredCap)) return;
 
     const key = `${action}-${rewardId}-${allocId ?? ''}`;
     setActionLoading(key);
