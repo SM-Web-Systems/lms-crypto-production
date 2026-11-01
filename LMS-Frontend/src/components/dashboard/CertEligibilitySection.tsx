@@ -54,6 +54,10 @@ interface CertEligibilitySectionProps {
   // W09-R3: course IDs for which getCourseProgress failed; prevents false "not_eligible" claim.
   progressErrorIds?: Set<string>;
   appStatusMap: Record<string, NftApplication | null>;
+  // W09-R4: course IDs for which getCourseApplications failed; prevents unknown status from
+  // being treated as "no application" and suppresses "Request certificate" action.
+  appErrorIds?: Set<string>;
+  onRetryLoadApplications?: () => void;
   onAppStatusChange: (courseId: string, app: NftApplication) => void;
 }
 
@@ -66,12 +70,17 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
   progressMap,
   progressErrorIds,
   appStatusMap,
+  appErrorIds,
+  onRetryLoadApplications,
   onAppStatusChange,
 }) => {
   const [certState, setCertState] = useState<Record<string, 'idle' | 'loading' | 'applied' | 'error'>>({});
   const [certErrors, setCertErrors] = useState<Record<string, string>>({});
 
   const handleApplyCertificate = async (courseId: string) => {
+    // W09-R4: enforce action gate — do not apply when application status is unknown.
+    // appErrorIds.has(courseId) means the fetch failed; we cannot confirm no application exists.
+    if (appErrorIds?.has(courseId)) return;
     setCertState((s) => ({ ...s, [courseId]: 'loading' }));
     setCertErrors((e) => ({ ...e, [courseId]: '' }));
     try {
@@ -156,6 +165,8 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
           // W09-R3: if progress data failed to load, do not claim not_eligible.
           // Known app status (pending/approved/etc.) is still reliable even if progress failed.
           const progressFailed = progressErrorIds?.has(course.id) ?? false;
+          // W09-R4: application fetch failed — status is unknown; cannot confirm "no application".
+          const appFailed = appErrorIds?.has(course.id) ?? false;
           const displayState =
             state === 'loading' ? 'loading'
             : appStatus?.status === 'minted' ? 'minted'
@@ -323,10 +334,36 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                       {certErr}
                     </p>
                   )}
+                  {/* W09-R4: application fetch failed — show accessible error + retry.
+                      We do not know whether an application already exists; do not show apply action. */}
+                  {appFailed && (
+                    <div
+                      className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+                      role="alert"
+                    >
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-amber-800">
+                          Application status unavailable — could not check whether you have applied.
+                        </p>
+                        {onRetryLoadApplications && (
+                          <button
+                            type="button"
+                            onClick={onRetryLoadApplications}
+                            className="mt-1 text-xs font-medium underline hover:no-underline text-amber-800"
+                          >
+                            Try again
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="shrink-0">
-                  {/* W09-R3: exclude progress_error explicitly — eligibility is unknown, never show apply button */}
-                  {displayState !== 'progress_error' && (displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
+                  {/* W09-R3: exclude progress_error — eligibility unknown, never show apply button.
+                      W09-R4: also exclude appFailed — application status unknown,
+                      cannot confirm no existing application. */}
+                  {!appFailed && displayState !== 'progress_error' && (displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
                     <Button
                       size="sm"
                       type="button"

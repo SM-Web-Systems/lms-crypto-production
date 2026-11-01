@@ -50,6 +50,11 @@ const StudentDashboard: React.FC = () => {
   // W09-R3: track per-course progress load failures so CertEligibilitySection
   // doesn't falsely claim 'not_eligible' when progress data is unknown.
   const [progressErrorIds, setProgressErrorIds] = useState<Set<string>>(new Set());
+  // W09-R4: track per-course application fetch failures separately from a confirmed empty result.
+  // Prevents unknown status from being treated as "no application".
+  const [appErrorIds, setAppErrorIds] = useState<Set<string>>(new Set());
+  const [appRetryCount, setAppRetryCount] = useState(0);
+  const retryLoadApplications = useCallback(() => setAppRetryCount((c) => c + 1), []);
 
   useEffect(() => {
     fetchSubmissions({view: 'own'});
@@ -96,26 +101,39 @@ const StudentDashboard: React.FC = () => {
               (p) => ({ ok: true as const, value: p }),
               () => ({ ok: false as const, value: null }),
             ),
-            courseCompletionService.getCourseApplications(c.id, 'own').catch(() => [] as NftApplication[]),
+            // W09-R4: track application fetch failures separately from a confirmed empty result.
+            // A caught failure must not silently masquerade as "no application".
+            courseCompletionService.getCourseApplications(c.id, 'own').then(
+              (apps) => ({ ok: true as const, value: apps }),
+              () => ({ ok: false as const, value: null }),
+            ),
           ]);
-          return { id: c.id, prog, app: apps.length > 0 ? apps[0] : null };
+          return { id: c.id, prog, apps };
         })
       );
       if (!cancelled) {
         const newProg: Record<string, CourseProgress> = {};
         const newApps: Record<string, NftApplication | null> = {};
         const newErrorIds = new Set<string>();
-        for (const { id, prog, app } of results) {
+        const newAppErrorIds = new Set<string>();
+        for (const { id, prog, apps } of results) {
           if (prog.ok && prog.value) {
             newProg[id] = prog.value;
           } else if (!prog.ok) {
             newErrorIds.add(id);
           }
-          newApps[id] = app;
+          if (apps.ok) {
+            newApps[id] = apps.value.length > 0 ? apps.value[0] : null;
+          } else {
+            // W09-R4: don't store a null entry — leave appStatusMap without this key
+            // so appErrorIds.has(id) is the authoritative "status unknown" signal.
+            newAppErrorIds.add(id);
+          }
         }
         setProgressMap(newProg);
         setAppStatusMap(newApps);
         setProgressErrorIds(newErrorIds);
+        setAppErrorIds(newAppErrorIds);
       }
     }).catch((err) => {
       // W09-R3: surface course load failure instead of silently swallowing it.
@@ -124,7 +142,8 @@ const StudentDashboard: React.FC = () => {
       if (!cancelled) setCoursesLoading(false);
     });
     return () => { cancelled = true; };
-  }, [user, coursesRetryCount]);
+  // W09-R4: appRetryCount triggers a re-fetch of the application data for all enrolled courses.
+  }, [user, coursesRetryCount, appRetryCount]);
 
   const quizPassed = useMemo(() => (quizCompletions ?? []).filter((c) => c.passed).length, [quizCompletions]);
 
@@ -191,9 +210,33 @@ const StudentDashboard: React.FC = () => {
           // W09-R3: pass null for course/quiz-dependent steps when their data is unavailable,
           // so failed loads do not falsely show prerequisites as incomplete.
           enrolled={coursesError ? null : courses.length > 0}
-          hasCompletedLesson={coursesError ? null : Object.values(progressMap).some((p) => p.completedLessonItems > 0)}
+          // W09-R4: three-state derivation for hasCompletedLesson.
+          // confirmed positive: any progress shows completedLessonItems > 0 (even if others failed).
+          // confirmed negative: all progress loaded with none completed.
+          // unknown (null): no confirmed positive AND any progress fetch failed.
+          hasCompletedLesson={
+            coursesError
+              ? null
+              : Object.values(progressMap).some((p) => p.completedLessonItems > 0)
+                ? true
+                : progressErrorIds.size > 0
+                  ? null
+                  : false
+          }
           quizPassed={quizCompletionsError ? null : quizPassed > 0}
-          hasApplied={coursesError ? null : Object.values(appStatusMap).some((app) => app !== null)}
+          // W09-R4: three-state derivation for hasApplied (same pattern as hasCompletedLesson).
+          // confirmed positive: any app found in appStatusMap (even if others failed).
+          // confirmed negative: all apps loaded with none found.
+          // unknown (null): no confirmed positive AND any application fetch failed.
+          hasApplied={
+            coursesError
+              ? null
+              : Object.values(appStatusMap).some((app) => app !== null)
+                ? true
+                : appErrorIds.size > 0
+                  ? null
+                  : false
+          }
         />
       )}
 
@@ -214,6 +257,8 @@ const StudentDashboard: React.FC = () => {
         progressMap={progressMap}
         progressErrorIds={progressErrorIds}
         appStatusMap={appStatusMap}
+        appErrorIds={appErrorIds}
+        onRetryLoadApplications={retryLoadApplications}
         onAppStatusChange={handleAppStatusChange}
       />
 
