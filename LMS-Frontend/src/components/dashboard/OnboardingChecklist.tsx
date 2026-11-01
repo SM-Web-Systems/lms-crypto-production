@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, CheckCircle, X } from 'lucide-react';
+import { Sparkles, CheckCircle, X, Minus } from 'lucide-react';
 
 interface OnboardingChecklistProps {
   userId: string;
   walletConnected: boolean;
-  enrolled: boolean;
-  hasCompletedLesson: boolean;
-  quizPassed: boolean;
-  hasApplied: boolean;
+  // W09-R3: null means the data needed to evaluate this step is unavailable (load failed).
+  // null is rendered as "unknown" — neither checked nor unchecked — so a failed fetch
+  // does not falsely claim a prerequisite is incomplete.
+  enrolled: boolean | null;
+  hasCompletedLesson: boolean | null;
+  quizPassed: boolean | null;
+  hasApplied: boolean | null;
 }
 
 const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
@@ -35,14 +38,15 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
 
   if (checklistDismissed) return null;
 
-  const checklistSteps = [
+  const checklistSteps: { label: string; done: boolean | null }[] = [
     { label: 'Connect your AmmaWallet', done: walletConnected },
     { label: 'Enrol in a course', done: enrolled },
     { label: 'Complete your first lesson', done: hasCompletedLesson },
     { label: 'Pass the required quiz', done: quizPassed },
     { label: 'Apply for your certificate', done: hasApplied },
   ];
-  const checklistAllDone = checklistSteps.every((s) => s.done);
+  // All-done only counts when every step is explicitly true (not null/false).
+  const checklistAllDone = checklistSteps.every((s) => s.done === true);
 
   return (
     <section
@@ -75,19 +79,22 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
       <ul className="px-5 py-3 space-y-2.5">
         {checklistSteps.map((step) => (
           <li key={step.label} className="flex items-center gap-3">
-            {step.done ? (
+            {step.done === null ? (
+              /* W09-R3: unknown — data unavailable; do not claim step is not done */
+              <Minus className="h-4 w-4 text-neutral-300 shrink-0" aria-hidden />
+            ) : step.done ? (
               <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" aria-hidden />
             ) : (
               <div className="h-4 w-4 rounded-full border-2 border-neutral-300 shrink-0" aria-hidden />
             )}
             <span
               className={`text-sm ${
-                step.done ? 'text-neutral-400 line-through' : 'text-neutral-800'
+                step.done === true ? 'text-neutral-400 line-through' : 'text-neutral-800'
               }`}
             >
               {step.label}
             </span>
-            {step.done && (
+            {step.done === true && (
               <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Done</span>
             )}
           </li>

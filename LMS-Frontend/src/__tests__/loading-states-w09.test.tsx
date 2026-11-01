@@ -198,15 +198,16 @@ describe('W09 — ParentDashboard data-fetch truthful states', () => {
 
   // ── Both fail ──────────────────────────────────────────────────────────
 
-  it('W9-PARENT-5: both fail → top-level error shown; no empty-groups message', async () => {
+  it('W9-PARENT-5: both fail → section-relevant error shown; no empty-groups message', async () => {
     vi.mocked(parentService.getDashboard).mockRejectedValue(dashboardError());
     vi.mocked(parentService.getGroups).mockRejectedValue(groupsApiError());
 
     renderAt('/parent/rewards');
     await waitForLoad();
 
-    // Top-level error (getDashboard failure)
-    expect(screen.getByText(/could not load parent data/i)).toBeInTheDocument();
+    // W09-R3: with independent settling each section shows its own error.
+    // On /parent/rewards only the groups section renders, so the groups error is shown.
+    expect(screen.getByText(/could not load family groups/i)).toBeInTheDocument();
 
     // No empty-groups message when both fail
     expect(screen.queryByText(/create a family group first/i)).toBeNull();
