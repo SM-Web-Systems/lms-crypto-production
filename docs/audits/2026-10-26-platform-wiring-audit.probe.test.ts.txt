@@ -1,0 +1,125 @@
+import { describe, it, expect } from 'vitest';
+import request from 'supertest';
+import { v4 as uuid } from 'uuid';
+import app from '../app.js';
+import { db } from '../config/database.js';
+import { makeToken } from './helpers/auth.js';
+import { createReward, fundReward, activateReward } from '../services/rewards/rewardService.js';
+import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+
+function account(role: string) {
+  const id=uuid(), email=id+'@audit.invalid';
+  db.prepare("INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,'synthetic-not-a-password')").run(id,role,email);
+  db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id,role);
+  return {id,token:makeToken({userId:id,email})};
+}
+function group(owner:string,type:string) {
+  const id=uuid();db.prepare('INSERT INTO user_groups(id,name,group_type,owner_user_id) VALUES(?,?,?,?)').run(id,'Audit synthetic group',type,owner);return id;
+}
+function sponsorReward(rewardType='custom', recipients=1) {
+  const owner=account('role_sponsor'),student=account('role_student'), course=uuid(),cohort=uuid();
+  db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Audit',?)").run(course,'AUDIT-'+course);
+  db.prepare("INSERT INTO sponsor_cohorts(id,name,sponsor_user_id,course_id) VALUES(?,'Audit cohort',?,?)").run(cohort,owner.id,course);
+  db.prepare('INSERT INTO cohort_members(cohort_id,user_id) VALUES(?,?)').run(cohort,student.id);
+  for(let i=1;i<recipients;i++){const extra=account('role_student');db.prepare('INSERT INTO cohort_members(cohort_id,user_id) VALUES(?,?)').run(cohort,extra.id);}
+  const reward=createReward(owner.id,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType,amountStroops:'10000000',idempotencyKey:uuid()});
+  fundReward(reward.id,owner.id,{type:'platform_credit'},uuid());activateReward(reward.id,owner.id,uuid());
+  return {owner,student,reward};
+}
+describe('2026-10-26 audit characterization — observed behavior, not security acceptance',()=>{
+  it('first of two lessons emits course completion and makes a completion reward eligible',async()=>{
+    const {reward,student}=sponsorReward('course_completion');
+    const course=db.prepare('SELECT c.id,c.course_code FROM courses c JOIN sponsor_cohorts sc ON sc.course_id=c.id WHERE sc.id=?').get(reward.scope_id) as {id:string,course_code:string};
+    const sections=[{id:'audit-section',title:'Two lessons',items:[{id:'audit-first',type:'text',title:'First',url:'https://example.invalid/first'},{id:'audit-second',type:'text',title:'Second',url:'https://example.invalid/second'}]}];
+    db.prepare('UPDATE courses SET sections=? WHERE id=?').run(JSON.stringify(sections),course.id);
+    db.prepare('INSERT INTO user_course_codes(user_id,course_code) VALUES(?,?)').run(student.id,course.course_code);
+    const res=await request(app).post('/api/v1/courses/'+course.id+'/lessons/audit-first/complete').set('Authorization','Bearer '+student.token);
+    expect(res.status).toBe(200);
+    const count=db.prepare('SELECT COUNT(*) count FROM lesson_completions WHERE course_id=? AND user_id=? AND completed_at IS NOT NULL').get(course.id,student.id) as {count:number};
+    expect(count.count).toBe(1);
+    const alloc=db.prepare('SELECT status FROM reward_allocations WHERE reward_id=? AND student_user_id=?').get(reward.id,student.id) as {status:string};
+    expect(alloc.status).toBe('eligible');
+  });
+  it('omitting maxRecipients reserves one award while activation allocates two',()=>{
+    const {reward,owner}=sponsorReward('custom',2);
+    const balance=db.prepare("SELECT reserved_stroops FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(owner.id) as {reserved_stroops:number};
+    const allocations=db.prepare('SELECT COUNT(*) count,SUM(amount_stroops) total FROM reward_allocations WHERE reward_id=?').get(reward.id) as {count:number,total:number};
+    expect(balance.reserved_stroops).toBe(10000000);expect(allocations.count).toBe(2);expect(allocations.total).toBe(20000000);
+  });
+  it('activation fast return bypasses scope on an already active foreign reward',async()=>{
+    const {reward}=sponsorReward(), outsider=account('role_sponsor');
+    const res=await request(app).post('/api/v1/sponsor/rewards/'+reward.id+'/activate').set('Authorization','Bearer '+outsider.token).send({idempotencyKey:uuid()});
+    expect(res.status).toBe(200);expect(res.body.data.id).toBe(reward.id);
+  });
+  it('UI completion and achievement values violate the persisted reward enum',async()=>{
+    const {reward,owner}=sponsorReward();
+    for(const rewardType of ['completion','achievement']) {
+      const res=await request(app).post('/api/v1/sponsor/rewards').set('Authorization','Bearer '+owner.token).send({scopeId:reward.scope_id,rewardType,amountStroops:'10000000',idempotencyKey:uuid()});
+      expect(res.status).toBe(500);
+    }
+  });
+  it('canonical course completion reward accepts a completion from an unrelated course',()=>{
+    const {reward,student}=sponsorReward('course_completion');
+    produceOutboxEvent('course_completion',uuid(),student.id,{courseId:uuid()});
+    const result=processPendingEvents();
+    expect(result.processed).toBe(1);
+    const alloc=db.prepare('SELECT status FROM reward_allocations WHERE reward_id=? AND student_user_id=?').get(reward.id,student.id) as {status:string};
+    expect(alloc.status).toBe('eligible');
+  });
+  it('unrelated role-only accounts read another sponsor reward through alternate prefixes',async()=>{
+    const {reward,student}=sponsorReward();
+    for(const [prefix,role] of [['parent','role_parent'],['teacher','role_teacher'],['employer','role_employer']] as const) {
+      const actor=account(role), results=[];
+      for(const suffix of ['', '/allocations','/transactions']) {
+        const res=await request(app).get('/api/v1/'+prefix+'/rewards/'+reward.id+suffix).set('Authorization','Bearer '+actor.token);
+        results.push({suffix,status:res.status});
+        expect(res.status).toBe(200);
+        if(suffix==='/allocations') expect(res.body.data[0].student_user_id).toBe(student.id);
+      }
+      const guarded=await request(app).get('/api/v1/sponsor/rewards/'+reward.id).set('Authorization','Bearer '+actor.token);
+      expect(guarded.status).toBe(403);
+      console.log('AUDIT_REWARD_READ',JSON.stringify({prefix,results,sponsorControl:guarded.status}));
+    }
+  });
+  it('role-only billing endpoints deny their named built-in roles',async()=>{
+    for(const [prefix,role] of [['parent','role_parent'],['teacher','role_teacher'],['employer','role_employer']] as const) {
+      const actor=account(role);
+      const res=await request(app).get('/api/v1/'+prefix+'/billing').set('Authorization','Bearer '+actor.token);
+      expect(res.status).toBe(403);
+      console.log('AUDIT_BILLING',JSON.stringify({prefix,status:res.status}));
+    }
+  });
+  it('parent family reward UI request omits required targetType and fails',async()=>{
+    const parent=account('role_parent'),family=group(parent.id,'family');
+    const base='/api/v1/parent/rewards', auth='Bearer '+parent.token;
+    const list=await request(app).get(base).query({scopeId:family}).set('Authorization',auth);
+    const create=await request(app).post(base).set('Authorization',auth).send({scopeId:family,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});
+    const correct=await request(app).get(base).query({scopeId:family,targetType:'family'}).set('Authorization',auth);
+    expect(list.status).toBe(403);expect(create.status).toBe(403);expect(correct.status).toBe(200);
+    console.log('AUDIT_PARENT_FAMILY',JSON.stringify({uiList:list.status,uiCreate:create.status,explicitFamilyList:correct.status}));
+  });
+  it('declared rename methods and parent group delete are not routed',async()=>{
+    for(const [prefix,role,type] of [['parent','role_parent','family'],['teacher','role_teacher','class'],['employer','role_employer','team']] as const) {
+      const actor=account(role),id=group(actor.id,type),collection=prefix==='parent'?'groups':prefix==='teacher'?'classes':'teams';
+      const res=await request(app).put('/api/v1/'+prefix+'/'+collection+'/'+id).set('Authorization','Bearer '+actor.token).send({name:'Renamed'});
+      expect(res.status).toBe(404);
+      console.log('AUDIT_GROUP_RENAME',JSON.stringify({prefix,status:res.status}));
+    }
+    const parent=account('role_parent'),id=group(parent.id,'family');
+    const res=await request(app).delete('/api/v1/parent/groups/'+id).set('Authorization','Bearer '+parent.token);
+    expect(res.status).toBe(404);
+  });
+  it('regular sponsor can fund internal rewards without verified external funding',async()=>{
+    const owner=account('role_sponsor'),course=uuid(),cohort=uuid();
+    db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Audit',?)").run(course,'AUDIT-'+course);
+    db.prepare("INSERT INTO sponsor_cohorts(id,name,sponsor_user_id,course_id) VALUES(?,'Audit',?,?)").run(cohort,owner.id,course);
+    for(const sourceType of ['platform_credit','stellar','paystack']) {
+      const reward=createReward(owner.id,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});
+      const res=await request(app).post('/api/v1/sponsor/rewards/'+reward.id+'/fund').set('Authorization','Bearer '+owner.token).send({sourceType,idempotencyKey:uuid()});
+      expect(res.status).toBe(200);expect(res.body.data.status).toBe('funded');
+      console.log('AUDIT_FUNDING',JSON.stringify({sourceType,status:res.status,rewardStatus:res.body.data.status}));
+    }
+    const balance=db.prepare("SELECT reserved_stroops FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(owner.id) as {reserved_stroops:number};
+    expect(balance.reserved_stroops).toBe(30000000);
+  });
+});

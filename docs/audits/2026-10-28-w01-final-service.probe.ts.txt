@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {randomUUID as uuid} from 'node:crypto';
+import {db,_resetForTests,seedRbacData} from './src/config/database.js';
+import {createReward,fundReward,fundRewardAsync,getReward} from './src/services/rewards/rewardService.js';
+const schema=readFileSync(new URL('./database/schema.sql',import.meta.url),'utf8');
+function reset(){_resetForTests(schema);seedRbacData();}
+function user(admin=false){const id=uuid();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES(?,'Synthetic review',?,'hash',?)").run(id,id+'@review.invalid',admin?'admin':'lecturer');if(!admin)db.prepare("INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES(?,'role_sponsor')").run(id);return id;}
+function fixture(){const creator=user(),admin=user(true),course=uuid(),cohort=uuid();db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Synthetic course',?)").run(course,'R3-'+course);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES(?,?,?,'Synthetic cohort')").run(cohort,creator,course);const reward=()=>createReward(creator,{scopeType:'sponsor_cohort',scopeId:cohort,rewardType:'custom',amountStroops:'10000000',idempotencyKey:uuid()});return {creator,admin,a:reward(),b:reward()};}
+reset();
+{
+ const f=fixture(),reference=uuid();
+ const results=await Promise.allSettled([fundRewardAsync(f.a.id,f.admin,{type:'admin_grant',reference},uuid()),fundRewardAsync(f.b.id,f.admin,{type:'admin_grant',reference},uuid())]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+ const failure=results.find(r=>r.status==='rejected') as PromiseRejectedResult;assert.equal(failure.reason.code,'DUPLICATE_REFERENCE');assert.equal(failure.reason.statusCode,409);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM reward_transactions WHERE funding_reference=? AND transaction_type='fund'").get(reference) as any).n,1);
+ assert.deepEqual([getReward(f.a.id)!.status,getReward(f.b.id)!.status].sort(),['draft','funded']);
+ assert.equal((db.prepare("SELECT reserved_stroops FROM reward_accounts WHERE user_id=? AND account_type='funder'").get(f.creator) as any).reserved_stroops,10000000);
+ console.log('CONTROL_PASS: concurrent async grants produce one winner, one 409, one credit/reservation');
+}
+reset();
+{
+ const f=fixture(),reference=uuid();
+ db.exec(`CREATE TRIGGER synthetic_fail_reserve BEFORE INSERT ON reward_transactions WHEN NEW.transaction_type='reserve' BEGIN SELECT RAISE(ABORT,'synthetic reserve failure'); END;`);
+ assert.throws(()=>fundReward(f.a.id,f.admin,{type:'admin_grant',reference},uuid()),/synthetic reserve failure/);
+ assert.equal(getReward(f.a.id)!.status,'draft');
+ assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_transactions').get() as any).n,0);
+ assert.equal((db.prepare('SELECT COUNT(*) n FROM reward_accounts').get() as any).n,0);
+ db.exec('DROP TRIGGER synthetic_fail_reserve');
+ assert.equal(fundReward(f.b.id,f.admin,{type:'admin_grant',reference},uuid()).status,'funded');
+ console.log('CONTROL_PASS: injected post-fund reserve failure rolls back state/accounts/reference; retry succeeds');
+}
+reset();
+{
+ const f=fixture(),reference=uuid();fundReward(f.a.id,f.admin,{type:'admin_grant',reference},uuid());
+ assert.throws(()=>db.prepare(`INSERT INTO reward_transactions(id,reward_id,source_account_type,destination_account_type,destination_bucket,destination_user_id,actor_type,actor_user_id,transaction_type,amount_stroops,currency_code,previous_state,new_state,funding_source_type,funding_reference,idempotency_key) VALUES(?,?,'external','funder','available',?,'user',?,'fund',10000000,'XLM','draft','pending_funding','admin_grant',?,?)`).run(uuid(),f.b.id,f.creator,f.admin,reference,uuid()),(e:any)=>e.code==='SQLITE_CONSTRAINT_UNIQUE'&&e.message.includes('funding_reference'));
+ console.log('CONTROL_PASS: valid alternate-writer INSERT fails the funding-reference UNIQUE constraint');
+}
+console.log('CONTROL_RESULT: async competition, service rollback and direct-writer constraint pass');

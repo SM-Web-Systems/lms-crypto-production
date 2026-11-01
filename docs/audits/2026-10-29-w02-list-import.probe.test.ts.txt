@@ -1,0 +1,8 @@
+import {it,expect} from 'vitest';
+it('captures the actual exception used by W02-L-1',()=>{
+ let failure:any;
+ try {const {listRewards}=require('../services/rewards/rewardService.js');listRewards('sponsor_cohort','scope','actor');} catch(e){failure=e;}
+ expect(failure).toBeDefined();
+ console.log('W02-L-1 ACTUAL EXCEPTION:',failure.code,failure.message);
+ expect(failure.code).not.toBe('SCOPE_DENIED');
+});

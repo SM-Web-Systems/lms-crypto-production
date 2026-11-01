@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
+import {validateDatabase} from './src/config/databaseBootstrap.js';
+const db=new Database(process.env.DATABASE_PATH!,{fileMustExist:true});
+db.pragma('foreign_keys = ON');
+try{
+ validateDatabase(db,true);
+ const mode=process.argv[2];
+ if(mode){
+  db.exec('DROP INDEX idx_reward_txn_fund_ref_unique');
+  if(mode==='nonunique')db.exec("CREATE INDEX idx_reward_txn_fund_ref_unique ON reward_transactions(funding_reference) WHERE funding_reference IS NOT NULL AND transaction_type='fund'");
+  else if(mode==='columns')db.exec("CREATE UNIQUE INDEX idx_reward_txn_fund_ref_unique ON reward_transactions(idempotency_key) WHERE funding_reference IS NOT NULL AND transaction_type='fund'");
+  else if(mode==='predicate')db.exec("CREATE UNIQUE INDEX idx_reward_txn_fund_ref_unique ON reward_transactions(funding_reference) WHERE funding_reference IS NOT NULL");
+  else throw new Error('Unknown fixture');
+  assert.throws(()=>validateDatabase(db,true),/missing unique constraint/);
+  console.log('SHAPE_PASS: final validation rejects '+mode);
+ }else console.log('SHAPE_PASS: supported upgraded database passes strict final validation');
+}finally{db.close();}
