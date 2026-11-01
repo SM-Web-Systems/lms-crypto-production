@@ -24,7 +24,7 @@ import CertEligibilitySection from '../components/dashboard/CertEligibilitySecti
 import { StudentRewardsPanel } from '../components/StudentRewardsPanel';
 import { getErrorMessage } from '../utils/apiError';
 
-const StudentDashboard: React.FC = () => {
+const StudentDashboardContent: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const { submissions, submissionsLoading, submissionsError, fetchSubmissions } = useData();
@@ -136,7 +136,21 @@ const StudentDashboard: React.FC = () => {
           }
         }
         setProgressMap(newProg);
-        setAppStatusMap(newApps);
+        // W09-R7: use a functional update instead of a full replace so that a
+        // committed mutation result (handleAppStatusChange) or 409 re-fetch that
+        // resolved before a same-user auth-refresh-triggered courses-effect fetch
+        // is not silently wiped by a stale empty server read. Preserve prev[id]
+        // when the server returns null but prev already has a non-null confirmed
+        // status — the same guard used by the W09-R5 app-retry merge effect.
+        setAppStatusMap((prev) => {
+          const merged: Record<string, NftApplication | null> = { ...newApps };
+          for (const id of Object.keys(newApps)) {
+            if (newApps[id] === null && prev[id] != null) {
+              merged[id] = prev[id];
+            }
+          }
+          return merged;
+        });
         setProgressErrorIds(newErrorIds);
         setAppErrorIds(newAppErrorIds);
       }
@@ -354,6 +368,13 @@ const StudentDashboard: React.FC = () => {
       <RecentSubmissionsCard submissions={submissions} />
     </div>
   );
+};
+
+// Same-user auth refreshes retain state, but an identity change must discard
+// the previous student's course and application state and in-flight callbacks.
+const StudentDashboard: React.FC = () => {
+  const { user } = useAuth();
+  return <StudentDashboardContent key={user?.id ?? 'signed-out'} />;
 };
 
 export default StudentDashboard;
