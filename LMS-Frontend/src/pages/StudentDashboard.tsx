@@ -24,7 +24,7 @@ import CertEligibilitySection from '../components/dashboard/CertEligibilitySecti
 import { StudentRewardsPanel } from '../components/StudentRewardsPanel';
 import { getErrorMessage } from '../utils/apiError';
 
-const StudentDashboard: React.FC = () => {
+const StudentDashboardContent: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const { submissions, submissionsLoading, submissionsError, fetchSubmissions } = useData();
@@ -368,6 +368,13 @@ const StudentDashboard: React.FC = () => {
       <RecentSubmissionsCard submissions={submissions} />
     </div>
   );
+};
+
+// Same-user auth refreshes retain state, but an identity change must discard
+// the previous student's course and application state and in-flight callbacks.
+const StudentDashboard: React.FC = () => {
+  const { user } = useAuth();
+  return <StudentDashboardContent key={user?.id ?? 'signed-out'} />;
 };
 
 export default StudentDashboard;

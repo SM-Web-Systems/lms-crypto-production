@@ -416,3 +416,7 @@ File: `LMS-Frontend/src/__tests__/loading-states-w09r7.test.tsx`
 - Deployment, S4, W10 or any subsequent stage
 - Wallet chain, mobile, RBAC, database integrity PRs
 - Schema migration, live provider calls, production data
+
+### Account isolation follow-up
+
+Independent review reproduced cross-account state retention when two students share a course: the preservation merge carried the first student's known application into the second student's empty result. The dashboard content is keyed by authenticated user ID so an identity change resets student-local state and unmounts prior callbacks; same-user auth refreshes retain state. Tests cover an already-loaded application and a pending old-user mutation resolving after an account change. Independent review and fresh CI remain required for the changed head.

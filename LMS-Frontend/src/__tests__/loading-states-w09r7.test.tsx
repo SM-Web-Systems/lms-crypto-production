@@ -33,7 +33,7 @@
  * T5:  courses fetch error during auth refresh → hasApplied=null, not false
  */
 
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -608,3 +608,34 @@ describe('W09-R7 T5 — courses fetch error during auth refresh → hasApplied n
     });
   });
 });
+describe('Independent account isolation review', () => {
+  beforeEach(() => { vi.resetAllMocks(); commonBeforeEach(); });
+  it('does not carry the prior user application to the next user for the same course', async () => {
+    vi.mocked(courseService.fetchCourses).mockResolvedValue([course1] as any);
+    vi.mocked(courseCompletionService.getCourseProgress).mockResolvedValue(progressEligible);
+    vi.mocked(courseCompletionService.getCourseApplications).mockResolvedValueOnce(makePendingApp() as any).mockResolvedValue([]);
+    const { rerender } = renderStudent();
+    await waitFor(() => expect(screen.getByTestId('checklist-has-applied').textContent).toBe('true'));
+    vi.mocked(useAuth).mockReturnValue(makeUserMock('student2'));
+    rerenderedStudent(rerender);
+    await waitFor(() => expect(courseCompletionService.getCourseApplications).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId('checklist-has-applied').textContent).toBe('false'));
+  });
+  it('does not apply an old user mutation result to the next user', async () => {
+    let resolveApplication!: (value: any) => void;
+    vi.mocked(courseService.fetchCourses).mockResolvedValue([course1] as any);
+    vi.mocked(courseCompletionService.getCourseProgress).mockResolvedValue(progressEligible);
+    vi.mocked(courseCompletionService.getCourseApplications).mockResolvedValue([]);
+    vi.mocked(courseCompletionService.applyForCertificate).mockReturnValue(new Promise((resolve) => { resolveApplication = resolve; }));
+    const { rerender } = renderStudent();
+    fireEvent.click(await screen.findByRole('button', { name: /request certificate/i }));
+    vi.mocked(useAuth).mockReturnValue(makeUserMock('student2'));
+    rerenderedStudent(rerender);
+    await waitFor(() => expect(courseCompletionService.getCourseApplications).toHaveBeenCalledTimes(2));
+    await screen.findByRole('button', { name: /request certificate/i });
+    await act(async () => { resolveApplication(makePendingApp()[0]); });
+    await waitFor(() => expect(screen.getByTestId('checklist-has-applied').textContent).toBe('false'));
+    expect(screen.getByRole('button', { name: /request certificate/i })).toBeInTheDocument();
+  });
+});
+
