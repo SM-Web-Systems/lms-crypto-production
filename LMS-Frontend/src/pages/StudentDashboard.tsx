@@ -217,8 +217,9 @@ const StudentDashboard: React.FC = () => {
     });
     return () => {
       cancelled = true;
-      // Clear loading state on cleanup (unmount or dependency change).
-      // This ensures an account switch or unmount doesn't leave stale loading indicators.
+      // Clear loading state on cleanup — covers both unmount and dependency change
+      // (user identity switch or courses list update) so stale indicators don't leak
+      // into a new identity's or a fresh courses-load's view.
       setAppLoadingIds(new Set());
     };
   }, [user, courses, appRetryCount]);
