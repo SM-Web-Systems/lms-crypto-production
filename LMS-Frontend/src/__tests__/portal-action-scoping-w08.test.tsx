@@ -319,6 +319,8 @@ describe('W08 — Portal action scoping', () => {
     });
 
     it('W8-REWARD-3 — Activate and Cancel buttons present for funded reward (no regression)', async () => {
+      // W08-R1: Activate and Cancel require explicit capabilities; provide them.
+      mockAuth('teacher', { permissions: ['reward.activate', 'reward.cancel', 'reward.view_assigned'] });
       vi.mocked(rewardService.listRewards).mockResolvedValue([makeReward('funded')] as any);
       render(
         <MemoryRouter>
@@ -351,7 +353,8 @@ describe('W08 — Portal action scoping', () => {
 
   describe('New Class button — wired to teacherService.createClass', () => {
     it('W8-CLASS-1 — Clicking New Class shows an inline input form', async () => {
-      mockAuth('teacher');
+      // W08-R1: New Class requires group.create; provide it explicitly.
+      mockAuth('teacher', { permissions: ['group.create', 'group.manage', 'student.view_assigned', 'reward.view_assigned', 'billing.view_own'] });
       render(
         <MemoryRouter initialEntries={['/teacher/classes']}>
           <TeacherDashboard />
@@ -369,7 +372,8 @@ describe('W08 — Portal action scoping', () => {
 
   describe('New Team button — wired to employerService.createTeam', () => {
     it('W8-TEAM-1 — Clicking New Team shows an inline input form', async () => {
-      mockAuth('employer');
+      // W08-R1: New Team requires group.create; provide it explicitly.
+      mockAuth('employer', { permissions: ['group.create', 'group.manage', 'student.view_assigned', 'reward.view_assigned', 'billing.view_own'] });
       render(
         <MemoryRouter initialEntries={['/employer/teams']}>
           <EmployerDashboard />

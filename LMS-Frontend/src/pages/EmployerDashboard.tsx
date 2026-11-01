@@ -19,6 +19,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
+import { hasCapability } from '../utils/authorization';
 
 const EmployerDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -59,10 +60,24 @@ const EmployerDashboard: React.FC = () => {
     load();
   }, [load]);
 
+  // W08-R1: current effective group.create capability.
+  const canCreateTeam = hasCapability(user, 'group.create');
+
+  // W08-R1: close create form immediately if group.create is revoked while it is open.
+  useEffect(() => {
+    if (creating && !canCreateTeam) {
+      setCreating(false);
+      setNewTeamName('');
+    }
+  }, [creating, canCreateTeam]);
+
   const handleCreateTeam = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newTeamName.trim();
     if (!name) return;
+    // Revocation guard: check capability at submission time in case it was
+    // revoked while the form was open.
+    if (!hasCapability(user, 'group.create')) { setCreating(false); setNewTeamName(''); return; }
     setCreateError(null);
     try {
       await employerService.createTeam(name);
@@ -72,7 +87,7 @@ const EmployerDashboard: React.FC = () => {
     } catch (err) {
       setCreateError(getErrorMessage(err, 'Failed to create team'));
     }
-  }, [newTeamName, load]);
+  }, [newTeamName, load, user]);
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
 
@@ -137,7 +152,7 @@ const EmployerDashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-neutral-900">Your Teams</h2>
-                {!creating && (
+                {!creating && canCreateTeam && (
                   <Button variant="primary" size="sm" type="button" onClick={() => { setCreating(true); setCreateError(null); }}>
                     <Plus className="h-4 w-4 mr-1" aria-hidden />
                     New Team

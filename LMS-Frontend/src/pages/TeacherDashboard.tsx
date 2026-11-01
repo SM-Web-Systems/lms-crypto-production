@@ -20,6 +20,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
+import { hasCapability } from '../utils/authorization';
 
 const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -54,10 +55,24 @@ const TeacherDashboard: React.FC = () => {
     load();
   }, [load]);
 
+  // W08-R1: current effective group.create capability.
+  const canCreateClass = hasCapability(user, 'group.create');
+
+  // W08-R1: close create form immediately if group.create is revoked while it is open.
+  useEffect(() => {
+    if (creating && !canCreateClass) {
+      setCreating(false);
+      setNewClassName('');
+    }
+  }, [creating, canCreateClass]);
+
   const handleCreateClass = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newClassName.trim();
     if (!name) return;
+    // Revocation guard: check capability at submission time in case it was
+    // revoked while the form was open.
+    if (!hasCapability(user, 'group.create')) { setCreating(false); setNewClassName(''); return; }
     setCreateError(null);
     try {
       await teacherService.createClass(name);
@@ -67,7 +82,7 @@ const TeacherDashboard: React.FC = () => {
     } catch (err) {
       setCreateError(getErrorMessage(err, 'Failed to create class'));
     }
-  }, [newClassName, load]);
+  }, [newClassName, load, user]);
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
 
@@ -130,7 +145,7 @@ const TeacherDashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-neutral-900">Your Classes</h2>
-                {!creating && (
+                {!creating && canCreateClass && (
                   <Button variant="primary" size="sm" type="button" onClick={() => { setCreating(true); setCreateError(null); }}>
                     <Plus className="h-4 w-4 mr-1" aria-hidden />
                     New Class
