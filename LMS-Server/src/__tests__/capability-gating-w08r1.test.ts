@@ -42,11 +42,13 @@ function seedUserWithPermissions(permNames: string[]): { userId: string; token: 
     "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Custom Perm User', ?, 'hash', 'student')",
   ).run(userId, email);
 
-  // Create a temporary role and assign only the requested permissions
+  // Create a temporary role with a unique name and assign only the requested permissions.
+  // roles.name is UNIQUE; use a slug derived from userId. roles has no workspace column.
   const tempRoleId = `role_tmp_${userId.slice(0, 8)}`;
+  const tempRoleName = `tmp_${userId.slice(0, 8)}`;
   db.prepare(
-    "INSERT OR IGNORE INTO roles (id, workspace, name, description) VALUES (?, 'student', 'TempRole', 'Temp')",
-  ).run(tempRoleId);
+    "INSERT OR IGNORE INTO roles (id, name, label, description) VALUES (?, ?, 'Temp Role', 'Temporary test role')",
+  ).run(tempRoleId, tempRoleName);
   for (const permName of permNames) {
     const perm = db.prepare('SELECT id FROM permissions WHERE name = ?').get(permName) as { id: string } | undefined;
     if (perm) {
@@ -76,16 +78,30 @@ function seedTeam(ownerId: string): string {
   return teamId;
 }
 
-/** Seed a sponsor cohort owned by userId */
+/** Seed a minimal course (required as FK for sponsor_cohorts) */
+function seedCourse(): string {
+  const courseId = uuidv4();
+  db.prepare(
+    "INSERT INTO courses (id, title, course_code, sections) VALUES (?, 'W08R1 Test Course', ?, '[]')",
+  ).run(courseId, `W08R1-${courseId.slice(0, 6)}`);
+  return courseId;
+}
+
+/** Seed a sponsor cohort owned by userId.
+ *  Sponsor cohorts live in sponsor_cohorts, not user_groups. */
 function seedCohort(ownerId: string): string {
   const cohortId = uuidv4();
+  const courseId = seedCourse();
   db.prepare(
-    "INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, 'Test Cohort W08R1', ?, ?)",
-  ).run(cohortId, 'cohort', ownerId);
+    "INSERT INTO sponsor_cohorts (id, name, sponsor_user_id, course_id, selected_tier, status, created_at) VALUES (?, 'Test Cohort W08R1', ?, ?, 'free', 'draft', datetime('now'))",
+  ).run(cohortId, ownerId, courseId);
   return cohortId;
 }
 
-/** Create a funded reward for a teacher class — returns rewardId */
+/** Create a funded reward for a teacher class — returns rewardId.
+ *  platform_credit is intentionally not provisioned (W01-R1 fails closed).
+ *  We create the reward via the API then set status directly so lifecycle
+ *  tests (activate, cancel) can exercise the permission checks. */
 async function seedFundedTeacherReward(teacherToken: string, classId: string): Promise<string> {
   const createRes = await request(app)
     .post('/api/v1/teacher/rewards')
@@ -98,21 +114,10 @@ async function seedFundedTeacherReward(teacherToken: string, classId: string): P
     });
   if (createRes.status !== 201) throw new Error(`Seed create failed: ${createRes.status}`);
 
-  // Fund via admin (reward.manage)
-  const adminId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')",
-  ).run(adminId, `${adminId}@admin.com`);
-  db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(adminId, 'role_admin');
-  const adminToken = makeToken({ userId: adminId, email: `${adminId}@admin.com`, role: 'admin' });
-
-  const fundRes = await request(app)
-    .post(`/api/v1/teacher/rewards/${createRes.body.data.id}/fund`)
-    .set('Authorization', `Bearer ${adminToken}`)
-    .send({ method: 'platform_credit', idempotencyKey: `fund-${uuidv4()}` });
-  if (fundRes.status !== 200) throw new Error(`Seed fund failed: ${fundRes.status} — ${JSON.stringify(fundRes.body)}`);
-
-  return createRes.body.data.id;
+  const rewardId = createRes.body.data.id as string;
+  // Bypass the API fund step — platform_credit has no provisioning mechanism.
+  db.prepare("UPDATE rewards SET status = 'funded', funded_at = datetime('now') WHERE id = ?").run(rewardId);
+  return rewardId;
 }
 
 // ──── Tests ─────────────────────────────────────────────────────────────────
