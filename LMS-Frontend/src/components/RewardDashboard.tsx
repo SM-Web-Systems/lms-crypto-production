@@ -18,6 +18,8 @@ import {
   type ParentTargetType,
 } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
+import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 import {
   Gift,
   RefreshCw,
@@ -61,6 +63,16 @@ const ACTIONS: Record<string, Array<{ key: string; label: string; icon: typeof P
   eligible_pending_approval: [{ key: 'approve', label: 'Approve', icon: Check }],
 };
 
+// Required capability for each lifecycle action.
+// Unknown action keys → no capability required (safe default: blocked by hasCapability miss).
+const ACTION_CAPABILITY: Record<string, string> = {
+  activate: 'reward.activate',
+  cancel:   'reward.cancel',
+  approve:  'reward.approve',
+  release:  'reward.release',
+  refund:   'reward.refund',
+};
+
 // ──── Create Reward Modal ────
 
 const RewardCreateForm: React.FC<{
@@ -70,6 +82,7 @@ const RewardCreateForm: React.FC<{
   onCreated: () => void;
   onClose: () => void;
 }> = ({ role, scopeId, targetType, onCreated, onClose }) => {
+  const { user } = useAuth();
   const [rewardType, setRewardType] = useState<RewardType>('custom');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -79,6 +92,9 @@ const RewardCreateForm: React.FC<{
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Revocation guard: check capability at submission time in case it was
+    // revoked while the form was open. Close form rather than surface an error.
+    if (!hasCapability(user, 'reward.create')) { onClose(); return; }
     setError('');
 
     const xlm = parseFloat(amount);
@@ -210,12 +226,17 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   canRefund = false,
   targetType,
 }) => {
+  const { user } = useAuth();
   const [state, setState] = useState<ViewState>('loading');
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Record<string, RewardAllocation[] | 'loading'>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Current effective capability checks — re-derived on every render so
+  // capability changes propagate immediately without stale closures.
+  const canCreate = hasCapability(user, 'reward.create');
 
   // W06-R1: monotonic request counter — incremented at the start of every load() call.
   // Each invocation captures its generation; state is only committed when
@@ -271,6 +292,14 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
       setActionLoading(null);
     };
   }, [load]);
+
+  // W08-R1: close create form immediately if reward.create is revoked while it is open.
+  // This prevents a pending form submission after capability revocation.
+  useEffect(() => {
+    if (showCreate && !canCreate) {
+      setShowCreate(false);
+    }
+  }, [showCreate, canCreate]);
 
   const toggleAllocations = useCallback(async (rewardId: string) => {
     if (expanded[rewardId]) {
@@ -368,10 +397,12 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
             <RefreshCw className={`h-3.5 w-3.5 mr-1 ${state === 'loading' ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
           </Button>
-          <Button variant="primary" size="sm" type="button" onClick={() => setShowCreate(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" aria-hidden />
-            New Reward
-          </Button>
+          {canCreate && (
+            <Button variant="primary" size="sm" type="button" onClick={() => setShowCreate(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" aria-hidden />
+              New Reward
+            </Button>
+          )}
         </div>
       </div>
 
@@ -425,7 +456,11 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                   const isExpanded = !!exp;
                   const isAllocLoading = exp === 'loading';
                   const allocs = Array.isArray(exp) ? exp : [];
-                  const actions = ACTIONS[r.status] ?? [];
+                  // W08-R1: filter to only actions the current user is capable of performing.
+                  // ACTION_CAPABILITY[key] ?? '' ensures unknown keys fail closed.
+                  const actions = (ACTIONS[r.status] ?? []).filter(
+                    (a) => hasCapability(user, ACTION_CAPABILITY[a.key] ?? ''),
+                  );
 
                   return (
                     <React.Fragment key={r.id}>
@@ -519,7 +554,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                         </td>
                                         <td className="py-1.5">
                                           <div className="flex gap-1">
-                                            {a.status === 'eligible' && (
+                                            {a.status === 'eligible' && hasCapability(user, 'reward.release') && (
                                               <Button
                                                 variant="outline"
                                                 size="sm"
@@ -531,7 +566,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                                 Release
                                               </Button>
                                             )}
-                                            {a.status === 'released' && canRefund && (
+                                            {a.status === 'released' && canRefund && hasCapability(user, 'reward.refund') && (
                                               <Button
                                                 variant="outline"
                                                 size="sm"

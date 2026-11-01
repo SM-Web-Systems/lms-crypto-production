@@ -556,7 +556,7 @@ describe('W08-R1 — Capability-gated portal controls', () => {
         'group.create', 'group.manage', 'student.view_assigned', 'reward.view_assigned',
       ]);
 
-      render(
+      const { rerender } = render(
         <MemoryRouter initialEntries={['/teacher/classes']}>
           <TeacherDashboard />
         </MemoryRouter>,
@@ -573,9 +573,14 @@ describe('W08-R1 — Capability-gated portal controls', () => {
         setAuth('teacher', ['group.manage', 'student.view_assigned', 'reward.view_assigned']);
       });
 
-      // The Create button should no longer be reachable (form should have closed),
-      // but if it were still visible, submitting must not call the service
-      // The revocation effect closes the form — verify service was not called
+      // Re-render with updated auth so the revocation effect sees the new state.
+      rerender(
+        <MemoryRouter initialEntries={['/teacher/classes']}>
+          <TeacherDashboard />
+        </MemoryRouter>,
+      );
+
+      // The revocation effect closes the form — form must disappear and service not called.
       await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
       expect(vi.mocked(teacherService.createClass)).not.toHaveBeenCalled();
     });

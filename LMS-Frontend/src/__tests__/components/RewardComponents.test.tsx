@@ -30,6 +30,32 @@ vi.mock('../../services/rewardService', () => ({
   },
 }));
 
+// W08-R1: RewardDashboard now calls useAuth() for capability checks.
+// Provide a full-capability user so existing tests remain unaffected by gating.
+vi.mock('../../context/useAuth', () => ({
+  useAuth: () => ({
+    user: {
+      id: 'test-user',
+      name: 'Test User',
+      email: 'test@example.com',
+      role: 'sponsor',
+      walletAddress: null,
+      walletLinkingStatus: 'none',
+      workspaces: ['sponsor'],
+      defaultWorkspace: 'sponsor',
+      permissions: [
+        'reward.create', 'reward.activate', 'reward.cancel', 'reward.approve',
+        'reward.release', 'reward.refund', 'reward.view_assigned',
+        'cohort.manage', 'billing.view_own', 'impact_report.read',
+        'group.create', 'group.manage',
+      ],
+    },
+    isAuthenticated: true,
+    isLoading: false,
+    logout: () => {},
+  }),
+}));
+
 // Import after mock
 import { RewardDashboard } from '../../components/RewardDashboard';
 import { StudentRewardsPanel } from '../../components/StudentRewardsPanel';
