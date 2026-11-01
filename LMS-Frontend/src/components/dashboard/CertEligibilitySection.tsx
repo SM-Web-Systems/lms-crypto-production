@@ -47,7 +47,12 @@ interface CertEligibilitySectionProps {
   userWalletAddress: string | null | undefined;
   courses: Course[];
   coursesLoading: boolean;
+  // W09-R3: when set, show error + retry instead of silently hiding the section.
+  coursesError?: string | null;
+  onRetryLoadCourses?: () => void;
   progressMap: Record<string, CourseProgress>;
+  // W09-R3: course IDs for which getCourseProgress failed; prevents false "not_eligible" claim.
+  progressErrorIds?: Set<string>;
   appStatusMap: Record<string, NftApplication | null>;
   onAppStatusChange: (courseId: string, app: NftApplication) => void;
 }
@@ -56,7 +61,10 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
   userWalletAddress,
   courses,
   coursesLoading,
+  coursesError,
+  onRetryLoadCourses,
   progressMap,
+  progressErrorIds,
   appStatusMap,
   onAppStatusChange,
 }) => {
@@ -95,6 +103,30 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
     return <CertEligibilitySkeleton />;
   }
 
+  // W09-R3: show error + retry instead of silently returning null when courses failed to load.
+  if (coursesError) {
+    return (
+      <section>
+        <h2 className="text-lg font-bold text-neutral-900 mb-4">Certificate eligibility</h2>
+        <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900" role="alert">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
+          <div className="flex-1">
+            <p className="text-sm">{coursesError}</p>
+            {onRetryLoadCourses && (
+              <button
+                type="button"
+                onClick={onRetryLoadCourses}
+                className="mt-2 text-xs font-medium underline hover:no-underline"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (courses.length === 0) {
     return null;
   }
@@ -121,6 +153,9 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
           const state = certState[course.id] ?? 'idle';
           const certErr = certErrors[course.id];
           const appStatus = appStatusMap[course.id];
+          // W09-R3: if progress data failed to load, do not claim not_eligible.
+          // Known app status (pending/approved/etc.) is still reliable even if progress failed.
+          const progressFailed = progressErrorIds?.has(course.id) ?? false;
           const displayState =
             state === 'loading' ? 'loading'
             : appStatus?.status === 'minted' ? 'minted'
@@ -128,6 +163,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
             : appStatus?.status === 'pending' ? 'pending'
             : appStatus?.status === 'rejected' ? 'rejected'
             : state === 'applied' ? 'pending'
+            : progressFailed ? 'progress_error'
             : prog?.canApplyForCertificate ? 'eligible'
             : 'not_eligible';
           return (
@@ -172,9 +208,16 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                         Application rejected
                       </span>
                     )}
+                    {/* W09-R3: progress data unavailable — do not claim not_eligible */}
+                    {displayState === 'progress_error' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-xs font-medium">
+                        <AlertCircle className="h-3 w-3" aria-hidden />
+                        Eligibility unavailable
+                      </span>
+                    )}
                   </div>
                   {/* NM-C2: Plain-English cert status description */}
-                  {displayState !== 'loading' && CERT_STATE_MSGS[displayState] && (
+                  {displayState !== 'loading' && displayState !== 'progress_error' && CERT_STATE_MSGS[displayState] && (
                     <p className="text-xs text-neutral-500 leading-snug mt-0.5">
                       {CERT_STATE_MSGS[displayState].desc}
                       {CERT_STATE_MSGS[displayState].next && (
@@ -241,6 +284,12 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                         </span>
                       )}
                     </div>
+                  ) : progressFailed ? (
+                    /* W09-R3: progress fetch failed — do not show "Loading progress…" indefinitely */
+                    <p className="text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+                      Progress data unavailable
+                    </p>
                   ) : (
                     <p className="text-xs text-neutral-400">Loading progress…</p>
                   )}
