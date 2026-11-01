@@ -4,7 +4,7 @@
  * Wallets, Groups, Billing routes redirect to /parent (deferred — FOLLOW-UP(parent-wallet-group-billing-ui)).
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { parentService, type ParentDashboardData, type ParentGroup } from '../services/parentService';
@@ -28,6 +28,11 @@ const ParentDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [groupsError, setGroupsError] = useState<string | null>(null);
 
+  // W09-R1: monotonic request counter — each load() invocation captures its generation.
+  // State is only committed when reqIdRef.current still matches, preventing a superseded
+  // request (e.g. Refresh clicked while initial load is pending) from overwriting newer data.
+  const reqIdRef = useRef(0);
+
   const section = location.pathname.includes('/rewards')
     ? 'rewards'
     : location.pathname.includes('/children')
@@ -35,6 +40,7 @@ const ParentDashboard: React.FC = () => {
       : 'dashboard';
 
   const load = useCallback(async () => {
+    const myReqId = ++reqIdRef.current;
     setLoading(true);
     setError(null);
     setGroupsError(null);
@@ -42,6 +48,8 @@ const ParentDashboard: React.FC = () => {
       parentService.getDashboard(),
       parentService.getGroups(),
     ]);
+    // Guard: discard entire batch if a newer request has started since this one was initiated.
+    if (reqIdRef.current !== myReqId) return;
     if (dashboardResult.status === 'rejected') {
       setError(getErrorMessage(dashboardResult.reason, 'Could not load parent data.'));
     } else {
@@ -58,6 +66,8 @@ const ParentDashboard: React.FC = () => {
 
   useEffect(() => {
     load();
+    // Invalidate any in-flight request on unmount so it cannot commit state after cleanup.
+    return () => { ++reqIdRef.current; };
   }, [load]);
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
@@ -92,19 +102,24 @@ const ParentDashboard: React.FC = () => {
         <div className="py-16 text-center text-neutral-500 text-sm">Loading...</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex items-center gap-3">
-                  <Users className="h-8 w-8 text-accent-teal" aria-hidden />
-                  <div>
-                    <p className="text-sm text-neutral-500">Linked Children</p>
-                    <p className="text-2xl font-bold text-neutral-900">{dashboard?.childrenCount ?? 0}</p>
+          {/* W09-R1: only render metric card when dashboard loaded successfully.
+              dashboard===null means getDashboard failed; showing 0 would falsely claim
+              no children when the count is actually unknown. */}
+          {dashboard !== null && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card>
+                <CardContent className="py-4">
+                  <div className="flex items-center gap-3">
+                    <Users className="h-8 w-8 text-accent-teal" aria-hidden />
+                    <div>
+                      <p className="text-sm text-neutral-500">Linked Children</p>
+                      <p className="text-2xl font-bold text-neutral-900">{dashboard.childrenCount}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {(section === 'dashboard' || section === 'children') && dashboard?.children && (
             <div className="space-y-4">

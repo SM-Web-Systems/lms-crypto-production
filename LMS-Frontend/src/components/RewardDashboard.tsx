@@ -53,6 +53,9 @@ interface RewardDashboardProps {
 
 type ViewState = 'loading' | 'error' | 'empty' | 'data';
 
+// W09-R1: expanded row can hold data, a loading sentinel, or an error to display.
+type ExpandedEntry = RewardAllocation[] | 'loading' | { error: string };
+
 // Actions available per reward state.
 // draft/pending_funding omitted: platform_credit is the only funded source and is
 // unconditionally rejected server-side (INSUFFICIENT_CREDIT). Portal roles also lack
@@ -230,7 +233,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const [state, setState] = useState<ViewState>('loading');
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [error, setError] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, RewardAllocation[] | 'loading'>>({});
+  const [expanded, setExpanded] = useState<Record<string, ExpandedEntry>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -311,22 +314,28 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   }, [showCreate, canCreate]);
 
   const toggleAllocations = useCallback(async (rewardId: string) => {
-    if (expanded[rewardId]) {
+    const current = expanded[rewardId];
+    // If currently loading, don't start a duplicate fetch.
+    if (current === 'loading') return;
+    // If data is already loaded, collapse (toggle behavior).
+    if (Array.isArray(current)) {
       setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
       return;
     }
+    // No entry or error entry → fetch (initial expand or retry after error).
     // W06-R2: capture epoch so async success/error can verify they're still on the same target.
     const myEpoch = targetEpochRef.current;
     setExpanded((prev) => ({ ...prev, [rewardId]: 'loading' }));
     try {
       const allocs = await rewardService.getAllocations(role, rewardId);
-      // Existing guard: only apply if still loading (reqId guard discards via setExpanded({}));
+      // Guard: only apply if still loading (reqId guard discards via setExpanded({}));
       // W06-R2: also discard if target switched since this call started.
       setExpanded((prev) => (prev[rewardId] === 'loading' && targetEpochRef.current === myEpoch ? { ...prev, [rewardId]: allocs } : prev));
-    } catch {
+    } catch (err) {
+      // W09-R1: surface error in allocation row instead of silently collapsing.
       // W06-R2: epoch guard — don't mutate new target's expansion state on old target's error.
       if (targetEpochRef.current === myEpoch) {
-        setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
+        setExpanded((prev) => ({ ...prev, [rewardId]: { error: getErrorMessage(err, 'Could not load allocations.') } }));
       }
     }
   }, [expanded, role]);
@@ -475,6 +484,10 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                   const isExpanded = !!exp;
                   const isAllocLoading = exp === 'loading';
                   const allocs = Array.isArray(exp) ? exp : [];
+                  // W09-R1: detect error entry so the row shows a message+retry instead of collapsing.
+                  const allocError = !Array.isArray(exp) && exp !== 'loading' && exp != null
+                    ? (exp as { error: string }).error
+                    : null;
                   // W08-R1: filter to only actions the current user is capable of performing.
                   // ACTION_CAPABILITY[key] ?? '' ensures unknown keys fail closed.
                   const actions = (ACTIONS[r.status] ?? []).filter(
@@ -547,7 +560,24 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                         <tr>
                           <td colSpan={6} className="px-0 py-0">
                             <div className="bg-neutral-50/80 border-t border-neutral-100 px-8 py-3">
-                              {allocs.length === 0 ? (
+                              {allocError ? (
+                                // W09-R1: show error + retry instead of silently collapsing.
+                                <div className="flex items-start gap-3 py-2" role="alert">
+                                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" aria-hidden />
+                                  <div>
+                                    <p className="text-sm text-red-700">{allocError}</p>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      type="button"
+                                      className="mt-1.5"
+                                      onClick={() => toggleAllocations(r.id)}
+                                    >
+                                      Try again
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : allocs.length === 0 ? (
                                 <p className="text-sm text-neutral-400 italic py-2">No allocations yet</p>
                               ) : (
                                 <table className="w-full text-xs">
