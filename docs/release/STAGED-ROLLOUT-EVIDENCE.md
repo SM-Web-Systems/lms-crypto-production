@@ -1647,3 +1647,76 @@ W09/S3 qualification is preserved. No code change was made. Regression tests are
 | `a83f31b` | docs(W09-R6): spec — concurrent app/course refresh ownership investigation |
 | `3731eca` | test(W09-R6): regression tests — concurrent app/course refresh ownership |
 | `3ed1be5` | Merge commit to main (PR #142) |
+
+## W09-R7 — Auth-refresh overlap with certificate application mutation
+
+### W09-R7 investigation receipt
+
+| Field | Value |
+| --- | --- |
+| Finding | W09-R7 (fix for W09-R6 documented residual untested path — same-user auth refresh) |
+| Priority | P2 |
+| PR | #143 (`fix(W09-R7): preserve app status against auth-refresh-triggered stale courses fetch`) |
+| Spec commit | `3e8d4f6` docs(W09-R7): spec — auth-refresh overlap with certificate application mutation |
+| Fix+test commit | `b3f3b78` fix(W09-R7): preserve app status against auth-refresh-triggered stale courses fetch |
+| Base SHA | `3ed1be5` (W09-R6 merge) |
+| CI | pending (PR #143 open) |
+| Test results | 700/700 frontend PASS (6 new W09-R7 tests; 694 pre-existing); TypeScript clean; 0 regressions |
+| Files changed | NEW: `LMS-Frontend/src/__tests__/loading-states-w09r7.test.tsx`, `docs/release/W09-R7-spec.md`; MOD: `LMS-Frontend/src/pages/StudentDashboard.tsx` |
+
+### W09-R7 defect finding
+
+**User-facing defect demonstrated in three schedules.**
+
+`AuthProvider.refresh()` calls `setUser(response.data.data)` on every `/auth/me` success. JSON deserialization always produces a new object — React's `Object.is` comparison sees a changed `user` reference and re-runs the courses effect on every 60s/focus/visibility refresh. The courses effect's `setAppStatusMap(newApps)` full replace can wipe a mutation result committed via `handleAppStatusChange` if the server refetch returned stale empty.
+
+**Schedule 1A (primary defect)**: User clicks "Request certificate" (mutation M in-flight). Auth refresh fires. Courses effect re-runs, fetches `getCourseApplications` (returns empty — read-before-write). M resolves first → `handleAppStatusChange` commits `{ c1: pendingApp }`. Then courses effect settles → `setAppStatusMap({ c1: null })` full replace wipes it. **Result**: `hasApplied = false` in OnboardingChecklist — "Apply for certificate" shows as incomplete even though the application succeeded.
+
+`certState.c1 = 'applied'` in `CertEligibilitySection` protects the cert section display (no button shown, "Application pending" badge correct) but does not feed back to `hasApplied` derivation in `StudentDashboard`.
+
+**Schedule 2**: Already-pending app in `appStatusMap` + auth refresh + stale empty → `appStatusMap = { c1: null }`. Without fix: cert button reappears (no `certState` protection — no click happened in this session). More severe than 1A.
+
+**Schedule 3**: 409 recovery re-fetch commits existing app → auth refresh courses effect full replace wipes the 409 re-fetch commit → `hasApplied = false`.
+
+### W09-R7 fix
+
+Changed courses effect `setAppStatusMap(newApps)` (full replace) to a functional update with preservation guard — identical pattern to W09-R5 app-retry merge:
+
+```tsx
+setAppStatusMap((prev) => {
+  const merged: Record<string, NftApplication | null> = { ...newApps };
+  for (const id of Object.keys(newApps)) {
+    if (newApps[id] === null && prev[id] != null) {
+      merged[id] = prev[id];
+    }
+  }
+  return merged;
+});
+```
+
+Server non-null values always win (`newApps[id] != null`). Stale empty results do not overwrite confirmed in-memory status.
+
+### W09-R7 test coverage
+
+| Test | Schedule | Verified |
+| --- | --- | --- |
+| T1a: mutation commits before stale refetch → hasApplied=false (RED→GREEN) | 1A | GREEN after fix |
+| T1b: refetch resolves before mutation → no regression | 1B | GREEN (both old/new) |
+| T2: already-pending + stale empty → preserved | 2 | GREEN after fix |
+| T3: 409 recovery + auth-refresh full replace → preserved | 3 | GREEN after fix |
+| T4: account replacement → old courses refetch cancelled | 4 | GREEN (cancellation verified) |
+| T5: courses fetch error → hasApplied=null (not false) | 5 | GREEN (no regression) |
+
+### W09-R7 residual paths
+
+1. Backend replica lag on fresh page load (preservation guard does not help when prev is null — fix is to server-side read-your-writes).
+2. `handleAppStatusChange` identity guard missing — old-user mutation can briefly write to new user's `appStatusMap` during account replacement. Transient (new user's courses effect full replace corrects it). Not in W09-R7 scope.
+3. React 18 `startTransition` — if adopted for courses effect, `setCoursesLoading(true)` becomes deferred and skeleton-guard is weakened.
+
+### W09-R7 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `3e8d4f6` | docs(W09-R7): spec — auth-refresh overlap with certificate application mutation |
+| `b3f3b78` | fix(W09-R7): preserve app status against auth-refresh-triggered stale courses fetch |
+| TBD | Merge commit to main (PR #143, pending CI) |
