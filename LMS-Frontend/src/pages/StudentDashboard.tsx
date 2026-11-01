@@ -142,8 +142,41 @@ const StudentDashboard: React.FC = () => {
       if (!cancelled) setCoursesLoading(false);
     });
     return () => { cancelled = true; };
-  // W09-R4: appRetryCount triggers a re-fetch of the application data for all enrolled courses.
-  }, [user, coursesRetryCount, appRetryCount]);
+  }, [user, coursesRetryCount]);
+
+  // W09-R4: app retry effect — triggered by appRetryCount > 0 only (initial fetch is
+  // handled by the course effect above). Scoped to application fetches so retrying a
+  // failed app check does not also re-fetch courses and progress data.
+  useEffect(() => {
+    if (!user || courses.length === 0 || appRetryCount === 0) return;
+    let cancelled = false;
+    setAppErrorIds(new Set());
+    Promise.all(
+      courses.map(async (c) => {
+        const apps = await courseCompletionService.getCourseApplications(c.id, 'own').then(
+          (a) => ({ ok: true as const, value: a }),
+          () => ({ ok: false as const, value: null }),
+        );
+        return { id: c.id, apps };
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const newApps: Record<string, NftApplication | null> = {};
+      const newAppErrorIds = new Set<string>();
+      for (const { id, apps } of results) {
+        if (apps.ok) {
+          newApps[id] = apps.value.length > 0 ? apps.value[0] : null;
+        } else {
+          newAppErrorIds.add(id);
+        }
+      }
+      // Merge: preserves statuses already committed via handleAppStatusChange
+      // (successful apply or 409 recovery) that won't appear in a plain fetch.
+      setAppStatusMap((prev) => ({ ...prev, ...newApps }));
+      setAppErrorIds(newAppErrorIds);
+    });
+    return () => { cancelled = true; };
+  }, [user, courses, appRetryCount]);
 
   const quizPassed = useMemo(() => (quizCompletions ?? []).filter((c) => c.passed).length, [quizCompletions]);
 

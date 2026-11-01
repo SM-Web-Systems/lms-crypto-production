@@ -167,6 +167,12 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
           const progressFailed = progressErrorIds?.has(course.id) ?? false;
           // W09-R4: application fetch failed — status is unknown; cannot confirm "no application".
           const appFailed = appErrorIds?.has(course.id) ?? false;
+          // Priority note (MINOR-3): known appStatus entries (pending/approved/etc.) always take
+          // precedence over appFailed. This is intentional: handleAppStatusChange may have committed
+          // a real status (from a successful apply or 409 recovery) into appStatusMap after the
+          // fetch failed. A later appRetryCount cycle may add the course to appErrorIds again,
+          // but the previously-known status is still authoritative and displayed correctly —
+          // appFailed is only reached in the derivation when no known status is present.
           const displayState =
             state === 'loading' ? 'loading'
             : appStatus?.status === 'minted' ? 'minted'

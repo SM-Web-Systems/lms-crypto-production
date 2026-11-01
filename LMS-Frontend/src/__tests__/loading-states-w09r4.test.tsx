@@ -550,6 +550,26 @@ describe('W09-R4 R3 — application fetch failure display', () => {
     expect(screen.getByRole('button', { name: /request certificate/i })).toBeInTheDocument();
   });
 
+  it('R3-7: handleApplyCertificate invocation guarded — applyForCertificate NOT called when appFailed', async () => {
+    // Enforce the rule at invocation as well as visibility: even if the button were somehow
+    // triggered (e.g., programmatic click), the service must not be called.
+    vi.mocked(courseService.fetchCourses).mockResolvedValue([course1] as any);
+    vi.mocked(courseCompletionService.getCourseProgress).mockResolvedValue(progressEligible);
+    vi.mocked(courseCompletionService.getCourseApplications).mockRejectedValue(new Error('app fail'));
+
+    renderStudent();
+
+    await waitFor(() =>
+      expect(screen.getByText('Intro to Blockchain')).toBeInTheDocument()
+    );
+
+    // Button must not be visible
+    expect(screen.queryByRole('button', { name: /request certificate/i })).toBeNull();
+
+    // applyForCertificate must not have been called during render/setup
+    expect(vi.mocked(courseCompletionService.applyForCertificate).mock.calls.length).toBe(0);
+  });
+
   it('R3-8: app fetch fails → retry → succeeds (pending app) → "Application pending" badge shown, error gone', async () => {
     vi.mocked(courseService.fetchCourses).mockResolvedValue([course1] as any);
     vi.mocked(courseCompletionService.getCourseProgress).mockResolvedValue(progressEligible);
