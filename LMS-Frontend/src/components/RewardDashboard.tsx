@@ -323,6 +323,11 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   }, [expanded, role]);
 
   const performAction = useCallback(async (action: string, rewardId: string, allocId?: string) => {
+    // W08-R1: submission guard — verify capability at invocation time in case it was
+    // revoked after the button was rendered but before the user clicked.
+    const requiredCap = ACTION_CAPABILITY[action] ?? '';
+    if (!hasCapability(user, requiredCap)) return;
+
     const key = `${action}-${rewardId}-${allocId ?? ''}`;
     setActionLoading(key);
     const idem = `${action}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
