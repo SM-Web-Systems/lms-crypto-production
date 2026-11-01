@@ -25,6 +25,7 @@
 
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 
 // ── Public constants ─────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ export interface PlanResult {
   wouldApply: boolean;
   alreadyAtTarget: boolean;
   indexNames: string[];
+  fkBaseline: FkBaseline;
 }
 
 export interface ApplyResult {
@@ -296,6 +298,36 @@ const REWARD_TXN_COLUMNS = [
   'created_at',
 ] as const;
 
+// The canonical format matches release_preflight.database_metadata: Python's
+// ensure_ascii JSON representation, Python's row sort key, then compact JSON.
+export interface FkBaseline { fk_violation_count: number; fk_violations_sha256: string }
+function pythonJson(value: unknown, compact: boolean): string {
+  if (Array.isArray(value)) return '[' + value.map(v => pythonJson(v, compact)).join(compact ? ',' : ', ') + ']';
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) throw new Error('Unsafe FK integer; cannot fingerprint exactly');
+  const encoded = JSON.stringify(value);
+  if (encoded === undefined) throw new Error('Unsupported FK value');
+  return encoded.replace(/[\u007f-\uffff]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+export function fkEvidence(conn: SqliteDatabase): FkBaseline {
+  const rows = (conn.pragma('foreign_key_check') as { table: string; rowid: number | null; parent: string; fkid: number }[])
+    .map(r => [r.table, r.rowid, r.parent, r.fkid]);
+  rows.sort((a, b) => { const x = pythonJson(a, false), y = pythonJson(b, false); return x < y ? -1 : x > y ? 1 : 0; });
+  return { fk_violation_count: rows.length, fk_violations_sha256: createHash('sha256').update(pythonJson(rows, true)).digest('hex') };
+}
+function requireFkBaseline(conn: SqliteDatabase, baseline?: FkBaseline): void {
+  const current = fkEvidence(conn);
+  if (baseline === undefined) {
+    if (current.fk_violation_count) throw new Error(`Pre-existing FK violations detected (${current.fk_violation_count} violation(s)). Refusing before reconstruction`);
+    return;
+  }
+  if (!Number.isSafeInteger(baseline.fk_violation_count) || baseline.fk_violation_count < 0 ||
+      !/^[a-f0-9]{64}$/.test(baseline.fk_violations_sha256) ||
+      current.fk_violation_count !== baseline.fk_violation_count ||
+      current.fk_violations_sha256 !== baseline.fk_violations_sha256) {
+    throw new Error('Foreign key evidence differs from reviewed baseline; refusing migration');
+  }
+}
+
 // ── Core API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -439,7 +471,7 @@ export function planUpgrade(dbPath: string): PlanResult {
         ).all() as { name: string }[]).map(r => r.name)
       : [];
 
-    return { schemaVersion, rowCount, wouldApply: !alreadyAtTarget, alreadyAtTarget, indexNames };
+    return { schemaVersion, rowCount, wouldApply: !alreadyAtTarget, alreadyAtTarget, indexNames, fkBaseline: fkEvidence(conn) };
   } finally {
     conn.close();
   }
@@ -457,7 +489,7 @@ export function planUpgrade(dbPath: string): PlanResult {
  */
 export function applyUpgrade(
   dbPath: string,
-  options?: { _injectFailureAfterRename?: boolean }
+  options?: { fkBaseline?: FkBaseline; _injectFailureAfterRename?: boolean; _injectAfterPhase1?: () => void }
 ): ApplyResult {
   if (!fs.existsSync(dbPath)) {
     throw new Error(`Database file not found: ${dbPath}`);
@@ -505,14 +537,7 @@ export function applyUpgrade(
     }
 
     // Source schema confirmed.
-    const preFkViolations = conn.pragma('foreign_key_check') as unknown[];
-    if (preFkViolations.length > 0) {
-      throw new Error(
-        `Pre-existing FK violations detected (${preFkViolations.length} violation(s)). ` +
-        `Refusing before reconstruction — original schema and data are unchanged. ` +
-        `Repair the FK violations before applying this migration.`
-      );
-    }
+    requireFkBaseline(conn, options?.fkBaseline);
 
     const preIntegrity = conn.pragma('integrity_check', { simple: true });
     if (preIntegrity !== 'ok') {
@@ -536,7 +561,7 @@ export function applyUpgrade(
     const rowCount = (conn.prepare('SELECT COUNT(*) as c FROM reward_transactions').get() as { c: number }).c;
     console.log(`[W03-R4] ${MIGRATION_ID}: source schema confirmed, ${rowCount} rows`);
     console.log(`[W03-R4] IMPORTANT: Ensure a consistent WAL backup exists before applying.`);
-    console.log(`[W03-R4]   sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" && cp "$DB" "$DB.bak-pre-w03r4"`);
+    console.log(`[W03-R4] Use a verified SQLite backup; do not copy a live WAL database file.`);
 
     conn.exec('PRAGMA legacy_alter_table = ON');
     conn.exec('PRAGMA foreign_keys = OFF');
@@ -544,7 +569,13 @@ export function applyUpgrade(
     let rowsCopied = 0;
     const colList = REWARD_TXN_COLUMNS.join(', ');
 
+    options?._injectAfterPhase1?.();
     const migrate = conn.transaction(() => {
+      requireFkBaseline(conn, options?.fkBaseline);
+      if (detectSchemaVersion(conn) !== 'source' || inventoryDependencies(conn).length ||
+          conn.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reward_transactions_new'").get()) {
+        throw new Error('Schema or dependencies changed before transaction; refusing migration');
+      }
       conn.exec(targetCreateTable('reward_transactions_new'));
 
       // W03-R4: explicit column mapping — no assumption about source column order
@@ -569,13 +600,7 @@ export function applyUpgrade(
       );
 
       // F3 (W03-R3): checks inside transaction — failure auto-rolls back, no receipt written
-      const postFkViolations = conn.pragma('foreign_key_check') as unknown[];
-      if (postFkViolations.length > 0) {
-        throw new Error(
-          `foreign_key_check failed after reconstruction: ${postFkViolations.length} violation(s). ` +
-          `Transaction will rollback — original table and data preserved.`
-        );
-      }
+      requireFkBaseline(conn, options?.fkBaseline);
 
       const postIntegrity = conn.pragma('integrity_check', { simple: true });
       if (postIntegrity !== 'ok') {
@@ -590,9 +615,15 @@ export function applyUpgrade(
         `INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by)
          VALUES (?, datetime('now'), datetime('now'), NULL)`
       ).run(MIGRATION_ID);
+      if (options?.fkBaseline) {
+        conn.prepare(`INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by)
+          VALUES (?, ?, datetime('now'), NULL)`).run(MIGRATION_ID + '_fk_baseline', JSON.stringify(options.fkBaseline));
+      }
+      // Receipt triggers must not introduce or alter violations after validation.
+      requireFkBaseline(conn, options?.fkBaseline);
     });
 
-    migrate();
+    migrate.immediate();
 
     // ── Phase 3: Post-commit verification ────────────────────────────────────
 
@@ -623,7 +654,14 @@ export function applyUpgrade(
 
 if (process.argv[1]?.endsWith('migrateRewardTxnCheck.ts') ||
     process.argv[1]?.endsWith('migrateRewardTxnCheck.js')) {
-  const [,, mode, dbPath] = process.argv;
+  const [,, mode, dbPath, ...args] = process.argv;
+  let fkBaseline: FkBaseline | undefined;
+  if (args.length) {
+    if (mode !== "--apply" || args.length !== 4 || args[0] !== "--fk-count" || args[2] !== "--fk-sha256" || !/^(0|[1-9][0-9]*)$/.test(args[1]) || !/^[a-f0-9]{64}$/.test(args[3])) {
+      console.error("Invalid FK baseline arguments"); process.exit(1);
+    }
+    fkBaseline = { fk_violation_count: Number(args[1]), fk_violations_sha256: args[3] };
+  }
 
   if (!mode || !dbPath || (mode !== '--plan' && mode !== '--apply')) {
     console.error('Usage: npm run db:migrate-reward-txn-check -- --plan|--apply DATABASE_PATH');
@@ -639,6 +677,8 @@ if (process.argv[1]?.endsWith('migrateRewardTxnCheck.ts') ||
       console.log(`  Would apply    : ${report.wouldApply}`);
       console.log(`  Already target : ${report.alreadyAtTarget}`);
       console.log(`  Indexes        : ${report.indexNames.join(', ') || '(none)'}`);
+      console.log(`  FK count       : ${report.fkBaseline.fk_violation_count}`);
+      console.log(`  FK SHA256      : ${report.fkBaseline.fk_violations_sha256}`);
       if (report.wouldApply) {
         console.log('[W03-R4] To apply: npm run db:migrate-reward-txn-check -- --apply DATABASE_PATH');
         console.log('[W03-R4] Rollback note: if release_unused rows exist after migration,');
@@ -647,7 +687,7 @@ if (process.argv[1]?.endsWith('migrateRewardTxnCheck.ts') ||
         console.log('[W03-R4] Database is already at target schema — no migration needed.');
       }
     } else {
-      const result = applyUpgrade(dbPath);
+      const result = applyUpgrade(dbPath, { fkBaseline });
       if (result.alreadyAtTarget) {
         console.log('[W03-R4] Already at target schema — nothing to do.');
       } else {

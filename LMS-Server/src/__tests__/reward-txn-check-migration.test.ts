@@ -49,6 +49,7 @@ import { v4 as uuidv4 } from 'uuid';
 // TDD RED: this module does not exist yet — tests fail until Task #22 is complete
 import {
   planUpgrade,
+  fkEvidence,
   applyUpgrade,
   detectSchemaVersion,
   canonicalizeDdl,
@@ -2264,5 +2265,79 @@ describe('COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside li
     const result = canonicalizeDdl(ddl);
     // Double-quoted identifier — preserved as-is (it's a valid table name)
     expect(result).toContain('"IF NOT EXISTS"');
+  });
+});
+
+
+describe('reviewed FK baseline', () => {
+  function fixture() {
+    const item = makeTempDb(OLD_SCHEMA);
+    item.conn.pragma('foreign_keys = OFF');
+    item.conn.exec('CREATE TABLE "échild" (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id))');
+    item.conn.exec('INSERT INTO "échild" VALUES (7, 999)');
+    item.conn.close();
+    return item.dbPath;
+  }
+  it('matches Python ensure_ascii compact fingerprint for Unicode evidence', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file);
+      const evidence = fkEvidence(conn); conn.close();
+      expect(evidence).toEqual({ fk_violation_count: 1, fk_violations_sha256: '3bf5c631fe55c2a75418823ed49ebe6ae5aea49cf034fc34bcd954cc3c6eb971' });
+    } finally { cleanupTempDb(file); }
+  });
+  it('matches Python ordering, nulls, control characters and astral Unicode', () => {
+    const rows = [
+      { table:'z', rowid:null, parent:'p', fkid:0 },
+      { table:'😀\n', rowid:-9, parent:'p', fkid:3 },
+      { table:'échild', rowid:100, parent:'users', fkid:0 },
+      { table:'échild', rowid:7, parent:'users', fkid:0 },
+    ];
+    const fake = { pragma: () => rows } as unknown as SqliteDatabase;
+    expect(fkEvidence(fake)).toEqual({ fk_violation_count:4, fk_violations_sha256:'f41b46da4c49c942a89c76dd2c9d37c70f65ff918ca64b8822c06e5eee04e4b4' });
+  });
+  it('preserves the orphan with the reviewed baseline and refuses by default', () => {
+    const file = fixture();
+    try {
+      expect(() => applyUpgrade(file)).toThrow(/Pre-existing FK/);
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      expect(applyUpgrade(file, { fkBaseline: baseline }).success).toBe(true);
+      const after = new Database(file);
+      expect(fkEvidence(after)).toEqual(baseline);
+      expect(after.prepare('SELECT user_id FROM "échild" WHERE id=7').get()).toEqual({user_id:999});
+      expect(detectSchemaVersion(after)).toBe('target');
+      expect(JSON.parse((after.prepare('SELECT value FROM system_config WHERE key=?').get(MIGRATION_ID + '_fk_baseline') as {value:string}).value)).toEqual(baseline); after.close();
+    } finally { cleanupTempDb(file); }
+  });
+  it('rolls back when a receipt trigger introduces a new violation', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file);
+      conn.exec(`CREATE TRIGGER bad_receipt AFTER INSERT ON system_config
+        WHEN NEW.key='migration_002_reward_txn_check'
+        BEGIN INSERT INTO "échild" VALUES (8, 999); END`);
+      const baseline = fkEvidence(conn); conn.close();
+      expect(() => applyUpgrade(file, { fkBaseline: baseline })).toThrow(/baseline/);
+      const after = new Database(file);
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(fkEvidence(after)).toEqual(baseline);
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined();
+      after.close();
+    } finally { cleanupTempDb(file); }
+  });
+  it.each(['added', 'removed', 'changed'])('refuses %s evidence between checks', change => {
+    const file = fixture();
+    try {
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      expect(() => applyUpgrade(file, { fkBaseline: baseline, _injectAfterPhase1: () => {
+        const other = new Database(file); other.pragma('foreign_keys = OFF');
+        if (change === 'added') other.exec('INSERT INTO "échild" VALUES (8, 999)');
+        if (change === 'removed') other.exec('DELETE FROM "échild"');
+        if (change === 'changed') other.exec('UPDATE "échild" SET id=8');
+        other.close();
+      }})).toThrow(/baseline/);
+      const after = new Database(file); expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined(); after.close();
+    } finally { cleanupTempDb(file); }
   });
 });

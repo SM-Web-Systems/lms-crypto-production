@@ -446,6 +446,47 @@ class RecoveryTests(unittest.TestCase):
         self.assert_no_up()
         self.assertFalse(self.containers['fixture-api']['State']['Running'])
 
+    def test_stopped_snapshot_error_attempts_recovery(self):
+        with patch.object(self.rec, 'stopped_database_metadata', side_effect=[pre.ReleaseError('SNAPSHOT_FAILED'), self.backup]):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_overlay_write_error_attempts_recovery(self):
+        with patch.object(self.rec, 'overlay_file', side_effect=OSError('synthetic')):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_candidate_metadata_failure_attempts_recovery(self):
+        original = self.rec.immutable_json
+        def write(path, value):
+            if path.name.startswith('candidate-'): raise OSError('synthetic candidate write failure')
+            return original(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=write):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_partial_stop_attempts_recovery(self):
+        original = self.rec.controlled_stop
+        attempts = []
+        def stop(target, runner, allowed_configs=None):
+            attempts.append(1)
+            if len(attempts) == 1:
+                self.containers['fixture-api']['State']['Running'] = False
+                raise pre.ReleaseError('PARTIAL_STOP')
+            return original(target, runner, allowed_configs)
+        with patch.object(self.rec, 'controlled_stop', side_effect=stop):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertTrue(self.containers['fixture-api']['State']['Running'])
+
+    def test_stop_failure_reports_unverified_containment(self):
+        self.runner.fail_stop = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'CONTAINMENT_UNVERIFIED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+
     def test_failed_deploy_can_recover_but_never_reports_deploy_success(self):
         def http(url):
             if self.containers['fixture-api']['Image'] == NEW_API: return 503, b''

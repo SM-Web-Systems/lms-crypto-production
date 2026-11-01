@@ -497,13 +497,14 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
         containers = verify_checkout_context(config, target, runner)
         require(all(containers[service]['Image'] == target['services'][service]['image_id'] for service in ('api', 'web')), 'PRE_DEPLOY_CONTAINER_IMAGE_CHANGED')
         verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
-        controlled_stop(target, runner)
-        verify_database_contract(stopped_database_metadata(target['database']['host_path']), manifest['backup'])
-        overlay = overlay_file(state, built, 'deploy')
-        immutable_json(state / ('candidate-' + manifest['manifest_id'] + '.json'),
-                       {'manifest_sha256': pre.file_sha256(Path(manifest['manifest_file'])), 'images': built,
-                        'overlay_file': str(overlay), 'overlay_sha256': pre.file_sha256(overlay)})
+        overlay = None
         try:
+            controlled_stop(target, runner)
+            verify_database_contract(stopped_database_metadata(target['database']['host_path']), manifest['backup'])
+            overlay = overlay_file(state, built, 'deploy')
+            immutable_json(state / ('candidate-' + manifest['manifest_id'] + '.json'),
+                           {'manifest_sha256': pre.file_sha256(Path(manifest['manifest_file'])), 'images': built,
+                            'overlay_file': str(overlay), 'overlay_sha256': pre.file_sha256(overlay)})
             runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'])
             verify_running(target, built, target['approved_sha'], runner, base_url, http, timeout, overlay)
             post_deploy = pre._source_metadata(Path(target['database']['host_path']))
@@ -520,7 +521,12 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
             try:
                 _rollback_locked(config, state, policy, runner, http, timeout)
             except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
-                controlled_stop(target, runner, {target['compose_file'], target['compose_file'] + ',' + str(overlay)})
+                allowed = {target['compose_file']}
+                if overlay is not None: allowed.add(target['compose_file'] + ',' + str(overlay))
+                try:
+                    controlled_stop(target, runner, allowed)
+                except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+                    raise ReleaseError('DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED') from None
                 raise ReleaseError('DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED') from None
             raise ReleaseError('DEPLOYMENT_FAILED_RECOVERY_VERIFIED') from None
 
