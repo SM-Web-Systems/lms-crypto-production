@@ -1660,8 +1660,8 @@ W09/S3 qualification is preserved. No code change was made. Regression tests are
 | Spec commit | `3e8d4f6` docs(W09-R7): spec — auth-refresh overlap with certificate application mutation |
 | Fix+test commit | `b3f3b78` fix(W09-R7): preserve app status against auth-refresh-triggered stale courses fetch |
 | Base SHA | `3ed1be5` (W09-R6 merge) |
-| CI | pending (PR #143 open) |
-| Test results | 700/700 frontend PASS (6 new W09-R7 tests; 694 pre-existing); TypeScript clean; 0 regressions |
+| CI | PR run 41327753824 — 4/4 PASS (Backend, Frontend, E2E, Offline); post-merge main run 41328420175 — 4/4 PASS |
+| Test results | 702/702 frontend PASS (8 new W09-R7+isolation tests; 694 pre-existing); TypeScript clean; 0 regressions |
 | Files changed | NEW: `LMS-Frontend/src/__tests__/loading-states-w09r7.test.tsx`, `docs/release/W09-R7-spec.md`; MOD: `LMS-Frontend/src/pages/StudentDashboard.tsx` |
 
 ### W09-R7 defect finding
@@ -1710,7 +1710,7 @@ Server non-null values always win (`newApps[id] != null`). Stale empty results d
 ### W09-R7 residual paths
 
 1. Backend replica lag on fresh page load (preservation guard does not help when prev is null — fix is to server-side read-your-writes).
-2. `handleAppStatusChange` identity guard missing — old-user mutation can briefly write to new user's `appStatusMap` during account replacement. Transient (new user's courses effect full replace corrects it). Not in W09-R7 scope.
+2. `handleAppStatusChange` identity guard missing — old-user mutation can briefly write to new user's `appStatusMap` during account replacement. **ADDRESSED** in account-isolation follow-up (b074941): `StudentDashboard` now keys `StudentDashboardContent` by `user?.id` (same W09-R2 ParentDashboard pattern); account change unmounts prior instance and all in-flight callbacks. Same-user auth refreshes retain state via key stability.
 3. React 18 `startTransition` — if adopted for courses effect, `setCoursesLoading(true)` becomes deferred and skeleton-guard is weakened.
 
 ### W09-R7 commit chain
@@ -1719,4 +1719,5 @@ Server non-null values always win (`newApps[id] != null`). Stale empty results d
 | --- | --- |
 | `3e8d4f6` | docs(W09-R7): spec — auth-refresh overlap with certificate application mutation |
 | `b3f3b78` | fix(W09-R7): preserve app status against auth-refresh-triggered stale courses fetch |
-| TBD | Merge commit to main (PR #143, pending CI) |
+| `b074941` | fix(W09-R7): isolate student state across accounts — StudentDashboard wrapper keys content by user?.id; 2 new isolation tests (prior-user app not carried; in-flight mutation isolated); 702/702 FE PASS |
+| `e2c71e2` | Squash merge to main (PR #143, 2026-11-01T16:50:58Z) — PR CI 41327753824 4/4 PASS; post-merge main CI 41328420175 4/4 PASS; independent review: APPROVED (1 LOW non-blocking) |
