@@ -1539,3 +1539,59 @@ Two gaps identified after W09-R1:
 | `64b934e` | fix(W09-R4): remove unused act import from test file |
 | `c912c62` | fix(W09-R4): MINOR-1 scoped app retry effect; MINOR-3/4 comment/guard |
 | `d08286a` | Merge commit to main |
+
+---
+
+## W09-R5 — Keep application status truthful during retry
+
+### W09-R5 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Finding | W09-R5 (independently reproduced from W09-R4 main `d08286a`) |
+| Priority | P2 |
+| PR | #141 (`fix(W09-R5): keep application status truthful during retry`) |
+| Spec commit | `f428b17` docs(W09-R5): spec — application status retry window correctness |
+| RED test commit | `4d20b2a` test(W09-R5): RED tests for retry window and app status correctness |
+| Fix commit | `9e830bb` fix(W09-R5): appLoadingIds state prevents retry window from showing cert button |
+| Review resolution commit | `0b8a2fb` fix(W09-R5): clarify cleanup comment per independent review (LOW) |
+| Merge commit | `8841fcb` (to main, 2026-11-01) |
+| Base SHA | `d08286a` (W09-R4) |
+| Main HEAD after merge | `8841fcb` |
+| CI | Frontend PASS, Backend PASS, Offline PASS, E2E PASS (run on PR #141, 4/4) |
+| Test results | 684/684 frontend PASS; 19 new W09-R5 tests (loading-states-w09r5.test.tsx); 0 regressions |
+| Independent review | APPROVED; LOW finding (comment clarity) resolved pre-merge; MEDIUM (documented limitation, acceptable by design) |
+| Files changed | MODIFIED: `LMS-Frontend/src/pages/StudentDashboard.tsx`, `LMS-Frontend/src/components/dashboard/CertEligibilitySection.tsx`; NEW: `LMS-Frontend/src/__tests__/loading-states-w09r5.test.tsx`, `docs/release/W09-R5-spec.md` |
+
+### W09-R5 defect fixed
+
+**Retry window exposes "Request certificate" for unknown application status**: W09-R4 app retry effect called `setAppErrorIds(new Set())` immediately on retry start. During the window between that eager clear and the request settling, `CertEligibilitySection` saw `appFailed=false` and no `appStatusMap` entry for the course. With eligible progress, `displayState` evaluated to `eligible` and the "Request certificate" button appeared. An independent rendered-component test with a controlled pending promise reproduced the button.
+
+**Fix**: Add `appLoadingIds: Set<string>` state. On retry start: set `appLoadingIds` to only the errored courses (not all courses — confirmed-status courses keep their button). Do NOT clear `appErrorIds`. On settle: update `appErrorIds` via scoped merge (preserves non-retried errors); clear `appLoadingIds`. On cleanup: clear `appLoadingIds` (unmount / identity change). `CertEligibilitySection` derives `appStatusUnknown = appFailed || appRetryPending`; button gate and handler guard use `appStatusUnknown`. Amber alert stays visible during retry with "Try again" button hidden and "Checking…" message. Retry merge preserves confirmed non-null status against stale empty result from a concurrent mutation race.
+
+### W09-R5 requirement coverage
+
+| Requirement group | IDs | Status |
+| --- | --- | --- |
+| R1 — Retry window button suppression | R1-1 through R1-4 | All GREEN |
+| R2 — Handler guard during retry | R2-1, R2-2 | All GREEN |
+| R3 — Retry service call | R3-1 | GREEN |
+| R4 — Checklist three-state during retry | R4-1, R4-2 | All GREEN |
+| R5 — Multiple courses, independent status | R5-1, R5-2 | All GREEN |
+| R6 — Out-of-order mutation preservation | R6-1 | GREEN |
+| R7 — Identity switch and unmount | R7-1, R7-2 | All GREEN |
+| R8 — W09-R4 regression preservation | R8-1 through R8-5 | All GREEN |
+
+### Residual limitations
+
+Concurrent courses-effect re-fetch (`coursesRetryCount++`) does a full replace of `appStatusMap` (by design — it re-fetches authoritative server data). If triggered while an app retry is also in flight, the courses-effect result takes precedence. In practice this is low-probability (button only appears after courses load; user would need to simultaneously retry courses and apps). Documented in spec §Residual limitations.
+
+### W09-R5 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `f428b17` | docs(W09-R5): spec — application status retry window correctness |
+| `4d20b2a` | test(W09-R5): RED tests for retry window and app status correctness |
+| `9e830bb` | fix(W09-R5): appLoadingIds state prevents retry window from showing cert button |
+| `0b8a2fb` | fix(W09-R5): clarify cleanup comment per independent review (LOW) |
+| `8841fcb` | Merge commit to main |
