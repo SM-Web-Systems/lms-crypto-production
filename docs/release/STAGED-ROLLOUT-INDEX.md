@@ -61,7 +61,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 | W06 | P2 | **FIXED** — PR #128 (strict INVALID_TARGET_TYPE validation in resolveParentScopeType, safe constant message, GET query array safety, frontend targetType propagation, 25 tests, main HEAD `1988457`); W06-R1 PR #129 (stale response guard: reqId + targetKey, 8 tests, main HEAD `1a5288a`); W06-R2 PR #130 (target epoch guard: create-completion + operation ownership, 9 tests, main HEAD `01117903`); W06-R3 PR #131 (blocked-refund epoch guard, 3 tests, main HEAD `530315e`) | #128, #129, #130, #131 MERGED | Per-child rewards UI in ParentDashboard not yet rendered (W08 scope) |
 | W07 | P2 | **FIXED** — PR #132 (employer DTO mapper + assertApiSuccess, sponsor assertApiSuccess + null→undefined, sponsor billing error codes INVALID_DATE_RANGE/INVALID_SCOPE/INSUFFICIENT_PERMISSIONS, 27 tests, main HEAD `60fb174`) | #132 MERGED | None — W07 fully closed |
 | W08 | P2 | **FIXED** — PR #133 (remove 6 deferred nav links, redirect 6 deferred routes, remove Fund button, wire New Class/New Team buttons, fix parent rewards blank-on-no-groups, 21 tests, main HEAD `88212bd`) | #133 MERGED | Deferred: employer/parent/teacher billing UI, teacher analytics UI, parent wallets/groups UI, reward funding workflow — see FOLLOW-UP entries |
-| W09 | P2 | **Present** — failed API loads render as empty lists rather than error states | None | Add truthful error/loading states |
+| W09 | P2 | **FIXED** — PR #136 (ParentDashboard getGroups suppression: Promise.allSettled + groupsError state, 9 tests, main HEAD `2c6883c`); W09-R1 PR #137 (reqIdRef ownership guard, false-zero metric, allocation expand error, 8 tests, main HEAD `0a80b77`) | #136, #137 MERGED | StudentDashboard quiz/course error suppression DEFERRED — FOLLOW-UP(student-dashboard-error-states) |
 | W10 | — | **Integration** — all LMS open PRs CI-green and mergeable; RBAC chain, mobile chain, DB PR need ordered merge | PRs #90–#102 | Ordered merge, rebase #92, combined CI validation |
 | W11 | — | **Not started** — no physical device or installed-client acceptance performed | PR #62 (draft) | Device testing, supported-build matrix, fleet gate |
 | W12 | — | **Partially addressed** — Wallet has 65 TS diagnostics baseline; dependency PRs open | Wallet #2-#4, LMS #90 | Fix Wallet diagnostics incrementally; merge dependency PRs |
@@ -72,7 +72,7 @@ See [STAGED-ROLLOUT-EVIDENCE.md](STAGED-ROLLOUT-EVIDENCE.md) for the complete fi
 | --- | --- | --- | --- |
 | **S1** | Inventory, specification and independent dependency merge | None | ~~Read-only assessment, spec writing, safe dependency PR merges (#90, Dependabot)~~ **COMPLETE** — PRs #86 and #90 merged; specs written and reviewed |
 | **S2** | Reward security remediation (W01–W04+R1) | S1 specs reviewed | ~~Isolated development, TDD, review branch/PR~~ **COMPLETE** — PRs #104–#125 merged; W01–W04+R2 all FIXED (384+ tests, main HEAD `a946c0f`) |
-| **S3** | Reward contracts and portal completion (W05–W09) | S2 merged or independent | **IN_PROGRESS** — W05 FIXED (PR #126, 29 tests); W05-R1 FIXED (PR #127); W06 FIXED (PR #128, 25 tests); W06-R1 FIXED (PR #129, 8 tests); W06-R2 FIXED (PR #130, 9 tests); W06-R3 FIXED (PR #131, 3 tests, main HEAD `530315e`); W07 FIXED (PR #132, 27 tests, main HEAD `60fb174`); W08 FIXED (PR #133, 21 tests, main HEAD `88212bd`); W09 pending |
+| **S3** | Reward contracts and portal completion (W05–W09) | S2 merged or independent | **COMPLETE** — W05 FIXED (PR #126, 29 tests); W05-R1 FIXED (PR #127); W06 FIXED (PR #128, 25 tests); W06-R1 FIXED (PR #129, 8 tests); W06-R2 FIXED (PR #130, 9 tests); W06-R3 FIXED (PR #131, 3 tests, main HEAD `530315e`); W07 FIXED (PR #132, 27 tests, main HEAD `60fb174`); W08 FIXED (PR #133, 21 tests, main HEAD `88212bd`); W09 FIXED (PR #136, 9 tests, main HEAD `2c6883c`); W09-R1 FIXED (PR #137, 8 tests, main HEAD `0a80b77`); StudentDashboard error suppression DEFERRED |
 | **S4** | Database integrity merge and validation (PR #93) | S1 | Merge after revalidation; no schema migration |
 | **S5** | Mobile chain rebase, merge and local validation (#92→#94→#95→#97) | S4 merged (shared main baseline) | Rebase, merge, CI validation |
 | **S6** | RBAC Step 1 — inventory and policy test acceptance (PR #98) | S4, S5 for clean main baseline | Merge to main; production snapshot required from operator |
@@ -110,7 +110,7 @@ flowchart TD
     
     style S1 fill:#e1f5fe
     style S2 fill:#ffcdd2
-    style S3 fill:#ffcdd2
+    style S3 fill:#c8e6c9
     style S10 fill:#fff9c4
     style S11 fill:#fff9c4
     style S12 fill:#f3e5f5

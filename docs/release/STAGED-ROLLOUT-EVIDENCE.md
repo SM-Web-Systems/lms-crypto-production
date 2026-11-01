@@ -1312,3 +1312,75 @@ Pending decisions D1–D6, D8–D11 are listed in the [index](STAGED-ROLLOUT-IND
 | `fadc340` | test(W08): RED baseline for portal action scoping |
 | `e4a31f7` | fix(W08): scope portal actions to implemented, authorized workflows |
 | `88212bd` | Merge commit to main |
+
+---
+
+## W09 — Truthful dashboard loading, error and empty states
+
+### Finding
+
+`ParentDashboard` called `getGroups().catch(() => [])`, silently converting any
+network/auth failure into an empty array. Users on `/parent/rewards` saw "Create a
+family group first" even when groups existed but the fetch failed.
+
+### Resolution
+
+| Item | Detail |
+| --- | --- |
+| PR | #136 (`fix(W09): surface getGroups failure in rewards section (not silent empty)`) |
+| Spec commit | `0c14d3c` docs(W09): spec — dashboard loading-state inventory and fix plan |
+| Fix commit | `df24852` fix(W09): implementation + tests |
+| CI candidate | 41276717732 — Backend PASS, Frontend 1m9s PASS, E2E 1m24s PASS, Offline 1m23s PASS (4/4) |
+| Merge SHA | `2c6883c` (2026-11-01) |
+| CI main | 41277176839 — 4/4 PASS |
+| Test results | 9 new FE tests (loading-states-w09.test.tsx); 616/616 FE tests pass (60 files); tsc clean; Vite build clean; independent review APPROVED |
+| Files changed | MODIFIED: `LMS-Frontend/src/pages/ParentDashboard.tsx`; NEW: `LMS-Frontend/src/__tests__/loading-states-w09.test.tsx`, `docs/release/W09-spec.md` |
+
+### W09 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `0c14d3c` | docs(W09): spec — dashboard loading-state inventory and fix plan |
+| `df24852` | fix(W09): surface getGroups failure in rewards section (not silent empty) |
+| `2c6883c` | Merge commit to main |
+
+---
+
+## W09-R1 — Request ownership, false-zero metric, allocation expand error
+
+### Finding
+
+Two regressions at W09 (`2c6883c`):
+R1: `childrenCount ?? 0` showed "0 Linked Children" when getDashboard failed.
+R2: `load()` had no reqIdRef guard; a Refresh could be overwritten by an older request settling last.
+
+Also fixed: `RewardDashboard.toggleAllocations` silently collapsed on `getAllocations` failure (W09 deferred, now addressed).
+
+StudentDashboard quiz/course error suppression assessed and deferred as `FOLLOW-UP(student-dashboard-error-states)`. W09/S3 closure is qualified.
+
+### Resolution
+
+| Item | Detail |
+| --- | --- |
+| PR | #137 (`fix(W09-R1): request ownership guard, false-zero metric, allocation expand error`) |
+| Spec commit | `037f2a8` docs(W09-R1): spec — request ownership, false-zero metric, allocation expand error, student deferred |
+| Fix commit | `8af1010` fix(W09-R1): implementation + tests |
+| CI candidate | 41278995238 — Backend PASS, Frontend 1m10s PASS, E2E 1m30s PASS, Offline 1m22s PASS (4/4) |
+| Merge SHA | `0a80b77` (2026-11-01) |
+| CI main | 41279484812 — 4/4 PASS |
+| Test results | 8 new FE tests (loading-states-w09r1.test.tsx); 624/624 FE tests pass (61 files); tsc clean; Vite build clean; independent review APPROVED |
+| Files changed | MODIFIED: `LMS-Frontend/src/pages/ParentDashboard.tsx`, `LMS-Frontend/src/components/RewardDashboard.tsx`; NEW: `LMS-Frontend/src/__tests__/loading-states-w09r1.test.tsx`, `docs/release/W09-R1-spec.md` |
+
+### Deferred (FOLLOW-UP entries from W09-R1)
+
+| FOLLOW-UP tag | Description |
+| --- | --- |
+| FOLLOW-UP(student-dashboard-error-states) | StudentDashboard quiz/course error suppression — quiz completions, course data, per-course progress silently fail; affects stats/checklist/cert-eligibility; deferred due to complexity and secondary-data scope |
+
+### W09-R1 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `037f2a8` | docs(W09-R1): spec |
+| `8af1010` | fix(W09-R1): request ownership guard + truthful metric + allocation expand error display |
+| `0a80b77` | Merge commit to main |
