@@ -1608,7 +1608,7 @@ Concurrent courses-effect re-fetch (`coursesRetryCount++`) does a full replace o
 | Spec commit | `a83f31b` docs(W09-R6): spec — concurrent app/course refresh ownership investigation |
 | Test commit | `3731eca` test(W09-R6): regression tests — concurrent app/course refresh ownership |
 | Base SHA | `8841fcb` (W09-R5 merge) |
-| CI | Pending (PR #142) |
+| CI | Frontend PASS, Backend PASS, Offline PASS, E2E PASS (run on PR #142, 4/4); post-merge main run `41316321165` SUCCESS |
 | Test results | 694/694 frontend PASS (10 new W09-R6 tests; 684 pre-existing); TypeScript clean; 0 regressions |
 | Files changed | NEW: `LMS-Frontend/src/__tests__/loading-states-w09r6.test.tsx`, `docs/release/W09-R6-spec.md` |
 
@@ -1646,3 +1646,4 @@ W09/S3 qualification is preserved. No code change was made. Regression tests are
 | --- | --- |
 | `a83f31b` | docs(W09-R6): spec — concurrent app/course refresh ownership investigation |
 | `3731eca` | test(W09-R6): regression tests — concurrent app/course refresh ownership |
+| `3ed1be5` | Merge commit to main (PR #142) |
