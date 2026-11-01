@@ -1384,3 +1384,51 @@ StudentDashboard quiz/course error suppression assessed and deferred as `FOLLOW-
 | `037f2a8` | docs(W09-R1): spec |
 | `8af1010` | fix(W09-R1): request ownership guard + truthful metric + allocation expand error display |
 | `0a80b77` | Merge commit to main |
+
+---
+
+## W09-R2 — Parent dashboard state isolation by user identity
+
+### W09-R2 merge receipt
+
+| Field | Value |
+| --- | --- |
+| Finding | W09-R2 |
+| Priority | P2 |
+| PR | #138 (`fix(W09-R2): isolate parent dashboard state by user`) |
+| Spec commit | `3ab886e` docs(W09-R2): specify parent state ownership |
+| Fix commit | `29fd9e3` fix(W09-R2): isolate parent dashboard state by user |
+| Merge commit | `bee4989` (to main, 2026-11-01) |
+| Base SHA | `0a80b77` (W09-R1) |
+| Main HEAD after merge | `bee4989` |
+| CI | Frontend PASS, Backend PASS, E2E PASS, Offline PASS (run 41280482797) |
+| Test results | 627/627 frontend PASS; 3 new W09-R2 tests; 0 regressions |
+| Files changed | MODIFIED: `LMS-Frontend/src/pages/ParentDashboard.tsx`; NEW: `LMS-Frontend/src/__tests__/loading-states-w09r2.test.tsx`, `docs/release/W09-R2-spec.md` |
+
+### W09-R2 defects fixed
+
+Two gaps identified after W09-R1:
+
+**Gap 1 — Failed refresh retains stale child count**: `load()` did not call `setDashboard(null)` on rejection. After a successful initial load (count=2), a failed refresh left `dashboard` non-null — the old count remained displayed alongside the error message, contradicting the "failed section must not masquerade as empty" policy.
+
+**Fix**: `setDashboard(null)` called inside the rejection branch, after the `reqIdRef` guard. The `{dashboard !== null && (...)}` condition (W09-R1) then hides the metric card correctly on refresh failure. The guard ensures a stale rejected request cannot clear a newer successful result.
+
+**Gap 2 — Account identity change retains prior parent's data**: `ParentDashboardContent` held children and dashboard state from the previous authenticated user when the `user` object was replaced (e.g., re-login as different parent). The `reqIdRef` pattern did not address this because it only guarded concurrent calls within the same component lifetime.
+
+**Fix**: Thin `ParentDashboard` wrapper keys `<ParentDashboardContent key={user.id} />`. React unmounts and remounts the content component on identity change; the `useEffect` cleanup increments `reqIdRef.current`, invalidating any in-flight requests from the old identity. `user?.id ? ... : null` handles the null/loading user case safely.
+
+### W09-R2 test matrix
+
+| ID | Scenario | Expected |
+| --- | --- | --- |
+| W09-R2-1 | getDashboard succeeds (count=2); refresh fails | Old count hidden; error shown |
+| W09-R2-2 | getDashboard succeeds showing Alice; user.id changes to other-parent | Alice immediately gone |
+| W09-R2-3 | old request in-flight; user.id changes; old resolves with Alice | Alice never shown in new identity's view |
+
+### W09-R2 commit chain
+
+| Commit | Description |
+| --- | --- |
+| `3ab886e` | docs(W09-R2): specify parent state ownership |
+| `29fd9e3` | fix(W09-R2): isolate parent dashboard state by user |
+| `bee4989` | Merge commit to main |
