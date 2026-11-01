@@ -69,6 +69,15 @@ function seedClass(ownerId: string): string {
   return classId;
 }
 
+/** Seed a student user and enrol them in a class group (so audience is non-empty) */
+function seedStudentInClass(classId: string): void {
+  const studentId = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'W08R1 Student', ?, 'hash', 'student')",
+  ).run(studentId, `${studentId.slice(0, 8)}@student-w08r1.com`);
+  db.prepare('INSERT OR IGNORE INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(classId, studentId);
+}
+
 /** Seed an employer team group owned by userId */
 function seedTeam(ownerId: string): string {
   const teamId = uuidv4();
@@ -271,6 +280,7 @@ describe('W08-R1 Backend — capability gating integration', () => {
     it('POSITIVE: teacher with reward.activate can activate a funded reward', async () => {
       const { userId, token } = seedUserWithRole('role_teacher');
       const classId = seedClass(userId);
+      seedStudentInClass(classId); // ensure non-empty audience so activate proceeds
       const rewardId = await seedFundedTeacherReward(token, classId);
 
       const res = await request(app)
