@@ -53,6 +53,11 @@ const StudentDashboard: React.FC = () => {
   // W09-R4: track per-course application fetch failures separately from a confirmed empty result.
   // Prevents unknown status from being treated as "no application".
   const [appErrorIds, setAppErrorIds] = useState<Set<string>>(new Set());
+  // W09-R5: track per-course application fetches that are in-flight (retry pending).
+  // Prevents the retry window from briefly treating unknown status as "no application":
+  // setAppErrorIds(new Set()) was eager (W09-R4), clearing the guard before the request
+  // settled. appLoadingIds replaces that eager clear — errors stay visible until settled.
+  const [appLoadingIds, setAppLoadingIds] = useState<Set<string>>(new Set());
   const [appRetryCount, setAppRetryCount] = useState(0);
   const retryLoadApplications = useCallback(() => setAppRetryCount((c) => c + 1), []);
 
@@ -144,15 +149,27 @@ const StudentDashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, [user, coursesRetryCount]);
 
-  // W09-R4: app retry effect — triggered by appRetryCount > 0 only (initial fetch is
+  // W09-R4/R5: app retry effect — triggered by appRetryCount > 0 only (initial fetch is
   // handled by the course effect above). Scoped to application fetches so retrying a
   // failed app check does not also re-fetch courses and progress data.
+  //
+  // W09-R5: replaces the eager setAppErrorIds(new Set()) with appLoadingIds so the
+  // unknown/error state is maintained throughout the in-flight window. appErrorIds is
+  // only updated when results settle — not before.
   useEffect(() => {
     if (!user || courses.length === 0 || appRetryCount === 0) return;
     let cancelled = false;
-    setAppErrorIds(new Set());
+    // Only retry courses whose application fetch previously failed — courses with a confirmed
+    // status are not disturbed. This avoids one course's stalled retry blocking a
+    // neighbouring course that already has a known (button-eligible) status.
+    const coursesToRetry = courses.filter((c) => appErrorIds.has(c.id));
+    if (coursesToRetry.length === 0) return;
+    // Mark only the failed courses as loading — do NOT clear appErrorIds yet.
+    // Errors remain visible until the retry settles so the UI never briefly
+    // treats an unknown application status as "no application".
+    setAppLoadingIds(new Set(coursesToRetry.map((c) => c.id)));
     Promise.all(
-      courses.map(async (c) => {
+      coursesToRetry.map(async (c) => {
         const apps = await courseCompletionService.getCourseApplications(c.id, 'own').then(
           (a) => ({ ok: true as const, value: a }),
           () => ({ ok: false as const, value: null }),
@@ -162,20 +179,48 @@ const StudentDashboard: React.FC = () => {
     ).then((results) => {
       if (cancelled) return;
       const newApps: Record<string, NftApplication | null> = {};
-      const newAppErrorIds = new Set<string>();
+      const retriedErrorIds = new Set<string>();
       for (const { id, apps } of results) {
         if (apps.ok) {
           newApps[id] = apps.value.length > 0 ? apps.value[0] : null;
         } else {
-          newAppErrorIds.add(id);
+          retriedErrorIds.add(id);
         }
       }
-      // Merge: preserves statuses already committed via handleAppStatusChange
-      // (successful apply or 409 recovery) that won't appear in a plain fetch.
-      setAppStatusMap((prev) => ({ ...prev, ...newApps }));
-      setAppErrorIds(newAppErrorIds);
+      // Merge: preserves statuses committed via handleAppStatusChange (successful apply
+      // or 409 recovery). W09-R5: also prevents a stale empty result from overwriting a
+      // confirmed non-null status set by a later mutation.
+      setAppStatusMap((prev) => {
+        const merged: Record<string, NftApplication | null> = { ...prev, ...newApps };
+        for (const id of Object.keys(merged)) {
+          // Don't let an empty retry result overwrite a status committed by a later mutation.
+          if (newApps[id] === null && prev[id] != null) {
+            merged[id] = prev[id];
+          }
+        }
+        return merged;
+      });
+      // Update errors: remove retried courses that succeeded, keep those that failed.
+      // Scoped update: only touch the IDs we actually retried so unrelated errors are preserved.
+      setAppErrorIds((prev) => {
+        const next = new Set(prev);
+        for (const { id, apps } of results) {
+          if (apps.ok) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+        }
+        return next;
+      });
+      setAppLoadingIds(new Set());
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Clear loading state on cleanup (unmount or dependency change).
+      // This ensures an account switch or unmount doesn't leave stale loading indicators.
+      setAppLoadingIds(new Set());
+    };
   }, [user, courses, appRetryCount]);
 
   const quizPassed = useMemo(() => (quizCompletions ?? []).filter((c) => c.passed).length, [quizCompletions]);
@@ -257,16 +302,16 @@ const StudentDashboard: React.FC = () => {
                   : false
           }
           quizPassed={quizCompletionsError ? null : quizPassed > 0}
-          // W09-R4: three-state derivation for hasApplied (same pattern as hasCompletedLesson).
-          // confirmed positive: any app found in appStatusMap (even if others failed).
-          // confirmed negative: all apps loaded with none found.
-          // unknown (null): no confirmed positive AND any application fetch failed.
+          // W09-R4/R5: three-state derivation for hasApplied.
+          // confirmed positive: any app found in appStatusMap (even if others errored/loading).
+          // confirmed negative: all apps loaded with none found, none loading.
+          // unknown (null): no confirmed positive AND any fetch errored OR is still in flight.
           hasApplied={
             coursesError
               ? null
               : Object.values(appStatusMap).some((app) => app !== null)
                 ? true
-                : appErrorIds.size > 0
+                : (appErrorIds.size > 0 || appLoadingIds.size > 0)
                   ? null
                   : false
           }
@@ -291,6 +336,7 @@ const StudentDashboard: React.FC = () => {
         progressErrorIds={progressErrorIds}
         appStatusMap={appStatusMap}
         appErrorIds={appErrorIds}
+        appLoadingIds={appLoadingIds}
         onRetryLoadApplications={retryLoadApplications}
         onAppStatusChange={handleAppStatusChange}
       />

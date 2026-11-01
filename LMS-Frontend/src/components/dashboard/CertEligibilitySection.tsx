@@ -57,6 +57,9 @@ interface CertEligibilitySectionProps {
   // W09-R4: course IDs for which getCourseApplications failed; prevents unknown status from
   // being treated as "no application" and suppresses "Request certificate" action.
   appErrorIds?: Set<string>;
+  // W09-R5: course IDs whose application fetch is currently in flight (retry pending).
+  // Distinct from appErrorIds — a retry in flight must also suppress the button and handler.
+  appLoadingIds?: Set<string>;
   onRetryLoadApplications?: () => void;
   onAppStatusChange: (courseId: string, app: NftApplication) => void;
 }
@@ -71,6 +74,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
   progressErrorIds,
   appStatusMap,
   appErrorIds,
+  appLoadingIds,
   onRetryLoadApplications,
   onAppStatusChange,
 }) => {
@@ -78,9 +82,9 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
   const [certErrors, setCertErrors] = useState<Record<string, string>>({});
 
   const handleApplyCertificate = async (courseId: string) => {
-    // W09-R4: enforce action gate — do not apply when application status is unknown.
-    // appErrorIds.has(courseId) means the fetch failed; we cannot confirm no application exists.
-    if (appErrorIds?.has(courseId)) return;
+    // W09-R4/R5: enforce action gate — do not apply when application status is unknown.
+    // appErrorIds: fetch failed; appLoadingIds: retry in flight. Both mean status unknown.
+    if (appErrorIds?.has(courseId) || appLoadingIds?.has(courseId)) return;
     setCertState((s) => ({ ...s, [courseId]: 'loading' }));
     setCertErrors((e) => ({ ...e, [courseId]: '' }));
     try {
@@ -167,12 +171,17 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
           const progressFailed = progressErrorIds?.has(course.id) ?? false;
           // W09-R4: application fetch failed — status is unknown; cannot confirm "no application".
           const appFailed = appErrorIds?.has(course.id) ?? false;
-          // Priority note (MINOR-3): known appStatus entries (pending/approved/etc.) always take
-          // precedence over appFailed. This is intentional: handleAppStatusChange may have committed
-          // a real status (from a successful apply or 409 recovery) into appStatusMap after the
-          // fetch failed. A later appRetryCount cycle may add the course to appErrorIds again,
-          // but the previously-known status is still authoritative and displayed correctly —
-          // appFailed is only reached in the derivation when no known status is present.
+          // W09-R5: application retry in flight — status still unknown during window.
+          // appRetryPending is true between the retry start and its settlement. The button
+          // and handler are gated on appStatusUnknown (either condition), so the window cannot
+          // briefly present unknown status as "no application".
+          const appRetryPending = appLoadingIds?.has(course.id) ?? false;
+          const appStatusUnknown = appFailed || appRetryPending;
+          // Priority note: known appStatus entries (pending/approved/etc.) always take
+          // precedence over appFailed/appRetryPending. handleAppStatusChange may have committed
+          // a real status after the fetch failed; a later retry adds the course to appErrorIds
+          // again, but the previously-known status is authoritative and displayed correctly —
+          // appStatusUnknown is only reached in displayState when no known status is present.
           const displayState =
             state === 'loading' ? 'loading'
             : appStatus?.status === 'minted' ? 'minted'
@@ -340,8 +349,10 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                       {certErr}
                     </p>
                   )}
-                  {/* W09-R4: application fetch failed — show accessible error + retry.
-                      We do not know whether an application already exists; do not show apply action. */}
+                  {/* W09-R4/R5: application fetch failed — show accessible error + retry.
+                      We do not know whether an application already exists; do not show apply action.
+                      The alert stays visible during a retry (appRetryPending=true) so the user
+                      has feedback; the "Try again" button is disabled while the retry is in flight. */}
                   {appFailed && (
                     <div
                       className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
@@ -350,9 +361,11 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                       <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-amber-800">
-                          Application status unavailable — could not check whether you have applied.
+                          {appRetryPending
+                            ? 'Checking application status…'
+                            : 'Application status unavailable — could not check whether you have applied.'}
                         </p>
-                        {onRetryLoadApplications && (
+                        {onRetryLoadApplications && !appRetryPending && (
                           <button
                             type="button"
                             onClick={onRetryLoadApplications}
@@ -367,9 +380,9 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                 </div>
                 <div className="shrink-0">
                   {/* W09-R3: exclude progress_error — eligibility unknown, never show apply button.
-                      W09-R4: also exclude appFailed — application status unknown,
-                      cannot confirm no existing application. */}
-                  {!appFailed && displayState !== 'progress_error' && (displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
+                      W09-R4: exclude appFailed — application status unknown.
+                      W09-R5: also exclude appRetryPending — retry in flight, status still unknown. */}
+                  {!appStatusUnknown && displayState !== 'progress_error' && (displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
                     <Button
                       size="sm"
                       type="button"
