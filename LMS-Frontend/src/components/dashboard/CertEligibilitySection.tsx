@@ -325,7 +325,8 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                   )}
                 </div>
                 <div className="shrink-0">
-                  {(displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
+                  {/* W09-R3: exclude progress_error explicitly — eligibility is unknown, never show apply button */}
+                  {displayState !== 'progress_error' && (displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
                     <Button
                       size="sm"
                       type="button"
