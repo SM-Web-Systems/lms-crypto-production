@@ -2839,3 +2839,96 @@ describe('AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation', () => 
     }
   });
 });
+
+
+describe('AUTH-14 physical row identity and lossless snapshots', () => {
+  it('refuses a shadowed rowid that selects a different existing row', () => {
+    const {dbPath, conn} = makeTempDb(OLD_SCHEMA);
+    try {
+      conn.pragma('foreign_keys = OFF');
+      conn.exec(`CREATE TABLE shadow_collision (id INTEGER PRIMARY KEY, RoWiD INTEGER, ref TEXT REFERENCES users(id), note TEXT);
+        INSERT INTO shadow_collision VALUES (1,99,'missing','before');
+        INSERT INTO shadow_collision VALUES (2,1,NULL,'different');
+        CREATE TRIGGER collision_receipt AFTER INSERT ON system_config WHEN NEW.key='migration_002_reward_txn_check'
+        BEGIN UPDATE shadow_collision SET note='changed' WHERE id=1; END;`);
+      const baseline = fkEvidence(conn); conn.close();
+      expect(() => applyUpgrade(dbPath, {fkBaseline:baseline})).toThrow(/rowid.*shadow|alias.*shadow/i);
+      const after = new Database(dbPath);
+      expect(after.prepare('SELECT note FROM shadow_collision WHERE id=1').get()).toEqual({note:'before'});
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined();
+      after.close();
+    } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
+  });
+  it('refuses a hidden generated column that shadows rowid', () => {
+    const {dbPath,conn}=makeTempDb(OLD_SCHEMA);
+    try {
+      conn.pragma('foreign_keys = OFF');
+      conn.exec(`CREATE TABLE hidden_orphan (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id), rowid TEXT GENERATED ALWAYS AS (ref) VIRTUAL);
+        INSERT INTO hidden_orphan(id,ref) VALUES (1,'missing');`);
+      const baseline=fkEvidence(conn); conn.close();
+      expect(() => applyUpgrade(dbPath,{fkBaseline:baseline})).toThrow(/rowid.*shadow/i);
+      const after=new Database(dbPath); expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined(); after.close();
+    } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
+  });
+  it('refuses receipt triggers that can mutate unrelated valid rows', () => {
+    const {dbPath, conn}=makeTempDb(OLD_SCHEMA);
+    try {
+      conn.pragma('foreign_keys = OFF');
+      conn.exec(`CREATE TABLE unrelated (id INTEGER PRIMARY KEY, note TEXT);
+        INSERT INTO unrelated VALUES (1,'before');
+        CREATE TRIGGER unrelated_receipt AFTER INSERT ON system_config WHEN NEW.key='migration_002_reward_txn_check'
+        BEGIN UPDATE unrelated SET note='changed' WHERE id=1; END;`);
+      conn.close();
+      expect(() => applyUpgrade(dbPath)).toThrow(/receipt trigger/i);
+      const after=new Database(dbPath);
+      expect(after.prepare('SELECT note FROM unrelated WHERE id=1').get()).toEqual({note:'before'});
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined(); after.close();
+    } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
+  });
+  it('refuses a receipt trigger created between inspection and the write transaction', () => {
+    const {dbPath, conn}=makeTempDb(OLD_SCHEMA);
+    try {
+      conn.close();
+      expect(() => applyUpgrade(dbPath,{_injectAfterPhase1:() => {
+        const other=new Database(dbPath);
+        other.exec(`CREATE TRIGGER receipt_race AFTER INSERT ON system_config BEGIN SELECT 1; END`);
+        other.close();
+      }})).toThrow(/receipt trigger/i);
+      const after=new Database(dbPath);
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined(); after.close();
+    } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
+  });
+  it('preserves exact 64-bit integers and blobs in an ordinary orphan without triggers', () => {
+    const {dbPath, conn}=makeTempDb(OLD_SCHEMA);
+    try {
+      conn.pragma('foreign_keys = OFF');
+      conn.exec(`CREATE TABLE large_orphan (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id), value INTEGER, payload BLOB);
+        INSERT INTO large_orphan VALUES (1,'missing',9007199254740993,x'00ff');`);
+      const baseline=fkEvidence(conn); conn.close();
+      expect(applyUpgrade(dbPath,{fkBaseline:baseline}).success).toBe(true);
+      const after=new Database(dbPath);
+      const row=after.prepare('SELECT value,payload FROM large_orphan WHERE id=1').safeIntegers(true).get();
+      expect(row).toEqual({value:9007199254740993n,payload:Buffer.from([0,255])}); after.close();
+    } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
+  });
+  it('proactively refuses a system_config trigger; 64-bit orphan preserved without relying on bigint comparison', () => {
+    const {dbPath, conn} = makeTempDb(OLD_SCHEMA);
+    try {
+      conn.pragma('foreign_keys = OFF');
+      conn.exec(`CREATE TABLE bigint_orphan (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id), value INTEGER, payload BLOB);
+        INSERT INTO bigint_orphan VALUES (1,'missing',9007199254740992,x'00ff');
+        CREATE TRIGGER bigint_receipt AFTER INSERT ON system_config WHEN NEW.key='migration_002_reward_txn_check'
+        BEGIN UPDATE bigint_orphan SET value=9007199254740993 WHERE id=1; END;`);
+      const baseline=fkEvidence(conn); conn.close();
+      expect(() => applyUpgrade(dbPath,{fkBaseline:baseline})).toThrow(/trigger.*mutated/i);
+      const after=new Database(dbPath);
+      expect(after.prepare('SELECT value FROM bigint_orphan WHERE id=1').safeIntegers(true).get()).toEqual({value:9007199254740992n});
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined(); after.close();
+    } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
+  });
+});
