@@ -52,11 +52,9 @@
 | Size | 19,202,048 bytes |
 | Schema version | `source` (pre-W03-R2, `release_unused` absent) |
 | FK violation count | 1 |
-| FK violations SHA256 | `feb85f1d118b2bfcf24da4f94f7ac7f7d0597f8b6593521cea0aeb7432fea59e` |
+| FK violations SHA256 | `feb85f1d...` (truncated; full hash stored in private access-controlled location) |
 | Violation | `students[rowid=8] → users (fkid=0)` |
-| Student id | `a4fb562d-2d86-41cc-bc22-a1ec30f2ffea` |
-| Student user_id | `c63ba3a0-9ff1-48c5-95cb-f14dd269f853` |
-| Student name | `Smoke Test` |
+| Orphan row identity | Redacted — see private evidence record |
 | reward_transactions rows | 0 |
 | system_config rows | 0 (no migration receipts yet) |
 
@@ -148,7 +146,7 @@ $ node_modules/.bin/tsx src/scripts/migrateRewardTxnCheck.ts \
   Would apply    : true
   Already target : false
   FK count       : 1
-  FK SHA256      : feb85f1d118b2bfcf24da4f94f7ac7f7d0597f8b6593521cea0aeb7432fea59e
+  FK SHA256      : feb85f1d...  (truncated; full hash in private record)
 ```
 
 FK hash independently confirmed against Python algorithm: **match**.
@@ -157,7 +155,7 @@ FK hash independently confirmed against Python algorithm: **match**.
 $ node_modules/.bin/tsx src/scripts/migrateRewardTxnCheck.ts \
     --apply migration_rehearsal_copy.db \
     --fk-count 1 \
-    --fk-sha256 feb85f1d118b2bfcf24da4f94f7ac7f7d0597f8b6593521cea0aeb7432fea59e
+    --fk-sha256 <reviewed-hash-from-private-record>
 
 [W03-R4] migration_002_reward_txn_check: source schema confirmed, 0 rows
 [W03-R4] Migration complete: 0 rows preserved, target schema confirmed.
@@ -166,7 +164,7 @@ $ node_modules/.bin/tsx src/scripts/migrateRewardTxnCheck.ts \
 
 **Post-migration verification:**
 - Schema: `release_unused` present in `reward_transactions` CHECK ✓
-- Orphan: `students[rowid=8]` unchanged (id `a4fb562d`, user_id `c63ba3a0`, name `Smoke Test`) ✓
+- Orphan: `students[rowid=8]` unchanged (identity redacted; see private record) ✓
 - FK baseline: count=1, sha256=`feb85f1d...` (unchanged from pre-migration) ✓
 - Receipts: `migration_002_reward_txn_check` (timestamp) and `migration_002_reward_txn_check_fk_baseline` (count+sha256 JSON) ✓
 - Plan on migrated copy: `Already target: true` ✓
@@ -320,7 +318,7 @@ Created this session. Local plan file, not part of the candidate. No action need
 | Test suite (recovery 50/50) | **DONE** | |
 | Full TypeScript suite | **DONE** — 1 pre-existing failure | proxy-addr CVE, separate ticket |
 | TypeScript build clean | **DONE** | |
-| Production orphan verified | **DONE** | Snapshot + today's backup confirm count=1, hash=`feb85f1d...` |
+| Production orphan verified | **DONE** | Snapshot + today's backup confirm count=1, hash=`feb85f1d...` (full hash in private record) |
 | Snapshot WAL-consistent | **DONE** | Via `sqlite3.backup()` from read-only source |
 | Migration rehearsal on snapshot copy | **DONE** | Pass, orphan preserved |
 | Fail-closed without baseline | **DONE** | Confirmed |
