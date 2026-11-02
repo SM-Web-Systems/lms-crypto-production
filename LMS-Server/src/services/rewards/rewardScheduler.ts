@@ -18,6 +18,7 @@ import { processExpiredRewards } from './rewardExpiryWorker.js';
 import { acquireLock as dbAcquireLock, releaseLock as dbReleaseLock } from './rewardSchedulerLock.js';
 import { recordTick, type TickResult } from './rewardSchedulerMetrics.js';
 import logger from '../../utils/logger.js';
+import { isWriterHoldActive } from '../writerHold.js';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 const LOCK_NAME = 'reward-scheduler';
@@ -78,8 +79,8 @@ export function isSchedulerRunning(): boolean {
  * If another tick is already running, returns a 'skipped' result.
  */
 export async function executeTick(): Promise<TickResult> {
-  // Non-overlap guard
-  if (running) {
+  // Non-overlap guard; a writer hold leaves all queued work in place
+  if (running || isWriterHoldActive()) {
     const skipped = recordTick({ startedAt: new Date().toISOString(), result: 'skipped' });
     return skipped;
   }

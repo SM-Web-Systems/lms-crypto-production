@@ -28,6 +28,8 @@ import release_preflight as pre
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 MANIFEST_NAME = re.compile(r'recovery-[0-9a-f]{32}\.json\Z')
 REVISION_LABEL = 'org.opencontainers.image.revision'
+WRITER_HOLD_SCRIPT = 'dist/scripts/writerHold.js'
+MIGRATION_SCRIPT = 'dist/scripts/migrateRewardTxnCheck.js'
 require = pre.require
 ReleaseError = pre.ReleaseError
 
@@ -141,17 +143,39 @@ def verify_policy(target, backup, policy):
     for key, value in {'source_sha': source, 'target_sha': target['approved_sha'],
                        'project': target['project'], 'repository': target['repository'],
                        'database': target['database'], 'compose_sha256': target['compose_sha256'],
-                       'schema_sha256': backup['schema_sha256'],
                        'financial_state_sha256': backup['financial_state_sha256'],
                        'foreign_key_violation_count': backup['foreign_key_violation_count'],
                        'foreign_key_violations_sha256': backup['foreign_key_violations_sha256'],
                        'images': {service: target['services'][service]['image_id'] for service in ('api', 'web')}}.items():
         require(policy.get(key) == value, 'COMPATIBILITY_POLICY_MISMATCH')
+    # A migrating release has two reviewed schemas; the recovery contract
+    # still compares the live database against this exact backup.
+    migration = policy.get('migration')
+    if migration is not None:
+        require(isinstance(migration, dict) and set(migration) == {'pre_schema_sha256'} and
+                isinstance(migration['pre_schema_sha256'], str) and bool(HASH.fullmatch(migration['pre_schema_sha256'])), 'MIGRATION_POLICY_INVALID')
+    require(backup['schema_sha256'] in (policy.get('schema_sha256'), (migration or {}).get('pre_schema_sha256')), 'COMPATIBILITY_POLICY_MISMATCH')
     for key in ('schema_sha256', 'financial_state_sha256', 'compose_sha256', 'foreign_key_violations_sha256'):
         require(isinstance(policy[key], str) and bool(HASH.fullmatch(policy[key])), 'COMPATIBILITY_HASH_INVALID')
 
 
-def preserve_recovery(target, backup, state, runner, policy):
+def reviewed_images(target, policy, runner):
+    """The exact image IDs the independent review and rehearsal covered.
+
+    A revision label or a tag is not image identity: only these IDs may start.
+    """
+    reviewed = policy.get('candidate_images') if isinstance(policy, dict) else None
+    require(isinstance(reviewed, dict) and set(reviewed) == {'api', 'web'} and
+            all(isinstance(value, str) and bool(pre.IMAGE.fullmatch(value)) for value in reviewed.values()), 'REVIEWED_IMAGE_BINDING_REQUIRED')
+    require(policy.get('target_sha') == target['approved_sha'], 'REVIEWED_IMAGE_TARGET_MISMATCH')
+    for service in ('api', 'web'):
+        image = inspect_image(runner, target, reviewed[service])
+        require(image['Id'] == reviewed[service], 'REVIEWED_IMAGE_ID_MISMATCH')
+        require((image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == target['approved_sha'], 'REVIEWED_IMAGE_REVISION_MISMATCH')
+    return dict(reviewed)
+
+
+def preserve_recovery(target, backup, state, runner, policy, read_database=None):
     """Caller owns release_lock; keep prior pointer on any incomplete capture.
 
     Verified tags and immutable evidence remain even if eligibility is unknown.
@@ -180,7 +204,7 @@ def preserve_recovery(target, backup, state, runner, policy):
         evidence_file = state / ('capture-' + identifier + '.json')
         immutable_json(evidence_file, manifest)
         verify_policy(target, backup, policy)
-        live = pre._source_metadata(Path(target['database']['host_path']))
+        live = (read_database or pre._source_metadata)(Path(target['database']['host_path']))
         verify_database_contract(live, backup)
         manifest['eligibility'] = ('HISTORICAL_TRANSITION' if policy.get('historical_transition') is True
                                    else 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
@@ -226,6 +250,12 @@ def verify_database_contract(metadata, baseline):
             metadata.get('user_version') == baseline.get('user_version'), 'DATABASE_SCHEMA_RECOVERY_INCOMPATIBLE')
     require(metadata.get('financial_state_sha256') == baseline.get('financial_state_sha256'), 'FINANCIAL_HISTORY_RECOVERY_INCOMPATIBLE')
     verify_foreign_key_evidence(metadata, baseline)
+
+
+def verify_protected_content(metadata, baseline):
+    # Only valid across the held window; open service changes rows constantly.
+    require(isinstance(baseline.get('protected_content_sha256'), str) and
+            metadata.get('protected_content_sha256') == baseline['protected_content_sha256'], 'PROTECTED_CONTENT_CHANGED')
 
 
 def verify_foreign_key_evidence(metadata, baseline):
@@ -330,7 +360,7 @@ def validate_base_url(value):
     return value.rstrip('/')
 
 
-def verify_running(target, expected, revision, runner, base_url, http, timeout, overlay):
+def verify_running(target, expected, revision, runner, base_url, http, timeout, overlay, writer_hold=None):
     deadline = time.monotonic() + timeout
     while True:
         try:
@@ -340,6 +370,8 @@ def verify_running(target, expected, revision, runner, base_url, http, timeout, 
             health = json.loads(body)
             require(health.get('status') == 'ok' and health.get('checks', {}).get('db', {}).get('status') == 'ok', 'RECOVERY_DATABASE_READINESS_FAILED')
             require(health.get('buildSha') == revision, 'RECOVERY_HEALTH_SHA_MISMATCH')
+            if writer_hold is not None:
+                require(health.get('writerHold', {}).get('active') is writer_hold, 'WRITER_HOLD_STATE_MISMATCH')
             require(http(base_url + '/api/v1/courses')[0] == 401, 'RECOVERY_API_AUTH_SMOKE_FAILED')
             front_status, front_body = http(base_url + '/')
             require(front_status == 200 and len(front_body) <= 1024 * 1024 and b'<html' in front_body.lower(), 'RECOVERY_FRONTEND_SMOKE_FAILED')
@@ -356,30 +388,41 @@ def overlay_file(state, images, label):
 
 
 def stopped_database_metadata(path):
-    """Read a clean self-contained WAL file only after a verified writer stop.
-
-    SQLite removes WAL/SHM on a clean close while retaining WAL header mode.
-    mode=ro alone would recreate sidecars. immutable=1 is safe ONLY for this
-    stopped-writer, absent-sidecar case; active WAL always uses normal snapshots.
-    """
+    """Metadata of a database only after a verified writer stop."""
     path = pre._path(str(path))
-    sidecars = [Path(str(path) + suffix) for suffix in ('-wal', '-shm', '-journal')]
-    if sidecars[0].exists() and sidecars[1].exists(): return pre._source_metadata(path)
-    require(not any(sidecar.exists() for sidecar in sidecars), 'STOPPED_DATABASE_SIDECAR_STATE_UNKNOWN')
-    require(path.is_file() and path.stat().st_size >= 4096, 'STOPPED_DATABASE_MISSING')
-    before = pre.file_sha256(path)
-    try:
-        connection = sqlite3.connect(path.as_uri() + '?mode=ro&immutable=1', uri=True)
-        try:
-            connection.execute('PRAGMA query_only=ON'); connection.execute('BEGIN')
-            deadline = time.monotonic() + 60
-            connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 10000)
-            result = pre.database_metadata(connection)
-        finally: connection.close()
-    except sqlite3.Error:
-        raise ReleaseError('STOPPED_DATABASE_READ_FAILED') from None
-    require(not any(sidecar.exists() for sidecar in sidecars) and pre.file_sha256(path) == before, 'STOPPED_DATABASE_CHANGED')
+    if Path(str(path) + '-wal').exists() and Path(str(path) + '-shm').exists(): return pre._source_metadata(path)
+    before = pre.file_sha256(path) if path.is_file() else None
+    with pre.stopped_readonly_database(path) as connection:
+        connection.execute('BEGIN')
+        result = pre.database_metadata(connection)
+    require(pre.file_sha256(path) == before, 'STOPPED_DATABASE_CHANGED')
     return result
+
+
+def one_shot(target, image_id, script, arguments, runner, timeout=300):
+    """Run a reviewed script from the reviewed API image while services are stopped."""
+    return runner.text('docker', ['run', '--rm', '--network', 'none', '--read-only', '--tmpfs', '/tmp',
+                                  '--mount', 'type=volume,src=' + target['database']['volume_name'] + ',dst=/app/data',
+                                  '--entrypoint', 'node', image_id, script, *arguments],
+                       target['checkout'], timeout=timeout)
+
+
+def migrate_while_stopped(target, state, policy, images, runner, before):
+    """Back up, migrate and verify. Returns the recovery manifest for the new schema."""
+    window_backup = pre.backup_stopped_database(target, str(state.parent))
+    verify_backup(target, window_backup)
+    one_shot(target, images['api'], MIGRATION_SCRIPT,
+             ['--apply', target['database']['container_path'],
+              '--fk-count', str(policy['foreign_key_violation_count']),
+              '--fk-sha256', policy['foreign_key_violations_sha256']], runner)
+    migrated = stopped_database_metadata(target['database']['host_path'])
+    require(migrated['schema_sha256'] == policy['schema_sha256'], 'POST_MIGRATION_SCHEMA_MISMATCH')
+    require(migrated['financial_state_sha256'] == before['financial_state_sha256'], 'FINANCIAL_HISTORY_RECOVERY_INCOMPATIBLE')
+    verify_foreign_key_evidence(migrated, before)
+    verify_protected_content(migrated, before)
+    backup = pre.backup_stopped_database(target, str(state.parent))
+    manifest = preserve_recovery(target, backup, state, runner, policy, read_database=stopped_database_metadata)
+    return manifest, window_backup, migrated
 
 
 def recovery_runtime(state, manifest):
@@ -471,53 +514,112 @@ def prepare(config, runner=None, policy=None, dry_run=False):
                 'recovery_eligible': manifest['eligibility'] == 'EXACT_SCHEMA_AND_FINANCIAL_STATE'}
 
 
+def _database_unchanged(target, before):
+    try:
+        current = stopped_database_metadata(target['database']['host_path'])
+        verify_database_contract(current, before)
+        verify_protected_content(current, before)
+        return True
+    except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+        return False
+
+
+def build(config, runner=None):
+    """Build candidate images for review and rehearsal. Deployment never builds."""
+    runner = runner or pre.CommandRunner()
+    target = pre.validate_target(config, runner)
+    runner.text('docker', [*compose_args(target), 'build', '--build-arg', 'BUILD_SHA=' + target['approved_sha'], 'api', 'web'],
+                target['checkout'], env=dict(os.environ, BUILD_SHA=target['approved_sha']), timeout=1800)
+    images = {}
+    for service in ('api', 'web'):
+        image = inspect_image(runner, target, target['build_image_refs'][service])
+        require((image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == target['approved_sha'], 'BUILT_IMAGE_SHA_MISMATCH')
+        # Keeps the exact ID available after a later build moves :latest.
+        tag = target['project'] + '-' + service + ':candidate-' + target['approved_sha']
+        runner.text('docker', ['image', 'tag', image['Id'], tag], target['checkout'])
+        images[service] = image['Id']
+    return {'status': 'CANDIDATE_IMAGES_BUILT', 'approved_sha': target['approved_sha'], 'images': images}
+
+
+def release_hold(config, runner=None, policy=None, execute=None, http=None, timeout=60):
+    """Resume writers on the verified held candidate. Nothing is released on doubt."""
+    require(execute == '1', 'EXPLICIT_RELEASE_HOLD_EXECUTE_REQUIRED')
+    runner = runner or pre.CommandRunner(); http = http or get_http
+    base_url = validate_base_url(config.get('base_url'))
+    state = Path(config['backup_root']) / 'release-state'
+    with release_lock(state):
+        manifest = load_manifest(state); target = manifest['target']
+        candidate = read_private_json(state / ('candidate-' + manifest['manifest_id'] + '.json'))
+        require(candidate.get('manifest_sha256') == pre.file_sha256(Path(manifest['manifest_file'])), 'RECOVERY_CANDIDATE_CONTEXT_INVALID')
+        images = candidate.get('images')
+        verify_policy(target, manifest['backup'], policy)
+        require(manifest.get('policy_sha256') == digest(policy) and policy.get('candidate_images') == images, 'RECOVERY_POLICY_CHANGED')
+        overlay = pre._path(candidate.get('overlay_file'))
+        verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=True)
+        containers = verify_checkout_context(config, target, runner, {target['compose_file'] + ',' + str(overlay)})
+        verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
+        runner.text('docker', ['exec', containers['api']['Id'], 'node', WRITER_HOLD_SCRIPT, 'release'], target['checkout'])
+        verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=False)
+        result = {'status': 'WRITERS_RELEASED', 'deployed_sha': target['approved_sha'], 'images': images, 'manifest_id': manifest['manifest_id']}
+        immutable_json(state / ('release-hold-result-' + uuid.uuid4().hex + '.json'), result)
+        return result
+
+
 def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60):
     require(execute == '1', 'EXPLICIT_DEPLOY_EXECUTE_REQUIRED')
     runner = runner or pre.CommandRunner(); http = http or get_http
     base_url = validate_base_url(config.get('base_url'))
     target = pre.validate_target(config, runner)
+    reviewed_images(target, policy, runner)
     private_directory(Path(config['backup_root']))
     state = Path(config['backup_root']) / 'release-state'
     with release_lock(state):
         manifest = _prepare_locked(config, target, state, policy, runner)
-        # Capture/backup can take time; never execute a changed Dockerfile or
-        # desired environment merely because it matched before capture.
-        before_build = verify_checkout_context(config, target, runner)
-        require(all(before_build[service]['Image'] == target['services'][service]['image_id'] for service in ('api', 'web')), 'PRE_BUILD_CONTAINER_IMAGE_CHANGED')
-        verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
-        runner.text('docker', [*compose_args(target), 'build', '--build-arg', 'BUILD_SHA=' + target['approved_sha'], 'api', 'web'],
-                    target['checkout'], env=dict(os.environ, BUILD_SHA=target['approved_sha']), timeout=1800)
-        built = {}
-        for service in ('api', 'web'):
-            image = inspect_image(runner, target, target['build_image_refs'][service])
-            require((image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == target['approved_sha'], 'BUILT_IMAGE_SHA_MISMATCH')
-            built[service] = image['Id']
-        # Build may be slow: revalidate the original context and baseline just
-        # before any replacement; ongoing financial activity blocks this mode.
+        # Capture/backup can take time: revalidate the original context, the
+        # reviewed image IDs and baseline just before any replacement; ongoing
+        # financial activity blocks this mode.
+        built = reviewed_images(target, policy, runner)
         containers = verify_checkout_context(config, target, runner)
         require(all(containers[service]['Image'] == target['services'][service]['image_id'] for service in ('api', 'web')), 'PRE_DEPLOY_CONTAINER_IMAGE_CHANGED')
         verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
         overlay = None
+        migration_started = False; window_backup = None; before = None
         try:
+            # Stopping the old image is the hold for everything it runs: requests,
+            # callbacks and workers. It cannot be held any other way.
             controlled_stop(target, runner)
-            verify_database_contract(stopped_database_metadata(target['database']['host_path']), manifest['backup'])
+            before = stopped_database_metadata(target['database']['host_path'])
+            verify_database_contract(before, manifest['backup'])
+            held_state = before
+            if policy.get('migration') is not None:
+                migration_started = True
+                manifest, window_backup, held_state = migrate_while_stopped(target, state, policy, built, runner, before)
+                migration_started = False
+            # Before candidate start, so no startup or scheduled worker can run unheld.
+            one_shot(target, built['api'], WRITER_HOLD_SCRIPT, ['hold'], runner, timeout=60)
             overlay = overlay_file(state, built, 'deploy')
             immutable_json(state / ('candidate-' + manifest['manifest_id'] + '.json'),
                            {'manifest_sha256': pre.file_sha256(Path(manifest['manifest_file'])), 'images': built,
                             'overlay_file': str(overlay), 'overlay_sha256': pre.file_sha256(overlay)})
             runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'])
-            verify_running(target, built, target['approved_sha'], runner, base_url, http, timeout, overlay)
+            verify_running(target, built, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=True)
             post_deploy = pre._source_metadata(Path(target['database']['host_path']))
             verify_foreign_key_evidence(post_deploy, manifest['backup'])
-            result = {'status': 'DEPLOYMENT_VERIFIED', 'requested_sha': config['approved_sha'], 'checked_out_sha': target['approved_sha'],
+            verify_protected_content(post_deploy, held_state)
+            result = {'status': 'DEPLOYMENT_VERIFIED_WRITERS_HELD', 'requested_sha': config['approved_sha'], 'checked_out_sha': target['approved_sha'],
                       'built_sha': target['approved_sha'], 'health_sha': target['approved_sha'], 'deployed_sha': target['approved_sha'],
                       'images': built, 'manifest_id': manifest['manifest_id'],
+                      'pre_migration_backup': window_backup['file'] if window_backup else None,
                       'automatic_recovery_currently_eligible': manifest['eligibility'] == 'EXACT_SCHEMA_AND_FINANCIAL_STATE' and
                           all(post_deploy[key] == manifest['backup'][key]
                               for key in ('schema_sha256', 'financial_state_sha256', 'foreign_key_violations_sha256'))}
             immutable_json(state / ('deploy-result-' + uuid.uuid4().hex + '.json'), result)
             return result
         except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+            # A migration that may have changed anything needs an owner decision;
+            # only an exactly unchanged database may go back to the old service.
+            if migration_started and not _database_unchanged(target, before):
+                raise ReleaseError('DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
             try:
                 _rollback_locked(config, state, policy, runner, http, timeout)
             except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
@@ -533,7 +635,7 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
 
 def main():
     try:
-        require(len(sys.argv) == 2 and sys.argv[1] in ('prepare', 'rollback'), 'INVALID_RELEASE_ACTION')
+        require(len(sys.argv) == 2 and sys.argv[1] in ('prepare', 'rollback', 'build', 'release-hold'), 'INVALID_RELEASE_ACTION')
         config = {key: os.environ.get(env) for key, env in pre.ENVIRONMENT.items()}
         config['base_url'] = os.environ.get('DEPLOY_BASE_URL')
         require(all(config.get(key) for key in pre.ENVIRONMENT), 'MISSING_REQUIRED_CONFIGURATION')
@@ -542,7 +644,13 @@ def main():
         require(dry in ('0', '1') and execute in ('0', '1') and not (dry == execute == '1'), 'INVALID_RELEASE_MODE')
         policy_path = os.environ.get('DEPLOY_RECOVERY_POLICY')
         policy = read_private_json(policy_path) if policy_path else None
-        if sys.argv[1] == 'rollback':
+        if sys.argv[1] == 'build':
+            require(dry == '0' and execute == '0', 'INVALID_RELEASE_MODE')
+            result = build(config)
+        elif sys.argv[1] == 'release-hold':
+            require(execute == '1' and dry == '0', 'EXPLICIT_RELEASE_HOLD_EXECUTE_REQUIRED')
+            result = release_hold(config, policy=policy, execute=execute)
+        elif sys.argv[1] == 'rollback':
             require(execute == '1' and dry == '0', 'EXPLICIT_ROLLBACK_EXECUTE_REQUIRED')
             result = rollback(config, Path(config['backup_root']) / 'release-state', policy)
         elif execute == '1': result = deploy(config, policy=policy, execute=execute)
