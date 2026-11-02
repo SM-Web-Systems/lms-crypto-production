@@ -2531,3 +2531,288 @@ describe('reviewed FK baseline', () => {
     } finally { cleanupTempDb(dbPath); }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation
+//
+// Gap: the merged orphan-snapshot loop skips FK violations whose rowid is null
+// (WITHOUT ROWID tables) and stores '' for rows that cannot be located via the
+// rowid alias (shadowed by a user-defined column named rowid/_rowid_/oid).
+// In both cases a receipt AFTER INSERT trigger on system_config can silently
+// mutate an orphan without detection, and requireFkBaseline also passes because
+// the FK violation tuple is unchanged.
+//
+// Fix required: fail closed before the receipt write whenever a pre-existing FK
+// violation has a null rowid (WITHOUT ROWID table) OR cannot be located by rowid
+// lookup (alias shadowed by a user-defined column). A ''/undefined snapshot must
+// never silently be treated as preservation.
+//
+// Requirement-to-test map:
+//  AUTH-14-WR-1  — WITHOUT ROWID + trigger: mutation invisible to current code
+//  AUTH-14-WR-2  — WITHOUT ROWID + no trigger: fail closed before receipt write
+//  AUTH-14-WR-3  — rollback: source schema and data intact after WOR refusal
+//  AUTH-14-WR-4  — rowid-alias (rowid col): mutation invisible to current code
+//  AUTH-14-WR-5  — rowid-alias (rowid col): fail closed when lookup returns undefined
+//  AUTH-14-WR-6  — rowid-alias (_rowid_ col): fail closed
+//  AUTH-14-WR-7  — rowid-alias (oid col): fail closed
+//  AUTH-14-WR-8  — mixed null + non-null rowid violations: fail closed
+//  AUTH-14-WR-9  — ordinary rowid orphan with baseline still migrates (baseline preserved)
+//  AUTH-14-WR-10 — BLOB column in orphan row: compared correctly (not silently equal)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation', () => {
+  // Helper: source-schema DB with a WITHOUT ROWID child table containing an
+  // FK-violating row. No users exist, so user_ref always violates.
+  function worFixture(): string {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(
+      `CREATE TABLE wor_child (pk TEXT PRIMARY KEY, user_ref TEXT REFERENCES users(id), extra TEXT) WITHOUT ROWID`
+    );
+    conn.prepare('INSERT INTO wor_child VALUES (?, ?, ?)').run('wor-1', 'ghost-user', 'original');
+    conn.close();
+    return dbPath;
+  }
+
+  // ── AUTH-14-WR-1 [REGRESSION] ────────────────────────────────────────────────
+  // On the merged code the WITHOUT ROWID orphan is silently skipped (rowid=null
+  // check). A receipt trigger changes extra='original' → 'mutated'. Because the
+  // FK violation tuple is unchanged, requireFkBaseline passes. The migration
+  // reports success while the orphan was mutated. After the fix it must throw.
+
+  it('AUTH-14-WR-1 [REGRESSION]: receipt trigger mutating a WITHOUT ROWID orphan is detected and rejected', () => {
+    const file = worFixture();
+    try {
+      const conn = new Database(file);
+      // Trigger mutates a non-FK column. FK violation tuple (wor_child, null, users, 0)
+      // is unchanged → requireFkBaseline would still pass. Only orphan snapshot can catch it.
+      conn.exec(`CREATE TRIGGER wor_silent_mutate AFTER INSERT ON system_config
+        WHEN NEW.key='${MIGRATION_ID}'
+        BEGIN UPDATE wor_child SET extra='mutated' WHERE pk='wor-1'; END`);
+      const baseline = fkEvidence(conn);
+      conn.close();
+      // Before fix: succeeds (WITHOUT ROWID row skipped entirely, mutation undetected).
+      // After fix: throws — fail closed on null rowid before receipt write.
+      expect(() => applyUpgrade(file, { fkBaseline: baseline }))
+        .toThrow(/WITHOUT ROWID|without rowid|null rowid|rowid.*null|cannot be identified/i);
+    } finally {
+      cleanupTempDb(file);
+    }
+  });
+
+  // ── AUTH-14-WR-2 ─────────────────────────────────────────────────────────────
+  // Fail closed even without a trigger: if any FK violation has a null rowid the
+  // migration must refuse before writing receipts.
+
+  it('AUTH-14-WR-2: refuses before receipt write when a FK violation is in a WITHOUT ROWID table', () => {
+    const file = worFixture();
+    try {
+      const conn = new Database(file);
+      const baseline = fkEvidence(conn);
+      conn.close();
+      expect(() => applyUpgrade(file, { fkBaseline: baseline }))
+        .toThrow(/WITHOUT ROWID|without rowid|null rowid|rowid.*null|cannot be identified/i);
+    } finally {
+      cleanupTempDb(file);
+    }
+  });
+
+  // ── AUTH-14-WR-3 ─────────────────────────────────────────────────────────────
+  // After WITHOUT ROWID refusal: source schema intact, orphan value unchanged,
+  // no migration receipt written.
+
+  it('AUTH-14-WR-3: source schema and orphan data intact after WITHOUT ROWID refusal', () => {
+    const file = worFixture();
+    try {
+      const conn = new Database(file);
+      const baseline = fkEvidence(conn);
+      conn.close();
+      try { applyUpgrade(file, { fkBaseline: baseline }); } catch { /* expected */ }
+      const after = new Database(file);
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined();
+      expect(after.prepare('SELECT extra FROM wor_child WHERE pk=?').get('wor-1'))
+        .toEqual({ extra: 'original' });
+      after.close();
+    } finally {
+      cleanupTempDb(file);
+    }
+  });
+
+  // ── AUTH-14-WR-4 [REGRESSION] ────────────────────────────────────────────────
+  // Rowid-alias shadowing: a table with a user-defined TEXT column named "rowid"
+  // (not INTEGER PRIMARY KEY) causes PRAGMA foreign_key_check to return the
+  // physical integer rowid while WHERE rowid = ? addresses the TEXT column and
+  // returns no row. The current code stores '' for both pre- and post-receipt
+  // snapshots, so a trigger mutation is indistinguishable from no mutation.
+
+  it('AUTH-14-WR-4 [REGRESSION]: receipt trigger mutating rowid-alias-shadowed orphan is detected', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    // "rowid" is a TEXT column — shadows the rowid alias. Physical rowid is separate.
+    conn.exec(
+      `CREATE TABLE shadow_rowid (rowid TEXT PRIMARY KEY, ref_user TEXT REFERENCES users(id), note TEXT)`
+    );
+    conn.prepare('INSERT INTO shadow_rowid VALUES (?, ?, ?)').run('key-1', 'ghost-user', 'before');
+    // Trigger mutates 'note'. FK tuple unchanged — only orphan snapshot can detect this.
+    conn.exec(`CREATE TRIGGER rowid_shadow_mutate AFTER INSERT ON system_config
+      WHEN NEW.key='${MIGRATION_ID}'
+      BEGIN UPDATE shadow_rowid SET note='after' WHERE rowid='key-1'; END`);
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      // Before fix: stores '' for both snapshots → mutation invisible → succeeds (bug).
+      // After fix: throws — fail closed when row cannot be located via rowid lookup.
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/rowid.*shadow|alias.*shadow|cannot be located|cannot be identified|rowid.*undefined|undefined.*rowid/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-5 ─────────────────────────────────────────────────────────────
+  // Fail closed when WHERE rowid = ? returns no row for a non-null physical rowid.
+  // No trigger needed: the absent lookup must never silently be treated as preservation.
+
+  it('AUTH-14-WR-5: refuses when FK-violating row cannot be located via rowid lookup (alias shadowed)', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE shadow_rowid2 (rowid TEXT PRIMARY KEY, ref TEXT REFERENCES users(id))`);
+    conn.prepare('INSERT INTO shadow_rowid2 VALUES (?, ?)').run('key-2', 'ghost');
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/rowid.*shadow|alias.*shadow|cannot be located|cannot be identified/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-6 ─────────────────────────────────────────────────────────────
+  // _rowid_ alias shadowed: when only _rowid_ is shadowed (not rowid or oid),
+  // `WHERE rowid = ?` still reaches the physical rowid and correctly snapshots the
+  // row. A trigger mutation must still be detected via the snapshot comparison.
+  // This is a GREEN regression-guard test — it verifies the fix does not break
+  // the _rowid_-shadowed case that already works correctly.
+
+  it('AUTH-14-WR-6: trigger mutation detected in _rowid_-alias-shadowed table (rowid alias still reaches physical rowid)', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    // _rowid_ as TEXT column shadows _rowid_ alias only. rowid and oid still reach physical rowid.
+    conn.exec(`CREATE TABLE shadow_rowid_ (_rowid_ TEXT PRIMARY KEY, ref TEXT REFERENCES users(id), note TEXT)`);
+    conn.prepare('INSERT INTO shadow_rowid_ VALUES (?, ?, ?)').run('kr-1', 'ghost', 'original');
+    // Trigger mutates note. FK tuple unchanged — snapshot comparison must catch it.
+    conn.exec(`CREATE TRIGGER rowid_alias_mutate AFTER INSERT ON system_config
+      WHEN NEW.key='${MIGRATION_ID}'
+      BEGIN UPDATE shadow_rowid_ SET note='mutated' WHERE _rowid_='kr-1'; END`);
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      // WHERE rowid = ? finds the row (rowid alias not shadowed).
+      // Trigger mutation is detected by snapshot comparison → must throw.
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/trigger.*mutated|mutated.*trigger|orphan.*trigger|trigger.*orphan|receipt.*trigger/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-7 ─────────────────────────────────────────────────────────────
+  // oid alias shadowed: same class as WR-6. rowid alias still reachable via
+  // WHERE rowid = ?. Trigger mutation must be detected. GREEN regression-guard.
+
+  it('AUTH-14-WR-7: trigger mutation detected in oid-alias-shadowed table (rowid alias still reaches physical rowid)', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE shadow_oid (oid TEXT PRIMARY KEY, ref TEXT REFERENCES users(id), note TEXT)`);
+    conn.prepare('INSERT INTO shadow_oid VALUES (?, ?, ?)').run('oid-1', 'ghost', 'original');
+    conn.exec(`CREATE TRIGGER oid_alias_mutate AFTER INSERT ON system_config
+      WHEN NEW.key='${MIGRATION_ID}'
+      BEGIN UPDATE shadow_oid SET note='mutated' WHERE oid='oid-1'; END`);
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/trigger.*mutated|mutated.*trigger|orphan.*trigger|trigger.*orphan|receipt.*trigger/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-8 ─────────────────────────────────────────────────────────────
+  // Mixed: one ordinary rowid violation + one WITHOUT ROWID violation. Must fail
+  // closed because the WITHOUT ROWID violation cannot be safely snapshot-compared.
+
+  it('AUTH-14-WR-8: fails closed when ordinary and WITHOUT ROWID violations coexist', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    // Ordinary rowid table violation
+    conn.exec(`CREATE TABLE ord_orphan (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id))`);
+    conn.prepare('INSERT INTO ord_orphan VALUES (?, ?)').run(1, 'ghost-1');
+    // WITHOUT ROWID violation
+    conn.exec(`CREATE TABLE wor_mixed (pk TEXT PRIMARY KEY, ref TEXT REFERENCES users(id)) WITHOUT ROWID`);
+    conn.prepare('INSERT INTO wor_mixed VALUES (?, ?)').run('wm-1', 'ghost-2');
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/WITHOUT ROWID|without rowid|null rowid|rowid.*null|cannot be identified/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-9 ─────────────────────────────────────────────────────────────
+  // Ordinary rowid orphan still migrates when baseline is supplied. Ensures the
+  // fix does not regress the supported baseline path.
+
+  it('AUTH-14-WR-9: ordinary rowid orphan with reviewed baseline still migrates successfully', () => {
+    // Reuse the échild fixture from the reviewed FK baseline suite.
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE wor_baseline_check (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id))`);
+    conn.prepare('INSERT INTO wor_baseline_check VALUES (?, ?)').run(42, 'ghost-user');
+    conn.close();
+    try {
+      const db = new Database(dbPath);
+      const baseline = fkEvidence(db);
+      db.close();
+      const result = applyUpgrade(dbPath, { fkBaseline: baseline });
+      expect(result.success).toBe(true);
+      expect(result.alreadyAtTarget).toBe(false);
+      const after = new Database(dbPath);
+      expect(detectSchemaVersion(after)).toBe('target');
+      expect(after.prepare('SELECT ref FROM wor_baseline_check WHERE id=42').get()).toEqual({ ref: 'ghost-user' });
+      after.close();
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-10 ────────────────────────────────────────────────────────────
+  // BLOB column in orphan row: snapshot must preserve and compare the raw bytes,
+  // not a coerced string. A trigger that changes a BLOB value must be detected.
+
+  it('AUTH-14-WR-10: receipt trigger mutating a BLOB column in an ordinary rowid orphan is detected', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE blob_orphan (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id), payload BLOB)`);
+    // Insert a BLOB value
+    const blobA = Buffer.from([0x01, 0x02, 0x03]);
+    const blobB = Buffer.from([0x01, 0x02, 0x04]); // differs in last byte
+    conn.prepare('INSERT INTO blob_orphan VALUES (?, ?, ?)').run(1, 'ghost', blobA);
+    conn.exec(`CREATE TRIGGER blob_mutate AFTER INSERT ON system_config
+      WHEN NEW.key='${MIGRATION_ID}'
+      BEGIN UPDATE blob_orphan SET payload=x'010204' WHERE id=1; END`);
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      // The BLOB change must be detected as a mutation.
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/trigger.*mutated|mutated.*trigger|orphan.*trigger|trigger.*orphan|receipt.*trigger/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+});
