@@ -635,11 +635,16 @@ export function applyUpgrade(
       // different real row. Reject the ambiguous layout under the write lock.
       const preReceiptViolations = conn.pragma('foreign_key_check') as { table: string; rowid: number | null; parent: string; fkid: number }[];
       const orphanSnapshots = new Map<string, string>();
+      const xinfoCacheForTable = new Map<string, { name: string }[]>();
       for (const v of preReceiptViolations) {
         if (v.rowid === null) {
           throw new Error('FK violation has null rowid; WITHOUT ROWID rows cannot be safely identified');
         }
-        const columns = conn.prepare('SELECT name FROM pragma_table_xinfo(?)').all(v.table) as { name: string }[];
+        let columns = xinfoCacheForTable.get(v.table);
+        if (!columns) {
+          columns = conn.prepare('SELECT name FROM pragma_table_xinfo(?)').all(v.table) as { name: string }[];
+          xinfoCacheForTable.set(v.table, columns);
+        }
         if (!columns.length || columns.some(column => column.name.toLowerCase() === 'rowid')) {
           throw new Error('FK-violating table rowid alias is shadowed or unavailable; refusing migration');
         }
@@ -672,7 +677,15 @@ export function applyUpgrade(
         const nullIdx = key.indexOf('\x00');
         const table = key.substring(0, nullIdx);
         const rowid = Number(key.substring(nullIdx + 1));
-        const snapAfter = snapshotOrphanRow(conn, table, rowid);
+        let snapAfter: string;
+        try {
+          snapAfter = snapshotOrphanRow(conn, table, rowid);
+        } catch {
+          throw new Error(
+            `FK-violating row in "${table}" with rowid ${rowid} disappeared after receipt write; ` +
+            `a trigger may have deleted it — investigate AFTER INSERT triggers on system_config`
+          );
+        }
         if (snapAfter !== snapBefore) {
           throw new Error(
             `A receipt trigger mutated an FK-violating row in "${table}"; ` +

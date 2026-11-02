@@ -2915,7 +2915,7 @@ describe('AUTH-14 physical row identity and lossless snapshots', () => {
       expect(row).toEqual({value:9007199254740993n,payload:Buffer.from([0,255])}); after.close();
     } finally { try { conn.close(); } catch {} cleanupTempDb(dbPath); }
   });
-  it('refuses a receipt trigger before it can mutate a 64-bit integer', () => {
+  it('proactively refuses a system_config trigger; 64-bit orphan preserved without relying on bigint comparison', () => {
     const {dbPath, conn} = makeTempDb(OLD_SCHEMA);
     try {
       conn.pragma('foreign_keys = OFF');
