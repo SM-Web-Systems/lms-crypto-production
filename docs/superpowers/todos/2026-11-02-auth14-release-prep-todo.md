@@ -56,7 +56,7 @@
 
 - [x] **T6** Write failing test for format/range error distinction — _done_
 - [x] **T7** Implement fix (split condition) — _done_
-- [x] **T8** Verify 2288/2288 tests still pass — _done_
+- [x] **T8** Verify tests still pass — _done (2289/2289, +1 new test; 50/50 Python)_
 
 ### LOW-2: `pythonJson` lone surrogate scope (deferred)
 
@@ -70,9 +70,9 @@
 ## Phase 3 — Merge Preparation
 
 - [x] **T10** Full diff review against `e2c71e2` — verify no unrelated/private files — _done_
-- [x] **T11** Create draft PR `codex/auth14-release-prep` → `main` — _done_
-- [ ] **T12** Monitor CI on PR head SHA — _pending (requires CI run completion)_
-- [ ] **T13** Confirm `dependency-security.test.ts` passes in CI (2288/2288 expected) — _pending_
+- [x] **T11** Create draft PR `codex/auth14-release-prep` → `main` — _done: SM-Web-Systems/lms-crypto-production#144_
+- [ ] **T12** Monitor CI on PR head SHA `08f7e0f` — _pending: 3 jobs running_
+- [ ] **T13** Confirm `dependency-security.test.ts` passes in CI (2289/2289 expected) — _pending_
 
 ---
 
@@ -80,7 +80,7 @@
 
 | Gate | Status | Notes |
 |------|--------|-------|
-| CI pipeline run | **OPEN** | PR creates the run; pass expected based on clean local 2288/2288 |
+| CI pipeline run | **RUNNING** | PR #144; 3 jobs pending; pass expected (local 2289/2289) |
 | Independent review reference | **OPEN** | Required for `verify_policy`; operator supplies |
 | FK violation resolved in production | **OPEN** | 1 violation (`students[rowid=8]`); operator chooses A/B/C from maintenance procedure |
 | Final FK baseline from quiesced prod DB | **OPEN** | Must capture from stopped production DB at deployment time |
@@ -97,7 +97,7 @@
 
 | Artifact | Location | Notes |
 |----------|----------|-------|
-| Assessment findings | `docs/release/AUTH-14-assessment-findings.md` (worktree, untracked) | Updated 2026-11-02 with clean-install evidence |
+| Assessment findings | `docs/release/AUTH-14-assessment-findings.md` | Committed to branch; updated 2026-11-02 with clean-install evidence |
 | Recovery policy draft | `lms-rehearsal-2026-11-01/recovery-policy-draft-e2c71e2.json` | Partially filled; UNRESOLVED fields need deployment-time values |
 | Clean-install dir | `/home/webadmin/auth14-clean-ci/LMS-Server` | npm ci from d5191b9 lockfile; proxy-addr 2.0.8 |
 | Clean candidate API image | `lms-api:auth14-candidate-d5191b9` (local) | `sha256:f9e76c2e...`; OCI rev `d5191b9...` |
