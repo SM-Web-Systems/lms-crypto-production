@@ -822,6 +822,7 @@
     "idx_reward_elig_reward",
     "idx_reward_outbox_status",
     "idx_reward_txn_allocation",
+    "idx_reward_txn_fund_ref_unique",
     "idx_reward_txn_idem",
     "idx_reward_txn_reward",
     "idx_rewards_creator",
@@ -2101,6 +2102,10 @@
         ],
         [
           "id"
+        ],
+        [
+          "WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'",
+          "funding_reference"
         ]
       ],
       "foreign": [

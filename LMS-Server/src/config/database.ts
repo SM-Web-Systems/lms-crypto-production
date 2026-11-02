@@ -1622,7 +1622,7 @@ function ensureRewardTables(): void {
       destination_user_id      TEXT REFERENCES users(id) ON DELETE RESTRICT,
       actor_type               TEXT NOT NULL DEFAULT 'user' CHECK (actor_type IN ('user', 'system')),
       actor_user_id            TEXT REFERENCES users(id) ON DELETE RESTRICT,
-      transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),
+      transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused')),
       amount_stroops           INTEGER NOT NULL CHECK (amount_stroops > 0),
       currency_code            TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
       previous_state           TEXT NOT NULL,
@@ -1637,13 +1637,50 @@ function ensureRewardTables(): void {
       CHECK ((actor_type = 'system' AND actor_user_id IS NULL) OR (actor_type = 'user' AND actor_user_id IS NOT NULL)),
       CHECK ((transaction_type = 'fund' AND funding_source_type IS NOT NULL) OR (transaction_type != 'fund')),
       CHECK ((transaction_type IN ('release', 'refund') AND allocation_id IS NOT NULL AND destination_user_id IS NOT NULL) OR (transaction_type NOT IN ('release', 'refund'))),
-      CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire'))),
+      CHECK ((transaction_type IN ('reserve', 'cancel', 'expire', 'release_unused') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire', 'release_unused'))),
       CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund'))
     );
     CREATE INDEX IF NOT EXISTS idx_reward_txn_reward ON reward_transactions(reward_id);
     CREATE INDEX IF NOT EXISTS idx_reward_txn_allocation ON reward_transactions(allocation_id);
     CREATE INDEX IF NOT EXISTS idx_reward_txn_idem ON reward_transactions(idempotency_key);
   `);
+
+  // W01-R3: Enforce atomic reference consumption at the database level.
+  // A partial UNIQUE index ensures each non-NULL funding_reference appears
+  // in at most one fund transaction. NULLs are excluded (internal grants).
+  const refIndexExists = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_reward_txn_fund_ref_unique'"
+  ).get();
+
+  if (!refIndexExists) {
+    // Check for pre-existing duplicate references before creating the index.
+    // If duplicates exist, abort startup — manual reconciliation required.
+    const duplicates = db.prepare(`
+      SELECT funding_reference, COUNT(*) as cnt
+      FROM reward_transactions
+      WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'
+      GROUP BY funding_reference
+      HAVING cnt > 1
+      LIMIT 10
+    `).all() as { funding_reference: string; cnt: number }[];
+
+    if (duplicates.length > 0) {
+      const diagnostic = duplicates
+        .map(d => `  reference="${d.funding_reference}" count=${d.cnt}`)
+        .join('\n');
+      throw new Error(
+        `W01-R3 migration blocked: ${duplicates.length} duplicate funding reference(s) found in reward_transactions.\n` +
+        `These must be reconciled before the uniqueness constraint can be enforced:\n${diagnostic}\n` +
+        `Run a separate reconciliation procedure to resolve these duplicates, then restart.`
+      );
+    }
+
+    db.exec(`
+      CREATE UNIQUE INDEX idx_reward_txn_fund_ref_unique
+        ON reward_transactions(funding_reference)
+        WHERE funding_reference IS NOT NULL AND transaction_type = 'fund';
+    `);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS reward_eligibility_events (

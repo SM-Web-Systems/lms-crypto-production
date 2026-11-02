@@ -14,6 +14,7 @@ import { canAccessCourse } from '../services/courseAccessService.js';
 import { createNotification } from '../services/notificationService.js';
 import logger from '../utils/logger.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
 
 function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
@@ -489,6 +490,11 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
                  completed_at = COALESCE(lesson_completions.completed_at, datetime('now')), progress_pct = 100`,
                   [uuidv4(), studentRecord.user_id, existing.course_id, existing.item_id, sId]
                 );
+                // W04-R1 F2: Check if this approval satisfies the final course requirement.
+                // Use student's user_id (not reviewerUserId) — critical identity invariant.
+                if (isCourseCompleteForReward(studentRecord.user_id, existing.course_id)) {
+                  produceOutboxEvent('course_completion', existing.course_id, studentRecord.user_id);
+                }
               }
             }
           }

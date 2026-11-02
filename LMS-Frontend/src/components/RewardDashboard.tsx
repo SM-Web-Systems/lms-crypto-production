@@ -5,7 +5,7 @@
  * and lifecycle action buttons based on current state.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
@@ -14,8 +14,12 @@ import {
   type Reward,
   type RewardAllocation,
   type CreateRewardParams,
+  type RewardType,
+  type ParentTargetType,
 } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
+import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 import {
   Gift,
   RefreshCw,
@@ -25,7 +29,6 @@ import {
   Loader2,
   Plus,
   X,
-  DollarSign,
   Play,
   XCircle,
   Check,
@@ -44,17 +47,33 @@ interface RewardDashboardProps {
   scopeLabel?: string;
   /** Whether to show refund button (sponsor/employer only) */
   canRefund?: boolean;
+  /** W06: parent role only — 'child' or 'family'. Omit for legacy parent_child behavior. */
+  targetType?: ParentTargetType;
 }
 
 type ViewState = 'loading' | 'error' | 'empty' | 'data';
 
-// Actions available per reward state
+// W09-R1: expanded row can hold data, a loading sentinel, or an error to display.
+type ExpandedEntry = RewardAllocation[] | 'loading' | { error: string };
+
+// Actions available per reward state.
+// draft/pending_funding omitted: platform_credit is the only funded source and is
+// unconditionally rejected server-side (INSUFFICIENT_CREDIT). Portal roles also lack
+// reward.manage → SCOPE_DENIED before reaching funding. Deferred: FOLLOW-UP(reward-funding-workflow)
 const ACTIONS: Record<string, Array<{ key: string; label: string; icon: typeof Play }>> = {
-  draft:                     [{ key: 'fund', label: 'Fund', icon: DollarSign }],
-  pending_funding:           [{ key: 'fund', label: 'Fund', icon: DollarSign }],
   funded:                    [{ key: 'activate', label: 'Activate', icon: Play }, { key: 'cancel', label: 'Cancel', icon: XCircle }],
   active:                    [{ key: 'cancel', label: 'Cancel', icon: XCircle }],
   eligible_pending_approval: [{ key: 'approve', label: 'Approve', icon: Check }],
+};
+
+// Required capability for each lifecycle action.
+// Unknown action keys → no capability required (safe default: blocked by hasCapability miss).
+const ACTION_CAPABILITY: Record<string, string> = {
+  activate: 'reward.activate',
+  cancel:   'reward.cancel',
+  approve:  'reward.approve',
+  release:  'reward.release',
+  refund:   'reward.refund',
 };
 
 // ──── Create Reward Modal ────
@@ -62,10 +81,12 @@ const ACTIONS: Record<string, Array<{ key: string; label: string; icon: typeof P
 const RewardCreateForm: React.FC<{
   role: string;
   scopeId: string;
+  targetType?: ParentTargetType;
   onCreated: () => void;
   onClose: () => void;
-}> = ({ role, scopeId, onCreated, onClose }) => {
-  const [rewardType, setRewardType] = useState('custom');
+}> = ({ role, scopeId, targetType, onCreated, onClose }) => {
+  const { user } = useAuth();
+  const [rewardType, setRewardType] = useState<RewardType>('custom');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [autoRelease, setAutoRelease] = useState(false);
@@ -74,6 +95,9 @@ const RewardCreateForm: React.FC<{
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Revocation guard: check capability at submission time in case it was
+    // revoked while the form was open. Close form rather than surface an error.
+    if (!hasCapability(user, 'reward.create')) { onClose(); return; }
     setError('');
 
     const xlm = parseFloat(amount);
@@ -101,6 +125,7 @@ const RewardCreateForm: React.FC<{
         autoRelease,
         description: description || undefined,
         idempotencyKey: `create-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        ...(targetType !== undefined && { targetType }),
       };
       await rewardService.createReward(role, params);
       onCreated();
@@ -127,12 +152,17 @@ const RewardCreateForm: React.FC<{
             <select
               id="reward-type"
               value={rewardType}
-              onChange={(e) => setRewardType(e.target.value)}
+              onChange={(e) => setRewardType(e.target.value as RewardType)}
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
             >
+              {/* W05: Only canonical DB types. course_completion and grade require
+                  eligibilityConfig inputs (course/grade binding) not present in this form.
+                  FOLLOW-UP(course-grade-form-inputs): expose course_completion and grade
+                  only after adding requiredCourseId / grade-config fields. This is separate
+                  from W06 (parent child/family discriminator). */}
               <option value="custom">Custom</option>
-              <option value="completion">Completion</option>
-              <option value="achievement">Achievement</option>
+              <option value="individual">Individual Achievement</option>
+              <option value="milestone">Milestone</option>
             </select>
           </div>
 
@@ -197,49 +227,140 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   scopeId,
   scopeLabel,
   canRefund = false,
+  targetType,
 }) => {
+  const { user } = useAuth();
   const [state, setState] = useState<ViewState>('loading');
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [error, setError] = useState('');
-  const [expanded, setExpanded] = useState<Record<string, RewardAllocation[] | 'loading'>>({});
+  const [expanded, setExpanded] = useState<Record<string, ExpandedEntry>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Current effective capability checks — re-derived on every render so
+  // capability changes propagate immediately without stale closures.
+  const canCreate = hasCapability(user, 'reward.create');
+
+  // W08-R2: keep a ref to the current user so performAction always reads the
+  // latest auth state at invocation time without adding user to useCallback deps.
+  // Adding user directly to deps would recreate performAction on every background
+  // token refresh (every 60 s + tab-focus), even when permissions are unchanged.
+  // The ref is updated synchronously every render, so by the time any click handler
+  // fires, userRef.current holds the user from the most recent render.
+  const userRef = useRef(user);
+  userRef.current = user;
+
+  // W06-R1: monotonic request counter — incremented at the start of every load() call.
+  // Each invocation captures its generation; state is only committed when
+  // reqIdRef.current still matches, guarding against stale responses from prior targets
+  // or superseded same-target refreshes. Effect cleanup also increments on target change
+  // and unmount so any pending promise from the previous identity is invalidated.
+  const reqIdRef = useRef(0);
+
+  // W06-R1: current target identity key for performAction post-mutation guards.
+  // Kept current on every render so performAction can detect a target switch that
+  // occurred while its mutation was in flight.
+  const targetKey = `${role}|${scopeId}|${targetType ?? ''}`;
+  const targetKeyRef = useRef(targetKey);
+  targetKeyRef.current = targetKey;
+
+  // W06-R2: target epoch — incremented ONLY in useEffect cleanup (target change / unmount).
+  // Unlike reqIdRef (incremented every load()), epoch changes only when the target identity
+  // changes. Callbacks capture capturedEpoch at render time; if epoch advanced before the
+  // callback fires, the callback is from a prior target visit and is silently dropped.
+  const targetEpochRef = useRef(0);
+  const capturedEpoch = targetEpochRef.current;
+
   const load = useCallback(async () => {
+    // Increment first: invalidates any outstanding request for the previous identity.
+    const myReqId = ++reqIdRef.current;
     if (!scopeId) { setState('empty'); return; }
     setState('loading');
     setError('');
     setExpanded({});
     try {
-      const data = await rewardService.listRewards(role, scopeId);
+      // W06: pass targetType so parent child/family list uses the correct scope
+      const data = await rewardService.listRewards(role, scopeId, targetType);
+      // Guard: discard if a newer request superseded this one (target switch or refresh)
+      if (reqIdRef.current !== myReqId) return;
       setRewards(data);
       setState(data.length > 0 ? 'data' : 'empty');
     } catch (err) {
+      if (reqIdRef.current !== myReqId) return;
       setError(getErrorMessage(err, 'Could not load rewards'));
       setState('error');
     }
-  }, [role, scopeId]);
+  }, [role, scopeId, targetType]);
 
-  useEffect(() => { load(); }, [load]);
+  // Cleanup invalidates any pending load when deps change (target switch) or on unmount.
+  // W06-R2: also increments epoch so stale callbacks from the old target are silenced,
+  // and resets form + spinner state so neither leaks into the new target's render.
+  useEffect(() => {
+    load();
+    return () => {
+      ++reqIdRef.current;
+      ++targetEpochRef.current;
+      setShowCreate(false);
+      setActionLoading(null);
+    };
+  }, [load]);
+
+  // W08-R1: close create form immediately if reward.create is revoked while it is open.
+  // This prevents a pending form submission after capability revocation.
+  useEffect(() => {
+    if (showCreate && !canCreate) {
+      setShowCreate(false);
+    }
+  }, [showCreate, canCreate]);
 
   const toggleAllocations = useCallback(async (rewardId: string) => {
-    if (expanded[rewardId]) {
+    const current = expanded[rewardId];
+    // If currently loading, don't start a duplicate fetch.
+    if (current === 'loading') return;
+    // If data is already loaded, collapse (toggle behavior).
+    if (Array.isArray(current)) {
       setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
       return;
     }
+    // No entry or error entry → fetch (initial expand or retry after error).
+    // W06-R2: capture epoch so async success/error can verify they're still on the same target.
+    const myEpoch = targetEpochRef.current;
     setExpanded((prev) => ({ ...prev, [rewardId]: 'loading' }));
     try {
       const allocs = await rewardService.getAllocations(role, rewardId);
-      setExpanded((prev) => (prev[rewardId] === 'loading' ? { ...prev, [rewardId]: allocs } : prev));
-    } catch {
-      setExpanded((prev) => { const next = { ...prev }; delete next[rewardId]; return next; });
+      // Guard: only apply if still loading (reqId guard discards via setExpanded({}));
+      // W06-R2: also discard if target switched since this call started.
+      setExpanded((prev) => (prev[rewardId] === 'loading' && targetEpochRef.current === myEpoch ? { ...prev, [rewardId]: allocs } : prev));
+    } catch (err) {
+      // W09-R1: surface error in allocation row instead of silently collapsing.
+      // W06-R2: epoch guard — don't mutate new target's expansion state on old target's error.
+      if (targetEpochRef.current === myEpoch) {
+        setExpanded((prev) => ({ ...prev, [rewardId]: { error: getErrorMessage(err, 'Could not load allocations.') } }));
+      }
     }
   }, [expanded, role]);
 
   const performAction = useCallback(async (action: string, rewardId: string, allocId?: string) => {
+    // W08-R1/R2: submission guard — verify capability at invocation time.
+    // userRef.current is always the user from the latest render (updated every render
+    // via `userRef.current = user`), so this guard reflects current permissions even
+    // though user is not in the dep array.  Excluding user from deps avoids recreating
+    // performAction on every background token refresh (N1 finding, independent review).
+    // Explicit !requiredCap guard makes unknown-action fail-closed behaviour clear (N2).
+    const currentUser = userRef.current;
+    const requiredCap = ACTION_CAPABILITY[action] ?? '';
+    if (!requiredCap || !hasCapability(currentUser, requiredCap)) return;
+
     const key = `${action}-${rewardId}-${allocId ?? ''}`;
     setActionLoading(key);
     const idem = `${action}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // W06-R1: capture target identity at action start.
+    // If the target changes while the mutation is in flight, we skip the post-mutation
+    // load and error-set — the mutation itself is preserved on the original target.
+    const myTargetKey = targetKey;
+    // W06-R2: capture epoch at action start so the finally spinner-clear can be guarded
+    // against old-target operations clearing a new-target operation's spinner.
+    const myEpoch = targetEpochRef.current;
     try {
       switch (action) {
         case 'fund':
@@ -261,20 +382,33 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
           if (allocId) {
             const refundResult = await rewardService.refundAllocation(role, rewardId, allocId, idem);
             if (refundResult && 'blocked' in refundResult && refundResult.blocked) {
-              setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
-              setActionLoading(null);
+              // W06-R3: add epoch guard so A→B→A old blocked response does not fire on new visit.
+              if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
+                setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
+              }
+              // W06-R2: removed setActionLoading(null) here — finally handles it with epoch guard.
               return;
             }
           }
           break;
       }
-      await load();
+      // W06-R1+R2: only reload if still on the same target (key) AND same target visit (epoch).
+      if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
+        await load();
+      }
     } catch (err) {
-      setError(getErrorMessage(err, `Failed to ${action} reward`));
+      // W06-R1+R2: only surface error if still on the same target key and epoch.
+      if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
+        setError(getErrorMessage(err, `Failed to ${action} reward`));
+      }
     } finally {
-      setActionLoading(null);
+      // W06-R2: only clear spinner if still on the same target visit.
+      // Without this guard an old operation's finally would clear a new operation's spinner.
+      if (targetEpochRef.current === myEpoch) {
+        setActionLoading(null);
+      }
     }
-  }, [role, load]);
+  }, [role, scopeId, targetType, targetKey, load]);
 
   return (
     <div data-testid="reward-dashboard">
@@ -291,10 +425,12 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
             <RefreshCw className={`h-3.5 w-3.5 mr-1 ${state === 'loading' ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
           </Button>
-          <Button variant="primary" size="sm" type="button" onClick={() => setShowCreate(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" aria-hidden />
-            New Reward
-          </Button>
+          {canCreate && (
+            <Button variant="primary" size="sm" type="button" onClick={() => setShowCreate(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" aria-hidden />
+              New Reward
+            </Button>
+          )}
         </div>
       </div>
 
@@ -348,7 +484,15 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                   const isExpanded = !!exp;
                   const isAllocLoading = exp === 'loading';
                   const allocs = Array.isArray(exp) ? exp : [];
-                  const actions = ACTIONS[r.status] ?? [];
+                  // W09-R1: detect error entry so the row shows a message+retry instead of collapsing.
+                  const allocError = !Array.isArray(exp) && exp !== 'loading' && exp != null
+                    ? (exp as { error: string }).error
+                    : null;
+                  // W08-R1: filter to only actions the current user is capable of performing.
+                  // ACTION_CAPABILITY[key] ?? '' ensures unknown keys fail closed.
+                  const actions = (ACTIONS[r.status] ?? []).filter(
+                    (a) => hasCapability(user, ACTION_CAPABILITY[a.key] ?? ''),
+                  );
 
                   return (
                     <React.Fragment key={r.id}>
@@ -416,7 +560,24 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                         <tr>
                           <td colSpan={6} className="px-0 py-0">
                             <div className="bg-neutral-50/80 border-t border-neutral-100 px-8 py-3">
-                              {allocs.length === 0 ? (
+                              {allocError ? (
+                                // W09-R1: show error + retry instead of silently collapsing.
+                                <div className="flex items-start gap-3 py-2" role="alert">
+                                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" aria-hidden />
+                                  <div>
+                                    <p className="text-sm text-red-700">{allocError}</p>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      type="button"
+                                      className="mt-1.5"
+                                      onClick={() => toggleAllocations(r.id)}
+                                    >
+                                      Try again
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : allocs.length === 0 ? (
                                 <p className="text-sm text-neutral-400 italic py-2">No allocations yet</p>
                               ) : (
                                 <table className="w-full text-xs">
@@ -442,7 +603,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                         </td>
                                         <td className="py-1.5">
                                           <div className="flex gap-1">
-                                            {a.status === 'eligible' && (
+                                            {a.status === 'eligible' && hasCapability(user, 'reward.release') && (
                                               <Button
                                                 variant="outline"
                                                 size="sm"
@@ -454,7 +615,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                                 Release
                                               </Button>
                                             )}
-                                            {a.status === 'released' && canRefund && (
+                                            {a.status === 'released' && canRefund && hasCapability(user, 'reward.refund') && (
                                               <Button
                                                 variant="outline"
                                                 size="sm"
@@ -490,7 +651,14 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
         <RewardCreateForm
           role={role}
           scopeId={scopeId}
-          onCreated={() => { setShowCreate(false); load(); }}
+          targetType={targetType}
+          onCreated={() => {
+            // W06-R2: capturedEpoch was snapshotted at render time. If the target changed
+            // since this render, the epoch advanced and this callback is stale — drop it.
+            if (targetEpochRef.current !== capturedEpoch) return;
+            setShowCreate(false);
+            load();
+          }}
           onClose={() => setShowCreate(false)}
         />
       )}
