@@ -528,8 +528,9 @@ def rollback(config, state, policy, runner=None, http=None, timeout=60):
 
 
 def _prepare_locked(config, target, state, policy, runner):
+    # Evidence only: publishing here would stop proving the running source's overlay.
     backup = pre.backup_database(target, config['backup_root'])
-    return preserve_recovery(target, backup, state, runner, policy)
+    return preserve_recovery(target, backup, state, runner, policy, publish=False)
 
 
 def prepare(config, runner=None, policy=None, dry_run=False):
@@ -573,6 +574,20 @@ def build(config, runner=None):
     return {'status': 'CANDIDATE_IMAGES_BUILT', 'approved_sha': target['approved_sha'], 'images': images}
 
 
+def released_already(target, images, runner, base_url, http, overlay):
+    try:
+        verify_running(target, images, target['approved_sha'], runner, base_url, http, 0, overlay, writer_hold=False)
+        return True
+    except ReleaseError:
+        return False
+
+
+def finish_release(state, target, images, manifest):
+    result = {'status': 'WRITERS_RELEASED', 'deployed_sha': target['approved_sha'], 'images': images, 'manifest_id': manifest['manifest_id']}
+    immutable_json(state / ('release-hold-result-' + uuid.uuid4().hex + '.json'), result)
+    return result
+
+
 def release_hold(config, runner=None, policy=None, execute=None, http=None, timeout=60):
     """Resume writers on the verified held candidate. Nothing is released on doubt."""
     require(execute == '1', 'EXPLICIT_RELEASE_HOLD_EXECUTE_REQUIRED')
@@ -589,21 +604,22 @@ def release_hold(config, runner=None, policy=None, execute=None, http=None, time
         verify_policy(target, manifest['backup'], policy)
         require(manifest.get('policy_sha256') == digest(policy) and policy.get('candidate_images') == images, 'RECOVERY_POLICY_CHANGED')
         overlay = pre._path(candidate.get('overlay_file'))
+        marker = state / ('released-' + manifest['manifest_id'] + '.json')
+        if marker.exists() and released_already(target, images, runner, base_url, http, overlay):
+            return finish_release(state, target, images, manifest)
         verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=True)
         containers = verify_checkout_context(config, target, runner, {target['compose_file'] + ',' + str(overlay)})
         current = pre._source_metadata(Path(target['database']['host_path']))
         verify_database_contract(current, manifest['backup'])
         verify_protected_content(current, held)
         # Before the release, so a lost exec can never leave rollback eligible.
-        immutable_json(state / ('released-' + manifest['manifest_id'] + '.json'), {'manifest_id': manifest['manifest_id']})
+        if not marker.exists(): immutable_json(marker, {'manifest_id': manifest['manifest_id']})
         try:
             runner.text('docker', ['exec', containers['api']['Id'], 'node', WRITER_HOLD_SCRIPT, 'release'], target['checkout'])
             verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=False)
         except (ReleaseError, OSError, ValueError, TypeError, KeyError):
-            raise ReleaseError('WRITERS_RELEASED_VERIFICATION_FAILED') from None
-        result = {'status': 'WRITERS_RELEASED', 'deployed_sha': target['approved_sha'], 'images': images, 'manifest_id': manifest['manifest_id']}
-        immutable_json(state / ('release-hold-result-' + uuid.uuid4().hex + '.json'), result)
-        return result
+            raise ReleaseError('WRITER_RELEASE_UNCONFIRMED') from None
+        return finish_release(state, target, images, manifest)
 
 
 def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60):
@@ -615,8 +631,7 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
     private_directory(Path(config['backup_root']))
     state = Path(config['backup_root']) / 'release-state'
     with release_lock(state):
-        backup = pre.backup_database(target, config['backup_root'])
-        manifest = preserve_recovery(target, backup, state, runner, policy, publish=False)
+        manifest = _prepare_locked(config, target, state, policy, runner)
         # Capture/backup can take time: revalidate the original context, the
         # reviewed image IDs and baseline just before any replacement; ongoing
         # financial activity blocks this mode.
@@ -656,9 +671,9 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
                       'automatic_recovery_currently_eligible': manifest['eligibility'] == 'EXACT_SCHEMA_AND_FINANCIAL_STATE' and
                           all(post_deploy[key] == manifest['backup'][key]
                               for key in ('schema_sha256', 'financial_state_sha256', 'foreign_key_violations_sha256'))}
-            immutable_json(state / ('deploy-result-' + uuid.uuid4().hex + '.json'), result)
             immutable_json(state / ('held-' + manifest['manifest_id'] + '.json'),
                            {'protected_content_sha256': post_deploy['protected_content_sha256']})
+            immutable_json(state / ('deploy-result-' + uuid.uuid4().hex + '.json'), result)
             return result
         except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
             # A migration that may have changed anything needs an owner decision;
@@ -703,7 +718,7 @@ def main():
         print(json.dumps(result, sort_keys=True))
         return 0
     except ReleaseError as error:
-        status = str(error) if str(error) == 'WRITERS_RELEASED_VERIFICATION_FAILED' else 'REFUSED'
+        status = str(error) if str(error) == 'WRITER_RELEASE_UNCONFIRMED' else 'REFUSED'
         print(json.dumps({'status': status, 'code': str(error)}), file=sys.stderr); return 2
     except (OSError, ValueError, TypeError, KeyError, AttributeError, sqlite3.Error):
         print(json.dumps({'status': 'REFUSED', 'code': 'INVALID_RELEASE_STATE'}), file=sys.stderr); return 2

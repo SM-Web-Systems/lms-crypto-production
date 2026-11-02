@@ -15,7 +15,7 @@ Deployment no longer builds. `scripts/build-candidate.sh` builds at the exact ch
 | Old image: requests, callbacks, reward scheduler, email retry, deletion finalization | Stopped by verified container ID. The AUTH-13 image has no hold, so stopping is its only control. | Stays in the database |
 | Candidate: all HTTP routes, including webhooks and internal network callers | `writerHoldGuard` runs before every route and returns 503 with `Retry-After` | Paystack events stay with the provider, which retries non-200 responses |
 | Candidate: reward scheduler, email retry worker, deletion scheduler and its startup run | Not started until release; each tick also checks the hold | Stays in the database |
-| Host cron: `lms-data-check`, `backup_lms_db` | Read-only, but they can create sidecars on a stopped database, so avoid the window around 00:00, 03:00, 06:00, 12:00 and 18:00 | None |
+| Host cron: `lms-data-check`, `backup_lms_db` | Only run read queries and backups, but `sudo sqlite3` opens the database as root and can create sidecars on a stopped database. Start only with at least 30 minutes before the next 00:00, 03:00, 06:00, 12:00 or 18:00 run. A collision fails closed, which after migration means a halted outage. | None |
 | Stellar payment monitor | Defined but never started | None |
 | Candidate import-time schema statements in `config/database.ts` | Run at start, before any hold check. Written to be no-ops on an existing database. Deploy fails if the schema or any protected row changes across the held start. | None |
 | Amma SSO callback | Browser redirect refused during the outage; the user signs in again | No durable event |
@@ -59,13 +59,13 @@ sequenceDiagram
 | Migration changed anything unexpected, post-migration checks fail, or a timed-out migration container cannot be confirmed gone | `DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED` | Stopped until the owner decides |
 | Candidate fails after migration | Rollback onto the migrated schema, only if schema, financial and FK state match the post-migration backup | Old image restored and verified, or stopped if refused |
 | `release-hold` checks fail before releasing | Refused | Candidate stays held |
-| Verification fails after releasing | `WRITERS_RELEASED_VERIFICATION_FAILED`: treat writers as running and fix forward | Candidate running, rollback refused |
+| Releasing or its verification fails | `WRITER_RELEASE_UNCONFIRMED`: assume writers may be running. Rerun `release-hold`, which finishes a transient failure or confirms a release that already happened. | Candidate running, rollback refused |
 
-The recovery pointer moves only at the stop, so a refusal before then leaves the source's overlay proof intact.
+`prepare` never moves the recovery pointer, and `deploy` moves it only at the stop, so preparation and any refusal before then leave the source's overlay proof intact.
 
-Rolling back means the old image runs with no hold, so its writers resume. Rehearsal shows it works on the migrated schema, keeps schema, financial and FK state, and writes only its normal `scheduler_tick_log` rows. The migrated schema is not downgraded. Rollback is refused as soon as a release has been attempted, because candidate writes can exist that the recovery contract cannot see. From that point the only way is forward.
+Rolling back means the old image runs with no hold, so its writers resume. Rehearsal shows it works on the migrated schema, and keeps schema, financial and FK state. On the rehearsal copy it wrote only `scheduler_tick_log` rows, but on live data its deletion finalization, email retry and reward workers also resume. The migrated schema is not downgraded. Rollback is refused as soon as a release has been attempted, because candidate writes can exist that the recovery contract cannot see. From that point the only way is forward.
 
-After a rollback, the hold file stays on the volume, where the old image ignores it. `validate_target` then refuses a retry because the pointer names the failed candidate while the old image runs. A retry needs a reviewed manual procedure, not a rerun.
+After a rollback, the hold file stays on the volume, where the old image ignores it. `validate_target` then refuses a retry because the pointer names the failed candidate while the old image runs. Retrying therefore needs a separately reviewed procedure written for that situation, not a rerun.
 
 Restoring the final pre-migration backup is never automatic. It discards anything written after that backup, so it needs an owner decision and reconciliation.
 

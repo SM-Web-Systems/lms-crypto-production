@@ -935,8 +935,46 @@ class RecoveryTests(unittest.TestCase):
         def http(url):
             if not self.runner.hold_held and url.endswith('/api/v1/health'): return 503, b''
             return self.deployed_http(url)
-        with self.assertRaisesRegex(pre.ReleaseError, 'WRITERS_RELEASED_VERIFICATION_FAILED'): self.release(http)
+        with self.assertRaisesRegex(pre.ReleaseError, 'WRITER_RELEASE_UNCONFIRMED'): self.release(http)
         self.assertFalse(self.runner.hold_held)
+
+    def test_release_can_be_retried_after_a_transient_exec_failure(self):
+        self.deploy()
+        def die():
+            self.runner.on_release = None
+            raise pre.ReleaseError('EXEC_LOST')
+        self.runner.on_release = die
+        with self.assertRaisesRegex(pre.ReleaseError, 'WRITER_RELEASE_UNCONFIRMED'): self.release()
+        self.assertTrue(self.runner.hold_held)
+        self.assertEqual(self.release()['status'], 'WRITERS_RELEASED')
+        self.assertFalse(self.runner.hold_held)
+
+    def test_release_retry_confirms_when_writers_are_already_released(self):
+        self.deploy()
+        def lost_response():
+            self.runner.hold_held = False
+            raise pre.ReleaseError('EXEC_RESPONSE_LOST')
+        self.runner.on_release = lost_response
+        with self.assertRaisesRegex(pre.ReleaseError, 'WRITER_RELEASE_UNCONFIRMED'): self.release()
+        self.runner.on_release = None
+        calls = sum(c[1] == 'exec' for c in self.runner.calls)
+        self.assertEqual(self.release()['status'], 'WRITERS_RELEASED')
+        self.assertEqual(sum(c[1] == 'exec' for c in self.runner.calls), calls)
+
+    def test_prepare_leaves_the_recovery_pointer_and_source_validation_intact(self):
+        before = self.label_source_with_trusted_overlay()
+        self.rec.prepare(self.config, self.runner, policy=self.policy)
+        self.assertEqual((self.state / 'current-recovery.json').read_bytes(), before)
+        pre.validate_target(self.config, self.runner)
+
+    def test_failed_held_record_leaves_no_verified_result(self):
+        original = self.rec.immutable_json
+        def write(path, value):
+            if path.name.startswith('held-'): raise OSError('synthetic')
+            return original(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=write):
+            with self.assertRaises(pre.ReleaseError): self.deploy()
+        self.assertEqual(list(self.state.glob('deploy-result-*')), [])
 
     def test_rollback_is_refused_once_writers_were_released(self):
         self.deploy()
