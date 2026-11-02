@@ -618,15 +618,36 @@ export function applyUpgrade(
       // Snapshot every FK-violating row before writing receipts.
       // An AFTER INSERT trigger on system_config could silently mutate orphan column values
       // without changing the FK violation tuples, making requireFkBaseline insufficient alone.
+      //
+      // WITHOUT ROWID tables: SQLite reports rowid = null for these in foreign_key_check.
+      // We cannot identify such rows by rowid; fail closed rather than skip them silently.
+      //
+      // Rowid-alias shadowing: a user-defined column named "rowid" (not INTEGER PRIMARY KEY)
+      // shadows the rowid alias so WHERE rowid = ? addresses the user column and misses the
+      // physical row. Fail closed when the lookup returns no row; an absent result must never
+      // silently count as preserved.
       const preReceiptViolations = conn.pragma('foreign_key_check') as { table: string; rowid: number | null; parent: string; fkid: number }[];
       const orphanSnapshots = new Map<string, string>();
       for (const v of preReceiptViolations) {
-        if (v.rowid !== null) {
-          // Double-quote escaping: SQLite allows table names with embedded " if escaped as "".
-          const quotedTable = v.table.replace(/"/g, '""');
-          const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).get(v.rowid);
-          orphanSnapshots.set(`${v.table}\x00${v.rowid}`, row === undefined ? '' : JSON.stringify(row));
+        if (v.rowid === null) {
+          throw new Error(
+            `FK violation in table "${v.table}" (parent "${v.parent}", fkid ${v.fkid}) ` +
+            `reports a null rowid — this table is likely WITHOUT ROWID. ` +
+            `The migration cannot identify and preserve this row by rowid; ` +
+            `resolve the FK violation before applying this migration.`
+          );
         }
+        // Double-quote escaping: SQLite allows table names with embedded " if escaped as "".
+        const quotedTable = v.table.replace(/"/g, '""');
+        const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).get(v.rowid);
+        if (row === undefined) {
+          throw new Error(
+            `FK-violating row in table "${v.table}" with rowid ${v.rowid} could not be located — ` +
+            `the "rowid" alias may be shadowed by a user-defined column. ` +
+            `The migration cannot safely snapshot this row; resolve the FK violation before applying.`
+          );
+        }
+        orphanSnapshots.set(`${v.table}\x00${v.rowid}`, JSON.stringify(row));
       }
 
       // updated_by is NULL: avoids FK violation on system_config.updated_by REFERENCES users(id)
