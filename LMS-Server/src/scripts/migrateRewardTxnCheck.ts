@@ -330,6 +330,22 @@ function requireFkBaseline(conn: SqliteDatabase, baseline?: FkBaseline): void {
   }
 }
 
+// Serialize SQLite storage classes without rounding 64-bit integers or blobs.
+// A missing physical row is an error, never a valid preservation snapshot.
+function snapshotOrphanRow(conn: SqliteDatabase, table: string, rowid: number): string {
+  const quotedTable = table.replace(/"/g, '""');
+  const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).safeIntegers(true).raw(true).get(rowid) as unknown[] | undefined;
+  if (row === undefined) throw new Error('FK-violating row cannot be located; rowid alias may be shadowed');
+  return JSON.stringify(row.map(value => {
+    if (value === null) return ['null'];
+    if (typeof value === 'bigint') return ['integer', value.toString()];
+    if (typeof value === 'number') { const bits = Buffer.alloc(8); bits.writeDoubleBE(value); return ['real', bits.toString('hex')]; }
+    if (typeof value === 'string') return ['text', value];
+    if (Buffer.isBuffer(value)) return ['blob', value.toString('hex')];
+    throw new Error('Unsupported SQLite value in FK-violating row');
+  }));
+}
+
 // ── Core API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -615,39 +631,30 @@ export function applyUpgrade(
         );
       }
 
-      // Snapshot every FK-violating row before writing receipts.
-      // An AFTER INSERT trigger on system_config could silently mutate orphan column values
-      // without changing the FK violation tuples, making requireFkBaseline insufficient alone.
-      //
-      // WITHOUT ROWID tables: SQLite reports rowid = null for these in foreign_key_check.
-      // We cannot identify such rows by rowid; fail closed rather than skip them silently.
-      //
-      // Rowid-alias shadowing: a user-defined column named "rowid" (not INTEGER PRIMARY KEY)
-      // shadows the rowid alias so WHERE rowid = ? addresses the user column and misses the
-      // physical row. Fail closed when the lookup returns no row; an absent result must never
-      // silently count as preserved.
+      // SQLite's rowid alias can be shadowed by a declared column and select a
+      // different real row. Reject the ambiguous layout under the write lock.
       const preReceiptViolations = conn.pragma('foreign_key_check') as { table: string; rowid: number | null; parent: string; fkid: number }[];
       const orphanSnapshots = new Map<string, string>();
       for (const v of preReceiptViolations) {
         if (v.rowid === null) {
-          throw new Error(
-            `FK violation in table "${v.table}" (parent "${v.parent}", fkid ${v.fkid}) ` +
-            `reports a null rowid — this table is likely WITHOUT ROWID. ` +
-            `The migration cannot identify and preserve this row by rowid; ` +
-            `resolve the FK violation before applying this migration.`
-          );
+          throw new Error('FK violation has null rowid; WITHOUT ROWID rows cannot be safely identified');
         }
-        // Double-quote escaping: SQLite allows table names with embedded " if escaped as "".
-        const quotedTable = v.table.replace(/"/g, '""');
-        const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).get(v.rowid);
-        if (row === undefined) {
-          throw new Error(
-            `FK-violating row in table "${v.table}" with rowid ${v.rowid} could not be located — ` +
-            `the "rowid" alias may be shadowed by a user-defined column. ` +
-            `The migration cannot safely snapshot this row; resolve the FK violation before applying.`
-          );
+        const columns = conn.prepare('SELECT name FROM pragma_table_xinfo(?)').all(v.table) as { name: string }[];
+        if (!columns.length || columns.some(column => column.name.toLowerCase() === 'rowid')) {
+          throw new Error('FK-violating table rowid alias is shadowed or unavailable; refusing migration');
         }
-        orphanSnapshots.set(`${v.table}\x00${v.rowid}`, JSON.stringify(row));
+        const key = `${v.table}\x00${v.rowid}`;
+        orphanSnapshots.set(key, snapshotOrphanRow(conn, v.table, v.rowid));
+      }
+
+      // Receipt triggers can mutate arbitrary rows, not only FK-violating ones.
+      // Refuse them before either receipt write. This is checked inside BEGIN
+      // IMMEDIATE, preventing another connection from adding a trigger later.
+      const receiptTrigger = conn.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='trigger' AND tbl_name='system_config' COLLATE NOCASE LIMIT 1"
+      ).get();
+      if (receiptTrigger) {
+        throw new Error('Unsupported receipt trigger: potentially mutated records cannot be ruled out; FK baseline preservation requires no system_config triggers');
       }
 
       // updated_by is NULL: avoids FK violation on system_config.updated_by REFERENCES users(id)
@@ -665,9 +672,7 @@ export function applyUpgrade(
         const nullIdx = key.indexOf('\x00');
         const table = key.substring(0, nullIdx);
         const rowid = Number(key.substring(nullIdx + 1));
-        const quotedTable = table.replace(/"/g, '""');
-        const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).get(rowid);
-        const snapAfter = row === undefined ? '' : JSON.stringify(row);
+        const snapAfter = snapshotOrphanRow(conn, table, rowid);
         if (snapAfter !== snapBefore) {
           throw new Error(
             `A receipt trigger mutated an FK-violating row in "${table}"; ` +
