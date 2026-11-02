@@ -622,7 +622,9 @@ export function applyUpgrade(
       const orphanSnapshots = new Map<string, string>();
       for (const v of preReceiptViolations) {
         if (v.rowid !== null) {
-          const row = conn.prepare(`SELECT * FROM "${v.table}" WHERE rowid = ?`).get(v.rowid);
+          // Double-quote escaping: SQLite allows table names with embedded " if escaped as "".
+          const quotedTable = v.table.replace(/"/g, '""');
+          const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).get(v.rowid);
           orphanSnapshots.set(`${v.table}\x00${v.rowid}`, row === undefined ? '' : JSON.stringify(row));
         }
       }
@@ -642,7 +644,8 @@ export function applyUpgrade(
         const nullIdx = key.indexOf('\x00');
         const table = key.substring(0, nullIdx);
         const rowid = Number(key.substring(nullIdx + 1));
-        const row = conn.prepare(`SELECT * FROM "${table}" WHERE rowid = ?`).get(rowid);
+        const quotedTable = table.replace(/"/g, '""');
+        const row = conn.prepare(`SELECT * FROM "${quotedTable}" WHERE rowid = ?`).get(rowid);
         const snapAfter = row === undefined ? '' : JSON.stringify(row);
         if (snapAfter !== snapBefore) {
           throw new Error(

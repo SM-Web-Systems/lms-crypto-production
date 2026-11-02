@@ -2491,4 +2491,43 @@ describe('reviewed FK baseline', () => {
       after.close();
     } finally { cleanupTempDb(file); }
   });
+
+  it('detects when a receipt trigger deletes an orphan row', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file);
+      conn.exec(`CREATE TRIGGER delete_orphan AFTER INSERT ON system_config
+        WHEN NEW.key='${MIGRATION_ID}'
+        BEGIN DELETE FROM "échild" WHERE id = 7; END`);
+      const baseline = fkEvidence(conn); conn.close();
+      // Deleted orphan: snapshot has row, after-snapshot is empty → must throw and rollback.
+      expect(() => applyUpgrade(file, { fkBaseline: baseline }))
+        .toThrow(/trigger.*mutated|mutated.*trigger|orphan.*trigger|trigger.*orphan|receipt.*trigger/i);
+      const after = new Database(file);
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined();
+      expect(after.prepare('SELECT user_id FROM "échild" WHERE id=7').get()).toEqual({ user_id: 999 });
+      after.close();
+    } finally { cleanupTempDb(file); }
+  });
+
+  it('handles a table name with embedded double-quote in FK snapshot queries', () => {
+    // Verifies the double-quote escaping (table.replace(/"/g, '""')) prevents SQL errors.
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    // Create a table whose name contains a double-quote character.
+    conn.exec('CREATE TABLE "bad""name" (id INTEGER PRIMARY KEY, ref INTEGER REFERENCES users(id))');
+    conn.exec('INSERT INTO "bad""name" VALUES (1, 999)');
+    conn.close();
+    try {
+      const db = new Database(dbPath); const baseline = fkEvidence(db); db.close();
+      // Migration must not throw a SQL error due to unescaped table name.
+      // It should succeed (schema migration completes, orphan row preserved).
+      const result = applyUpgrade(dbPath, { fkBaseline: baseline });
+      expect(result.success).toBe(true);
+      const after = new Database(dbPath);
+      expect(after.prepare('SELECT ref FROM "bad""name" WHERE id=1').get()).toEqual({ ref: 999 });
+      after.close();
+    } finally { cleanupTempDb(dbPath); }
+  });
 });
