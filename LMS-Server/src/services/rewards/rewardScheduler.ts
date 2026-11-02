@@ -79,8 +79,15 @@ export function isSchedulerRunning(): boolean {
  * If another tick is already running, returns a 'skipped' result.
  */
 export async function executeTick(): Promise<TickResult> {
-  // Non-overlap guard; a writer hold leaves all queued work in place
-  if (running || isWriterHoldActive()) {
+  // A writer hold leaves all queued work in place and records nothing
+  if (isWriterHoldActive()) {
+    const now = new Date().toISOString();
+    return { id: uuidv4(), startedAt: now, completedAt: now, durationMs: 0, result: 'skipped',
+      outboxProcessed: 0, outboxFailed: 0, expiryProcessed: 0, expiryFailed: 0 };
+  }
+
+  // Non-overlap guard
+  if (running) {
     const skipped = recordTick({ startedAt: new Date().toISOString(), result: 'skipped' });
     return skipped;
   }
