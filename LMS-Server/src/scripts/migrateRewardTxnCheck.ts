@@ -528,6 +528,9 @@ export function applyUpgrade(
     const schemaVersion = detectSchemaVersion(conn);
 
     if (schemaVersion === 'target' || schemaVersion === 'absent') {
+      // A supplied FK baseline must always be validated, even when no migration work is needed.
+      // Returning alreadyAtTarget without checking would silently accept a wrong or malformed baseline.
+      if (options?.fkBaseline !== undefined) requireFkBaseline(conn, options.fkBaseline);
       return { success: true, rowsCopied: 0, alreadyAtTarget: true };
     }
 
@@ -612,6 +615,18 @@ export function applyUpgrade(
         );
       }
 
+      // Snapshot every FK-violating row before writing receipts.
+      // An AFTER INSERT trigger on system_config could silently mutate orphan column values
+      // without changing the FK violation tuples, making requireFkBaseline insufficient alone.
+      const preReceiptViolations = conn.pragma('foreign_key_check') as { table: string; rowid: number | null; parent: string; fkid: number }[];
+      const orphanSnapshots = new Map<string, string>();
+      for (const v of preReceiptViolations) {
+        if (v.rowid !== null) {
+          const row = conn.prepare(`SELECT * FROM "${v.table}" WHERE rowid = ?`).get(v.rowid);
+          orphanSnapshots.set(`${v.table}\x00${v.rowid}`, row === undefined ? '' : JSON.stringify(row));
+        }
+      }
+
       // updated_by is NULL: avoids FK violation on system_config.updated_by REFERENCES users(id)
       conn.prepare(
         `INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by)
@@ -621,7 +636,23 @@ export function applyUpgrade(
         conn.prepare(`INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by)
           VALUES (?, ?, datetime('now'), NULL)`).run(MIGRATION_ID + '_fk_baseline', JSON.stringify(options.fkBaseline));
       }
-      // Receipt triggers must not introduce or alter violations after validation.
+
+      // Verify orphan rows are unchanged after receipt writes.
+      for (const [key, snapBefore] of orphanSnapshots) {
+        const nullIdx = key.indexOf('\x00');
+        const table = key.substring(0, nullIdx);
+        const rowid = Number(key.substring(nullIdx + 1));
+        const row = conn.prepare(`SELECT * FROM "${table}" WHERE rowid = ?`).get(rowid);
+        const snapAfter = row === undefined ? '' : JSON.stringify(row);
+        if (snapAfter !== snapBefore) {
+          throw new Error(
+            `A receipt trigger mutated an FK-violating row in "${table}"; ` +
+            `refusing migration — investigate AFTER INSERT triggers on system_config`
+          );
+        }
+      }
+
+      // Receipt triggers must not introduce or alter FK violations after validation.
       requireFkBaseline(conn, options?.fkBaseline);
     });
 

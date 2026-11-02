@@ -2358,4 +2358,137 @@ describe('reviewed FK baseline', () => {
         .toThrow(/evidence differs/);
     } finally { cleanupTempDb(file); }
   });
+
+  // ── Finding 3: idempotent retry must not bypass the supplied FK baseline ──
+
+  it('target schema + no baseline → alreadyAtTarget without error (unchanged behavior)', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      applyUpgrade(file, { fkBaseline: baseline }); // migrate to target
+      const result = applyUpgrade(file); // no baseline supplied
+      expect(result.alreadyAtTarget).toBe(true);
+      expect(result.success).toBe(true);
+    } finally { cleanupTempDb(file); }
+  });
+
+  it('target schema + correct FK baseline → alreadyAtTarget without error', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      applyUpgrade(file, { fkBaseline: baseline }); // migrate to target
+      // Re-apply with the same baseline: should succeed, alreadyAtTarget
+      const result = applyUpgrade(file, { fkBaseline: baseline });
+      expect(result.alreadyAtTarget).toBe(true);
+      expect(result.success).toBe(true);
+    } finally { cleanupTempDb(file); }
+  });
+
+  it('target schema + malformed FK baseline → throws format error, not silent success', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      applyUpgrade(file, { fkBaseline: baseline }); // migrate to target
+      // Malformed baseline supplied on re-apply: must not return alreadyAtTarget silently
+      expect(() => applyUpgrade(file, { fkBaseline: { fk_violation_count: -1, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/Invalid FK baseline format/);
+    } finally { cleanupTempDb(file); }
+  });
+
+  it('target schema + mismatched FK baseline → throws mismatch error, not silent success', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      applyUpgrade(file, { fkBaseline: baseline }); // migrate to target
+      // Wrong baseline supplied on re-apply: must not return alreadyAtTarget silently
+      expect(() => applyUpgrade(file, { fkBaseline: { fk_violation_count: 0, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/evidence differs/);
+    } finally { cleanupTempDb(file); }
+  });
+
+  it('absent schema + no baseline → alreadyAtTarget without error (unchanged behavior)', () => {
+    // A DB without the reward_transactions table at all
+    const { dbPath, conn } = makeTempDb('CREATE TABLE unrelated (id TEXT PRIMARY KEY);');
+    conn.close();
+    try {
+      const result = applyUpgrade(dbPath);
+      expect(result.alreadyAtTarget).toBe(true);
+      expect(result.success).toBe(true);
+    } finally { cleanupTempDb(dbPath); }
+  });
+
+  it('absent schema + correct FK baseline (zero violations) → alreadyAtTarget without error', () => {
+    const { dbPath, conn } = makeTempDb('CREATE TABLE unrelated (id TEXT PRIMARY KEY);');
+    conn.close();
+    try {
+      // No FK violations in this DB; correct baseline is count=0, sha256=sha256('[]')
+      const zeroBaseline = { fk_violation_count: 0, fk_violations_sha256: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945' };
+      const result = applyUpgrade(dbPath, { fkBaseline: zeroBaseline });
+      expect(result.alreadyAtTarget).toBe(true);
+      expect(result.success).toBe(true);
+    } finally { cleanupTempDb(dbPath); }
+  });
+
+  it('absent schema + malformed FK baseline → throws format error, not silent success', () => {
+    const { dbPath, conn } = makeTempDb('CREATE TABLE unrelated (id TEXT PRIMARY KEY);');
+    conn.close();
+    try {
+      expect(() => applyUpgrade(dbPath, { fkBaseline: { fk_violation_count: -1, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/Invalid FK baseline format/);
+    } finally { cleanupTempDb(dbPath); }
+  });
+
+  it('absent schema + mismatched FK baseline → throws mismatch error, not silent success', () => {
+    const { dbPath, conn } = makeTempDb('CREATE TABLE unrelated (id TEXT PRIMARY KEY);');
+    conn.close();
+    try {
+      // DB has 0 violations but we supply count=1 → must fail, not return alreadyAtTarget
+      expect(() => applyUpgrade(dbPath, { fkBaseline: { fk_violation_count: 1, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/evidence differs/);
+    } finally { cleanupTempDb(dbPath); }
+  });
+
+  it('idempotent retry on target schema does not modify records or receipts', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file); const baseline = fkEvidence(conn); conn.close();
+      applyUpgrade(file, { fkBaseline: baseline }); // first apply
+      const before = new Database(file);
+      const rewardRows = before.prepare('SELECT * FROM reward_transactions ORDER BY id').all();
+      const sysRows = before.prepare('SELECT key, value FROM system_config ORDER BY key').all();
+      before.close();
+      // Second apply (idempotent) with same baseline
+      const result = applyUpgrade(file, { fkBaseline: baseline });
+      expect(result.alreadyAtTarget).toBe(true);
+      const after = new Database(file);
+      expect(after.prepare('SELECT * FROM reward_transactions ORDER BY id').all()).toEqual(rewardRows);
+      expect(after.prepare('SELECT key, value FROM system_config ORDER BY key').all()).toEqual(sysRows);
+      after.close();
+    } finally { cleanupTempDb(file); }
+  });
+
+  // ── Finding 2: receipt-trigger orphan mutation must be detected ──
+
+  it('detects when a receipt trigger silently mutates an orphan row', () => {
+    const file = fixture();
+    try {
+      const conn = new Database(file);
+      // Trigger modifies orphan user_id from 999→998. Both are non-existent users,
+      // so FK violation tuple [échild,7,users,0] is unchanged → requireFkBaseline would pass.
+      // The mutation must be caught by orphan-row snapshot comparison.
+      conn.exec(`CREATE TRIGGER silent_mutate AFTER INSERT ON system_config
+        WHEN NEW.key='${MIGRATION_ID}'
+        BEGIN UPDATE "échild" SET user_id = 998 WHERE id = 7; END`);
+      const baseline = fkEvidence(conn); conn.close();
+      // Before fix: succeeds (mutation invisible to FK hash). After fix: throws.
+      expect(() => applyUpgrade(file, { fkBaseline: baseline }))
+        .toThrow(/trigger.*mutated|mutated.*trigger|orphan.*trigger|trigger.*orphan|receipt.*trigger/i);
+      // Transaction was rolled back: source schema intact, no receipt, orphan unchanged.
+      const after = new Database(file);
+      expect(detectSchemaVersion(after)).toBe('source');
+      expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined();
+      expect(after.prepare('SELECT user_id FROM "échild" WHERE id=7').get()).toEqual({ user_id: 999 });
+      after.close();
+    } finally { cleanupTempDb(file); }
+  });
 });
