@@ -321,8 +321,10 @@ function requireFkBaseline(conn: SqliteDatabase, baseline?: FkBaseline): void {
     return;
   }
   if (!Number.isSafeInteger(baseline.fk_violation_count) || baseline.fk_violation_count < 0 ||
-      !/^[a-f0-9]{64}$/.test(baseline.fk_violations_sha256) ||
-      current.fk_violation_count !== baseline.fk_violation_count ||
+      !/^[a-f0-9]{64}$/.test(baseline.fk_violations_sha256)) {
+    throw new Error('Invalid FK baseline format: count must be a non-negative integer and sha256 must be 64 hex digits');
+  }
+  if (current.fk_violation_count !== baseline.fk_violation_count ||
       current.fk_violations_sha256 !== baseline.fk_violations_sha256) {
     throw new Error('Foreign key evidence differs from reviewed baseline; refusing migration');
   }

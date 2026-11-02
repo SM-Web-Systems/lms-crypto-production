@@ -2340,4 +2340,22 @@ describe('reviewed FK baseline', () => {
       expect(after.prepare('SELECT 1 FROM system_config WHERE key=?').get(MIGRATION_ID)).toBeUndefined(); after.close();
     } finally { cleanupTempDb(file); }
   });
+
+  it('throws a format error for a malformed FK baseline, not a state-mismatch error', () => {
+    const file = fixture();
+    try {
+      // Negative count → format error, not state-mismatch
+      expect(() => applyUpgrade(file, { fkBaseline: { fk_violation_count: -1, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/Invalid FK baseline format/);
+      // Non-hex-64 hash → format error, not state-mismatch
+      expect(() => applyUpgrade(file, { fkBaseline: { fk_violation_count: 0, fk_violations_sha256: 'not-a-hash' } }))
+        .toThrow(/Invalid FK baseline format/);
+      // Float count → format error, not state-mismatch
+      expect(() => applyUpgrade(file, { fkBaseline: { fk_violation_count: 1.5, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/Invalid FK baseline format/);
+      // Valid format, wrong count (0 vs actual 1) → state-mismatch error, not format error
+      expect(() => applyUpgrade(file, { fkBaseline: { fk_violation_count: 0, fk_violations_sha256: 'a'.repeat(64) } }))
+        .toThrow(/evidence differs/);
+    } finally { cleanupTempDb(file); }
+  });
 });
