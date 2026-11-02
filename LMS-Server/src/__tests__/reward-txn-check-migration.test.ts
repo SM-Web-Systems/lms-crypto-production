@@ -2768,7 +2768,6 @@ describe('AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation', () => 
   // fix does not regress the supported baseline path.
 
   it('AUTH-14-WR-9: ordinary rowid orphan with reviewed baseline still migrates successfully', () => {
-    // Reuse the échild fixture from the reviewed FK baseline suite.
     const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
     conn.pragma('foreign_keys = OFF');
     conn.exec(`CREATE TABLE wor_baseline_check (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id))`);
@@ -2800,7 +2799,6 @@ describe('AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation', () => 
     conn.exec(`CREATE TABLE blob_orphan (id INTEGER PRIMARY KEY, ref TEXT REFERENCES users(id), payload BLOB)`);
     // Insert a BLOB value
     const blobA = Buffer.from([0x01, 0x02, 0x03]);
-    const blobB = Buffer.from([0x01, 0x02, 0x04]); // differs in last byte
     conn.prepare('INSERT INTO blob_orphan VALUES (?, ?, ?)').run(1, 'ghost', blobA);
     conn.exec(`CREATE TRIGGER blob_mutate AFTER INSERT ON system_config
       WHEN NEW.key='${MIGRATION_ID}'
@@ -2811,6 +2809,31 @@ describe('AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation', () => 
       // The BLOB change must be detected as a mutation.
       expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
         .toThrow(/trigger.*mutated|mutated.*trigger|orphan.*trigger|trigger.*orphan|receipt.*trigger/i);
+    } finally {
+      cleanupTempDb(dbPath);
+    }
+  });
+
+  // ── AUTH-14-WR-11 ────────────────────────────────────────────────────────────
+  // Multiple FK violations in the SAME WITHOUT ROWID table: each row produces an
+  // identical tuple [table, null, parent, fkid]. The code should fail closed on
+  // the first null-rowid violation regardless of how many violations there are.
+  // This also confirms the spec note: fkEvidence() can only distinguish by count,
+  // not by individual row identity, for WITHOUT ROWID tables.
+
+  it('AUTH-14-WR-11: fails closed with multiple FK violations in the same WITHOUT ROWID table', () => {
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    conn.pragma('foreign_keys = OFF');
+    conn.exec(`CREATE TABLE wor_multi (pk TEXT PRIMARY KEY, ref TEXT REFERENCES users(id)) WITHOUT ROWID`);
+    // Two distinct orphan rows — each produces rowid=null in foreign_key_check
+    conn.prepare('INSERT INTO wor_multi VALUES (?, ?)').run('row-a', 'ghost-1');
+    conn.prepare('INSERT INTO wor_multi VALUES (?, ?)').run('row-b', 'ghost-2');
+    const baseline = fkEvidence(conn);
+    conn.close();
+    try {
+      expect(baseline.fk_violation_count).toBe(2);
+      expect(() => applyUpgrade(dbPath, { fkBaseline: baseline }))
+        .toThrow(/WITHOUT ROWID|without rowid|null rowid|rowid.*null|cannot be identified/i);
     } finally {
       cleanupTempDb(dbPath);
     }
