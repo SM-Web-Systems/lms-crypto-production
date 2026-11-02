@@ -1,7 +1,6 @@
 # AUTH-14 Release Preparation — Developer Spec
 
-> Version: 1.0  
-> Date: 2026-11-02  
+> Version: 1.1 (updated 2026-11-02 — merge remediation)  
 > Candidate: `d5191b9a778ea489eb9200936bd0e8fa0e7876dd` on `codex/auth14-release-prep`  
 > Base: `e2c71e292c2be2683a4ee87008817ed34cc16023` (main, W09-R7)  
 > Status: UNDER REVIEW — not yet authorized for deployment
@@ -20,12 +19,13 @@ Additionally, AUTH-14 repairs partial-stop handling in `release_recovery.py` (re
 
 ## 2. Scope
 
-**In scope (AUTH-14, d5191b9):**
-- `LMS-Server/src/scripts/migrateRewardTxnCheck.ts` — FK baseline guard extension
-- `LMS-Server/src/__tests__/reward-txn-check-migration.test.ts` — 7 new baseline guard tests
+**In scope (AUTH-14, merge remediation):**
+- `LMS-Server/src/scripts/migrateRewardTxnCheck.ts` — FK baseline guard extension + idempotent path fix + orphan-snapshot guard
+- `LMS-Server/src/__tests__/reward-txn-check-migration.test.ts` — 7 original + 10 new baseline guard tests (17 total)
 - `scripts/release_recovery.py` — partial-stop recovery improvement
 - `scripts/tests/test_release_recovery.py` — 5 new recovery tests
 - `docs/release/AUTH-14-fk-baseline-and-recovery.md` — operator documentation
+- `docs/release/AUTH-14-assessment-findings.md` — sanitized (personal identifiers removed)
 
 **Explicitly out of scope:**
 - The FK violation itself (operator decision: Options A, B, or C from maintenance procedure)
@@ -45,6 +45,8 @@ Additionally, AUTH-14 repairs partial-stop handling in `release_recovery.py` (re
 4. **No modification of orphan data**: the migration never deletes, repairs, or touches rows identified by FK violations.
 5. **Receipt recording**: a successful baseline migration writes `migration_002_reward_txn_check_fk_baseline` (JSON `{fk_violation_count, fk_violations_sha256}`) to `system_config`, alongside the normal receipt.
 6. **Re-verification**: FK baseline is checked at three points inside `applyUpgrade`: before the write lock, inside the transaction before reconstruction, and after reconstruction (before commit). A change between any two checks aborts the migration.
+7. **Idempotent baseline validation** _(merge remediation)_: a supplied FK baseline is validated even when the schema is already at `target` or `absent`. Returning `alreadyAtTarget: true` without checking a supplied baseline would silently accept a wrong or malformed value on re-apply.
+8. **Orphan-row snapshot** _(merge remediation)_: immediately before writing migration receipts, all FK-violating rows are snapshotted. After writing receipts, each snapshot is compared against the current row state. If any row changed (e.g. from an `AFTER INSERT` trigger on `system_config`), the transaction is rolled back. This guards against trigger-driven mutations that alter orphan column values without changing the FK violation tuple, which `requireFkBaseline` alone cannot detect.
 
 ### 3.2 `fkEvidence(conn)` — fingerprint algorithm
 
@@ -101,9 +103,11 @@ BEGIN IMMEDIATE
   CREATE INDEX × 4
   requireFkBaseline(conn, baseline)       ← after reconstruction, before commit
   integrity_check == 'ok'
+  snapshot each FK-violating row          ← orphan-row snapshot before receipts
   INSERT OR REPLACE INTO system_config (receipt)
   INSERT OR REPLACE INTO system_config (fk_baseline, if provided)
-  requireFkBaseline(conn, baseline)       ← after receipt writes (trigger guard)
+  verify each orphan row unchanged        ← snapshot comparison after receipts
+  requireFkBaseline(conn, baseline)       ← after receipt writes (FK tuple guard)
 COMMIT
 PRAGMA legacy_alter_table = OFF
 PRAGMA foreign_keys = ON
@@ -212,6 +216,7 @@ verify_policy(target, backup, policy):
 | Pre-transaction check | integrity_check fails | No mutation; error reported |
 | Pre-transaction check | unexpected dependencies | No mutation; error reported |
 | Inside transaction | any error (including injected failure) | ROLLBACK automatic; original table preserved |
+| Inside transaction | receipt trigger mutated orphan row | ROLLBACK automatic; original table preserved |
 | Post-commit check | schema not 'target' | Migration committed — **manual inspection required** |
 
 The post-commit schema check failure is the only path where the migration may have committed but left the system in a potentially unexpected state. This is designed to be extremely rare (requires the table rename and index creation to succeed but the DDL to not match the canonical target form).
@@ -234,6 +239,8 @@ The post-commit schema check failure is the only path where the migration may ha
 
 - **FK baseline hash**: SHA-256 of the violation tuples. Operators must supply the hash independently from a reviewed, private copy of the database. The hash itself does not expose orphan row data.
 - **No orphan data in receipts**: The `system_config` entry records only count and hash — not row values.
+- **Orphan-row snapshot comparison**: Error messages from the snapshot guard report only table name — never column values or row identifiers — to prevent accidental exposure of production data.
+- **Assessment document privacy**: The shared `AUTH-14-assessment-findings.md` document has been sanitized to remove production row identifiers (student UUIDs and name). The full evidence is retained in its private access-controlled location on the server. Branch history prior to the sanitization commit retains the original values; the repository owner must assess under organization policy whether any further action is required for this private repository.
 - **No FK deletion**: The migration never deletes or modifies rows referenced by FK violations.
 - **Recovery policy gates**: `verify_policy` requires an independent review reference string (not generated automatically) and checks running source image IDs, schema hash, financial state hash, and FK evidence against independently captured values.
 - **Private evidence files**: Recovery capture files are written to a 0700-permission directory with 0600 files. Symlink attacks are explicitly checked.
@@ -264,9 +271,9 @@ The post-commit schema check failure is the only path where the migration may ha
 
 | Suite | Target | Evidence |
 |-------|--------|---------|
-| Full TypeScript backend (vitest run) | 2288/2288 | Clean install on `d5191b9`, Node v20.20.0 |
+| Full TypeScript backend (vitest run) | 2300/2300 | Clean install, merge-remediation tip |
 | `dependency-security.test.ts` | 3/3 | proxy-addr 2.0.8 via `npm ci` |
-| `reward-txn-check-migration.test.ts` | 105/105 | Includes 7 new FK baseline guard tests |
+| `reward-txn-check-migration.test.ts` | 116/116 | 7 original + 9 idempotent/absent + 1 orphan-mutation = 17 new tests total |
 | Python recovery tests | 50/50 | 32 subtests; includes 5 new partial-stop tests |
 | TypeScript build (tsc --noEmit) | 0 errors | Node 22 base image |
 
@@ -304,7 +311,7 @@ The post-commit schema check failure is the only path where the migration may ha
 | 4 | Baseline count mismatch → refused | new test | ✅ |
 | 5 | Baseline hash mismatch → refused | new test | ✅ |
 | 6 | Violation added between pre-TX and TX → refused in-TX | new test | ✅ |
-| 7 | Violation added by receipt trigger → refused | new test (trigger guard) | ✅ |
+| 7 | Violation added by receipt trigger (new row) → refused | existing trigger guard test | ✅ |
 | 8 | Bad count format (float) → CLI error | CLI validation | ✅ |
 | 9 | Bad hash format (not 64 hex) → format error | new test + CLI | ✅ |
 | 10 | Injected failure after rename → rollback, original preserved | COMPAT-ROLLBACK | ✅ |
@@ -312,6 +319,12 @@ The post-commit schema check failure is the only path where the migration may ha
 | 12 | Stop fails → CONTAINMENT_UNVERIFIED | `test_stop_failure_reports_unverified_containment` | ✅ |
 | 13 | Full deploy + verify + rollback cycle | deploy/rollback tests | ✅ |
 | 14 | proxy-addr 2.0.8 trust boundary | `dependency-security.test.ts` 3/3 | ✅ |
+| 15 | Target schema + supplied baseline → baseline validated _(Finding 3)_ | idempotent path tests | ✅ |
+| 16 | Target schema + malformed baseline → format error, not silent success | idempotent path tests | ✅ |
+| 17 | Target schema + mismatched baseline → mismatch error, not silent success | idempotent path tests | ✅ |
+| 18 | Absent schema + supplied baseline → baseline validated | absent path tests | ✅ |
+| 19 | Idempotent retry does not modify records or receipts | idempotent retry test | ✅ |
+| 20 | Receipt trigger mutates orphan column → rollback _(Finding 2)_ | orphan-snapshot test | ✅ |
 
 ---
 

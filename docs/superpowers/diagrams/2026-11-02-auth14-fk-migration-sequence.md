@@ -1,6 +1,6 @@
 # AUTH-14 FK Baseline and Migration Transaction Sequence
 
-> Date: 2026-11-02  
+> Date: 2026-11-02 (updated for merge remediation — Findings 2 and 3)  
 > File: `LMS-Server/src/scripts/migrateRewardTxnCheck.ts`
 
 ## FK Evidence Fingerprint Algorithm
@@ -75,9 +75,11 @@ sequenceDiagram
         TX->>DB: CREATE INDEX × 4 (reward, allocation, idem, fund_ref_unique)
         TX->>DB: requireFkBaseline ← after reconstruction
         TX->>DB: integrity_check == 'ok'
+        TX->>DB: SELECT * FROM each FK-violating row ← orphan snapshot
         TX->>DB: INSERT OR REPLACE INTO system_config (migration receipt)
         TX->>DB: INSERT OR REPLACE INTO system_config (fk_baseline, if provided)
-        TX->>DB: requireFkBaseline ← after receipt writes (trigger guard)
+        TX->>DB: verify each orphan row unchanged ← snapshot comparison (Finding 2)
+        TX->>DB: requireFkBaseline ← after receipt writes (FK tuple guard)
         TX->>DB: COMMIT
     end
 
