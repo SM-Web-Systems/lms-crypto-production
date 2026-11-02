@@ -28,6 +28,7 @@ import release_preflight as pre
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 MANIFEST_NAME = re.compile(r'recovery-[0-9a-f]{32}\.json\Z')
 REVISION_LABEL = 'org.opencontainers.image.revision'
+ONE_SHOT_NOT_CONTAINED = 'ONE_SHOT_CONTAINER_NOT_CONTAINED'
 WRITER_HOLD_SCRIPT = 'dist/scripts/writerHold.js'
 MIGRATION_SCRIPT = 'dist/scripts/migrateRewardTxnCheck.js'
 require = pre.require
@@ -175,11 +176,23 @@ def reviewed_images(target, policy, runner):
     return dict(reviewed)
 
 
-def preserve_recovery(target, backup, state, runner, policy, read_database=None):
+def publish_recovery_pointer(state, path):
+    pointer = {'version': 1, 'manifest': path.name, 'sha256': pre.file_sha256(path)}
+    temporary = state / ('pointer-' + uuid.uuid4().hex + '.json')
+    immutable_json(temporary, pointer)
+    try:
+        os.replace(temporary, state / 'current-recovery.json'); sync_directory(state)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def preserve_recovery(target, backup, state, runner, policy, read_database=None, publish=True):
     """Caller owns release_lock; keep prior pointer on any incomplete capture.
 
     Verified tags and immutable evidence remain even if eligibility is unknown.
     Only a fully verified eligible manifest can replace the recovery pointer.
+    A deploy publishes only at its stop, because the pointer also proves the
+    source's overlay: moving it earlier would fail the next validate_target.
     """
     try:
         state = private_directory(state)
@@ -213,13 +226,7 @@ def preserve_recovery(target, backup, state, runner, policy, read_database=None)
         immutable_json(path, manifest)
         for service in ('api', 'web'):
             require(inspect_image(runner, target, images[service]['tag'])['Id'] == images[service]['image_id'], 'RECOVERY_TAG_ID_MISMATCH')
-        pointer = {'version': 1, 'manifest': filename, 'sha256': pre.file_sha256(path)}
-        temporary = state / ('pointer-' + uuid.uuid4().hex + '.json')
-        immutable_json(temporary, pointer)
-        try:
-            os.replace(temporary, state / 'current-recovery.json'); sync_directory(state)
-        finally:
-            temporary.unlink(missing_ok=True)
+        if publish: publish_recovery_pointer(state, path)
         return dict(manifest, manifest_file=str(path))
     except ReleaseError:
         raise
@@ -400,11 +407,28 @@ def stopped_database_metadata(path):
 
 
 def one_shot(target, image_id, script, arguments, runner, timeout=300):
-    """Run a reviewed script from the reviewed API image while services are stopped."""
-    return runner.text('docker', ['run', '--rm', '--network', 'none', '--read-only', '--tmpfs', '/tmp',
-                                  '--mount', 'type=volume,src=' + target['database']['volume_name'] + ',dst=/app/data',
-                                  '--entrypoint', 'node', image_id, script, *arguments],
-                       target['checkout'], timeout=timeout)
+    """Run a reviewed script from the reviewed API image while services are stopped.
+
+    A client timeout leaves the container running, so a failed run is not over
+    until that container is confirmed gone.
+    """
+    name = target['project'] + '-oneshot-' + uuid.uuid4().hex
+    try:
+        return runner.text('docker', ['run', '--rm', '--name', name, '--network', 'none', '--read-only', '--tmpfs', '/tmp',
+                                      '--mount', 'type=volume,src=' + target['database']['volume_name'] + ',dst=/app/data',
+                                      '--entrypoint', 'node', image_id, script, *arguments],
+                           target['checkout'], timeout=timeout)
+    except ReleaseError:
+        try:
+            runner.text('docker', ['rm', '-f', name], target['checkout'])
+        except ReleaseError:
+            pass  # Already gone is normal with --rm; the check below decides.
+        try:
+            remaining = runner.text('docker', ['ps', '--all', '--quiet', '--filter', 'name=^/' + name + '$'], target['checkout'])
+        except ReleaseError:
+            remaining = 'unknown'
+        require(not remaining, ONE_SHOT_NOT_CONTAINED)
+        raise
 
 
 def migrate_while_stopped(target, state, policy, images, runner, before):
@@ -425,9 +449,14 @@ def migrate_while_stopped(target, state, policy, images, runner, before):
     return manifest, window_backup, migrated
 
 
+def source_configs(target):
+    # validate_target proved any overlay in the source's own label.
+    return {target['compose_file'], target.get('source_config_files') or target['compose_file']}
+
+
 def recovery_runtime(state, manifest):
     target = manifest['target']
-    allowed = {target['compose_file']}
+    allowed = source_configs(target)
     images = {service: {manifest['images'][service]['image_id']} for service in ('api', 'web')}
     candidate_path = state / ('candidate-' + manifest['manifest_id'] + '.json')
     if candidate_path.exists():
@@ -452,6 +481,9 @@ def recovery_runtime(state, manifest):
 
 def _rollback_locked(config, state, policy, runner, http, timeout):
     manifest = load_manifest(state)
+    # Once writers were released (or may have been) candidate writes can exist
+    # that the schema and financial contract cannot see.
+    require(not (state / ('released-' + manifest['manifest_id'] + '.json')).exists(), 'ROLLBACK_REFUSED_WRITERS_RELEASED')
     target = manifest['target']; backup = manifest['backup']
     allowed_configs, allowed_images, overlay, payload = recovery_runtime(state, manifest)
     containers = verify_checkout_context(config, target, runner, allowed_configs)
@@ -475,7 +507,7 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
         verify_database_contract(stopped_database_metadata(target['database']['host_path']), backup)
         if not overlay.exists(): immutable_json(overlay, payload)
         allowed_configs.add(target['compose_file'] + ',' + str(overlay))
-        runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'])
+        runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'], timeout=300)
         verify_running(target, expected, policy['source_sha'], runner, base_url, http, timeout, overlay)
         # Old startup code is not allowed to change the established contracts.
         # A real running API owns WAL/SHM. Fake interfaces may deliberately
@@ -549,6 +581,8 @@ def release_hold(config, runner=None, policy=None, execute=None, http=None, time
     state = Path(config['backup_root']) / 'release-state'
     with release_lock(state):
         manifest = load_manifest(state); target = manifest['target']
+        # Written only after deploy fully verified the held candidate.
+        held = read_private_json(state / ('held-' + manifest['manifest_id'] + '.json'))
         candidate = read_private_json(state / ('candidate-' + manifest['manifest_id'] + '.json'))
         require(candidate.get('manifest_sha256') == pre.file_sha256(Path(manifest['manifest_file'])), 'RECOVERY_CANDIDATE_CONTEXT_INVALID')
         images = candidate.get('images')
@@ -557,9 +591,16 @@ def release_hold(config, runner=None, policy=None, execute=None, http=None, time
         overlay = pre._path(candidate.get('overlay_file'))
         verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=True)
         containers = verify_checkout_context(config, target, runner, {target['compose_file'] + ',' + str(overlay)})
-        verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
-        runner.text('docker', ['exec', containers['api']['Id'], 'node', WRITER_HOLD_SCRIPT, 'release'], target['checkout'])
-        verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=False)
+        current = pre._source_metadata(Path(target['database']['host_path']))
+        verify_database_contract(current, manifest['backup'])
+        verify_protected_content(current, held)
+        # Before the release, so a lost exec can never leave rollback eligible.
+        immutable_json(state / ('released-' + manifest['manifest_id'] + '.json'), {'manifest_id': manifest['manifest_id']})
+        try:
+            runner.text('docker', ['exec', containers['api']['Id'], 'node', WRITER_HOLD_SCRIPT, 'release'], target['checkout'])
+            verify_running(target, images, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=False)
+        except (ReleaseError, OSError, ValueError, TypeError, KeyError):
+            raise ReleaseError('WRITERS_RELEASED_VERIFICATION_FAILED') from None
         result = {'status': 'WRITERS_RELEASED', 'deployed_sha': target['approved_sha'], 'images': images, 'manifest_id': manifest['manifest_id']}
         immutable_json(state / ('release-hold-result-' + uuid.uuid4().hex + '.json'), result)
         return result
@@ -574,20 +615,22 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
     private_directory(Path(config['backup_root']))
     state = Path(config['backup_root']) / 'release-state'
     with release_lock(state):
-        manifest = _prepare_locked(config, target, state, policy, runner)
+        backup = pre.backup_database(target, config['backup_root'])
+        manifest = preserve_recovery(target, backup, state, runner, policy, publish=False)
         # Capture/backup can take time: revalidate the original context, the
         # reviewed image IDs and baseline just before any replacement; ongoing
         # financial activity blocks this mode.
         built = reviewed_images(target, policy, runner)
-        containers = verify_checkout_context(config, target, runner)
+        containers = verify_checkout_context(config, target, runner, source_configs(target))
         require(all(containers[service]['Image'] == target['services'][service]['image_id'] for service in ('api', 'web')), 'PRE_DEPLOY_CONTAINER_IMAGE_CHANGED')
         verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
+        publish_recovery_pointer(state, Path(manifest['manifest_file']))
         overlay = None
         migration_started = False; window_backup = None; before = None
         try:
             # Stopping the old image is the hold for everything it runs: requests,
             # callbacks and workers. It cannot be held any other way.
-            controlled_stop(target, runner)
+            controlled_stop(target, runner, source_configs(target))
             before = stopped_database_metadata(target['database']['host_path'])
             verify_database_contract(before, manifest['backup'])
             held_state = before
@@ -601,10 +644,10 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
             immutable_json(state / ('candidate-' + manifest['manifest_id'] + '.json'),
                            {'manifest_sha256': pre.file_sha256(Path(manifest['manifest_file'])), 'images': built,
                             'overlay_file': str(overlay), 'overlay_sha256': pre.file_sha256(overlay)})
-            runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'])
+            runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'], timeout=300)
             verify_running(target, built, target['approved_sha'], runner, base_url, http, timeout, overlay, writer_hold=True)
             post_deploy = pre._source_metadata(Path(target['database']['host_path']))
-            verify_foreign_key_evidence(post_deploy, manifest['backup'])
+            verify_database_contract(post_deploy, manifest['backup'])
             verify_protected_content(post_deploy, held_state)
             result = {'status': 'DEPLOYMENT_VERIFIED_WRITERS_HELD', 'requested_sha': config['approved_sha'], 'checked_out_sha': target['approved_sha'],
                       'built_sha': target['approved_sha'], 'health_sha': target['approved_sha'], 'deployed_sha': target['approved_sha'],
@@ -614,16 +657,18 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
                           all(post_deploy[key] == manifest['backup'][key]
                               for key in ('schema_sha256', 'financial_state_sha256', 'foreign_key_violations_sha256'))}
             immutable_json(state / ('deploy-result-' + uuid.uuid4().hex + '.json'), result)
+            immutable_json(state / ('held-' + manifest['manifest_id'] + '.json'),
+                           {'protected_content_sha256': post_deploy['protected_content_sha256']})
             return result
-        except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+        except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
             # A migration that may have changed anything needs an owner decision;
             # only an exactly unchanged database may go back to the old service.
-            if migration_started and not _database_unchanged(target, before):
+            if migration_started and (str(error) == ONE_SHOT_NOT_CONTAINED or not _database_unchanged(target, before)):
                 raise ReleaseError('DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
             try:
                 _rollback_locked(config, state, policy, runner, http, timeout)
             except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
-                allowed = {target['compose_file']}
+                allowed = source_configs(target)
                 if overlay is not None: allowed.add(target['compose_file'] + ',' + str(overlay))
                 try:
                     controlled_stop(target, runner, allowed)
@@ -658,7 +703,8 @@ def main():
         print(json.dumps(result, sort_keys=True))
         return 0
     except ReleaseError as error:
-        print(json.dumps({'status': 'REFUSED', 'code': str(error)}), file=sys.stderr); return 2
+        status = str(error) if str(error) == 'WRITERS_RELEASED_VERIFICATION_FAILED' else 'REFUSED'
+        print(json.dumps({'status': status, 'code': str(error)}), file=sys.stderr); return 2
     except (OSError, ValueError, TypeError, KeyError, AttributeError, sqlite3.Error):
         print(json.dumps({'status': 'REFUSED', 'code': 'INVALID_RELEASE_STATE'}), file=sys.stderr); return 2
 

@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { isWriterHoldActive } from '../services/writerHold.js';
 
 const RETRY_AFTER_SECONDS = '120';
-const HEALTH_PATHS = new Set(['/health', '/healthz', '/api/v1/health']);
+// Not /healthz: its readiness probe writes to the database.
+const HEALTH_PATHS = new Set(['/health', '/api/v1/health']);
 
 /** The release checks these while held. Without a token this probe only returns 401. */
 function isAllowedDuringHold(req: Request): boolean {

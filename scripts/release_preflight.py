@@ -29,6 +29,7 @@ ENVIRONMENT = {'checkout': 'DEPLOY_DIR', 'repository': 'DEPLOY_REPOSITORY',
                'approved_sha': 'DEPLOY_SHA', 'project': 'DEPLOY_PROJECT',
                'api_container': 'DEPLOY_API_CONTAINER', 'web_container': 'DEPLOY_WEB_CONTAINER',
                'db_volume': 'DEPLOY_DB_VOLUME', 'backup_root': 'DEPLOY_BACKUP_DIR'}
+RECEIPT_KEYS = ('migration_002_reward_txn_check', 'migration_002_reward_txn_check_fk_baseline')
 REQUIRED_FILES = ('docker-compose.yml', 'scripts/deploy.sh', 'scripts/release_preflight.py',
                   'scripts/release_recovery.py', 'scripts/rollback.sh',
                   'LMS-Server/Dockerfile', 'LMS-Frontend/Dockerfile')
@@ -345,14 +346,16 @@ def database_metadata(db):
             financial.update(json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode())
             financial.update(b'\n')
     protected = hashlib.sha256()
-    # Every row except the release receipts, which the migration adds. Compared
+    # Every row except the two release receipts, which the migration adds. Compared
     # only while writers are held: it proves no row changed across the window.
-    for table in sorted(tables - {'system_config'}):
+    for table in sorted(tables):
         if table.startswith('sqlite_'): continue
         columns = [row[1] for row in db.execute('PRAGMA table_info("' + table.replace('"', '""') + '")')]
         quoted = ','.join('"' + column.replace('"', '""') + '"' for column in columns)
         protected.update(json.dumps([table, columns], separators=(',', ':')).encode())
-        for row in db.execute('SELECT ' + quoted + ' FROM "' + table.replace('"', '""') + '" ORDER BY ' + quoted):
+        receipts = ' WHERE key NOT IN (?, ?)' if table == 'system_config' else ''
+        for row in db.execute('SELECT ' + quoted + ' FROM "' + table.replace('"', '""') + '"' + receipts + ' ORDER BY ' + quoted,
+                              RECEIPT_KEYS if receipts else ()):
             protected.update(json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode())
             protected.update(b'\n')
     violations = sorted(db.execute('PRAGMA foreign_key_check').fetchall(), key=lambda row: json.dumps(row))
@@ -466,6 +469,7 @@ def validate_target(config, runner=None):
     _check_backup_location(backup_root, database)
     return {'checkout': str(root), 'repository': REPOSITORY, 'approved_sha': config['approved_sha'],
             'project': config['project'], 'compose_file': str(compose_file), 'services': services,
+            'source_config_files': config_files_labels['api'],
             'compose_sha256': hashlib.sha256(json.dumps(compose, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
             'build_image_refs': {service: compose['services'][service].get('image') or config['project'] + '-' + service + ':latest'
                                  for service in ('api', 'web')},

@@ -3,7 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { db } from '../config/database.js';
-import { engageWriterHold } from '../services/writerHold.js';
+import { engageWriterHold, releaseWriterHold } from '../services/writerHold.js';
 import { executeTick } from '../services/rewards/rewardScheduler.js';
 import { processEmailRetryQueue } from '../services/emailRetryWorker.js';
 import { processExpiredDeletions } from '../services/deletionService.js';
@@ -26,6 +26,14 @@ describe('AUTH-14 writer hold worker gates', () => {
     await expect(executeTick()).resolves.toMatchObject({ result: 'skipped' });
     expect(logged()).toBe(before);
     await expect(processEmailRetryQueue()).resolves.toMatchObject({ retried: 0, skipped: 'writer_hold' });
+    db.prepare(`INSERT INTO users (id, email, name, password_hash, role, deletion_status)
+      VALUES ('held-user', 'held@test.example', 'Held', 'x', 'student', 'pending_deletion')`).run();
+    db.prepare(`INSERT INTO deletion_requests (id, user_id, status, grace_period_ends_at)
+      VALUES ('held-request', 'held-user', 'pending', datetime('now', '-1 day'))`).run();
     expect(processExpiredDeletions()).toBe(0);
+    expect(db.prepare("SELECT status FROM deletion_requests WHERE id = 'held-request'").get()).toEqual({ status: 'pending' });
+    releaseWriterHold();
+    processExpiredDeletions();
+    expect(db.prepare("SELECT status FROM deletion_requests WHERE id = 'held-request'").get()).not.toEqual({ status: 'pending' });
   });
 });

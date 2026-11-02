@@ -35,6 +35,16 @@ describe('AUTH-14 writer hold', () => {
     if (previous === undefined) delete process.env.DATABASE_PATH; else process.env.DATABASE_PATH = previous;
   });
 
+  it('ignores a hold file override outside tests', () => {
+    const previous = process.env.VITEST;
+    delete process.env.VITEST;
+    const database = process.env.DATABASE_PATH;
+    process.env.DATABASE_PATH = '/app/data/student_ms.db';
+    expect(writerHoldFilePath()).toBe(path.resolve('/app/data/.writer-hold'));
+    process.env.VITEST = previous;
+    if (database === undefined) delete process.env.DATABASE_PATH; else process.env.DATABASE_PATH = database;
+  });
+
   it('is inactive without the file and active with it', () => {
     expect(isWriterHoldActive()).toBe(false);
     hold();
@@ -69,9 +79,11 @@ describe('AUTH-14 writer hold', () => {
 
   it('keeps only health and the credential-free authorization probe available', async () => {
     hold();
-    for (const route of ['/health', '/healthz', '/api/v1/health']) {
+    for (const route of ['/health', '/api/v1/health']) {
       expect((await request(app).get(route)).status).toBe(200);
     }
+    // /healthz probes with a real write, so the hold must refuse it
+    expect((await request(app).get('/healthz')).status).toBe(503);
     expect((await request(app).get('/api/v1/courses')).status).toBe(401);
     expect((await request(app).post('/api/v1/courses').send({})).status).toBe(503);
   });

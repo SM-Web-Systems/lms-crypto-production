@@ -17,9 +17,10 @@ Deployment no longer builds. `scripts/build-candidate.sh` builds at the exact ch
 | Candidate: reward scheduler, email retry worker, deletion scheduler and its startup run | Not started until release; each tick also checks the hold | Stays in the database |
 | Host cron: `lms-data-check`, `backup_lms_db` | Read-only, but they can create sidecars on a stopped database, so avoid the window around 00:00, 03:00, 06:00, 12:00 and 18:00 | None |
 | Stellar payment monitor | Defined but never started | None |
+| Candidate import-time schema statements in `config/database.ts` | Run at start, before any hold check. Written to be no-ops on an existing database. Deploy fails if the schema or any protected row changes across the held start. | None |
 | Amma SSO callback | Browser redirect refused during the outage; the user signs in again | No durable event |
 
-Only health routes and a credential-free `GET /api/v1/courses` pass the guard. That probe returns 401 before any database access. The hold is a file on the database volume, so it travels with the data. An unreadable hold state counts as held.
+Only `/health`, `/api/v1/health` and a credential-free `GET /api/v1/courses` pass the guard. That probe returns 401 before any database access. `/healthz` is refused because its readiness probe writes. The hold is a file beside the database, so it travels with the volume, and production ignores any override of its path. An unreadable hold state counts as held.
 
 ## Sequence
 
@@ -55,11 +56,16 @@ sequenceDiagram
 | Before stopping | Refused | Old image keeps running |
 | After stopping, before migration | Rollback to source image IDs | Old image restored and verified |
 | Migration fails and the database is exactly unchanged | Rollback to source image IDs | Old image restored and verified |
-| Migration changed anything unexpected, or post-migration checks fail | `DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED` | Stopped until the owner decides |
+| Migration changed anything unexpected, post-migration checks fail, or a timed-out migration container cannot be confirmed gone | `DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED` | Stopped until the owner decides |
 | Candidate fails after migration | Rollback onto the migrated schema, only if schema, financial and FK state match the post-migration backup | Old image restored and verified, or stopped if refused |
-| `release-hold` checks fail | Refused | Candidate stays held |
+| `release-hold` checks fail before releasing | Refused | Candidate stays held |
+| Verification fails after releasing | `WRITERS_RELEASED_VERIFICATION_FAILED`: treat writers as running and fix forward | Candidate running, rollback refused |
 
-Rolling back means the old image runs with no hold, so its writers resume. Rehearsal shows it works on the migrated schema, keeps schema, financial and FK state, and may update rows through its normal startup and workers. The migrated schema is not downgraded.
+The recovery pointer moves only at the stop, so a refusal before then leaves the source's overlay proof intact.
+
+Rolling back means the old image runs with no hold, so its writers resume. Rehearsal shows it works on the migrated schema, keeps schema, financial and FK state, and writes only its normal `scheduler_tick_log` rows. The migrated schema is not downgraded. Rollback is refused as soon as a release has been attempted, because candidate writes can exist that the recovery contract cannot see. From that point the only way is forward.
+
+After a rollback, the hold file stays on the volume, where the old image ignores it. `validate_target` then refuses a retry because the pointer names the failed candidate while the old image runs. A retry needs a reviewed manual procedure, not a rerun.
 
 Restoring the final pre-migration backup is never automatic. It discards anything written after that backup, so it needs an owner decision and reconciliation.
 
@@ -67,7 +73,9 @@ Restoring the final pre-migration backup is never automatic. It discards anythin
 
 A migrating release's policy adds `candidate_images` and `migration.pre_schema_sha256`. `schema_sha256` is the post-migration schema. Values come from a fresh backup of live data and a migrated copy of it, and are reviewed before the window. The window checks them against live state and changes nothing: any mismatch before migration stops the release while the old image can still run.
 
-`protected_content_sha256` covers every table except `system_config`, which holds the release receipts. It is compared only inside the held window, because open service changes rows constantly. It covers the preserved orphan record.
+`protected_content_sha256` covers every row except the two migration receipts in `system_config`. It is compared only inside the held window, because open service changes rows constantly. It covers the preserved orphan record.
+
+No release gate or flag controls reward funding, which is a permission-checked user action. This release does not change it, and after release those routes behave as they do today.
 
 ## Operating it
 

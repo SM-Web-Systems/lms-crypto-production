@@ -11,7 +11,8 @@ const HOLD_FILE_NAME = '.writer-hold';
 const DEFAULT_POLL_MS = 2_000;
 
 export function writerHoldFilePath(): string {
-  if (process.env.WRITER_HOLD_FILE) return process.env.WRITER_HOLD_FILE;
+  // Production always follows the database: an override could silently unhold it.
+  if (process.env.VITEST && process.env.WRITER_HOLD_FILE) return process.env.WRITER_HOLD_FILE;
   const databasePath = process.env.DATABASE_PATH || './data/student_ms.db';
   return path.join(path.dirname(path.resolve(databasePath)), HOLD_FILE_NAME);
 }
