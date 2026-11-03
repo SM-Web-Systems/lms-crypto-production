@@ -738,6 +738,30 @@ class RecoveryTests(unittest.TestCase):
         call = next(c for c in self.runner.calls if c[1] == 'exec')
         self.assertIn(self.containers['fixture-api']['Id'], call)
 
+    def test_release_hold_publishes_approved_release_for_the_monitor(self):
+        approved = self.state / 'approved-release.json'
+        self.deploy()
+        self.assertFalse(approved.exists())  # A held candidate is not yet the approved release.
+        result = self.release()
+        self.assertEqual(result['approved_release_pointer'], 'PUBLISHED')
+        value = json.loads(approved.read_bytes())
+        self.assertEqual(value, {'version': 1, 'approved_sha': self.config['approved_sha'], 'manifest_id': result['manifest_id']})
+        self.assertEqual(sorted(p.name for p in self.state.glob('approved-*')), ['approved-release.json'])
+        self.assertEqual(self.release()['approved_release_pointer'], 'PUBLISHED')  # Retry rewrites, never duplicates.
+
+    def test_approved_release_failure_still_reports_released(self):
+        self.deploy()
+        original = self.rec.os.replace
+        def fail(source, destination):
+            if Path(destination).name == 'approved-release.json': raise OSError('disk full')
+            return original(source, destination)
+        self.rec.os.replace = fail
+        try: result = self.release()
+        finally: self.rec.os.replace = original
+        self.assertEqual((result['status'], result['approved_release_pointer']), ('WRITERS_RELEASED', 'FAILED'))
+        self.assertFalse(self.runner.hold_held)
+        self.assertEqual(list(self.state.glob('approved-*')), [])
+
     def test_release_hold_requires_explicit_execute(self):
         self.deploy()
         with self.assertRaises(pre.ReleaseError):

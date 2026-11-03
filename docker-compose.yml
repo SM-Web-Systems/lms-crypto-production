@@ -13,6 +13,14 @@
 # Start: docker compose up --build -d
 # Health: GET https://lms.smwebsystems.com/health
 
+# Docker's json-file default is unbounded; cap each container at 5 x 50 MB.
+# The health monitor reads only the last few minutes of logs.
+x-bounded-logs: &bounded-logs
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "5"
+
 services:
   api:
     build:
@@ -35,6 +43,7 @@ services:
     expose:
       - "3001"
     restart: unless-stopped
+    logging: *bounded-logs
     healthcheck:
       test:
         [
@@ -64,6 +73,7 @@ services:
     expose:
       - "80"
     restart: unless-stopped
+    logging: *bounded-logs
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1/ || exit 1']
       interval: 15s

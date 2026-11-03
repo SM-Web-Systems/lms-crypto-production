@@ -96,6 +96,38 @@ esac
         result=self.health();self.assertEqual(result.returncode,1,result.stderr)
         self.assertIn('Unexpected build SHA',(self.root/'health.log').read_text())
 
+    def approved_file(self, content):
+        self.env.pop('LMS_EXPECTED_SHA',None)
+        file=self.root/'approved-release.json';self.env['LMS_EXPECTED_SHA_FILE']=shell_path(file)
+        if content is not None: file.write_text(content,encoding='utf8')
+        return file
+
+    def test_approved_release_file_matching_sha_is_healthy(self):
+        self.approved_file(json.dumps({'version':1,'approved_sha':'a'*40,'manifest_id':'m'}))
+        result=self.health();self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('ALERT',(self.root/'health.log').read_text())
+
+    def test_approved_release_file_is_reread_each_run(self):
+        file=self.approved_file(json.dumps({'version':1,'approved_sha':'a'*40}))
+        self.assertEqual(self.health().returncode,0)
+        file.write_text(json.dumps({'version':1,'approved_sha':'b'*40}),encoding='utf8')
+        result=self.health();self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Unexpected build SHA',(self.root/'health.log').read_text())
+
+    def test_missing_or_malformed_approved_release_file_alerts(self):
+        for content in [None,'not json','[]',json.dumps({'version':2,'approved_sha':'a'*40}),
+                        json.dumps({'version':1,'approved_sha':'A'*40}),json.dumps({'version':1})]:
+            with self.subTest(content=content):
+                (self.root/'approved-release.json').unlink(missing_ok=True)
+                self.approved_file(content)
+                result=self.health();self.assertEqual(result.returncode,1,result.stderr)
+                self.assertIn('Approved release identity unreadable',(self.root/'health.log').read_text())
+
+    def test_expected_sha_and_file_together_stop_before_collection(self):
+        self.approved_file(json.dumps({'version':1,'approved_sha':'a'*40}));self.env['LMS_EXPECTED_SHA']='a'*40
+        result=self.health();self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse((self.root/'heartbeat').exists())
+
     def test_missing_expected_sha_stops_before_collection(self):
         self.env.pop('LMS_EXPECTED_SHA',None)
         result=self.health();self.assertEqual(result.returncode,2,result.stderr)
