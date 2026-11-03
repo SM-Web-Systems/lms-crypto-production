@@ -31,6 +31,7 @@ REVISION_LABEL = 'org.opencontainers.image.revision'
 ONE_SHOT_NOT_CONTAINED = 'ONE_SHOT_CONTAINER_NOT_CONTAINED'
 PROTECTED_REFUSAL = 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'
 OWNER_DECISION_FILE = 'owner-decision-required.json'
+APPROVED_RELEASE_FILE = 'approved-release.json'
 WRITER_HOLD_SCRIPT = 'dist/scripts/writerHold.js'
 MIGRATION_SCRIPT = 'dist/scripts/migrateRewardTxnCheck.js'
 require = pre.require
@@ -626,8 +627,25 @@ def released_already(target, images, runner, base_url, http, overlay):
         return False
 
 
+def publish_approved_release(state, target, manifest):
+    """The monitor's expected build moves only once writers run on it. Never fails the release."""
+    value = {'version': 1, 'approved_sha': target['approved_sha'], 'manifest_id': manifest['manifest_id']}
+    temporary = state / ('approved-' + uuid.uuid4().hex + '.json')
+    try:
+        immutable_json(temporary, value)
+        os.replace(temporary, state / APPROVED_RELEASE_FILE); sync_directory(state)
+        return 'PUBLISHED'
+    except OSError:
+        # Writers are already released; a stale pointer makes the monitor alert instead.
+        return 'FAILED'
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def finish_release(state, target, images, manifest):
-    result = {'status': 'WRITERS_RELEASED', 'deployed_sha': target['approved_sha'], 'images': images, 'manifest_id': manifest['manifest_id']}
+    pointer = publish_approved_release(state, target, manifest)
+    result = {'status': 'WRITERS_RELEASED', 'deployed_sha': target['approved_sha'], 'images': images, 'manifest_id': manifest['manifest_id'],
+              'approved_release_pointer': pointer}
     immutable_json(state / ('release-hold-result-' + uuid.uuid4().hex + '.json'), result)
     return result
 

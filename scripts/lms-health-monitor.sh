@@ -21,6 +21,9 @@
 #   LMS_DISK_THRESHOLD  — Disk usage alert threshold percent (default: 75)
 #   LMS_5XX_THRESHOLD   — 5xx count alert threshold (default: 0)
 #   LMS_MAX_RESTART_COUNT — Restart count alert threshold (default: 0)
+#   LMS_EXPECTED_SHA    — Approved build SHA (full 40 hex), or instead:
+#   LMS_EXPECTED_SHA_FILE — approved-release.json in the release state directory,
+#                         rewritten by release-hold once writers are released. Read each run.
 #
 # Safety:
 #   This script performs ONLY read-only checks. No mutations, no secrets in output.
@@ -43,11 +46,14 @@ MAX_RESTART_COUNT="${LMS_MAX_RESTART_COUNT:-0}"
 PYTHON_BIN="${LMS_PYTHON_BIN:-python3}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPECTED_SHA="${LMS_EXPECTED_SHA:-}"
+EXPECTED_SHA_FILE="${LMS_EXPECTED_SHA_FILE:-}"
 BACKUP_STATUS="${LMS_BACKUP_STATUS_FILE:-}"
 ALERT_STATE="${LMS_ALERT_STATE_FILE:-${LOG_FILE}.alerts.json}"
 ALERT_COOLDOWN="${LMS_ALERT_COOLDOWN_SECONDS:-900}"
 BACKUP_MAX_AGE="${LMS_BACKUP_MAX_AGE_SECONDS:-97200}"
-if ! [[ "$EXPECTED_SHA" =~ ^[a-fA-F0-9]{40}$ ]]; then echo 'LMS_EXPECTED_SHA must be a full reviewed deployed SHA' >&2; exit 2; fi
+if [ -n "$EXPECTED_SHA_FILE" ]; then
+  if [ -n "$EXPECTED_SHA" ]; then echo 'Set only one of LMS_EXPECTED_SHA or LMS_EXPECTED_SHA_FILE' >&2; exit 2; fi
+elif ! [[ "$EXPECTED_SHA" =~ ^[a-fA-F0-9]{40}$ ]]; then echo 'LMS_EXPECTED_SHA must be a full reviewed deployed SHA' >&2; exit 2; fi
 if ! [[ "$ALERT_COOLDOWN" =~ ^[0-9]{3,5}$ ]] || [ "$ALERT_COOLDOWN" -lt 300 ] || [ "$ALERT_COOLDOWN" -gt 86400 ]; then echo 'Invalid alert cooldown' >&2; exit 2; fi
 if ! [[ "$BACKUP_MAX_AGE" =~ ^[0-9]{3,6}$ ]] || [ "$BACKUP_MAX_AGE" -lt 300 ] || [ "$BACKUP_MAX_AGE" -gt 604800 ]; then echo 'Invalid backup age threshold' >&2; exit 2; fi
 
@@ -122,7 +128,15 @@ api_read_only=$(docker inspect --format='{{.HostConfig.ReadonlyRootfs}}' "$API_C
 if [ "$api_read_only" != true ]; then add_alert "API read-only root failed or unreadable: $api_read_only"; fi
 sha=$(printf '%s' "$api_response" | "$PYTHON_BIN" -c "import sys,json; print(json.load(sys.stdin).get('buildSha','unknown'))" 2>/dev/null) || sha=unknown
 if ! [[ "$sha" =~ ^[a-fA-F0-9]{40}$ ]]; then add_alert 'Build SHA missing or invalid'; fi
-if [ "$sha" != "$EXPECTED_SHA" ]; then add_alert 'Unexpected build SHA; compare approved release identity'; fi
+if [ -n "$EXPECTED_SHA_FILE" ]; then
+  # Only release-hold writes this file; anything unreadable or malformed alerts rather than passes.
+  EXPECTED_SHA=$("$PYTHON_BIN" -I -c 'import json,re,sys
+v=json.load(open(sys.argv[1],"rb"))
+s=v.get("approved_sha") if isinstance(v,dict) and v.get("version")==1 else None
+print(s if isinstance(s,str) and re.fullmatch("[0-9a-f]{40}",s) else "")' "$EXPECTED_SHA_FILE" 2>/dev/null) || EXPECTED_SHA=""
+  if [ -z "$EXPECTED_SHA" ]; then add_alert 'Approved release identity unreadable'; fi
+fi
+if [ -n "$EXPECTED_SHA" ] && [ "$sha" != "$EXPECTED_SHA" ]; then add_alert 'Unexpected build SHA; compare approved release identity'; fi
 
 # --- 5. 5xx errors in recent logs (last 5 minutes) ---
 reconciliation_count=0
