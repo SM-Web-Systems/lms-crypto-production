@@ -1,0 +1,42 @@
+name: Mobile local acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'LMS-Mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+      - 'docs/release/mobile-device-acceptance-followup.md'
+  push:
+    branches: [main]
+    paths:
+      - 'LMS-Mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+      - 'docs/release/mobile-device-acceptance-followup.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-local-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EXPO_NO_TELEMETRY: '1'
+    defaults:
+      run:
+        working-directory: LMS-Mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Mobile/package-lock.json
+      - run: npm ci
+      - name: Offline acceptance regressions and TypeScript
+        run: npm run acceptance:local

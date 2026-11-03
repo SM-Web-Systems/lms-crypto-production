@@ -14,7 +14,9 @@
     "build:android:production": "eas build --platform android --profile production",
     "submit:android": "eas submit --platform android --profile production",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "acceptance:local": "node --test scripts/device-acceptance.test.mjs && jest --runInBand && tsc --noEmit",
+    "acceptance:device:verify": "node scripts/device-acceptance.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
