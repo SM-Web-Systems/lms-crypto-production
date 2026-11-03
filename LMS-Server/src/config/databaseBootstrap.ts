@@ -2,6 +2,7 @@ import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { detectSchemaVersion } from '../scripts/migrateRewardTxnCheck.js';
 
 // Only the explicit CLI can request creation, before importing database.ts.
 // Neither server arguments nor an environment flag authorize initialization.
@@ -31,12 +32,20 @@ function keys(db: SqliteDatabase, table: string) {
 const legacyForeignKeyExemptions = new Set([
   JSON.stringify(['submissions', 'graded_by', 'users', 'id', 'NO ACTION', 'NO ACTION']),
 ]);
-function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<typeof keys>): void {
+// W01-R3C: Partial UNIQUE index added by ensureRewardTables() migration.
+// Pre-R3 databases will not have this constraint yet. Tolerate its absence
+// during pre-migration validation only; post-migration validation enforces
+// the full UNIQUE signature via required-schema.json keys and indexes.
+const legacyUniqueExemptions = new Set([
+  JSON.stringify(['reward_transactions', "WHERE funding_reference IS NOT NULL AND transaction_type = 'fund'", 'funding_reference']),
+]);
+function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<typeof keys>, afterMigrations = false): void {
   const actual = keys(db, table);
   if (JSON.stringify(actual.primary) !== JSON.stringify(contract.primary)) refuse(`missing primary key (${table})`);
   for (const kind of ['unique', 'foreign'] as const) {
     for (const signature of contract[kind]) {
       if (kind === 'foreign' && legacyForeignKeyExemptions.has(JSON.stringify([table, ...signature]))) continue;
+      if (kind === 'unique' && !afterMigrations && legacyUniqueExemptions.has(JSON.stringify([table, ...signature]))) continue;
       if (!actual[kind].some(k => JSON.stringify(k) === JSON.stringify(signature))) refuse(`missing ${kind} constraint (${table})`);
     }
   }
@@ -54,7 +63,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('integrity check failed');
   for (const table of baseline) {
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
-    validateKeys(db, table.name, table.keys);
+    validateKeys(db, table.name, table.keys, afterMigrations);
     for (const column of table.columns) {
       // This release's additive authorization migration is safe on existing databases.
       if (!afterMigrations && table.name === 'users' && column === 'authorization_version') continue;
@@ -82,6 +91,22 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
   if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
+  // W03-R3 F1 fix: use comment-aware detectSchemaVersion instead of raw substring check.
+  // A SQL comment containing 'release_unused' must not bypass this preflight.
+  const txnSchemaVersion = detectSchemaVersion(db);
+  if (txnSchemaVersion === 'source') {
+    refuse(
+      "reward_transactions CHECK constraint is pre-W03-R2 (missing release_unused); " +
+      "run: npm run db:migrate-reward-txn-check -- --apply DATABASE_PATH " +
+      "before starting the application"
+    );
+  }
+  if (txnSchemaVersion === 'unknown') {
+    refuse(
+      "reward_transactions CHECK constraint has an unrecognised schema (neither source nor target); " +
+      "manual investigation required before starting the application"
+    );
+  }
   if ((db.pragma('table_info(nft_credentials)') as { name: string; notnull: number }[]).find(c => c.name === 'quiz_id')?.notnull) refuse('legacy NFT constraint');
   if (!(db.pragma('foreign_key_list(quizzes)') as { from: string; on_delete: string }[]).some(f => f.from === 'course_id' && f.on_delete === 'SET NULL')) refuse('legacy quiz foreign key');
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND (sql LIKE '%_users_old%' OR sql LIKE '%_nft_creds_b0_old%')").get()) refuse('stale foreign key references');
@@ -90,7 +115,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false): v
       const columns = db.pragma(`table_info("${table}")`) as { name: string }[];
       for (const name of names) if (!columns.some(c => c.name === name)) refuse(`incomplete migration (${table}.${name})`);
     }
-    for (const [table, contract] of Object.entries(required.keys)) validateKeys(db, table, contract);
+    for (const [table, contract] of Object.entries(required.keys)) validateKeys(db, table, contract, true);
     for (const index of required.indexes) {
       if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(index)) refuse(`missing required index (${index})`);
     }
