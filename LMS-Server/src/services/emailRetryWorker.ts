@@ -6,12 +6,14 @@
  * After exhausting retries the entry is marked 'abandoned'.
  */
 
+import { isWriterHoldActive } from './writerHold.js';
 import logger from '../utils/logger.js';
 
 export interface RetryResult {
   retried: number;
   succeeded: number;
   abandoned: number;
+  skipped?: 'writer_hold';
 }
 
 interface OutboxEntry {
@@ -27,6 +29,8 @@ interface OutboxEntry {
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export async function processEmailRetryQueue(): Promise<RetryResult> {
+  if (isWriterHoldActive()) return { retried: 0, succeeded: 0, abandoned: 0, skipped: 'writer_hold' };
+
   // Lazy import to avoid circular init at module load
   const { db } = await import('../config/database.js');
   const result: RetryResult = { retried: 0, succeeded: 0, abandoned: 0 };

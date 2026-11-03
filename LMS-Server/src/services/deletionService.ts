@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { auditLog } from './auditService.js';
 import { createHash } from 'crypto';
+import { isWriterHoldActive } from './writerHold.js';
 
 const GRACE_PERIOD_DAYS = 30;
 
@@ -289,6 +290,8 @@ export function getDeletionStatus(userId: string): {
  * Returns the number of accounts finalized.
  */
 export function processExpiredDeletions(): number {
+  if (isWriterHoldActive()) return 0;
+
   const expired = query<{ id: string; user_id: string }>(
     `SELECT dr.id, dr.user_id
      FROM deletion_requests dr
