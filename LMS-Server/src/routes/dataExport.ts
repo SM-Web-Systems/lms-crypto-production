@@ -1,12 +1,18 @@
 import { Router, Response } from 'express';
 import fs from 'fs';
 import { authenticate } from '../middleware/auth.js';
-import { execute, queryOne } from '../config/database.js';
+import { execute, queryOne, query } from '../config/database.js';
 import { AuthRequest } from '../types/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { assembleExport } from '../services/dataExportService.js';
 
 const router = Router();
+
+// List only this account's recent exports so downloads can resume after an app restart.
+router.get('/data-export', authenticate, (req: AuthRequest, res: Response) => {
+  res.json({success:true,data:{exports:query<{id:string;status:string;created_at:string;completed_at:string|null;error:string|null}>(
+    'SELECT id,status,created_at,completed_at,error FROM data_exports WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 10', [req.user!.userId])}});
+});
 
 // POST /data-export — request data export
 router.post('/data-export', authenticate, (req: AuthRequest, res: Response) => {
@@ -48,7 +54,7 @@ router.get('/data-export/:id', authenticate, (req: AuthRequest, res: Response) =
     return;
   }
 
-  if (exp.status === 'ready' && exp.file_path && fs.existsSync(exp.file_path)) {
+  if (req.query.download !== 'false' && exp.status === 'ready' && exp.file_path && fs.existsSync(exp.file_path)) {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="data-export-${id}.zip"`);
     fs.createReadStream(exp.file_path).pipe(res);

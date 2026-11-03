@@ -1,0 +1,100 @@
+flowchart TB
+    START["Begin Infrastructure Rollout"]
+
+    subgraph PHASE_1["Phase 1: Volume Preparation"]
+        V1["Stop lms-api container"]
+        V2["chown -R 1000:1000 lms-data volume"]
+        V3["chown -R 1000:1000 lms-uploads volume"]
+        V4{"chown succeeded?"}
+        V_ROLLBACK["ROLLBACK: chown -R 0:0\nRestore root ownership\nRestart current image"]
+    end
+
+    subgraph PHASE_2["Phase 2: Deploy Non-Root Image"]
+        D1["Build image with USER node"]
+        D2["docker compose up lms-api"]
+        D3{"Container started?"}
+        D_ROLLBACK["ROLLBACK:\nchown -R 0:0 volumes\nRevert Dockerfile\nDeploy previous image"]
+    end
+
+    subgraph PHASE_3["Phase 3: Healthcheck"]
+        H1["Wait for healthcheck\nfetch 127.0.0.1:3001/health"]
+        H2{"Health OK within 45s?"}
+        H_ROLLBACK["ROLLBACK:\nRead previous-images.txt\nTag previous image\ncompose up\nHealthcheck previous"]
+    end
+
+    subgraph PHASE_4["Phase 4: Smoke Test"]
+        S1["Run smoke test suite"]
+        S2["Test API endpoints"]
+        S3["Test upload write"]
+        S4{"All smoke tests pass?"}
+        S_ROLLBACK["ROLLBACK:\nrollback.sh\nRestore previous image\nVerify health"]
+    end
+
+    subgraph PHASE_5["Phase 5: Data Verification"]
+        DV1["verify_data: check row counts"]
+        DV2["Compare against CSV baseline"]
+        DV3{"Data integrity OK?"}
+        DV_ROLLBACK["ROLLBACK:\nrollback.sh\nCheck for data corruption\nRestore backup if needed"]
+    end
+
+    subgraph PHASE_6["Phase 6: SHA Check"]
+        SHA1["Verify image SHA matches build"]
+        SHA2{"SHA matches?"}
+        SHA_ROLLBACK["ROLLBACK:\nInvestigate image tampering\nRebuild from source\nRedeploy"]
+    end
+
+    subgraph PHASE_7["Phase 7: Read-Only Filesystem"]
+        direction TB
+        RO1["Add read_only: true to compose"]
+        RO2["Add tmpfs: /tmp"]
+        RO3["docker compose up lms-api"]
+        RO4{"Starts and passes health?"}
+        RO_ROLLBACK["ROLLBACK:\nRemove read_only: true\nRemove tmpfs\ncompose up\nKeep non-root running"]
+    end
+
+    DONE["Rollout Complete\nNon-root + read-only filesystem"]
+
+    START --> V1 --> V2 --> V3 --> V4
+    V4 -->|"no"| V_ROLLBACK
+    V4 -->|"yes"| D1
+
+    D1 --> D2 --> D3
+    D3 -->|"no"| D_ROLLBACK
+    D3 -->|"yes"| H1
+
+    H1 --> H2
+    H2 -->|"no"| H_ROLLBACK
+    H2 -->|"yes"| S1
+
+    S1 --> S2 --> S3 --> S4
+    S4 -->|"no"| S_ROLLBACK
+    S4 -->|"yes"| DV1
+
+    DV1 --> DV2 --> DV3
+    DV3 -->|"no"| DV_ROLLBACK
+    DV3 -->|"yes"| SHA1
+
+    SHA1 --> SHA2
+    SHA2 -->|"no"| SHA_ROLLBACK
+    SHA2 -->|"yes"| RO1
+
+    RO1 --> RO2 --> RO3 --> RO4
+    RO4 -->|"no"| RO_ROLLBACK
+    RO4 -->|"yes"| DONE
+
+    style START fill:#e3f2fd,stroke:#1565c0
+    style DONE fill:#e8f5e9,stroke:#2e7d32
+    style PHASE_1 fill:#fff3e0,stroke:#ef6c00
+    style PHASE_2 fill:#f3e5f5,stroke:#7b1fa2
+    style PHASE_3 fill:#e3f2fd,stroke:#1565c0
+    style PHASE_4 fill:#e8f5e9,stroke:#2e7d32
+    style PHASE_5 fill:#fce4ec,stroke:#c62828
+    style PHASE_6 fill:#fff9c4,stroke:#f9a825
+    style PHASE_7 fill:#e0f7fa,stroke:#00838f
+    style V_ROLLBACK fill:#ffcdd2,stroke:#b71c1c
+    style D_ROLLBACK fill:#ffcdd2,stroke:#b71c1c
+    style H_ROLLBACK fill:#ffcdd2,stroke:#b71c1c
+    style S_ROLLBACK fill:#ffcdd2,stroke:#b71c1c
+    style DV_ROLLBACK fill:#ffcdd2,stroke:#b71c1c
+    style SHA_ROLLBACK fill:#ffcdd2,stroke:#b71c1c
+    style RO_ROLLBACK fill:#ffcdd2,stroke:#b71c1c

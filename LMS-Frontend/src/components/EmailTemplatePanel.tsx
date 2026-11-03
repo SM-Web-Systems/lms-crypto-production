@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { Mail, ChevronDown, ChevronRight, Loader2, AlertCircle, Eye, Save } from 'lucide-react';
@@ -159,7 +160,20 @@ export function EmailTemplatePanel() {
                     {previewHtml && (
                       <div className="mt-3 border rounded bg-white p-3" data-testid="template-preview">
                         <div className="text-xs font-medium text-gray-500 mb-1">Preview: {previewSubject}</div>
-                        <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                        <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml, {
+                          ALLOWED_TAGS: [
+                            'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                            'ul', 'ol', 'li', 'a', 'strong', 'em', 'b', 'i',
+                            'code', 'pre', 'blockquote',
+                            'table', 'thead', 'tbody', 'tr', 'th', 'td',
+                            'img', 'br', 'hr', 'span', 'div', 'dl', 'dt', 'dd',
+                            'sup', 'sub', 'del', 's',
+                          ],
+                          ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'align'],
+                          FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'select', 'button'],
+                          FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'style'],
+                          ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+                        }) }} />
                       </div>
                     )}
                   </div>

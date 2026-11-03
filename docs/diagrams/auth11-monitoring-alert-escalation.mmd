@@ -1,0 +1,95 @@
+flowchart TB
+    subgraph CRON["Cron Schedules"]
+        direction TB
+        C_HEALTH["*/5 * * * *\nlms-health-monitor.sh\nEvery 5 minutes"]
+        C_DEADMAN["*/15 * * * *\nlms-deadman-check.sh\nEvery 15 minutes"]
+        C_BACKUP["0 3 * * *\nDaily DB backup\n03:00"]
+        C_MEDIA["45 3 * * *\nMedia backup\n03:45"]
+    end
+
+    subgraph HEALTH_MONITOR["lms-health-monitor.sh — 7 Checks"]
+        direction TB
+        H1["1. API Health Endpoint\ncurl /api/v1/health\nExpect: status=ok"]
+        H2["2. Frontend Availability\ncurl / HTTP status\nExpect: 200"]
+        H3["3. API Docker Health\ndocker inspect lms-api\nExpect: healthy"]
+        H4["4. Web Docker Health\ndocker inspect lms-web\nExpect: healthy"]
+        H5["5. Container Restart Count\ndocker inspect RestartCount\nThreshold: 0"]
+        H6["6. 5xx Errors (5min window)\ndocker logs --since 5m\nThreshold: 0"]
+        H7["7. Disk Space\ndf -h /\nThreshold: 75%"]
+        H_DB["+ DB Readiness\nParsed from /health response\nchecks.db.status=ok"]
+    end
+
+    subgraph LOGGING["Logging and History"]
+        direction TB
+        L_LOG["Log File\n/home/webadmin/logs/lms-health-monitor.log\nTimestamped entries: OK or ALERT\nAuto-trimmed at 10000 lines"]
+        L_CSV["CSV History\n/home/webadmin/logs/lms-health-monitor.csv\nColumns: timestamp, api_health,\nfrontend_http, api_docker_health,\nweb_docker_health, api_restarts,\n5xx_count, disk_pct, db_status, status\nAuto-trimmed at 5000 entries"]
+    end
+
+    subgraph HEARTBEAT["Heartbeat Mechanism"]
+        direction TB
+        HB_WRITE["Health monitor writes timestamp\n/home/webadmin/logs/lms-monitor-heartbeat\nUpdated every 5 minutes"]
+        HB_CHECK["Dead-man check reads heartbeat\nstat -c %Y heartbeat file\nCalculate age in minutes"]
+        HB_THRESH{"Heartbeat age\n>= 10 minutes?"}
+        HB_OK["OK: Monitor is running\nLog and exit 0"]
+        HB_MISSING{"Heartbeat file\nexists?"}
+        HB_ALERT_STALE["ALERT: Monitor Stale\nMonitor may have stopped"]
+        HB_ALERT_MISSING["ALERT: File Missing\nMonitor never ran"]
+
+        HB_CHECK --> HB_MISSING
+        HB_MISSING -->|"yes"| HB_THRESH
+        HB_MISSING -->|"no"| HB_ALERT_MISSING
+        HB_THRESH -->|"no"| HB_OK
+        HB_THRESH -->|"yes"| HB_ALERT_STALE
+    end
+
+    subgraph EMAIL["Email Alerts via msmtp"]
+        direction TB
+        E_FROM["From: alert@smwebsystems.com"]
+        E_TO["To: mukhtar.meer@smwebsystems.com"]
+        E_HEALTH_SUBJ["Subject: LMS Health Alert on {hostname}\nBody: all 7 check results\n+ specific alert details"]
+        E_DEADMAN_SUBJ["Subject: LMS DEAD-MAN ALERT on {hostname}\nBody: heartbeat file path,\nage, threshold, last beat time"]
+        E_FALLBACK["If msmtp fails:\nLog WARNING to log file\nNo silent failure"]
+    end
+
+    subgraph ESCALATION["Escalation Levels"]
+        direction TB
+        ESC1["Level 1: Log Entry\nEvery 5min run logged\nCSV history for trending"]
+        ESC2["Level 2: Docker Auto-Restart\nrestart: unless-stopped\nHealthcheck retries: 5 (api), 3 (web)"]
+        ESC3["Level 3: Email Alert\nHealth check threshold breach\nAny of 7 checks fails"]
+        ESC4["Level 4: Dead-Man Alert\nMonitor itself stopped\nInfrastructure-level failure"]
+
+        ESC1 --> ESC2 --> ESC3 --> ESC4
+    end
+
+    C_HEALTH --> H1
+    C_HEALTH --> H2
+    C_HEALTH --> H3
+    C_HEALTH --> H4
+    C_HEALTH --> H5
+    C_HEALTH --> H6
+    C_HEALTH --> H7
+
+    H1 --> L_LOG
+    H1 --> L_CSV
+    H1 --> HB_WRITE
+
+    C_DEADMAN --> HB_CHECK
+
+    HB_ALERT_STALE --> E_DEADMAN_SUBJ
+    HB_ALERT_MISSING --> E_DEADMAN_SUBJ
+
+    L_LOG -.-> ESC1
+    L_CSV -.-> ESC1
+    H3 -.->|"unhealthy triggers"| ESC2
+    H1 -.->|"any check fails"| ESC3
+    HB_ALERT_STALE -.-> ESC4
+
+    style CRON fill:#e3f2fd,stroke:#1565c0
+    style HEALTH_MONITOR fill:#e8f5e9,stroke:#2e7d32
+    style LOGGING fill:#fff9c4,stroke:#f9a825
+    style HEARTBEAT fill:#fff3e0,stroke:#ef6c00
+    style EMAIL fill:#f3e5f5,stroke:#7b1fa2
+    style ESCALATION fill:#ffebee,stroke:#c62828
+    style HB_OK fill:#c8e6c9,stroke:#2e7d32
+    style HB_ALERT_STALE fill:#ffcdd2,stroke:#b71c1c
+    style HB_ALERT_MISSING fill:#ffcdd2,stroke:#b71c1c

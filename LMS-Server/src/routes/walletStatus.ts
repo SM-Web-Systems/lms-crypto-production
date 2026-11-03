@@ -16,6 +16,7 @@ export interface WalletStatusData {
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
   network: 'mainnet' | null;
   xlmBalance: number | null;
+  selectionPolicy: 'last_confirmed_address';
 }
 
 async function fetchXlmBalance(address: string): Promise<number | null> {
@@ -47,6 +48,7 @@ async function fetchXlmBalance(address: string): Promise<number | null> {
  *       200: { description: Wallet address, linking status, balance }
  */
 router.get('/wallet/status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
   const userId = req.user!.userId;
 
   const row = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
@@ -67,7 +69,8 @@ router.get('/wallet/status', authenticate, async (req: AuthRequest, res: Respons
 
   res.json({
     success: true,
-    data: { walletAddress, walletLinkingStatus, network, xlmBalance } satisfies WalletStatusData,
+    // A Horizon balance is not a provider ownership check. Refresh through identity-bound SSO.
+    data: { walletAddress, walletLinkingStatus, network, xlmBalance, selectionPolicy: 'last_confirmed_address' } satisfies WalletStatusData,
   });
 });
 

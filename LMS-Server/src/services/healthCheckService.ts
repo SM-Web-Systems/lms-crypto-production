@@ -1,6 +1,7 @@
 import { db } from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
+import { isWriterHoldActive } from './writerHold.js';
 
 const BUILD_SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 
@@ -27,6 +28,7 @@ export interface HealthStatus {
   uptime: number;
   version: string;
   buildSha: string;
+  writerHold: { active: boolean };
   checks: {
     db: { status: 'ok' | 'error'; latencyMs: number };
     memory: { heapUsedMB: number; heapTotalMB: number; rssMB: number };
@@ -53,6 +55,7 @@ export function getHealthStatus(): HealthStatus {
     uptime: Math.floor(process.uptime()),
     version: process.env.npm_package_version || '1.0.0',
     buildSha: getBuildSha(),
+    writerHold: { active: isWriterHoldActive() },
     checks: {
       db: { status: dbStatus, latencyMs: dbLatency },
       memory: {

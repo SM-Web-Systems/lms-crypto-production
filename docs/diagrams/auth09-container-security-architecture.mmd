@@ -1,0 +1,38 @@
+%% AUTH-09: Production Container Security Architecture
+%% Current state with security findings annotated
+
+flowchart TD
+    CLIENT["Client Browser"] --> NGINX["nginx_server<br/>(host port 443)"]
+    NGINX -->|"web-stack_default"| WEB["lms-web<br/>nginx:alpine<br/>:80 internal"]
+    NGINX -->|"web-stack_default"| API["lms-api<br/>node:22-bookworm-slim<br/>:3001 internal"]
+
+    API -->|"stalwart_bridge"| SMTP["stalwart<br/>SMTP :587"]
+    API --> DB["SQLite<br/>/app/data/student_ms.db"]
+    API --> UPLOADS["/app/uploads<br/>avatars, documents"]
+
+    subgraph CONTAINER_SEC["Container Security Posture"]
+        direction LR
+        S1["SEC-INFRA-01<br/>Runs as root (uid=0)"]
+        S2["SEC-INFRA-02<br/>Writable filesystem"]
+        S3["SEC-INFRA-03<br/>Secrets in env vars"]
+    end
+
+    subgraph VOLUMES["Docker Volumes (persistent)"]
+        V1["lms-ammawallet_lms-data<br/>owner: root:root"]
+        V2["lms-ammawallet_lms-uploads<br/>owner: root:root"]
+    end
+
+    DB --> V1
+    UPLOADS --> V2
+
+    subgraph NETWORKS["Docker Networks"]
+        N1["lms-ammawallet_default<br/>(api ↔ web)"]
+        N2["web-stack_default<br/>(nginx ↔ api, web)"]
+        N3["stalwart_bridge<br/>(api → SMTP)"]
+    end
+
+    style S1 fill:#f96,stroke:#c60
+    style S2 fill:#ff9,stroke:#cc0
+    style S3 fill:#ff9,stroke:#cc0
+    style API fill:#fdd,stroke:#a44
+    style WEB fill:#dfd,stroke:#4a4

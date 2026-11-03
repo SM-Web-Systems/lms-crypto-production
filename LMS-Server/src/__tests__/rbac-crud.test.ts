@@ -9,7 +9,7 @@
  * CRUD-3  — PUT /admin/roles/:id updates custom role label
  * CRUD-4  — PUT /admin/roles/:id rejects update to system role
  * CRUD-5  — DELETE /admin/roles/:id deletes custom role
- * CRUD-6  — GET /admin/permissions lists all 60 permissions
+ * CRUD-6  — GET /admin/permissions lists all 94 permissions
  */
 
 import { describe, it, expect } from 'vitest';
@@ -133,7 +133,7 @@ describe('Phase 16 C4 — RBAC CRUD API', () => {
     expect(found).toBeUndefined();
   });
 
-  it('CRUD-6 — GET /admin/permissions lists all 60 permissions', async () => {
+  it('CRUD-6 — GET /admin/permissions lists all 94 permissions', async () => {
     const { token } = createSuperAdmin();
 
     const res = await request(app)
@@ -142,7 +142,7 @@ describe('Phase 16 C4 — RBAC CRUD API', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
-    expect(res.body.data.length).toBeGreaterThanOrEqual(60);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(94);
     // Each permission has expected fields
     const perm = res.body.data[0];
     expect(perm).toHaveProperty('id');

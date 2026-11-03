@@ -1,0 +1,42 @@
+-- 002-reward-transactions-check-upgrade
+-- W03-R2: Upgrade reward_transactions CHECK constraints to include 'release_unused'
+--
+-- Status: PREPARED — NOT EXECUTED — requires explicit operator invocation
+--
+-- This migration cannot be expressed as a simple ALTER TABLE because SQLite does not
+-- support modifying CHECK constraints on existing tables. The offline migration script
+-- performs a full table reconstruction (rename-to-temp → create-new → copy rows →
+-- drop old → rename → recreate indexes).
+--
+-- Script: src/scripts/migrateRewardTxnCheck.ts
+-- Command:
+--   npm run db:migrate-reward-txn-check -- --plan  DATABASE_PATH   (dry run)
+--   npm run db:migrate-reward-txn-check -- --apply DATABASE_PATH   (apply)
+--
+-- Pre-apply checklist:
+--   1. Quiesce all application writers
+--   2. Run: sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);"
+--   3. Copy: cp "$DB" "$DB.bak-pre-w03r2"
+--   4. Verify backup: sqlite3 "$DB.bak-pre-w03r2" "PRAGMA integrity_check;"
+--   5. Run --plan and confirm output
+--   6. Run --apply and verify exit 0
+--   7. Run application smoke tests
+--
+-- Rollback:
+--   If no release_unused rows were written after applying, restore from pre-apply
+--   backup (quiesced database, no writers since backup). If release_unused rows
+--   exist, do NOT downgrade the schema. Forward-fix only: keep upgraded schema.
+--
+-- Source fingerprint (pre-W03-R2):
+--   transaction_type CHECK: 'fund','reserve','release','cancel','refund','expire'
+--   source_user_id CHECK:   'reserve','cancel','expire'
+--
+-- Target fingerprint (W03-R2):
+--   transaction_type CHECK: adds 'release_unused'
+--   source_user_id CHECK:   adds 'release_unused'
+--
+-- Effective change (conceptual — not executable as plain SQL):
+ALTER TABLE reward_transactions
+  MODIFY COLUMN transaction_type TEXT NOT NULL
+    CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'));
+-- (Plus compound CHECK extension — use the migration script, not this file)

@@ -36,7 +36,7 @@ async function registerAndLogin(request: any, suffix: string) {
 
 async function loginAsAdmin(request: any) {
   const email = 'admin@test.com';
-  const password = 'admin123';
+  const password = 'password123';
 
   const loginRes = await request.post(`${API}/auth/login`, {
     data: { email, password },

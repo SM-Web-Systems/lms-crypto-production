@@ -5,6 +5,7 @@ const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/v1';
 
 const api: AxiosInstance = axios.create({
+  timeout: 15000,
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -12,6 +13,14 @@ const api: AxiosInstance = axios.create({
 });
 
 let tokenGetter: (() => Promise<string | null>) | null = null;
+const unauthorizedListeners = new Set<(token: string) => void>();
+export function onUnauthorized(listener: (token: string) => void) {
+  unauthorizedListeners.add(listener);
+  return () => { unauthorizedListeners.delete(listener); };
+}
+export function reportUnauthorized(token: string) {
+  unauthorizedListeners.forEach((listener) => listener(token));
+}
 
 /** AuthProvider injects the stored-JWT getter here so services stay auth-agnostic. */
 export function setTokenGetter(getter: () => Promise<string | null>) {
@@ -37,7 +46,7 @@ api.interceptors.request.use(async (config) => {
   if (tokenGetter) {
     try {
       const token = await tokenGetter();
-      if (token) {
+      if (token && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch {
@@ -53,8 +62,11 @@ api.interceptors.response.use(
     if (!isAxiosError(error)) {
       return Promise.reject(error);
     }
-    // The auth context drives navigation off the stored session, so we just
-    // surface a structured error here rather than forcing a redirect.
+    const authorization = error.config?.headers?.Authorization;
+    const publicAuth = /\/auth\/(login|register|forgot-password|reset-password|amma-mobile-session)(?:\?|$)/.test(error.config?.url || '');
+    if (error.response?.status === 401 && !publicAuth && typeof authorization === 'string' && authorization.startsWith('Bearer ')) {
+      reportUnauthorized(authorization.slice(7));
+    }
     return Promise.reject(fromAxiosError(error));
   }
 );

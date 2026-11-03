@@ -33,6 +33,8 @@ export default defineConfig({
     },
   },
   build: {
+    // Preserve Vite 5's browser syntax targets when upgrading the build tool.
+    target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14'],
     rollupOptions: {
       output: {
         manualChunks: {

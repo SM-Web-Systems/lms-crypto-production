@@ -1,0 +1,46 @@
+%% AUTH-08: Rollback Decision Tree
+%% Failure detection → Impact assessment → Rollback → Validation → Escalation
+
+flowchart TD
+    DETECT["Issue Detected"] --> SEVERITY{"Severity?"}
+
+    SEVERITY -->|"5xx errors<br/>API down"| CRITICAL["CRITICAL"]
+    SEVERITY -->|"Unexpected 403s<br/>on admin endpoints"| HIGH["HIGH"]
+    SEVERITY -->|"Single sponsor<br/>access issue"| MEDIUM["MEDIUM"]
+    SEVERITY -->|"Log anomaly<br/>cosmetic"| LOW["LOW"]
+
+    CRITICAL --> IMG_ROLLBACK["Image Rollback<br/>scripts/rollback.sh"]
+    HIGH --> ASSESS{"Affecting<br/>multiple users?"}
+    ASSESS -->|YES| IMG_ROLLBACK
+    ASSESS -->|NO| INVESTIGATE["Investigate<br/>docker logs lms-api"]
+
+    IMG_ROLLBACK --> HEALTH{"API healthy<br/>after rollback?"}
+    HEALTH -->|YES| VERIFY_DATA["Verify data integrity<br/>Row counts OK?"]
+    HEALTH -->|NO| ESCALATE["ESCALATE<br/>Manual intervention"]
+
+    VERIFY_DATA -->|YES| STABLE["Rollback successful<br/>Log incident"]
+    VERIFY_DATA -->|NO| DB_RESTORE["DB Restore<br/>from backup"]
+
+    DB_RESTORE --> RESTART["Restart API<br/>docker compose up -d api"]
+    RESTART --> RECHECK["Re-verify health<br/>+ data integrity"]
+    RECHECK -->|PASS| STABLE
+    RECHECK -->|FAIL| ESCALATE
+
+    INVESTIGATE --> FIX{"Root cause<br/>found?"}
+    FIX -->|YES| HOTFIX["Targeted fix<br/>+ redeploy"]
+    FIX -->|NO| IMG_ROLLBACK
+
+    MEDIUM --> CHECK_DB["Check cohort ownership<br/>in DB for sponsor"]
+    LOW --> MONITOR["Continue monitoring"]
+
+    subgraph ARTIFACTS["Rollback Artifacts"]
+        A1["previous-images.txt<br/>api=sha256:d980c44...<br/>web=sha256:2da45ac..."]
+        A2["pre-deploy backup<br/>pre-deploy_20261019_200721.db"]
+        A3["git revert commands<br/>66f6448 (AUTH-02)<br/>827f263 (AUTH-03)"]
+    end
+
+    style CRITICAL fill:#f66,stroke:#900
+    style HIGH fill:#f96,stroke:#c60
+    style ESCALATE fill:#f66,stroke:#900
+    style STABLE fill:#6f6,stroke:#090
+    style IMG_ROLLBACK fill:#f96,stroke:#c60

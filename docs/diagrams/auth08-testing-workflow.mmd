@@ -1,0 +1,40 @@
+%% AUTH-08: Testing Workflow
+%% Spec → Failing test → Implementation → Verification → Review → Regression
+
+flowchart TD
+    SPEC["Developer Specification<br/>docs/specs/AUTH-*.md"] --> WRITE_TEST["Write failing test<br/>(TDD red phase)"]
+    WRITE_TEST --> RUN_FAIL["Run test<br/>Confirm failure"]
+    RUN_FAIL --> IMPLEMENT["Implement minimum<br/>change (Ponytail)"]
+    IMPLEMENT --> RUN_PASS["Run test<br/>Confirm pass"]
+
+    RUN_PASS --> UNIT["Unit tests<br/>(vitest, :memory: SQLite)"]
+    UNIT --> INTEGRATION["Integration tests<br/>(AUTH-04 cross-module)"]
+    INTEGRATION --> E2E_TEST["E2E tests<br/>(Playwright, /tmp/lms-e2e-*.db)"]
+
+    E2E_TEST --> TYPECHECK["TypeScript checks<br/>tsc --noEmit"]
+    TYPECHECK --> BUILD["Frontend build<br/>vite build"]
+
+    BUILD --> REVIEW["Independent review<br/>(code + security)"]
+    REVIEW -->|Issues found| FIX["Fix → Retest"]
+    FIX --> UNIT
+    REVIEW -->|Approved| PR["Pull Request"]
+
+    PR --> CI["CI Pipeline<br/>3 jobs: backend + frontend + e2e"]
+    CI -->|Fail| FIX_CI["Fix CI failure"]
+    FIX_CI --> PR
+    CI -->|Pass| MERGE["Merge to main"]
+
+    MERGE --> REGRESSION["Full regression suite<br/>1,597 backend + 450 frontend"]
+
+    subgraph ISOLATION["Test Isolation"]
+        direction LR
+        I1["Backend: in-memory SQLite"]
+        I2["E2E: /tmp/lms-e2e-*.db"]
+        I3["Payments: vi.stubGlobal mock"]
+        I4["Stellar: fixture JSON"]
+    end
+
+    style WRITE_TEST fill:#f96,stroke:#c60
+    style RUN_PASS fill:#6f6,stroke:#090
+    style MERGE fill:#6f6,stroke:#090
+    style CI fill:#6af,stroke:#28a

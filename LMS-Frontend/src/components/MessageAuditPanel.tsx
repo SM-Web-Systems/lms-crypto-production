@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { ShieldAlert, AlertCircle, ArrowLeft, Trash2 } from 'lucide-react';
@@ -21,7 +22,7 @@ function senderLabel(msg: AdminMessage): string {
 
 export function MessageAuditPanel() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = hasCapability(user, 'message.view_deleted');
 
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
   const [state, setState] = useState<PanelState>('loading');

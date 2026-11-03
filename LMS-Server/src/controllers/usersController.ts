@@ -1,8 +1,21 @@
 import { Response, NextFunction } from 'express';
-import { query, queryOne, execute } from '../config/database.js';
-import { AuthRequest, UserDirectoryItem, ErrorCodes, UserRole } from '../types/index.js';
+import { db, query, queryOne, execute } from '../config/database.js';
+import { AuthRequest, UserDirectoryItem, ErrorCodes, LegacyRole } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditLog } from '../services/auditService.js';
+import { getUserRoles, getUserPermissions } from '../middleware/rbac.js';
+import { assertCanModifyUser, assertNotLastSuperAdmin, invalidateAuthorization, LEGACY_RBAC_ROLE, ROLE_PRIVILEGE_LEVEL } from '../services/roleSecurityService.js';
+import { courseAccessScope } from '../services/courseAccessService.js';
+
+/**
+ * Privilege levels for legacy roles, aligned with the RBAC hierarchy in rbac.ts.
+ * Used by patchUserRole() to enforce escalation guards on the legacy users.role column.
+ */
+const LEGACY_ROLE_PRIVILEGE: Record<string, number> = {
+  'student': 10,
+  'lecturer': 70,  // maps to RBAC 'instructor' (level 70)
+  'admin': 80,     // maps to RBAC 'admin' (level 80)
+};
 
 function getUserCourseCodes(userId: string): string[] {
   const rows = query<{ course_code: string }>(
@@ -19,13 +32,10 @@ export async function getMyCourses(req: AuthRequest, res: Response, next: NextFu
       throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
     }
 
-    const codes = getUserCourseCodes(userId);
-    const courseIds = codes.length === 0
-      ? []
-      : query<{ id: string }>(
-          `SELECT id FROM courses WHERE course_code IN (${codes.map(() => '?').join(',')}) ORDER BY title`,
-          codes
-        ).map((r) => r.id);
+    const permissions = new Set(getUserPermissions(userId));
+    if (!permissions.has('course.view')) throw new AppError('Insufficient permissions', 403, ErrorCodes.FORBIDDEN);
+    const scope = courseAccessScope(userId, permissions);
+    const courseIds = query<{id: string}>('SELECT c.id FROM courses c WHERE ' + scope.sql + ' ORDER BY c.title', scope.params).map(c => c.id);
 
     res.json({
       success: true,
@@ -39,6 +49,11 @@ export async function getMyCourses(req: AuthRequest, res: Response, next: NextFu
 export async function getUser(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
+    const callerId = req.user?.userId;
+    if (!callerId) {
+      throw new AppError('Authentication required', 401, ErrorCodes.UNAUTHORIZED);
+    }
+
     const row = queryOne<{ id: string; name: string; email: string; role: string }>(
       'SELECT id, name, email, role FROM users WHERE id = ?',
       [id]
@@ -46,22 +61,69 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
     if (!row) {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
-    // LMS-USER-001: Students may only look up their own profile
-    const caller = req.user;
-    if (caller?.role === 'student' && caller.userId !== id) {
+
+    // Self-access: always allowed, full profile
+    if (callerId === id) {
+      res.json({
+        success: true,
+        data: { id: row.id, displayName: row.name, email: row.email, role: row.role },
+      });
+      return;
+    }
+
+    // RBAC-based access for viewing other users' profiles
+    const callerPerms = new Set(getUserPermissions(callerId));
+
+    // Admin (user.manage): full access with email
+    if (callerPerms.has('user.manage')) {
+      res.json({
+        success: true,
+        data: { id: row.id, displayName: row.name, email: row.email, role: row.role },
+      });
+      return;
+    }
+
+    // Instructor (user.view_all, no user.manage): course-scoped, limited fields
+    if (callerPerms.has('user.view_all')) {
+      const inScope = queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt
+         FROM user_course_codes ucc
+         JOIN courses c ON c.course_code = ucc.course_code
+         JOIN course_lecturers cl ON cl.course_id = c.id
+         WHERE ucc.user_id = ? AND cl.user_id = ?`,
+        [id, callerId],
+      );
+      if ((inScope?.cnt ?? 0) > 0) {
+        res.json({
+          success: true,
+          data: { id: row.id, displayName: row.name, role: row.role },
+        });
+        return;
+      }
       throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
     }
-    // Only expose email to the user themselves or admins
-    const exposedEmail = caller?.userId === id || caller?.role === 'admin' ? row.email : undefined;
-    res.json({
-      success: true,
-      data: {
-        id: row.id,
-        displayName: row.name,
-        email: exposedEmail,
-        role: row.role,
-      },
-    });
+
+    // Sponsor (student.view_assigned): cohort-scoped, limited fields
+    if (callerPerms.has('student.view_assigned')) {
+      const inCohort = queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt
+         FROM cohort_members cm
+         JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+         WHERE cm.user_id = ? AND sc.sponsor_user_id = ?`,
+        [id, callerId],
+      );
+      if ((inCohort?.cnt ?? 0) > 0) {
+        res.json({
+          success: true,
+          data: { id: row.id, displayName: row.name, role: row.role },
+        });
+        return;
+      }
+      throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
+    }
+
+    // All other roles: denied
+    throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
   } catch (error) {
     next(error);
   }
@@ -163,8 +225,8 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
     const { role } = req.body ?? {};
     const callerId = req.user?.userId;
 
-    const validRoles: UserRole[] = ['student', 'lecturer', 'admin'];
-    if (!role || !validRoles.includes(role as UserRole)) {
+    const validRoles: LegacyRole[] = ['student', 'lecturer', 'admin'];
+    if (!role || !validRoles.includes(role as LegacyRole)) {
       throw new AppError(
         `role must be one of: ${validRoles.join(', ')}`,
         400,
@@ -176,6 +238,19 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
       throw new AppError('Cannot change your own role', 400, ErrorCodes.VALIDATION_ERROR);
     }
 
+    // WI-02: Privilege-escalation guard — caller cannot assign a legacy role
+    // whose privilege level is >= their own highest RBAC privilege level.
+    const callerRoles = getUserRoles(callerId!);
+    const callerLevel = Math.max(0, ...callerRoles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
+    const targetLevel = LEGACY_ROLE_PRIVILEGE[role] ?? 0;
+    if (targetLevel >= callerLevel) {
+      throw new AppError(
+        'Cannot assign a role with equal or higher privilege than your own',
+        403,
+        ErrorCodes.FORBIDDEN,
+      );
+    }
+
     const user = queryOne<{ id: string; email: string; role: string }>(
       'SELECT id, email, role FROM users WHERE id = ?',
       [id],
@@ -184,10 +259,17 @@ export async function patchUserRole(req: AuthRequest, res: Response, next: NextF
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
     }
 
-    execute(
-      `UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?`,
-      [role, id],
-    );
+    // This endpoint replaces the effective role set. Use the RBAC endpoints for
+    // additive multi-role grants. Demotion must not leave supplemental admin grants.
+    db.transaction(() => {
+      assertCanModifyUser(callerId!, id);
+      assertNotLastSuperAdmin(id);
+      execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
+      execute('INSERT INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?)',
+        [id, LEGACY_RBAC_ROLE[role as LegacyRole], callerId]);
+      execute("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?", [role, id]);
+      invalidateAuthorization(id);
+    }).immediate();
 
     // LMS-ADM-006: audit log for role change
     auditLog({

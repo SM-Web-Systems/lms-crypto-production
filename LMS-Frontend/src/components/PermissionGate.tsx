@@ -1,17 +1,19 @@
 /**
- * PermissionGate — Phase G: Conditionally renders children based on user role
- * or a list of allowed roles. Used for fine-grained UI visibility control.
+ * PermissionGate — renders children for effective workspaces and capabilities.
+ * The allowedRole(s) prop names remain compatible with existing callers.
  */
 
 import React from 'react';
 import { useAuth } from '../context/useAuth';
 import type { UserRole } from '../types/api';
+import { availableWorkspaces, hasCapability } from '../utils/authorization';
 
 interface PermissionGateProps {
   /** Single role to allow */
   allowedRole?: UserRole;
   /** Multiple roles — child renders if user has ANY of these */
   allowedRoles?: UserRole[];
+  permissions?: string[];
   /** What to render if user lacks permission (default: nothing) */
   fallback?: React.ReactNode;
   children: React.ReactNode;
@@ -20,20 +22,21 @@ interface PermissionGateProps {
 export const PermissionGate: React.FC<PermissionGateProps> = ({
   allowedRole,
   allowedRoles,
+  permissions = [],
   fallback = null,
   children,
 }) => {
   const { user } = useAuth();
-  const role = user?.role;
+  const workspaces = availableWorkspaces(user);
 
-  if (!role) return <>{fallback}</>;
+  if (!user || !permissions.every(p => hasCapability(user, p))) return <>{fallback}</>;
 
   if (allowedRoles) {
-    return allowedRoles.includes(role) ? <>{children}</> : <>{fallback}</>;
+    return allowedRoles.some(role => role !== 'custom' && workspaces.includes(role)) ? <>{children}</> : <>{fallback}</>;
   }
 
   if (allowedRole) {
-    return role === allowedRole ? <>{children}</> : <>{fallback}</>;
+    return allowedRole !== 'custom' && workspaces.includes(allowedRole) ? <>{children}</> : <>{fallback}</>;
   }
 
   // No restrictions specified — render children

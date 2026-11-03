@@ -6,6 +6,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
 
 const api: AxiosInstance = axios.create({
+  timeout: 15000,
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
@@ -13,6 +14,11 @@ const api: AxiosInstance = axios.create({
 });
 
 let tokenGetter: (() => Promise<string | null>) | null = null;
+const unauthorizedListeners = new Set<(token:string)=>void>();
+export function onUnauthorized(listener:(token:string)=>void) {
+  unauthorizedListeners.add(listener);
+  return ()=>{unauthorizedListeners.delete(listener);};
+}
 
 export function setTokenGetter(getter: () => Promise<string | null>) {
   tokenGetter = getter;
@@ -37,7 +43,7 @@ api.interceptors.request.use(async (config) => {
   if (tokenGetter) {
     try {
       const token = await tokenGetter();
-      if (token) {
+      if (token && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch {
@@ -54,16 +60,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
     const reqUrl = error.config?.url ?? "";
-    // Don't hard-redirect on auth endpoints: the auth context handles those errors
-    // (showing form messages / clearing the session) and a redirect here would loop.
     const status = error.response?.status;
-    if (status === 401) {
-      const skipRedirect =
-        reqUrl.includes("/auth/login") ||
-        reqUrl.includes("/auth/me");
-      if (!skipRedirect) {
-        window.location.href = "/login";
-      }
+    const authorization = error.config?.headers?.Authorization;
+    const publicAuth = /\/auth\/(login|register|forgot-password|reset-password)(?:\?|$)/.test(reqUrl);
+    if (status === 401 && !publicAuth && typeof authorization === 'string' && authorization.startsWith('Bearer ')) {
+      unauthorizedListeners.forEach(listener=>listener(authorization.slice(7)));
     }
     const parsed = fromAxiosError(error);
     if (status === 429) {

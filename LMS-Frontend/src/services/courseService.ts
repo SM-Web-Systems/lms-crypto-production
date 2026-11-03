@@ -22,8 +22,8 @@ function fromApiCourse(c: { id: string; title: string; description?: string; cou
 }
 
 export const courseService = {
-  async fetchCourses(): Promise<Course[]> {
-    const response = await api.get<{ success?: boolean; data?: { courses?: unknown[] }; courses?: unknown[] }>('/courses');
+  async fetchCourses(options?: {access: 'manage' | 'members' | 'enrolled'}): Promise<Course[]> {
+    const response = await api.get<{ success?: boolean; data?: { courses?: unknown[] }; courses?: unknown[] }>('/courses', options ? {params: options} : undefined);
     const data = response.data;
     const raw = data?.courses ?? data?.data?.courses;
     if (!Array.isArray(raw)) return [];

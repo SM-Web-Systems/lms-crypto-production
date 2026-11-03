@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { profileService, type CustomLink, type UserProfile } from '../services/profileService';
 import { quizService } from '../services/quizService';
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 import type { QuizCompletion } from '../types/quiz';
+import AmmaWalletConnection from '../components/AmmaWalletConnection';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,7 @@ function SocialLink({ href, icon, label }: { href: string; icon: React.ReactNode
 // ── Main component ───────────────────────────────────────────────────────────
 
 const Profile: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { userId: routeUserId } = useParams<{ userId?: string }>();
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
@@ -239,7 +241,7 @@ const Profile: React.FC = () => {
   }
 
   const displayName = name || (isViewingOther ? 'User' : user.name);
-  const basePath = user.role === 'admin' ? '/admin' : '/student';
+  const basePath = ''; // Profile and messaging are shared authenticated routes.
   const shownAvatar = avatarPreview ?? avatarUrl;
 
   const viewedProfile = isViewingOther ? profile : {
@@ -324,6 +326,8 @@ const Profile: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {!isViewingOther && <AmmaWalletConnection user={user} errorCode={searchParams.get('wallet_error')} />}
 
               {/* Fields */}
               {isViewingOther ? (

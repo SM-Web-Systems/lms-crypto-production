@@ -1,0 +1,89 @@
+flowchart TB
+    subgraph TDD_CYCLE["Infrastructure TDD Cycle"]
+        direction LR
+        WRITE["Write failing test"]
+        IMPLEMENT["Implement fix"]
+        RUN["Run test suite"]
+        PASS{"Tests pass?"}
+        REVIEW["Code review"]
+        MERGE["Merge to main"]
+
+        WRITE --> IMPLEMENT --> RUN --> PASS
+        PASS -->|"no"| IMPLEMENT
+        PASS -->|"yes"| REVIEW --> MERGE
+    end
+
+    subgraph CONTAINER_TESTS["Container Startup Tests"]
+        CS1["Container starts successfully"]
+        CS2["Entrypoint script executes"]
+        CS3["initDb.ts runs when no DB exists"]
+        CS4["server.js starts and listens on 3001"]
+        CS5["Container runs as expected user"]
+    end
+
+    subgraph SQLITE_TESTS["SQLite Access Tests"]
+        SQ1["Database file is readable"]
+        SQ2["Database file is writable"]
+        SQ3["WAL file created on write"]
+        SQ4["SHM file created on write"]
+        SQ5["Concurrent read/write works"]
+    end
+
+    subgraph WAL_TESTS["WAL/SHM Creation Tests"]
+        WA1[".db-wal created with correct owner"]
+        WA2[".db-shm created with correct owner"]
+        WA3["WAL mode persists after restart"]
+        WA4["WAL checkpoint succeeds"]
+    end
+
+    subgraph UPLOAD_TESTS["Upload Write Tests"]
+        UP1["avatars/ directory writable"]
+        UP2["docs/ directory writable"]
+        UP3["imports/ directory writable"]
+        UP4["submissions/ directory writable"]
+        UP5["File upload end-to-end works"]
+    end
+
+    subgraph NONROOT_TESTS["Non-Root Permission Tests"]
+        NR1["Process runs as uid 1000"]
+        NR2["Cannot write outside volumes"]
+        NR3["Cannot modify node_modules"]
+        NR4["Cannot modify dist/"]
+        NR5["Volume paths writable by node"]
+    end
+
+    subgraph READONLY_TESTS["Read-Only Filesystem Tests"]
+        RO1["Root filesystem is read-only"]
+        RO2["/tmp tmpfs is writable"]
+        RO3["Volume mounts are writable"]
+        RO4["Cannot create files in /app"]
+        RO5["Application functions normally"]
+    end
+
+    subgraph HEALTH_TESTS["Health Check Tests"]
+        HC1["/health endpoint returns 200"]
+        HC2["Docker healthcheck passes"]
+        HC3["Unhealthy state triggers restart"]
+        HC4["Health after DB operations"]
+    end
+
+    subgraph CI_PIPELINE["CI Pipeline Integration"]
+        CI1["Backend unit tests"]
+        CI2["Frontend tests + build"]
+        CI3["E2E Playwright tests"]
+        CI4["Infrastructure tests — NEW"]
+
+        CI1 --> CI2 --> CI3 --> CI4
+    end
+
+    MERGE --> CI_PIPELINE
+
+    style TDD_CYCLE fill:#e3f2fd,stroke:#1565c0
+    style CONTAINER_TESTS fill:#e8f5e9,stroke:#2e7d32
+    style SQLITE_TESTS fill:#fff3e0,stroke:#ef6c00
+    style WAL_TESTS fill:#f3e5f5,stroke:#7b1fa2
+    style UPLOAD_TESTS fill:#fce4ec,stroke:#c62828
+    style NONROOT_TESTS fill:#fff9c4,stroke:#f9a825
+    style READONLY_TESTS fill:#e0f7fa,stroke:#00838f
+    style HEALTH_TESTS fill:#f1f8e9,stroke:#558b2f
+    style CI_PIPELINE fill:#ede7f6,stroke:#4527a0

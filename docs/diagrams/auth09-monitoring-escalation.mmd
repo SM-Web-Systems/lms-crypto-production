@@ -1,0 +1,50 @@
+%% AUTH-09: Production Monitoring and Incident Escalation
+%% Health checks → detection → assessment → action
+
+flowchart TD
+    subgraph MONITORING["Automated Monitoring"]
+        HC["Docker healthcheck<br/>every 15s"]
+        COMPOSE_RESTART["restart: unless-stopped<br/>automatic recovery"]
+    end
+
+    subgraph MANUAL["Manual Checks"]
+        HEALTH_EP["GET /api/v1/health<br/>status, db, memory, buildSha"]
+        DOCKER_PS["docker ps<br/>container status"]
+        DOCKER_LOGS["docker logs --since<br/>error/5xx grep"]
+    end
+
+    HC -->|"3+ failures"| UNHEALTHY["Container marked unhealthy"]
+    UNHEALTHY --> COMPOSE_RESTART
+
+    HEALTH_EP --> ASSESS{"Assessment"}
+    DOCKER_PS --> ASSESS
+    DOCKER_LOGS --> ASSESS
+
+    ASSESS -->|"status: ok<br/>0 restarts<br/>0 errors"| STABLE["STABLE<br/>Continue observation"]
+
+    ASSESS -->|"5xx errors"| SEV_HIGH["SEVERITY: HIGH"]
+    ASSESS -->|"Unexpected 403s"| SEV_MED["SEVERITY: MEDIUM"]
+    ASSESS -->|"Memory > 200MB"| SEV_MED
+    ASSESS -->|"Container restarts"| SEV_HIGH
+    ASSESS -->|"DB unreachable"| SEV_CRIT["SEVERITY: CRITICAL"]
+
+    SEV_CRIT --> ROLLBACK["Execute rollback.sh"]
+    SEV_HIGH --> INVESTIGATE["docker logs analysis"]
+    INVESTIGATE -->|"Root cause found"| HOTFIX["Hotfix + redeploy"]
+    INVESTIGATE -->|"No root cause"| ROLLBACK
+    SEV_MED --> MONITOR_CLOSE["Increased monitoring"]
+
+    ROLLBACK --> VERIFY_RB{"Verify via<br/>public health endpoint"}
+    VERIFY_RB -->|OK| INCIDENT_LOG["Log incident"]
+    VERIFY_RB -->|FAIL| ESCALATE["ESCALATE<br/>Manual intervention"]
+
+    subgraph ARTIFACTS["Recovery Artifacts"]
+        A1["previous-images.txt"]
+        A2["pre-deploy backup DB"]
+        A3["git revert targets"]
+    end
+
+    style SEV_CRIT fill:#f66,stroke:#900
+    style SEV_HIGH fill:#f96,stroke:#c60
+    style ESCALATE fill:#f66,stroke:#900
+    style STABLE fill:#6f6,stroke:#090

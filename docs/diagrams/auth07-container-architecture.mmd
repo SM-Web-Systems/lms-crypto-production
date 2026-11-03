@@ -1,0 +1,69 @@
+%% AUTH-07: Container Architecture
+%% Shows the Docker container topology, volumes, networks, and external dependencies.
+
+graph LR
+    subgraph HOST["Production Host (webadmin)"]
+        subgraph DOCKER["Docker Engine"]
+            subgraph COMPOSE["docker-compose.yml (lms-ammawallet)"]
+                API["lms-api<br/>node:22-bookworm-slim<br/>Port 3001 (internal)"]
+                WEB["lms-web<br/>nginx:alpine<br/>Port 80 (internal)"]
+            end
+
+            subgraph VOLUMES["Docker Volumes"]
+                VOL_DATA["lms-data<br/>/app/data<br/>student_ms.db"]
+                VOL_UPLOADS["lms-uploads<br/>/app/uploads<br/>User files"]
+            end
+
+            subgraph NETWORKS["Docker Networks"]
+                NET_DEFAULT["default<br/>(compose internal)"]
+                NET_WEB["web-stack_default<br/>(external)"]
+                NET_MAIL["stalwart_bridge<br/>(external)"]
+            end
+        end
+
+        BACKUP_DIR["~/backups/lms-ammawallet-db/<br/>Pre-deploy snapshots"]
+        DEPLOY_STATE[".deploy-state/<br/>previous-images.txt<br/>deploy-log.txt"]
+    end
+
+    subgraph EXTERNAL["External Services"]
+        NGINX["nginx Reverse Proxy<br/>(web-stack)"]
+        PAYSTACK["Paystack<br/>Webhooks"]
+        STELLAR["Stellar<br/>NFT Credentials"]
+        STALWART["Stalwart<br/>Email"]
+    end
+
+    subgraph CLIENTS["Clients"]
+        BROWSER["Browser<br/>lms.smwebsystems.com"]
+    end
+
+    %% Container → Volume mounts
+    API --> VOL_DATA
+    API --> VOL_UPLOADS
+
+    %% Network connections
+    API --- NET_DEFAULT
+    WEB --- NET_DEFAULT
+    API --- NET_WEB
+    WEB --- NET_WEB
+    API --- NET_MAIL
+
+    %% External connections
+    NGINX --- NET_WEB
+    BROWSER -->|HTTPS| NGINX
+    NGINX -->|/api/*| API
+    NGINX -->|/| WEB
+    PAYSTACK -->|webhook POST| NGINX
+    API -->|RPC| STELLAR
+    API --- STALWART
+
+    %% Internal dependency
+    WEB -.->|depends_on<br/>service_healthy| API
+
+    %% Host-level paths
+    VOL_DATA -.->|host path| BACKUP_DIR
+
+    style API fill:#4a9,stroke:#2a7
+    style WEB fill:#49a,stroke:#27a
+    style VOL_DATA fill:#fa4,stroke:#c82
+    style VOL_UPLOADS fill:#fa4,stroke:#c82
+    style NGINX fill:#aaa,stroke:#666
