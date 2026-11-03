@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: LMS-Server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -37,7 +37,7 @@ jobs:
       run:
         working-directory: LMS-Frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -68,7 +68,7 @@ jobs:
       AMMA_WALLET_TIMEOUT_MS: '500'
       DATABASE_PATH: /tmp/lms-e2e-${{ github.run_id }}-${{ github.run_attempt }}.db
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -125,7 +125,7 @@ jobs:
     name: Offline Monitoring and Restore
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
