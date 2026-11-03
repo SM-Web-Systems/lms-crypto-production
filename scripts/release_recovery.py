@@ -30,6 +30,7 @@ MANIFEST_NAME = re.compile(r'recovery-[0-9a-f]{32}\.json\Z')
 REVISION_LABEL = 'org.opencontainers.image.revision'
 ONE_SHOT_NOT_CONTAINED = 'ONE_SHOT_CONTAINER_NOT_CONTAINED'
 PROTECTED_REFUSAL = 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'
+OWNER_DECISION_FILE = 'owner-decision-required.json'
 WRITER_HOLD_SCRIPT = 'dist/scripts/writerHold.js'
 MIGRATION_SCRIPT = 'dist/scripts/migrateRewardTxnCheck.js'
 require = pre.require
@@ -484,6 +485,11 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
     # Once writers were released (or may have been) candidate writes can exist
     # that the schema and financial contract cannot see.
     require(not (state / ('released-' + manifest['manifest_id'] + '.json')).exists(), 'ROLLBACK_REFUSED_WRITERS_RELEASED')
+    # A halt is the owner's to resolve, and one start of the unheld old image is
+    # all that can be judged: its own writes would pass as the next baseline.
+    require(not (state / OWNER_DECISION_FILE).exists(), 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED')
+    attempt_path = state / ('rollback-attempt-' + manifest['manifest_id'] + '.json')
+    require(not attempt_path.exists(), 'ROLLBACK_REFUSED_ALREADY_ATTEMPTED')
     target = manifest['target']; backup = manifest['backup']
     # Once a candidate could have started, the old writers may restart only on
     # exactly the rows recorded before it did.
@@ -508,7 +514,10 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
     base_url = validate_base_url(config.get('base_url'))
     # Stop the sole application writer and verify it is stopped BEFORE taking
     # the final schema/financial snapshot. Other DB writers are an owner NO-GO.
-    controlled_stop(target, runner, allowed_configs)
+    try:
+        controlled_stop(target, runner, allowed_configs)
+    except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+        raise ReleaseError('ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED') from None
     try:
         stopped = stopped_database_metadata(target['database']['host_path'])
         verify_database_contract(stopped, backup)
@@ -516,6 +525,7 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
             verify_protected_content(stopped, held_baseline, code=PROTECTED_REFUSAL)
         if not overlay.exists(): immutable_json(overlay, payload)
         allowed_configs.add(target['compose_file'] + ',' + str(overlay))
+        immutable_json(attempt_path, {'manifest_id': manifest['manifest_id']})
         runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'], timeout=300)
         verify_running(target, expected, policy['source_sha'], runner, base_url, http, timeout, overlay)
         # Old startup code is not allowed to change the established contracts.
@@ -562,6 +572,18 @@ def prepare(config, runner=None, policy=None, dry_run=False):
         return {'status': 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED', 'requested_sha': target['approved_sha'],
                 'manifest_id': manifest['manifest_id'],
                 'recovery_eligible': manifest['eligibility'] == 'EXACT_SCHEMA_AND_FINANCIAL_STATE'}
+
+
+def record_held_baseline(state, manifest, metadata):
+    immutable_json(state / ('held-baseline-' + manifest['manifest_id'] + '.json'),
+                   {'protected_content_sha256': metadata['protected_content_sha256']})
+
+
+def halted(state, code):
+    """Blocks rollback until the owner has decided and removed the file."""
+    path = state / OWNER_DECISION_FILE
+    if not path.exists(): immutable_json(path, {'code': code})
+    return ReleaseError(code)
 
 
 def _database_unchanged(target, before):
@@ -664,14 +686,14 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
             # callbacks and workers. It cannot be held any other way.
             controlled_stop(target, runner, source_configs(target))
             before = stopped_database_metadata(target['database']['host_path'])
+            record_held_baseline(state, manifest, before)
             verify_database_contract(before, manifest['backup'])
             held_state = before
             if policy.get('migration') is not None:
                 migration_started = True
                 manifest, window_backup, held_state = migrate_while_stopped(target, state, policy, built, runner, before)
+                record_held_baseline(state, manifest, held_state)
                 migration_started = False
-            immutable_json(state / ('held-baseline-' + manifest['manifest_id'] + '.json'),
-                           {'protected_content_sha256': held_state['protected_content_sha256']})
             # Before candidate start, so no startup or scheduled worker can run unheld.
             one_shot(target, built['api'], WRITER_HOLD_SCRIPT, ['hold'], runner, timeout=60)
             overlay = overlay_file(state, built, 'deploy')
@@ -697,8 +719,11 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
         except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
             # A migration that may have changed anything needs an owner decision;
             # only an exactly unchanged database may go back to the old service.
-            if migration_started and (str(error) == ONE_SHOT_NOT_CONTAINED or not _database_unchanged(target, before)):
-                raise ReleaseError('DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
+            contained = str(error) != ONE_SHOT_NOT_CONTAINED
+            if migration_started and (not contained or not _database_unchanged(target, before)):
+                raise halted(state, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
+            if not contained:
+                raise halted(state, 'DEPLOYMENT_HALTED_ONE_SHOT_NOT_CONTAINED_SERVICES_STOPPED') from None
             try:
                 _rollback_locked(config, state, policy, runner, http, timeout)
             except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as failure:

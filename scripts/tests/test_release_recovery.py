@@ -1164,8 +1164,89 @@ class RecoveryTests(unittest.TestCase):
         self.rollback_now()
         self.write_row('INSERT INTO scheduler_tick_log VALUES (1)')
         before = self.ups()
-        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'): self.rollback_now()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_ALREADY_ATTEMPTED'): self.rollback_now()
         self.assertEqual(self.ups(), before)
+
+    def test_rollback_cannot_undo_a_migration_halt(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        def change_row_then_fail():
+            self.write_row()
+            raise pre.ReleaseError('MIGRATE_FAILED')
+        self.runner.fail_migrate = False
+        self.runner.on_migrate = change_row_then_fail
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+        self.assert_no_up()
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_rollback_cannot_run_beside_a_stuck_migration_container(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        self.runner.one_shot_stuck = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+        self.assert_no_up()
+
+    def test_failed_migration_rollback_compares_rows_with_the_first_stopped_state(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        original = self.rec._database_unchanged
+        def unchanged_then_row_changes(target, before):
+            result = original(target, before)
+            self.write_row()
+            return result
+        with patch.object(self.rec, '_database_unchanged', side_effect=unchanged_then_row_changes):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+                self.deploy(self.http)
+        self.assert_no_up()
+
+    def test_rerun_cannot_launder_a_failed_rollback_after_failed_migration(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.http)
+        before = self.ups()
+        self.runner.on_up = None
+        with self.assertRaises(pre.ReleaseError) as caught: self.rollback_now()
+        self.assertIn('ROLLBACK_REFUSED', str(caught.exception))
+        self.assertEqual(self.ups(), before)
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_rerun_cannot_launder_a_failed_capture_only_rollback(self):
+        self.capture()
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_SERVICES_STOPPED'): self.rollback_now()
+        before = self.ups()
+        self.runner.on_up = None
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_ALREADY_ATTEMPTED'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+
+    def test_stuck_hold_container_halts_without_starting_anything(self):
+        def stuck():
+            self.runner.one_shot_stuck = True
+            raise pre.ReleaseError('HOLD_FAILED')
+        self.runner.on_hold = stuck
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_ONE_SHOT_NOT_CONTAINED_SERVICES_STOPPED'):
+            self.deploy(self.http)
+        self.assert_no_up()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+
+    def test_scheduler_lock_activity_during_rollback_start_is_legitimate_recovery(self):
+        self.write_row('CREATE TABLE scheduler_locks (lock_name TEXT PRIMARY KEY)')
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['schema_sha256'] = self.backup['schema_sha256']
+        self.on_start_of(API_IMAGE, lambda: self.write_row("INSERT INTO scheduler_locks VALUES ('reward-scheduler')"))
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+
+    def test_standalone_first_stop_failure_is_reported_as_containment(self):
+        self.capture()
+        self.runner.fail_stop = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED'): self.rollback_now()
+        self.assert_no_up()
 
     def test_normal_policy_still_produces_exact_eligibility(self):
         manifest = self.capture()
