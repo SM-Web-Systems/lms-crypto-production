@@ -55,3 +55,10 @@ Thumbs.db
 .auth13-*
 .rbac-inventory/
 __pycache__/
+
+# Isolated laptop service configuration and runtime files
+.local-services/
+
+# Local browser smoke artifacts
+.playwright-cli/
+output/playwright/local-stack/
