@@ -22,7 +22,6 @@ import {
   Briefcase,
   Heart,
   GraduationCap,
-  Wallet,
   PenTool,
   Gift,
   Shield,
@@ -116,22 +115,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Dashboard', path: '/employer', icon: LayoutDashboard },
       { name: 'Rewards', path: '/employer/rewards', icon: Gift },
       { name: 'Teams', path: '/employer/teams', icon: Briefcase },
-      { name: 'Billing', path: '/employer/billing', icon: CreditCard },
+      // Billing deferred — FOLLOW-UP(employer-billing-ui)
     ],
     parent: [
       { name: 'Dashboard', path: '/parent', icon: LayoutDashboard },
       { name: 'Rewards', path: '/parent/rewards', icon: Gift },
       { name: 'Children', path: '/parent/children', icon: Heart },
-      { name: 'Wallets', path: '/parent/wallets', icon: Wallet },
-      { name: 'Groups', path: '/parent/groups', icon: Users },
-      { name: 'Billing', path: '/parent/billing', icon: CreditCard },
+      // Wallets, Groups, Billing deferred — FOLLOW-UP(parent-wallet-group-billing-ui)
     ],
     teacher: [
       { name: 'Dashboard', path: '/teacher', icon: LayoutDashboard },
       { name: 'Rewards', path: '/teacher/rewards', icon: Gift },
       { name: 'Classes', path: '/teacher/classes', icon: GraduationCap },
-      { name: 'Analytics', path: '/teacher/analytics', icon: BarChart2 },
-      { name: 'Billing', path: '/teacher/billing', icon: CreditCard },
+      // Analytics, Billing deferred — FOLLOW-UP(teacher-analytics-billing-ui)
     ],
     student: [
       { name: 'Dashboard', path: '/student', icon: LayoutDashboard },

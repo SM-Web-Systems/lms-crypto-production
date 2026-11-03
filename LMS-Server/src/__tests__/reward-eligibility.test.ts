@@ -69,6 +69,15 @@ function seedSponsorWithCohort(): {
   return { sponsorId, studentId, cohortId, courseId };
 }
 
+/** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
+function createIndependentAdmin(): string {
+  const id = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
+  ).run(id, `${id}@test.com`);
+  return id;
+}
+
 function createActiveReward(
   sponsorId: string,
   cohortId: string,
@@ -88,7 +97,8 @@ function createActiveReward(
     eligibilityConfig: opts?.eligibilityConfig,
     idempotencyKey: `idem-${uuidv4()}`,
   });
-  fundReward(reward.id, sponsorId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
+  const funderId = createIndependentAdmin();
+  fundReward(reward.id, funderId, { type: 'admin_grant' }, `fund-${uuidv4()}`);
   activateReward(reward.id, sponsorId, `act-${uuidv4()}`);
   return reward.id;
 }

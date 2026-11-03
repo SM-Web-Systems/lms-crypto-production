@@ -76,28 +76,31 @@ describe('Phase G Frontend', () => {
     expect(screen.getByText('Billing')).toBeInTheDocument();
   });
 
-  it('G-NAV-2 — Employer sees employer nav items', () => {
+  it('G-NAV-2 — Employer sees employer nav items (W08: Billing deferred)', () => {
     renderLayoutWithRole('employer');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Teams')).toBeInTheDocument();
-    expect(screen.getByText('Billing')).toBeInTheDocument();
+    // Billing deferred — FOLLOW-UP(employer-billing-ui)
+    expect(screen.queryByText('Billing')).not.toBeInTheDocument();
   });
 
-  it('G-NAV-3 — Parent sees parent nav items', () => {
+  it('G-NAV-3 — Parent sees parent nav items (W08: Wallets/Groups/Billing deferred)', () => {
     renderLayoutWithRole('parent');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Children')).toBeInTheDocument();
-    expect(screen.getByText('Wallets')).toBeInTheDocument();
-    expect(screen.getByText('Groups')).toBeInTheDocument();
-    expect(screen.getByText('Billing')).toBeInTheDocument();
+    // Wallets, Groups, Billing deferred — FOLLOW-UP(parent-wallet-group-billing-ui)
+    expect(screen.queryByText('Wallets')).not.toBeInTheDocument();
+    expect(screen.queryByText('Groups')).not.toBeInTheDocument();
+    expect(screen.queryByText('Billing')).not.toBeInTheDocument();
   });
 
-  it('G-NAV-4 — Teacher sees teacher nav items', () => {
+  it('G-NAV-4 — Teacher sees teacher nav items (W08: Analytics/Billing deferred)', () => {
     renderLayoutWithRole('teacher');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Classes')).toBeInTheDocument();
-    expect(screen.getByText('Analytics')).toBeInTheDocument();
-    expect(screen.getByText('Billing')).toBeInTheDocument();
+    // Analytics, Billing deferred — FOLLOW-UP(teacher-analytics-billing-ui)
+    expect(screen.queryByText('Analytics')).not.toBeInTheDocument();
+    expect(screen.queryByText('Billing')).not.toBeInTheDocument();
   });
 
   it('G-NAV-5 — TA sees TA-specific nav items', () => {
