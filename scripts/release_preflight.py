@@ -29,6 +29,9 @@ ENVIRONMENT = {'checkout': 'DEPLOY_DIR', 'repository': 'DEPLOY_REPOSITORY',
                'approved_sha': 'DEPLOY_SHA', 'project': 'DEPLOY_PROJECT',
                'api_container': 'DEPLOY_API_CONTAINER', 'web_container': 'DEPLOY_WEB_CONTAINER',
                'db_volume': 'DEPLOY_DB_VOLUME', 'backup_root': 'DEPLOY_BACKUP_DIR'}
+RECEIPT_KEYS = ('migration_002_reward_txn_check', 'migration_002_reward_txn_check_fk_baseline')
+# Written by the old image's idle scheduler: normal once it is running again.
+OPERATIONAL_TABLES = ('scheduler_tick_log', 'scheduler_locks')
 REQUIRED_FILES = ('docker-compose.yml', 'scripts/deploy.sh', 'scripts/release_preflight.py',
                   'scripts/release_recovery.py', 'scripts/rollback.sh',
                   'LMS-Server/Dockerfile', 'LMS-Frontend/Dockerfile')
@@ -293,6 +296,36 @@ def readonly_database(path):
         raise ReleaseError('DATABASE_READ_FAILED') from None
 
 
+@contextmanager
+def stopped_readonly_database(path):
+    """Read a database after a verified writer stop.
+
+    SQLite removes WAL/SHM on a clean close while retaining WAL header mode.
+    mode=ro alone would recreate sidecars. immutable=1 is safe ONLY for this
+    stopped-writer, absent-sidecar case; active WAL always uses normal snapshots.
+    """
+    path = Path(path)
+    sidecars = [Path(str(path) + suffix) for suffix in ('-wal', '-shm', '-journal')]
+    if sidecars[0].exists() and sidecars[1].exists():
+        with readonly_database(path) as db:
+            yield db
+        return
+    require(not any(sidecar.exists() for sidecar in sidecars), 'STOPPED_DATABASE_SIDECAR_STATE_UNKNOWN')
+    require(path.is_file() and path.stat().st_size >= 4096, 'STOPPED_DATABASE_MISSING')
+    try:
+        db = sqlite3.connect(path.as_uri() + '?mode=ro&immutable=1', uri=True)
+        try:
+            db.execute('PRAGMA query_only=ON')
+            deadline = time.monotonic() + 60
+            db.set_progress_handler(lambda: int(time.monotonic() > deadline), 10000)
+            yield db
+        finally:
+            db.close()
+    except sqlite3.Error:
+        raise ReleaseError('STOPPED_DATABASE_READ_FAILED') from None
+    require(not any(sidecar.exists() for sidecar in sidecars), 'STOPPED_DATABASE_CHANGED')
+
+
 def _cell(value):
     return {'blob_sha256': hashlib.sha256(value).hexdigest()} if isinstance(value, bytes) else value
 
@@ -314,10 +347,28 @@ def database_metadata(db):
         for row in db.execute('SELECT * FROM "' + table + '" ORDER BY ' + quoted):
             financial.update(json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode())
             financial.update(b'\n')
+    protected = hashlib.sha256(); recovery = hashlib.sha256()
+    # Every row except the two release receipts, which the migration adds. Compared
+    # only while writers are held: it proves no row changed across the window.
+    for table in sorted(tables):
+        if table.startswith('sqlite_'): continue
+        columns = [row[1] for row in db.execute('PRAGMA table_info("' + table.replace('"', '""') + '")')]
+        quoted = ','.join('"' + column.replace('"', '""') + '"' for column in columns)
+        operational = table in OPERATIONAL_TABLES
+        protected.update(json.dumps([table, columns], separators=(',', ':')).encode())
+        if not operational: recovery.update(json.dumps([table, columns], separators=(',', ':')).encode())
+        receipts = ' WHERE key NOT IN (?, ?)' if table == 'system_config' else ''
+        for row in db.execute('SELECT ' + quoted + ' FROM "' + table.replace('"', '""') + '"' + receipts + ' ORDER BY ' + quoted,
+                              RECEIPT_KEYS if receipts else ()):
+            encoded = json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode() + b'\n'
+            protected.update(encoded)
+            if not operational: recovery.update(encoded)
     violations = sorted(db.execute('PRAGMA foreign_key_check').fetchall(), key=lambda row: json.dumps(row))
     return {'schema_sha256': hashlib.sha256(json.dumps([schema, user_version], separators=(',', ':')).encode()).hexdigest(),
             'user_version': user_version, 'table_counts': counts,
             'financial_state_sha256': financial.hexdigest(),
+            'protected_content_sha256': protected.hexdigest(),
+            'recovery_content_sha256': recovery.hexdigest(),
             'foreign_key_violation_count': len(violations),
             'foreign_key_violations_sha256': hashlib.sha256(json.dumps(violations, separators=(',', ':')).encode()).hexdigest()}
 
@@ -424,6 +475,7 @@ def validate_target(config, runner=None):
     _check_backup_location(backup_root, database)
     return {'checkout': str(root), 'repository': REPOSITORY, 'approved_sha': config['approved_sha'],
             'project': config['project'], 'compose_file': str(compose_file), 'services': services,
+            'source_config_files': config_files_labels['api'],
             'compose_sha256': hashlib.sha256(json.dumps(compose, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
             'build_image_refs': {service: compose['services'][service].get('image') or config['project'] + '-' + service + ':latest'
                                  for service in ('api', 'web')},
@@ -448,7 +500,13 @@ def _check_backup_location(root, source):
     require(shutil.disk_usage(ancestor).free >= max(512 * 1024 * 1024, total * 3), 'BACKUP_DISK_SPACE_INSUFFICIENT')
 
 
-def backup_database(target, backup_root):
+def backup_stopped_database(target, backup_root):
+    """Same evidence as backup_database, for the held window: the schema may
+    already differ from the source metadata, and sidecars may be absent."""
+    return backup_database(target, backup_root, source_reader=stopped_readonly_database, expect_source_schema=False)
+
+
+def backup_database(target, backup_root, source_reader=readonly_database, expect_source_schema=True):
     """Create a unique WAL-safe snapshot; never update recovery pointers."""
     source = Path(target['database']['host_path']); root = _path(str(backup_root))
     require(not _is_within(root, source.parent) and not _is_within(root, Path(target['checkout'])), 'BACKUP_LOCATION_INVALID')
@@ -463,7 +521,7 @@ def backup_database(target, backup_root):
         started = time.monotonic()
         def progress(status, remaining, total):
             require(time.monotonic() - started < 60, 'DATABASE_BACKUP_TIMEOUT')
-        with readonly_database(source) as src:
+        with source_reader(source) as src:
             with closing(sqlite3.connect(artifact, timeout=3)) as dst:
                 src.backup(dst, pages=256, progress=progress, sleep=0.05)
                 # The private completed artifact must be self-contained, even
@@ -472,7 +530,8 @@ def backup_database(target, backup_root):
         with readonly_database(artifact) as db:
             db.execute('BEGIN'); metadata = database_metadata(db)
         require(artifact.stat().st_size >= 4096, 'BACKUP_TOO_SMALL')
-        require(metadata['schema_sha256'] == target['source_database']['schema_sha256'], 'SOURCE_SCHEMA_CHANGED')
+        if expect_source_schema:
+            require(metadata['schema_sha256'] == target['source_database']['schema_sha256'], 'SOURCE_SCHEMA_CHANGED')
         with artifact.open('r+b') as completed: os.fsync(completed.fileno())
         result = dict(metadata, file=str(artifact), size_bytes=artifact.stat().st_size, sha256=file_sha256(artifact))
         evidence = artifact.with_suffix('.json')
