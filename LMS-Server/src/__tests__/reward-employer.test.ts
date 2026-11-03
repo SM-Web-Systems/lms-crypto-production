@@ -5,13 +5,14 @@ import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 
-function seedEmployer(): { employerId: string; token: string; teamId: string; studentId: string } {
+function seedEmployer(): { employerId: string; token: string; adminToken: string; teamId: string; studentId: string } {
   const employerId = uuidv4();
   const studentId = uuidv4();
   const teamId = uuidv4();
 
+  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Employer', ?, 'hash', 'admin')"
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Employer', ?, 'hash', 'lecturer')"
   ).run(employerId, `${employerId}@test.com`);
   db.prepare(
     "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
@@ -19,13 +20,20 @@ function seedEmployer(): { employerId: string; token: string; teamId: string; st
 
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(employerId, 'role_employer');
 
+  // W01-R1: Independent admin for funding authorization
+  const adminId = uuidv4();
+  db.prepare(
+    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
+  ).run(adminId, `${adminId}@test.com`);
+
   db.prepare(
     'INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, ?, ?)'
   ).run(teamId, 'Test Team', 'team', employerId);
   db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(teamId, studentId);
 
-  const token = makeToken({ userId: employerId, email: `${employerId}@test.com`, role: 'admin' });
-  return { employerId, token, teamId, studentId };
+  const token = makeToken({ userId: employerId, email: `${employerId}@test.com`, role: 'lecturer' });
+  const adminToken = makeToken({ userId: adminId, email: `${adminId}@test.com`, role: 'admin' });
+  return { employerId, token, adminToken, teamId, studentId };
 }
 
 describe('Employer Reward Routes', () => {
@@ -46,7 +54,7 @@ describe('Employer Reward Routes', () => {
   });
 
   it('BR-E-2: POST /employer/rewards/:id/fund transitions to funded', async () => {
-    const { token, teamId } = seedEmployer();
+    const { token, adminToken, teamId } = seedEmployer();
     const create = await request(app)
       .post('/api/v1/employer/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -58,16 +66,17 @@ describe('Employer Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds (has reward.manage, ≠ creator)
     const res = await request(app)
       .post(`/api/v1/employer/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('funded');
   });
 
   it('BR-E-3: POST /employer/rewards/:id/activate transitions to active', async () => {
-    const { token, teamId } = seedEmployer();
+    const { token, adminToken, teamId } = seedEmployer();
     const create = await request(app)
       .post('/api/v1/employer/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -79,9 +88,10 @@ describe('Employer Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds
     await request(app)
       .post(`/api/v1/employer/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     const res = await request(app)
@@ -127,7 +137,7 @@ describe('Employer Reward Routes', () => {
   });
 
   it('BR-E-6: POST /employer/rewards/:id/cancel cancels reward', async () => {
-    const { token, teamId } = seedEmployer();
+    const { token, adminToken, teamId } = seedEmployer();
     const create = await request(app)
       .post('/api/v1/employer/rewards')
       .set('Authorization', `Bearer ${token}`)
@@ -139,9 +149,10 @@ describe('Employer Reward Routes', () => {
       });
     const rewardId = create.body.data.id;
 
+    // W01-R1: Independent admin funds
     await request(app)
       .post(`/api/v1/employer/rewards/${rewardId}/fund`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ sourceType: 'admin_grant', idempotencyKey: `fund-${uuidv4()}` });
 
     // Cancel funded (before activation)

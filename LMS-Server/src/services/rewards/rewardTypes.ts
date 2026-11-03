@@ -7,13 +7,16 @@ export const REWARD_STATES = [
 ] as const;
 export type RewardState = typeof REWARD_STATES[number];
 
+export const REWARD_TYPES = ['individual', 'milestone', 'course_completion', 'grade', 'custom'] as const;
+export type RewardType = typeof REWARD_TYPES[number];
+
 export const ALLOCATION_STATES = ['pending', 'eligible', 'released', 'cancelled', 'refunded'] as const;
 export type AllocationState = typeof ALLOCATION_STATES[number];
 
 export const SCOPE_TYPES = ['sponsor_cohort', 'employer_team', 'parent_child', 'parent_family', 'teacher_class'] as const;
 export type ScopeType = typeof SCOPE_TYPES[number];
 
-export const TRANSACTION_TYPES = ['fund', 'reserve', 'release', 'cancel', 'refund', 'expire'] as const;
+export const TRANSACTION_TYPES = ['fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'] as const;
 export type TransactionType = typeof TRANSACTION_TYPES[number];
 
 export const ACCOUNT_TYPES = ['funder', 'recipient', 'platform'] as const;
@@ -36,7 +39,7 @@ export interface RewardRow {
   creator_user_id: string;
   scope_type: ScopeType;
   scope_id: string;
-  reward_type: string;
+  reward_type: RewardType;
   amount_mode: string;
   amount_stroops: number;
   max_recipients: number | null;

@@ -10,6 +10,7 @@ import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js
 import { findQuizItemInCourse } from '../utils/courseHelpers.js';
 import logger from '../utils/logger.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
 
 interface QuizQuestion {
   id: string;
@@ -466,6 +467,12 @@ export async function submitQuiz(req: AuthRequest, res: Response, next: NextFunc
       // R12: produce outbox event for reward eligibility (only on pass)
       if (passed === 1) {
         produceOutboxEvent('quiz_pass', quizId, userId, { score, total, courseId: quiz.course_id });
+
+        // W04: If this quiz pass is the final requirement for a course,
+        // produce a course_completion event so course_completion rewards are evaluated.
+        if (quiz.course_id && isCourseCompleteForReward(userId, quiz.course_id)) {
+          produceOutboxEvent('course_completion', quiz.course_id, userId);
+        }
       }
     });
 

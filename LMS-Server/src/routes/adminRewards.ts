@@ -13,10 +13,20 @@ import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { db } from '../config/database.js';
 import { refundAllocation } from '../services/rewards/rewardService.js';
+import { RewardError } from '../services/rewards/rewardErrors.js';
 import { processOutboxRetries } from '../services/rewards/rewardOutboxWorker.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
+
+/** Map RewardError to its HTTP status; re-throw anything else to the Express error handler. */
+function handleRewardError(err: unknown, res: Response): void {
+  if (err instanceof RewardError) {
+    res.status(err.statusCode).json({ success: false, error: { code: err.code, message: err.message } });
+  } else {
+    throw err;
+  }
+}
 
 // ──── GET /admin/rewards/refund-attempts ────
 
@@ -86,7 +96,7 @@ router.get(
 router.post(
   '/refund-attempts/:id/retry',
   authenticate,
-  requirePermission('reward.refund'),
+  requirePermission('reward.refund_review'), // W02-R2C: administrative-review capability required
   (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { idempotencyKey } = req.body;
@@ -108,12 +118,27 @@ router.post(
       return;
     }
 
-    // Try the refund again using the original actor (who has scope access)
-    const result = refundAllocation(
-      attempt.allocation_id as string,
-      attempt.attempted_by_user_id as string,
-      idempotencyKey,
-    );
+    // W02-R2C: Authorize the actual authenticated caller, not the historical original actor.
+    // attempt.attempted_by_user_id is preserved as the historical record of who first attempted
+    // this refund, but it must never substitute for the caller's own authority.
+    // The caller has reward.refund_review; reward.manage (held by role_admin+) satisfies the
+    // service-layer scope bypass on the fresh write path.
+    // W02-R2 (F2): Pass stored reward_id so service can verify allocation.reward_id matches.
+    // W02-CF (F1): wrap in try-catch — refundAllocation throws RewardError on inconsistent
+    // attempt.reward_id (ALLOCATION_NOT_FOUND) or scope denial (SCOPE_DENIED). Without this
+    // catch the Express error handler returns HTTP 500 (it only handles AppError, not RewardError).
+    let result;
+    try {
+      result = refundAllocation(
+        attempt.allocation_id as string,
+        actorId,
+        idempotencyKey,
+        attempt.reward_id as string,
+      );
+    } catch (err) {
+      handleRewardError(err, res);
+      return;
+    }
 
     if ('blocked' in result && result.blocked) {
       // Still blocked

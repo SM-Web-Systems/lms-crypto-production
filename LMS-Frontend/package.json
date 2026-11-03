@@ -66,6 +66,8 @@
     "vitest": "^4.1.12"
   },
   "overrides": {
-    "postcss-selector-parser": "7.1.6"
+    "postcss-selector-parser": "7.1.6",
+    "follow-redirects": "1.16.2",
+    "minimatch": "^11.0.1"
   }
 }

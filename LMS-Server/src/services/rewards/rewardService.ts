@@ -4,9 +4,20 @@ import { RewardError } from './rewardErrors.js';
 import { validateScope, resolveAudienceMembers, createAudienceSnapshot } from './rewardScopeService.js';
 import { getOrCreateAccount, getAccount } from './rewardBalanceService.js';
 import { writeLedgerEntry } from './rewardLedger.js';
-import { assertTransition, deriveAggregateStatus } from './rewardStateMachine.js';
+import { assertTransition, validateTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
-import { parseStroops, calculateMaxExposure, validateCurrency } from './currencyConfig.js';
+import { parseStroops, calculateMaxExposure, validateCurrency, MAX_RECIPIENTS } from './currencyConfig.js';
+import {
+  verifyFundingSourceSync,
+  verifyFundingSourceAsync,
+  verifyInternalAuthorization,
+  normalizeReference,
+  checkReferenceInTransaction,
+  isFundingReferenceConstraintViolation,
+} from './rewardFundingVerifier.js';
+import type { PaystackBindingContext } from './rewardFundingVerifier.js';
+import { hasPermission } from '../../middleware/rbac.js';
+import { REWARD_TYPES } from './rewardTypes.js';
 import type { ScopeType, RewardState, FundingSourceType, RewardRow, AllocationRow, AllocationState } from './rewardTypes.js';
 import {
   notifyRewardReleased,
@@ -49,11 +60,27 @@ export interface RewardFilters {
  * Create a new reward in draft state.
  */
 export function createReward(actorId: string, params: CreateRewardParams): RewardRow {
+  // W05/W05-R1: Validate reward type before any other check so invalid types never reach DB.
+  // Use a constant message — do not coerce, serialize or call methods on rejected input.
+  if (typeof params.rewardType !== 'string' || !(REWARD_TYPES as ReadonlyArray<string>).includes(params.rewardType)) {
+    throw new RewardError('INVALID_REWARD_TYPE', `Invalid reward type. Accepted values: ${REWARD_TYPES.join(', ')}`, 400);
+  }
+
   const currency = params.currency ?? 'XLM';
   validateCurrency(currency);
 
   const amount = parseStroops(params.amountStroops);
-  if (params.maxRecipients != null && params.maxRecipients > 0) {
+  // W03: Validate max_recipients at creation boundary.
+  // null/undefined is allowed (deferred cap; funding uses ?? 1 fallback).
+  // 0, negative, fractional, non-numeric, and > MAX_RECIPIENTS are rejected.
+  if (params.maxRecipients !== undefined && params.maxRecipients !== null) {
+    if (!Number.isInteger(params.maxRecipients) || params.maxRecipients <= 0 || params.maxRecipients > MAX_RECIPIENTS) {
+      throw new RewardError(
+        'INVALID_RECIPIENT_COUNT',
+        `max_recipients must be a positive integer no greater than ${MAX_RECIPIENTS}`,
+        400,
+      );
+    }
     calculateMaxExposure(amount, BigInt(params.maxRecipients));
   }
 
@@ -63,7 +90,31 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
 
   const existing = checkRewardIdempotency(params.idempotencyKey);
   if (existing.exists) {
-    return getReward(existing.rewardId!)!;
+    const cached = getReward(existing.rewardId!);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', 'Reward not found', 404);
+    // W02: Scope check before returning idempotent result
+    // (Scope of the REQUESTED params was already validated above the idempotency check;
+    // this re-validates the actor can still read the stored reward's original scope.)
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('SCOPE_DENIED', `Actor does not have access to scope ${cached.scope_type}:${cached.scope_id}`, 403);
+    }
+    // W02-R1: Bind replay to the original scope — reject key reuse for a different scope.
+    if (cached.scope_type !== params.scopeType || cached.scope_id !== params.scopeId) {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    // W02-R1C (C1): Bind replay to canonical creation intent.
+    // amount_stroops, reward_type, and currency_code are immutable financial/structural fields.
+    // Intentionally non-binding: description (display), eligibility_config (operational),
+    // expires_at (scheduling), auto_release (behavioral), max_recipients (configurable exposure).
+    if (
+      BigInt(cached.amount_stroops) !== amount ||
+      cached.reward_type !== params.rewardType ||
+      cached.currency_code !== currency
+    ) {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cached;
   }
 
   const id = uuidv4();
@@ -87,6 +138,11 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
 /**
  * Fund a reward: transitions draft → pending_funding → funded.
  * Creates 2 ledger entries (fund + reserve) atomically.
+ *
+ * W01: Verifies funding evidence before the state transition.
+ * For external sources (stellar, paystack), use fundRewardAsync() which
+ * performs async provider verification. This synchronous entry point
+ * performs all checks that can be done synchronously.
  */
 export function fundReward(
   rewardId: string,
@@ -96,12 +152,58 @@ export function fundReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02-R1C (C2): Resolve and authorize the actual requested resource BEFORE revealing
+    // any key association. A missing or unauthorized target must receive its normal
+    // established response regardless of what key was presented.
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    // W02-R1: Bind replay to resource and action (generic 409, no prior-op details).
+    // W02-R1C (C1): Also bind to funding source type and normalized reference.
+    const normalizedRef = normalizeReference(source.reference);
+    if (
+      idem.rewardId !== rewardId ||
+      idem.transactionType !== 'fund' ||
+      idem.fundingSourceType !== source.type ||
+      idem.fundingReference !== normalizedRef
+    ) {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cached;
   }
+
+  // W01-R1: Look up reward creator for internal source authorization context.
+  const rewardForAuth = getRewardRow(rewardId);
+  if (!rewardForAuth) {
+    throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+  }
+  const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
+
+  // W01: Synchronous verification gate — reference checks, source-type
+  // validation, cross-reference idempotency, and internal source authorization.
+  verifyFundingSourceSync(source, rewardId, authContext);
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
-    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+
+    // W01-R1 (F2 fix): Recheck internal-source authorization inside the
+    // transaction using the current reward state. This is defense-in-depth
+    // against TOCTOU: the outer verifier checked before the transaction,
+    // but permissions or reward ownership may have changed.
+    if (isInternalSource(source.type)) {
+      verifyInternalAuthorization(
+        { actorId, rewardCreatorId: reward.creator_user_id },
+        source.type,
+      );
+    }
+
+    // W01-R1: reward.manage holders bypass scope validation (e.g., admin
+    // authorizing internal funding for a sponsor's reward).
+    const hasManage = hasPermission(actorId, 'reward.manage');
+    if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
 
@@ -112,9 +214,223 @@ export function fundReward(
     const maxRecipients = BigInt(reward.max_recipients ?? 1);
     const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
 
-    getOrCreateAccount(actorId, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R3: Normalize and atomically claim the funding reference inside
+    // the transaction. The outer checkReferenceNotReused() is a pre-check
+    // optimization; this is the authoritative claim.
+    const normalizedRef = normalizeReference(source.reference);
+    if (normalizedRef) {
+      checkReferenceInTransaction(normalizedRef);
+    }
+
+    // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
+    // is the reward creator — not the authorizing admin. The admin is audited
+    // as actorUserId but financial ownership belongs to the creator.
+    const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+    getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
     // Ledger entry 1: fund (external → funder.available)
+    try {
+      writeLedgerEntry({
+        rewardId,
+        transactionType: 'fund',
+        amountStroops: totalExposure,
+        sourceAccountType: source.type === 'stellar' ? 'external' : source.type === 'paystack' ? 'external' : source.type === 'platform_credit' ? 'platform' : 'external',
+        sourceBucket: null,
+        sourceUserId: null,
+        destinationAccountType: 'funder',
+        destinationBucket: 'available',
+        destinationUserId: funderId,
+        actorType: 'user',
+        actorUserId: actorId,
+        previousState: 'draft',
+        newState: 'pending_funding',
+        fundingSourceType: source.type,
+        fundingReference: normalizedRef,
+        idempotencyKey: `${idempotencyKey}_fund`,
+      });
+    } catch (err) {
+      // W01-R3: Belt-and-suspenders — catch UNIQUE constraint violation on
+      // funding_reference and convert to a controlled DUPLICATE_REFERENCE error.
+      if (isFundingReferenceConstraintViolation(err)) {
+        throw new RewardError(
+          'DUPLICATE_REFERENCE',
+          'This funding reference has already been consumed by another operation',
+          409,
+        );
+      }
+      throw err;
+    }
+
+    // Ledger entry 2: reserve (funder.available → funder.reserved)
+    writeLedgerEntry({
+      rewardId,
+      transactionType: 'reserve',
+      amountStroops: totalExposure,
+      sourceAccountType: 'funder',
+      sourceBucket: 'available',
+      sourceUserId: funderId,
+      destinationAccountType: 'funder',
+      destinationBucket: 'reserved',
+      destinationUserId: funderId,
+      actorType: 'user',
+      actorUserId: actorId,
+      previousState: 'pending_funding',
+      newState: 'funded',
+      idempotencyKey: `${idempotencyKey}_reserve`,
+    });
+
+    assertTransition('pending_funding', 'funded');
+    updateRewardStatus(rewardId, 'funded');
+
+    return getRewardRow(rewardId)!;
+  });
+
+  return txn();
+}
+
+/**
+ * Async version of fundReward for external funding sources (paystack).
+ * Performs async provider verification, then delegates to the synchronous
+ * DB transaction. Route handlers use this for external source types.
+ */
+export async function fundRewardAsync(
+  rewardId: string,
+  actorId: string,
+  source: FundingSource,
+  idempotencyKey: string
+): Promise<RewardRow> {
+  const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
+  if (idem.exists) {
+    // W02-R1C (C2): Resolve and authorize the actual requested resource first.
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    // W02-R1: Resource/action binding. W02-R1C (C1): Source type and reference binding.
+    const normalizedRef = normalizeReference(source.reference);
+    if (
+      idem.rewardId !== rewardId ||
+      idem.transactionType !== 'fund' ||
+      idem.fundingSourceType !== source.type ||
+      idem.fundingReference !== normalizedRef
+    ) {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cached;
+  }
+
+  // W01-R1: Look up reward creator for internal source authorization context.
+  const rewardForAuth = getRewardRow(rewardId);
+  if (!rewardForAuth) {
+    throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+  }
+  const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
+
+  // W01-R2: Build Paystack binding context from the reward's authoritative state.
+  // This supplies trusted expected values (amount, currency, actor identity) that
+  // the verifier checks against the Paystack API response. The context is only
+  // used for paystack source type but is built unconditionally to keep the lookup
+  // outside the conditional (the reward row is already fetched above).
+  let paystackContext: PaystackBindingContext | undefined;
+  if (source.type === 'paystack') {
+    const totalExposure = Number(calculateMaxExposure(
+      BigInt(rewardForAuth.amount_stroops),
+      BigInt(rewardForAuth.max_recipients ?? 1),
+    ));
+    const actorEmail = lookupUserEmail(actorId);
+    paystackContext = {
+      rewardId,
+      expectedAmountMinorUnits: totalExposure,
+      expectedCurrency: rewardForAuth.currency_code ?? 'XLM',
+      actorEmail,
+    };
+  }
+
+  // W01: Full async verification (includes external provider calls,
+  // internal source authorization, and W01-R2 Paystack binding).
+  await verifyFundingSourceAsync(source, rewardId, authContext, paystackContext);
+
+  // Delegate to the synchronous DB transaction (skips sync verification
+  // since async verification is a superset)
+  return fundRewardVerified(rewardId, actorId, source, idempotencyKey);
+}
+
+/**
+ * Internal: fund a reward with pre-verified funding source.
+ * Skips verification (caller must have already verified).
+ * NOTE: This function is intentionally NOT exported. Its only caller
+ * (fundRewardAsync) has already performed full async verification.
+ * Do not export or add direct callers without verification.
+ */
+function fundRewardVerified(
+  rewardId: string,
+  actorId: string,
+  source: FundingSource,
+  idempotencyKey: string
+): RewardRow {
+  const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
+  if (idem.exists) {
+    // W02-R1C (C2, defense-in-depth): Resolve and authorize first.
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    // W02-R1: Resource/action binding. W02-R1C (C1): Source type and reference binding.
+    const normalizedRef = normalizeReference(source.reference);
+    if (
+      idem.rewardId !== rewardId ||
+      idem.transactionType !== 'fund' ||
+      idem.fundingSourceType !== source.type ||
+      idem.fundingReference !== normalizedRef
+    ) {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cached;
+  }
+
+  const txn = db.transaction(() => {
+    const reward = getRewardForUpdate(rewardId);
+
+    // W01-R1 (F2 fix): Recheck internal-source authorization inside the
+    // transaction using the current reward state. The async verifier ran
+    // before this transaction; permissions or ownership may have changed.
+    if (isInternalSource(source.type)) {
+      verifyInternalAuthorization(
+        { actorId, rewardCreatorId: reward.creator_user_id },
+        source.type,
+      );
+    }
+
+    // W01-R1: reward.manage holders bypass scope validation
+    const hasManage = hasPermission(actorId, 'reward.manage');
+    if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+      throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
+    }
+
+    assertTransition(reward.status as RewardState, 'pending_funding');
+    updateRewardStatus(rewardId, 'pending_funding');
+
+    const amount = BigInt(reward.amount_stroops);
+    const maxRecipients = BigInt(reward.max_recipients ?? 1);
+    const totalExposure = Number(calculateMaxExposure(amount, maxRecipients));
+
+    // W01-R3: Normalize and atomically claim the funding reference inside
+    // the transaction (same pattern as fundReward).
+    const normalizedRef = normalizeReference(source.reference);
+    if (normalizedRef) {
+      checkReferenceInTransaction(normalizedRef);
+    }
+
+    // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
+    // is the reward creator. The admin is audited as actorUserId.
+    const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+    getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
+
+    try {
     writeLedgerEntry({
       rewardId,
       transactionType: 'fund',
@@ -124,27 +440,38 @@ export function fundReward(
       sourceUserId: null,
       destinationAccountType: 'funder',
       destinationBucket: 'available',
-      destinationUserId: actorId,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'draft',
       newState: 'pending_funding',
       fundingSourceType: source.type,
-      fundingReference: source.reference ?? null,
+      fundingReference: normalizedRef,
       idempotencyKey: `${idempotencyKey}_fund`,
     });
+    } catch (err) {
+      // W01-R3: Belt-and-suspenders — catch UNIQUE constraint violation on
+      // funding_reference and convert to a controlled DUPLICATE_REFERENCE error.
+      if (isFundingReferenceConstraintViolation(err)) {
+        throw new RewardError(
+          'DUPLICATE_REFERENCE',
+          'This funding reference has already been consumed by another operation',
+          409,
+        );
+      }
+      throw err;
+    }
 
-    // Ledger entry 2: reserve (funder.available → funder.reserved)
     writeLedgerEntry({
       rewardId,
       transactionType: 'reserve',
       amountStroops: totalExposure,
       sourceAccountType: 'funder',
       sourceBucket: 'available',
-      sourceUserId: actorId,
+      sourceUserId: funderId,
       destinationAccountType: 'funder',
       destinationBucket: 'reserved',
-      destinationUserId: actorId,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'pending_funding',
@@ -168,11 +495,56 @@ export function fundReward(
 export function activateReward(rewardId: string, actorId: string, _idempotencyKey: string): RewardRow {
   const current = getReward(rewardId);
   if (current && current.status !== 'funded') {
+    // W02: Scope check before returning cached/fast-return result
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, current.scope_type as ScopeType, current.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
     return current;
   }
 
   const txn = db.transaction(() => {
     const reward = getRewardForUpdate(rewardId);
+
+    // W04: Course binding validation for course_completion rewards.
+    // Runs BEFORE scope validation so that COURSE_NOT_FOUND takes priority when
+    // the scope entity (e.g. cohort) was cascade-deleted together with the course.
+    // Error codes are used as the message so toThrow('CODE') assertions pass.
+    if (reward.reward_type === 'course_completion') {
+      const config = reward.eligibility_config
+        ? (JSON.parse(reward.eligibility_config) as Record<string, unknown>)
+        : null;
+      const configCourseId = typeof config?.requiredCourseId === 'string'
+        ? config.requiredCourseId
+        : null;
+
+      let boundCourseId: string | null = null;
+
+      if (reward.scope_type === 'sponsor_cohort') {
+        const cohort = db.prepare('SELECT course_id FROM sponsor_cohorts WHERE id = ?')
+          .get(reward.scope_id) as { course_id: string } | undefined;
+        // Cohort deleted (likely cascade-deleted with the course) — treat as COURSE_NOT_FOUND.
+        if (!cohort) throw new RewardError('COURSE_NOT_FOUND', undefined, 404);
+        boundCourseId = cohort.course_id;
+        // Conflict: requiredCourseId in config must match cohort's course
+        if (configCourseId && configCourseId !== boundCourseId) {
+          throw new RewardError('CONFLICTING_COURSE_BINDING', undefined, 400);
+        }
+      } else {
+        // Non-cohort scopes require an explicit requiredCourseId in eligibility_config
+        if (!configCourseId) {
+          throw new RewardError('MISSING_COURSE_BINDING', undefined, 400);
+        }
+        boundCourseId = configCourseId;
+      }
+
+      // Verify the bound course still exists
+      const courseExists = db.prepare('SELECT id FROM courses WHERE id = ?').get(boundCourseId);
+      if (!courseExists) {
+        throw new RewardError('COURSE_NOT_FOUND', undefined, 404);
+      }
+    }
+
     if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
@@ -187,6 +559,19 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
 
     if (members.length === 0) {
       throw new RewardError('NO_AUDIENCE', 'No audience members found for this scope', 400);
+    }
+
+    // W03: Enforce allocation cap against funded capacity.
+    // effectiveCap = max_recipients ?? 1 mirrors the funding formula in fundReward/fundRewardVerified.
+    // A null cap reserves for 1 recipient; activating against a larger audience would
+    // create monetary obligations exceeding the reservation.
+    const effectiveCap = reward.max_recipients ?? 1;
+    if (members.length > effectiveCap) {
+      throw new RewardError(
+        'AUDIENCE_EXCEEDS_CAP',
+        `Audience has ${members.length} members but effective cap is ${effectiveCap}`,
+        400,
+      );
     }
 
     createAudienceSnapshot(rewardId, members);
@@ -212,6 +597,11 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
 export function approveReward(rewardId: string, actorId: string, _idempotencyKey: string): RewardRow {
   const current = getReward(rewardId);
   if (current && current.status === 'approved') {
+    // W02: Scope check before returning cached/fast-return result
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, current.scope_type as ScopeType, current.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
     return current;
   }
 
@@ -241,7 +631,18 @@ export function cancelReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_cancel`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02-R1C (C2): Resolve and authorize the actual requested resource first.
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
+      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    }
+    // W02-R1: Bind replay to resource and action (generic 409, no prior-op details).
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'cancel') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cached;
   }
 
   const txn = db.transaction(() => {
@@ -252,13 +653,19 @@ export function cancelReward(
 
     assertTransition(reward.status as RewardState, 'cancelled');
 
-    const funderAccount = getAccount(reward.creator_user_id, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(rewardId, reward.creator_user_id);
+    const funderAccount = getAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
     if (funderAccount && Number(funderAccount.reserved_stroops) > 0) {
       const totalExposure = Number(calculateMaxExposure(
         BigInt(reward.amount_stroops),
         BigInt(reward.max_recipients ?? 1)
       ));
 
+      // W03-R1 note: this formula is only reached from states where no
+      // 'release_unused' entry can exist yet (state machine forbids
+      // cancelled from 'released'). If that precondition ever changes,
+      // the query must also subtract 'cancel', 'expire', 'release_unused' debits.
       const released = db.prepare(
         `SELECT COALESCE(SUM(amount_stroops), 0) as total
          FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
@@ -272,10 +679,10 @@ export function cancelReward(
           amountStroops: remainingReserved,
           sourceAccountType: 'funder',
           sourceBucket: 'reserved',
-          sourceUserId: reward.creator_user_id,
+          sourceUserId: funderId,
           destinationAccountType: 'funder',
           destinationBucket: 'available',
-          destinationUserId: reward.creator_user_id,
+          destinationUserId: funderId,
           actorType: 'user',
           actorUserId: actorId,
           previousState: reward.status,
@@ -317,16 +724,41 @@ export function cancelReward(
 export function releaseAllocation(
   allocationId: string,
   actorId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  requestedRewardId: string
 ): AllocationRow {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
-    return getAllocation(allocationId)!;
+    // W02-R1C (C2): Resolve and authorize the actual requested allocation (and its
+    // parent reward) before revealing any key association.
+    const cachedAlloc = getAllocation(allocationId);
+    if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Fail closed on missing parent — no if(parentReward &&) skip.
+    const parentReward = getRewardRow(cachedAlloc.reward_id);
+    if (!parentReward) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Bind to requested URL parent before revealing any binding information.
+    if (cachedAlloc.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, parentReward.scope_type as ScopeType, parentReward.scope_id)) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    // W02-R1: Bind replay to resource and action (generic 409, no prior-op details).
+    if (idem.allocationId !== allocationId || idem.transactionType !== 'release') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cachedAlloc;
   }
 
   const txn = db.transaction(() => {
     const allocation = getAllocationForUpdate(allocationId);
     const reward = getRewardForUpdate(allocation.reward_id);
+
+    // W02-R2 (F2): Allocation must belong to the requested URL reward.
+    if (allocation.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
 
     if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
@@ -336,6 +768,8 @@ export function releaseAllocation(
       throw new RewardError('INVALID_STATE_TRANSITION', `Cannot release allocation in status '${allocation.status}'`);
     }
 
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(reward.id, reward.creator_user_id);
     writeLedgerEntry({
       rewardId: reward.id,
       allocationId,
@@ -343,7 +777,7 @@ export function releaseAllocation(
       amountStroops: allocation.amount_stroops,
       sourceAccountType: 'funder',
       sourceBucket: 'reserved',
-      sourceUserId: reward.creator_user_id,
+      sourceUserId: funderId,
       destinationAccountType: 'recipient',
       destinationBucket: 'available',
       destinationUserId: allocation.student_user_id,
@@ -380,18 +814,47 @@ export function releaseAllocation(
 export function refundAllocation(
   allocationId: string,
   actorId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  requestedRewardId: string
 ): AllocationRow | { blocked: true; attemptId: string } {
   const idem = checkTransactionIdempotency(idempotencyKey);
   if (idem.exists) {
-    return getAllocation(allocationId)!;
+    // W02-R1C (C2): Resolve and authorize the actual requested allocation first.
+    const cachedAlloc = getAllocation(allocationId);
+    if (!cachedAlloc) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Fail closed on missing parent — no if(parentReward &&) skip.
+    const parentReward = getRewardRow(cachedAlloc.reward_id);
+    if (!parentReward) throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    // W02-R2 (F2): Bind to requested URL parent before revealing any binding information.
+    if (cachedAlloc.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, parentReward.scope_type as ScopeType, parentReward.scope_id)) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+    // W02-R1: Bind replay to resource and action (generic 409, no prior-op details).
+    if (idem.allocationId !== allocationId || idem.transactionType !== 'refund') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cachedAlloc;
   }
 
   const txn = db.transaction(() => {
     const allocation = getAllocationForUpdate(allocationId);
     const reward = getRewardForUpdate(allocation.reward_id);
 
-    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+    // W02-R2 (F2): Allocation must belong to the requested URL reward.
+    if (allocation.reward_id !== requestedRewardId) {
+      throw new RewardError('ALLOCATION_NOT_FOUND', `Allocation ${allocationId} not found`, 404);
+    }
+
+    // W02-R2C: Add reward.manage bypass to the fresh write path — consistent with the
+    // replay path above and all other service operations. This allows admin reviewers
+    // (who hold reward.manage via role_admin+) to retry blocked refunds as the actual
+    // caller, without substituting the historical attempted_by_user_id for authority.
+    if (!hasPermission(actorId, 'reward.manage') &&
+        !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
 
@@ -422,6 +885,8 @@ export function refundAllocation(
       return { blocked: true, attemptId } as const;
     }
 
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(reward.id, reward.creator_user_id);
     writeLedgerEntry({
       rewardId: reward.id,
       allocationId,
@@ -432,7 +897,7 @@ export function refundAllocation(
       sourceUserId: allocation.student_user_id,
       destinationAccountType: 'funder',
       destinationBucket: 'available',
-      destinationUserId: reward.creator_user_id,
+      destinationUserId: funderId,
       actorType: 'user',
       actorUserId: actorId,
       previousState: 'released',
@@ -473,7 +938,15 @@ export function expireReward(
 ): RewardRow {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_expire`);
   if (idem.exists) {
-    return getReward(rewardId)!;
+    // W02-R1C (C2): Resolve resource first (system actor — no scope check, but resource
+    // must exist before revealing key association, consistent with other paths).
+    const cached = getReward(rewardId);
+    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
+    // W02-R1: Bind replay to resource and action.
+    if (idem.rewardId !== rewardId || idem.transactionType !== 'expire') {
+      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
+    }
+    return cached;
   }
 
   const txn = db.transaction(() => {
@@ -481,13 +954,19 @@ export function expireReward(
 
     assertTransition(reward.status as RewardState, 'expired');
 
-    const funderAccount = getAccount(reward.creator_user_id, 'funder', reward.currency_code ?? 'XLM');
+    // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
+    const funderId = getRewardFunderId(rewardId, reward.creator_user_id);
+    const funderAccount = getAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
     if (funderAccount && Number(funderAccount.reserved_stroops) > 0) {
       const totalExposure = Number(calculateMaxExposure(
         BigInt(reward.amount_stroops),
         BigInt(reward.max_recipients ?? 1)
       ));
 
+      // W03-R1 note: this formula is only reached from states where no
+      // 'release_unused' entry can exist yet (state machine forbids
+      // expired from 'released'). If that precondition ever changes,
+      // the query must also subtract 'cancel', 'expire', 'release_unused' debits.
       const released = db.prepare(
         `SELECT COALESCE(SUM(amount_stroops), 0) as total
          FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'release'`
@@ -501,10 +980,10 @@ export function expireReward(
           amountStroops: remainingReserved,
           sourceAccountType: 'funder',
           sourceBucket: 'reserved',
-          sourceUserId: reward.creator_user_id,
+          sourceUserId: funderId,
           destinationAccountType: 'funder',
           destinationBucket: 'available',
-          destinationUserId: reward.creator_user_id,
+          destinationUserId: funderId,
           actorType: 'system',
           actorUserId: null,
           previousState: reward.status,
@@ -597,6 +1076,11 @@ export function getRewardTransactions(rewardId: string): unknown[] {
 
 // ──── Internal Helpers ────
 
+/** Internal funding sources where the funder is the reward creator, not the actor. */
+function isInternalSource(sourceType: FundingSourceType): boolean {
+  return sourceType === 'admin_grant' || sourceType === 'platform_credit';
+}
+
 function getRewardRow(rewardId: string): RewardRow | null {
   return (db.prepare('SELECT * FROM rewards WHERE id = ?').get(rewardId) as RewardRow | undefined) ?? null;
 }
@@ -625,6 +1109,30 @@ function getAllocationForUpdate(allocationId: string): AllocationRow {
   return alloc;
 }
 
+/**
+ * W01-R1: Look up who actually funded a reward from the ledger.
+ * With independent authorizer support, the funder may differ from the creator.
+ * Falls back to creator_user_id for rewards funded before this change.
+ */
+function getRewardFunderId(rewardId: string, creatorUserId: string): string {
+  const fundEntry = db.prepare(
+    `SELECT destination_user_id FROM reward_transactions
+     WHERE reward_id = ? AND transaction_type = 'fund'
+     ORDER BY created_at ASC LIMIT 1`
+  ).get(rewardId) as { destination_user_id: string } | undefined;
+  return fundEntry?.destination_user_id ?? creatorUserId;
+}
+
+/**
+ * W01-R2: Look up a user's email address for Paystack ownership binding.
+ * Returns empty string if user not found or has no email (verification
+ * will fail with FUNDING_OWNERSHIP_MISMATCH, which is correct).
+ */
+function lookupUserEmail(userId: string): string {
+  const row = db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as { email: string } | undefined;
+  return row?.email ?? '';
+}
+
 function updateRewardStatus(rewardId: string, status: RewardState): void {
   db.prepare('UPDATE rewards SET status = ? WHERE id = ?').run(status, rewardId);
 }
@@ -637,14 +1145,72 @@ function updateRewardAggregateStatus(rewardId: string): void {
   const reward = getRewardRow(rewardId);
   if (!reward) return;
 
-  const aggregateStatus = deriveAggregateStatus(allocations, reward.max_recipients);
-  if (aggregateStatus) {
-    const currentStatus = reward.status as RewardState;
-    try {
-      assertTransition(currentStatus, aggregateStatus);
-      updateRewardStatus(rewardId, aggregateStatus);
-    } catch {
-      // Not a valid transition from current state — skip
-    }
+  const aggregateStatus = deriveAggregateStatus(allocations);
+  if (!aggregateStatus) return;
+
+  const currentStatus = reward.status as RewardState;
+  if (!validateTransition(currentStatus, aggregateStatus)) return;
+
+  updateRewardStatus(rewardId, aggregateStatus);
+
+  // W03-R1: When all allocations resolve and the reward reaches 'released',
+  // return any unused reservation (capacity reserved for below-cap slots) to
+  // the funder's available bucket. This fires exactly once — inside the same
+  // transaction as the status transition — keyed on the reward ID.
+  if (aggregateStatus === 'released') {
+    reconcileUnusedReservation(rewardId, reward, currentStatus);
   }
+}
+
+/**
+ * W03-R1: Return any remaining reserved balance for this reward to the funder's
+ * available bucket when the reward reaches 'released' state.
+ *
+ * Computes the outstanding reservation from reward-specific ledger history — not
+ * from the cap formula — to remain correct regardless of any prior partial returns
+ * and independent of another reward's account balance.
+ *
+ * Must be called inside an active db.transaction() (the caller's outer transaction).
+ */
+function reconcileUnusedReservation(
+  rewardId: string,
+  reward: RewardRow,
+  previousStatus: RewardState,
+): void {
+  // Sum all 'reserve' credits for this reward (the total that was reserved at funding).
+  const { total: totalReserved } = db.prepare(
+    `SELECT COALESCE(SUM(amount_stroops), 0) as total
+     FROM reward_transactions WHERE reward_id = ? AND transaction_type = 'reserve'`
+  ).get(rewardId) as { total: number };
+
+  // Sum all reservation debits: releases, cancels, expires, and any prior release_unused.
+  const { total: totalDebited } = db.prepare(
+    `SELECT COALESCE(SUM(amount_stroops), 0) as total
+     FROM reward_transactions
+     WHERE reward_id = ? AND transaction_type IN ('release', 'cancel', 'expire', 'release_unused')`
+  ).get(rewardId) as { total: number };
+
+  const remainingReserved = totalReserved - totalDebited;
+  if (remainingReserved <= 0) return;
+
+  // W01-R1: use the actual funder from the ledger (may differ from creator with independent authorizer).
+  const funderId = getRewardFunderId(rewardId, reward.creator_user_id);
+
+  writeLedgerEntry({
+    rewardId,
+    transactionType: 'release_unused',
+    amountStroops: remainingReserved,
+    sourceAccountType: 'funder',
+    sourceBucket: 'reserved',
+    sourceUserId: funderId,
+    destinationAccountType: 'funder',
+    destinationBucket: 'available',
+    destinationUserId: funderId,
+    actorType: 'system',
+    actorUserId: null,
+    previousState: previousStatus,
+    newState: 'released',
+    idempotencyKey: `release-unused-${rewardId}`,
+    reason: 'Unused reservation returned on below-cap completion',
+  });
 }
