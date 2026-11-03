@@ -586,6 +586,11 @@ def halted(state, code):
     return ReleaseError(code)
 
 
+def clear_owner_decision(state):
+    (state / OWNER_DECISION_FILE).unlink()
+    sync_directory(state)
+
+
 def _database_unchanged(target, before):
     try:
         current = stopped_database_metadata(target['database']['host_path'])
@@ -690,9 +695,12 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
             verify_database_contract(before, manifest['backup'])
             held_state = before
             if policy.get('migration') is not None:
+                # Blocks rollback through anything that ends this process mid-migration.
+                immutable_json(state / OWNER_DECISION_FILE, {'code': 'MIGRATION_OUTCOME_UNKNOWN'})
                 migration_started = True
                 manifest, window_backup, held_state = migrate_while_stopped(target, state, policy, built, runner, before)
                 record_held_baseline(state, manifest, held_state)
+                clear_owner_decision(state)
                 migration_started = False
             # Before candidate start, so no startup or scheduled worker can run unheld.
             one_shot(target, built['api'], WRITER_HOLD_SCRIPT, ['hold'], runner, timeout=60)
@@ -724,6 +732,11 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
                 raise halted(state, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
             if not contained:
                 raise halted(state, 'DEPLOYMENT_HALTED_ONE_SHOT_NOT_CONTAINED_SERVICES_STOPPED') from None
+            if migration_started:
+                try:
+                    clear_owner_decision(state)
+                except OSError:
+                    raise ReleaseError('DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
             try:
                 _rollback_locked(config, state, policy, runner, http, timeout)
             except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as failure:

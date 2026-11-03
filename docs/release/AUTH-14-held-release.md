@@ -56,7 +56,7 @@ sequenceDiagram
 | Before stopping | Refused | Old image keeps running |
 | After stopping, before migration | Rollback to source image IDs | Old image restored and verified |
 | Migration fails and the database is exactly unchanged | Rollback to source image IDs | Old image restored and verified |
-| Migration changed anything unexpected, post-migration checks fail, or a timed-out migration container cannot be confirmed gone | `DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED`. Rollback is blocked by `owner-decision-required.json` until the owner decides and removes it. | Stopped until the owner decides |
+| Migration changed anything unexpected, post-migration checks fail, or a timed-out migration container cannot be confirmed gone | `DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED`. Rollback is blocked by `owner-decision-required.json`, written before the migration starts so a killed release is blocked too. It clears itself only when the migration succeeds or fails with the database exactly unchanged. Otherwise the owner decides and removes it. | Stopped until the owner decides |
 | A timed-out hold container cannot be confirmed gone | `DEPLOYMENT_HALTED_ONE_SHOT_NOT_CONTAINED_SERVICES_STOPPED`, with the same block | Stopped until the owner decides |
 | Candidate fails, with every row unchanged since the recorded held baseline | Rollback to source image IDs, onto the migrated schema if a migration ran | Old image restored and verified |
 | Any row changed since the held baseline, or the baseline is missing | `ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED` or `ROLLBACK_REFUSED_HELD_BASELINE_MISSING`. The old image never starts, and in a deploy the result is `DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED`. | Stopped until the owner decides |

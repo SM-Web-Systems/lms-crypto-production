@@ -1248,6 +1248,41 @@ class RecoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED'): self.rollback_now()
         self.assert_no_up()
 
+    def test_process_killed_during_migration_leaves_rollback_blocked(self):
+        self.plan_migration()
+        def killed(): raise KeyboardInterrupt()
+        self.runner.on_migrate = killed
+        with self.assertRaises(KeyboardInterrupt): self.deploy()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+        self.assert_no_up()
+
+    def test_block_exists_before_migration_and_clears_only_on_contained_outcomes(self):
+        self.plan_migration()
+        seen = []
+        def migrate():
+            seen.append((self.state / self.rec.OWNER_DECISION_FILE).exists())
+            self.migrate_schema()
+        self.runner.on_migrate = migrate
+        self.deploy()
+        self.assertEqual(seen, [True])
+        self.assertFalse((self.state / self.rec.OWNER_DECISION_FILE).exists())
+
+    def test_failed_contained_migration_clears_block_and_recovers(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertFalse((self.state / self.rec.OWNER_DECISION_FILE).exists())
+
+    def test_unwritable_block_prevents_migration(self):
+        self.plan_migration()
+        original = self.rec.immutable_json
+        def write(path, value):
+            if path.name == self.rec.OWNER_DECISION_FILE: raise OSError('synthetic')
+            return original(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=write):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertFalse(any(any('migrateRewardTxnCheck' in v for v in c) for c in self.runner.calls))
+
     def test_normal_policy_still_produces_exact_eligibility(self):
         manifest = self.capture()
         self.assertEqual(manifest['eligibility'], 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
