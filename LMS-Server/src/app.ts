@@ -62,6 +62,7 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 import { authenticate } from './middleware/auth.js';
 import { requirePermission } from './middleware/rbac.js';
+import { writerHoldGuard } from './middleware/writerHoldGuard.js';
 
 dotenv.config();
 
@@ -115,6 +116,9 @@ app.use(cors({
 
 // Request tracing — adds x-request-id to all requests
 app.use(requestLogger);
+
+// Writer hold (AUTH-14) — before webhooks, parsers and every route
+app.use(writerHoldGuard);
 
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 

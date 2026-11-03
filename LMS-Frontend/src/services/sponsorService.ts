@@ -185,13 +185,13 @@ export const sponsorService = {
     if (dateRange?.to) params.to = dateRange.to;
     if (scope) params.scope = scope;
     const res = await api.get<{ success: boolean; data: BillingRaw }>('/sponsor/billing', { params });
-    const raw = res.data.data;
+    const raw = assertApiSuccess(res, 'Failed to load billing history');
     return {
       payments: raw.payments.map((p) => ({
         id: p.id,
         courseId: p.course_id,
-        courseName: p.course_name,
-        payerName: p.payer_name,
+        courseName: p.course_name ?? undefined,
+        payerName: p.payer_name ?? undefined,
         amountCents: p.amount_cents,
         currency: p.currency,
         paymentMethod: p.payment_method,

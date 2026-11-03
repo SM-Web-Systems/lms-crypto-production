@@ -13,7 +13,7 @@ import { ErrorCodes } from '../types/index.js';
 import { execute, query, queryOne } from '../config/database.js';
 import {
   createReward,
-  fundReward,
+  fundRewardAsync,
   activateReward,
   approveReward,
   cancelReward,
@@ -25,6 +25,8 @@ import {
   getRewardTransactions,
 } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
+import { validateScope } from '../services/rewards/rewardScopeService.js';
+import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
 
@@ -329,9 +331,9 @@ router.post(
   '/employer/rewards/:id/fund',
   authenticate,
   requirePermission('reward.fund'),
-  (req: AuthRequest, res: Response): void => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const reward = fundReward(
+      const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
         { type: req.body.sourceType, reference: req.body.reference },
@@ -401,7 +403,8 @@ router.post(
   requirePermission('reward.release'),
   (req: AuthRequest, res: Response): void => {
     try {
-      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
       res.json({ success: true, data: allocation });
     } catch (err) {
       handleRewardError(err, res);
@@ -416,7 +419,8 @@ router.post(
   requirePermission('reward.refund'),
   (req: AuthRequest, res: Response): void => {
     try {
-      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
       if ('blocked' in result) {
         res.status(409).json({ success: false, data: result });
         return;
@@ -459,6 +463,13 @@ router.get(
       res.status(404).json({ success: false, error: { message: 'Reward not found' } });
       return;
     }
+    // W02: Scope validation — admin bypass, otherwise verify ownership. 404 contract.
+    if (!req._permissions!.has('reward.manage')) {
+      if (!validateScope(req.user!.userId, reward.scope_type as ScopeType, reward.scope_id)) {
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+        return;
+      }
+    }
     res.json({ success: true, data: reward });
   },
 );
@@ -469,6 +480,17 @@ router.get(
   authenticate,
   requirePermission('reward.view_assigned'),
   (req: AuthRequest, res: Response): void => {
+    const reward = getReward(req.params.id);
+    if (!reward) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+    if (!req._permissions!.has('reward.manage')) {
+      if (!validateScope(req.user!.userId, reward.scope_type as ScopeType, reward.scope_id)) {
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+        return;
+      }
+    }
     const allocations = getRewardAllocations(req.params.id);
     res.json({ success: true, data: allocations });
   },
@@ -480,6 +502,17 @@ router.get(
   authenticate,
   requirePermission('reward.view_assigned'),
   (req: AuthRequest, res: Response): void => {
+    const reward = getReward(req.params.id);
+    if (!reward) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+    if (!req._permissions!.has('reward.manage')) {
+      if (!validateScope(req.user!.userId, reward.scope_type as ScopeType, reward.scope_id)) {
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+        return;
+      }
+    }
     const transactions = getRewardTransactions(req.params.id);
     res.json({ success: true, data: transactions });
   },
