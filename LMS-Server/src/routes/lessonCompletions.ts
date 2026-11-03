@@ -21,6 +21,7 @@ import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem, parseFlatSections } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -143,7 +144,10 @@ router.post(
       return;
     }
 
-    // P1.3: Atomic transaction — primary write + outbox event commit together
+    // P1.3: Atomic transaction — primary write + outbox event commit together.
+    // W04: course_completion event is only produced when isCourseCompleteForReward
+    // returns true AFTER the lesson write, ensuring the outbox event reflects
+    // genuine completion and not a premature per-lesson trigger.
     const atomicWrite = db.transaction(() => {
       execute(
         `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
@@ -154,7 +158,10 @@ router.post(
         [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
       );
 
-      produceOutboxEvent('course_completion', courseId, callerId, { itemId, sectionId });
+      // W04: Only emit course_completion when the course is genuinely complete.
+      if (isCourseCompleteForReward(callerId, courseId)) {
+        produceOutboxEvent('course_completion', courseId, callerId);
+      }
     });
 
     try {
@@ -289,14 +296,41 @@ router.post(
       return;
     }
 
-    execute(
-      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
-       VALUES (?, ?, ?, ?, ?, ?, 100)
-       ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
-       WHERE completed_at IS NULL`,
-      [uuidv4(), userId, courseId, itemId, sectionId, callerId]
-    );
+    // W04-R1 F1: Atomic transaction — primary write + course_completion outbox event
+    const staffMarkWrite = db.transaction(() => {
+      execute(
+        `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+         VALUES (?, ?, ?, ?, ?, ?, 100)
+         ON CONFLICT (user_id, course_id, item_id)
+         DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+         WHERE completed_at IS NULL`,
+        [uuidv4(), userId, courseId, itemId, sectionId, callerId]
+      );
+
+      // W04-R1 F1: Only emit course_completion when the TARGET LEARNER's course is genuinely complete.
+      // Use userId (the learner) not callerId (the staff reviewer) — critical identity invariant.
+      if (isCourseCompleteForReward(userId, courseId)) {
+        produceOutboxEvent('course_completion', courseId, userId);
+      }
+    });
+
+    try {
+      staffMarkWrite();
+    } catch (err) {
+      logger.error({ module: 'staff-lesson-completion', err, courseId, userId }, 'Atomic staff lesson completion + outbox write failed');
+      res.status(500).json({
+        success: false,
+        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Failed to complete lesson' },
+      });
+      return;
+    }
+
+    // Process pending outbox events (retryable, outside transaction)
+    try {
+      processPendingEvents();
+    } catch (err) {
+      logger.error({ module: 'reward-eligibility', err, courseId, userId }, 'Reward event processing failed');
+    }
 
     res.json({ success: true, data: { userId, courseId, itemId, sectionId } });
   }

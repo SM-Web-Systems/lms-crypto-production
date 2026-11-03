@@ -7,7 +7,7 @@ import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
 import {
   createReward,
-  fundReward,
+  fundRewardAsync,
   activateReward,
   approveReward,
   cancelReward,
@@ -19,6 +19,7 @@ import {
   getRewardTransactions,
 } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
+import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
@@ -273,9 +274,19 @@ function handleRewardError(err: unknown, res: Response): void {
   }
 }
 
-function resolveParentScopeType(targetType?: string): ScopeType {
-  if (targetType === 'family') return 'parent_family';
-  return 'parent_child';
+// W06: Validate and resolve parent targetType discriminator.
+// Accepts: undefined (omitted) → parent_child (legacy); 'child' → parent_child; 'family' → parent_family.
+// Any explicitly supplied invalid value → controlled 400 INVALID_TARGET_TYPE.
+// Does NOT coerce, String(), serialize, or invoke hooks on rejected input.
+function resolveParentScopeType(rawTargetType: unknown): ScopeType {
+  if (rawTargetType === undefined) return 'parent_child';
+  if (rawTargetType === 'child')   return 'parent_child';
+  if (rawTargetType === 'family')  return 'parent_family';
+  throw new RewardError(
+    'INVALID_TARGET_TYPE',
+    'Invalid target type. Accepted values: child, family',
+    400,
+  );
 }
 
 // POST /parent/rewards — create draft reward with target_type
@@ -301,9 +312,9 @@ router.post('/parent/rewards', authenticate, requirePermission('reward.create'),
 });
 
 // POST /parent/rewards/:id/fund
-router.post('/parent/rewards/:id/fund', authenticate, requirePermission('reward.fund'), (req: AuthRequest, res: Response): void => {
+router.post('/parent/rewards/:id/fund', authenticate, requirePermission('reward.fund'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const reward = fundReward(req.params.id, req.user!.userId,
+    const reward = await fundRewardAsync(req.params.id, req.user!.userId,
       { type: req.body.sourceType, reference: req.body.reference },
       req.body.idempotencyKey);
     res.json({ success: true, data: reward });
@@ -345,7 +356,8 @@ router.post('/parent/rewards/:id/approve', authenticate, requirePermission('rewa
 // POST /parent/rewards/:id/allocations/:allocId/release
 router.post('/parent/rewards/:id/allocations/:allocId/release', authenticate, requirePermission('reward.release'), (req: AuthRequest, res: Response): void => {
   try {
-    const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+    // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+    const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
     res.json({ success: true, data: allocation });
   } catch (err) {
     handleRewardError(err, res);
@@ -356,7 +368,8 @@ router.post('/parent/rewards/:id/allocations/:allocId/release', authenticate, re
 router.get('/parent/rewards', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
   try {
     const scopeId = req.query.scopeId as string;
-    const scopeType = resolveParentScopeType(req.query.targetType as string);
+    // W06: pass raw query value — resolveParentScopeType handles all shapes (string/array/object/undefined)
+    const scopeType = resolveParentScopeType(req.query.targetType);
     if (!scopeId) {
       res.status(400).json({ success: false, error: { message: 'scopeId required' } });
       return;
@@ -372,16 +385,39 @@ router.get('/parent/rewards', authenticate, requirePermission('reward.view_assig
 router.get('/parent/rewards/:id', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
   const reward = getReward(req.params.id);
   if (!reward) { res.status(404).json({ success: false, error: { message: 'Reward not found' } }); return; }
+  // W02: Scope validation — admin bypass, otherwise verify ownership. 404 contract.
+  if (!req._permissions!.has('reward.manage')) {
+    if (!validateScope(req.user!.userId, reward.scope_type as ScopeType, reward.scope_id)) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+  }
   res.json({ success: true, data: reward });
 });
 
 // GET /parent/rewards/:id/allocations
 router.get('/parent/rewards/:id/allocations', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  const reward = getReward(req.params.id);
+  if (!reward) { res.status(404).json({ success: false, error: { message: 'Reward not found' } }); return; }
+  if (!req._permissions!.has('reward.manage')) {
+    if (!validateScope(req.user!.userId, reward.scope_type as ScopeType, reward.scope_id)) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+  }
   res.json({ success: true, data: getRewardAllocations(req.params.id) });
 });
 
 // GET /parent/rewards/:id/transactions
 router.get('/parent/rewards/:id/transactions', authenticate, requirePermission('reward.view_assigned'), (req: AuthRequest, res: Response): void => {
+  const reward = getReward(req.params.id);
+  if (!reward) { res.status(404).json({ success: false, error: { message: 'Reward not found' } }); return; }
+  if (!req._permissions!.has('reward.manage')) {
+    if (!validateScope(req.user!.userId, reward.scope_type as ScopeType, reward.scope_id)) {
+      res.status(404).json({ success: false, error: { message: 'Reward not found' } });
+      return;
+    }
+  }
   res.json({ success: true, data: getRewardTransactions(req.params.id) });
 });
 

@@ -131,7 +131,7 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
   });
 
   describe('Cross-sponsor denial (core WI-04 gap)', () => {
-    it('sponsor A cannot retrieve sponsor B\'s reward → 403', async () => {
+    it('sponsor A cannot retrieve sponsor B\'s reward → 404', async () => {
       const ids = seedSponsorIsolation();
       const token = makeToken({ userId: ids.sponsorAId, email: `wi04-spa-${ids.sponsorAId}@test.com`, role: 'student' });
 
@@ -139,10 +139,11 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
         .get(`/api/v1/sponsor/rewards/${ids.rewardBId}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.status).toBe(403);
+      // W02: 404 contract — do not confirm existence to unauthorized actors
+      expect(res.status).toBe(404);
     });
 
-    it('sponsor B cannot retrieve sponsor A\'s reward → 403', async () => {
+    it('sponsor B cannot retrieve sponsor A\'s reward → 404', async () => {
       const ids = seedSponsorIsolation();
       const token = makeToken({ userId: ids.sponsorBId, email: `wi04-spb-${ids.sponsorBId}@test.com`, role: 'student' });
 
@@ -150,7 +151,8 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
         .get(`/api/v1/sponsor/rewards/${ids.rewardAId}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.status).toBe(403);
+      // W02: 404 contract — do not confirm existence to unauthorized actors
+      expect(res.status).toBe(404);
     });
   });
 
@@ -201,7 +203,7 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
   });
 
   describe('Adjacent endpoints — allocations and transactions isolation', () => {
-    it('sponsor A cannot view sponsor B\'s reward allocations → 403', async () => {
+    it('sponsor A cannot view sponsor B\'s reward allocations → 404', async () => {
       const ids = seedSponsorIsolation();
       const token = makeToken({ userId: ids.sponsorAId, email: `wi04-spa-${ids.sponsorAId}@test.com`, role: 'student' });
 
@@ -209,10 +211,11 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
         .get(`/api/v1/sponsor/rewards/${ids.rewardBId}/allocations`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.status).toBe(403);
+      // W02: 404 contract — do not confirm existence to unauthorized actors
+      expect(res.status).toBe(404);
     });
 
-    it('sponsor A cannot view sponsor B\'s reward transactions → 403', async () => {
+    it('sponsor A cannot view sponsor B\'s reward transactions → 404', async () => {
       const ids = seedSponsorIsolation();
       const token = makeToken({ userId: ids.sponsorAId, email: `wi04-spa-${ids.sponsorAId}@test.com`, role: 'student' });
 
@@ -220,7 +223,8 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
         .get(`/api/v1/sponsor/rewards/${ids.rewardBId}/transactions`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.status).toBe(403);
+      // W02: 404 contract — do not confirm existence to unauthorized actors
+      expect(res.status).toBe(404);
     });
 
     it('admin can view any reward allocations → 200', async () => {
@@ -236,7 +240,7 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
   });
 
   describe('Role/scope edge cases', () => {
-    it('student (no reward.view_assigned) is denied → 403', async () => {
+    it('student (has reward.view_assigned but no scope) is denied → 404', async () => {
       const ids = seedSponsorIsolation();
       const token = makeToken({ userId: ids.studentId, email: `wi04-student-${ids.studentId}@test.com`, role: 'student' });
 
@@ -244,7 +248,9 @@ describe('WI-04 — Sponsor reward isolation (GET /sponsor/rewards/:id)', () => 
         .get(`/api/v1/sponsor/rewards/${ids.rewardAId}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.status).toBe(403);
+      // W02: Student has reward.view_assigned (passes middleware) but no scope
+      // access to the sponsor cohort. 404 contract applies.
+      expect(res.status).toBe(404);
     });
   });
 });

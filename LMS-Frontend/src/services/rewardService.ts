@@ -20,6 +20,14 @@ export type AllocationState = 'pending' | 'eligible' | 'released' | 'cancelled' 
 
 export type ScopeType = 'sponsor_cohort' | 'employer_team' | 'parent_child' | 'parent_family' | 'teacher_class';
 
+// W05: Canonical reward types must mirror the backend DB CHECK constraint exactly.
+// course_completion and grade are valid DB types but require eligibilityConfig inputs
+// (course/grade binding) not present in the current creation form.
+// FOLLOW-UP(course-grade-form-inputs): add requiredCourseId/grade-config fields to expose them.
+// This is separate from W06 (parent child/family targeting discriminator).
+export const REWARD_TYPES = ['individual', 'milestone', 'course_completion', 'grade', 'custom'] as const;
+export type RewardType = typeof REWARD_TYPES[number];
+
 export interface Reward {
   id: string;
   creator_user_id: string;
@@ -76,9 +84,13 @@ export interface StudentReward {
   createdAt: string;
 }
 
+// W06: Parent-only discriminator. Optional to preserve backward compatibility
+// for omitted-child callers and non-parent roles.
+export type ParentTargetType = 'child' | 'family';
+
 export interface CreateRewardParams {
   scopeId: string;
-  rewardType: string;
+  rewardType: RewardType;
   amountStroops: string;
   maxRecipients?: number;
   autoRelease?: boolean;
@@ -86,6 +98,8 @@ export interface CreateRewardParams {
   eligibilityConfig?: Record<string, unknown>;
   expiresAt?: string;
   idempotencyKey: string;
+  /** W06: parent role only. 'child' or 'family'. Omit for legacy parent_child behavior. */
+  targetType?: ParentTargetType;
 }
 
 type ApiRes<T> = { success: boolean; data: T };
@@ -106,10 +120,10 @@ function prefix(role: string): string {
 // ──── Service ────
 
 export const rewardService = {
-  /** List rewards for a scope */
-  async listRewards(role: string, scopeId: string): Promise<Reward[]> {
+  /** List rewards for a scope. targetType is parent-role only: 'child' or 'family'. */
+  async listRewards(role: string, scopeId: string, targetType?: ParentTargetType): Promise<Reward[]> {
     const res = await api.get<ApiRes<Reward[]>>(`${prefix(role)}/rewards`, {
-      params: { scopeId },
+      params: targetType !== undefined ? { scopeId, targetType } : { scopeId },
     });
     return res.data.data;
   },
