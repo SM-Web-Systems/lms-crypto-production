@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
-import { query, queryOne, execute } from '../config/database.js';
+import { query, queryOne, execute, hashToken } from '../config/database.js';
 import { AuthRequest } from '../types/index.js';
 
 const router = Router();
@@ -33,7 +33,8 @@ router.get('/sessions', authenticate, (req: AuthRequest, res: Response) => {
     "SELECT id, ip_address, user_agent, created_at, last_active, expires_at FROM active_sessions WHERE user_id = ? AND expires_at > datetime('now') AND revoked_at IS NULL ORDER BY last_active DESC",
     [userId],
   );
-  res.json({ success: true, data: { sessions } });
+  const current = queryOne<{id: string}>('SELECT id FROM active_sessions WHERE token_hash = ? AND user_id = ?', [hashToken(req.headers.authorization!.slice(7)), userId]);
+  res.json({ success: true, data: { sessions: sessions.map(session => ({ ...session, current: session.id === current?.id })) } });
 });
 
 /**
@@ -66,8 +67,8 @@ router.delete('/sessions/:id', authenticate, (req: AuthRequest, res: Response) =
     res.status(404).json({ success: false, error: { message: 'Session not found' } });
     return;
   }
-  // Hard-delete own session — user is voluntarily logging out of this device
-  execute('DELETE FROM active_sessions WHERE id = ?', [id]);
+  // Keep the tombstone: a missing row is accepted for legacy tokens by authenticate().
+  execute("UPDATE active_sessions SET revoked_at = datetime('now') WHERE id = ?", [id]);
   res.json({ success: true, data: { message: 'Session revoked' } });
 });
 

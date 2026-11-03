@@ -69,6 +69,34 @@ docker compose up --build
 - Prefer **server scripts** in `LMS-Server/package.json` (`db:init`, migrations) when they exist.
 - For **one-off** inspection or repair on the host, use the `sqlite3` CLI against the file path in **`DATABASE_PATH`**, with a **backup copy** first. Document any manual migration in team notes so the next deploy repeats the same steps.
 
+## Smoke tests (`scripts/smoke-test.sh`)
+
+Post-deploy read-only health checks. Called automatically by `deploy.sh` and by the GitHub Actions deploy workflow.
+
+**Environment variable:** `SMOKE_BASE_URL` — API base URL including the `/api/v1` prefix.
+
+| Scenario | Command |
+|----------|---------|
+| Production (default) | `./scripts/smoke-test.sh` |
+| Local development | `SMOKE_BASE_URL=http://localhost:3001/api/v1 ./scripts/smoke-test.sh` |
+| Staging | `SMOKE_BASE_URL=https://staging.example.com/api/v1 ./scripts/smoke-test.sh` |
+
+Default: `https://lms.smwebsystems.com/api/v1`
+
+**Checks performed** (all unauthenticated, read-only):
+
+1. `GET /api/v1/health` → 200
+2. `GET /api/v1/health` → `.status` = `"ok"`
+3. `GET /api/v1/health` → `.checks.db.status` = `"ok"`
+4. `GET /api/v1/courses` → 401 (auth enforced, route alive)
+5. `GET /api/v1/health` → `.buildSha` present
+
+**Exit codes:** `0` = all pass, `1` = any failure.
+
+**Limitation:** The root-level `/healthz` readiness probe is not checked because it is not routable through the nginx reverse proxy under `/api/v1`. Docker's container-level healthcheck handles readiness.
+
+**Verification suite:** `./scripts/smoke-test-verify.sh` — tests URL resolution, trailing-slash handling, exit codes, and safety without making production requests.
+
 ## Vite local config
 
 - **`LMS-Frontend/vite.config.ts`** is committed with **`server.host`**, **`preview`**, and **`allowedHosts`** (plus optional **`VITE_DEV_ALLOWED_HOSTS`**). Avoid maintaining a second, unpushed copy of this file so `git pull` stays clean.

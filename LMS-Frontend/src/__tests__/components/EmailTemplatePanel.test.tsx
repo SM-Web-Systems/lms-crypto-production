@@ -122,4 +122,72 @@ describe('EmailTemplatePanel', () => {
       expect(screen.getByTestId('template-preview')).toBeInTheDocument();
     });
   });
+
+  // SEC-XSS-02a: script tags in preview HTML are stripped by DOMPurify
+  it('SEC-XSS-02a — script tags in preview HTML are stripped', async () => {
+    const user = userEvent.setup();
+    mockPreviewTemplate.mockResolvedValue({
+      subject: 'Test Subject',
+      html: '<p>Safe content</p><script>alert("xss")</script>',
+    });
+    render(<EmailTemplatePanel />);
+    await waitFor(() => expect(screen.getByText('Course Enrollment')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('template-row-enrollment'));
+    await waitFor(() => expect(screen.getByTestId('btn-preview-template')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('btn-preview-template'));
+    await waitFor(() => {
+      const preview = screen.getByTestId('template-preview');
+      expect(preview).toBeInTheDocument();
+      expect(preview.querySelector('script')).toBeNull();
+      expect(screen.getByText('Safe content')).toBeInTheDocument();
+    });
+  });
+
+  // SEC-XSS-02b: event handler attributes in preview HTML are stripped
+  it('SEC-XSS-02b — event handler attributes in preview HTML are stripped', async () => {
+    const user = userEvent.setup();
+    mockPreviewTemplate.mockResolvedValue({
+      subject: 'Test Subject',
+      html: '<img src="x" onerror="alert(1)"><p>Legitimate</p>',
+    });
+    render(<EmailTemplatePanel />);
+    await waitFor(() => expect(screen.getByText('Course Enrollment')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('template-row-enrollment'));
+    await waitFor(() => expect(screen.getByTestId('btn-preview-template')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('btn-preview-template'));
+    await waitFor(() => {
+      const preview = screen.getByTestId('template-preview');
+      const img = preview.querySelector('img');
+      if (img) {
+        expect(img.getAttribute('onerror')).toBeNull();
+      }
+      expect(screen.getByText('Legitimate')).toBeInTheDocument();
+    });
+  });
+
+  // SEC-XSS-02c: legitimate email HTML in preview is preserved
+  it('SEC-XSS-02c — legitimate email HTML in preview is preserved', async () => {
+    const user = userEvent.setup();
+    mockPreviewTemplate.mockResolvedValue({
+      subject: 'Welcome',
+      html: '<h2>Welcome</h2><p><strong>Bold</strong> and <a href="https://example.com">Link</a></p>',
+    });
+    render(<EmailTemplatePanel />);
+    await waitFor(() => expect(screen.getByText('Course Enrollment')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('template-row-enrollment'));
+    await waitFor(() => expect(screen.getByTestId('btn-preview-template')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('btn-preview-template'));
+    await waitFor(() => {
+      const preview = screen.getByTestId('template-preview');
+      expect(preview.querySelector('h2')).not.toBeNull();
+      expect(preview.querySelector('strong')).not.toBeNull();
+      expect(preview.querySelector('a[href="https://example.com"]')).not.toBeNull();
+    });
+  });
 });

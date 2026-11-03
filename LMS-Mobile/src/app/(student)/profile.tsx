@@ -3,6 +3,8 @@ import { View, Text, ScrollView, Pressable, Alert, RefreshControl, Linking } fro
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { WebHandoffButton } from '@/components/WebHandoffButton';
 import { useAuth } from '@/context/AuthContext';
 import { profileService } from '@/services/profileService';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +25,7 @@ function initials(name: string): string {
 
 export default function ProfileScreen() {
   const { user, updateUser, logout } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -189,6 +192,14 @@ export default function ProfileScreen() {
       </Card>
 
       <Button label={saving ? 'Saving…' : 'Save profile'} onPress={handleSave} disabled={saving} loading={saving} />
+      <Card>
+        <CardTitle className="mb-3">Account and workspaces</CardTitle>
+        <Button label="Account and security" onPress={()=>router.push('/account')} />
+        <Button label="Your workspaces" variant="outline" onPress={()=>router.push('/workspace')} />
+        {user.permissions?.includes('billing.view_own') ? <WebHandoffButton path="/student/payments" label="Payments on web"/> : null}
+        {user.permissions?.includes('reward.view_own') ? <WebHandoffButton path="/student/rewards" label="Rewards on web"/> : null}
+        <WebHandoffButton path="/student" label="Wallet setup on web"/>
+      </Card>
       <Button label="Sign out" variant="outline" onPress={logout} />
     </ScrollView>
   );

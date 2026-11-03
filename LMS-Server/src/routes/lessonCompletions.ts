@@ -12,13 +12,16 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireCourseScope, getUserPermissions } from '../middleware/rbac.js';
+import { canAccessCourse } from '../services/courseAccessService.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { findSectionForItem, parseFlatSections } from '../utils/courseHelpers.js';
 import { createNotification } from '../services/notificationService.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -105,7 +108,7 @@ router.post(
   authenticate,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(callerId));
     const { courseId, itemId } = req.params;
 
     const course = queryOne<{ id: string; course_code: string; sections: string }>(
@@ -120,19 +123,10 @@ router.post(
       return;
     }
 
-    // Students must be enrolled in the course
-    if (role === 'student') {
-      const enrolled = queryOne<{ user_id: string }>(
-        'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?',
-        [callerId, course.course_code]
-      );
-      if (!enrolled) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'Not enrolled in this course' },
-        });
-        return;
-      }
+    if (!permissions.has('course.view') || !(canAccessCourse(callerId, courseId, permissions, 'enrolled')
+      || canAccessCourse(callerId, courseId, permissions, 'staff'))) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'You do not have learning access to this course' } });
+      return;
     }
 
     const sectionId = findSectionForItem(course.sections, itemId);
@@ -144,7 +138,16 @@ router.post(
       return;
     }
 
-    // P1.3: Atomic transaction — primary write + outbox event commit together
+    const item = parseFlatSections(course.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+    if (item?.type === 'quiz' || item?.type === 'assignment') {
+      res.status(409).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Assessment lessons complete after a quiz pass or instructor approval' } });
+      return;
+    }
+
+    // P1.3: Atomic transaction — primary write + outbox event commit together.
+    // W04: course_completion event is only produced when isCourseCompleteForReward
+    // returns true AFTER the lesson write, ensuring the outbox event reflects
+    // genuine completion and not a premature per-lesson trigger.
     const atomicWrite = db.transaction(() => {
       execute(
         `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
@@ -155,7 +158,10 @@ router.post(
         [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
       );
 
-      produceOutboxEvent('course_completion', courseId, callerId, { itemId, sectionId });
+      // W04: Only emit course_completion when the course is genuinely complete.
+      if (isCourseCompleteForReward(callerId, courseId)) {
+        produceOutboxEvent('course_completion', courseId, callerId);
+      }
     });
 
     try {
@@ -252,7 +258,7 @@ router.post(
   '/courses/:courseId/students/:userId/lessons/:itemId/complete',
   authenticate,
   requirePermission('course.grade'),
-  requireCourseAccess,
+  requireCourseScope,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;
     const { courseId, userId, itemId } = req.params;
@@ -290,14 +296,41 @@ router.post(
       return;
     }
 
-    execute(
-      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
-       VALUES (?, ?, ?, ?, ?, ?, 100)
-       ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
-       WHERE completed_at IS NULL`,
-      [uuidv4(), userId, courseId, itemId, sectionId, callerId]
-    );
+    // W04-R1 F1: Atomic transaction — primary write + course_completion outbox event
+    const staffMarkWrite = db.transaction(() => {
+      execute(
+        `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+         VALUES (?, ?, ?, ?, ?, ?, 100)
+         ON CONFLICT (user_id, course_id, item_id)
+         DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+         WHERE completed_at IS NULL`,
+        [uuidv4(), userId, courseId, itemId, sectionId, callerId]
+      );
+
+      // W04-R1 F1: Only emit course_completion when the TARGET LEARNER's course is genuinely complete.
+      // Use userId (the learner) not callerId (the staff reviewer) — critical identity invariant.
+      if (isCourseCompleteForReward(userId, courseId)) {
+        produceOutboxEvent('course_completion', courseId, userId);
+      }
+    });
+
+    try {
+      staffMarkWrite();
+    } catch (err) {
+      logger.error({ module: 'staff-lesson-completion', err, courseId, userId }, 'Atomic staff lesson completion + outbox write failed');
+      res.status(500).json({
+        success: false,
+        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Failed to complete lesson' },
+      });
+      return;
+    }
+
+    // Process pending outbox events (retryable, outside transaction)
+    try {
+      processPendingEvents();
+    } catch (err) {
+      logger.error({ module: 'reward-eligibility', err, courseId, userId }, 'Reward event processing failed');
+    }
 
     res.json({ success: true, data: { userId, courseId, itemId, sectionId } });
   }
@@ -341,11 +374,11 @@ router.put(
   authenticate,
   (req: AuthRequest, res: Response): void => {
     const callerId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(callerId));
     const { courseId, itemId } = req.params;
     const { positionSeconds, progressPercent } = req.body;
 
-    if (typeof positionSeconds !== 'number' || !Number.isInteger(positionSeconds) || positionSeconds < 0) {
+    if (typeof positionSeconds !== 'number' || !Number.isSafeInteger(positionSeconds) || positionSeconds < 0) {
       res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'positionSeconds must be an integer >= 0' } });
       return;
     }
@@ -361,13 +394,10 @@ router.put(
       return;
     }
 
-    if (role === 'student') {
-      const enrolled = queryOne<{ user_id: string }>(
-        'SELECT user_id FROM user_course_codes WHERE user_id = ? AND course_code = ?', [callerId, course.course_code]);
-      if (!enrolled) {
-        res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not enrolled in this course' } });
-        return;
-      }
+    if (!permissions.has('course.view') || !(canAccessCourse(callerId, courseId, permissions, 'enrolled')
+      || canAccessCourse(callerId, courseId, permissions, 'staff'))) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'You do not have learning access to this course' } });
+      return;
     }
 
     const sectionId = findSectionForItem(course.sections, itemId);
@@ -376,11 +406,19 @@ router.put(
       return;
     }
 
+    const item = parseFlatSections(course.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+    if (item?.type === 'quiz' || item?.type === 'assignment') {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Playback progress is not supported for assessments' } });
+      return;
+    }
+
     execute(
       `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, completed_at, progress_pct, last_position_s)
        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
        ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET progress_pct = excluded.progress_pct, last_position_s = excluded.last_position_s`,
+       DO UPDATE SET progress_pct = CASE WHEN completed_at IS NOT NULL THEN 100
+         ELSE MAX(COALESCE(progress_pct, 0), excluded.progress_pct) END,
+         last_position_s = excluded.last_position_s`,
       [uuidv4(), callerId, courseId, itemId, sectionId, callerId, progressPercent, positionSeconds]
     );
 
@@ -416,7 +454,7 @@ router.get(
   authenticate,
   async (req: AuthRequest, res: Response): Promise<void> => {
     const callerId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(callerId));
     const { courseId } = req.params;
 
     const course = queryOne<{ id: string }>(
@@ -431,6 +469,10 @@ router.get(
       return;
     }
 
+    if (!permissions.has('course.view') || !canAccessCourse(callerId, courseId, permissions)) {
+      res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'You do not have access to this course'}});
+      return;
+    }
     type CompletionRow = {
       user_id: string;
       course_id: string;
@@ -442,58 +484,14 @@ router.get(
       last_position_s: number | null;
     };
 
-    let completions: CompletionRow[];
-
-    if (role === 'student') {
-      completions = query<CompletionRow>(
-        `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-         FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
-        [callerId, courseId]
-      );
-    } else if (role === 'lecturer') {
-      // Must be assigned to this course
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [courseId, callerId]
-      );
-      if (!assigned) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'Not assigned to this course' },
-        });
-        return;
-      }
-      const filterUserId = req.query['userId'] as string | undefined;
-      if (filterUserId) {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
-          [filterUserId, courseId]
-        );
-      } else {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE course_id = ? ORDER BY completed_at`,
-          [courseId]
-        );
-      }
-    } else {
-      // admin
-      const filterUserId = req.query['userId'] as string | undefined;
-      if (filterUserId) {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE user_id = ? AND course_id = ? ORDER BY completed_at`,
-          [filterUserId, courseId]
-        );
-      } else {
-        completions = query<CompletionRow>(
-          `SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s
-           FROM lesson_completions WHERE course_id = ? ORDER BY completed_at`,
-          [courseId]
-        );
-      }
-    }
+    const staff = (permissions.has('course.grade') || permissions.has('course.grade_pending') || permissions.has('course.delete'))
+      && canAccessCourse(callerId, courseId, permissions, 'staff');
+    const filterUserId = !staff || req.query.view === 'own' ? callerId : req.query.userId;
+    const completions = query<CompletionRow>(
+      'SELECT user_id, course_id, item_id, section_id, completed_at, marked_by, progress_pct, last_position_s FROM lesson_completions WHERE course_id = ?'
+        + (filterUserId ? ' AND user_id = ?' : '') + ' ORDER BY completed_at',
+      filterUserId ? [courseId, filterUserId] : [courseId]
+    );
 
     res.json({ success: true, data: { completions } });
   }

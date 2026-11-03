@@ -26,7 +26,7 @@ const LecturerDashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await courseService.fetchCourses();
+      const list = await courseService.fetchCourses({access: 'manage'});
       setCourses(list);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load courses.'));

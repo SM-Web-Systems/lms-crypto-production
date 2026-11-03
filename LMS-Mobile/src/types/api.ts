@@ -1,13 +1,10 @@
-// User Types
-export type UserRole = 'student' | 'admin';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  /** Course codes the user can access (students). When backend supports this, include in auth/me. */
-  courseCodes?: string[];
+// The API supplies effective workspaces and permissions independently of the legacy role.
+import type { User as WebUser } from '../../../LMS-Frontend/src/types/api';
+export type { Workspace } from '../../../LMS-Frontend/src/types/api';
+export type UserRole = WebUser['role'];
+export interface User extends Omit<WebUser, 'walletAddress' | 'walletLinkingStatus'> {
+  walletAddress?: WebUser['walletAddress'];
+  walletLinkingStatus?: WebUser['walletLinkingStatus'];
 }
 
 export interface LoginResponse {
@@ -59,6 +56,9 @@ export interface UpdateStudentData {
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Submission {
+  courseId?: string;
+  weekId?: string;
+  itemId?: string;
   id: string;
   studentId: string;
   studentName: string;
@@ -77,6 +77,9 @@ export interface Submission {
 }
 
 export interface CreateSubmissionData {
+  courseId?: string;
+  weekId?: string;
+  itemId?: string;
   title: string;
   description: string;
   file: NativeFile;
@@ -141,6 +144,8 @@ export interface StudentQueryParams {
 }
 
 export interface SubmissionQueryParams {
+  view?: 'own';
+  courseId?: string;
   page?: number;
   limit?: number;
   status?: SubmissionStatus;

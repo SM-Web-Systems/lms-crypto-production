@@ -47,8 +47,20 @@ interface CertEligibilitySectionProps {
   userWalletAddress: string | null | undefined;
   courses: Course[];
   coursesLoading: boolean;
+  // W09-R3: when set, show error + retry instead of silently hiding the section.
+  coursesError?: string | null;
+  onRetryLoadCourses?: () => void;
   progressMap: Record<string, CourseProgress>;
+  // W09-R3: course IDs for which getCourseProgress failed; prevents false "not_eligible" claim.
+  progressErrorIds?: Set<string>;
   appStatusMap: Record<string, NftApplication | null>;
+  // W09-R4: course IDs for which getCourseApplications failed; prevents unknown status from
+  // being treated as "no application" and suppresses "Request certificate" action.
+  appErrorIds?: Set<string>;
+  // W09-R5: course IDs whose application fetch is currently in flight (retry pending).
+  // Distinct from appErrorIds — a retry in flight must also suppress the button and handler.
+  appLoadingIds?: Set<string>;
+  onRetryLoadApplications?: () => void;
   onAppStatusChange: (courseId: string, app: NftApplication) => void;
 }
 
@@ -56,14 +68,23 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
   userWalletAddress,
   courses,
   coursesLoading,
+  coursesError,
+  onRetryLoadCourses,
   progressMap,
+  progressErrorIds,
   appStatusMap,
+  appErrorIds,
+  appLoadingIds,
+  onRetryLoadApplications,
   onAppStatusChange,
 }) => {
   const [certState, setCertState] = useState<Record<string, 'idle' | 'loading' | 'applied' | 'error'>>({});
   const [certErrors, setCertErrors] = useState<Record<string, string>>({});
 
   const handleApplyCertificate = async (courseId: string) => {
+    // W09-R4/R5: enforce action gate — do not apply when application status is unknown.
+    // appErrorIds: fetch failed; appLoadingIds: retry in flight. Both mean status unknown.
+    if (appErrorIds?.has(courseId) || appLoadingIds?.has(courseId)) return;
     setCertState((s) => ({ ...s, [courseId]: 'loading' }));
     setCertErrors((e) => ({ ...e, [courseId]: '' }));
     try {
@@ -77,7 +98,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
         const status = (e as { response?: { status?: number } }).response?.status;
         if (status === 409) {
           // Re-fetch the existing application so UI reflects real server state
-          courseCompletionService.getCourseApplications(courseId)
+          courseCompletionService.getCourseApplications(courseId, 'own')
             .then((apps) => {
               if (apps.length > 0) onAppStatusChange(courseId, apps[0]);
             })
@@ -93,6 +114,30 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
 
   if (coursesLoading) {
     return <CertEligibilitySkeleton />;
+  }
+
+  // W09-R3: show error + retry instead of silently returning null when courses failed to load.
+  if (coursesError) {
+    return (
+      <section>
+        <h2 className="text-lg font-bold text-neutral-900 mb-4">Certificate eligibility</h2>
+        <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900" role="alert">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
+          <div className="flex-1">
+            <p className="text-sm">{coursesError}</p>
+            {onRetryLoadCourses && (
+              <button
+                type="button"
+                onClick={onRetryLoadCourses}
+                className="mt-2 text-xs font-medium underline hover:no-underline"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+    );
   }
 
   if (courses.length === 0) {
@@ -121,6 +166,22 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
           const state = certState[course.id] ?? 'idle';
           const certErr = certErrors[course.id];
           const appStatus = appStatusMap[course.id];
+          // W09-R3: if progress data failed to load, do not claim not_eligible.
+          // Known app status (pending/approved/etc.) is still reliable even if progress failed.
+          const progressFailed = progressErrorIds?.has(course.id) ?? false;
+          // W09-R4: application fetch failed — status is unknown; cannot confirm "no application".
+          const appFailed = appErrorIds?.has(course.id) ?? false;
+          // W09-R5: application retry in flight — status still unknown during window.
+          // appRetryPending is true between the retry start and its settlement. The button
+          // and handler are gated on appStatusUnknown (either condition), so the window cannot
+          // briefly present unknown status as "no application".
+          const appRetryPending = appLoadingIds?.has(course.id) ?? false;
+          const appStatusUnknown = appFailed || appRetryPending;
+          // Priority note: known appStatus entries (pending/approved/etc.) always take
+          // precedence over appFailed/appRetryPending. handleAppStatusChange may have committed
+          // a real status after the fetch failed; a later retry adds the course to appErrorIds
+          // again, but the previously-known status is authoritative and displayed correctly —
+          // appStatusUnknown is only reached in displayState when no known status is present.
           const displayState =
             state === 'loading' ? 'loading'
             : appStatus?.status === 'minted' ? 'minted'
@@ -128,6 +189,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
             : appStatus?.status === 'pending' ? 'pending'
             : appStatus?.status === 'rejected' ? 'rejected'
             : state === 'applied' ? 'pending'
+            : progressFailed ? 'progress_error'
             : prog?.canApplyForCertificate ? 'eligible'
             : 'not_eligible';
           return (
@@ -172,9 +234,16 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                         Application rejected
                       </span>
                     )}
+                    {/* W09-R3: progress data unavailable — do not claim not_eligible */}
+                    {displayState === 'progress_error' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-xs font-medium">
+                        <AlertCircle className="h-3 w-3" aria-hidden />
+                        Eligibility unavailable
+                      </span>
+                    )}
                   </div>
                   {/* NM-C2: Plain-English cert status description */}
-                  {displayState !== 'loading' && CERT_STATE_MSGS[displayState] && (
+                  {displayState !== 'loading' && displayState !== 'progress_error' && CERT_STATE_MSGS[displayState] && (
                     <p className="text-xs text-neutral-500 leading-snug mt-0.5">
                       {CERT_STATE_MSGS[displayState].desc}
                       {CERT_STATE_MSGS[displayState].next && (
@@ -241,6 +310,12 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                         </span>
                       )}
                     </div>
+                  ) : progressFailed ? (
+                    /* W09-R3: progress fetch failed — do not show "Loading progress…" indefinitely */
+                    <p className="text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3 shrink-0" aria-hidden />
+                      Progress data unavailable
+                    </p>
                   ) : (
                     <p className="text-xs text-neutral-400">Loading progress…</p>
                   )}
@@ -274,9 +349,40 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                       {certErr}
                     </p>
                   )}
+                  {/* W09-R4/R5: application fetch failed — show accessible error + retry.
+                      We do not know whether an application already exists; do not show apply action.
+                      The alert stays visible during a retry (appRetryPending=true) so the user
+                      has feedback; the "Try again" button is disabled while the retry is in flight. */}
+                  {appFailed && (
+                    <div
+                      className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+                      role="alert"
+                    >
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-amber-800">
+                          {appRetryPending
+                            ? 'Checking application status…'
+                            : 'Application status unavailable — could not check whether you have applied.'}
+                        </p>
+                        {onRetryLoadApplications && !appRetryPending && (
+                          <button
+                            type="button"
+                            onClick={onRetryLoadApplications}
+                            className="mt-1 text-xs font-medium underline hover:no-underline text-amber-800"
+                          >
+                            Try again
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="shrink-0">
-                  {(displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
+                  {/* W09-R3: exclude progress_error — eligibility unknown, never show apply button.
+                      W09-R4: exclude appFailed — application status unknown.
+                      W09-R5: also exclude appRetryPending — retry in flight, status still unknown. */}
+                  {!appStatusUnknown && displayState !== 'progress_error' && (displayState === 'eligible' || (displayState === 'rejected' && prog?.canApplyForCertificate)) && (
                     <Button
                       size="sm"
                       type="button"

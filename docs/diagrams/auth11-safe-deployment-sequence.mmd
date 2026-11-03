@@ -1,0 +1,96 @@
+sequenceDiagram
+    participant OP as Operator
+    participant DS as deploy.sh
+    participant DB as SQLite Backup
+    participant DK as Docker Engine
+    participant API as lms-api
+    participant WEB as lms-web
+    participant HC as Health Check
+    participant SM as Smoke Test
+    participant DV as Data Verify
+    participant RB as rollback.sh
+
+    Note over OP,DV: AUTH-11 Deploy: SHA 0dd2385 -> 27f9535 (PR #76, merge 8abf282)
+
+    OP->>DS: ./scripts/deploy.sh
+
+    Note over DS: Pre-deploy checks
+    DS->>DS: Verify docker, docker compose available
+    DS->>DS: Check disk space >= 500MB
+    DS->>DS: Capture BUILD_SHA from git HEAD
+
+    Note over DS,DB: Pre-deploy database backup
+    DS->>DB: sqlite3 .backup pre-deploy_{timestamp}.db
+    DB-->>DS: Backup file created
+    DS->>DS: Verify backup size >= 4096 bytes
+    alt Backup failed or too small
+        DS->>OP: ABORT: backup failure
+    end
+
+    Note over DS,DK: Save rollback state
+    DS->>DK: docker inspect lms-api, lms-web image IDs
+    DK-->>DS: Current image SHAs
+    DS->>DS: Write .deploy-state/previous-images.txt
+
+    Note over DS,DK: Volume ownership migration (one-time for AUTH-11)
+    DS->>DK: docker run --rm -v lms-data busybox chown -R 1000:1000
+    DS->>DK: docker run --rm -v lms-uploads busybox chown -R 1000:1000
+
+    Note over DS,DK: Build new images
+    DS->>DK: docker compose build (BUILD_SHA=27f9535)
+    DK-->>DS: Images built with USER node + read_only
+
+    Note over DS,API: Rolling deploy — API first
+    DS->>DK: docker compose up -d --no-deps api
+    DK->>API: Start lms-api (node uid=1000, read_only FS)
+
+    Note over DS,HC: Health check (60s timeout)
+    loop Every 2s up to 60s
+        DS->>HC: curl https://lms.smwebsystems.com/api/v1/health
+        HC-->>DS: Response
+    end
+    alt Health timeout
+        DS->>RB: rollback.sh
+        RB->>DK: Restore previous images, compose up
+        RB-->>DS: Rollback complete
+        DS->>OP: ABORT: API health timeout
+    end
+
+    Note over DS,WEB: Deploy Web container
+    DS->>DK: docker compose up -d --no-deps web
+    DK->>WEB: Start lms-web (nginx:alpine)
+    DS->>DS: sleep 2 (nginx startup)
+
+    Note over DS,SM: Smoke tests
+    DS->>SM: ./scripts/smoke-test.sh
+    SM-->>DS: Test results
+    alt Smoke tests failed
+        DS->>RB: rollback.sh
+        RB-->>DS: Rollback complete
+        DS->>OP: ABORT: smoke test failure
+    end
+
+    Note over DS,DV: Post-deploy data verification
+    DS->>DV: verify_data (users>=10, courses>=3, nfts>=5)
+    DV->>API: docker exec node -e "query row counts"
+    API-->>DV: {users, courses, nft_credentials}
+    DV-->>DS: Integrity result
+    alt Data integrity failed
+        DS->>OP: ABORT: row counts below thresholds
+    end
+
+    Note over DS: Build SHA verification
+    DS->>HC: curl /health -> buildSha
+    HC-->>DS: actual SHA
+    alt SHA mismatch
+        DS->>OP: ABORT: SHA mismatch (expected 27f9535)
+    end
+
+    Note over DS,OP: Deploy successful
+    DS->>DS: Log DEPLOY SUCCESS to deploy-log.txt
+    DS->>DK: docker image prune -f --filter until=24h
+    DS->>OP: Deploy SUCCESSFUL (SHA 27f9535)
+
+    Note over OP: Post-deploy: install monitoring crontab
+    OP->>OP: Install lms-health-monitor.sh (*/5 cron)
+    OP->>OP: Install lms-deadman-check.sh (*/15 cron)

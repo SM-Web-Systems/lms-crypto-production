@@ -1,9 +1,10 @@
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
+import { mobileHome } from '@/utils/authorization';
 
 export default function Index() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -17,5 +18,5 @@ export default function Index() {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
-  return <Redirect href="/(student)/dashboard" />;
+  return <Redirect href={mobileHome(user)} />;
 }

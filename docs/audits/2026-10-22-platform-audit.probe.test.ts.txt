@@ -1,0 +1,72 @@
+// Audit probes: these assert observed defects, not the desired security contract.
+// For replay, copy to LMS-Server/src/__tests__/platform-audit.probe.test.ts,
+// run npm test -- platform-audit.probe from LMS-Server, then remove the copy.
+// Archived outside normal test discovery so defects are not codified as contracts.
+import { describe, it, expect } from 'vitest';
+import request from 'supertest';
+import { randomUUID } from 'node:crypto';
+import app from '../app.js';
+import { execute, queryOne } from '../config/database.js';
+import { makeToken } from './helpers/auth.js';
+
+function actor(roleId: string, legacyRole: 'admin' | 'student' = 'student') {
+  const userId = randomUUID();
+  const email = `${userId}@audit.invalid`;
+  execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (?, 'Audit', ?, 'unused', ?)", [userId,email,legacyRole]);
+  execute('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+  execute('INSERT INTO user_roles (user_id,role_id) VALUES (?,?)', [userId,roleId]);
+  return { userId, token: makeToken({userId,email,role:legacyRole}) };
+}
+
+describe('2026-10-22 audit: observed behavior probes', () => {
+  it('standard sponsor is denied the analytics endpoint used by its overview', async () => {
+    const a = actor('role_sponsor');
+    const res = await request(app).get('/api/v1/analytics/courses').auth(a.token,{type:'bearer'});
+    expect(res.status).toBe(403);
+  });
+  it('standard sponsor is denied its dedicated billing page endpoint', async () => {
+    const a = actor('role_sponsor');
+    const res = await request(app).get('/api/v1/sponsor/billing').auth(a.token,{type:'bearer'});
+    expect(res.status).toBe(403);
+  });
+  it('admin-2 can remove a super-admin role from another user', async () => {
+    const a = actor('role_admin2','admin');
+    const target = actor('role_super_admin','admin');
+    const res = await request(app).delete(`/api/v1/admin/users/${target.userId}/roles/role_super_admin`).auth(a.token,{type:'bearer'});
+    expect(res.status).toBe(200);
+    expect(queryOne('SELECT role_id FROM user_roles WHERE user_id = ? AND role_id = ?', [target.userId,'role_super_admin'])).toBeNull();
+  });
+  it('RBAC sponsor retains legacy student role in auth/me, which the UI routes on', async () => {
+    const a = actor('role_sponsor');
+    const res = await request(app).get('/api/v1/auth/me').auth(a.token,{type:'bearer'});
+    expect(res.status).toBe(200);
+    expect(res.body.data.role).toBe('student');
+    expect(res.body.data.rbacRoles).toContain('sponsor');
+  });
+  it('RBAC instructor with legacy student role cannot discover their assigned course', async () => {
+    const a = actor('role_instructor');
+    const id = randomUUID();
+    execute("INSERT INTO courses (id,title,course_code,sections) VALUES (?, 'Audit course', ?, '[]')", [id,`AUDIT-${id}`]);
+    execute('INSERT INTO course_lecturers (course_id,user_id) VALUES (?,?)', [id,a.userId]);
+    const res = await request(app).get('/api/v1/courses').auth(a.token,{type:'bearer'});
+    expect(res.status).toBe(200);
+    expect(res.body.data.courses).toEqual([]);
+  });
+  it('instructor search returns a credential for a student outside any assigned course', async () => {
+    const a = actor('role_instructor');
+    const target = actor('role_student');
+    const id = randomUUID();
+    execute("INSERT INTO nft_credentials (id,user_id,wallet_address,mint_status,contract_id) VALUES (?,?,'audit-wallet','minted','audit-contract')", [id,target.userId]);
+    const res = await request(app).get('/api/v1/search?q=Audit&types=credentials').auth(a.token,{type:'bearer'});
+    expect(res.status).toBe(200);
+    expect(res.body.data.results.credentials.map((c: { id: string }) => c.id)).toContain(id);
+  });
+  it('legacy demotion to student leaves the target admin RBAC assignment active', async () => {
+    const a = actor('role_admin2','admin');
+    const target = actor('role_admin','admin');
+    const res = await request(app).patch(`/api/v1/users/${target.userId}/role`).auth(a.token,{type:'bearer'}).send({role:'student'});
+    expect(res.status).toBe(200);
+    expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.userId])?.role).toBe('student');
+    expect(queryOne('SELECT role_id FROM user_roles WHERE user_id = ? AND role_id = ?', [target.userId,'role_admin'])).not.toBeNull();
+  });
+});

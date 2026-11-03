@@ -4,24 +4,15 @@ import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission, getUserRoles } from '../middleware/rbac.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { auditLog } from '../services/auditService.js';
+import { revokeUserRole, ROLE_PRIVILEGE_LEVEL, assertCanModifyUser, getRoleManagementOptions } from '../services/roleSecurityService.js';
 
 const router = Router();
 
-// Privilege hierarchy for escalation guards
-const ROLE_PRIVILEGE_LEVEL: Record<string, number> = {
-  'super-admin': 100,
-  'admin-2': 90,
-  'admin': 80,
-  'instructor': 70,
-  'sponsor': 60,
-  'employer': 50,
-  'teacher': 50,
-  'parent': 50,
-  'super-student': 20,
-  'teaching-assistant': 15,
-  'student': 10,
-  'custom-user': 10,
-};
+router.get('/users/:id/role-options', authenticate, requirePermission('user.assign_role'), (req: AuthRequest, res: Response, next) => {
+  try { res.json({success: true, data: getRoleManagementOptions(req.user!.userId, req.params.id)}); }
+  catch (error) { next(error); }
+});
 
 function getHighestPrivilegeLevel(roles: string[]): number {
   return Math.max(0, ...roles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
@@ -107,6 +98,13 @@ router.post(
       [id, name, label, description ?? null, req.user!.userId],
     );
 
+    auditLog({
+      action: 'rbac.role_created',
+      actorId: req.user!.userId,
+      targetId: id,
+      details: `name=${name} label=${label}`,
+    });
+
     res.status(201).json({ success: true, data: { id, name, label } });
   },
 );
@@ -163,6 +161,13 @@ router.put(
     if (label) execute('UPDATE roles SET label = ? WHERE id = ?', [label, req.params.id]);
     if (description !== undefined) execute('UPDATE roles SET description = ? WHERE id = ?', [description, req.params.id]);
 
+    auditLog({
+      action: 'rbac.role_updated',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `label=${label ?? '(unchanged)'} description=${description !== undefined ? '(set)' : '(unchanged)'}`,
+    });
+
     res.json({ success: true, data: { id: req.params.id } });
   },
 );
@@ -189,8 +194,8 @@ router.delete(
   authenticate,
   requirePermission('system.manage_roles'),
   (req: AuthRequest, res: Response) => {
-    const role = queryOne<{ id: string; is_system: number }>(
-      'SELECT id, is_system FROM roles WHERE id = ?', [req.params.id],
+    const role = queryOne<{ id: string; name: string; is_system: number }>(
+      'SELECT id, name, is_system FROM roles WHERE id = ?', [req.params.id],
     );
     if (!role) {
       res.status(404).json({
@@ -208,6 +213,14 @@ router.delete(
     }
 
     execute('DELETE FROM roles WHERE id = ?', [req.params.id]);
+
+    auditLog({
+      action: 'rbac.role_deleted',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `name=${role.name}`,
+    });
+
     res.json({ success: true, message: 'Role deleted' });
   },
 );
@@ -358,6 +371,13 @@ router.put(
       execute('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)', [req.params.id, pid]);
     }
 
+    auditLog({
+      action: 'rbac.permissions_updated',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `role=${role.name} permissionCount=${permissionIds.length}`,
+    });
+
     res.json({ success: true, message: 'Permissions updated' });
   },
 );
@@ -385,8 +405,9 @@ router.get(
   authenticate,
   requirePermission('user.assign_role'),
   (req: AuthRequest, res: Response) => {
-    const roles = query<{ id: string; name: string; label: string }>(
-      `SELECT r.id, r.name, r.label
+    const roles = query<{ role_id: string; role_name: string; role_label: string; granted_at: string }>(
+      `SELECT r.id AS role_id, r.name AS role_name, r.label AS role_label,
+              ur.created_at AS granted_at
        FROM roles r
        JOIN user_roles ur ON r.id = ur.role_id
        WHERE ur.user_id = ?`,
@@ -465,6 +486,17 @@ router.post(
       return;
     }
 
+    // The target-user boundary must match the options shown by the admin UI.
+    if (!queryOne('SELECT id FROM users WHERE id = ?', [req.params.id])) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'User not found' } });
+      return;
+    }
+    try { assertCanModifyUser(req.user!.userId, req.params.id); }
+    catch {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Cannot modify roles of a user with equal or higher privilege' } });
+      return;
+    }
+
     // ESC-1/ESC-2: Cannot assign a role higher than your own
     const assignerRoles = getUserRoles(req.user!.userId);
     const assignerLevel = getHighestPrivilegeLevel(assignerRoles);
@@ -482,6 +514,13 @@ router.post(
       'INSERT OR IGNORE INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?)',
       [req.params.id, roleId, req.user!.userId],
     );
+
+    auditLog({
+      action: 'rbac.role_assigned',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `roleId=${roleId} roleName=${role.name}`,
+    });
 
     res.status(201).json({ success: true, message: 'Role assigned' });
   },
@@ -512,7 +551,7 @@ router.delete(
   '/users/:id/roles/:roleId',
   authenticate,
   requirePermission('user.assign_role'),
-  (req: AuthRequest, res: Response) => {
+  (req: AuthRequest, res: Response, next) => {
     // ESC-5: Cannot modify own roles
     if (req.params.id === req.user!.userId) {
       res.status(403).json({
@@ -522,18 +561,20 @@ router.delete(
       return;
     }
 
-    const changes = execute(
-      'DELETE FROM user_roles WHERE user_id = ? AND role_id = ?',
-      [req.params.id, req.params.roleId],
-    );
-
-    if (changes === 0) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'User role assignment not found' },
-      });
+    let removedRole: string;
+    try {
+      removedRole = revokeUserRole(req.user!.userId, req.params.id, req.params.roleId);
+    } catch (error) {
+      next(error);
       return;
     }
+
+    auditLog({
+      action: 'rbac.role_removed',
+      actorId: req.user!.userId,
+      targetId: req.params.id,
+      details: `roleId=${req.params.roleId} roleName=${removedRole}`,
+    });
 
     res.json({ success: true, message: 'Role removed' });
   },

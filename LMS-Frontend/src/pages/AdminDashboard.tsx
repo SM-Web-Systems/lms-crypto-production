@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { hasCapability, canAccessPath } from '../utils/authorization';
 import { useData } from '../context/DataContext';
 import { validateBuildSha, getShortSha } from '../utils/buildInfo';
 import { Card, CardContent, CardTitle } from '../components/Card';
@@ -63,6 +64,9 @@ function pickAdminLine(): string {
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const canReadStudents = hasCapability(user, 'user.view_all');
+  const canGrade = hasCapability(user, 'course.grade');
+  const canAudit = hasCapability(user, 'system.view_audit_log');
   const {
     students,
     submissions,
@@ -75,14 +79,15 @@ const AdminDashboard: React.FC = () => {
   } = useData();
 
   useEffect(() => {
-    fetchStudents();
-    fetchSubmissions();
-  }, [fetchStudents, fetchSubmissions]);
+    if (canReadStudents) fetchStudents();
+    if (canGrade) fetchSubmissions();
+  }, [fetchStudents, fetchSubmissions, canReadStudents, canGrade]);
 
   const [courseAnalytics, setCourseAnalytics] = useState<CourseAnalytics[]>([]);
   useEffect(() => {
-    analyticsService.getCourseAnalytics().then(setCourseAnalytics).catch(() => {});
-  }, []);
+    if (canAudit) analyticsService.getCourseAnalytics().then(setCourseAnalytics).catch(() => {});
+    else setCourseAnalytics([]);
+  }, [canAudit]);
 
   const frontendSha = validateBuildSha(import.meta.env.VITE_BUILD_SHA);
   const [apiBuildSha, setApiBuildSha] = useState<string>('unknown');
@@ -241,6 +246,30 @@ const AdminDashboard: React.FC = () => {
     },
   ];
 
+  const managementPanels = <>
+      {hasCapability(user, 'system.view_audit_log') && <QuizAnalyticsPanel />}
+      {hasCapability(user, 'system.view_audit_log') && hasCapability(user, 'billing.confirm') && <PricingManagement />}
+      {hasCapability(user, 'system.manage_roles') && <RbacAdminPanel />}
+      {hasCapability(user, 'system.view_audit_log') && <PaymentAnalyticsPanel />}
+      {hasCapability(user, 'system.view_audit_log') && <CohortInsightsPanel />}
+      {hasCapability(user, 'system.view_audit_log') && <SponsorROIPanel />}
+      {hasCapability(user, 'tenant.manage') && <TenantAdminPanel />}
+      {hasCapability(user, 'email.manage') && <EmailTemplatePanel />}
+      {hasCapability(user, 'notification.broadcast') && <BroadcastPanel />}
+      {hasCapability(user, 'message.view_deleted') && <MessageAuditPanel />}
+  </>;
+  if (!canReadStudents || !canGrade || !canAudit) {
+    return <div className="space-y-6"><h1 className="text-2xl font-bold">Administration</h1>
+      <p>Choose an available tool to continue.</p>
+      <div className="flex flex-wrap gap-3">
+        {quickActions.filter(action => canAccessPath(user, action.to)).map(action => <Button key={action.to} onClick={() => navigate(action.to)}>{action.title}</Button>)}
+        {canAccessPath(user, '/admin/users') && <Button onClick={() => navigate('/admin/users')}>User Roles</Button>}
+      </div>
+      {managementPanels}
+      <div data-testid="system-info" className="text-xs text-neutral-400">API: {getShortSha(apiBuildSha)} · Frontend: {getShortSha(frontendSha)}</div>
+    </div>;
+  }
+
   if (studentsLoading || submissionsLoading) {
     return <DashboardPageSkeleton variant="admin" />;
   }
@@ -316,7 +345,7 @@ const AdminDashboard: React.FC = () => {
           <p className="text-sm text-neutral-600 mt-0.5">Every admin area, one tap away.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {quickActions.map((action) => {
+          {quickActions.filter(action => canAccessPath(user, action.to)).map((action) => {
             const Icon = action.icon;
             return (
               <button
@@ -450,7 +479,7 @@ const AdminDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <AnnouncementsPanel isAdmin={true} />
+      {hasCapability(user, 'announcement.view') && <AnnouncementsPanel isAdmin={hasCapability(user, 'announcement.create')} />}
 
       <Card className="shadow-updraft overflow-hidden ring-1 ring-neutral-900/[0.04]">
         <div className="border-b border-neutral-200/90 bg-gradient-to-r from-neutral-50 via-white to-neutral-50/80 px-5 py-4 sm:px-6">
@@ -477,25 +506,7 @@ const AdminDashboard: React.FC = () => {
         </CardContent>
       </Card>
 
-      <QuizAnalyticsPanel />
-
-      <PricingManagement />
-
-      <RbacAdminPanel />
-
-      <PaymentAnalyticsPanel />
-
-      <CohortInsightsPanel />
-
-      <SponsorROIPanel />
-
-      <TenantAdminPanel />
-
-      <EmailTemplatePanel />
-
-      <BroadcastPanel />
-
-      <MessageAuditPanel />
+      {managementPanels}
 
       {/* Course Analytics */}
       {courseAnalytics.length > 0 && (

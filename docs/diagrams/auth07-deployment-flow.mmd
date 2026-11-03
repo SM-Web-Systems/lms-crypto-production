@@ -1,0 +1,70 @@
+%% AUTH-07: Production Deployment Flow
+%% Shows the complete deploy.sh execution path with decision points and rollback triggers.
+
+flowchart TD
+    START([deploy.sh]) --> PRECHECKS[Pre-deploy Checks]
+    PRECHECKS --> CHK_DOCKER{docker + compose<br/>available?}
+    CHK_DOCKER -- NO --> FAIL_DOCKER[EXIT 1:<br/>docker not found]
+    CHK_DOCKER -- YES --> CHK_DISK{Disk space<br/>≥ 500MB?}
+    CHK_DISK -- NO --> FAIL_DISK[EXIT 1:<br/>insufficient space]
+    CHK_DISK -- YES --> DIRTY{Working tree<br/>dirty?}
+    DIRTY -- YES --> WARN_DIRTY[WARNING logged]
+    DIRTY -- NO --> BACKUP
+    WARN_DIRTY --> BACKUP
+
+    BACKUP[backup_db] --> CHK_DB{DB file<br/>exists?}
+    CHK_DB -- NO --> WARN_NODB["WARNING: skipping<br/>(first deploy?)"]
+    CHK_DB -- YES --> SQLITE_BKP["sudo sqlite3 .backup"]
+    SQLITE_BKP --> CHK_SIZE{Backup<br/>≥ 4096 B?}
+    CHK_SIZE -- NO --> FAIL_BKP[EXIT 1:<br/>backup too small]
+    CHK_SIZE -- YES --> SAVE_BKP[Save backup path<br/>to .deploy-state/]
+    WARN_NODB --> SAVE_STATE
+    SAVE_BKP --> SAVE_STATE
+
+    SAVE_STATE[Save Current Image IDs<br/>previous-images.txt] --> BUILD
+    BUILD["docker compose build<br/>(api + web)"] --> DEPLOY_API
+
+    DEPLOY_API["docker compose up -d<br/>--no-deps api"] --> HEALTH_WAIT
+    HEALTH_WAIT{API healthy<br/>within 60s?}
+    HEALTH_WAIT -- NO --> CAN_ROLL1{Previous<br/>images saved?}
+    CAN_ROLL1 -- YES --> ROLLBACK1["rollback.sh<br/>(auto)"]
+    CAN_ROLL1 -- NO --> FAIL_NOROLL1[EXIT 1:<br/>no rollback state]
+    ROLLBACK1 --> FAIL_API[EXIT 1:<br/>API health timeout]
+
+    HEALTH_WAIT -- YES --> DEPLOY_WEB
+    DEPLOY_WEB["docker compose up -d<br/>--no-deps web"] --> SLEEP["sleep 2s"]
+    SLEEP --> SMOKE
+
+    SMOKE["smoke-test.sh<br/>(5 checks)"] --> SMOKE_OK{All checks<br/>passed?}
+    SMOKE_OK -- NO --> CAN_ROLL2{Previous<br/>images saved?}
+    CAN_ROLL2 -- YES --> ROLLBACK2["rollback.sh<br/>(auto)"]
+    CAN_ROLL2 -- NO --> FAIL_NOROLL2[EXIT 1:<br/>no rollback state]
+    ROLLBACK2 --> FAIL_SMOKE[EXIT 1:<br/>smoke tests failed]
+
+    SMOKE_OK -- YES --> VERIFY
+    VERIFY["verify_data<br/>(row count check)"] --> VERIFY_OK{Counts above<br/>thresholds?}
+    VERIFY_OK -- NO --> FAIL_DATA["EXIT 1:<br/>data integrity failed<br/>(backup path logged)"]
+    VERIFY_OK -- YES --> SHA_CHECK
+
+    SHA_CHECK{Build SHA<br/>matches?} -- NO --> WARN_SHA[WARNING:<br/>SHA mismatch]
+    SHA_CHECK -- YES --> SUCCESS
+    WARN_SHA --> SUCCESS
+
+    SUCCESS["DEPLOY SUCCESS<br/>Log to deploy-log.txt"] --> PRUNE["docker image prune<br/>--filter until=24h"]
+    PRUNE --> DONE([Done])
+
+    style FAIL_DOCKER fill:#f66,stroke:#900
+    style FAIL_DISK fill:#f66,stroke:#900
+    style FAIL_BKP fill:#f66,stroke:#900
+    style FAIL_API fill:#f66,stroke:#900
+    style FAIL_SMOKE fill:#f66,stroke:#900
+    style FAIL_DATA fill:#f66,stroke:#900
+    style FAIL_NOROLL1 fill:#f66,stroke:#900
+    style FAIL_NOROLL2 fill:#f66,stroke:#900
+    style ROLLBACK1 fill:#f96,stroke:#c60
+    style ROLLBACK2 fill:#f96,stroke:#c60
+    style WARN_DIRTY fill:#ff9,stroke:#990
+    style WARN_NODB fill:#ff9,stroke:#990
+    style WARN_SHA fill:#ff9,stroke:#990
+    style SUCCESS fill:#6f6,stroke:#090
+    style DONE fill:#6f6,stroke:#090

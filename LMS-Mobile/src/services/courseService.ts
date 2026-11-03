@@ -1,26 +1,17 @@
 import api from '../lib/api';
-import type { ApiResponse } from '../types/api';
-import { ApiRequestError, assertApiSuccess } from '../utils/apiError';
+import { ApiRequestError } from '../utils/apiError';
 import type { Course, CourseSection } from '../types/course';
+import { courseFromApi } from '../utils/courseContent';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/v1';
 
-function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown }): Course {
-  return {
-    id: c.id,
-    title: c.title,
-    description: c.description,
-    courseCode: c.courseCode,
-    sections: Array.isArray(c.sections) ? (c.sections as Course['sections']) : [],
-  };
-}
-
 export const courseService = {
   async fetchCourses(): Promise<Course[]> {
-    const response = await api.get<{ success?: boolean; data?: { courses?: unknown[] }; courses?: unknown[] }>('/courses');
+    const response = await api.get<{ success?: boolean; data?: { courses?: unknown[] }; courses?: unknown[] }>('/courses', { params: { access: 'enrolled' } });
+    if (response.data?.success === false) throw new ApiRequestError({ message: 'Could not load courses.' });
     const raw = response.data?.courses ?? response.data?.data?.courses;
-    if (!Array.isArray(raw)) return [];
-    return raw.map((c) => fromApiCourse(c as Parameters<typeof fromApiCourse>[0]));
+    if (!Array.isArray(raw)) throw new Error('The server returned an invalid course list.');
+    return raw.map(courseFromApi);
   },
 
   async fetchCourseById(id: string): Promise<Course | null> {
@@ -28,7 +19,7 @@ export const courseService = {
       const response = await api.get<{ success?: boolean; data?: unknown }>(`/courses/${id}`);
       const data = response.data?.data;
       if (data && typeof data === 'object' && 'id' in data) {
-        return fromApiCourse(data as Parameters<typeof fromApiCourse>[0]);
+        return courseFromApi(data);
       }
       return null;
     } catch {

@@ -36,6 +36,9 @@ logs/
 pids/
 *.pid
 
+# Deploy state (image IDs, backup paths, deploy log)
+.deploy-state/
+
 # Temp / scratch
 tmp/
 *.tmp
@@ -47,3 +50,7 @@ Thumbs.db
 # Claude Code / Superpowers local dirs
 .claude/
 .superpowers/
+
+# Local AUTH-13 validation output and Python fixture bytecode
+.auth13-*
+__pycache__/

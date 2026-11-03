@@ -1,0 +1,40 @@
+%% AUTH-09: Runtime User → Filesystem → Volume Permissions
+%% Current state (root) vs. proposed state (node)
+
+flowchart TD
+    subgraph CURRENT["Current: uid=0 (root)"]
+        CR["Container runs as root"]
+        CR --> CD1["/app/data — root:root rw"]
+        CR --> CD2["/app/uploads — root:root rw"]
+        CR --> CD3["/app/dist — root:root rw (unnecessary)"]
+        CR --> CD4["/docker-entrypoint.sh — root:root rx"]
+        CR --> CD5["/app/node_modules — root:root rw (unnecessary)"]
+    end
+
+    subgraph PROPOSED["Proposed: uid=1000 (node)"]
+        PR["Container runs as node"]
+        PR --> PD1["/app/data — node:node rw (volume)"]
+        PR --> PD2["/app/uploads — node:node rw (volume)"]
+        PR --> PD3["/app/dist — root:root r-only"]
+        PR --> PD4["/docker-entrypoint.sh — root:root r-x"]
+        PR --> PD5["/app/node_modules — root:root r-only"]
+    end
+
+    subgraph ENTRYPOINT["Entrypoint Requirements"]
+        E1["Check if DB exists"]
+        E2["If missing: npx tsx initDb.ts"]
+        E3["Requires write to /app/data"]
+        E4["Then: exec node dist/server.js"]
+    end
+
+    subgraph MIGRATION["Migration Steps"]
+        M1["1. RUN chown -R node:node /app/data /app/uploads"]
+        M2["2. USER node"]
+        M3["3. Volume ownership: chown on first run"]
+        M4["4. Test: DB init, uploads, health"]
+    end
+
+    style CR fill:#f96,stroke:#c60
+    style PR fill:#6f6,stroke:#090
+    style CD3 fill:#ff9,stroke:#cc0
+    style CD5 fill:#ff9,stroke:#cc0

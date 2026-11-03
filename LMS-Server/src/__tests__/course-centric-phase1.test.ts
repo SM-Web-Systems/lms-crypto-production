@@ -131,27 +131,22 @@ describe('GET /courses/:courseId/submissions', () => {
     expect(res.body.data.submissions.every((s: any) => s.courseId === courseId)).toBe(true);
   });
 
-  it('student sees only own submissions for the course', async () => {
-    const { studentUserId, studentId, student2Id, courseId } = seedCourseCtx();
+  it('student is denied access to course submissions endpoint (WI-08: requireCourseScope)', async () => {
+    const { studentUserId, studentId, courseId } = seedCourseCtx();
     const sub1 = uuidv4();
-    const sub2 = uuidv4();
     db.prepare(
       `INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status, course_id)
        VALUES (?, ?, 'Mine', 'desc', 'a.pdf', 100, '/tmp/a.pdf', 'pending', ?)`
     ).run(sub1, studentId, courseId);
-    db.prepare(
-      `INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status, course_id)
-       VALUES (?, ?, 'Other', 'desc', 'b.pdf', 200, '/tmp/b.pdf', 'pending', ?)`
-    ).run(sub2, student2Id, courseId);
 
     const token = makeToken({ userId: studentUserId, email: `cc-stu-${studentUserId}@t.com`, role: 'student', studentId });
     const res = await request(app)
       .get(`/api/v1/courses/${courseId}/submissions`)
       .set('Authorization', `Bearer ${token}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.data.submissions).toHaveLength(1);
-    expect(res.body.data.submissions[0].title).toBe('Mine');
+    // Students use GET /submissions (flat listing) to see their own work.
+    // The course-scoped endpoint is restricted to admin/instructor/TA via requireCourseScope.
+    expect(res.status).toBe(403);
   });
 
   it('lecturer sees all submissions for their course', async () => {

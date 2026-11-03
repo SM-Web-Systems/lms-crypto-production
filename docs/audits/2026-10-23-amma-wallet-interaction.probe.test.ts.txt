@@ -1,0 +1,52 @@
+// Audit-only observations, not desired authentication contracts.
+// Copy to LMS-Server/src/__tests__/amma-wallet-review.probe.test.ts,
+// run that file with Vitest, then remove the temporary copy.
+import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
+import request from 'supertest';
+import {randomBytes} from 'node:crypto';
+import jwt from 'jsonwebtoken';
+import app from '../app.js';
+import {db,execute,queryOne} from '../config/database.js';
+import * as wallet from '../services/ammaWalletSSOService.js';
+
+const address='GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+const identity:wallet.AmmaWalletSSOUser={userId:'audit-wallet-user',email:'audit-admin@example.invalid',firstName:'Audit',lastName:'User',isEmailVerified:true,mainnetWalletAddress:address};
+beforeEach(()=>{
+  db.exec('ALTER TABLE users ADD COLUMN auth_provider TEXT; ALTER TABLE users ADD COLUMN ammawallet_user_id TEXT');
+  vi.spyOn(wallet,'verifyAssertion').mockResolvedValue(identity);
+});
+afterEach(()=>vi.restoreAllMocks());
+async function callback(native=false){
+  const start=await request(app).get('/api/v1/auth/amma-login').query(native?{client:'mobile',code_challenge:'A'.repeat(43),code_challenge_method:'S256',app_state:randomBytes(32).toString('hex')}:{});
+  const state=new URL(start.headers.location).searchParams.get('state');
+  return request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'synthetic-wallet-assertion'});
+}
+
+describe('AmmaWallet interaction audit: baseline defects still present',()=>{
+  it('an unverified matching wallet email takes over an existing local administrator profile',async()=>{
+    execute("INSERT INTO users(id,name,email,password_hash,role,auth_provider) VALUES('local-admin','Audit admin',?,'unused','admin','local')",[identity.email]);
+    vi.mocked(wallet.verifyAssertion).mockResolvedValueOnce({...identity,isEmailVerified:false,userId:'unverified-wallet-owner'});
+    const response=await callback();
+    const token=new URLSearchParams(new URL(response.headers.location).hash.slice(1)).get('token')!;
+    const payload=jwt.decode(token) as {userId:string;role:string};
+    expect(payload.userId).toBe('local-admin');expect(payload.role).toBe('admin');
+    expect(queryOne<{ammawallet_user_id:string}>("SELECT ammawallet_user_id FROM users WHERE id='local-admin'")?.ammawallet_user_id).toBe('unverified-wallet-owner');
+  });
+  it('email fallback can overwrite an existing stable wallet-user binding',async()=>{
+    execute("INSERT INTO users(id,name,email,password_hash,role,auth_provider,ammawallet_user_id) VALUES('already-linked','Audit learner',?,'$sso$','student','ammawallet','original-wallet-user')",[identity.email]);
+    await callback();
+    expect(queryOne<{ammawallet_user_id:string}>("SELECT ammawallet_user_id FROM users WHERE id='already-linked'")?.ammawallet_user_id).toBe(identity.userId);
+  });
+  it.each([false,true])('phone-only provider identity produces HTTP 500 (native=%s)',async native=>{
+    vi.mocked(wallet.verifyAssertion).mockResolvedValueOnce({...identity,email:null} as unknown as wallet.AmmaWalletSSOUser);
+    const response=await callback(native);
+    expect(response.status).toBe(500);
+    expect(queryOne<{count:number}>('SELECT count(*) count FROM users')?.count).toBe(0);
+  });
+  it('a wallet missing from the current assertion leaves the old linked address in LMS',async()=>{
+    execute("INSERT INTO users(id,name,email,password_hash,role,auth_provider,ammawallet_user_id,walletAddress,wallet_linking_status) VALUES('linked','Audit learner',?,'$sso$','student','ammawallet',?,?,'linked')",[identity.email,identity.userId,address]);
+    vi.mocked(wallet.verifyAssertion).mockResolvedValueOnce({...identity,mainnetWalletAddress:null});
+    await callback();
+    expect(queryOne<{walletAddress:string;wallet_linking_status:string}>("SELECT walletAddress,wallet_linking_status FROM users WHERE id='linked'")).toEqual({walletAddress:address,wallet_linking_status:'linked'});
+  });
+});

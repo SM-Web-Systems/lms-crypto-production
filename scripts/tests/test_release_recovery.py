@@ -1,0 +1,1293 @@
+"""Synthetic recovery tests. Every Docker/HTTP interface is fake."""
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sqlite3
+import sys
+import unittest
+from contextlib import closing
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'scripts'))
+import release_preflight as pre
+
+spec = importlib.util.spec_from_file_location('preflight_fixture', Path(__file__).with_name('test_release_preflight.py'))
+fixture = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(fixture)
+
+OLD_SHA = 'b' * 40
+API_IMAGE = 'sha256:' + '1' * 64
+WEB_IMAGE = 'sha256:' + '2' * 64
+NEW_API = 'sha256:' + '3' * 64
+NEW_WEB = 'sha256:' + '4' * 64
+
+
+class FakeRunner:
+    def __init__(self, data):
+        self.data = data
+        self.calls = []
+        self.images = {API_IMAGE: OLD_SHA, WEB_IMAGE: OLD_SHA}
+        self.tags = {}
+        self.fail_tag = None
+        self.wrong_tag = False
+        self.fail_up = False
+        self.wrong_up_image = False
+        self.on_stop = None
+        self.on_up = None
+        self.on_build = None
+        self.on_tag = None
+        self.build_wrong_sha = False
+        self.fail_stop = False
+        self.on_migrate = None
+        self.on_hold = None
+        self.fail_migrate = False
+        self.hold_held = False
+        self.on_release = None
+        self.one_shot_stuck = False
+        self.removed = []
+
+    def text(self, tool, args, cwd, env=None, timeout=45):
+        self.calls.append([tool, *args])
+        if tool == 'git':
+            if args[-2:] == ['rev-parse', '--show-toplevel']: return self.data['root']
+            if args[-2:] == ['rev-parse', 'HEAD']: return self.data['sha']
+            if args[-3:] == ['remote', 'get-url', 'origin']: return self.data['remote']
+            if 'status' in args: return self.data['dirty']
+            if 'hash-object' in args or 'rev-parse' in args: return 'f' * 40
+        if tool == 'docker':
+            if args[:1] == ['run']:
+                assert '--network' in args and args[args.index('--network') + 1] == 'none'
+                script = next(value for value in args if value.startswith('dist/scripts/'))
+                if script.endswith('writerHold.js'):
+                    self.hold_held = args[-1] == 'hold'
+                    if self.on_hold: self.on_hold()
+                    return 'held'
+                if self.fail_migrate: raise pre.ReleaseError('MIGRATE_FAILED')
+                if self.on_migrate: self.on_migrate()
+                return ''
+            if args[:1] == ['exec']:
+                if self.on_release: self.on_release()
+                self.hold_held = args[-1] != 'release'
+                return 'released'
+            if args[:1] == ['ps']:
+                return 'still-running' if self.one_shot_stuck else ''
+            if args[:2] == ['rm', '-f']:
+                self.removed.append(args[-1])
+                return ''
+            if args[:2] == ['container', 'stop']:
+                if self.fail_stop: raise pre.ReleaseError('STOP_FAILED')
+                for container in self.data['containers'].values():
+                    if container['Id'] in args: container['State']['Running'] = False
+                if self.on_stop:
+                    callback = self.on_stop; self.on_stop = None; callback()
+                return ''
+            if args[:2] == ['image', 'tag']:
+                if self.fail_tag and self.fail_tag in args[-1]: raise pre.ReleaseError('TAG_FAILED')
+                self.tags[args[-1]] = WEB_IMAGE if self.wrong_tag else args[-2]
+                if self.on_tag:
+                    callback = self.on_tag; self.on_tag = None; callback()
+                return ''
+            if args[:1] == ['compose']:
+                if 'build' in args:
+                    assert env and env['BUILD_SHA'] == self.data['sha']
+                    for service, image_id in (('api', NEW_API), ('web', NEW_WEB)):
+                        self.images[image_id] = 'e' * 40 if self.build_wrong_sha else self.data['sha']
+                        self.tags['fixture-' + service + ':latest'] = image_id
+                    if self.on_build: self.on_build()
+                    return ''
+                if 'ps' in args: return self.data['containers']['fixture-' + args[-1]]['Id']
+                if 'stop' in args:
+                    for container in self.data['containers'].values(): container['State']['Running'] = False
+                    if self.on_stop:
+                        callback = self.on_stop; self.on_stop = None; callback()
+                    return ''
+                if 'up' in args:
+                    if self.fail_up: raise pre.ReleaseError('UP_FAILED')
+                    overlay_path = args[args.index('--file', args.index('--file') + 1) + 1]
+                    overlay = json.loads(Path(overlay_path).read_text())
+                    for service in ('api', 'web'):
+                        container = self.data['containers']['fixture-' + service]
+                        expected = overlay['services'][service]['image']
+                        container['Image'] = WEB_IMAGE if self.wrong_up_image else self.tags.get(expected, expected)
+                        container['State']['Running'] = True
+                        container['State']['Health'] = {'Status': 'healthy'}
+                        container['Config']['Labels']['com.docker.compose.project.config_files'] = str(Path(self.data['root']) / 'docker-compose.yml') + ',' + overlay_path
+                    if self.on_up: self.on_up()
+                    return ''
+        raise AssertionError(('unexpected fake command', tool, args))
+
+    def json(self, tool, args, cwd):
+        self.calls.append([tool, *args])
+        if args[:1] == ['compose'] and 'config' in args: return self.data['compose']
+        if args[:1] == ['inspect']:
+            value = args[-1]
+            return [next(container for name, container in self.data['containers'].items() if value in (name, container['Id']))]
+        if args[:2] == ['volume', 'inspect']: return self.data['volume']
+        if args[:2] == ['image', 'inspect']:
+            value = args[-1]; image_id = self.tags.get(value, value)
+            if image_id not in self.images: raise pre.ReleaseError('IMAGE_MISSING')
+            return [{'Id': image_id, 'Config': {'Labels': {'org.opencontainers.image.revision': self.images[image_id]}}}]
+        raise AssertionError(('unexpected fake JSON command', tool, args))
+
+
+class RecoveryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import release_recovery
+        cls.rec = release_recovery
+
+    def setUp(self):
+        self.mod = pre
+        fixture.ReleasePreflightTests.setUp(self)
+        self.containers['fixture-api']['Image'] = API_IMAGE
+        self.containers['fixture-web']['Image'] = WEB_IMAGE
+        self.runner = FakeRunner(self.fixture)
+        self.config['base_url'] = 'http://127.0.0.1:39999'
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.state = Path(self.config['backup_root']) / 'release-state'
+        self.runner.images[NEW_API] = self.config['approved_sha']
+        self.runner.images[NEW_WEB] = self.config['approved_sha']
+        self.policy = {'version': 1, 'review_reference': 'synthetic-independent-review',
+                       'source_sha': OLD_SHA, 'target_sha': self.config['approved_sha'],
+                       'schema_sha256': self.backup['schema_sha256'],
+                       'financial_state_sha256': self.backup['financial_state_sha256'],
+                       'foreign_key_violation_count': self.backup['foreign_key_violation_count'],
+                       'foreign_key_violations_sha256': self.backup['foreign_key_violations_sha256'],
+                       'compose_sha256': self.target['compose_sha256'],
+                       'images': {'api': API_IMAGE, 'web': WEB_IMAGE},
+                       'candidate_images': {'api': NEW_API, 'web': NEW_WEB},
+                       'database': self.target['database'], 'project': 'fixture',
+                       'repository': pre.REPOSITORY}
+
+    def capture(self):
+        return self.rec.preserve_recovery(self.target, self.backup, self.state, self.runner, self.policy)
+
+    def recover(self, manifest=None, health=None):
+        if manifest is None and not (self.state / 'current-recovery.json').exists(): self.capture()
+        return self.rec.rollback(self.config, self.state, self.policy, self.runner,
+                                 http=health or self.http, timeout=0)
+
+    def http(self, url):
+        if url.endswith('/api/v1/health'):
+            return 200, json.dumps({'status': 'ok', 'buildSha': OLD_SHA, 'checks': {'db': {'status': 'ok'}}}).encode()
+        if url.endswith('/api/v1/courses'): return 401, b'{}'
+        return 200, b'<!doctype html><html>synthetic frontend</html>'
+
+    def assert_no_up(self):
+        self.assertFalse(any('up' in call for call in self.runner.calls))
+
+    def test_preserved_unique_tags_and_manifest_pointer(self):
+        first = self.capture(); second = self.capture()
+        self.assertNotEqual(first['manifest_id'], second['manifest_id'])
+        for service in ('api', 'web'):
+            asset = first['images'][service]
+            self.assertEqual(self.runner.tags[asset['tag']], asset['image_id'])
+        loaded = self.rec.load_manifest(self.state)
+        self.assertEqual(loaded['manifest_id'], second['manifest_id'])
+        self.assertNotIn('fixture-private-value', json.dumps(loaded))
+        if os.name != 'nt':
+            self.assertEqual(Path(second['manifest_file']).stat().st_mode & 0o777, 0o600)
+
+    def test_missing_image_or_invalid_digest_refuses(self):
+        del self.runner.images[API_IMAGE]
+        with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertFalse((self.state / 'current-recovery.json').exists()); self.assert_no_up()
+
+    def test_wrong_tag_or_preservation_failure_preserves_old_pointer(self):
+        first = self.capture(); before = (self.state / 'current-recovery.json').read_bytes()
+        for field, value in (('fail_tag', '-web:'), ('wrong_tag', True)):
+            with self.subTest(field=field):
+                setattr(self.runner, field, value)
+                with self.assertRaises(pre.ReleaseError): self.capture()
+                setattr(self.runner, field, None if field == 'fail_tag' else False)
+                self.assertEqual((self.state / 'current-recovery.json').read_bytes(), before)
+        self.assertEqual(self.rec.load_manifest(self.state)['manifest_id'], first['manifest_id'])
+
+    def test_atomic_pointer_failure_preserves_previous_manifest(self):
+        self.capture(); before = (self.state / 'current-recovery.json').read_bytes()
+        with patch.object(self.rec.os, 'replace', side_effect=OSError('synthetic failure')):
+            with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertEqual((self.state / 'current-recovery.json').read_bytes(), before)
+
+    def test_postpublication_sync_error_never_exposes_incomplete_manifest(self):
+        first = self.capture()
+        original_sync = self.rec.sync_directory
+        def uncertain_sync(path):
+            if (self.state / 'current-recovery.json').exists():
+                active = self.rec.load_manifest(self.state)
+                if active['manifest_id'] != first['manifest_id']: raise OSError('simulated fsync failure after publication')
+            original_sync(path)
+        with patch.object(self.rec, 'sync_directory', side_effect=uncertain_sync):
+            with self.assertRaises(pre.ReleaseError): self.capture()
+        current = self.rec.load_manifest(self.state)
+        self.assertEqual(current['eligibility'], 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
+
+    def test_unlabelled_or_mixed_release_never_publishes_eligible_pointer(self):
+        for revision in (None, 'c' * 40):
+            with self.subTest(revision=revision):
+                self.runner.images[WEB_IMAGE] = revision
+                self.target['services']['web']['revision'] = revision
+                with self.assertRaises(pre.ReleaseError): self.capture()
+                self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_unknown_or_mismatched_policy_refuses(self):
+        for field, value in (('source_sha', 'e' * 40), ('target_sha', 'e' * 40), ('schema_sha256', '0' * 64),
+                             ('financial_state_sha256', '0' * 64), ('review_reference', ''), ('project', 'other')):
+            with self.subTest(field=field):
+                original = self.policy[field]; self.policy[field] = value
+                with self.assertRaises(pre.ReleaseError): self.capture()
+                self.policy[field] = original
+        with self.assertRaises(pre.ReleaseError): self.rec.preserve_recovery(self.target, self.backup, self.state, self.runner, None)
+        self.assert_no_up()
+
+    def test_reviewed_foreign_key_baseline_must_match_capture(self):
+        for key, value in (('foreign_key_violation_count', 1), ('foreign_key_violations_sha256', '0' * 64)):
+            with self.subTest(key=key):
+                original = self.policy[key]; self.policy[key] = value
+                with self.assertRaises(pre.ReleaseError): self.capture()
+                self.policy[key] = original
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_missing_corrupt_or_tampered_manifest_refuses(self):
+        with self.assertRaises(pre.ReleaseError): self.rec.load_manifest(self.state)
+        manifest = self.capture()
+        path = Path(manifest['manifest_file']); original = path.read_bytes()
+        for value in (b'not JSON', original.replace(b'"version":1', b'"version":9')):
+            path.write_bytes(value)
+            with self.assertRaises(pre.ReleaseError): self.rec.load_manifest(self.state)
+        self.assert_no_up()
+
+    def test_backup_checksum_failure_does_not_publish(self):
+        Path(self.backup['file']).write_bytes(b'corrupt backup')
+        with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_wrong_manifest_context_refuses_without_stop(self):
+        self.capture(); self.config['project'] = 'other'
+        with self.assertRaises(pre.ReleaseError): self.recover()
+        self.assert_no_up()
+
+    def test_schema_or_financial_mutation_after_stop_blocks_replacement(self):
+        for sql in ('ALTER TABLE payments ADD COLUMN new_contract TEXT',
+                    "UPDATE payments SET value='financial-change'",
+                    "INSERT INTO webhook_events(value) VALUES ('new-composite-marker')"):
+            with self.subTest(sql=sql):
+                # Each subcase owns an independent complete synthetic environment.
+                if sql != 'ALTER TABLE payments ADD COLUMN new_contract TEXT':
+                    self.doCleanups(); self.setUp()
+                self.capture(); before = self.db.read_bytes()
+                def mutate():
+                    with closing(sqlite3.connect(self.db)) as db:
+                        with db: db.execute(sql)
+                self.runner.on_stop = mutate
+                with self.assertRaises(pre.ReleaseError): self.recover()
+                self.assert_no_up()
+                self.assertFalse(self.containers['fixture-api']['State']['Running'])
+                self.assertNotEqual(self.db.read_bytes(), before)
+
+    def test_success_checks_actual_images_sha_readiness_and_frontend(self):
+        before = self.db.read_bytes(); result = self.recover()
+        self.assertEqual(result['status'], 'ROLLBACK_VERIFIED')
+        self.assertEqual(result['recovered_sha'], OLD_SHA)
+        self.assertEqual(self.db.read_bytes(), before)
+        up = next(call for call in self.runner.calls if 'up' in call)
+        self.assertIn('--no-build', up); self.assertIn('--pull', up); self.assertIn('never', up)
+        self.assertFalse(any('prune' in call or 'build' in call for call in self.runner.calls))
+
+    def test_failed_up_or_actual_wrong_image_propagates_and_stops(self):
+        for field in ('fail_up', 'wrong_up_image'):
+            with self.subTest(field=field):
+                if field != 'fail_up': self.doCleanups(); self.setUp()
+                self.capture(); setattr(self.runner, field, True)
+                with self.assertRaises(pre.ReleaseError): self.recover()
+                self.assertFalse(self.containers['fixture-api']['State']['Running'])
+
+    def test_health_sha_db_or_frontend_failure_stops_recovered_services(self):
+        for broken in ('sha', 'db', 'front'):
+            with self.subTest(broken=broken):
+                if broken != 'sha': self.doCleanups(); self.setUp()
+                self.capture()
+                def http(url):
+                    status, body = self.http(url)
+                    if broken == 'front' and url.endswith('/'): return 503, b''
+                    if url.endswith('/api/v1/health'):
+                        data = json.loads(body)
+                        if broken == 'sha': data['buildSha'] = 'c' * 40
+                        if broken == 'db': data['checks']['db']['status'] = 'failed'
+                        body = json.dumps(data).encode()
+                    return status, body
+                with self.assertRaises(pre.ReleaseError): self.recover(health=http)
+                self.assertFalse(self.containers['fixture-api']['State']['Running'])
+
+    def test_lock_prevents_parallel_state_changes(self):
+        with self.rec.release_lock(self.state):
+            with self.assertRaises(pre.ReleaseError):
+                with self.rec.release_lock(self.state): pass
+
+    def test_clean_stopped_wal_database_never_recreates_sidecars(self):
+        writer = sqlite3.connect(self.db)
+        writer.execute('PRAGMA journal_mode=WAL')
+        writer.execute('INSERT INTO payments(value) VALUES (?)', ('wal-committed',)); writer.commit()
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['financial_state_sha256'] = self.backup['financial_state_sha256']
+        self.capture()
+        writer.close()
+        self.assertFalse(Path(str(self.db) + '-wal').exists())
+        before = set(self.volume.iterdir())
+        metadata = self.rec.stopped_database_metadata(self.db)
+        self.assertEqual(metadata['financial_state_sha256'], self.backup['financial_state_sha256'])
+        self.assertEqual(set(self.volume.iterdir()), before)
+
+    def test_unknown_runtime_image_or_overlay_is_not_automatically_recovered(self):
+        self.capture()
+        self.containers['fixture-api']['Image'] = 'sha256:' + '9' * 64
+        with self.assertRaises(pre.ReleaseError): self.recover()
+        self.assert_no_up()
+
+    def test_runtime_overlay_must_be_exact_recorded_file(self):
+        self.capture()
+        self.containers['fixture-api']['Config']['Labels']['com.docker.compose.project.config_files'] += ',/unexpected.yml'
+        with self.assertRaises(pre.ReleaseError): self.recover()
+        self.assert_no_up()
+
+    def test_controlled_stop_rejects_unknown_context_before_any_stop(self):
+        self.containers['fixture-api']['Config']['Labels']['com.docker.compose.project'] = 'unrelated'
+        with self.assertRaises(pre.ReleaseError): self.rec.controlled_stop(self.target, self.runner)
+        self.assertFalse(any('stop' in call for call in self.runner.calls))
+        self.assertTrue(self.containers['fixture-api']['State']['Running'])
+
+    def test_shadow_database_mount_blocks_recovery_before_stop(self):
+        self.capture()
+        self.containers['fixture-api']['Mounts'].append({'Type':'bind', 'Source':'/unrelated', 'Destination':'/app/data/student_ms.db', 'RW':True})
+        with self.assertRaises(pre.ReleaseError): self.recover()
+        self.assertFalse(any('stop' in call or 'up' in call for call in self.runner.calls))
+
+    def test_controlled_stop_pins_validated_container_ids_and_propagates_failure(self):
+        self.rec.controlled_stop(self.target, self.runner)
+        command = next(call for call in self.runner.calls if 'stop' in call)
+        self.assertEqual(command[1:3], ['container', 'stop'])
+        for service in ('api', 'web'): self.assertIn(self.containers['fixture-' + service]['Id'], command)
+        self.runner.fail_stop = True
+        with self.assertRaises(pre.ReleaseError): self.rec.controlled_stop(self.target, self.runner)
+
+    def test_manual_recovery_revalidates_git_root_and_origin_before_mutation(self):
+        self.capture()
+        for field, value in (('remote', 'https://example.invalid/unrelated'), ('root', str(self.root))):
+            with self.subTest(field=field):
+                original = self.fixture[field]; self.fixture[field] = value
+                with self.assertRaises(pre.ReleaseError): self.recover()
+                self.fixture[field] = original
+                self.assertFalse(any('stop' in call or 'up' in call for call in self.runner.calls))
+
+    def test_prepare_never_replaces_containers_or_reports_deployment_success(self):
+        result = self.rec.prepare(self.config, self.runner, policy=self.policy)
+        self.assertEqual(result['status'], 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED')
+        self.assert_no_up()
+
+    def test_execute_requires_exact_explicit_opt_in(self):
+        for value in (None, '', '0', 'true', 'yes'):
+            with self.subTest(value=value):
+                with self.assertRaises(pre.ReleaseError):
+                    self.rec.deploy(self.config, self.runner, self.policy, execute=value, http=self.http, timeout=0)
+                self.assert_no_up()
+
+    def deployed_http(self, url):
+        status, body = self.http(url)
+        if url.endswith('/api/v1/health'):
+            data = json.loads(body); data['buildSha'] = self.config['approved_sha']
+            data['writerHold'] = {'active': self.runner.hold_held}; body = json.dumps(data).encode()
+        return status, body
+
+    def test_guarded_deploy_verifies_all_sha_stages_and_built_images(self):
+        result = self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED_WRITERS_HELD')
+        for key in ('requested_sha', 'checked_out_sha', 'built_sha', 'health_sha', 'deployed_sha'):
+            self.assertEqual(result[key], self.config['approved_sha'])
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+        self.assertEqual(self.containers['fixture-web']['Image'], NEW_WEB)
+
+    def test_runtime_database_configuration_drift_refuses_before_stop(self):
+        self.capture()
+        api_config = self.containers['fixture-api']['Config']
+        for workdir, environment in (('/other', []), ('/app', ['VITEST=true']),
+                                     ('/app', ['DATABASE_PATH=/other/student_ms.db']),
+                                     ('/app', ['DATABASE_PATH=/app/data/student_ms.db'] * 2),
+                                     ('/app', 'DATABASE_PATH=/app/data/student_ms.db')):
+            with self.subTest(workdir=workdir, environment=environment):
+                api_config['WorkingDir'] = workdir
+                api_config['Env'] = environment
+                self.runner.calls.clear()
+                with self.assertRaises(pre.ReleaseError): self.recover()
+                self.assert_no_up()
+                self.assertFalse(any(call[1:3] == ['container', 'stop'] for call in self.runner.calls))
+
+    def test_capture_time_runtime_database_drift_refuses_before_stop(self):
+        def change_database():
+            self.containers['fixture-api']['Config']['Env'] = ['DATABASE_PATH=/other/student_ms.db']
+        self.runner.on_tag = change_database
+        with self.assertRaises(pre.ReleaseError):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assert_no_up()
+        self.assertFalse(any(call[1:3] == ['container', 'stop'] for call in self.runner.calls))
+
+    def test_wrong_candidate_database_configuration_fails_and_stops_known_ids(self):
+        def wrong_database():
+            self.containers['fixture-api']['Config']['Env'] = ['DATABASE_PATH=/other/student_ms.db']
+            self.runner.on_up = None
+        self.runner.on_up = wrong_database
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assertEqual(sum('up' in call for call in self.runner.calls), 1)
+        self.assertTrue(all(container['State']['Running'] is False for container in self.containers.values()))
+
+    def test_wrong_candidate_revision_label_refuses_before_replacement(self):
+        self.runner.images[NEW_WEB] = 'e' * 40
+        with self.assertRaises(pre.ReleaseError):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assert_no_up()
+
+    def test_capture_time_checkout_change_refuses_before_stop(self):
+        def change_checkout(): self.fixture['sha'] = 'e' * 40
+        self.runner.on_tag = change_checkout
+        with self.assertRaises(pre.ReleaseError):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assertFalse(any(call[1:3] == ['container', 'stop'] for call in self.runner.calls)); self.assert_no_up()
+
+    def test_capture_time_financial_mutation_refuses_before_up(self):
+        def mutate():
+            with closing(sqlite3.connect(self.db)) as db:
+                with db: db.execute("UPDATE payments SET value='changed-during-capture'")
+        self.runner.on_tag = mutate
+        with self.assertRaises(pre.ReleaseError):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assert_no_up()
+
+    def test_deploy_final_stopped_writer_snapshot_blocks_racing_payment(self):
+        def racing_payment():
+            with closing(sqlite3.connect(self.db)) as db:
+                with db: db.execute("UPDATE payments SET value='last-moment-payment'")
+        self.runner.on_stop = racing_payment
+        with self.assertRaises(pre.ReleaseError):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assert_no_up()
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+
+    def test_stopped_snapshot_error_attempts_recovery(self):
+        with patch.object(self.rec, 'stopped_database_metadata', side_effect=[pre.ReleaseError('SNAPSHOT_FAILED'), self.backup]):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_overlay_write_error_attempts_recovery(self):
+        with patch.object(self.rec, 'overlay_file', side_effect=OSError('synthetic')):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_candidate_metadata_failure_attempts_recovery(self):
+        original = self.rec.immutable_json
+        def write(path, value):
+            if path.name.startswith('candidate-'): raise OSError('synthetic candidate write failure')
+            return original(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=write):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_partial_stop_attempts_recovery(self):
+        original = self.rec.controlled_stop
+        attempts = []
+        def stop(target, runner, allowed_configs=None):
+            attempts.append(1)
+            if len(attempts) == 1:
+                self.containers['fixture-api']['State']['Running'] = False
+                raise pre.ReleaseError('PARTIAL_STOP')
+            return original(target, runner, allowed_configs)
+        with patch.object(self.rec, 'controlled_stop', side_effect=stop):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+        self.assertTrue(self.containers['fixture-api']['State']['Running'])
+
+    def test_stop_failure_reports_unverified_containment(self):
+        self.runner.fail_stop = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'CONTAINMENT_UNVERIFIED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.http, timeout=0)
+
+    def test_failed_deploy_can_recover_but_never_reports_deploy_success(self):
+        def http(url):
+            if self.containers['fixture-api']['Image'] == NEW_API: return 503, b''
+            return self.http(url)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=http, timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_failed_deploy_with_new_financial_event_refuses_old_replacement(self):
+        def mutate_once():
+            with closing(sqlite3.connect(self.db)) as db:
+                with db: db.execute("INSERT INTO webhook_events(value) VALUES ('new-payment-marker')")
+            self.runner.on_up = None
+        self.runner.on_up = mutate_once
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=lambda url: (503, b''), timeout=0)
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(sum('up' in call for call in self.runner.calls), 1)
+
+    def test_new_foreign_key_violation_blocks_release_without_repair(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            with db:
+                db.execute('CREATE TABLE legacy_child (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id))')
+                db.execute('INSERT INTO legacy_child VALUES (1, 999)')
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['schema_sha256'] = self.backup['schema_sha256']
+        self.policy['foreign_key_violation_count'] = self.backup['foreign_key_violation_count']
+        self.policy['foreign_key_violations_sha256'] = self.backup['foreign_key_violations_sha256']
+        def introduce_orphan():
+            with closing(sqlite3.connect(self.db)) as db:
+                with db: db.execute('INSERT INTO legacy_child VALUES (2, 998)')
+            self.runner.on_up = None
+        self.runner.on_up = introduce_orphan
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        with closing(sqlite3.connect(self.db)) as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM legacy_child').fetchone()[0], 2)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+
+    def test_unchanged_preexisting_foreign_key_violation_is_recorded_and_allowed(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            with db:
+                db.execute('CREATE TABLE legacy_child (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id))')
+                db.execute('INSERT INTO legacy_child VALUES (1, 999)')
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['schema_sha256'] = self.backup['schema_sha256']
+        self.policy['foreign_key_violation_count'] = self.backup['foreign_key_violation_count']
+        self.policy['foreign_key_violations_sha256'] = self.backup['foreign_key_violations_sha256']
+        self.assertEqual(self.backup['foreign_key_violation_count'], 1)
+        result = self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED_WRITERS_HELD')
+
+
+    # --- Historical transition tests ---
+
+    def _make_historical(self):
+        """Configure environment for a historical transition: both images unlabeled."""
+        for image in (API_IMAGE, WEB_IMAGE):
+            self.runner.images[image] = None
+        self.target['services']['api']['revision'] = None
+        self.target['services']['web']['revision'] = None
+        self.policy['source_sha'] = None
+        self.policy['historical_transition'] = True
+
+    def test_historical_transition_accepts_unlabeled_images_with_policy(self):
+        self._make_historical()
+        manifest = self.capture()
+        self.assertEqual(manifest['eligibility'], 'HISTORICAL_TRANSITION')
+        self.assertTrue((self.state / 'current-recovery.json').exists())
+        for service in ('api', 'web'):
+            self.assertIsNone(manifest['images'][service]['revision'])
+
+    def test_historical_transition_without_policy_flag_still_refuses(self):
+        for image in (API_IMAGE, WEB_IMAGE):
+            self.runner.images[image] = None
+        self.target['services']['api']['revision'] = None
+        self.target['services']['web']['revision'] = None
+        self.policy['source_sha'] = None
+        # No historical_transition flag in policy
+        with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_historical_transition_with_mixed_revisions_refuses(self):
+        self.runner.images[API_IMAGE] = None
+        self.target['services']['api']['revision'] = None
+        # Web still has a valid revision
+        self.policy['source_sha'] = None
+        self.policy['historical_transition'] = True
+        with self.assertRaises(pre.ReleaseError): self.capture()
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_historical_transition_manifest_blocks_automated_rollback(self):
+        self._make_historical()
+        self.capture()
+        with self.assertRaises(pre.ReleaseError): self.rec.load_manifest(self.state)
+
+    def test_historical_transition_prepare_reports_no_recovery(self):
+        self._make_historical()
+        result = self.rec.prepare(self.config, self.runner, policy=self.policy)
+        self.assertEqual(result['status'], 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED')
+        self.assertFalse(result['recovery_eligible'])
+
+    def test_historical_transition_deploy_succeeds(self):
+        self._make_historical()
+        result = self.rec.deploy(self.config, self.runner, self.policy, execute='1', http=self.deployed_http, timeout=0)
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED_WRITERS_HELD')
+        self.assertFalse(result['automatic_recovery_currently_eligible'])
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+        self.assertEqual(self.containers['fixture-web']['Image'], NEW_WEB)
+
+    def test_historical_transition_deploy_failure_stops_without_rollback(self):
+        self._make_historical()
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED'):
+            self.rec.deploy(self.config, self.runner, self.policy, execute='1',
+                            http=lambda url: (503, b''), timeout=0)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(sum('up' in call for call in self.runner.calls), 1)
+
+    # --- Reviewed image binding (AUTH-14) ---
+
+    def stops(self):
+        return [call for call in self.runner.calls if call[1:3] == ['container', 'stop']]
+
+    def builds(self):
+        return [call for call in self.runner.calls if 'build' in call]
+
+    def deploy(self, http=None):
+        return self.rec.deploy(self.config, self.runner, self.policy, execute='1',
+                               http=http or self.deployed_http, timeout=0)
+
+    def test_deploy_never_builds_and_runs_exact_reviewed_image_ids(self):
+        result = self.deploy()
+        self.assertEqual(self.builds(), [])
+        self.assertEqual(result['images'], {'api': NEW_API, 'web': NEW_WEB})
+        overlay = next(call for call in self.runner.calls if 'up' in call)
+        self.assertIn('--no-build', overlay); self.assertIn('never', overlay)
+
+    def test_unbound_or_invalid_reviewed_images_refuse_before_stop(self):
+        for bad in (None, {}, {'api': NEW_API}, {'api': NEW_API, 'web': 'latest'},
+                    {'api': NEW_API, 'web': NEW_WEB, 'extra': NEW_WEB},
+                    {'api': 'sha256:' + '9' * 64, 'web': NEW_WEB}):
+            with self.subTest(bad=bad):
+                self.policy['candidate_images'] = bad
+                self.runner.calls.clear()
+                with self.assertRaises(pre.ReleaseError): self.deploy()
+                self.assertEqual(self.stops(), []); self.assert_no_up()
+
+    def test_label_alone_does_not_satisfy_reviewed_image_binding(self):
+        impostor = 'sha256:' + '8' * 64
+        self.runner.images[impostor] = self.config['approved_sha']
+        self.runner.tags['fixture-api:latest'] = impostor
+        self.deploy()
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+
+    def test_reviewed_image_removed_after_capture_refuses_before_stop(self):
+        def remove(): del self.runner.images[NEW_API]
+        self.runner.on_tag = remove
+        with self.assertRaises(pre.ReleaseError): self.deploy()
+        self.assertEqual(self.stops(), []); self.assert_no_up()
+
+    def test_started_image_differing_from_reviewed_id_fails(self):
+        self.runner.wrong_up_image = True
+        with self.assertRaises(pre.ReleaseError): self.deploy()
+
+    def test_build_action_records_ids_and_never_stops_services(self):
+        result = self.rec.build(self.config, self.runner)
+        self.assertEqual(result, {'status': 'CANDIDATE_IMAGES_BUILT', 'approved_sha': self.config['approved_sha'],
+                                  'images': {'api': NEW_API, 'web': NEW_WEB}})
+        self.assertEqual(self.stops(), []); self.assert_no_up()
+        self.assertEqual(self.runner.tags['fixture-api:candidate-' + self.config['approved_sha']], NEW_API)
+
+    def test_build_action_refuses_wrong_revision(self):
+        self.runner.build_wrong_sha = True
+        with self.assertRaises(pre.ReleaseError): self.rec.build(self.config, self.runner)
+
+    # --- Writer hold (AUTH-14) ---
+
+    def test_hold_is_engaged_with_candidate_image_after_stop_and_before_start(self):
+        result = self.deploy()
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED_WRITERS_HELD')
+        self.assertTrue(self.runner.hold_held)
+        calls = self.runner.calls
+        stop = next(i for i, c in enumerate(calls) if c[1:3] == ['container', 'stop'])
+        hold = next(i for i, c in enumerate(calls) if c[1] == 'run' and c[-1] == 'hold')
+        up = next(i for i, c in enumerate(calls) if 'up' in c)
+        self.assertTrue(stop < hold < up)
+        self.assertIn(NEW_API, calls[hold])
+
+    def test_candidate_not_reporting_hold_fails_and_never_succeeds(self):
+        def http(url):
+            status, body = self.deployed_http(url)
+            if url.endswith('/api/v1/health') and self.containers['fixture-api']['Image'] == NEW_API:
+                data = json.loads(body); data['writerHold'] = {'active': False}; body = json.dumps(data).encode()
+            elif url.endswith('/api/v1/health'):
+                data = json.loads(body); data['buildSha'] = OLD_SHA; body = json.dumps(data).encode()
+            return status, body
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(http)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_hold_engage_failure_recovers_without_starting_candidate(self):
+        def fail(): raise pre.ReleaseError('HOLD_FAILED')
+        self.runner.on_hold = fail
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def release(self, http=None):
+        return self.rec.release_hold(self.config, self.runner, self.policy, execute='1',
+                                     http=http or self.deployed_http, timeout=0)
+
+    def test_release_hold_clears_hold_and_verifies(self):
+        self.deploy()
+        result = self.release()
+        self.assertEqual(result['status'], 'WRITERS_RELEASED')
+        self.assertFalse(self.runner.hold_held)
+        call = next(c for c in self.runner.calls if c[1] == 'exec')
+        self.assertIn(self.containers['fixture-api']['Id'], call)
+
+    def test_release_hold_requires_explicit_execute(self):
+        self.deploy()
+        with self.assertRaises(pre.ReleaseError):
+            self.rec.release_hold(self.config, self.runner, self.policy, execute='0', http=self.deployed_http, timeout=0)
+        self.assertTrue(self.runner.hold_held)
+
+    def test_release_hold_refuses_when_financial_state_changed(self):
+        self.deploy()
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute("UPDATE payments SET value='changed-while-held'")
+        with self.assertRaises(pre.ReleaseError): self.release()
+        self.assertTrue(self.runner.hold_held)
+
+    def test_release_hold_refuses_on_a_container_not_running_the_candidate(self):
+        self.deploy()
+        self.containers['fixture-api']['Image'] = API_IMAGE
+        with self.assertRaises(pre.ReleaseError): self.release()
+        self.assertTrue(self.runner.hold_held)
+
+    def test_release_hold_refuses_when_hold_is_not_active(self):
+        self.deploy()
+        self.runner.hold_held = False
+        with self.assertRaises(pre.ReleaseError): self.release()
+        self.assertFalse(any(c[1] == 'exec' for c in self.runner.calls))
+
+    # --- Migration during the hold (AUTH-14) ---
+
+    def migrate_schema(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute('CREATE INDEX migrated_marker ON users(id)')
+
+    def post_migration_schema(self):
+        probe = Path(self.config['backup_root']).parent / 'probe.db'
+        with closing(sqlite3.connect(self.db)) as source, closing(sqlite3.connect(probe)) as copy:
+            source.backup(copy)
+            with copy: copy.execute('CREATE INDEX migrated_marker ON users(id)')
+            copy.execute('BEGIN')
+            value = pre.database_metadata(copy)['schema_sha256']
+            copy.rollback()
+        probe.unlink()
+        return value
+
+    def plan_migration(self):
+        self.policy['migration'] = {'pre_schema_sha256': self.policy['schema_sha256']}
+        self.policy['schema_sha256'] = self.post_migration_schema()
+        self.runner.on_migrate = self.migrate_schema
+
+    def test_migration_runs_in_reviewed_image_while_stopped_and_recovery_targets_migrated_schema(self):
+        self.plan_migration()
+        result = self.deploy()
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED_WRITERS_HELD')
+        calls = self.runner.calls
+        stop = next(i for i, c in enumerate(calls) if c[1:3] == ['container', 'stop'])
+        run = next(i for i, c in enumerate(calls) if c[1] == 'run' and any('migrateRewardTxnCheck' in v for v in c))
+        up = next(i for i, c in enumerate(calls) if 'up' in c)
+        self.assertTrue(stop < run < up)
+        self.assertIn(NEW_API, calls[run])
+        self.assertEqual(calls[run][calls[run].index('--fk-count') + 1], str(self.policy['foreign_key_violation_count']))
+        self.assertEqual(calls[run][calls[run].index('--fk-sha256') + 1], self.policy['foreign_key_violations_sha256'])
+        manifest = self.rec.load_manifest(self.state)
+        self.assertEqual(manifest['backup']['schema_sha256'], self.policy['schema_sha256'])
+        self.assertTrue(result['automatic_recovery_currently_eligible'])
+        self.assertTrue(Path(result['pre_migration_backup']).is_file())
+
+    def test_wrong_pre_migration_schema_refuses_before_stop(self):
+        self.plan_migration()
+        self.policy['migration']['pre_schema_sha256'] = 'a' * 64
+        with self.assertRaises(pre.ReleaseError): self.deploy()
+        self.assertEqual(self.stops(), []); self.assert_no_up()
+
+    def test_failed_migration_with_unchanged_database_restores_old_service(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+        self.assertTrue(self.containers['fixture-api']['State']['Running'])
+
+    def test_unexpected_post_migration_schema_halts_with_services_stopped(self):
+        self.plan_migration()
+        self.policy['schema_sha256'] = 'c' * 64
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy()
+        self.assert_no_up()
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+
+    def test_row_changed_by_migration_halts_with_services_stopped(self):
+        self.plan_migration()
+        def migrate_and_change():
+            self.migrate_schema()
+            with closing(sqlite3.connect(self.db)) as db:
+                with db: db.execute('UPDATE users SET id = id + 100')
+        self.runner.on_migrate = migrate_and_change
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy()
+        self.assert_no_up()
+
+    def test_failed_candidate_after_migration_recovers_old_image_on_migrated_schema(self):
+        self.plan_migration()
+        def http(url):
+            if self.containers['fixture-api']['Image'] == NEW_API: return 503, b''
+            return self.http(url)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(http)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+        self.assertEqual(self.rec.load_manifest(self.state)['backup']['schema_sha256'], self.policy['schema_sha256'])
+
+    def test_stopped_backup_reads_a_clean_wal_database_without_sidecars(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            db.execute('PRAGMA journal_mode=WAL'); db.execute('SELECT 1').fetchall()
+        backup = pre.backup_stopped_database(self.target, self.config['backup_root'])
+        self.assertTrue(Path(backup['file']).is_file())
+        self.assertFalse(Path(str(self.db) + '-wal').exists())
+        self.rec.verify_backup(self.target, backup)
+
+    def test_protected_content_digest_tracks_rows_but_not_receipts(self):
+        def digest():
+            with closing(sqlite3.connect(self.db)) as db:
+                db.execute('BEGIN'); return pre.database_metadata(db)['protected_content_sha256']
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute('CREATE TABLE IF NOT EXISTS system_config (key TEXT)')
+        first = digest()
+        with closing(sqlite3.connect(self.db)) as db:
+            with db:
+                db.execute("INSERT INTO system_config VALUES ('migration_002_reward_txn_check')")
+                db.execute("INSERT INTO system_config VALUES ('migration_002_reward_txn_check_fk_baseline')")
+        self.assertEqual(digest(), first)
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute("INSERT INTO system_config VALUES ('other_setting')")
+        self.assertNotEqual(digest(), first)
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute("DELETE FROM system_config WHERE key='other_setting'")
+        self.assertEqual(digest(), first)
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute('UPDATE users SET id = id + 100')
+        self.assertNotEqual(digest(), first)
+
+    # --- Independent review findings (AUTH-14) ---
+
+    def label_source_with_trusted_overlay(self):
+        """Production today: the source runs on an earlier release's verified overlay."""
+        self.runner.images[API_IMAGE] = OLD_SHA
+        manifest_id = 'a' * 32
+        self.state.mkdir(mode=0o700, exist_ok=True)
+        overlay = self.state / ('deploy-' + 'b' * 32 + '.json')
+        self.rec.immutable_json(overlay, {'services': {'api': {'image': API_IMAGE}, 'web': {'image': WEB_IMAGE}}})
+        target = dict(self.target, approved_sha=OLD_SHA)
+        manifest = {'version': 1, 'manifest_id': manifest_id, 'target': target, 'eligibility': 'EXACT_SCHEMA_AND_FINANCIAL_STATE'}
+        path = self.state / ('recovery-' + manifest_id + '.json')
+        self.rec.immutable_json(path, manifest)
+        self.rec.immutable_json(self.state / ('candidate-' + manifest_id + '.json'),
+                                {'manifest_sha256': pre.file_sha256(path), 'images': {'api': API_IMAGE, 'web': WEB_IMAGE},
+                                 'overlay_file': str(overlay), 'overlay_sha256': pre.file_sha256(overlay)})
+        self.rec.immutable_json(self.state / 'current-recovery.json',
+                                {'version': 1, 'manifest': path.name, 'sha256': pre.file_sha256(path)})
+        label = str(Path(self.fixture['root']) / 'docker-compose.yml') + ',' + str(overlay)
+        for name in ('fixture-api', 'fixture-web'):
+            self.containers[name]['Config']['Labels']['com.docker.compose.project.config_files'] = label
+        self.target = pre.validate_target(self.config, self.runner)
+        return (self.state / 'current-recovery.json').read_bytes()
+
+    def test_deploy_succeeds_from_a_source_running_on_a_trusted_overlay(self):
+        self.label_source_with_trusted_overlay()
+        result = self.deploy()
+        self.assertEqual(result['status'], 'DEPLOYMENT_VERIFIED_WRITERS_HELD')
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+
+    def test_failed_candidate_from_trusted_overlay_source_recovers_old_image(self):
+        self.label_source_with_trusted_overlay()
+        def http(url):
+            if self.containers['fixture-api']['Image'] == NEW_API: return 503, b''
+            return self.http(url)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(http)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+
+    def test_refusal_before_stop_leaves_recovery_pointer_and_source_validation_intact(self):
+        before = self.label_source_with_trusted_overlay()
+        def remove(): del self.runner.images[NEW_API]
+        self.runner.on_tag = remove
+        with self.assertRaises(pre.ReleaseError): self.deploy()
+        self.assertEqual(self.stops(), [])
+        self.assertEqual((self.state / 'current-recovery.json').read_bytes(), before)
+        pre.validate_target(self.config, self.runner)
+
+    def test_failure_after_release_is_reported_as_released_not_refused(self):
+        self.deploy()
+        def http(url):
+            if not self.runner.hold_held and url.endswith('/api/v1/health'): return 503, b''
+            return self.deployed_http(url)
+        with self.assertRaisesRegex(pre.ReleaseError, 'WRITER_RELEASE_UNCONFIRMED'): self.release(http)
+        self.assertFalse(self.runner.hold_held)
+
+    def test_release_can_be_retried_after_a_transient_exec_failure(self):
+        self.deploy()
+        def die():
+            self.runner.on_release = None
+            raise pre.ReleaseError('EXEC_LOST')
+        self.runner.on_release = die
+        with self.assertRaisesRegex(pre.ReleaseError, 'WRITER_RELEASE_UNCONFIRMED'): self.release()
+        self.assertTrue(self.runner.hold_held)
+        self.assertEqual(self.release()['status'], 'WRITERS_RELEASED')
+        self.assertFalse(self.runner.hold_held)
+
+    def test_release_retry_confirms_when_writers_are_already_released(self):
+        self.deploy()
+        def lost_response():
+            self.runner.hold_held = False
+            raise pre.ReleaseError('EXEC_RESPONSE_LOST')
+        self.runner.on_release = lost_response
+        with self.assertRaisesRegex(pre.ReleaseError, 'WRITER_RELEASE_UNCONFIRMED'): self.release()
+        self.runner.on_release = None
+        calls = sum(c[1] == 'exec' for c in self.runner.calls)
+        self.assertEqual(self.release()['status'], 'WRITERS_RELEASED')
+        self.assertEqual(sum(c[1] == 'exec' for c in self.runner.calls), calls)
+
+    def test_prepare_leaves_the_recovery_pointer_and_source_validation_intact(self):
+        before = self.label_source_with_trusted_overlay()
+        self.rec.prepare(self.config, self.runner, policy=self.policy)
+        self.assertEqual((self.state / 'current-recovery.json').read_bytes(), before)
+        pre.validate_target(self.config, self.runner)
+
+    def test_failed_held_record_leaves_no_verified_result(self):
+        original = self.rec.immutable_json
+        def write(path, value):
+            if path.name.startswith('held-'): raise OSError('synthetic')
+            return original(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=write):
+            with self.assertRaises(pre.ReleaseError): self.deploy()
+        self.assertEqual(list(self.state.glob('deploy-result-*')), [])
+
+    def test_rollback_is_refused_once_writers_were_released(self):
+        self.deploy()
+        self.release()
+        before = len(self.stops())
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_WRITERS_RELEASED'):
+            self.rec.rollback(self.config, self.state, self.policy, self.runner, http=self.http, timeout=0)
+        self.assertEqual(len(self.stops()), before)
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+
+    def test_rollback_is_refused_when_release_died_midway(self):
+        self.deploy()
+        def die(): raise pre.ReleaseError('EXEC_LOST')
+        self.runner.on_release = die
+        with self.assertRaises(pre.ReleaseError): self.release()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_WRITERS_RELEASED'):
+            self.rec.rollback(self.config, self.state, self.policy, self.runner, http=self.http, timeout=0)
+
+    def test_rollback_while_still_held_remains_available(self):
+        self.deploy()
+        result = self.rec.rollback(self.config, self.state, self.policy, self.runner, http=self.http, timeout=0)
+        self.assertEqual(result['status'], 'ROLLBACK_VERIFIED')
+
+    def test_release_refuses_a_deploy_that_never_finished_verifying(self):
+        manifest_writes = self.rec.immutable_json
+        def drop(path, value):
+            if path.name.startswith('deploy-result-'): raise OSError('died before the result')
+            return manifest_writes(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=drop):
+            with self.assertRaises(pre.ReleaseError): self.deploy()
+        self.containers['fixture-api']['Image'] = NEW_API
+        self.containers['fixture-web']['Image'] = NEW_WEB
+        with self.assertRaises(pre.ReleaseError): self.release()
+        self.assertFalse(any(c[1] == 'exec' for c in self.runner.calls))
+
+    def test_release_refuses_when_any_row_changed_while_held(self):
+        self.deploy()
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute('UPDATE users SET id = id + 100')
+        with self.assertRaises(pre.ReleaseError): self.release()
+        self.assertTrue(self.runner.hold_held)
+
+    def test_timed_out_migration_container_is_removed_before_recovery(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertEqual(len(self.runner.removed), 1)
+
+    def test_migration_container_that_will_not_die_halts_services_stopped(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        self.runner.one_shot_stuck = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy(self.http)
+        self.assert_no_up()
+
+    def test_candidate_startup_schema_change_fails_deployment(self):
+        def change():
+            with closing(sqlite3.connect(self.db)) as db:
+                with db: db.execute('CREATE INDEX startup_added ON users(id)')
+            self.runner.on_up = None
+        self.runner.on_up = change
+        with self.assertRaises(pre.ReleaseError) as caught: self.deploy()
+        self.assertIn('DEPLOYMENT_FAILED', str(caught.exception))
+
+    # --- Protected content during recovery (AUTH-14) ---
+
+    def write_row(self, sql="UPDATE users SET id = id + 100"):
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute(sql)
+
+    def add_operational_tables(self):
+        self.write_row('CREATE TABLE scheduler_tick_log (id INTEGER PRIMARY KEY)')
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['schema_sha256'] = self.backup['schema_sha256']
+
+    def candidate_unhealthy(self, url):
+        if self.containers['fixture-api']['Image'] == NEW_API: return 503, b''
+        return self.http(url)
+
+    def on_start_of(self, image, action):
+        def hook():
+            if self.containers['fixture-api']['Image'] == image: action()
+        self.runner.on_up = hook
+
+    def fail_stops_after_start_of(self, image):
+        def hook():
+            if self.containers['fixture-api']['Image'] == image:
+                self.write_row(); self.runner.fail_stop = True
+        self.runner.on_up = hook
+
+    def ups(self):
+        return sum('up' in call for call in self.runner.calls)
+
+    def assert_contained_unverified(self):
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+        self.assertEqual(list(self.state.glob('deploy-result-*')), [])
+
+    def test_row_written_during_candidate_start_never_restarts_old_writers(self):
+        self.on_start_of(NEW_API, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'): self.deploy()
+        self.assertEqual(self.ups(), 1)
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assert_contained_unverified()
+
+    def test_row_written_by_unhealthy_candidate_never_restarts_old_writers(self):
+        self.on_start_of(NEW_API, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 1)
+        self.assert_contained_unverified()
+
+    def test_row_written_during_candidate_start_after_migration_never_restarts_old_writers(self):
+        self.plan_migration()
+        self.on_start_of(NEW_API, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 1)
+        self.assert_contained_unverified()
+
+    def test_operational_row_written_during_held_candidate_start_is_still_detected(self):
+        self.add_operational_tables()
+        self.on_start_of(NEW_API, lambda: self.write_row('INSERT INTO scheduler_tick_log VALUES (1)'))
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'): self.deploy()
+        self.assertEqual(self.ups(), 1)
+
+    def test_containment_failure_after_candidate_write_is_reported_unverified(self):
+        self.fail_stops_after_start_of(NEW_API)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 1)
+        self.assert_contained_unverified()
+
+    def test_row_written_during_rollback_start_stops_services_and_reports_no_recovery(self):
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 2)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assert_contained_unverified()
+
+    def test_containment_failure_during_rollback_start_is_reported_unverified(self):
+        self.fail_stops_after_start_of(API_IMAGE)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assert_contained_unverified()
+
+    def test_normal_scheduler_activity_during_rollback_start_is_legitimate_recovery(self):
+        self.add_operational_tables()
+        self.on_start_of(API_IMAGE, lambda: self.write_row('INSERT INTO scheduler_tick_log VALUES (1)'))
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+        self.assertTrue(self.containers['fixture-api']['State']['Running'])
+
+    def test_failed_candidate_that_wrote_nothing_is_legitimate_recovery(self):
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+        self.assertEqual(len(list(self.state.glob('rollback-result-*'))), 1)
+
+    def rollback_now(self):
+        return self.rec.rollback(self.config, self.state, self.policy, self.runner, http=self.http, timeout=0)
+
+    def test_standalone_rollback_refuses_rows_changed_while_held(self):
+        self.deploy()
+        self.write_row()
+        before = self.ups()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_standalone_rollback_refuses_without_a_recorded_baseline(self):
+        self.deploy()
+        for path in self.state.glob('held-baseline-*'): path.unlink()
+        before = self.ups()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_HELD_BASELINE_MISSING'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+
+    def test_standalone_rollback_start_write_stops_services(self):
+        self.capture()
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_SERVICES_STOPPED'): self.rollback_now()
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_standalone_rollback_start_containment_failure_is_reported_unverified(self):
+        self.capture()
+        self.fail_stops_after_start_of(API_IMAGE)
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED'): self.rollback_now()
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_second_rollback_refuses_rows_written_by_the_first_recovery(self):
+        self.add_operational_tables()
+        self.deploy()
+        self.rollback_now()
+        self.write_row('INSERT INTO scheduler_tick_log VALUES (1)')
+        before = self.ups()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_ALREADY_ATTEMPTED'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+
+    def test_rollback_cannot_undo_a_migration_halt(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        def change_row_then_fail():
+            self.write_row()
+            raise pre.ReleaseError('MIGRATE_FAILED')
+        self.runner.fail_migrate = False
+        self.runner.on_migrate = change_row_then_fail
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+        self.assert_no_up()
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_rollback_cannot_run_beside_a_stuck_migration_container(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        self.runner.one_shot_stuck = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED'): self.deploy()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+        self.assert_no_up()
+
+    def test_failed_migration_rollback_compares_rows_with_the_first_stopped_state(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        original = self.rec._database_unchanged
+        def unchanged_then_row_changes(target, before):
+            result = original(target, before)
+            self.write_row()
+            return result
+        with patch.object(self.rec, '_database_unchanged', side_effect=unchanged_then_row_changes):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+                self.deploy(self.http)
+        self.assert_no_up()
+
+    def test_rerun_cannot_launder_a_failed_rollback_after_failed_migration(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.http)
+        before = self.ups()
+        self.runner.on_up = None
+        with self.assertRaises(pre.ReleaseError) as caught: self.rollback_now()
+        self.assertIn('ROLLBACK_REFUSED', str(caught.exception))
+        self.assertEqual(self.ups(), before)
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_rerun_cannot_launder_a_failed_capture_only_rollback(self):
+        self.capture()
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_SERVICES_STOPPED'): self.rollback_now()
+        before = self.ups()
+        self.runner.on_up = None
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_ALREADY_ATTEMPTED'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+
+    def test_stuck_hold_container_halts_without_starting_anything(self):
+        def stuck():
+            self.runner.one_shot_stuck = True
+            raise pre.ReleaseError('HOLD_FAILED')
+        self.runner.on_hold = stuck
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_HALTED_ONE_SHOT_NOT_CONTAINED_SERVICES_STOPPED'):
+            self.deploy(self.http)
+        self.assert_no_up()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+
+    def test_scheduler_lock_activity_during_rollback_start_is_legitimate_recovery(self):
+        self.write_row('CREATE TABLE scheduler_locks (lock_name TEXT PRIMARY KEY)')
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['schema_sha256'] = self.backup['schema_sha256']
+        self.on_start_of(API_IMAGE, lambda: self.write_row("INSERT INTO scheduler_locks VALUES ('reward-scheduler')"))
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+
+    def test_standalone_first_stop_failure_is_reported_as_containment(self):
+        self.capture()
+        self.runner.fail_stop = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED'): self.rollback_now()
+        self.assert_no_up()
+
+    def test_process_killed_during_migration_leaves_rollback_blocked(self):
+        self.plan_migration()
+        def killed(): raise KeyboardInterrupt()
+        self.runner.on_migrate = killed
+        with self.assertRaises(KeyboardInterrupt): self.deploy()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_OWNER_DECISION_REQUIRED'): self.rollback_now()
+        self.assert_no_up()
+
+    def test_block_exists_before_migration_and_clears_only_on_contained_outcomes(self):
+        self.plan_migration()
+        seen = []
+        def migrate():
+            seen.append((self.state / self.rec.OWNER_DECISION_FILE).exists())
+            self.migrate_schema()
+        self.runner.on_migrate = migrate
+        self.deploy()
+        self.assertEqual(seen, [True])
+        self.assertFalse((self.state / self.rec.OWNER_DECISION_FILE).exists())
+
+    def test_failed_contained_migration_clears_block_and_recovers(self):
+        self.plan_migration()
+        self.runner.fail_migrate = True
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertFalse((self.state / self.rec.OWNER_DECISION_FILE).exists())
+
+    def test_unwritable_block_prevents_migration(self):
+        self.plan_migration()
+        original = self.rec.immutable_json
+        def write(path, value):
+            if path.name == self.rec.OWNER_DECISION_FILE: raise OSError('synthetic')
+            return original(path, value)
+        with patch.object(self.rec, 'immutable_json', side_effect=write):
+            with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.http)
+        self.assertFalse(any(any('migrateRewardTxnCheck' in v for v in c) for c in self.runner.calls))
+
+    def test_normal_policy_still_produces_exact_eligibility(self):
+        manifest = self.capture()
+        self.assertEqual(manifest['eligibility'], 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
+        loaded = self.rec.load_manifest(self.state)
+        self.assertEqual(loaded['eligibility'], 'EXACT_SCHEMA_AND_FINANCIAL_STATE')
+
+
+if __name__ == '__main__': unittest.main()

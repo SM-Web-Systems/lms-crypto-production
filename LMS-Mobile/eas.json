@@ -18,7 +18,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1"
+        "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1",
+        "EXPO_PUBLIC_WEB_BASE_URL": "https://lms.smwebsystems.com"
       }
     },
     "preview-local-api": {
@@ -34,7 +35,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1"
+        "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1",
+        "EXPO_PUBLIC_WEB_BASE_URL": "https://lms.smwebsystems.com"
       }
     }
   },

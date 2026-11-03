@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
 import InlineQuizTaker from './InlineQuizTaker';
 import InlineAssignmentForm from './InlineAssignmentForm';
@@ -17,6 +18,24 @@ import {
   isGoogleDriveUrl,
   youtubeEmbedUrl,
 } from '../utils/mediaUrl';
+
+/** Sanitize HTML content — matches the MarkdownViewer sanitization config. */
+function sanitizeContentHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'ul', 'ol', 'li', 'a', 'strong', 'em', 'b', 'i',
+      'code', 'pre', 'blockquote',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'img', 'br', 'hr', 'span', 'div', 'dl', 'dt', 'dd',
+      'sup', 'sub', 'del', 's',
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'align'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'select', 'button'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'style'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+  });
+}
 
 /** Check if a URL points to an approved flashcards.md source */
 function isApprovedFlashcardUrl(url: string | null): boolean {
@@ -227,7 +246,7 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                 {item.information.includes('<') ? (
                   <div
                     className="text-sm text-neutral-800 mt-1.5 leading-relaxed prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: item.information }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(item.information) }}
                   />
                 ) : (
                   <div className="text-sm text-neutral-800 mt-1.5 leading-relaxed whitespace-pre-wrap">{item.information}</div>

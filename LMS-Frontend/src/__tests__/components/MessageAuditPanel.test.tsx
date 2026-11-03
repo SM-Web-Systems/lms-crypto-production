@@ -26,7 +26,7 @@ let mockUserRole = 'admin';
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: () => ({
-    user: { id: 'admin-1', name: 'Admin', email: 'admin@test.com', role: mockUserRole },
+    user: { id: 'admin-1', name: 'Admin', email: 'admin@test.com', role: 'student', permissions: mockUserRole === 'admin' ? ['message.view_deleted'] : [] },
   }),
 }));
 

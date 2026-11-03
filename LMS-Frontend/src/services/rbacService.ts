@@ -28,8 +28,18 @@ export interface UserRole {
   role_label: string;
   granted_at: string;
 }
+export interface RoleManagementOptions {
+  canModify: boolean;
+  reason: string | null;
+  assignableRoles: RbacRole[];
+  revocableRoleIds: string[];
+}
 
 export const rbacService = {
+  async getRoleOptions(userId: string): Promise<RoleManagementOptions> {
+    const response = await api.get<{success: boolean; data: RoleManagementOptions}>(`/admin/users/${userId}/role-options`);
+    return assertApiSuccess(response, 'Could not load role actions.');
+  },
   /** List all roles */
   async getRoles(): Promise<RbacRole[]> {
     const response = await api.get<{ success: boolean; data: RbacRole[] }>('/admin/roles');

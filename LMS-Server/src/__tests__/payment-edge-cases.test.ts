@@ -146,7 +146,8 @@ describe('Payment Edge Cases — Webhook Hardening', () => {
       .send(body);
 
     expect(res.status).toBe(200);
-    expect(res.body.message).toMatch(/failure recorded/i);
+    expect(res.body.message).toMatch(/no matching payment/i);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM webhook_events').get()).toEqual({n:0});
   });
 });
 

@@ -12,7 +12,7 @@ interface ScreenProps {
 /** Brand-background safe-area wrapper used by every screen. */
 export function Screen({ children, className, edges = ['top'] }: ScreenProps) {
   return (
-    <SafeAreaView edges={edges} className="flex-1 bg-neutral-50">
+    <SafeAreaView edges={edges} style={{flex:1,backgroundColor:'#f8fafb'}}>
       <View className={cn('flex-1', className)}>{children}</View>
     </SafeAreaView>
   );

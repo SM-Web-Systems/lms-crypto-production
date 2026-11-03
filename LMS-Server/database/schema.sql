@@ -1,5 +1,6 @@
--- SQLite schema for SM Web Systems LMS (run this in your server repo to fix "no such table: users")
--- Run: npm run db:schema  (uses this file by default)
+-- Canonical base schema for SM Web Systems LMS. Runtime additive migrations follow transactionally.
+-- New isolated databases only: npm run build; npm run db:init -- --initialize-new
+-- Never apply this manually to repair an existing database; preserve DB/WAL/SHM and review first.
 
 -- Users table (auth); description = optional profile bio (Profile API)
 CREATE TABLE IF NOT EXISTS users (
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_reset_token TEXT,
   password_reset_expires_at TEXT,
   password_changed_at TEXT,
+  authorization_version INTEGER NOT NULL DEFAULT 0,
   reward_balance_legacy_real REAL DEFAULT 0,
   -- Account deletion columns
   deletion_status TEXT DEFAULT NULL CHECK (deletion_status IN ('pending_deletion', 'finalized', 'legal_hold')),
@@ -763,7 +765,7 @@ CREATE TABLE IF NOT EXISTS reward_transactions (
   destination_user_id      TEXT REFERENCES users(id) ON DELETE RESTRICT,
   actor_type               TEXT NOT NULL DEFAULT 'user' CHECK (actor_type IN ('user', 'system')),
   actor_user_id            TEXT REFERENCES users(id) ON DELETE RESTRICT,
-  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),
+  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused')),
   amount_stroops           INTEGER NOT NULL CHECK (amount_stroops > 0),
   currency_code            TEXT NOT NULL DEFAULT 'XLM' CHECK (currency_code IN ('XLM')),
   previous_state           TEXT NOT NULL,
@@ -778,12 +780,16 @@ CREATE TABLE IF NOT EXISTS reward_transactions (
   CHECK ((actor_type = 'system' AND actor_user_id IS NULL) OR (actor_type = 'user' AND actor_user_id IS NOT NULL)),
   CHECK ((transaction_type = 'fund' AND funding_source_type IS NOT NULL) OR (transaction_type != 'fund')),
   CHECK ((transaction_type IN ('release', 'refund') AND allocation_id IS NOT NULL AND destination_user_id IS NOT NULL) OR (transaction_type NOT IN ('release', 'refund'))),
-  CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire'))),
+  CHECK ((transaction_type IN ('reserve', 'cancel', 'expire', 'release_unused') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire', 'release_unused'))),
   CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund'))
 );
 CREATE INDEX IF NOT EXISTS idx_reward_txn_reward ON reward_transactions(reward_id);
 CREATE INDEX IF NOT EXISTS idx_reward_txn_allocation ON reward_transactions(allocation_id);
 CREATE INDEX IF NOT EXISTS idx_reward_txn_idem ON reward_transactions(idempotency_key);
+-- W01-R3: Atomic reference consumption — one non-NULL funding_reference per fund transaction
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reward_txn_fund_ref_unique
+  ON reward_transactions(funding_reference)
+  WHERE funding_reference IS NOT NULL AND transaction_type = 'fund';
 
 CREATE TABLE IF NOT EXISTS reward_eligibility_events (
   id              TEXT PRIMARY KEY,

@@ -29,7 +29,8 @@ export const documentsService = {
   async download(id: string, fallbackName?: string): Promise<void> {
     const token = await getAuthToken();
     const url = this.getDownloadUrl(id);
-    const fileUri = `${FileSystem.cacheDirectory}${fallbackName || `document-${id}`}`;
+    const safeName = (fallbackName || `document-${id}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileUri = `${FileSystem.cacheDirectory}${safeName}`;
     const result = await FileSystem.downloadAsync(url, fileUri, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

@@ -8,7 +8,9 @@
 
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { StrKey } from '@stellar/stellar-sdk';
 import logger from "../utils/logger.js";
+import { isMobileSsoContext, type MobileSsoContext } from './mobileSsoService.js';
 
 const AMMA_BASE    = (process.env.AMMA_WALLET_URL || "http://localhost:3001").replace(/\/$/, "");
 const AMMA_API_KEY = process.env.AMMA_WALLET_API_KEY || "";
@@ -33,13 +35,33 @@ function walletUrl(path: string): string {
  *
  * @param lmsCallbackUrl  Full HTTPS URL of the LMS /auth/amma-callback endpoint.
  */
-export function buildSsoInitiateUrl(lmsCallbackUrl: string): string {
+export interface WalletLinkContext {
+  client: 'link';
+  userId: string;
+  authorizationVersion: number;
+  sessionHash: string;
+  sessionExpires: number;
+}
+
+export type SsoContext = MobileSsoContext | WalletLinkContext;
+
+function isWalletLinkContext(value: unknown): value is WalletLinkContext {
+  if (!value || typeof value !== 'object') return false;
+  const link = value as WalletLinkContext;
+  return link.client === 'link' && typeof link.userId === 'string' && link.userId.length > 0
+    && Number.isSafeInteger(link.authorizationVersion) && link.authorizationVersion >= 0
+    && typeof link.sessionHash === 'string' && /^[a-f0-9]{64}$/.test(link.sessionHash)
+    && Number.isSafeInteger(link.sessionExpires) && link.sessionExpires > Date.now() / 1000;
+}
+
+export function buildSsoInitiateUrl(lmsCallbackUrl: string, context?: SsoContext): string {
   if (!STATE_SECRET) {
     throw new Error("AMMA_SSO_STATE_SECRET is required for SSO state signing");
   }
 
   const state = jwt.sign(
-    { purpose: "sso_state", nonce: crypto.randomBytes(16).toString("hex") },
+    { purpose: "sso_state", nonce: crypto.randomBytes(16).toString("hex"),
+      ...(context?.client === 'mobile' ? {mobile: context} : context ? {link: context} : {}) },
     STATE_SECRET,
     { expiresIn: "5m" },
   );
@@ -73,8 +95,8 @@ setInterval(cleanupExpiredJtis, 2 * 60 * 1000).unref();
  * Validate the state JWT returned in the callback.
  * Throws on invalid signature, expiry, wrong purpose, or replay (JTI reuse).
  */
-export function validateState(state: string): void {
-  const payload = jwt.verify(state, STATE_SECRET) as { purpose?: string; nonce?: string };
+export function validateState(state: string): SsoContext | undefined {
+  const payload = jwt.verify(state, STATE_SECRET, {algorithms: ['HS256']}) as { purpose?: string; nonce?: string; mobile?: unknown; link?: unknown };
   if (payload.purpose !== "sso_state") {
     throw new Error("Invalid state token — wrong purpose");
   }
@@ -87,7 +109,15 @@ export function validateState(state: string): void {
   if (usedJtis.has(jti)) {
     throw new Error("State token already used — replay detected");
   }
+  if (payload.mobile !== undefined && !isMobileSsoContext(payload.mobile)) {
+    throw new Error('Invalid native SSO context');
+  }
+  if ((payload.link !== undefined && !isWalletLinkContext(payload.link))
+    || (payload.link !== undefined && payload.mobile !== undefined)) {
+    throw new Error('Invalid wallet linking context');
+  }
   usedJtis.set(jti, Date.now() + JTI_RETENTION_MS);
+  return (payload.mobile ?? payload.link) as SsoContext | undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,11 +126,27 @@ export function validateState(state: string): void {
 
 export interface AmmaWalletSSOUser {
   userId:               string; // AmmaWallet numeric user ID (as string)
-  email:                string;
+  email:                string | null;
   firstName:            string | null;
   lastName:             string | null;
   isEmailVerified:      boolean;
   mainnetWalletAddress: string | null; // Stellar public key if user has an active mainnet wallet
+}
+
+/** Validate the provider response at the trust boundary, before any database write. */
+export function parseSsoIdentity(value: unknown): AmmaWalletSSOUser {
+  if (!value || typeof value !== 'object') throw new Error('Invalid Wallet identity');
+  const user = value as AmmaWalletSSOUser;
+  if (typeof user.userId !== 'string' || !user.userId.trim() || user.userId.length > 128
+    || user.userId !== user.userId.trim()
+    || !(user.email === null || typeof user.email === 'string')
+    || typeof user.isEmailVerified !== 'boolean'
+    || ![user.firstName, user.lastName].every(name => name === null || (typeof name === 'string' && name.length <= 200))
+    || !(user.mainnetWalletAddress === null || (typeof user.mainnetWalletAddress === 'string'
+      && StrKey.isValidEd25519PublicKey(user.mainnetWalletAddress)))) {
+    throw new Error('Invalid Wallet identity');
+  }
+  return user;
 }
 
 /**
@@ -134,5 +180,5 @@ export async function verifyAssertion(assertion: string): Promise<AmmaWalletSSOU
     throw new Error(`SSO verify failed (${res.status}): ${text.slice(0, 200)}`);
   }
 
-  return res.json() as Promise<AmmaWalletSSOUser>;
+  return parseSsoIdentity(await res.json());
 }

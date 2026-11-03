@@ -200,7 +200,7 @@ const StudentCourse: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await courseService.fetchCourses();
+      const list = await courseService.fetchCourses({access: 'enrolled'});
       setCourses(list);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load your courses.'));
@@ -326,13 +326,18 @@ const StudentCourse: React.FC = () => {
 
     const sync = () => {
       courseCompletionService.getLessonCompletions(selectedCourseId).then((items) => {
-        if (cancelled || items.length === 0) return;
+        if (cancelled) return;
         setDoneItemIds((prev) => {
-          let changed = false;
           const merged = new Set(prev);
-          for (const item of items) {
-            if (!merged.has(item.itemId)) { merged.add(item.itemId); changed = true; }
+          // Assessments are authoritative on the server, including old locally checked items.
+          for (const entry of flatPath) {
+            if (entry.item.type === 'quiz' || entry.item.type === 'assignment') merged.delete(entry.item.id);
           }
+          for (const item of items) {
+            if (item.completedAt) merged.add(item.itemId);
+            else merged.delete(item.itemId);
+          }
+          const changed = merged.size !== prev.size || [...merged].some((id) => !prev.has(id));
           if (changed) writeDoneIds(user.id, selectedCourseId, merged);
           return changed ? merged : prev;
         });
@@ -357,7 +362,7 @@ const StudentCourse: React.FC = () => {
     const interval = setInterval(sync, 30_000);
 
     return () => { cancelled = true; clearInterval(interval); };
-  }, [selectedCourseId, user?.id]);
+  }, [selectedCourseId, user?.id, flatPath]);
 
   useEffect(() => {
     if (!selectedCourse || !selectedWeekId) return;
@@ -464,6 +469,8 @@ const StudentCourse: React.FC = () => {
   const toggleDoneItem = useCallback(
     (itemId: string) => {
       if (!selectedCourseId) return;
+      const item = selectedCourse && getCourseWeeks(selectedCourse).flatMap((week) => week.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+      if (item?.type === 'quiz' || item?.type === 'assignment') return;
       setDoneItemIds((prev) => {
         const next = new Set(prev);
         const adding = !prev.has(itemId);
@@ -477,12 +484,14 @@ const StudentCourse: React.FC = () => {
         return next;
       });
     },
-    [selectedCourseId, user?.id]
+    [selectedCourseId, selectedCourse, user?.id]
   );
 
   const markItemEngaged = useCallback(
     (itemId: string) => {
       if (!selectedCourseId) return;
+      const item = selectedCourse && getCourseWeeks(selectedCourse).flatMap((week) => week.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+      if (item?.type === 'quiz' || item?.type === 'assignment') return;
       setDoneItemIds((prev) => {
         if (prev.has(itemId)) return prev;
         const next = new Set(prev);
@@ -492,7 +501,7 @@ const StudentCourse: React.FC = () => {
         return next;
       });
     },
-    [selectedCourseId, user?.id]
+    [selectedCourseId, selectedCourse, user?.id]
   );
 
   const handleProgressUpdate = useCallback(
@@ -935,6 +944,12 @@ function SectionBlock({
   /** Use span+role="button" so we never nest a native <button> inside another control (invalid HTML). */
   const MaterialDoneToggle = ({ itemId }: { itemId: string }) => {
     const done = doneItemIds.has(itemId);
+    const item = section.items.find((item) => item.id === itemId);
+    if (item?.type === 'quiz' || item?.type === 'assignment') {
+      return <span className="flex h-9 w-9 items-center justify-center" title={done ? 'Assessment complete' : 'Complete the assessment to finish this lesson'}>
+        {done ? <CheckCircle className="h-6 w-6 text-green-600" aria-label="Assessment complete" /> : <Circle className="h-6 w-6 text-neutral-400" aria-label="Assessment pending" />}
+      </span>;
+    }
     const toggle = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       onToggleDone(itemId);

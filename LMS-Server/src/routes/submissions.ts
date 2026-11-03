@@ -115,7 +115,7 @@ router.put('/:id', requirePermission('course.submit'), updateSubmission);
  *       403: { description: Not authorized to delete }
  *       404: { description: Submission not found }
  */
-router.delete('/:id', deleteSubmission);
+router.delete('/:id', requirePermission('course.view'), deleteSubmission);
 
 // GET /submissions/:id/download - Download submission file
 /**

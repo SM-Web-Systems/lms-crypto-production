@@ -53,7 +53,7 @@ router.get('/:id', getUser);
  * /users/{id}/role:
  *   patch:
  *     tags: [Users]
- *     summary: Update user role
+ *     summary: Replace effective roles with a single legacy role and revoke existing sessions
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path

@@ -1,10 +1,10 @@
 import { generateToken } from '../../config/jwt.js';
-import type { JWTPayload, UserRole } from '../../types/index.js';
+import type { JWTPayload, LegacyRole } from '../../types/index.js';
 
 export function makeToken(overrides: {
   userId: string;
   email: string;
-  role: UserRole;
+  role: LegacyRole;
   studentId?: string;
 }): string {
   const payload: JWTPayload = {

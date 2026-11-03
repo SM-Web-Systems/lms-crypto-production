@@ -1,0 +1,123 @@
+flowchart TB
+    subgraph INSPECT["Phase 1: Inspect Production State"]
+        direction TB
+        I1["Audit current production\nSHA 0dd2385"]
+        I2["Verify file ownership\nroot:root on volumes"]
+        I3["Confirm DB size and integrity\nstudent_ms.db 16.8MB"]
+        I4["Document container config\nroot user, writable FS"]
+        I5["Capture baseline metrics\nRow counts, disk usage"]
+
+        I1 --> I2 --> I3 --> I4 --> I5
+    end
+
+    subgraph PLAN["Phase 2: Plan Changes"]
+        direction TB
+        P1["Review PR #76 diff\nMerge SHA 8abf282"]
+        P2["Map Dockerfile changes\nUSER node, chown, mkdir"]
+        P3["Map compose changes\nread_only, tmpfs"]
+        P4["Identify migration steps\nVolume chown sequence"]
+        P5["Document rollback procedure\nImage restore + volume compat"]
+
+        P1 --> P2 --> P3 --> P4 --> P5
+    end
+
+    subgraph FAIL_TEST["Phase 3: Write Failing Tests"]
+        direction TB
+        FT1["Test: container runs as uid=1000"]
+        FT2["Test: filesystem is read-only"]
+        FT3["Test: tmpfs mounted at /tmp"]
+        FT4["Test: SQLite DB writable by node"]
+        FT5["Test: uploads writable by node"]
+        FT6["Test: health endpoint responds"]
+        FT7["All tests RED before implementation"]
+
+        FT1 --> FT2 --> FT3 --> FT4 --> FT5 --> FT6 --> FT7
+    end
+
+    subgraph IMPLEMENT["Phase 4: Implement in Isolation"]
+        direction TB
+        IM1["Modify Dockerfile\nAdd chown, USER node"]
+        IM2["Modify docker-compose.yml\nread_only, tmpfs"]
+        IM3["Update deploy.sh\nVolume chown step"]
+        IM4["Create monitoring scripts\nlms-health-monitor.sh\nlms-deadman-check.sh"]
+        IM5["Update rollback.sh\nVolume compatibility"]
+
+        IM1 --> IM2 --> IM3 --> IM4 --> IM5
+    end
+
+    subgraph SIMULATE["Phase 5: Isolated Simulation"]
+        direction TB
+        S1["Build image locally\ndocker compose build"]
+        S2["Run with test volumes\nSimulate named volumes"]
+        S3["Test volume chown migration\nbusybox chown on test data"]
+        S4["Verify process runs as node\ndocker exec id → uid=1000"]
+        S5["Verify read-only filesystem\ndocker exec touch /test → fail"]
+        S6["Verify SQLite WAL access\nwrite + read + checkpoint"]
+        S7["Verify upload write access\nCreate file in each subdir"]
+
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+    end
+
+    subgraph RETEST["Phase 6: Regression Testing"]
+        direction TB
+        RT1["Run full e2e test suite"]
+        RT2["Run smoke-test.sh"]
+        RT3["Run data verification\nverify_data row counts"]
+        RT4["Test rollback path\nrollback.sh with node-owned volumes"]
+        RT5["Test monitoring scripts\nlms-health-monitor.sh dry run"]
+        RT6{"All tests GREEN?"}
+        RT_FAIL["Fix and re-run\nReturn to Phase 4"]
+
+        RT1 --> RT2 --> RT3 --> RT4 --> RT5 --> RT6
+        RT6 -->|"no"| RT_FAIL
+    end
+
+    subgraph REVIEW["Phase 7: Security Review Gate"]
+        direction TB
+        RV1["No secrets in Dockerfile"]
+        RV2["No privilege escalation paths"]
+        RV3["read_only prevents write exploits"]
+        RV4["tmpfs prevents persistent malware"]
+        RV5["Volume mounts are minimal"]
+        RV6["Monitoring covers all failure modes"]
+        RV7{"Security review\npassed?"}
+        RV_FAIL["Address findings\nReturn to Phase 4"]
+
+        RV1 --> RV2 --> RV3 --> RV4 --> RV5 --> RV6 --> RV7
+        RV7 -->|"no"| RV_FAIL
+    end
+
+    subgraph VERIFY["Phase 8: Production Verification"]
+        direction TB
+        V1["Execute deploy.sh against production"]
+        V2["Monitor lms-health-monitor.sh output"]
+        V3["Verify uid=1000 in running container"]
+        V4["Verify read_only filesystem"]
+        V5["Verify SQLite operations"]
+        V6["Verify upload operations"]
+        V7["Confirm SHA 27f9535 in /health"]
+        V8["Monitor for 24h stability"]
+
+        V1 --> V2 --> V3 --> V4 --> V5 --> V6 --> V7 --> V8
+    end
+
+    INSPECT --> PLAN
+    PLAN --> FAIL_TEST
+    FAIL_TEST --> IMPLEMENT
+    IMPLEMENT --> SIMULATE
+    SIMULATE --> RETEST
+    RT6 -->|"yes"| REVIEW
+    RV7 -->|"yes"| VERIFY
+    RT_FAIL --> IMPLEMENT
+    RV_FAIL --> IMPLEMENT
+
+    style INSPECT fill:#e3f2fd,stroke:#1565c0
+    style PLAN fill:#f3e5f5,stroke:#7b1fa2
+    style FAIL_TEST fill:#ffebee,stroke:#c62828
+    style IMPLEMENT fill:#fff3e0,stroke:#ef6c00
+    style SIMULATE fill:#fff9c4,stroke:#f9a825
+    style RETEST fill:#e8f5e9,stroke:#2e7d32
+    style REVIEW fill:#fce4ec,stroke:#c62828
+    style VERIFY fill:#c8e6c9,stroke:#2e7d32
+    style RT_FAIL fill:#ffcdd2,stroke:#b71c1c
+    style RV_FAIL fill:#ffcdd2,stroke:#b71c1c

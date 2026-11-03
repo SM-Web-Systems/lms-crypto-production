@@ -1,0 +1,47 @@
+%% AUTH-07: Rollback Flow
+%% Shows rollback.sh execution and automatic trigger points from deploy.sh.
+
+flowchart TD
+    subgraph TRIGGERS["Automatic Rollback Triggers (deploy.sh)"]
+        T1["API health timeout<br/>(60s)"] --> INVOKE
+        T2["Smoke test failure<br/>(5 checks)"] --> INVOKE
+    end
+
+    subgraph MANUAL["Manual Rollback"]
+        M1["Operator runs<br/>scripts/rollback.sh"] --> INVOKE
+    end
+
+    INVOKE([rollback.sh]) --> CHK_STATE{previous-images.txt<br/>exists?}
+    CHK_STATE -- NO --> FAIL_NO_STATE[EXIT 1:<br/>No deploy state found]
+
+    CHK_STATE -- YES --> READ_IDS[Read previous<br/>api= and web= image IDs]
+    READ_IDS --> CHK_IDS{Both IDs<br/>non-empty?}
+    CHK_IDS -- NO --> FAIL_NO_IDS[EXIT 1:<br/>No previous images<br/>saved]
+
+    CHK_IDS -- YES --> GET_PROJECT[Resolve compose<br/>project name]
+    GET_PROJECT --> TAG_API["docker tag<br/>$api_image →<br/>project-api:latest"]
+    TAG_API --> TAG_WEB["docker tag<br/>$web_image →<br/>project-web:latest"]
+    TAG_WEB --> RESTART["docker compose up -d<br/>--no-deps api web"]
+
+    RESTART --> HEALTH{API healthy<br/>within 60s?}
+    HEALTH -- NO --> FAIL_UNHEALTHY["EXIT 1:<br/>API unhealthy after rollback<br/>(logged to deploy-log.txt)"]
+    HEALTH -- YES --> SUCCESS["ROLLBACK SUCCESS<br/>(logged to deploy-log.txt)"]
+
+    subgraph DB_RESTORE["Manual DB Restore (if needed)"]
+        direction LR
+        R1["Locate backup:<br/>cat .deploy-state/<br/>pre-deploy-backup.txt"] --> R2["Stop API container"]
+        R2 --> R3["sudo cp backup.db<br/>→ volume path"]
+        R3 --> R4["Restart API"]
+    end
+
+    SUCCESS --> DB_NEEDED{"Schema changed<br/>in this release?"}
+    DB_NEEDED -- NO --> DONE([Rollback Complete])
+    DB_NEEDED -- "YES (not this release)" --> DB_RESTORE
+
+    style FAIL_NO_STATE fill:#f66,stroke:#900
+    style FAIL_NO_IDS fill:#f66,stroke:#900
+    style FAIL_UNHEALTHY fill:#f66,stroke:#900
+    style SUCCESS fill:#6f6,stroke:#090
+    style DONE fill:#6f6,stroke:#090
+    style T1 fill:#f96,stroke:#c60
+    style T2 fill:#f96,stroke:#c60

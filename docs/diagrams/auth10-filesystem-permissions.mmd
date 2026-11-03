@@ -1,0 +1,66 @@
+flowchart TB
+    subgraph CONTAINER["lms-api Container Filesystem"]
+        subgraph READONLY["Read-Only at Runtime"]
+            RO1["/app/dist/ — compiled JS"]
+            RO2["/app/node_modules/ — dependencies"]
+            RO3["/app/package.json"]
+            RO4["/app/docker-entrypoint.sh"]
+        end
+
+        subgraph WRITABLE["Writable at Runtime — Volumes"]
+            subgraph DATA_VOL["Volume: lms-data mounted at /app/data"]
+                W1["lms.db — SQLite database"]
+                W2["lms.db-wal — WAL journal"]
+                W3["lms.db-shm — shared memory"]
+            end
+
+            subgraph UPLOAD_VOL["Volume: lms-uploads mounted at /app/uploads"]
+                W4["avatars/"]
+                W5["docs/"]
+                W6["imports/"]
+                W7["submissions/"]
+            end
+        end
+
+        subgraph TMPFS["tmpfs Mounts — Proposed"]
+            T1["/tmp — temporary files"]
+            T2["/app/.cache — node cache if needed"]
+        end
+    end
+
+    subgraph CURRENT_PERMS["CURRENT: Root-Owned State"]
+        CP1["Container user: root uid=0"]
+        CP2["Volume files: root:root 644/755"]
+        CP3["All paths writable — no restrictions"]
+        CP4["No read-only filesystem"]
+        CP1 --> CP2 --> CP3 --> CP4
+    end
+
+    subgraph PROPOSED_PERMS["PROPOSED: Node-Owned State"]
+        PP1["Container user: node uid=1000"]
+        PP2["Volume files: node:node 644/755"]
+        PP3["Rootfs: read_only: true in compose"]
+        PP4["Volumes: writable by node"]
+        PP5["tmpfs: /tmp writable by node"]
+        PP1 --> PP2 --> PP3
+        PP3 --> PP4
+        PP3 --> PP5
+    end
+
+    subgraph COMPOSE_CHANGES["docker-compose.yml Additions"]
+        DC1["read_only: true"]
+        DC2["tmpfs:\n  - /tmp:size=64M"]
+        DC3["user: node"]
+    end
+
+    CURRENT_PERMS -->|"migration"| PROPOSED_PERMS
+    PROPOSED_PERMS --- COMPOSE_CHANGES
+
+    style READONLY fill:#e8f5e9,stroke:#2e7d32
+    style WRITABLE fill:#fff3e0,stroke:#ef6c00
+    style TMPFS fill:#e3f2fd,stroke:#1565c0
+    style CURRENT_PERMS fill:#ffebee,stroke:#c62828
+    style PROPOSED_PERMS fill:#e8f5e9,stroke:#2e7d32
+    style DATA_VOL fill:#f3e5f5,stroke:#7b1fa2
+    style UPLOAD_VOL fill:#f3e5f5,stroke:#7b1fa2
+    style COMPOSE_CHANGES fill:#fff9c4,stroke:#f9a825

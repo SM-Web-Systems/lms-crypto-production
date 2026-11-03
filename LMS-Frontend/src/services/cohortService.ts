@@ -16,8 +16,9 @@ export const cohortService = {
     return res.data.data;
   },
 
-  async listCohorts(courseId?: string): Promise<SponsorCohortSummary[]> {
-    const qs = courseId ? `?courseId=${courseId}` : '';
+  async listCohorts(courseId?: string, view?: 'own'): Promise<SponsorCohortSummary[]> {
+    const params=new URLSearchParams();if(courseId)params.set('courseId',courseId);if(view)params.set('view',view);
+    const qs=params.size ? '?' + params.toString() : '';
     const res = await api.get<{ success: boolean; data: { cohorts: SponsorCohortSummary[] } }>(`/admin/cohorts${qs}`);
     return res.data.data?.cohorts ?? [];
   },

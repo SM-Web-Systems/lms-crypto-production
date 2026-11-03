@@ -303,7 +303,7 @@ describe('D3 — PUT /courses/:courseId/lessons/:itemId/progress', () => {
       'SELECT completed_at, progress_pct, last_position_s FROM lesson_completions WHERE user_id = ? AND course_id = ? AND item_id = ?'
     ).get(ids.studentId, ids.courseId, 'item-d-1') as any;
     expect(after.completed_at).toBe(before.completed_at);
-    expect(after.progress_pct).toBe(75);
+    expect(after.progress_pct).toBe(100);
     expect(after.last_position_s).toBe(120);
   });
 
@@ -429,9 +429,9 @@ describe('D1b — GET /courses/:courseId/lessons/completions', () => {
 
   it('D1b-AC7: GET completions includes progress_pct and last_position_s', async () => {
     const token = makeToken({ userId: ids.studentId, email: 'student-d@test.com', role: 'student' });
-    // PUT progress for item-d-1
+    // PUT progress for item-d-2
     await request(app)
-      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-1/progress`)
+      .put(`/api/v1/courses/${ids.courseId}/lessons/item-d-2/progress`)
       .set('Authorization', `Bearer ${token}`)
       .send({ positionSeconds: 45, progressPercent: 30 });
     // GET completions
@@ -440,7 +440,7 @@ describe('D1b — GET /courses/:courseId/lessons/completions', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     // Should include both the pre-seeded completion AND the progress-only row
-    const progressRow = res.body.data.completions.find((c: any) => c.item_id === 'item-d-1' && c.progress_pct === 30);
+    const progressRow = res.body.data.completions.find((c: any) => c.item_id === 'item-d-2' && c.progress_pct === 30);
     expect(progressRow).toBeDefined();
     expect(progressRow.last_position_s).toBe(45);
   });

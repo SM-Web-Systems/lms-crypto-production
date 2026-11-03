@@ -7,6 +7,7 @@ import logger from './utils/logger.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
 import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
 import { processExpiredDeletions } from './services/deletionService.js';
+import { runWhenWriterHoldReleased } from './services/writerHold.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -56,12 +57,15 @@ function startServer() {
       logger.info({ port: PORT }, `API base URL: http://localhost:${PORT}/api/v1`);
       logger.info({ env: process.env.NODE_ENV || 'development' }, `Environment: ${process.env.NODE_ENV || 'development'}`);
 
-      // Start reward scheduler for outbox processing + auto-expiry
-      startScheduler();
-      // Start email retry worker for durable delivery (FIND-027-02)
-      startEmailRetryWorker();
-      // Start deletion finalization scheduler — runs daily (24h interval)
-      startDeletionScheduler();
+      // Held releases start no worker until the writer hold is released (AUTH-14)
+      runWhenWriterHoldReleased(() => {
+        // Start reward scheduler for outbox processing + auto-expiry
+        startScheduler();
+        // Start email retry worker for durable delivery (FIND-027-02)
+        startEmailRetryWorker();
+        // Start deletion finalization scheduler — runs daily (24h interval)
+        startDeletionScheduler();
+      });
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to start server');

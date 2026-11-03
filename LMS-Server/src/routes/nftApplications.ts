@@ -13,7 +13,9 @@
 
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate, requireCourseAccess } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireCourseScope, getUserPermissions } from '../middleware/rbac.js';
+import { canAccessCourse } from '../services/courseAccessService.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { db, queryOne, query, execute } from '../config/database.js';
 import { mintCredential } from '../services/mintService.js';
@@ -278,7 +280,8 @@ router.get(
     const { courseId } = req.params;
     const { status } = req.query as { status?: string };
     const userId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(userId));
+    const mayReview = permissions.has('certificate.approve') && canAccessCourse(userId, courseId, permissions, 'staff');
 
     const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [courseId]);
     if (!course) {
@@ -292,21 +295,14 @@ router.get(
     const conditions: string[] = ['a.course_id = ?'];
     const params: unknown[] = [courseId];
 
-    if (role === 'student') {
+    if (permissions.has('certificate.approve') && !mayReview && req.query.view !== 'own') {
+      res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Not assigned to this course'}});
+      return;
+    }
+
+    if (!mayReview || req.query.view === 'own') {
       conditions.push('a.user_id = ?');
       params.push(userId);
-    } else if (role === 'lecturer') {
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [courseId, userId]
-      );
-      if (!assigned) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'Not assigned to this course' },
-        });
-        return;
-      }
     }
 
     if (status && ['pending', 'approved', 'rejected', 'minted'].includes(status)) {
@@ -396,7 +392,8 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     const { courseId, appId } = req.params;
     const userId = req.user!.userId;
-    const role = req.user!.role;
+    const permissions = new Set(getUserPermissions(userId));
+    const mayReview = permissions.has('certificate.approve') && canAccessCourse(userId, courseId, permissions, 'staff');
 
     const row = queryOne<{
       id: string; user_id: string; course_id: string; wallet_address: string;
@@ -423,25 +420,9 @@ router.get(
       return;
     }
 
-    if (role === 'student' && row.user_id !== userId) {
-      res.status(403).json({
-        success: false,
-        error: { code: ErrorCodes.FORBIDDEN, message: 'Access denied' },
-      });
+    if (row.user_id !== userId && !mayReview) {
+      res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Access denied'}});
       return;
-    }
-    if (role === 'lecturer') {
-      const assigned = queryOne<{ course_id: string }>(
-        'SELECT course_id FROM course_lecturers WHERE course_id = ? AND user_id = ?',
-        [courseId, userId]
-      );
-      if (!assigned) {
-        res.status(403).json({
-          success: false,
-          error: { code: ErrorCodes.FORBIDDEN, message: 'Not assigned to this course' },
-        });
-        return;
-      }
     }
 
     res.json({
@@ -517,7 +498,7 @@ router.get(
 router.post(
   '/courses/:courseId/completions/applications/:appId/recommend',
   authenticate,
-  requireCourseAccess,
+  requireCourseScope,
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
     const { recommendation, notes } = req.body as { recommendation: string; notes?: string };
