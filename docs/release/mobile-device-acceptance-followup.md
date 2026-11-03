@@ -61,6 +61,8 @@ Independent exact-head review and GitHub CI are recorded in the follow-up PR. No
 
 ## Separate dependency follow-up
 
+The following is the baseline inventory at `fdbaa12`. The separate `2026-10-25-mobile-dependency-security.md` report records later dependency changes and superseding counts; it does not close physical-device acceptance.
+
 A fresh read-only mobile `npm audit --json` on 2026-10-24 reports **51 dependency-graph findings: one low, 25 moderate, 23 high and two critical**. This acceptance change does not modify dependency versions or claim a clean audit. Graph findings do not establish exploitability in a native bundle.
 
 The direct Axios resolution is 1.18.1; compatible 1.20.0 is available. Critical `shell-quote` 1.8.4 is reached through `react-devtools-core` with parent range `^1.6.1`, allowing a compatible patched refresh. Expo CLI's tar 7.5.16 uses `^7.5.2`, allowing a compatible refresh to 7.5.22. However EAS CLI 16.32.0 separately pins tar exactly 6.2.1; that critical occurrence needs a separately reviewed CLI/tooling change, rather than forcing tar 7 into a tar 6 API contract. See the registry-linked [shell-quote advisory](https://github.com/advisories/GHSA-pqg4-j6r4-53mv) and [tar advisory](https://github.com/advisories/GHSA-23hp-3jrh-7fpw).
