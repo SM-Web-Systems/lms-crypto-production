@@ -30,6 +30,8 @@ ENVIRONMENT = {'checkout': 'DEPLOY_DIR', 'repository': 'DEPLOY_REPOSITORY',
                'api_container': 'DEPLOY_API_CONTAINER', 'web_container': 'DEPLOY_WEB_CONTAINER',
                'db_volume': 'DEPLOY_DB_VOLUME', 'backup_root': 'DEPLOY_BACKUP_DIR'}
 RECEIPT_KEYS = ('migration_002_reward_txn_check', 'migration_002_reward_txn_check_fk_baseline')
+# Written by the old image's idle scheduler: normal once it is running again.
+OPERATIONAL_TABLES = ('scheduler_tick_log', 'scheduler_locks')
 REQUIRED_FILES = ('docker-compose.yml', 'scripts/deploy.sh', 'scripts/release_preflight.py',
                   'scripts/release_recovery.py', 'scripts/rollback.sh',
                   'LMS-Server/Dockerfile', 'LMS-Frontend/Dockerfile')
@@ -345,24 +347,28 @@ def database_metadata(db):
         for row in db.execute('SELECT * FROM "' + table + '" ORDER BY ' + quoted):
             financial.update(json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode())
             financial.update(b'\n')
-    protected = hashlib.sha256()
+    protected = hashlib.sha256(); recovery = hashlib.sha256()
     # Every row except the two release receipts, which the migration adds. Compared
     # only while writers are held: it proves no row changed across the window.
     for table in sorted(tables):
         if table.startswith('sqlite_'): continue
         columns = [row[1] for row in db.execute('PRAGMA table_info("' + table.replace('"', '""') + '")')]
         quoted = ','.join('"' + column.replace('"', '""') + '"' for column in columns)
+        operational = table in OPERATIONAL_TABLES
         protected.update(json.dumps([table, columns], separators=(',', ':')).encode())
+        if not operational: recovery.update(json.dumps([table, columns], separators=(',', ':')).encode())
         receipts = ' WHERE key NOT IN (?, ?)' if table == 'system_config' else ''
         for row in db.execute('SELECT ' + quoted + ' FROM "' + table.replace('"', '""') + '"' + receipts + ' ORDER BY ' + quoted,
                               RECEIPT_KEYS if receipts else ()):
-            protected.update(json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode())
-            protected.update(b'\n')
+            encoded = json.dumps([_cell(value) for value in row], separators=(',', ':'), ensure_ascii=True).encode() + b'\n'
+            protected.update(encoded)
+            if not operational: recovery.update(encoded)
     violations = sorted(db.execute('PRAGMA foreign_key_check').fetchall(), key=lambda row: json.dumps(row))
     return {'schema_sha256': hashlib.sha256(json.dumps([schema, user_version], separators=(',', ':')).encode()).hexdigest(),
             'user_version': user_version, 'table_counts': counts,
             'financial_state_sha256': financial.hexdigest(),
             'protected_content_sha256': protected.hexdigest(),
+            'recovery_content_sha256': recovery.hexdigest(),
             'foreign_key_violation_count': len(violations),
             'foreign_key_violations_sha256': hashlib.sha256(json.dumps(violations, separators=(',', ':')).encode()).hexdigest()}
 

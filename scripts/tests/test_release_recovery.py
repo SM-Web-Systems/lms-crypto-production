@@ -720,15 +720,6 @@ class RecoveryTests(unittest.TestCase):
             self.deploy(http)
         self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
 
-    def test_write_during_held_candidate_start_fails_deployment(self):
-        def write():
-            with closing(sqlite3.connect(self.db)) as db:
-                with db: db.execute("UPDATE users SET id = id + 100")
-            self.runner.on_up = None
-        self.runner.on_up = write
-        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'): self.deploy(self.old_after_failure_http)
-        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
-
     def test_hold_engage_failure_recovers_without_starting_candidate(self):
         def fail(): raise pre.ReleaseError('HOLD_FAILED')
         self.runner.on_hold = fail
@@ -881,9 +872,6 @@ class RecoveryTests(unittest.TestCase):
         self.assertNotEqual(digest(), first)
 
     # --- Independent review findings (AUTH-14) ---
-
-    def old_after_failure_http(self, url):
-        return self.http(url)
 
     def label_source_with_trusted_overlay(self):
         """Production today: the source runs on an earlier release's verified overlay."""
@@ -1038,6 +1026,146 @@ class RecoveryTests(unittest.TestCase):
         self.runner.on_up = change
         with self.assertRaises(pre.ReleaseError) as caught: self.deploy()
         self.assertIn('DEPLOYMENT_FAILED', str(caught.exception))
+
+    # --- Protected content during recovery (AUTH-14) ---
+
+    def write_row(self, sql="UPDATE users SET id = id + 100"):
+        with closing(sqlite3.connect(self.db)) as db:
+            with db: db.execute(sql)
+
+    def add_operational_tables(self):
+        self.write_row('CREATE TABLE scheduler_tick_log (id INTEGER PRIMARY KEY)')
+        self.target = pre.validate_target(self.config, self.runner)
+        self.backup = pre.backup_database(self.target, self.config['backup_root'])
+        self.policy['schema_sha256'] = self.backup['schema_sha256']
+
+    def candidate_unhealthy(self, url):
+        if self.containers['fixture-api']['Image'] == NEW_API: return 503, b''
+        return self.http(url)
+
+    def on_start_of(self, image, action):
+        def hook():
+            if self.containers['fixture-api']['Image'] == image: action()
+        self.runner.on_up = hook
+
+    def fail_stops_after_start_of(self, image):
+        def hook():
+            if self.containers['fixture-api']['Image'] == image:
+                self.write_row(); self.runner.fail_stop = True
+        self.runner.on_up = hook
+
+    def ups(self):
+        return sum('up' in call for call in self.runner.calls)
+
+    def assert_contained_unverified(self):
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+        self.assertEqual(list(self.state.glob('deploy-result-*')), [])
+
+    def test_row_written_during_candidate_start_never_restarts_old_writers(self):
+        self.on_start_of(NEW_API, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'): self.deploy()
+        self.assertEqual(self.ups(), 1)
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assert_contained_unverified()
+
+    def test_row_written_by_unhealthy_candidate_never_restarts_old_writers(self):
+        self.on_start_of(NEW_API, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 1)
+        self.assert_contained_unverified()
+
+    def test_row_written_during_candidate_start_after_migration_never_restarts_old_writers(self):
+        self.plan_migration()
+        self.on_start_of(NEW_API, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 1)
+        self.assert_contained_unverified()
+
+    def test_operational_row_written_during_held_candidate_start_is_still_detected(self):
+        self.add_operational_tables()
+        self.on_start_of(NEW_API, lambda: self.write_row('INSERT INTO scheduler_tick_log VALUES (1)'))
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'): self.deploy()
+        self.assertEqual(self.ups(), 1)
+
+    def test_containment_failure_after_candidate_write_is_reported_unverified(self):
+        self.fail_stops_after_start_of(NEW_API)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 1)
+        self.assert_contained_unverified()
+
+    def test_row_written_during_rollback_start_stops_services_and_reports_no_recovery(self):
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.ups(), 2)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assert_contained_unverified()
+
+    def test_containment_failure_during_rollback_start_is_reported_unverified(self):
+        self.fail_stops_after_start_of(API_IMAGE)
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assert_contained_unverified()
+
+    def test_normal_scheduler_activity_during_rollback_start_is_legitimate_recovery(self):
+        self.add_operational_tables()
+        self.on_start_of(API_IMAGE, lambda: self.write_row('INSERT INTO scheduler_tick_log VALUES (1)'))
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+        self.assertTrue(self.containers['fixture-api']['State']['Running'])
+
+    def test_failed_candidate_that_wrote_nothing_is_legitimate_recovery(self):
+        with self.assertRaisesRegex(pre.ReleaseError, 'DEPLOYMENT_FAILED_RECOVERY_VERIFIED'):
+            self.deploy(self.candidate_unhealthy)
+        self.assertEqual(self.containers['fixture-api']['Image'], API_IMAGE)
+        self.assertEqual(len(list(self.state.glob('rollback-result-*'))), 1)
+
+    def rollback_now(self):
+        return self.rec.rollback(self.config, self.state, self.policy, self.runner, http=self.http, timeout=0)
+
+    def test_standalone_rollback_refuses_rows_changed_while_held(self):
+        self.deploy()
+        self.write_row()
+        before = self.ups()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_standalone_rollback_refuses_without_a_recorded_baseline(self):
+        self.deploy()
+        for path in self.state.glob('held-baseline-*'): path.unlink()
+        before = self.ups()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_HELD_BASELINE_MISSING'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
+        self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
+
+    def test_standalone_rollback_start_write_stops_services(self):
+        self.capture()
+        self.on_start_of(API_IMAGE, self.write_row)
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_SERVICES_STOPPED'): self.rollback_now()
+        self.assertFalse(self.containers['fixture-api']['State']['Running'])
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_standalone_rollback_start_containment_failure_is_reported_unverified(self):
+        self.capture()
+        self.fail_stops_after_start_of(API_IMAGE)
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED'): self.rollback_now()
+        self.assertEqual(list(self.state.glob('rollback-result-*')), [])
+
+    def test_second_rollback_refuses_rows_written_by_the_first_recovery(self):
+        self.add_operational_tables()
+        self.deploy()
+        self.rollback_now()
+        self.write_row('INSERT INTO scheduler_tick_log VALUES (1)')
+        before = self.ups()
+        with self.assertRaisesRegex(pre.ReleaseError, 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'): self.rollback_now()
+        self.assertEqual(self.ups(), before)
 
     def test_normal_policy_still_produces_exact_eligibility(self):
         manifest = self.capture()

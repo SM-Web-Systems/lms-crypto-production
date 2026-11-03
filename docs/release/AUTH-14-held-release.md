@@ -57,13 +57,18 @@ sequenceDiagram
 | After stopping, before migration | Rollback to source image IDs | Old image restored and verified |
 | Migration fails and the database is exactly unchanged | Rollback to source image IDs | Old image restored and verified |
 | Migration changed anything unexpected, post-migration checks fail, or a timed-out migration container cannot be confirmed gone | `DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED` | Stopped until the owner decides |
-| Candidate fails after migration | Rollback onto the migrated schema, only if schema, financial and FK state match the post-migration backup | Old image restored and verified, or stopped if refused |
+| Candidate fails, with every row unchanged since the recorded held baseline | Rollback to source image IDs, onto the migrated schema if a migration ran | Old image restored and verified |
+| Any row changed since the held baseline, or the baseline is missing | `ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED` or `ROLLBACK_REFUSED_HELD_BASELINE_MISSING`. The old image never starts, and in a deploy the result is `DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED`. | Stopped until the owner decides |
+| Old image changes anything except its scheduler log and lock during rollback start | `ROLLBACK_FAILED_SERVICES_STOPPED`, never verified. | Stopped until the owner decides |
+| Containment cannot be confirmed | `ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED` or `DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED`. Inspect the host immediately. | Unknown |
 | `release-hold` checks fail before releasing | Refused | Candidate stays held |
 | Releasing or its verification fails | `WRITER_RELEASE_UNCONFIRMED`: assume writers may be running. Rerun `release-hold`, which finishes a transient failure or confirms a release that already happened. | Candidate running, rollback refused |
 
 `prepare` never moves the recovery pointer, and `deploy` moves it only at the stop, so preparation and any refusal before then leave the source's overlay proof intact.
 
-Rolling back means the old image runs with no hold, so its writers resume. Rehearsal shows it works on the migrated schema, and keeps schema, financial and FK state. On the rehearsal copy it wrote only `scheduler_tick_log` rows, but on live data its deletion finalization, email retry and reward workers also resume. The migrated schema is not downgraded. Rollback is refused as soon as a release has been attempted, because candidate writes can exist that the recovery contract cannot see. From that point the only way is forward.
+Before anything can start, release state records the rows held at that moment as `held-baseline-<manifest>.json`. Rollback compares the stopped database with it exactly, including scheduler tables, because a held candidate runs no scheduler.
+
+Rolling back means the old image runs with no hold, so its writers resume. Its first checks allow only `scheduler_tick_log` and `scheduler_locks` to change. Legitimate writes in that short window also fail closed: expired account deletions run at old-image startup, and requests can arrive once it is reachable, so a mismatch stops services and needs an owner decision. Check for expired deletions before the window. A rollback attempt is single-use: its scheduler rows make any later rollback refuse. Rehearsal shows it works on the migrated schema, and keeps schema, financial and FK state. On the rehearsal copy it wrote only `scheduler_tick_log` rows, but on live data its deletion finalization, email retry and reward workers also resume. The migrated schema is not downgraded. Rollback is refused as soon as a release has been attempted, because candidate writes can exist that the recovery contract cannot see. From that point the only way is forward.
 
 After a rollback, the hold file stays on the volume, where the old image ignores it. `validate_target` then refuses a retry because the pointer names the failed candidate while the old image runs. Retrying therefore needs a separately reviewed procedure written for that situation, not a rerun.
 

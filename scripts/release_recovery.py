@@ -29,6 +29,7 @@ HASH = re.compile(r'[0-9a-f]{64}\Z')
 MANIFEST_NAME = re.compile(r'recovery-[0-9a-f]{32}\.json\Z')
 REVISION_LABEL = 'org.opencontainers.image.revision'
 ONE_SHOT_NOT_CONTAINED = 'ONE_SHOT_CONTAINER_NOT_CONTAINED'
+PROTECTED_REFUSAL = 'ROLLBACK_REFUSED_PROTECTED_CONTENT_CHANGED'
 WRITER_HOLD_SCRIPT = 'dist/scripts/writerHold.js'
 MIGRATION_SCRIPT = 'dist/scripts/migrateRewardTxnCheck.js'
 require = pre.require
@@ -259,10 +260,9 @@ def verify_database_contract(metadata, baseline):
     verify_foreign_key_evidence(metadata, baseline)
 
 
-def verify_protected_content(metadata, baseline):
+def verify_protected_content(metadata, baseline, key='protected_content_sha256', code='PROTECTED_CONTENT_CHANGED'):
     # Only valid across the held window; open service changes rows constantly.
-    require(isinstance(baseline.get('protected_content_sha256'), str) and
-            metadata.get('protected_content_sha256') == baseline['protected_content_sha256'], 'PROTECTED_CONTENT_CHANGED')
+    require(isinstance(baseline.get(key), str) and metadata.get(key) == baseline[key], code)
 
 
 def verify_foreign_key_evidence(metadata, baseline):
@@ -485,6 +485,12 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
     # that the schema and financial contract cannot see.
     require(not (state / ('released-' + manifest['manifest_id'] + '.json')).exists(), 'ROLLBACK_REFUSED_WRITERS_RELEASED')
     target = manifest['target']; backup = manifest['backup']
+    # Once a candidate could have started, the old writers may restart only on
+    # exactly the rows recorded before it did.
+    baseline_path = state / ('held-baseline-' + manifest['manifest_id'] + '.json')
+    candidate_started = (state / ('candidate-' + manifest['manifest_id'] + '.json')).exists()
+    require(baseline_path.exists() or not candidate_started, 'ROLLBACK_REFUSED_HELD_BASELINE_MISSING')
+    held_baseline = read_private_json(baseline_path) if baseline_path.exists() else None
     allowed_configs, allowed_images, overlay, payload = recovery_runtime(state, manifest)
     containers = verify_checkout_context(config, target, runner, allowed_configs)
     for service in ('api', 'web'):
@@ -504,7 +510,10 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
     # the final schema/financial snapshot. Other DB writers are an owner NO-GO.
     controlled_stop(target, runner, allowed_configs)
     try:
-        verify_database_contract(stopped_database_metadata(target['database']['host_path']), backup)
+        stopped = stopped_database_metadata(target['database']['host_path'])
+        verify_database_contract(stopped, backup)
+        if held_baseline is not None:
+            verify_protected_content(stopped, held_baseline, code=PROTECTED_REFUSAL)
         if not overlay.exists(): immutable_json(overlay, payload)
         allowed_configs.add(target['compose_file'] + ',' + str(overlay))
         runner.text('docker', [*compose_args(target, overlay), 'up', '-d', '--no-deps', '--no-build', '--pull', 'never', 'api', 'web'], target['checkout'], timeout=300)
@@ -512,12 +521,20 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
         # Old startup code is not allowed to change the established contracts.
         # A real running API owns WAL/SHM. Fake interfaces may deliberately
         # leave a clean self-contained database unopened after simulated start.
-        verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), backup)
+        restarted = pre._source_metadata(Path(target['database']['host_path']))
+        verify_database_contract(restarted, backup)
+        # The old image cannot be held. Its idle scheduler may log, but any other
+        # changed row means this is no longer the recovery that was reviewed.
+        verify_protected_content(restarted, stopped, key='recovery_content_sha256', code='ROLLBACK_CONTENT_CHANGED')
         result = {'status': 'ROLLBACK_VERIFIED', 'recovered_sha': policy['source_sha'], 'manifest_id': manifest['manifest_id']}
         immutable_json(state / ('rollback-result-' + uuid.uuid4().hex + '.json'), result)
         return result
-    except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
-        controlled_stop(target, runner, allowed_configs)
+    except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as error:
+        try:
+            controlled_stop(target, runner, allowed_configs)
+        except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+            raise ReleaseError('ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED') from None
+        if str(error) == PROTECTED_REFUSAL: raise
         raise ReleaseError('ROLLBACK_FAILED_SERVICES_STOPPED') from None
 
 
@@ -653,6 +670,8 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
                 migration_started = True
                 manifest, window_backup, held_state = migrate_while_stopped(target, state, policy, built, runner, before)
                 migration_started = False
+            immutable_json(state / ('held-baseline-' + manifest['manifest_id'] + '.json'),
+                           {'protected_content_sha256': held_state['protected_content_sha256']})
             # Before candidate start, so no startup or scheduled worker can run unheld.
             one_shot(target, built['api'], WRITER_HOLD_SCRIPT, ['hold'], runner, timeout=60)
             overlay = overlay_file(state, built, 'deploy')
@@ -682,7 +701,12 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
                 raise ReleaseError('DEPLOYMENT_HALTED_AFTER_MIGRATION_SERVICES_STOPPED') from None
             try:
                 _rollback_locked(config, state, policy, runner, http, timeout)
-            except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+            except (ReleaseError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as failure:
+                # Rollback already stopped its own containers, or could not.
+                if str(failure) == 'ROLLBACK_FAILED_CONTAINMENT_UNVERIFIED':
+                    raise ReleaseError('DEPLOYMENT_FAILED_RECOVERY_REFUSED_CONTAINMENT_UNVERIFIED') from None
+                if str(failure) in ('ROLLBACK_FAILED_SERVICES_STOPPED', PROTECTED_REFUSAL):
+                    raise ReleaseError('DEPLOYMENT_FAILED_RECOVERY_REFUSED_SERVICES_STOPPED') from None
                 allowed = source_configs(target)
                 if overlay is not None: allowed.add(target['compose_file'] + ',' + str(overlay))
                 try:
