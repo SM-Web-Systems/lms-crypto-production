@@ -16,7 +16,7 @@ import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 import {
   createReward,
-  fundReward,
+  fundRewardAsync,
   activateReward,
   approveReward,
   cancelReward,
@@ -37,7 +37,7 @@ function parseSponsorDateRange(req: AuthRequest, res: Response): {from:string|nu
   const valid = (v: unknown): v is string => typeof v === 'string' && ISO_DATE_RE.test(v)
     && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0,10) === v;
   if ((from !== undefined && !valid(from)) || (to !== undefined && !valid(to)) || (typeof from === 'string' && typeof to === 'string' && from > to)) {
-    res.status(400).json({success:false,error:{message:'Use valid YYYY-MM-DD dates with From before To.'}});
+    res.status(400).json({success:false,error:{code:'INVALID_DATE_RANGE',message:'Use valid YYYY-MM-DD dates with From before To.'}});
     return 'error';
   }
   // Exclusive next-day boundary works for SQLite timestamps and ISO timestamps.
@@ -213,10 +213,10 @@ router.get(
     if (range === 'error') return;
 
     const scope = req.query.scope ?? 'own';
-    if (scope !== 'own' && scope !== 'cohort') {res.status(400).json({success:false,error:{message:'scope must be own or cohort'}});return;}
+    if (scope !== 'own' && scope !== 'cohort') {res.status(400).json({success:false,error:{code:'INVALID_SCOPE',message:'scope must be own or cohort'}});return;}
     const permissions = new Set(getUserPermissions(userId));
     if (scope === 'cohort' && (!permissions.has('billing.view_all') || !permissions.has('cohort.view_own'))) {
-      res.status(403).json({success:false,error:{message:'Cohort billing access is required'}});return;
+      res.status(403).json({success:false,error:{code:'INSUFFICIENT_PERMISSIONS',message:'Cohort billing access is required'}});return;
     }
     const conditions = [scope === 'own' ? 'p.user_id = ?' : `p.user_id <> ? AND EXISTS (
       SELECT 1 FROM cohort_members cm JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
@@ -273,9 +273,9 @@ router.post(
   '/sponsor/rewards/:id/fund',
   authenticate,
   requirePermission('reward.fund'),
-  (req: AuthRequest, res: Response): void => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const reward = fundReward(
+      const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
         { type: req.body.sourceType, reference: req.body.reference },
@@ -345,7 +345,8 @@ router.post(
   requirePermission('reward.release'),
   (req: AuthRequest, res: Response): void => {
     try {
-      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+      const allocation = releaseAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
       res.json({ success: true, data: allocation });
     } catch (err) {
       handleRewardError(err, res);
@@ -360,7 +361,8 @@ router.post(
   requirePermission('reward.refund'),
   (req: AuthRequest, res: Response): void => {
     try {
-      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey);
+      // W02-R2 (F2): Pass URL reward :id so service can verify allocation.reward_id matches.
+      const result = refundAllocation(req.params.allocId, req.user!.userId, req.body.idempotencyKey, req.params.id);
       if ('blocked' in result) {
         res.status(409).json({ success: false, data: result });
         return;
@@ -404,12 +406,12 @@ router.get(
       return;
     }
 
-    // WI-04: Ownership check — admin (reward.manage) bypasses; otherwise verify scope.
-    // Uses req._permissions cache populated by requirePermission above.
+    // W02: Ownership check — admin (reward.manage) bypasses; otherwise verify scope.
+    // 404 contract: do not confirm existence to unauthorized actors.
     const userId = req.user!.userId;
     if (!req._permissions!.has('reward.manage')) {
       if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
-        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
         return;
       }
     }
@@ -429,11 +431,11 @@ router.get(
       res.status(404).json({ success: false, error: { message: 'Reward not found' } });
       return;
     }
-    // WI-04: Ownership check — same pattern as GET /sponsor/rewards/:id
+    // W02: Ownership check — 404 contract
     const userId = req.user!.userId;
     if (!req._permissions!.has('reward.manage')) {
       if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
-        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
         return;
       }
     }
@@ -453,11 +455,11 @@ router.get(
       res.status(404).json({ success: false, error: { message: 'Reward not found' } });
       return;
     }
-    // WI-04: Ownership check — same pattern as GET /sponsor/rewards/:id
+    // W02: Ownership check — 404 contract
     const userId = req.user!.userId;
     if (!req._permissions!.has('reward.manage')) {
       if (!validateScope(userId, reward.scope_type as ScopeType, reward.scope_id)) {
-        res.status(403).json({ success: false, error: { message: 'Not authorized to view this reward' } });
+        res.status(404).json({ success: false, error: { message: 'Reward not found' } });
         return;
       }
     }
