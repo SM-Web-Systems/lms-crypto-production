@@ -35,10 +35,10 @@ jobs:
     needs: ci
     environment: production
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
           APPROVED_SHA: ${{ github.sha }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
@@ -55,6 +55,9 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # Server's ECDSA host key: ssh-action (drone-ssh / Go x/crypto) negotiates ECDSA
+          # before ED25519, so this is the key it checks. A changed or spoofed host fails the run.
+          fingerprint: SHA256:I5zV96zrTQ9+SGQnGxNu17GZKIl10PZabaR6IUtNH5o
           envs: APPROVED_SHA,DEPLOY_DIR,DEPLOY_REPOSITORY,DEPLOY_PROJECT,DEPLOY_API_CONTAINER,DEPLOY_WEB_CONTAINER,DEPLOY_DB_VOLUME,DEPLOY_BACKUP_DIR,DEPLOY_BASE_URL,DEPLOY_RECOVERY_POLICY,DEPLOY_EXECUTE_REQUEST
           script: |
             set -eu
