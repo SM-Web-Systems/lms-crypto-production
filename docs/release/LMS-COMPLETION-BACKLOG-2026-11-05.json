@@ -26,14 +26,16 @@
       "title": "Make audit and migration fixtures reproducible across platforms",
       "priority": "P1",
       "ownerRole": "API + QA",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-001"
       ],
       "acceptance": [
         "Use raw Git bytes for exported fixtures; remove newline-sensitive fixture surgery; exercise LF and CRLF without relaxing schema validation; clean lockfile installs on Linux and Windows"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-002-FIXTURE-REPRODUCIBILITY.md"
+      ]
     },
     {
       "id": "LMS-003",

@@ -43,6 +43,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fixtureSqlForDatabase, mutateSqlFixture, normalizeSqlFixture, readSqlFixture } from './helpers/sqlFixture.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── Migration module under test ──────────────────────────────────────────────
@@ -76,7 +77,7 @@ import { getRewardTransactions } from '../services/rewards/rewardService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OLD_SCHEMA_PATH = path.resolve(__dirname, '../../database/schema-v117-fixture.sql');
-const OLD_SCHEMA = fs.readFileSync(OLD_SCHEMA_PATH, 'utf-8');
+const OLD_SCHEMA = readSqlFixture(OLD_SCHEMA_PATH);
 
 // ────────────────────────────────────────────────────────────────────────────
 // File-backed DB helpers
@@ -87,7 +88,7 @@ function makeTempDb(schema: string): { dbPath: string; conn: SqliteDatabase } {
   const dbPath = path.join(dir, 'test.db');
   const conn = new Database(dbPath);
   conn.pragma('foreign_keys = ON');
-  conn.exec(schema);
+  conn.exec(fixtureSqlForDatabase(schema));
   return { dbPath, conn };
 }
 
@@ -1126,7 +1127,7 @@ describe('COMPAT-F1: comment-bypass classification correction', () => {
   // F1 attack: inject /* 'release_unused' */ as a SQL comment in the old schema's
   // transaction_type CHECK. The raw DDL contains the token but the constraint is
   // unchanged. SQLite preserves comments verbatim in sqlite_master.sql.
-  const OLD_SCHEMA_WITH_COMMENT = OLD_SCHEMA.replace(
+  const OLD_SCHEMA_WITH_COMMENT = mutateSqlFixture(OLD_SCHEMA,
     "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire'))",
     "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire') /* 'release_unused' */)"
   );
@@ -1174,7 +1175,7 @@ describe('COMPAT-F1: comment-bypass classification correction', () => {
 
   it('COMPAT-F1-4: target txn_type CHECK but old compound check → unknown (not target or source)', () => {
     // DDL has release_unused in transaction_type CHECK but not in compound check
-    const halfTargetSchema = OLD_SCHEMA.replace(
+    const halfTargetSchema = mutateSqlFixture(OLD_SCHEMA,
       "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire'))",
       "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'))"
     );
@@ -1194,7 +1195,7 @@ describe('COMPAT-F1: comment-bypass classification correction', () => {
   });
 
   it('COMPAT-F1-5: permissive OR branch in compound check → unknown (not certified as target)', () => {
-    const permissiveSchema = OLD_SCHEMA.replace(
+    const permissiveSchema = mutateSqlFixture(OLD_SCHEMA,
       "CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire')))",
       "CHECK ((transaction_type IN ('reserve', 'cancel', 'expire') AND source_user_id IS NOT NULL) OR (transaction_type NOT IN ('reserve', 'cancel', 'expire')) OR transaction_type = 'release_unused')"
     );
@@ -1571,16 +1572,16 @@ describe('COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection', ()
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const TARGET_SCHEMA_PATH = path.resolve(__dirname, '../../database/schema.sql');
-const TARGET_SCHEMA = fs.readFileSync(TARGET_SCHEMA_PATH, 'utf-8');
+const TARGET_SCHEMA = readSqlFixture(TARGET_SCHEMA_PATH);
 
 // Permissive target: OR 1=1 appended to the transaction_type CHECK
-const PERMISSIVE_TARGET_SCHEMA = TARGET_SCHEMA.replace(
+const PERMISSIVE_TARGET_SCHEMA = mutateSqlFixture(TARGET_SCHEMA,
   "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused'))",
   "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire', 'release_unused') OR 1=1)"
 );
 
 // Extra CHECK on source: add a table-level CHECK after the last constraint
-const EXTRA_CHECK_SOURCE_SCHEMA = OLD_SCHEMA.replace(
+const EXTRA_CHECK_SOURCE_SCHEMA = mutateSqlFixture(OLD_SCHEMA,
   "  CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund'))\n);",
   "  CHECK ((transaction_type = 'fund' AND destination_user_id IS NOT NULL AND destination_account_type = 'funder') OR (transaction_type != 'fund')),\n  CHECK (amount_stroops < 1000)\n);"
 );
@@ -1733,12 +1734,12 @@ describe('COMPAT-F4F2: F2 — additional source CHECK refuses before mutation', 
 
 describe('COMPAT-F4-MUTATIONS: structural schema mutations classified unknown', () => {
   function sourceMutated(find: string, replace: string): string {
-    const result = OLD_SCHEMA.replace(find, replace);
+    const result = mutateSqlFixture(OLD_SCHEMA,find, replace);
     if (result === OLD_SCHEMA) throw new Error(`Pattern not found: ${find}`);
     return result;
   }
   function targetMutated(find: string, replace: string): string {
-    const result = TARGET_SCHEMA.replace(find, replace);
+    const result = mutateSqlFixture(TARGET_SCHEMA,find, replace);
     if (result === TARGET_SCHEMA) throw new Error(`Pattern not found: ${find}`);
     return result;
   }
@@ -1833,7 +1834,7 @@ describe('COMPAT-F4-MUTATIONS: structural schema mutations classified unknown', 
 describe('COMPAT-F4-TOKENS: comment and string literal tokenization', () => {
   it('COMPAT-F4-TOKENS-1: block comment containing realistic text does not affect classification', () => {
     // Source DDL with a SQL comment containing target-like text — should still classify as source
-    const WITH_COMMENT = OLD_SCHEMA.replace(
+    const WITH_COMMENT = mutateSqlFixture(OLD_SCHEMA,
       "  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')),",
       "  transaction_type         TEXT NOT NULL CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire')), /* was: IN ('fund',...,'release_unused') */"
     );
@@ -1850,7 +1851,7 @@ describe('COMPAT-F4-TOKENS: comment and string literal tokenization', () => {
     // source_account_type CHECK contains string literals with no special chars, but
     // we test that a -- inside a string literal does not truncate the following content
     // Use a schema where a reason column DEFAULT contains '--' literally (edge case)
-    const WITH_COMMENT_IN_STRING = OLD_SCHEMA.replace(
+    const WITH_COMMENT_IN_STRING = mutateSqlFixture(OLD_SCHEMA,
       "  reason                   TEXT,",
       "  reason                   TEXT DEFAULT '--placeholder',"
     );
@@ -2017,6 +2018,7 @@ const MINIMAL_WITHOUT_ROWID_SOURCE_DDL = `CREATE TABLE reward_transactions (
 // Targets reward_transactions specifically because the same pattern appears in several
 // earlier tables in the schema — String.replace() would replace the wrong one.
 function makeChangedCurrencyLiteralSchema(base: string): string {
+  base = normalizeSqlFixture(base);
   const tableStart = base.indexOf('CREATE TABLE IF NOT EXISTS reward_transactions');
   if (tableStart === -1) throw new Error('reward_transactions block not found in schema');
   const nextCreate = base.indexOf('\nCREATE ', tableStart + 1);

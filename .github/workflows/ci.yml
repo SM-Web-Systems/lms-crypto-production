@@ -8,6 +8,33 @@ on:
   workflow_call:
 
 jobs:
+  fixture-reproducibility:
+    name: Migration Fixtures (${{ matrix.os }}, ${{ matrix.newlines }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        newlines: [lf, crlf]
+    env:
+      LMS_FIXTURE_LINE_ENDINGS: ${{ matrix.newlines }}
+    defaults:
+      run:
+        working-directory: LMS-Server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Server/package-lock.json
+      - run: npm ci
+      - name: Verify raw Git source export
+        if: matrix.newlines == 'lf'
+        run: python -m unittest discover -s ../scripts/tests -p test_audit_source_export.py
+      - name: Exercise migration fixtures and strict DDL refusals
+        run: npx vitest run src/__tests__/migration-fixture-line-endings.test.ts src/__tests__/reward-atomic-reference.test.ts src/__tests__/reward-txn-check-migration.test.ts
+
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
