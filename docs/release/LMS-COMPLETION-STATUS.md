@@ -4,6 +4,12 @@ Last planning update: 5 November 2026. Baseline: `e1929c2c401511a793d03526391a3b
 
 The audit and plan are captured. Product remediation, physical-device acceptance and completion releases remain open.
 
+## Confirmed execution inputs
+
+- The owner confirmed `https://lms.smwebsystems.com` and `https://ammawallet.com` are the authorized **staging** environments. Environment contact: Mukhtar Meer. The historical audit's production label was an inference, not the owner's environment classification.
+- No reward settlement/treasury provider or custody arrangement is in place. LMS-033 awaits that selection; independent funding/verification work can continue.
+- Physical Android/iOS device and signing access remain to be supplied. Staging classification does not itself establish a provider's test mode or Stellar network: verify these before provider or chain operations and use identifiable synthetic fixtures.
+
 - [Audit findings and evidence](../audits/2026-11-05-lms-completion/AUDIT.md)
 - [Directional solution, delivery waves and release gates](LMS-COMPLETION-PLAN-2026-11-05.md)
 - [Execution backlog with dependencies and acceptance criteria](LMS-COMPLETION-BACKLOG-2026-11-05.json)

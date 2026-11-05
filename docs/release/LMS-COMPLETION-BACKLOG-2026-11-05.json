@@ -288,7 +288,7 @@
       "title": "Implement Paystack-to-XLM settlement workflow",
       "priority": "P2",
       "ownerRole": "API + Platform + Product owner",
-      "status": "open",
+      "status": "awaiting_input",
       "dependencies": [
         "LMS-030",
         "LMS-031"
@@ -296,7 +296,8 @@
       "acceptance": [
         "Approved settlement/treasury integration reconciles actual fiat receipt, quote fees/expiry, delivered XLM and reversals; stays awaiting settlement until delivery proof; repeated callbacks/restarts never double-fund"
       ],
-      "evidence": []
+      "evidence": [],
+      "inputRequired": "Owner confirmed no settlement or custody arrangement is in place; select provider, treasury/custody and settlement policy."
     },
     {
       "id": "LMS-034",
@@ -473,5 +474,19 @@
       ],
       "evidence": []
     }
-  ]
+  ],
+  "executionContext": {
+    "staging": {
+      "lms": "https://lms.smwebsystems.com",
+      "wallet": "https://ammawallet.com",
+      "classification": "owner-confirmed staging",
+      "contact": "Mukhtar Meer"
+    },
+    "settlement": {
+      "status": "not_configured",
+      "provider": null,
+      "custody": null
+    },
+    "physicalDevicesAndSigning": "not yet supplied"
+  }
 }
