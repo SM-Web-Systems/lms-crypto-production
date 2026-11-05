@@ -59,14 +59,16 @@
       "title": "Resolve mobile high/critical dependency findings",
       "priority": "P1",
       "ownerRole": "Mobile",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-001"
       ],
       "acceptance": [
         "Fresh full dependency graph has zero high/critical findings; overrides and SDK/tooling compatibility reviewed; EAS profile validation, local tests and both bundles pass"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-004-MOBILE-DEPENDENCIES.md"
+      ]
     },
     {
       "id": "LMS-005",
