@@ -3,6 +3,7 @@ import { apiURL } from '../playwright.config';
 
 interface AuthFixtures {
   adminPage: Page;
+  superAdminPage: Page;
   studentPage: Page;
   sponsorAPage: Page;
   sponsorBPage: Page;
@@ -61,6 +62,7 @@ export const test = base.extend<AuthFixtures>({
     await use(context);
   },
   adminPage: authenticatedPage('admin@test.com'),
+  superAdminPage: authenticatedPage('superadmin@test.com'),
   studentPage: authenticatedPage('student@test.com'),
   sponsorAPage: authenticatedPage('sponsor-a@test.com'),
   sponsorBPage: authenticatedPage('sponsor-b@test.com'),

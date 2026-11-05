@@ -1,5 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import { apiURL } from '../playwright.config';
+import { withFixtureDatabase } from '../helpers/fixture-db';
+import { randomUUID } from 'node:crypto';
 
 /**
  * E2E tests for sponsor authorization (AUTH-02/AUTH-03 combined).
@@ -114,7 +116,7 @@ test.describe('Sponsor Authorization — Admin and Edge Cases', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('SPNS-E2E-10: Revoked sponsor membership removes cohort access', async ({ sponsorAPage }) => {
+  test('SPNS-E2E-10: Cohort list is scoped to the sponsor', async ({ sponsorAPage }) => {
     // Sponsor A should be able to see their own cohort list
     const listRes = await sponsorAPage.request.get(`${apiURL}/api/v1/admin/cohorts`);
     expect(listRes.status()).toBe(200);
@@ -123,5 +125,74 @@ test.describe('Sponsor Authorization — Admin and Edge Cases', () => {
     // Sponsor A should see cohort A but not cohort B — confirming scope
     expect(cohortIds).toContain(COHORT_A);
     expect(cohortIds).not.toContain(COHORT_B);
+  });
+
+  test('SPNS-E2E-11: membership removal and role revocation remove delegated access', async ({ superAdminPage, sponsorBPage, request }) => {
+    const email = `e2e-revocation-${randomUUID()}@example.invalid`;
+    const registration = await request.post(`${apiURL}/api/v1/auth/register`, {
+      data: { name: 'Synthetic revocation sponsor', email, password: 'password123' },
+    });
+    expect(registration.status()).toBe(201);
+    const target = (await registration.json()).data.user.id as string;
+    const grant = await superAdminPage.request.post(`${apiURL}/api/v1/admin/users/${target}/roles`, { data: { roleId: 'role_sponsor' } });
+    expect(grant.status()).toBe(201);
+    const cohort = `e2e-revocation-${randomUUID()}`;
+    const memberId = withFixtureDatabase(db => {
+      db.prepare('INSERT INTO sponsor_cohorts(id,name,sponsor_user_id,course_id) VALUES (?,?,?,?)')
+        .run(cohort, 'Synthetic revoked cohort', target, 'e2e-sponsor-course-01');
+      db.prepare('INSERT INTO cohort_members(cohort_id,user_id) SELECT ?,id FROM users WHERE email=?')
+        .run(cohort, 'sponsor-student@test.com');
+      return db.prepare('SELECT id FROM users WHERE email=?').get('sponsor-student@test.com').id as string;
+    });
+    const login = async () => {
+      const response = await request.post(`${apiURL}/api/v1/auth/login`, { data: { email, password: 'password123' } });
+      expect(response.status()).toBe(200);
+      return (await response.json()).data;
+    };
+    const session = await login();
+    expect(session.user.workspaces).toContain('sponsor');
+    const read = (token: string, path: string) => request.get(`${apiURL}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    const protectedPaths = [`/admin/cohorts/${cohort}`, '/sponsor/impact-report', '/sponsor/billing?scope=cohort', `/payments/${PAYMENT_A}/receipt`];
+    for (const path of protectedPaths) expect((await read(session.token, path)).status()).toBe(200);
+
+    // Removing the delegated member scope is effective for existing and new
+    // sessions, even though the sponsor role and cohort ownership remain.
+    const removed = await request.delete(`${apiURL}/api/v1/admin/cohorts/${cohort}/members/${memberId}`, { headers: { Authorization: `Bearer ${session.token}` } });
+    expect(removed.status()).toBe(200);
+    expect((await read(session.token, `/payments/${PAYMENT_A}/receipt`)).status()).toBe(403);
+    const narrowed = await login();
+    expect(narrowed.user.workspaces).toContain('sponsor');
+    expect((await read(narrowed.token, `/payments/${PAYMENT_A}/receipt`)).status()).toBe(403);
+    const restored = await request.post(`${apiURL}/api/v1/admin/cohorts/${cohort}/members`, {
+      headers: { Authorization: `Bearer ${narrowed.token}` }, data: { userIds: [memberId] },
+    });
+    expect(restored.status()).toBe(200);
+    expect((await read(session.token, `/payments/${PAYMENT_A}/receipt`)).status()).toBe(200);
+    expect((await sponsorBPage.request.get(`${apiURL}/api/v1/admin/cohorts/${COHORT_B}`)).status()).toBe(200);
+    const before = withFixtureDatabase(db => ({
+      targetVersion: db.prepare('SELECT authorization_version FROM users WHERE id=?').get(target).authorization_version,
+      otherVersion: db.prepare('SELECT authorization_version FROM users WHERE email=?').get('sponsor-b@test.com').authorization_version,
+    }));
+
+    const revoke = await superAdminPage.request.delete(`${apiURL}/api/v1/admin/users/${target}/roles/role_sponsor`);
+    expect(revoke.status()).toBe(200);
+    withFixtureDatabase(db => {
+      expect(db.prepare('SELECT authorization_version FROM users WHERE id=?').get(target).authorization_version).toBe(before.targetVersion + 1);
+      expect(db.prepare('SELECT COUNT(*) AS n FROM active_sessions WHERE user_id=? AND revoked_at IS NULL').get(target).n).toBe(0);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE target_id=? AND action='rbac.role_removed'").get(target).n).toBeGreaterThan(0);
+      expect(db.prepare('SELECT sponsor_user_id FROM sponsor_cohorts WHERE id=?').get(cohort).sponsor_user_id).toBe(target);
+    });
+    for (const path of protectedPaths) expect((await read(session.token, path)).status()).toBe(401);
+
+    const renewed = await login();
+    expect(renewed.user.workspaces).not.toContain('sponsor');
+    for (const path of protectedPaths) expect((await read(renewed.token, path)).status()).toBe(403);
+    // The explicit student role remains; own billing is a separate entitlement.
+    expect((await read(renewed.token, '/sponsor/billing')).status()).toBe(200);
+    expect((await sponsorBPage.request.get(`${apiURL}/api/v1/admin/cohorts/${COHORT_B}`)).status()).toBe(200);
+    expect((await sponsorBPage.request.get(`${apiURL}/api/v1/payments/${PAYMENT_B}/receipt`)).status()).toBe(200);
+    withFixtureDatabase(db => {
+      expect(db.prepare('SELECT authorization_version FROM users WHERE email=?').get('sponsor-b@test.com').authorization_version).toBe(before.otherVersion);
+    });
   });
 });

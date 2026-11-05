@@ -207,14 +207,17 @@
       "title": "Implement real sponsor access-revocation lifecycle coverage",
       "priority": "P2",
       "ownerRole": "API + QA",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-011"
       ],
       "acceptance": [
         "Authenticate sponsor; prove own resources accessible; revoke role/ownership and invalidate session through actual supported operation; same session/new login deny affected resources without affecting another sponsor"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-020-SPONSOR-REVOCATION.md",
+        "evidence/lms-020-validation.json"
+      ]
     },
     {
       "id": "LMS-021",
