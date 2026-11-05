@@ -1,0 +1,69 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "eda58949496d6321324d65c0f83a459e191f31db64b7a8d157af4551e9b587d4",
+  "date": "2026-11-05",
+  "sha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+  "productionBuild": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+  "backendFullInitial": {
+    "passed": 2247,
+    "failed": 4,
+    "skipped": 1,
+    "additionalSuiteSetupFailure": true
+  },
+  "backendCorrectedFocused": {
+    "passed": 170,
+    "failed": 1,
+    "skipped": 0,
+    "remainingFailure": "Windows invalid-parent writer-hold path returns ENOENT"
+  },
+  "web": {
+    "passed": 702,
+    "failed": 0
+  },
+  "mobileFinal": {
+    "jestPassed": 158,
+    "jestSuites": 17,
+    "evidenceCheckerPassed": 3,
+    "typecheck": true,
+    "androidJavascriptExport": true,
+    "iosJavascriptExport": true,
+    "physicalAndroid": false,
+    "physicalIos": false
+  },
+  "browser": {
+    "initialPassed": 71,
+    "initialFailed": 2,
+    "retryPassed": 2,
+    "retryFailed": 0,
+    "skipped": 0
+  },
+  "rbacEnforcedTargets": {
+    "passed": 21,
+    "failed": 13
+  },
+  "recoveryPython": {
+    "passed": 248,
+    "skipped": 3,
+    "failed": 0
+  },
+  "dependencyFindings": {
+    "server": {
+      "moderate": 5,
+      "high": 0,
+      "critical": 0
+    },
+    "web": {
+      "total": 0
+    },
+    "mobile": {
+      "low": 9,
+      "moderate": 25,
+      "high": 9,
+      "critical": 0
+    }
+  },
+  "originalTrackedFilesChanged": false,
+  "productionMutation": false,
+  "manualServicesStopped": true,
+  "report": "../AUDIT.md"
+}

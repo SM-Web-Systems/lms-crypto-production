@@ -1,0 +1,99 @@
+TAP version 13
+# Subtest: synthetic text lessons supply the HTTP resource required by the native reader
+ok 1 - synthetic text lessons supply the HTTP resource required by the native reader
+  ---
+  duration_ms: 3.8859
+  type: 'test'
+  ...
+# Subtest: repair fills only missing synthetic reading URLs and preserves custom content
+ok 2 - repair fills only missing synthetic reading URLs and preserves custom content
+  ---
+  duration_ms: 1.0183
+  type: 'test'
+  ...
+# Subtest: real local HTTP and TCP work, wildcard listeners become loopback
+not ok 3 - real local HTTP and TCP work, wildcard listeners become loopback
+  ---
+  duration_ms: 880.6777
+  type: 'test'
+  location: 'C:\\Users\\mrmee\\OneDrive\\Documents\\ChatGPT\\LMS - SM Web Systems\\lms-crypto-production\\output\\playwright\\lms-audit-2026-11-05\\source\\scripts\\local-services\\loopback-only.test.mjs:11:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    node:internal/deps/undici/undici:13510
+          Error.captureStackTrace(err);
+                ^
+
+    TypeError: fetch failed
+        at node:internal/deps/undici/undici:13510:13
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async file:///<user-profile>/OneDrive/Documents/ChatGPT/LMS%20-%20SM%20Web%20Systems/lms-crypto-production/output/playwright/lms-audit-2026-11-05/source/LMS-Mobile/[eval1]:4:22 {
+      [cause]: Error: connect EACCES 127.0.0.1:54713
+          at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+        errno: -4092,
+        code: 'EACCES',
+        syscall: 'connect',
+        address: '127.0.0.1',
+        port: 54713
+      }
+    }
+
+    Node.js v22.18.0
+
+
+    1 !== 0
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    node:internal/deps/undici/undici:13510:13
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async file:///<user-profile>/OneDrive/Documents/ChatGPT/LMS%20-%20SM%20Web%20Systems/lms-crypto-production/output/playwright/lms-audit-2026-11-05/source/LMS-Mobile/[eval1]:4:22 {
+    child (file:///<user-profile>/OneDrive/Documents/ChatGPT/LMS%20-%20SM%20Web%20Systems/lms-crypto-production/output/playwright/lms-audit-2026-11-05/source/scripts/local-services/loopback-only.test.mjs:8:12)
+    TestContext.<anonymous> (file:///<user-profile>/OneDrive/Documents/ChatGPT/LMS%20-%20SM%20Web%20Systems/lms-crypto-production/output/playwright/lms-audit-2026-11-05/source/scripts/local-services/loopback-only.test.mjs:12:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: HTTP, TLS, TCP, fetch, DNS, HTTP2 and UDP refuse remote targets before connecting
+ok 4 - HTTP, TLS, TCP, fetch, DNS, HTTP2 and UDP refuse remote targets before connecting
+  ---
+  duration_ms: 510.1038
+  type: 'test'
+  ...
+# Subtest: a local HTTP redirect cannot escape to an external target
+ok 5 - a local HTTP redirect cannot escape to an external target
+  ---
+  duration_ms: 596.7566
+  type: 'test'
+  ...
+# Subtest: all direct DNS and Resolver variants are blocked before native implementations run
+ok 6 - all direct DNS and Resolver variants are blocked before native implementations run
+  ---
+  duration_ms: 401.5186
+  type: 'test'
+  ...
+# Subtest: service environment excludes inherited credentials, remote endpoints and Node preloads
+ok 7 - service environment excludes inherited credentials, remote endpoints and Node preloads
+  ---
+  duration_ms: 4.5724
+  type: 'test'
+  ...
+# Subtest: local identities reject traversal, malformed credentials and secret reuse
+ok 8 - local identities reject traversal, malformed credentials and secret reuse
+  ---
+  duration_ms: 2.5293
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 7
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2834.6815

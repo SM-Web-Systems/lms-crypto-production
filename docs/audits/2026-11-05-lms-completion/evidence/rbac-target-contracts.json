@@ -1,0 +1,206 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "19d85404958779594f0ee1802623d86086c8c87713cfbb75c75b0d22fb25a83e",
+  "numTotalTestSuites": 15,
+  "numPassedTestSuites": 1,
+  "numFailedTestSuites": 14,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 34,
+  "numPassedTests": 21,
+  "numFailedTests": 13,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "startTime": 1793910928843,
+  "success": false,
+  "testResults": [
+    {
+      "name": "LMS-Server/src/__tests__/rbac-retirement-policy.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "fullName": "[KNOWN GAP: step 2] assign a current RBAC instructor whose legacy label is student reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 263.74980000000505
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] assign a current RBAC instructor whose legacy label is student meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 111.90739999999641,
+          "failureSummary": "AssertionError: expected { status: 422, assigned: false } to deeply equal { status: 201, assigned: true }"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] allow delegated teaching capability without a built-in instructor role name reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 102.95209999999497
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] allow delegated teaching capability without a built-in instructor role name meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 85.72049999999581,
+          "failureSummary": "AssertionError: expected 422 to deeply equal 201"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] reject a legacy lecturer with no current teaching grants reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 88.0283999999956
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] reject a legacy lecturer with no current teaching grants meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 84.82719999999972,
+          "failureSummary": "AssertionError: expected 201 to deeply equal 422"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] require enrollment for self-certificate applications even with legacy admin reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 102.87619999999879
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] require enrollment for self-certificate applications even with legacy admin meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 107.0115000000078,
+          "failureSummary": "AssertionError: expected { status: 201, …(1) } to deeply equal { status: 403, applications: { …(1) } }"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] require enrollment for self-certificate applications even with legacy lecturer reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 98.24370000000636
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] require enrollment for self-certificate applications even with legacy lecturer meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 95.88640000000305,
+          "failureSummary": "AssertionError: expected { status: 201, …(1) } to deeply equal { status: 403, applications: { …(1) } }"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] deny certificate self-application for a zero-grant account even if enrolled reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 97.28809999999066
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] deny certificate self-application for a zero-grant account even if enrolled meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 83.01230000000214,
+          "failureSummary": "AssertionError: expected 201 to deeply equal 403"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] select sponsor broadcast recipients from current RBAC reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 125.74069999999483
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] select sponsor broadcast recipients from current RBAC meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 99.83830000000307,
+          "failureSummary": "AssertionError: expected { count: +0, sponsorReceived: false } to deeply equal { count: 1, sponsorReceived: true }"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] map the lecturer broadcast audience to current instructor grants reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 94.1472000000067
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] map the lecturer broadcast audience to current instructor grants meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 104.24230000001262,
+          "failureSummary": "AssertionError: expected false to deeply equal true"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] include enhanced learners once in the student audience regardless of legacy label reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 69.22090000000026
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] include enhanced learners once in the student audience regardless of legacy label meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 78.12380000000121,
+          "failureSummary": "AssertionError: expected { count: +0, received: { total: +0 } } to deeply equal { count: 1, received: { total: 1 } }"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] supply learner profile in password-login tokens for a multi-role account reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 89.54180000000633
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] supply learner profile in password-login tokens for a multi-role account meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 86.79630000000179,
+          "failureSummary": "AssertionError: expected false to deeply equal true"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] explicitly grant student on verified Wallet creation without the legacy trigger reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 70.40239999999176
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] explicitly grant student on verified Wallet creation without the legacy trigger meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 94.21510000000126,
+          "failureSummary": "AssertionError: expected [] to deeply equal [ 'student' ]"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] explicitly grant instructor on verified Wallet creation without the legacy trigger reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 78.16889999998966
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] explicitly grant instructor on verified Wallet creation without the legacy trigger meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 112.03820000000997,
+          "failureSummary": "AssertionError: expected [] to deeply equal [ 'instructor' ]"
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] explicitly grant student during public registration without the legacy trigger reproduces the known observation with valid fixtures",
+          "status": "passed",
+          "duration": 353.491200000004
+        },
+        {
+          "fullName": "[KNOWN GAP: step 2] explicitly grant student during public registration without the legacy trigger meets the RBAC-only target contract",
+          "status": "failed",
+          "duration": 296.5368000000017,
+          "failureSummary": "AssertionError: expected [] to deeply equal [ 'student' ]"
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported current grants determine effective context despite a conflicting legacy admin label",
+          "status": "passed",
+          "duration": 132.6356000000087
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported zero grants do not become student or administrator workspaces",
+          "status": "passed",
+          "duration": 155.68120000000636
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported signed obsolete role and roles claims cannot authorize an administrative API",
+          "status": "passed",
+          "duration": 176.6079000000027
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported explicit current administrator works with a legacy student label",
+          "status": "passed",
+          "duration": 93.35659999999916
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported a managed role removal is not restored by the startup bridge",
+          "status": "passed",
+          "duration": 66.79140000000189
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported repeated Wallet sign-in cannot restore a demoted existing user",
+          "status": "passed",
+          "duration": 71.86549999999988
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported unverified provider identity creates no user or grant",
+          "status": "passed",
+          "duration": 67.27169999999751
+        },
+        {
+          "fullName": "RBAC-only retirement safeguards already supported parent child creation already assigns a student grant and profile without the legacy trigger",
+          "status": "passed",
+          "duration": 291.27419999999984
+        }
+      ]
+    }
+  ]
+}

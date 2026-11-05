@@ -1,0 +1,25 @@
+==> smoke-test.sh verification
+
+--- URL resolution ---
+  PASS  Default URL is production
+  PASS  Override honored exactly
+  PASS  Custom staging URL honored
+
+--- Trailing slash ---
+  PASS  Single trailing slash stripped
+  PASS  No slash unchanged
+  PASS  No double-slash in path
+
+--- Exit codes ---
+  PASS  Unreachable URL exits nonzero
+  PASS  Synthetic success response exits zero
+
+--- Output format ---
+  PASS  Output shows base URL
+  PASS  Failure output includes base URL
+
+--- Safety ---
+  PASS  No mutating HTTP methods
+  PASS  No credentials in non-comment code
+
+==> Verification: 12/12 passed, 0 failed

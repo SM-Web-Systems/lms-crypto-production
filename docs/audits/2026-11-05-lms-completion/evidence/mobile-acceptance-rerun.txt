@@ -1,0 +1,120 @@
+
+> lms-mobile@1.0.0 acceptance:local
+> node --test scripts/device-acceptance.test.mjs && jest --runInBand && tsc --noEmit
+
+TAP version 13
+# Subtest: complete synthetic schema fixture is an attestation, never hardware verification
+ok 1 - complete synthetic schema fixture is an attestation, never hardware verification
+  ---
+  duration_ms: 1139.3011
+  type: 'test'
+  ...
+# Subtest: pending, failed, missing and duplicate platform evidence cannot pass
+ok 2 - pending, failed, missing and duplicate platform evidence cannot pass
+  ---
+  duration_ms: 1939.8463
+  type: 'test'
+  ...
+# Subtest: wrong build, nonphysical device, absent evidence and invalid metadata cannot pass
+ok 3 - wrong build, nonphysical device, absent evidence and invalid metadata cannot pass
+  ---
+  duration_ms: 4662.0737
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8199.6004
+FAIL src/__tests__/session-restoration.test.tsx (41.784 s)
+  ● A14 resilient native sessions › establishes the wallet session with the effective authorization returned by the API
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      43 |
+      44 | describe('A14 resilient native sessions',()=>{
+    > 45 |   it('establishes the wallet session with the effective authorization returned by the API',async()=>{
+         |   ^
+      46 |     mockToken=null;
+      47 |     (ammaWalletService.signIn as jest.Mock).mockResolvedValueOnce({token:'wallet-token',user:sponsor});
+      48 |     renderSession();await waitFor(()=>expect(screen.getByText('Signed out')).toBeTruthy());
+
+      at it (src/__tests__/session-restoration.test.tsx:45:3)
+      at Object.describe (src/__tests__/session-restoration.test.tsx:44:1)
+
+  ● A14 resilient native sessions › does not restore a wallet result after local logout
+
+    Unable to find an element with text: Signed out
+
+    <View>
+      <ActivityIndicator />
+      <Text>
+        Restoring your session…
+      </Text>
+    </View>
+
+      55 |     let complete!:(value:unknown)=>void;
+      56 |     (ammaWalletService.signIn as jest.Mock).mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve;}));
+    > 57 |     renderSession();await waitFor(()=>expect(screen.getByText('Signed out')).toBeTruthy());
+         |                                  ^
+      58 |     fireEvent.press(screen.getByText('Wallet login'));
+      59 |     await act(async()=>fireEvent.press(screen.getByText('Logout')));
+      60 |     await act(async()=>complete({token:'late-wallet-token',user:sponsor}));
+
+      at Object.<anonymous> (src/__tests__/session-restoration.test.tsx:57:34)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at Object.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+
+  ● A14 resilient native sessions › does not rehydrate the previous identity when the browser foregrounds during wallet sign-in
+
+    TypeError: complete is not a function
+
+      71 |     await act(async()=>listener('active'));
+      72 |     expect(service.getMe).toHaveBeenCalledTimes(reads);
+    > 73 |     await act(async()=>complete({token:'wallet-token',user:sponsor}));
+         |                        ^
+      74 |     expect(mockToken).toBe('wallet-token');
+      75 |   });
+      76 |   it('restores an authoritative session',async()=>{
+
+      at complete (src/__tests__/session-restoration.test.tsx:73:24)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12
+      at callback (node_modules/@testing-library/react-native/src/act.ts:31:24)
+      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:789:22)
+      at actImplementation (node_modules/@testing-library/react-native/src/act.ts:30:25)
+      at Object.<anonymous> (src/__tests__/session-restoration.test.tsx:73:14)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+PASS src/__tests__/screens/account-journeys.test.tsx (5.851 s)
+PASS src/__tests__/screens/lesson-content.test.tsx (6.481 s)
+PASS src/__tests__/services/ammaWalletService.test.ts
+PASS src/__tests__/services/courseLearning.test.ts
+PASS src/__tests__/screens/certificates.test.tsx
+PASS src/__tests__/screens/certificate-detail.test.tsx
+PASS src/__tests__/screens/course-learning.test.tsx
+PASS src/__tests__/screens/lesson-media.test.tsx
+PASS src/__tests__/services/credentialService.test.ts
+PASS src/__tests__/screens/amma-auth.test.tsx (5.132 s)
+PASS src/__tests__/services/accountService.test.ts
+PASS src/__tests__/services/walletService.test.ts
+PASS src/__tests__/services/token.test.ts
+PASS src/__tests__/screens/sso-callback.test.tsx
+PASS src/__tests__/services/session-api.test.ts
+PASS src/__tests__/setup.test.ts
+
+Test Suites: 1 failed, 16 passed, 17 total
+Tests:       3 failed, 155 passed, 158 total
+Snapshots:   0 total
+Time:        96.517 s
+Ran all test suites.

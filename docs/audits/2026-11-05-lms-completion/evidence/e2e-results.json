@@ -1,0 +1,1258 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "91c4ec60520eb3e812e7033ef06dd7b8680916049b062a3ba1581876b4d5e39e",
+  "stats": {
+    "startTime": "2026-11-05T20:32:49.999Z",
+    "duration": 226937.495,
+    "expected": 71,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  },
+  "specs": [
+    {
+      "file": "account-deletion-forum.spec.ts",
+      "title": "E2E-ADF-01: pending-deletion user cannot create forum topics",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1415
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion-forum.spec.ts",
+      "title": "E2E-ADF-02: pending-deletion user cannot reply to forum topics",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2184
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion-forum.spec.ts",
+      "title": "E2E-ADF-03: cancelling deletion restores forum access",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1434
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion-forum.spec.ts",
+      "title": "E2E-ADF-04: forum content by pending-deletion user is still visible to others",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2113
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-DEL-01: request, check status, cancel, verify access restored",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1098
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-DEL-02: reject deletion without confirmation string",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1169
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-DEL-03: reject duplicate deletion request",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1250
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-GATE-01: pending-deletion user is blocked from normal endpoints",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1753
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-FORUM-01: deleted user shows as \"Deleted User\" with isDeleted in forum",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2419
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-COMP-01: non-admin cannot access deleted-identities endpoint",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 987
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "account-deletion.spec.ts",
+      "title": "E2E-COMP-02: super-admin can access deleted-identities endpoint",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 436
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "admin-dashboard.spec.ts",
+      "title": "admin sees the dashboard after login",
+      "ok": false,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "timedOut",
+              "duration": 31547,
+              "errorSummary": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"adminPage\".\u001b[39m"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "admin-dashboard.spec.ts",
+      "title": "admin can navigate to students page",
+      "ok": false,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "timedOut",
+              "duration": 31518,
+              "errorSummary": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"adminPage\".\u001b[39m"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "auth.spec.ts",
+      "title": "admin can log in via the admin form",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 7821
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "auth.spec.ts",
+      "title": "login rejects invalid credentials",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 8469
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "forum-soft-delete.spec.ts",
+      "title": "E2E-F01: author can delete own topic, re-fetch shows tombstone",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1844
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "forum-soft-delete.spec.ts",
+      "title": "E2E-F02: cannot delete another user's topic",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3096
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "forum-soft-delete.spec.ts",
+      "title": "E2E-F03: author can delete own reply, re-fetch shows tombstone",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1943
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "forum-soft-delete.spec.ts",
+      "title": "E2E-F04: reply to deleted topic fails with 403",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1629
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "health.spec.ts",
+      "title": "GET /health returns 200 with status ok",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 209
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "health.spec.ts",
+      "title": "GET /api/v1/health returns enhanced status",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 113
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "health.spec.ts",
+      "title": "SMOKE-001: GET /healthz returns 200",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 159
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "health.spec.ts",
+      "title": "SMOKE-002: GET /healthz returns ready: true with all checks",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 117
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "message-admin-audit.spec.ts",
+      "title": "E2E-ADMIN-01: admin views deleted message content and metadata",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2383
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "message-admin-audit.spec.ts",
+      "title": "E2E-ADMIN-02: non-admin cannot access audit endpoints",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1202
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "message-soft-delete.spec.ts",
+      "title": "E2E-01: sender can delete own message, re-fetch shows tombstone",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1947
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "message-soft-delete.spec.ts",
+      "title": "E2E-02: cannot delete another user's message",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1915
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "admin is routed to /admin",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 5538
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "student is routed to /student",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 4709
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "unauthenticated user is redirected to login",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2305
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "student can view course pricing",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3812
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "checkout requires valid applicationId",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 4011
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "checkout with non-existent application returns 404",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3948
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "Stellar checkout requires valid applicationId",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3495
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "payment status for non-existent payment returns 404",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2779
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "receipt for non-existent payment returns 404",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2761
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "webhook without signature is rejected",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 49
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "webhook with invalid signature is rejected",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 52
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "webhook with valid signature but unknown reference returns 200",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 80
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "duplicate webhook with same reference is handled idempotently",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 69
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "charge.success webhook is accepted",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 50
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "charge.failed webhook is accepted",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 149
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "refund.processed webhook is accepted",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 73
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "unknown event type is acknowledged",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 58
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "webhook with empty reference in payload is handled",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 31
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "webhook signature verification uses raw body",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 43
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "three identical webhooks are all accepted (idempotent)",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 659
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "different event types for same reference are processed independently",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 259
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "payment history endpoint returns student payments",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3631
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "admin payment analytics endpoint returns summary",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 4901
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "unauthenticated request to payments is rejected",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 1430
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "student cannot access admin payment list",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 4178
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "student cannot confirm payments (admin-only)",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3902
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "student cannot waive payments (admin-only)",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3658
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "payment-flow.spec.ts",
+      "title": "student cannot trigger refunds (admin-only)",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3555
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "quiz-flow.spec.ts",
+      "title": "student can view quizzes page",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2804
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "quiz-flow.spec.ts",
+      "title": "quiz API returns quiz list for authenticated student",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2808
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-01: Sponsor A can access own cohort",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2817
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-02: Sponsor A cannot access Sponsor B cohort",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2788
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-03: Sponsor A sees only authorized payments",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2536
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-04: Sponsor A cannot view unrelated payment status",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2544
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-05: Sponsor A cannot download unauthorized badge",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2507
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-06: Sponsor A cannot initiate unauthorized cohort payment",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2532
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-07: Admin retains full access to all cohorts",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2516
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-08: Unauthenticated request returns 401",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 243
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-09: Unauthorized student returns 403",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2358
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "sponsor-authorization.spec.ts",
+      "title": "SPNS-E2E-10: Revoked sponsor membership removes cohort access",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 3084
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "student-dashboard.spec.ts",
+      "title": "student sees the dashboard after login",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 4079
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "webhook-integrity.spec.ts",
+      "title": "real confirmation, duplicate and refund preserve exactly-once financial state",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 444
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "webhook-integrity.spec.ts",
+      "title": "failure and later success for one reference are separate events",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 132
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "webhook-integrity.spec.ts",
+      "title": "missing signature leaves real payment and event rows unchanged",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 70
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "webhook-integrity.spec.ts",
+      "title": "invalid signature leaves real payment and event rows unchanged",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 72
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "webhook-integrity.spec.ts",
+      "title": "tampered signature leaves real payment and event rows unchanged",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 89
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

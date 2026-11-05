@@ -1,0 +1,62 @@
+
+> lms-server@1.0.0 test:rbac-inventory
+> node --test scripts/rbac-inventory.test.mjs
+
+TAP version 13
+# Subtest: read-only inspection preserves bytes and directory entries; aggregate output omits identities and credentials
+ok 1 - read-only inspection preserves bytes and directory entries; aggregate output omits identities and credentials
+  ---
+  duration_ms: 2123.7468
+  type: 'test'
+  ...
+# Subtest: distinguishes legitimate additive grants, managed revocation, and startup regrant risk without changing any grants
+ok 2 - distinguishes legitimate additive grants, managed revocation, and startup regrant risk without changing any grants
+  ---
+  duration_ms: 2750.5916
+  type: 'test'
+  ...
+# Subtest: classifies canonical administrators, custom roles, learner profiles, multiple grants, and deletion status separately
+ok 3 - classifies canonical administrators, custom roles, learner profiles, multiple grants, and deletion status separately
+  ---
+  duration_ms: 2155.3303
+  type: 'test'
+  ...
+# Subtest: reports changed canonical identities, dangling grants and broken links without repairing them
+ok 4 - reports changed canonical identities, dangling grants and broken links without repairing them
+  ---
+  duration_ms: 2281.0982
+  type: 'test'
+  ...
+# Subtest: reports scope counts and marks absent assignments as observations rather than automatic repairs
+ok 5 - reports scope counts and marks absent assignments as observations rather than automatic repairs
+  ---
+  duration_ms: 2306.0253
+  type: 'test'
+  ...
+# Subtest: refuses missing input, live sidecars, WAL mode and unsupported schemas without creating or changing database files
+ok 6 - refuses missing input, live sidecars, WAL mode and unsupported schemas without creating or changing database files
+  ---
+  duration_ms: 2131.9394
+  type: 'test'
+  ...
+# Subtest: details use exclusive creation, omit credentials, and have owner-only POSIX file permissions
+ok 7 - details use exclusive creation, omit credentials, and have owner-only POSIX file permissions
+  ---
+  duration_ms: 2430.7809
+  type: 'test'
+  ...
+# Subtest: CLI validates arguments, does not load .env, refuses output overwrite and never leaks raw SQL/path errors
+ok 8 - CLI validates arguments, does not load .env, refuses output overwrite and never leaks raw SQL/path errors
+  ---
+  duration_ms: 5232.2911
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 22197.2078
