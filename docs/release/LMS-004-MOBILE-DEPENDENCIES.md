@@ -16,4 +16,4 @@ Clean npm 10.9.9 install succeeds. The dependency checks (3), EAS/offline toolin
 
 The full native run uses LMS-007's shared lazy-component test setup. The first attempt reproduced a cold transform timeout; the complete final run passes with an empty transform cache and standard deadlines. Exports are bundle checks, not signed binary, physical-device or staging login acceptance.
 
-Validation hashes and final task state are recorded with the closure receipt. Keep the remaining advisories visible in LMS-005.
+See the [validation receipt](evidence/lms-004-validation.json) for source/result hashes and task closure. Keep the remaining advisories visible in LMS-005.

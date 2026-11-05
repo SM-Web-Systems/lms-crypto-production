@@ -1,10 +1,10 @@
 # LMS completion status
 
-Last planning update: 5 November 2026. Baseline: `e1929c2c401511a793d03526391a3bb9e8d96ac1`.
+Last update: 6 November 2026. Baseline: `e1929c2c401511a793d03526391a3bb9e8d96ac1`.
 
 The audit and plan are captured. Product remediation, physical-device acceptance and completion releases remain open.
 
-LMS-002 is complete: [cross-platform fixture/export evidence](LMS-002-FIXTURE-REPRODUCIBILITY.md). LMS-003 is implemented and has passed focused Windows checks; Linux and broader regression acceptance are in progress.
+LMS-002, LMS-004, LMS-006 and LMS-007 are complete locally: [cross-platform fixtures](LMS-002-FIXTURE-REPRODUCIBILITY.md), [mobile high/critical dependency fixes](LMS-004-MOBILE-DEPENDENCIES.md), [responsive web accessibility](LMS-006-ACCESSIBLE-MOBILE-WEB.md) and [cold test reliability](LMS-007-COLD-TEST-STABILITY.md). LMS-003 passes focused Windows/Linux checks; final full backend regression is running. LMS-005 remaining-advisory remediation is in progress.
 
 ## Confirmed execution inputs
 

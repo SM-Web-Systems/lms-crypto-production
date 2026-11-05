@@ -1,0 +1,57 @@
+{
+  "task": "LMS-004",
+  "closedDate": "2026-11-06",
+  "implementationCommits": [
+    "0c1a10f",
+    "c59a3e7"
+  ],
+  "runtime": {
+    "node": "22.18.0",
+    "npmCleanInstall": "10.9.9",
+    "expoSdk": 54,
+    "reactNative": "0.81.5",
+    "react": "19.1.0"
+  },
+  "audit": {
+    "info": 0,
+    "low": 9,
+    "moderate": 27,
+    "high": 0,
+    "critical": 0,
+    "total": 36
+  },
+  "checks": {
+    "dependencyCompatibility": 3,
+    "offlineTooling": 5,
+    "localSetup": 5,
+    "jestPassed": 159,
+    "jestFailed": 0,
+    "typecheck": "passed",
+    "androidExport": "passed",
+    "iosExport": "passed",
+    "offlineExpoCheck": "up to date; offline reliability warning retained"
+  },
+  "sourceSha256": {
+    "LMS-Mobile/package.json": "a6736a85809572b600b4c35ff2698cf00b10dde52e3f4e02e9dc89d19971a4ec",
+    "LMS-Mobile/package-lock.json": "ac97a48b1101b54d9c1628a0c17593f3c7e9c667e24adce66d8dcc53ca48b4c8",
+    "LMS-Mobile/jest.config.js": "b046ac1fb36863bb10b0ae761f0d9dbb574fa6f021cf34c601855125125dd684",
+    "LMS-Mobile/vendor/query-string-compat/index.cjs": "07baa85c861c026c740322d32935dbfdaca3843a567637be16decc4424fab6e1"
+  },
+  "originalReceiptHashes": {
+    "lms-004-install.log": "d137243f53399a720188dd4504b702bdfab8990155de8300a36bb687bf803d5f",
+    "lms-004-final-audit.json": "ab7d6848a2a01888829b7363d5db03112f327b678fda8286e7a6cf9947c4166b",
+    "lms-004-dependency-acceptance.log": "ee5e05a8999a37deb5f26f9262e45ac255fbcd70585d7a0ae2ac2c6b31474f4d",
+    "lms-004-tooling.log": "27acd1e1f3698ad22f22a89379355cef42721e01d7357693c44db9492133a89e",
+    "lms-004-local-setup.log": "30e35ff358a9b647eeaf963d9f501d9d67dbacd6563ff47a17e0edc25e2775e8",
+    "lms-004-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lms-004-mobile-full-final.json": "251cc94dc427d669769002ed1641a21ec4c2d84294256a7473a38de74b2d3e34",
+    "lms-004-android-export.log": "0187c417007d76621ebba994c19c1875c6d59abaa5bb71fc760667bd1d907c72",
+    "lms-004-ios-export.log": "583fa3a77b480d65607f4ee7091dc256eb3ce5d028ac836d3cab799e70162011",
+    "lms-004-expo-check.log": "e1dd64d5cdc32bb8d9de45b145444a634096309b0b760945109ce3b1bd3b62c8"
+  },
+  "limitations": [
+    "Moderate and low findings remain in LMS-005.",
+    "Bundle exports are not signed physical-device or staging acceptance.",
+    "Full suite includes LMS-007 shared cold-transform setup."
+  ]
+}
