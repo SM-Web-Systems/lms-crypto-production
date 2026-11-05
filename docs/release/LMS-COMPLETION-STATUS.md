@@ -4,7 +4,7 @@ Last update: 6 November 2026. Baseline: `e1929c2c401511a793d03526391a3bb9e8d96ac
 
 The audit and plan are captured. Product remediation, physical-device acceptance and completion releases remain open.
 
-LMS-002, LMS-004, LMS-006 and LMS-007 are complete locally: [cross-platform fixtures](LMS-002-FIXTURE-REPRODUCIBILITY.md), [mobile high/critical dependency fixes](LMS-004-MOBILE-DEPENDENCIES.md), [responsive web accessibility](LMS-006-ACCESSIBLE-MOBILE-WEB.md) and [cold test reliability](LMS-007-COLD-TEST-STABILITY.md). LMS-003 passes focused Windows/Linux checks; final full backend regression is running. LMS-005 remaining-advisory remediation is in progress.
+LMS-002, LMS-004, LMS-006 and LMS-007 are complete locally: [cross-platform fixtures](LMS-002-FIXTURE-REPRODUCIBILITY.md), [mobile high/critical dependency fixes](LMS-004-MOBILE-DEPENDENCIES.md), [responsive web accessibility](LMS-006-ACCESSIBLE-MOBILE-WEB.md) and [cold test reliability](LMS-007-COLD-TEST-STABILITY.md). [LMS-003 writer-hold portability](LMS-003-WRITER-HOLD-PORTABILITY.md) is complete, including full Windows/Linux backend runs (2,400 passed, one existing protected-copy skip each). LMS-005 has removed mobile moderate findings; an upstream low finding and API phase remain. LMS-021 quantitative sponsor reporting is in progress. Private snapshot/client inventory is awaited for LMS-010; actual RBAC conflict preparation is recorded in LMS-011.
 
 ## Confirmed execution inputs
 

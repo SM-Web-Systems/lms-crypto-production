@@ -1,0 +1,66 @@
+{
+  "task": "LMS-003",
+  "closedDate": "2026-11-06",
+  "sourceCandidate": "214daa0150127ae7d8bc7cd8f6ff5a013900e622",
+  "implementationCommits": [
+    "5043fdd82107ad89c081bc122619dc0a8761e64d",
+    "214daa0150127ae7d8bc7cd8f6ff5a013900e622"
+  ],
+  "tests": {
+    "lms-003-windows-full-final.json": {
+      "numTotalTests": 2401,
+      "numPassedTests": 2400,
+      "numFailedTests": 0,
+      "numPendingTests": 1
+    },
+    "lms-003-linux-full-final.json": {
+      "numTotalTests": 2401,
+      "numPassedTests": 2400,
+      "numFailedTests": 0,
+      "numPendingTests": 1
+    },
+    "lms-003-windows-postfixture-fast.json": {
+      "numTotalTests": 26,
+      "numPassedTests": 26,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "lms-003-linux-focused.json": {
+      "numTotalTests": 44,
+      "numPassedTests": 44,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "lms-003-windows-full.json": {
+      "numTotalTests": 2401,
+      "numPassedTests": 2396,
+      "numFailedTests": 4,
+      "numPendingTests": 1
+    },
+    "lms-003-linux-full.json": {
+      "numTotalTests": 2401,
+      "numPassedTests": 2399,
+      "numFailedTests": 1,
+      "numPendingTests": 1
+    }
+  },
+  "focusedGuardsWindows": 44,
+  "focusedGuardsLinux": 44,
+  "buildAndSourceFreeBootstrap": [
+    "windows",
+    "linux"
+  ],
+  "originalReceiptHashes": {
+    "lms-003-windows-full-final.json": "0728bc53ed295b2ded437d7b1a220c4c3c5712c161a96f95e845f75ab4497924",
+    "lms-003-linux-full-final.json": "aa8f405c8ae6deef2ecad3399fdd34d6390fce1130b408c902ed5041b3b3bef9",
+    "lms-003-windows-postfixture-fast.json": "902de84e60522a5fb34102affb2e380eb284d6fdb49d506a062b2b48c78ca06f",
+    "lms-003-linux-focused.json": "f6c8bb842f25feeb3974b45ca3ba8b0f3abde74fccd430f850d1072e0c652173",
+    "lms-003-windows-full.json": "d10c9072f9fbbeb4f4135afc1f5097bfd05f66092bdeecc97b73bdd4136dc6fc",
+    "lms-003-linux-full.json": "1a726b02babc05b54683678008609a2d9dbd5c0806deb7d565417ad8a3a13c7d"
+  },
+  "limitations": [
+    "One existing protected-copy test is skipped; protected-copy acceptance remains in LMS-061.",
+    "13 known expected-failure authorization targets remain; this receipt does not close LMS-011.",
+    "First full runs timed out only in the new buffer-comparison fixture; exact-byte native comparisons and batched fixture DDL fixed those without longer deadlines."
+  ]
+}

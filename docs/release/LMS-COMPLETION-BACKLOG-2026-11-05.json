@@ -43,7 +43,7 @@
       "title": "Fix Windows writer-hold invalid-path handling",
       "priority": "P1",
       "ownerRole": "API + Platform",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "LMS-002"
       ],
@@ -51,7 +51,8 @@
         "Existing regular hold file and invalid/unreadable parent states return held; only verified absent hold under an existing valid directory returns unheld; Linux/Windows regressions pass"
       ],
       "evidence": [
-        "LMS-003-WRITER-HOLD-PORTABILITY.md"
+        "LMS-003-WRITER-HOLD-PORTABILITY.md",
+        "evidence/lms-003-validation.json"
       ]
     },
     {

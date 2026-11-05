@@ -16,7 +16,10 @@ Unit HTTP tests use an actual isolated temporary directory for the in-memory dat
 - Existing hold/release, anonymous health/probe, request refusal and exactly-once worker behavior remain covered.
 - New coverage includes missing/non-directory parent, permission failure, marker creation during inspection, HTTP refusal and delayed worker resumption.
 - The Ubuntu/Windows CI fixture matrix runs the guard/worker suites once per OS.
-- Linux focused checks, compiler/bootstrap and broader backend regression receipts are recorded before final task closure.
+- Linux focused guard/worker/authorization/health run: **44/44 passed**.
+- Both platforms pass compilation and source-free compiled bootstrap.
+- Final full backend runs: **2,400 passed, 0 failed, 1 existing protected-copy skip** on Windows and Linux, source candidate `214daa0`. The 13 expected-failure authorization targets remain for LMS-011.
+- Initial full runs found only new SQL-fixture timeouts (Windows 4, Linux 1). Batching fixture DDL and using native exact-byte `Buffer.equals` removes the setup/assertion overhead without changing production migration code or deadlines. See the [validation receipt](evidence/lms-003-validation.json).
 
 Commands from `LMS-Server`:
 
