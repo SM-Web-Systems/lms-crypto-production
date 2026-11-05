@@ -38,7 +38,9 @@ describe.each(['lf', 'crlf'])('migration fixtures with %s input', style => {
     try {
       const db = new Database(file);
       try {
-        db.exec(fixtureSqlForDatabase(source, style));
+        // One fixture transaction avoids hundreds of independent DDL fsyncs.
+        // Keep durability enabled and run the real migration after this commits.
+        db.transaction(() => db.exec(fixtureSqlForDatabase(source, style)))();
         expect(db.prepare("SELECT sql FROM sqlite_master WHERE name='reward_transactions'").get()).toMatchObject({
           sql: expect.stringContaining(style === 'crlf' ? '\r\n' : '\n'),
         });
@@ -46,7 +48,7 @@ describe.each(['lf', 'crlf'])('migration fixtures with %s input', style => {
       } finally { db.close(); }
       const before = fs.readFileSync(file);
       expect(planUpgrade(file)).toBeDefined();
-      expect(fs.readFileSync(file)).toEqual(before);
+      expect(fs.readFileSync(file).equals(before)).toBe(true);
       expect(applyUpgrade(file).success).toBe(true);
       const upgraded = new Database(file, { readonly: true });
       try { expect(detectSchemaVersion(upgraded)).toBe('target'); } finally { upgraded.close(); }
@@ -62,12 +64,12 @@ describe.each(['lf', 'crlf'])('migration fixtures with %s input', style => {
         const weakened = mutateSqlFixture(fixtureSqlForDatabase(source, style),
           "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire'))",
           "CHECK (transaction_type IN ('fund', 'reserve', 'release', 'cancel', 'refund', 'expire') OR 1=1)");
-        db.exec(fixtureSqlForDatabase(weakened, style));
+        db.transaction(() => db.exec(fixtureSqlForDatabase(weakened, style)))();
         expect(detectSchemaVersion(db)).toBe('unknown');
       } finally { db.close(); }
       const before = fs.readFileSync(file);
       expect(() => applyUpgrade(file)).toThrow(/Unsupported schema/);
-      expect(fs.readFileSync(file)).toEqual(before);
+      expect(fs.readFileSync(file).equals(before)).toBe(true);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });
