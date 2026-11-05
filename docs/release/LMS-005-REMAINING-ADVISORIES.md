@@ -20,6 +20,8 @@ The safe direction is to obtain an upstream-compatible fix or update/remove the 
 
 ## API patch phase
 
-The existing API graph has five moderate entries rooted in glob/minimatch through Swagger/archive tooling. An isolated consumer-scoped resolution audits clean. Promotion and actual OpenAPI/archive/compiler/bootstrap checks follow the running LMS-003 backend regression; this document does not claim those changes are installed yet.
+The five API moderate entries are removed by consumer-scoped glob 14.0.2 (Swagger) and minimatch 11.0.1 (archive traversal) overrides. Clean npm 10.9.9 installation succeeds; the installed full API graph reports **zero findings**. Two direct consumer checks parse real annotated nested source and create/read an archive with exclusion patterns. TypeScript, source-free bootstrap and 177 related API regressions pass. CI now enforces the moderate audit gate and runs the consumer checks.
+
+See the [API phase receipt](evidence/lms-005-api-validation.json). The full Windows/Linux LMS-003 runs preceded this dependency patch; final exact-candidate full validation remains LMS-060.
 
 See [mobile phase receipt](evidence/lms-005-mobile-validation.json). The original audit packet is retained unchanged.

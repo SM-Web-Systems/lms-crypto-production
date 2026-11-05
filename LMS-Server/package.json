@@ -27,7 +27,8 @@
     "test:compiled-bootstrap": "node scripts/test-compiled-bootstrap.mjs",
     "test:restore-drill": "node scripts/synthetic-restore-drill.mjs",
     "rbac:inventory": "node scripts/rbac-inventory.mjs",
-    "test:rbac-inventory": "node --test scripts/rbac-inventory.test.mjs"
+    "test:rbac-inventory": "node --test scripts/rbac-inventory.test.mjs",
+    "test:dependencies": "node --test scripts/dependency-acceptance.test.mjs"
   },
   "keywords": [
     "student",
@@ -86,5 +87,13 @@
     "tsx": "^4.19.1",
     "typescript": "^5.6.2",
     "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "swagger-jsdoc": {
+      "glob": "14.0.2"
+    },
+    "readdir-glob": {
+      "minimatch": "11.0.1"
+    }
   }
 }
