@@ -34,6 +34,9 @@ jobs:
         run: python -m unittest discover -s ../scripts/tests -p test_audit_source_export.py
       - name: Exercise migration fixtures and strict DDL refusals
         run: npx vitest run src/__tests__/migration-fixture-line-endings.test.ts src/__tests__/reward-atomic-reference.test.ts src/__tests__/reward-txn-check-migration.test.ts
+      - name: Verify writer hold filesystem and worker behavior
+        if: matrix.newlines == 'lf'
+        run: npx vitest run src/__tests__/writer-hold.test.ts src/__tests__/writer-hold-workers.test.ts
 
   backend:
     name: Backend Tests
