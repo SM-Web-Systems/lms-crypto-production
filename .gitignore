@@ -62,3 +62,6 @@ __pycache__/
 # Local browser smoke artifacts
 .playwright-cli/
 output/playwright/local-stack/
+
+# Raw audit exports, dependencies and runtime output; curated evidence is in docs/audits.
+output/playwright/lms-audit-2026-11-05/
