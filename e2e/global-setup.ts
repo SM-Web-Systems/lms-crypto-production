@@ -4,6 +4,7 @@
  */
 
 import { withFixtureDatabase } from './helpers/fixture-db';
+import { seedSponsorReporting } from '../LMS-Server/src/__tests__/helpers/sponsorReportingFixture';
 
 const API_URL = process.env.E2E_API_URL || 'http://localhost:3001';
 
@@ -20,6 +21,7 @@ const USERS: TestUser[] = [
   { name: 'E2E Sponsor A', email: 'sponsor-a@test.com', password: 'password123' },
   { name: 'E2E Sponsor B', email: 'sponsor-b@test.com', password: 'password123' },
   { name: 'E2E Sponsor Student', email: 'sponsor-student@test.com', password: 'password123' },
+  { name: 'E2E Reporting Sponsor', email: 'sponsor-reporting@test.com', password: 'password123' },
 ];
 
 async function globalSetup() {
@@ -66,6 +68,11 @@ async function globalSetup() {
         "INSERT OR IGNORE INTO certificate_badges (id, user_id, course_id, application_id, badge_svg, badge_hash) SELECT 'e2e-badge-cohort-b', u.id, 'e2e-sponsor-course-01', 'e2e-nft-app-b', '<svg>e2e</svg>', 'e2e-hash-b' FROM users u WHERE u.email = 'student@test.com';",
       ].join('\n');
     db.exec(seedSQL);
+    const reporter = db.prepare('SELECT id FROM users WHERE email=?').get('sponsor-reporting@test.com').id;
+    const otherOwner = db.prepare('SELECT id FROM users WHERE email=?').get('sponsor-b@test.com').id;
+    db.prepare('DELETE FROM user_roles WHERE user_id=?').run(reporter);
+    db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_sponsor')").run(reporter);
+    seedSponsorReporting(db, reporter, otherOwner);
   });
 }
 export default globalSetup;

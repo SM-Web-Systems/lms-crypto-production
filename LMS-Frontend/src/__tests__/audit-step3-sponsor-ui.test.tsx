@@ -178,6 +178,15 @@ beforeEach(() => {
 });
 
 describe('A08 — URL is the tab state', () => {
+  it('LMS-021 keeps confirmed spending currencies separate', async () => {
+    mock.spending.mockResolvedValue({ totalSpentCents: null, currency: null,
+      totalsByCurrency: [{currency:'USD',amountCents:10000},{currency:'ZAR',amountCents:25000}], cohorts: [] });
+    page('/sponsor/cohorts');
+    const summary = await screen.findByTestId('total-spent');
+    expect(summary).toHaveTextContent('USD 100.00');
+    expect(summary).toHaveTextContent('ZAR 250.00');
+    expect(summary).not.toHaveTextContent('$');
+  });
   it('tabs, sidebar, Back, Forward and reload agree without unmounting between navigation', async () => {
     const user = userEvent.setup();
     let view = page('/sponsor/cohorts');

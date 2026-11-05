@@ -6,6 +6,7 @@ interface AuthFixtures {
   studentPage: Page;
   sponsorAPage: Page;
   sponsorBPage: Page;
+  reportingSponsorPage: Page;
 }
 
 async function getAuthToken(request: APIRequestContext, email: string, password: string): Promise<string> {
@@ -63,6 +64,7 @@ export const test = base.extend<AuthFixtures>({
   studentPage: authenticatedPage('student@test.com'),
   sponsorAPage: authenticatedPage('sponsor-a@test.com'),
   sponsorBPage: authenticatedPage('sponsor-b@test.com'),
+  reportingSponsorPage: authenticatedPage('sponsor-reporting@test.com'),
 });
 
 export { expect };

@@ -221,7 +221,7 @@
       "title": "Build quantitative sponsor reporting and billing acceptance pack",
       "priority": "P2",
       "ownerRole": "API + Web + QA",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "LMS-001"
       ],
@@ -229,7 +229,8 @@
         "Multiple cohorts/courses/currencies and 0/partial/full completion seeded; independent SQL expectations equal API/UI/CSV; date edges, receipts, empty/error/retry and cross-owner boundaries verified"
       ],
       "evidence": [
-        "LMS-021-QUANTITATIVE-SPONSOR-REPORTING.md"
+        "LMS-021-QUANTITATIVE-SPONSOR-REPORTING.md",
+        "evidence/lms-021-validation.json"
       ]
     },
     {
