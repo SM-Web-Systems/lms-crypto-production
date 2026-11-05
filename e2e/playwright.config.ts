@@ -31,6 +31,7 @@ export default defineConfig({
   use: {
     baseURL,
     headless: true,
+    serviceWorkers: 'block',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
     extraHTTPHeaders: {
@@ -43,7 +44,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // When running locally, start the Vite dev server automatically
+  // Local acceptance serves the built app, matching the CI browser target.
   webServer: process.env.CI ? undefined : [
     {
       command: 'cd ../LMS-Server && npm run build && npm run db:init -- --initialize-new && node --require ../e2e/helpers/no-external-network.cjs dist/server.js',
@@ -62,7 +63,7 @@ export default defineConfig({
       },
     },
     {
-      command: 'cd ../LMS-Frontend && npx vite --port 5173',
+      command: 'cd ../LMS-Frontend && npm run build && npx vite preview --host 127.0.0.1 --port 5173 --strictPort',
       url: baseURL,
       reuseExistingServer: false,
       timeout: 120_000,

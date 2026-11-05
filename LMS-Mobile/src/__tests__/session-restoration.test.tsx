@@ -35,8 +35,14 @@ function Probe(){
 function renderSession(){return render(<AuthProvider><SessionBoundary><Probe/></SessionBoundary></AuthProvider>);}
 beforeEach(()=>{
   jest.clearAllMocks();mockToken='saved-token';
+  // Clear unused once-results as well as call history, without erasing the
+  // onUnauthorized subscription implementation supplied by the module factory.
+  for(const mock of [getStoredToken,setStoredToken,clearStoredToken,service.getMe,service.login,
+    ammaWalletService.signIn,ammaWalletService.cancelSignIn,api.post]) (mock as jest.Mock).mockReset();
   (getStoredToken as jest.Mock).mockImplementation(()=>Promise.resolve(mockToken));
   (setStoredToken as jest.Mock).mockImplementation(async(token)=>{mockToken=token;return true;});
+  (clearStoredToken as jest.Mock).mockImplementation(async()=>{mockToken=null;});
+  (api.post as jest.Mock).mockResolvedValue({});
   service.getMe.mockResolvedValue(student);service.login.mockResolvedValue({token:'new-token',user:sponsor});
   jest.spyOn(AppState,'addEventListener').mockReturnValue({remove:jest.fn()});
 });

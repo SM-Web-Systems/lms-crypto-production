@@ -106,14 +106,17 @@
       "title": "Stabilize cold mobile session and admin E2E tests",
       "priority": "P2",
       "ownerRole": "QA + API + Mobile",
-      "status": "open",
+      "status": "done",
       "dependencies": [
         "LMS-002"
       ],
       "acceptance": [
         "Remove leaked mocks/promises and readiness races using deterministic condition-based waits; original auth assertions retained; 3 consecutive fresh-process runs pass with standard deadlines and retries disabled"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-007-COLD-TEST-STABILITY.md",
+        "evidence/lms-007-validation.json"
+      ]
     },
     {
       "id": "LMS-010",
