@@ -49,3 +49,77 @@ test('the patched Metro reads actual project image dimensions on both platforms'
     }
   }
 });
+
+test('patched glob consumers retain sync/async matching and cancellation', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require('node:fs');
+  const { tmpdir } = require('node:os');
+  const folder = mkdtempSync(join(tmpdir(), 'lms-dependency-glob-'));
+  try {
+    mkdirSync(join(folder, 'nested folder'));
+    writeFileSync(join(folder, 'nested folder', 'lesson.ts'), 'synthetic');
+    writeFileSync(join(folder, 'ignore.txt'), 'synthetic');
+    const expo = createRequire(require.resolve('expo/package.json'));
+    const prebuild = createRequire(require.resolve('@expo/prebuild-config/package.json'));
+    for (const [name, resolver] of [['@expo/config', expo], ['@expo/config-plugins', expo],
+      ['@expo/metro-config', expo], ['sucrase', prebuild]]) {
+      const consumer = createRequire(resolver.resolve(`${name}/package.json`));
+      const glob = consumer('glob');
+      assert.deepEqual(glob.sync('**/*.ts', { cwd: folder }), [join('nested folder', 'lesson.ts')]);
+      assert.deepEqual(await glob.glob('**/*.ts', { cwd: folder }), [join('nested folder', 'lesson.ts')]);
+      await assert.rejects(glob.glob('**/*', { cwd: folder, signal: AbortSignal.abort(new Error('fixture-abort')) }), /fixture-abort/);
+    }
+  } finally {
+    assert.equal(require('node:path').dirname(folder), tmpdir());
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('EAS and Xcode UUID consumers retain their supported methods', () => {
+  const xcode = require('xcode');
+  const project = xcode.project('synthetic-project.pbxproj');
+  project.hash = { project: { objects: {} } };
+  assert.match(project.generateUuid(), /^[A-F0-9]{24}$/);
+  for (const name of ['@expo/bunyan', '@expo/rudder-sdk-node', 'xcode', 'eas-cli']) {
+    const uuid = createRequire(require.resolve(`${name}/package.json`))('uuid');
+    assert.equal(uuid.validate(uuid.v1()), true);
+    assert.equal(uuid.validate(uuid.v4()), true);
+    assert.throws(() => uuid.v5('fixture', uuid.v5.DNS, Buffer.alloc(1)), /buffer|offset|length|bounds/i);
+  }
+});
+
+test('patched diff preserves EAS update patch behavior', () => {
+  const diff = createRequire(require.resolve('eas-cli/package.json'))('diff');
+  const before = 'first\nsecond\n';
+  const after = 'first\nchanged\n';
+  const patch = diff.createPatch('fixture.txt', before, after);
+  assert.equal(diff.parsePatch(patch).length, 1);
+  assert.equal(diff.applyPatch(before, patch), after);
+});
+
+test('the actual EAS project generator merges configuration through the patched API', async () => {
+  require('./deny-tooling-network.cjs');
+  const { mkdtempSync, writeFileSync, rmSync } = require('node:fs');
+  const { tmpdir } = require('node:os');
+  const folder = mkdtempSync(join(tmpdir(), 'lms-dependency-eas-'));
+  try {
+    writeFileSync(join(folder, 'app.json'), JSON.stringify({ expo: {
+      name: 'Template', extra: { retained: true }, ios: { supportsTablet: true },
+    } }));
+    const eas = createRequire(require.resolve('eas-cli/package.json'));
+    const merge = eas('ts-deepmerge');
+    const value = merge({}, JSON.parse('{"toString":"hostile","valueOf":null,"__proto__":{"polluted":true}}'));
+    assert.doesNotThrow(() => String(value));
+    assert.equal({}.polluted, undefined);
+    const { generateAppConfigAsync } = eas('./build/commandUtils/new/projectFiles.js');
+    await generateAppConfigAsync(folder, { id: '00000000-0000-4000-8000-000000000001', name: 'Synthetic App', slug: 'synthetic-app', ownerAccount: { name: 'fixture' } });
+    const { expo } = JSON.parse(readFileSync(join(folder, 'app.json')));
+    assert.equal(expo.name, 'Synthetic App');
+    assert.equal(expo.extra.retained, true);
+    assert.equal(expo.extra.eas.projectId, '00000000-0000-4000-8000-000000000001');
+    assert.equal(expo.ios.supportsTablet, true);
+    assert.equal(expo.ios.bundleIdentifier, 'com.fixture.syntheticapp');
+  } finally {
+    assert.equal(dirname(folder), tmpdir());
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
