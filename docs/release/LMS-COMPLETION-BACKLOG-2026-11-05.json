@@ -87,14 +87,17 @@
       "title": "Fix mobile web accessible names and navigation usability",
       "priority": "P2",
       "ownerRole": "Web + QA",
-      "status": "open",
+      "status": "done",
       "dependencies": [
         "LMS-001"
       ],
       "acceptance": [
         "Search, Logout and modal controls have accessible names at 320/390/768px; keyboard focus and later sponsor tabs/actions remain reachable"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-006-ACCESSIBLE-MOBILE-WEB.md",
+        "evidence/lms-006-validation.json"
+      ]
     },
     {
       "id": "LMS-007",

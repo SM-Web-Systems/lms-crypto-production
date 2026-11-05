@@ -22,6 +22,36 @@ const PAYMENT_B = 'e2e-payment-cohort-b';
 const BADGE_A = 'e2e-badge-cohort-a';
 const BADGE_B = 'e2e-badge-cohort-b';
 
+for (const width of [320, 390, 768]) {
+  test(`LMS-006: sponsor controls and keyboard focus at ${width}px`, async ({ sponsorAPage: page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/sponsor');
+    const search = page.getByRole('button', { name: 'Search', exact: true });
+    await expect(search).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible();
+    await search.click();
+    const dialog = page.getByRole('dialog', { name: 'Search', exact: true });
+    const input = dialog.getByRole('textbox', { name: 'Search courses, certificates, and more' });
+    const close = dialog.getByRole('button', { name: 'Close search' });
+    await expect(input).toBeFocused();
+    await input.press('Shift+Tab');
+    await expect(close).toBeFocused();
+    await close.press('Tab');
+    await expect(input).toBeFocused();
+    await input.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(search).toBeFocused();
+    await page.getByRole('tab', { name: 'Sponsor Overview tab' }).focus();
+    await page.keyboard.press('End');
+    const billing = page.getByRole('tabpanel', { name: 'Billing tab' });
+    await expect(billing).toBeVisible();
+    const receipt = billing.getByRole('button', { name: /Download receipt/ });
+    await receipt.focus();
+    await expect(receipt).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  });
+}
+
 test.describe('Sponsor Authorization — Cohort Access', () => {
   test('SPNS-E2E-01: Sponsor A can access own cohort', async ({ sponsorAPage }) => {
     const res = await sponsorAPage.request.get(`${apiURL}/api/v1/admin/cohorts/${COHORT_A}`);

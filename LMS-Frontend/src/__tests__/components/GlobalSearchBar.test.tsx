@@ -85,3 +85,24 @@ describe('SRCH-FE-2: GlobalSearchBar opens on Ctrl+K', () => {
     expect(screen.getByTestId('search-input')).toBeDefined();
   });
 });
+
+describe('LMS-006: keyboard and accessible search controls', () => {
+  it('names the trigger and dialog, traps focus, and restores it after Escape', async () => {
+    const user = userEvent.setup();
+    renderBar();
+    const trigger = screen.getByRole('button', { name: 'Search' });
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Search' });
+    const input = screen.getByRole('textbox', { name: 'Search courses, certificates, and more' });
+    const close = screen.getByRole('button', { name: 'Close search' });
+    expect(dialog).toBeVisible();
+    await waitFor(() => expect(input).toHaveFocus());
+    await user.tab({ shift: true });
+    expect(close).toHaveFocus();
+    await user.tab();
+    expect(input).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+});
