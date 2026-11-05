@@ -4,6 +4,8 @@ Last planning update: 5 November 2026. Baseline: `e1929c2c401511a793d03526391a3b
 
 The audit and plan are captured. Product remediation, physical-device acceptance and completion releases remain open.
 
+LMS-002 is complete: [cross-platform fixture/export evidence](LMS-002-FIXTURE-REPRODUCIBILITY.md). LMS-003 is implemented and has passed focused Windows checks; Linux and broader regression acceptance are in progress.
+
 ## Confirmed execution inputs
 
 - The owner confirmed `https://lms.smwebsystems.com` and `https://ammawallet.com` are the authorized **staging** environments. Environment contact: Mukhtar Meer. The historical audit's production label was an inference, not the owner's environment classification.

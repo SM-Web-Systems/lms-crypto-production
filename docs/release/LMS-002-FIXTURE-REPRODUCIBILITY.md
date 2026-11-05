@@ -31,6 +31,8 @@ Run `npm run build` as the backend compiler check. The CI matrix exercises the s
 
 ## Evidence and state
 
-The pre-change Windows run reproduced three assertion failures plus the existing fixture module's setup failure. The first corrected CRLF run passed all 169 assertions, and the exporter passed 7 tests. Final LF/CRLF Linux and Windows receipts will be linked here before LMS-002 is marked complete. Local diagnostic logs are under the ignored `output/playwright/lms-audit-2026-11-05/` directory with the `lms-002-` prefix.
+LMS-002 was completed on 6 November 2026. The pre-change Windows run reproduced three assertion failures plus the existing fixture module's setup failure. Corrected LF and CRLF runs each passed **169/169 assertions on Windows and Ubuntu**; exporter tests passed **9/9 on both OS families**. Both native clean locked installs and backend builds passed. The pinned Linux candidate was `ab74bdd2a138b06fbecf84f33c6b5a22c3ac1fd1` (Node 22.18.0/Linux x64).
+
+The complete 2,578-file Windows and Linux source exports produced an identical manifest SHA-256, including the two logical icon aliases. Linux source bytes remained unchanged after tests. [Validation receipt](evidence/lms-002-validation.json) records the matrix outcomes, candidate, raw receipt hashes and export identity. Local diagnostic logs remain under the ignored `output/playwright/lms-audit-2026-11-05/` directory with the `lms-002-` prefix. The receipt notes the initial corrected Windows CRLF working-tree run separately from the later pinned Linux runs.
 
 No runtime production schema/auth/payment changes are part of this task. Real production-copy acceptance remains part of the later migration/release gates.
