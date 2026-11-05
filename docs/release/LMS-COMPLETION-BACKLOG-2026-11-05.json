@@ -128,14 +128,15 @@
       "title": "Complete private production account/schema/client inventory",
       "priority": "P1",
       "ownerRole": "Platform owner",
-      "status": "open",
+      "status": "awaiting_input",
       "dependencies": [
         "LMS-001"
       ],
       "acceptance": [
         "Finalized consistent snapshot inventoried offline; real zero/multi/custom/revoked grant and learner-profile exceptions reviewed; schema/endpoint usage and installed builds recorded privately"
       ],
-      "evidence": []
+      "evidence": [],
+      "reason": "Current consistent private snapshot and installed-client/build inventory location/access requested; no real account inventory is available locally."
     },
     {
       "id": "LMS-011",
@@ -150,7 +151,9 @@
       "acceptance": [
         "Resolve actual #99 conflicts against current main; preserve AUTH-14 and completion/FK fixes; all 13 targets become ordinary passing regressions; explicit provisioning, audit, scope and session invalidation rehearsed"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-011-RECONCILIATION-PREPARATION.md"
+      ]
     },
     {
       "id": "LMS-012",
@@ -216,14 +219,16 @@
       "title": "Build quantitative sponsor reporting and billing acceptance pack",
       "priority": "P2",
       "ownerRole": "API + Web + QA",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-001"
       ],
       "acceptance": [
         "Multiple cohorts/courses/currencies and 0/partial/full completion seeded; independent SQL expectations equal API/UI/CSV; date edges, receipts, empty/error/retry and cross-owner boundaries verified"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-021-QUANTITATIVE-SPONSOR-REPORTING.md"
+      ]
     },
     {
       "id": "LMS-022",
