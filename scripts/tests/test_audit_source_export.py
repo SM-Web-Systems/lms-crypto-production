@@ -94,6 +94,27 @@ class AuditSourceExportTests(unittest.TestCase):
             exporter.export_source(self.repo, self.sha, self.root / 'missing' / 'export')
         self.assertFalse((self.root / 'missing').exists())
 
+    def add_case_alias(self, oid):
+        self.run_git('-c', 'core.ignoreCase=false', 'update-index', '--add', '--cacheinfo', f'100644,{oid},FIXTURE.sql')
+        self.commit()
+        return self.run_git('rev-parse', 'HEAD').decode().strip()
+
+    def test_identical_case_aliases_preserve_both_logical_paths(self):
+        oid = self.run_git('rev-parse', 'HEAD:fixture.sql').decode().strip()
+        sha = self.add_case_alias(oid)
+        manifest = exporter.export_source(self.repo, sha, self.output)
+        self.assertEqual((self.output / 'fixture.sql').read_bytes(), (self.output / 'FIXTURE.sql').read_bytes())
+        aliases = [e for e in manifest['files'] if e.get('caseAliasOf')]
+        self.assertEqual(len(aliases), 1)
+        self.assertEqual(aliases[0]['gitBlob'], oid)
+
+    def test_different_case_aliases_refused_before_output(self):
+        oid = self.run_git('hash-object', '-w', '--stdin', input=b'SELECT 99;\n').decode().strip()
+        sha = self.add_case_alias(oid)
+        with self.assertRaisesRegex(ValueError, 'different bytes or modes'):
+            exporter.export_source(self.repo, sha, self.output)
+        self.assertFalse(self.output.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

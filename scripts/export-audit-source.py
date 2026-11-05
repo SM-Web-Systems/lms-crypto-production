@@ -37,7 +37,7 @@ def export_source(repository, sha, output):
     if output.exists() or output.is_symlink() or not output.parent.is_dir():
         raise ValueError('Output must be a new directory under an existing parent')
     entries = []
-    names = set()
+    names = {}
     for record in git(repository, 'ls-tree', '-rz', sha).split(b'\0'):
         if not record:
             continue
@@ -47,10 +47,15 @@ def export_source(repository, sha, output):
         safe_path(name)
         if kind != 'blob' or mode not in ['100644', '100755']:
             raise ValueError('Symlinks, submodules and non-regular entries cannot be exported')
-        if name.casefold() in names:
-            raise ValueError('Case-colliding export paths')
-        names.add(name.casefold())
-        entries.append({'path': name, 'mode': mode, 'gitBlob': oid})
+        entry = {'path': name, 'mode': mode, 'gitBlob': oid}
+        prior = names.get(name.casefold())
+        if prior:
+            if prior['gitBlob'] != oid or prior['mode'] != mode:
+                raise ValueError('Case-colliding paths have different bytes or modes')
+            entry['caseAliasOf'] = prior['path']
+        else:
+            names[name.casefold()] = entry
+        entries.append(entry)
     payload = git(repository, 'cat-file', '--batch',
                   input=('\n'.join(e['gitBlob'] for e in entries) + '\n').encode('ascii')) if entries else b''
     position = 0
@@ -77,6 +82,11 @@ def export_source(repository, sha, output):
     for entry, data in zip(entries, blobs):
         target = output.joinpath(*safe_path(entry['path']).parts)
         target.parent.mkdir(parents=True, exist_ok=True)
+        if entry.get('caseAliasOf') and target.exists():
+            original = output.joinpath(*safe_path(entry['caseAliasOf']).parts)
+            if not target.samefile(original) or target.read_bytes() != data:
+                raise ValueError('Case alias does not match its exported object')
+            continue
         with target.open('xb') as stream:
             stream.write(data)
         if entry['mode'] == '100755':

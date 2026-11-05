@@ -19,7 +19,7 @@ python -m unittest discover -s scripts/tests -p test_audit_source_export.py
 python scripts/export-audit-source.py --sha FULL_COMMIT_SHA --output NEW_DIRECTORY
 ```
 
-The export requires an existing destination parent and never overwrites an existing path. Run it against a committed candidate; it intentionally excludes uncommitted changes. It exports tracked regular files including those marked `export-ignore`, records their modes, and refuses nonportable paths rather than silently changing them.
+The export requires an existing destination parent and never overwrites an existing path. Run it against a committed candidate; it intentionally excludes uncommitted changes. It exports tracked regular files including those marked `export-ignore`, records their modes, and refuses nonportable paths rather than silently changing them. The repository has identical `XLM.png`/`xlm.png` aliases: these preserve both logical paths and their shared blob identity in the manifest. Case-sensitive filesystems receive both files; case-insensitive filesystems share an existing file only after same-file and byte verification. Case aliases with different contents/modes are refused before output creation.
 
 In `LMS-Server`, use a clean `npm ci`, set `LMS_FIXTURE_LINE_ENDINGS` to `lf` or `crlf`, then run:
 
