@@ -49,4 +49,30 @@ BEGIN SELECT RAISE(ABORT, 'funding evidence is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS reward_funding_evidence_no_delete
 BEFORE DELETE ON reward_funding_evidence
 BEGIN SELECT RAISE(ABORT, 'funding evidence is immutable'); END;
+CREATE TABLE IF NOT EXISTS reward_stellar_funding_bindings (
+  intent_id TEXT PRIMARY KEY REFERENCES reward_funding_intents(id) ON DELETE RESTRICT,
+  destination TEXT NOT NULL,
+  memo_hash TEXT NOT NULL UNIQUE CHECK (length(memo_hash) = 64 AND memo_hash NOT GLOB '*[^a-f0-9]*')
+);
+CREATE TABLE IF NOT EXISTS reward_stellar_funding_evidence (
+  evidence_id TEXT PRIMARY KEY REFERENCES reward_funding_evidence(id) ON DELETE RESTRICT,
+  transaction_hash TEXT NOT NULL CHECK (length(transaction_hash) = 64),
+  ledger_sequence INTEGER NOT NULL CHECK (typeof(ledger_sequence) = 'integer' AND ledger_sequence > 0),
+  ledger_hash TEXT NOT NULL CHECK (length(ledger_hash) = 64)
+);
+CREATE TRIGGER IF NOT EXISTS reward_stellar_binding_no_update
+BEFORE UPDATE ON reward_stellar_funding_bindings
+BEGIN SELECT RAISE(ABORT, 'Stellar binding is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_stellar_binding_no_delete
+BEFORE DELETE ON reward_stellar_funding_bindings
+BEGIN SELECT RAISE(ABORT, 'Stellar binding is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_stellar_evidence_no_update
+BEFORE UPDATE ON reward_stellar_funding_evidence
+BEGIN SELECT RAISE(ABORT, 'Stellar evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_stellar_evidence_no_delete
+BEFORE DELETE ON reward_stellar_funding_evidence
+BEGIN SELECT RAISE(ABORT, 'Stellar evidence is immutable'); END;
 `;
+
+export const fundingSchemaTables = ['reward_funding_intents', 'reward_funding_evidence',
+  'reward_stellar_funding_bindings', 'reward_stellar_funding_evidence'];

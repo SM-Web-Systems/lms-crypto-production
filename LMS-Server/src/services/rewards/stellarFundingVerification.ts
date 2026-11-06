@@ -28,20 +28,12 @@ const providers = {
 const hashPattern = /^[a-f0-9]{64}$/;
 const deny = () => new RewardError('FUNDING_UNVERIFIED', 'Stellar operation does not match the funding intent.', 402);
 
-// Public-data reads only. Never signs, submits a transaction or follows a
-// provider-supplied link. The caller must supply a stored authoritative intent.
-export async function verifyStellarFunding(binding: StellarFundingBinding, operationId: string): Promise<VerifiedStellarFunding> {
-  if (binding.network !== 'testnet' && binding.network !== 'public') throw deny();
-  const provider = providers[binding.network];
-  const created = Date.parse(binding.createdAt), expiry = Date.parse(binding.expiresAt);
-  if (!StrKey.isValidEd25519PublicKey(binding.destination) || !hashPattern.test(binding.memoHash)
-    || !Number.isSafeInteger(binding.amountStroops) || binding.amountStroops <= 0
-    || !Number.isFinite(created) || !Number.isFinite(expiry) || expiry <= Date.now()
-    || expiry <= created || typeof operationId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(operationId)) throw deny();
+function horizonReader(provider: {url: string}) {
   const signal = AbortSignal.timeout(5000);
-  async function read(endpoint: string): Promise<Record<string, unknown>> {
+  async function read(endpoint: string, allowMissing = false): Promise<Record<string, unknown>> {
     try {
       const response = await fetch(`${provider.url}${endpoint}`, {signal, redirect: 'error', headers: {Accept: 'application/json'}});
+      if (allowMissing && response.status === 404) return {missing: true};
       if (!response.ok || !response.body) throw new Error('provider');
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -62,6 +54,20 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
       throw new RewardError('FUNDING_UNVERIFIED', 'Stellar verification is temporarily unavailable. Retry the same intent.', 503);
     }
   }
+  return read;
+}
+
+// Public-data reads only. Never signs, submits a transaction or follows a
+// provider-supplied link. The caller must supply a stored authoritative intent.
+export async function verifyStellarFunding(binding: StellarFundingBinding, operationId: string): Promise<VerifiedStellarFunding> {
+  if (binding.network !== 'testnet' && binding.network !== 'public') throw deny();
+  const provider = providers[binding.network];
+  const created = Date.parse(binding.createdAt), expiry = Date.parse(binding.expiresAt);
+  if (!StrKey.isValidEd25519PublicKey(binding.destination) || !hashPattern.test(binding.memoHash)
+    || !Number.isSafeInteger(binding.amountStroops) || binding.amountStroops <= 0
+    || !Number.isFinite(created) || !Number.isFinite(expiry) || expiry <= Date.now()
+    || expiry <= created || typeof operationId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(operationId)) throw deny();
+  const read = horizonReader(provider);
   const root = await read('/');
   if (root.network_passphrase !== provider.passphrase) throw deny();
   const operation = await read(`/operations/${operationId}`);
@@ -88,4 +94,18 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   return {operationId, transactionHash: operation.transaction_hash, ledger: transaction.ledger as number,
     ledgerHash: ledger.hash, network: binding.network, destination: binding.destination,
     amountStroops: binding.amountStroops, memoHash: binding.memoHash};
+}
+
+export async function stellarReceiverReadiness(config: {network: 'testnet' | 'public'; destination: string}): Promise<{ready: boolean; reason: string | null}> {
+  if ((config.network !== 'testnet' && config.network !== 'public') || !StrKey.isValidEd25519PublicKey(config.destination)) {
+    return {ready: false, reason: 'Stellar funding is not configured.'};
+  }
+  const provider = providers[config.network], read = horizonReader(provider);
+  try {
+    const root = await read('/');
+    if (root.network_passphrase !== provider.passphrase) return {ready: false, reason: 'The Stellar provider network could not be verified.'};
+    const account = await read(`/accounts/${config.destination}`, true);
+    return account.account_id === config.destination ? {ready: true, reason: null}
+      : {ready: false, reason: 'The receiving account is not active on the configured Stellar network.'};
+  } catch { return {ready: false, reason: 'Stellar funding is temporarily unavailable. Please retry.'}; }
 }

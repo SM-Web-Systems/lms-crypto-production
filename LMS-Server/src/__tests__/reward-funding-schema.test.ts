@@ -17,7 +17,7 @@ describe('funding schema additive upgrade contract', () => {
     const target = database();
     try {
       expect(() => validateDatabase(target)).not.toThrow();
-      target.exec('DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents');
+      target.exec('DROP TABLE reward_stellar_funding_evidence; DROP TABLE reward_stellar_funding_bindings; DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents');
       expect(() => validateDatabase(target)).not.toThrow();
       expect(() => validateDatabase(target, true)).toThrow(/funding schema/);
       target.exec(rewardFundingSchema);
@@ -37,7 +37,7 @@ describe('funding schema additive upgrade contract', () => {
   it('refuses a partial pre-existing funding table instead of silently recreating it', () => {
     const target = database();
     try {
-      target.exec('DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents; CREATE TABLE reward_funding_intents(id TEXT PRIMARY KEY)');
+      target.exec('DROP TABLE reward_stellar_funding_evidence; DROP TABLE reward_stellar_funding_bindings; DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents; CREATE TABLE reward_funding_intents(id TEXT PRIMARY KEY)');
       expect(() => validateDatabase(target)).toThrow(/changed funding schema/);
       target.exec(rewardFundingSchema);
       expect(() => validateDatabase(target, true)).toThrow(/changed funding schema/);

@@ -2,7 +2,7 @@ import type { Router, Response } from 'express';
 import type { AuthRequest } from '../types/index.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
-import { createFundingIntent, getFundingAvailability } from '../services/rewards/rewardFundingIntentService.js';
+import { createFundingIntentVerified, verifiedFundingAvailability } from '../services/rewards/rewardFundingIntentService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 
 export function registerRewardFundingRoutes(router: Router, prefix: string): void {
@@ -11,15 +11,15 @@ export function registerRewardFundingRoutes(router: Router, prefix: string): voi
     res.status(err.statusCode).json({success: false, error: {code: err.code, message: err.message}});
   };
   router.get(`${prefix}/rewards/:id/funding-options`, authenticate, requirePermission('reward.fund'),
-    (req: AuthRequest, res: Response) => {
+    async (req: AuthRequest, res: Response) => {
       try {
-        res.json({success: true, data: getFundingAvailability(req.params.id, req.user!.userId)});
+        res.json({success: true, data: await verifiedFundingAvailability(req.params.id, req.user!.userId)});
       } catch (err) { fail(err, res); }
     });
   router.post(`${prefix}/rewards/:id/funding-intents`, authenticate, requirePermission('reward.fund'),
-    (req: AuthRequest, res: Response) => {
+    async (req: AuthRequest, res: Response) => {
       try {
-        const intent = createFundingIntent(req.params.id, req.user!.userId,
+        const intent = await createFundingIntentVerified(req.params.id, req.user!.userId,
           {type: req.body.sourceType, reference: req.body.reference}, req.body.idempotencyKey);
         res.status(201).json({success: true, data: intent});
       } catch (err) { fail(err, res); }

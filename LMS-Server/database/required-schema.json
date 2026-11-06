@@ -775,6 +775,17 @@
       "reference",
       "verification_method",
       "verified_at"
+    ],
+    "reward_stellar_funding_bindings": [
+      "intent_id",
+      "destination",
+      "memo_hash"
+    ],
+    "reward_stellar_funding_evidence": [
+      "evidence_id",
+      "transaction_hash",
+      "ledger_sequence",
+      "ledger_hash"
     ]
   },
   "indexes": [
@@ -2719,6 +2730,47 @@
         [
           "intent_id",
           "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_stellar_funding_bindings": {
+      "primary": [
+        "intent_id"
+      ],
+      "unique": [
+        [
+          "memo_hash"
+        ],
+        [
+          "intent_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "intent_id",
+          "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_stellar_funding_evidence": {
+      "primary": [
+        "evidence_id"
+      ],
+      "unique": [
+        [
+          "evidence_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "evidence_id",
+          "reward_funding_evidence",
           "id",
           "NO ACTION",
           "RESTRICT"

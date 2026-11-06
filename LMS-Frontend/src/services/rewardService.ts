@@ -29,6 +29,9 @@ export interface FundingIntent {
   amount_stroops: number;
   currency_code: string;
   expires_at: string;
+  network?: 'public' | 'testnet' | 'internal';
+  destination?: string;
+  memo_hash?: string;
 }
 
 export type ScopeType = 'sponsor_cohort' | 'employer_team' | 'parent_child' | 'parent_family' | 'teacher_class';

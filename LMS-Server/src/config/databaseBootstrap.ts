@@ -1,3 +1,4 @@
+import { fundingSchemaTables } from './rewardFundingSchema.js';
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,9 +79,9 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
     // LMS-030 adds these empty tables without synthesizing historical evidence.
     // Only a wholly absent new table is allowed before the additive migration;
     // an existing partial/altered table must still satisfy its full contract.
-    if (!afterMigrations && ['reward_funding_intents', 'reward_funding_evidence'].includes(table.name)
+    if (!afterMigrations && fundingSchemaTables.includes(table.name)
       && !db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table.name)) continue;
-    if (['reward_funding_intents', 'reward_funding_evidence'].includes(table.name)) {
+    if (fundingSchemaTables.includes(table.name)) {
       const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table.name) as {sql:string} | undefined;
       const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
       if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed funding schema (${table.name})`);

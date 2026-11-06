@@ -72,4 +72,55 @@ describe('reward funding availability and confirmation', () => {
     const view = render(<RewardFundingDialog role="sponsor" rewardId="reward" returnFocus={opener} onClose={vi.fn()} onFunded={vi.fn()} />);
     view.unmount(); expect(opener).toHaveFocus(); opener.remove();
   });
+
+  it('shows the exact public-network deposit instructions and verifies an operation with a stable retry', async () => {
+    const user = userEvent.setup(), done = vi.fn();
+    mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);
+    mocks.prepare.mockResolvedValue({id: 'stellar-intent', amount_stroops: 1234567, network: 'public',
+      destination: 'GDJT327MIBUOVRXKDDSBOIT7J2ORZB2Y4FDIVAXM7UUVHFPVU4LW7JHE', memo_hash: 'a'.repeat(64), expires_at: new Date(Date.now() + 60000).toISOString()});
+    mocks.fund.mockRejectedValueOnce(new Error('ambiguous network failure')).mockResolvedValueOnce({status: 'funded'});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={done} />);
+    await user.click(await screen.findByRole('button', {name: 'Prepare Stellar payment'}));
+    expect(await screen.findByText('Public network — real XLM')).toBeVisible();
+    expect(screen.getByText(/Send exactly 0.1234567 XLM/)).toBeVisible();
+    expect(screen.getByText('a'.repeat(64))).toBeVisible();
+    expect(mocks.fund).not.toHaveBeenCalled();
+    const field = screen.getByLabelText('Stellar payment operation ID');
+    await user.type(field, '123');
+    await user.click(screen.getByRole('button', {name: 'Verify payment'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Payment was not confirmed');
+    expect(field).toBeDisabled();
+    await user.click(screen.getByRole('button', {name: 'Verify payment'}));
+    await waitFor(() => expect(done).toHaveBeenCalledTimes(1));
+    expect(mocks.fund.mock.calls[0]).toEqual(mocks.fund.mock.calls[1]);
+    expect(mocks.fund.mock.calls[0]).toEqual(['sponsor', 'reward', 'stellar', '123', mocks.prepare.mock.calls[0][3], 'stellar-intent']);
+  });
+
+  it('permits correcting a conclusively rejected operation but never substitutes new intent instructions', async () => {
+    const user = userEvent.setup();
+    mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);
+    mocks.prepare.mockResolvedValue({id: 'stellar-intent', amount_stroops: 1, network: 'testnet',
+      destination: 'GDJT327MIBUOVRXKDDSBOIT7J2ORZB2Y4FDIVAXM7UUVHFPVU4LW7JHE', memo_hash: 'a'.repeat(64), expires_at: new Date(Date.now() + 60000).toISOString()});
+    mocks.fund.mockRejectedValue({response: {status: 402}});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
+    await user.click(await screen.findByRole('button', {name: 'Prepare Stellar payment'}));
+    const field = await screen.findByLabelText('Stellar payment operation ID');
+    await user.type(field, '123'); await user.click(screen.getByRole('button', {name: 'Verify payment'}));
+    await waitFor(() => expect(field).not.toBeDisabled());
+    await user.clear(field); await user.type(field, '456'); await user.click(screen.getByRole('button', {name: 'Verify payment'}));
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.fund.mock.calls.map(call => call[3])).toEqual(['123','456']);
+    expect(mocks.fund.mock.calls[0][4]).toBe(mocks.fund.mock.calls[1][4]);
+  });
+
+  it('refuses malformed deposit instructions and does not offer verification', async () => {
+    const user = userEvent.setup();
+    mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);
+    mocks.prepare.mockResolvedValue({id: 'bad', amount_stroops: 1, network: 'unknown'});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
+    await user.click(await screen.findByRole('button', {name: 'Prepare Stellar payment'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not prepare Stellar payment instructions');
+    expect(screen.queryByRole('button', {name: 'Verify payment'})).not.toBeInTheDocument();
+    expect(mocks.fund).not.toHaveBeenCalled();
+  });
 });

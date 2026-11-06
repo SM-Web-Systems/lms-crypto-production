@@ -1,0 +1,90 @@
+{
+  "date": "2026-11-06",
+  "status": "local_integration_validated_staging_acceptance_open",
+  "sourceBase": "7ae766d1e983bda1ffb18341b5b6d977b9467e8d",
+  "sourceFileSha256": {
+    "LMS-Frontend/src/__tests__/components/RewardFundingDialog.test.tsx": "9f439d81d31768aa0f4ee1d9b4549ddef2f63d8641d4aa021c01d7e0f7f7f2ea",
+    "LMS-Frontend/src/components/RewardFundingDialog.tsx": "57a34e7da4bbdb46b3e5f946ea60faea4492daef8c9cb48f91418355acfc53df",
+    "LMS-Frontend/src/services/rewardService.ts": "214c2b8775de801f516de835c06ad3ac4c34f28884ce7f80d83063bfcecbc590",
+    "LMS-Server/.env.example": "c40ad198b392c1cb2109e6251a93f332a09b221a2d607f14082b364bbc3748bb",
+    "LMS-Server/database/required-schema.json": "5f5e8574d0a33a038f69a34696f466aad32ab9c3fc091f13ce60bbd405fac2f2",
+    "LMS-Server/database/schema.sql": "068e96fe6679ceacfa67fd3486922132863db437fb5f0acd9ffad6fd046f8bf4",
+    "LMS-Server/scripts/test-reward-funding-runtime.mjs": "52ad97432a04b0856f30bb1f74830855f9a2b25f8de26dc2af3a9d21be7270e3",
+    "LMS-Server/src/__tests__/reward-funding-intents.test.ts": "f1c4eeda8b458d81cc89eda9b3bc2bcb9eaf716c6b6408f80b042070c07c612d",
+    "LMS-Server/src/__tests__/reward-funding-schema.test.ts": "2c7891c7991e4efc41825f6bcf79ebb1ac01d1ddee9032a5be31fb7186e1b692",
+    "LMS-Server/src/config/databaseBootstrap.ts": "26754f10919b926ee85cc22321b4d0017c775dac433490473896518500cd3704",
+    "LMS-Server/src/config/rewardFundingSchema.ts": "62cf1f74f896080e670b24e98539a8f3e69a953bac4f82cb3183731733719c2d",
+    "LMS-Server/src/routes/rewardFunding.ts": "8c24f4c45b5d9350d64a848bae522fa790948e03fd1a4c10d2effec714088f37",
+    "LMS-Server/src/services/rewards/rewardFundingIntentService.ts": "80db63ef0af8a7e696be0f99648372d26853c81fa0e62d0609ca6637ceb959b9",
+    "LMS-Server/src/services/rewards/rewardFundingVerifier.ts": "788a91b1f2954362d52e6419b70ca98afbe44c13478278b4902d7f857d649eda",
+    "LMS-Server/src/services/rewards/rewardService.ts": "3809160819478600b01ff580c04bfe1ef0099c22fee464b3149d77339e67a6a3",
+    "LMS-Server/src/services/rewards/stellarFundingVerification.ts": "ddc3a6f9bcf99dfddcb737b49766a952c093d71e8873d2aa8a8a98540b481c2b",
+    "docker/app.env.example": "a5a6c436b0b2afbcd9dd9f5f7f1af553703748140f52852b4b28cf9ca704d86e",
+    "LMS-Server/src/__tests__/stellar-funding-intents.test.ts": "101cf4fd0a01af8913ba79bcd5c4af567d0e56965867b700f9d7d11529d282f2",
+    "LMS-Server/src/services/rewards/stellarFundingConfig.ts": "2102b051ede664cd2efd91be984d4b6178846b074918c573cbc8282f3b528142",
+    "e2e/tests/stellar-funding-ui.spec.ts": "197f92cf8022141b414bbbe9e7de164c3dc051a28cb4cbf14b8253095a587129"
+  },
+  "checks": {
+    "providerBindingSchemaPassed": 28,
+    "existingFundingRegressionsPassed": 100,
+    "focusedWebPassed": 49,
+    "crossBrowserPassed": 18,
+    "browserWidths": [
+      320,
+      390,
+      768
+    ],
+    "browserEngines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "browserFlaky": 0,
+    "browserRetries": 0,
+    "windowsCrlfMigrationPassed": 169,
+    "serverAndWebBuilds": "passed",
+    "compiledBootstrap": "passed_source_free",
+    "rbacRuntime": "passed_no_grant_resurrection",
+    "compiledFundingRuntime": "passed_additive_upgrade_three_processes_restart_single_credit",
+    "hostedIntegratedCandidate": "pending"
+  },
+  "initialAttempts": {
+    "firstIntegration": {
+      "passed": 30,
+      "failed": 1,
+      "reason": "Unconfigured Stellar now has a distinct unavailable reason; assertion checks the controlled 402 code."
+    },
+    "fundingRegressions": {
+      "passed": 99,
+      "failed": 1,
+      "reason": "Deriving a Stellar reference before comparing source type changed the existing idempotency error; original conflict ordering restored."
+    }
+  },
+  "receiptSha256": {
+    "lms-031-integration-first.json": "6948c97bb925e8ac1ca488999953bf3fdc3a2d88163eaa954742a1ae2f31866e",
+    "lms-031-integration-fixed.json": "9b237ebd3589eab9f62e2ccf9bea1d0edb6483fd6e5c9056132119e757b60d9b",
+    "lms-031-readiness.json": "4aed2f4bb85be34a9f4666528877cea82f37ae2669e652153c1635f7deca4e96",
+    "lms-031-regressions.json": "c760ca1733f255a309a29bbefa3ddc24fda2e42789b5aa330c8fd456fd90da2f",
+    "lms-031-regressions-fixed.json": "1691a19043957816d090501865dfe08167ee8a60310d0661b499e62dd267916c",
+    "lms-031-web-focused.json": "a3f12282e089a751c82a570c54ae1f3eac98ec330c2ca591dda5832e8ac76f9f",
+    "lms-031-browser.json": "2c6832ccbd0789a0cba9c132f600b606ab0841028ffb521ba5286a8b68bd869a",
+    "lms-031-migration-crlf.json": "fe8efc00ae80367f9d26821ea3901cb8781e1999c21f8a1b9cc5dea43e68decd"
+  },
+  "ownerConfiguration": {
+    "network": "public",
+    "publicKeyChecksumValid": true,
+    "initialAccountStatus": 404,
+    "afterOwnerFundedAccountStatus": 200,
+    "compiledReceiverReadiness": true,
+    "privateRecordSha256": "2e0d302da97e7c2340d7df447038f4f803f31996b9cbcbbdb5e254b3dc2ba04c",
+    "serverConfigurationChanged": false,
+    "agentSubmittedTransfers": 0
+  },
+  "acceptance": {
+    "stagingDeployment": "not_run",
+    "actualPurposeBoundRewardPayment": "not_run",
+    "actualTestnetAcceptance": "not_run",
+    "lms011PrivateDecisions": "open",
+    "providerCustodySettlement": "LMS033_awaiting_input"
+  }
+}

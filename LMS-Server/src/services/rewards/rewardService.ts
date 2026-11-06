@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { prepareVerifiedFundingIntent, consumeFundingIntent, assertFundingIntentReplay, validateFundingRequest } from './rewardFundingIntentService.js';
+import { prepareVerifiedFundingIntent, consumeFundingIntent, assertFundingIntentReplay, validateFundingRequest, fundingLedgerReference, stellarIntentForVerification } from './rewardFundingIntentService.js';
 import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
 import { validateScope, resolveAudienceMembers, createAudienceSnapshot } from './rewardScopeService.js';
@@ -12,10 +12,10 @@ import {
   verifyFundingSourceSync,
   verifyFundingSourceAsync,
   verifyInternalAuthorization,
-  normalizeReference,
   checkReferenceInTransaction,
   isFundingReferenceConstraintViolation,
 } from './rewardFundingVerifier.js';
+import type { VerifiedStellarFunding } from './stellarFundingVerification.js';
 import type { PaystackBindingContext } from './rewardFundingVerifier.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { REWARD_TYPES } from './rewardTypes.js';
@@ -151,12 +151,12 @@ function fundingReplay(rewardId: string, actorId: string, source: FundingSource,
     }
     // W02-R1: Bind replay to resource and action (generic 409, no prior-op details).
     // W02-R1C (C1): Also bind to funding source type and normalized reference.
-    const normalizedRef = normalizeReference(source.reference);
     if (
       idem.rewardId !== rewardId ||
       idem.transactionType !== 'fund' ||
       idem.fundingSourceType !== source.type ||
-      idem.fundingReference !== normalizedRef
+      (source.type === 'stellar' && !source.intentId) ||
+      idem.fundingReference !== fundingLedgerReference(source)
     ) {
       throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
     }
@@ -232,7 +232,7 @@ export function fundReward(
     // W01-R3: Normalize and atomically claim the funding reference inside
     // the transaction. The outer checkReferenceNotReused() is a pre-check
     // optimization; this is the authoritative claim.
-    const normalizedRef = normalizeReference(source.reference);
+    const normalizedRef = fundingLedgerReference(source);
     if (normalizedRef) {
       checkReferenceInTransaction(normalizedRef);
     }
@@ -240,7 +240,7 @@ export function fundReward(
     // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
     // is the reward creator — not the authorizing admin. The admin is audited
     // as actorUserId but financial ownership belongs to the creator.
-    const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+    const funderId = fundingIntent.owner_user_id;
     getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
     // Ledger entry 1: fund (external → funder.available)
@@ -349,11 +349,12 @@ export async function fundRewardAsync(
 
   // W01: Full async verification (includes external provider calls,
   // internal source authorization, and W01-R2 Paystack binding).
-  await verifyFundingSourceAsync(source, rewardId, authContext, paystackContext);
+  const stellarContext = source.type === 'stellar' ? stellarIntentForVerification(rewardId, actorId, source) : undefined;
+  const verified = await verifyFundingSourceAsync(source, rewardId, authContext, paystackContext, stellarContext);
 
   // Delegate to the synchronous DB transaction (skips sync verification
   // since async verification is a superset)
-  return fundRewardVerified(rewardId, actorId, source, idempotencyKey);
+  return fundRewardVerified(rewardId, actorId, source, idempotencyKey, verified);
 }
 
 /**
@@ -367,7 +368,8 @@ function fundRewardVerified(
   rewardId: string,
   actorId: string,
   source: FundingSource,
-  idempotencyKey: string
+  idempotencyKey: string,
+  verified?: VerifiedStellarFunding,
 ): RewardRow {
   validateFundingRequest(source, idempotencyKey);
   const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
@@ -405,14 +407,14 @@ function fundRewardVerified(
 
     // W01-R3: Normalize and atomically claim the funding reference inside
     // the transaction (same pattern as fundReward).
-    const normalizedRef = normalizeReference(source.reference);
+    const normalizedRef = fundingLedgerReference(source);
     if (normalizedRef) {
       checkReferenceInTransaction(normalizedRef);
     }
 
     // W01-R1 (F1 fix): For internal sources, the intended funder/beneficiary
     // is the reward creator. The admin is audited as actorUserId.
-    const funderId = isInternalSource(source.type) ? reward.creator_user_id : actorId;
+    const funderId = fundingIntent.owner_user_id;
     getOrCreateAccount(funderId, 'funder', reward.currency_code ?? 'XLM');
 
     try {
@@ -464,7 +466,7 @@ function fundRewardVerified(
       idempotencyKey: `${idempotencyKey}_reserve`,
     });
 
-    consumeFundingIntent(fundingIntent, `${idempotencyKey}_fund`);
+    consumeFundingIntent(fundingIntent, `${idempotencyKey}_fund`, verified);
 
     assertTransition('pending_funding', 'funded');
     updateRewardStatus(rewardId, 'funded');

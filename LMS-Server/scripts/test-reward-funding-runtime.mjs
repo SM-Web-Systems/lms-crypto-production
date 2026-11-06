@@ -58,7 +58,7 @@ if (process.argv[2] === '--worker') {
     db = new Database(file);
     // Recreate the pre-funding-table state, keeping all existing data/history.
     for (const name of ['reward_funding_intent_immutable', 'reward_funding_intent_no_delete', 'reward_funding_evidence_no_update', 'reward_funding_evidence_no_delete']) db.exec(`DROP TRIGGER ${name}`);
-    db.exec('DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents');
+    db.exec('DROP TABLE reward_stellar_funding_evidence; DROP TABLE reward_stellar_funding_bindings; DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents');
     db.exec(`INSERT INTO users(id,name,email,password_hash,role) VALUES
       ('owner','Synthetic','owner@example.invalid','synthetic','student'),
       ('authorizer','Synthetic','authorizer@example.invalid','synthetic','admin');

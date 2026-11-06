@@ -40,6 +40,7 @@ import { RewardError } from './rewardErrors.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { verifyTransaction } from '../paystackService.js';
 import type { FundingSourceType } from './rewardTypes.js';
+import { verifyStellarFunding, type StellarFundingBinding, type VerifiedStellarFunding } from './stellarFundingVerification.js';
 
 export interface FundingSource {
   type: FundingSourceType;
@@ -145,10 +146,11 @@ export async function verifyFundingSourceAsync(
   rewardId: string,
   context?: FundingAuthorizationContext,
   paystackContext?: PaystackBindingContext,
-): Promise<void> {
+  stellarContext?: StellarFundingBinding,
+): Promise<VerifiedStellarFunding | undefined> {
   // 1. Cross-reference idempotency (all types with a normalized reference)
   const normalizedRef = normalizeReference(source.reference);
-  if (normalizedRef) {
+  if (normalizedRef && source.type !== 'stellar') {
     checkReferenceNotReused(normalizedRef, rewardId);
   }
 
@@ -156,12 +158,8 @@ export async function verifyFundingSourceAsync(
   switch (source.type) {
     case 'stellar':
       requireReference(source, 'Stellar');
-      // No Stellar Horizon client configured — deny by default
-      throw new RewardError(
-        'FUNDING_UNVERIFIED',
-        'Stellar transaction verification is not configured',
-        402,
-      );
+      if (!stellarContext) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding requires a stored intent binding.', 402);
+      return verifyStellarFunding(stellarContext, source.reference!);
 
     case 'paystack':
       requireReference(source, 'Paystack');

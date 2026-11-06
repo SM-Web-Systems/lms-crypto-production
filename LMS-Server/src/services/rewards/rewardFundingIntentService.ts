@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'node:crypto';
 import { db } from '../../config/database.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { RewardError } from './rewardErrors.js';
@@ -6,6 +7,9 @@ import { validateScope } from './rewardScopeService.js';
 import { calculateMaxExposure } from './currencyConfig.js';
 import { normalizeReference, verifyInternalAuthorization } from './rewardFundingVerifier.js';
 import { FUNDING_SOURCE_TYPES, type FundingSourceType, type RewardRow } from './rewardTypes.js';
+import { stellarFundingConfiguration } from './stellarFundingConfig.js';
+import type { StellarFundingBinding, VerifiedStellarFunding } from './stellarFundingVerification.js';
+import { stellarReceiverReadiness } from './stellarFundingVerification.js';
 
 export interface FundingRequest {
   type: FundingSourceType;
@@ -27,6 +31,14 @@ export interface FundingIntent {
   status: 'pending' | 'consumed';
   expires_at: string;
   consumed_at: string | null;
+  created_at: string;
+  destination?: string;
+  memo_hash?: string;
+}
+
+function readIntent(id: string): FundingIntent | undefined {
+  return db.prepare(`SELECT i.*, s.destination, s.memo_hash FROM reward_funding_intents i
+    LEFT JOIN reward_stellar_funding_bindings s ON s.intent_id = i.id WHERE i.id = ?`).get(id) as FundingIntent | undefined;
 }
 
 export function authorizedFundingReward(rewardId: string, actorId: string): RewardRow {
@@ -42,15 +54,43 @@ export function authorizedFundingReward(rewardId: string, actorId: string): Rewa
 export function getFundingAvailability(rewardId: string, actorId: string) {
   const reward = authorizedFundingReward(rewardId, actorId);
   const independent = hasPermission(actorId, 'reward.manage') && actorId !== reward.creator_user_id;
+  const stellar = !!stellarFundingConfiguration() && hasPermission(actorId, 'reward.fund');
   return FUNDING_SOURCE_TYPES.map(sourceType => ({
     sourceType,
-    available: sourceType === 'admin_grant' && independent && reward.status === 'draft',
-    reason: sourceType === 'stellar' ? 'Stellar funding is not available yet.'
+    available: reward.status === 'draft' && ((sourceType === 'admin_grant' && independent) || (sourceType === 'stellar' && stellar)),
+    reason: reward.status !== 'draft' ? 'This reward is no longer awaiting funding.'
+      : sourceType === 'stellar' ? (stellar ? null : 'Stellar funding is not configured.')
       : sourceType === 'paystack' ? 'Card funding awaits a settlement provider.'
       : sourceType === 'platform_credit' ? 'Backed platform credit is not available yet.'
-      : reward.status !== 'draft' ? 'This reward is no longer awaiting funding.'
       : !independent ? 'An independent reward administrator must authorize this grant.' : null,
   }));
+}
+
+export async function verifiedFundingAvailability(rewardId: string, actorId: string) {
+  const options = getFundingAvailability(rewardId, actorId);
+  const config = stellarFundingConfiguration();
+  if (!config || !options.some(option => option.sourceType === 'stellar' && option.available)) return options;
+  const readiness = await stellarReceiverReadiness(config);
+  const current = stellarFundingConfiguration();
+  const unchanged = current?.network === config.network && current.destination === config.destination;
+  return getFundingAvailability(rewardId, actorId).map(option => option.sourceType === 'stellar' && (!readiness.ready || !unchanged)
+    ? {...option, available: false, reason: readiness.reason ?? 'Funding configuration changed. Please retry.'} : option);
+}
+
+export async function createFundingIntentVerified(rewardId: string, actorId: string, source: FundingRequest, key: string): Promise<FundingIntent> {
+  validateFundingRequest(source, key);
+  authorizedFundingReward(rewardId, actorId);
+  const existing = db.prepare('SELECT 1 FROM reward_funding_intents WHERE actor_user_id = ? AND idempotency_key = ?').get(actorId, key);
+  if (source.type !== 'stellar' || existing) return createFundingIntent(rewardId, actorId, source, key);
+  if (!hasPermission(actorId, 'reward.fund')) throw new RewardError('SCOPE_DENIED', 'Reward funding permission is required.', 403);
+  const config = stellarFundingConfiguration();
+  if (!config) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding is not configured.', 402);
+  const readiness = await stellarReceiverReadiness(config);
+  const current = stellarFundingConfiguration();
+  if (!readiness.ready || current?.network !== config.network || current.destination !== config.destination) {
+    throw new RewardError('FUNDING_UNVERIFIED', readiness.reason ?? 'Funding configuration changed. Please retry.', 503);
+  }
+  return createFundingIntent(rewardId, actorId, source, key);
 }
 
 export function validateFundingRequest(source: FundingRequest, key: string): void {
@@ -67,8 +107,10 @@ function assertBinding(intent: FundingIntent, reward: RewardRow, actorId: string
   if (intent.reward_id !== reward.id || intent.owner_user_id !== reward.creator_user_id
     || intent.actor_user_id !== actorId || intent.source_type !== source.type
     || intent.currency_code !== reward.currency_code || intent.amount_stroops !== amount
-    || intent.reference !== normalizeReference(source.reference) || intent.asset !== 'native:XLM'
-    || intent.network !== 'internal') {
+    || (source.type !== 'stellar' && intent.reference !== normalizeReference(source.reference)) || intent.asset !== 'native:XLM'
+    || (source.type !== 'stellar' && intent.network !== 'internal')
+    || (source.type === 'stellar' && (intent.reference !== null || !intent.destination || !intent.memo_hash
+      || !['testnet','public'].includes(intent.network)))) {
     throw new RewardError('IDEMPOTENCY_CONFLICT', 'Funding request does not match its immutable intent.', 409);
   }
 }
@@ -77,24 +119,34 @@ export function createFundingIntent(rewardId: string, actorId: string, source: F
   validateFundingRequest(source, key);
   return db.transaction(() => {
     const reward = authorizedFundingReward(rewardId, actorId);
-    // Only the implemented independent grant path may create an intent today.
-    if (source.type !== 'admin_grant') throw new RewardError('FUNDING_UNVERIFIED', 'This funding method is not available yet.', 402);
-    verifyInternalAuthorization({actorId, rewardCreatorId: reward.creator_user_id}, source.type);
-    const existing = db.prepare('SELECT * FROM reward_funding_intents WHERE actor_user_id = ? AND idempotency_key = ?')
-      .get(actorId, key) as FundingIntent | undefined;
-    if (existing) {
+    if (source.type === 'admin_grant') verifyInternalAuthorization({actorId, rewardCreatorId: reward.creator_user_id}, source.type);
+    else if (source.type === 'stellar') {
+      if (!hasPermission(actorId, 'reward.fund')) throw new RewardError('SCOPE_DENIED', 'Reward funding permission is required.', 403);
+      if (normalizeReference(source.reference) !== null) throw new RewardError('INVALID_FUNDING_SOURCE', 'Create the intent before sending the Stellar payment.', 400);
+    } else throw new RewardError('FUNDING_UNVERIFIED', 'This funding method is not available yet.', 402);
+    const existingId = db.prepare('SELECT id FROM reward_funding_intents WHERE actor_user_id = ? AND idempotency_key = ?')
+      .get(actorId, key) as {id: string} | undefined;
+    if (existingId) {
+      const existing = readIntent(existingId.id)!;
       assertBinding(existing, reward, actorId, source);
       return existing;
     }
     if (reward.status !== 'draft') throw new RewardError('INVALID_STATE_TRANSITION', 'Reward is not awaiting funding.', 409);
     const id = uuidv4();
+    const stellar = source.type === 'stellar' ? stellarFundingConfiguration() : null;
+    if (source.type === 'stellar' && !stellar) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding is not configured.', 402);
     const amount = Number(calculateMaxExposure(BigInt(reward.amount_stroops), BigInt(reward.max_recipients ?? 1)));
     db.prepare(`INSERT INTO reward_funding_intents
       (id,reward_id,owner_user_id,actor_user_id,source_type,network,asset,currency_code,amount_stroops,reference,idempotency_key,expires_at)
-      VALUES (?,?,?,?,?,'internal','native:XLM',?,?,?,?,?)`).run(id, rewardId, reward.creator_user_id,
-      actorId, source.type, reward.currency_code, amount, normalizeReference(source.reference), key,
+      VALUES (?,?,?,?,?,?,'native:XLM',?,?,?,?,?)`).run(id, rewardId, reward.creator_user_id,
+      actorId, source.type, stellar?.network ?? 'internal', reward.currency_code, amount, normalizeReference(source.reference), key,
       new Date(Date.now() + 30 * 60_000).toISOString());
-    return db.prepare('SELECT * FROM reward_funding_intents WHERE id = ?').get(id) as FundingIntent;
+    if (stellar) {
+      const memo = createHash('sha256').update(JSON.stringify(['lms-reward-v1', id, rewardId, reward.creator_user_id,
+        actorId, stellar.network, stellar.destination, amount])).digest('hex');
+      db.prepare('INSERT INTO reward_stellar_funding_bindings(intent_id,destination,memo_hash) VALUES (?,?,?)').run(id, stellar.destination, memo);
+    }
+    return readIntent(id)!;
   }).immediate();
 }
 
@@ -103,9 +155,10 @@ export function createFundingIntent(rewardId: string, actorId: string, source: F
 export function prepareVerifiedFundingIntent(reward: RewardRow, actorId: string, source: FundingRequest, key: string): FundingIntent {
   if (!db.inTransaction) throw new Error('Funding intent requires a ledger transaction');
   validateFundingRequest(source, key);
+  if (source.type === 'stellar' && !hasPermission(actorId, 'reward.fund')) throw new RewardError('SCOPE_DENIED', 'Reward funding permission is required.', 403);
   const intent = source.intentId
-    ? db.prepare('SELECT * FROM reward_funding_intents WHERE id = ?').get(source.intentId) as FundingIntent | undefined
-    : createFundingIntent(reward.id, actorId, source, key);
+    ? readIntent(source.intentId)
+    : source.type === 'stellar' ? undefined : createFundingIntent(reward.id, actorId, source, key);
   if (!intent) throw new RewardError('IDEMPOTENCY_CONFLICT', 'Funding request does not match its immutable intent.', 409);
   assertBinding(intent, reward, actorId, source);
   if (intent.status !== 'pending' || Date.parse(intent.expires_at) <= Date.now()) {
@@ -114,17 +167,46 @@ export function prepareVerifiedFundingIntent(reward: RewardRow, actorId: string,
   return intent;
 }
 
-export function consumeFundingIntent(intent: FundingIntent, ledgerKey: string): void {
+export function stellarIntentForVerification(rewardId: string, actorId: string, source: FundingRequest): StellarFundingBinding {
+  const reward = authorizedFundingReward(rewardId, actorId);
+  if (!hasPermission(actorId, 'reward.fund')) throw new RewardError('SCOPE_DENIED', 'Reward funding permission is required.', 403);
+  const intent = source.intentId ? readIntent(source.intentId) : undefined;
+  if (!intent) throw new RewardError('FUNDING_UNVERIFIED', 'Create a Stellar funding intent before sending payment.', 402);
+  assertBinding(intent, reward, actorId, source);
+  if (intent.status !== 'pending' || Date.parse(intent.expires_at) <= Date.now()) throw new RewardError('FUNDING_UNVERIFIED', 'Funding intent is consumed or expired.', 409);
+  return {network: intent.network as 'testnet' | 'public', destination: intent.destination!, memoHash: intent.memo_hash!,
+    amountStroops: intent.amount_stroops, createdAt: intent.created_at.includes('T') ? intent.created_at : intent.created_at.replace(' ', 'T') + 'Z', expiresAt: intent.expires_at};
+}
+
+export function fundingLedgerReference(source: FundingRequest): string | null {
+  if (source.type !== 'stellar') return normalizeReference(source.reference);
+  const intent = source.intentId ? readIntent(source.intentId) : undefined;
+  if (!intent || intent.source_type !== 'stellar') throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding requires its original intent.', 402);
+  return `stellar:${intent.network}:${source.reference}`;
+}
+
+export function consumeFundingIntent(intent: FundingIntent, ledgerKey: string, proof?: VerifiedStellarFunding): void {
   if (!db.inTransaction) throw new Error('Funding evidence requires a ledger transaction');
   const ledger = db.prepare(`SELECT id FROM reward_transactions WHERE idempotency_key = ? AND reward_id = ?
     AND transaction_type = 'fund' AND amount_stroops = ? AND actor_user_id = ? AND funding_source_type = ?`)
     .get(ledgerKey, intent.reward_id, intent.amount_stroops, intent.actor_user_id, intent.source_type) as {id: string} | undefined;
-  if (!ledger || intent.source_type !== 'admin_grant') throw new RewardError('FUNDING_UNVERIFIED', 'Verified funding evidence is required.', 402);
+  const stellar = intent.source_type === 'stellar';
+  if (!ledger || (!stellar && intent.source_type !== 'admin_grant') || (stellar && (!proof
+    || proof.network !== intent.network || proof.destination !== intent.destination || proof.memoHash !== intent.memo_hash
+    || proof.amountStroops !== intent.amount_stroops))) throw new RewardError('FUNDING_UNVERIFIED', 'Verified funding evidence is required.', 402);
+  const evidenceId = uuidv4();
+  const reference = stellar ? proof!.operationId : intent.reference === null ? `intent:${intent.id}` : `reference:${intent.reference}`;
+  const expectedLedgerReference = stellar ? `stellar:${intent.network}:${proof!.operationId}` : intent.reference;
+  if (!db.prepare('SELECT 1 FROM reward_transactions WHERE id = ? AND funding_reference IS ?').get(ledger.id, expectedLedgerReference)) {
+    throw new RewardError('FUNDING_UNVERIFIED', 'Verified funding reference is required.', 402);
+  }
   try {
     db.prepare(`INSERT INTO reward_funding_evidence
       (id,intent_id,ledger_transaction_id,source_type,network,reference,verification_method)
-      VALUES (?,?,?,?,?,?, 'independent_admin')`).run(uuidv4(), intent.id, ledger.id, intent.source_type, intent.network,
-      intent.reference === null ? `intent:${intent.id}` : `reference:${intent.reference}`);
+      VALUES (?,?,?,?,?,?,?)`).run(evidenceId, intent.id, ledger.id, intent.source_type, intent.network,
+      reference, stellar ? 'horizon_closed_native_payment' : 'independent_admin');
+    if (stellar) db.prepare(`INSERT INTO reward_stellar_funding_evidence(evidence_id,transaction_hash,ledger_sequence,ledger_hash)
+      VALUES (?,?,?,?)`).run(evidenceId, proof!.transactionHash, proof!.ledger, proof!.ledgerHash);
   } catch (err) {
     if ((err as {code?: string})?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       throw new RewardError('DUPLICATE_REFERENCE', 'This funding evidence has already been consumed.', 409);

@@ -317,9 +317,10 @@
       ],
       "evidence": [
         "LMS-031-STELLAR-VERIFICATION.md",
-        "evidence/lms-031-verifier-validation.json"
+        "evidence/lms-031-verifier-validation.json",
+        "evidence/lms-031-integration-validation.json"
       ],
-      "reason": "Isolated provider verifier has 16 passing mocked-response cases. Stored intent binding, atomic ledger integration, UI, configured staging network/destination and actual testnet evidence remain required."
+      "reason": "Stored bindings, receiver readiness, provider verification, atomic consumption and UI integrated locally. Owner selected public network; supplied receiver is active. Hosted integrated validation, actual purpose-bound payment, actual testnet acceptance and staging/RBAC gates remain open."
     },
     {
       "id": "LMS-032",
@@ -539,6 +540,12 @@
       "provider": null,
       "custody": null
     },
-    "physicalDevicesAndSigning": "not yet supplied"
+    "physicalDevicesAndSigning": "not yet supplied",
+    "stellarRewardFunding": {
+      "network": "public",
+      "receivingAccount": "owner supplied; kept in ignored local configuration",
+      "readOnlyAccountReadiness": "confirmed active after owner funded",
+      "serverConfigured": false
+    }
   }
 }
