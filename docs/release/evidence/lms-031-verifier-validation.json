@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-06",
+  "sourceBase": "4bd7a631da1df6b35220a25b19986b62466b2ad5",
+  "sourceFileSha256": {
+    "LMS-Server/src/services/rewards/stellarFundingVerification.ts": "4594f5c7102d8941f972b4c5bd7c1a7ef8676b387c0b70ab8d793123827fae6a",
+    "LMS-Server/src/__tests__/stellar-funding-verification.test.ts": "80ec3d4992a6441e889abc66a50e488a648d4175e156514211d4ead20ded93dc"
+  },
+  "command": "npx vitest run src/__tests__/stellar-funding-verification.test.ts",
+  "checks": {
+    "passed": 15,
+    "failed": 0,
+    "providerResponses": "mocked",
+    "realNetworkCalls": 0
+  },
+  "rawReceiptSha256": "03843a7a7230dee67b9ebcf958e5750e6e1ec03d635c06b42db9cb5bc4e39bb0",
+  "integration": "not_yet_connected_intent_ledger_ui_pending",
+  "stagingAcceptance": "not_run_network_and_public_destination_not_supplied",
+  "rawReceipt": "lms-031-provider-final.json"
+}

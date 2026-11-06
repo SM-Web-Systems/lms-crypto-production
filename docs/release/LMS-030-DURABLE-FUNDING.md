@@ -22,4 +22,6 @@ The additive migration creates empty `reward_funding_intents` and `reward_fundin
 
 ## Acceptance evidence
 
+The complete published candidate `4bd7a63` passed [all eight CI jobs](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42255590949) and [mobile CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42255590982). Linux API: **2,423 passed, one existing protected-copy skip**; web: **718 passed**; Chromium: **86 passed without retries**. Both Windows fixture lanes and the compiled three-process/restart funding drill passed. See the [hosted receipt](evidence/lms-030-hosted-validation.json).
+
 The [validation receipt](evidence/lms-030-validation.json) records the actual commands, counts and hashes, including initial failed attempts. Local tests establish the implemented grant contract; they do not establish external settlement, a configured Stellar destination/network, backed credit, staging sign-off or production enablement. LMS-031/032 must extend this contract rather than create a separate credit path. LMS-033 remains awaiting provider and treasury/custody selection.

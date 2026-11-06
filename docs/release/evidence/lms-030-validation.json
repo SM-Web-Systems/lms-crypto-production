@@ -5,7 +5,7 @@
   "sourceFileSha256": {
     ".github/workflows/ci.yml": "a28f014f7ffcdd294ae459ef32ec78e19df336acf2e159f7f8499d03d2ea6253",
     "LMS-Frontend/src/components/RewardDashboard.tsx": "7adbde140fb286c0f54d8a5a9081d306a946a55fdff5e283128fa9876ee44d7c",
-    "LMS-Frontend/src/services/rewardService.ts": "ef81232842d7224d1ac2d985b14a93a358384ae24d314fd9b3163a88e7296cb9",
+    "LMS-Frontend/src/services/rewardService.ts": "79b5603c257fc7ee9457e77fc08899ff5b066d0ef3cfe720978110ad34479309",
     "LMS-Server/database/required-schema.json": "8955357a0152239293f589b39439ec5c78178b200d7629bad365a60c114fee01",
     "LMS-Server/database/schema.sql": "edccc12f356d2dc2782dfeaf14a788f9565cec172cacaf55a346d0540e85d427",
     "LMS-Server/package.json": "6d64c47e5dc596b8136f3b4569cfd16fe26053387251e524aec2c65bd7e52f4d",
@@ -71,7 +71,23 @@
     },
     "repeatedRbacStartup": "passed_no_grant_resurrection",
     "fundingRuntime": "passed_additive_upgrade_three_processes_restart_single_credit_and_reservation",
-    "fullApiRegression": "running_receipt_pending"
+    "fullApiRegression": {
+      "platform": "Windows",
+      "passed": 2420,
+      "failed": 0,
+      "pending": 1,
+      "scope": "Full suite begun before the later three schema checks were added; those passed separately. Final published candidate also has complete Linux hosted validation."
+    },
+    "hostedCandidate": {
+      "commit": "4bd7a631da1df6b35220a25b19986b62466b2ad5",
+      "run": 42255590949,
+      "receipt": "lms-030-hosted-validation.json",
+      "linuxApiPassed": 2423,
+      "linuxApiExistingSkip": 1,
+      "webPassed": 718,
+      "chromiumPassed": 86,
+      "failed": 0
+    }
   },
   "initialAttempts": {
     "fundingSchemaFixture": {
@@ -99,7 +115,8 @@
     "lms-030-browser.json": "231a81d3f1acbb89c263aee6e6594089a427f97dc8d0f8c3e83157f2452c9000",
     "lms-030-browser-fixed.json": "59c0509dfea33b361f57a8f6ef7f3f214ad72a0798b728fd4f56b7c2438553e1",
     "lms-030-migration-crlf.json": "953e0f635c2dd66cb1c4be23021f1ba8ceb4fa296f97de469599f9da35ac342c",
-    "lms-030-runtime.log": "5db99bff0b9bbf5da74bb477aa57620680c97bbce75e93d5a6f19d6a72967c69"
+    "lms-030-runtime.log": "5db99bff0b9bbf5da74bb477aa57620680c97bbce75e93d5a6f19d6a72967c69",
+    "lms-030-api-full.json": "1fd57a49faa7beb3db089a7f421616fc8d5e5a4302d137cd5511df1ec1e62abe"
   },
   "acceptance": {
     "lms011Dependency": "open_private_owner_and_client_decisions",
@@ -109,5 +126,6 @@
     "paystackSettlement": "LMS-033_provider_custody_not_selected",
     "applicationDeployed": false,
     "realFundsMoved": false
-  }
+  },
+  "implementationCommit": "4bd7a63"
 }

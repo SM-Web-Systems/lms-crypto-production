@@ -308,14 +308,18 @@
       "title": "Implement Stellar funding verification",
       "priority": "P2",
       "ownerRole": "API + Platform",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-030"
       ],
       "acceptance": [
         "Verify successful finalized operation, exact network/destination/native asset/amount and intent binding; unique operation consumed once; testnet replay/wrong-network/underpayment and provider timeout cases pass"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-031-STELLAR-VERIFICATION.md",
+        "evidence/lms-031-verifier-validation.json"
+      ],
+      "reason": "Isolated provider verifier has 15 passing mocked-response cases. Stored intent binding, atomic ledger integration, UI, configured staging network/destination and actual testnet evidence remain required."
     },
     {
       "id": "LMS-032",
