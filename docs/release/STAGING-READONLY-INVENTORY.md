@@ -28,4 +28,8 @@ Only a successful, recovery-eligible result can proceed to the closed-snapshot i
 
 ## Validation
 
-Twelve synthetic tests cover the probe/inventory checks, capture's fixed prepare-only command, revision/checkout/script-drift refusals, rejection of ineligible preparation before inventory and safe refusal-code filtering. Workflow YAML and generated Bash syntax are checked. No server is contacted by those tests. The pinned release hashes are separately compared with raw Git objects from `f5a64e8`.
+The diagnostic retry [42183426898](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42183426898) identified `PREPARATION_COMPATIBILITY_POLICY_MISMATCH`. The existing recovery helper verifies and retains a completed private SQLite backup, image tags and `capture-*.json` evidence before that independent policy check. Its refusal must remain a refusal of recovery eligibility.
+
+`mode=inventory-capture` only reads one of those retained closed copies. Supply its capture ID or leave the ID empty to select the latest private capture; all existing target/image/hash/freshness/permission/tool checks still apply. It requires the capture to remain explicitly `UNVERIFIED`, reports that status plus `inventoryOnly=true`, and keeps the inventory's migration-ready flag false. It does not rerun preparation, approve/change the policy, rewrite capture evidence or publish a recovery pointer. A separate private exception report is its only file output. This provides account inventory evidence while recovery approval remains an open gate.
+
+Fifteen synthetic tests cover probe/inventory checks, capture's fixed prepare-only command, revision/checkout/script-drift refusals, safe refusal-code filtering and reading retained capture evidence without granting recovery eligibility. Workflow YAML and generated Bash syntax are checked. No server is contacted by those tests. The pinned release hashes are separately compared with raw Git objects from `f5a64e8`.

@@ -121,7 +121,7 @@ def execute(environment, runner=command):
     project = environment.get('DEPLOY_PROJECT', '')
     require(NAME.fullmatch(project), 'PROJECT_REQUIRED')
     mode = environment.get('LMS_INVENTORY_MODE', 'probe')
-    require(mode in ('probe', 'inventory', 'capture'), 'INVALID_MODE')
+    require(mode in ('probe', 'inventory', 'capture', 'inventory-capture'), 'INVALID_MODE')
     observed = {}
     for service in ('api', 'web'):
         name = environment.get('DEPLOY_' + service.upper() + '_CONTAINER', '')
@@ -160,13 +160,25 @@ def execute(environment, runner=command):
         require(stat.S_IMODE(root.stat().st_mode) & 0o077 == 0, 'PRIVATE_BACKUP_DIRECTORY_REQUIRED')
     identifier = (prepare_snapshot(environment, observed, runner) if mode == 'capture'
                   else environment.get('LMS_INVENTORY_MANIFEST', ''))
+    inventory_capture = mode == 'inventory-capture'
+    if inventory_capture and not identifier:
+        # Recovery preparation preserves a completed capture before independent
+        # recovery-policy approval. Reading it is inventory only, never recovery
+        # approval or pointer publication. Do not create another backup here.
+        captures = [file for file in (root / 'release-state').glob('capture-*.json')
+                    if re.fullmatch(r'capture-[a-f0-9]{32}\.json', file.name)
+                    and file.is_file() and not file.is_symlink()]
+        require(captures, 'PRIVATE_CAPTURE_REQUIRED')
+        latest = max(captures, key=lambda file: (file.stat().st_mtime_ns, file.name))
+        identifier = latest.stem[len('capture-'):]
     require(re.fullmatch(r'[a-f0-9]{32}', identifier), 'MANIFEST_ID_REQUIRED')
-    manifest_file = root / 'release-state' / ('recovery-' + identifier + '.json')
+    manifest_file = root / 'release-state' / (('capture-' if inventory_capture else 'recovery-') + identifier + '.json')
     private_file(manifest_file)
     require(within(manifest_file.resolve(), root), 'MANIFEST_PATH_REFUSED')
     manifest = json.loads(manifest_file.read_text(encoding='utf-8'))
     require(manifest.get('version') == 1 and manifest.get('manifest_id') == identifier, 'MANIFEST_ID_MISMATCH')
-    require(manifest.get('eligibility') == 'EXACT_SCHEMA_AND_FINANCIAL_STATE', 'UNVERIFIED_MANIFEST')
+    expected_eligibility = 'UNVERIFIED' if inventory_capture else 'EXACT_SCHEMA_AND_FINANCIAL_STATE'
+    require(manifest.get('eligibility') == expected_eligibility, 'MANIFEST_ELIGIBILITY_MISMATCH')
     target, backup = manifest['target'], manifest['backup']
     require(target['project'] == project and target['repository'] == 'SM-Web-Systems/lms-crypto-production', 'MANIFEST_TARGET_MISMATCH')
     require(all(target['services'][service]['image_id'] == observed[service]['id'] for service in ('api', 'web')), 'RUNTIME_CHANGED_SINCE_SNAPSHOT')
@@ -209,6 +221,7 @@ def execute(environment, runner=command):
         # The trusted inventory tool excludes account identifiers from summary.
         return dict(result, status='PRIVATE_SNAPSHOT_INVENTORIED', summary=summary,
                     privateReportReference=report.name,
+                    recoveryEligibility=manifest['eligibility'], inventoryOnly=True,
                     snapshotCreatedAt=datetime.fromtimestamp(snapshot.stat().st_mtime, timezone.utc).isoformat())
     finally:
         # Only the unique one-off container created above; never a live service.
