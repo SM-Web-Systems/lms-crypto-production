@@ -29,3 +29,5 @@ Use the dated audit for what was observed; use the backlog for current task clos
 5. Run final candidate and protected-copy/exact-image recovery gates, execute authorized releases and close the ledger after observation.
 
 The reconciled #99/#100 implementation is in draft PR #156; private data/client decisions still gate its acceptance and release. The dependency graph, provider input and physical devices are explicit completion requirements. Task status and linked receipts distinguish implementation from external acceptance.
+
+[LMS-031 integrated CI](evidence/lms-031-hosted-validation.json) passed 2,448 API tests (one existing protected-copy skip), 721 web tests and 89 Chromium cases. [LMS-032 backed credit](LMS-032-BACKED-PLATFORM-CREDIT.md) now has independently approved allocations from verified deposits, atomic reservations/consumption and operator audit APIs. Its local 79-case regression/HTTP group, 27 browser cases and separate-process overspend/restart drill pass; hosted credit validation and actual treasury/staging acceptance remain open.

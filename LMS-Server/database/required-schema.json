@@ -786,6 +786,74 @@
       "transaction_hash",
       "ledger_sequence",
       "ledger_hash"
+    ],
+    "platform_backing_intents": [
+      "id",
+      "requester_user_id",
+      "network",
+      "destination",
+      "memo_hash",
+      "amount_stroops",
+      "reason",
+      "idempotency_key",
+      "expires_at",
+      "created_at"
+    ],
+    "platform_backing_deposits": [
+      "id",
+      "intent_id",
+      "verified_by_user_id",
+      "network",
+      "operation_id",
+      "amount_stroops",
+      "transaction_hash",
+      "ledger_sequence",
+      "ledger_hash",
+      "created_at"
+    ],
+    "platform_credit_requests": [
+      "id",
+      "requester_user_id",
+      "beneficiary_user_id",
+      "network",
+      "amount_stroops",
+      "reason",
+      "idempotency_key",
+      "status",
+      "expires_at",
+      "created_at"
+    ],
+    "platform_credit_grants": [
+      "id",
+      "request_id",
+      "approved_by_user_id",
+      "approval_key",
+      "reason",
+      "created_at"
+    ],
+    "platform_credit_reservations": [
+      "intent_id",
+      "grant_id",
+      "amount_stroops",
+      "expires_at",
+      "status",
+      "created_at"
+    ],
+    "platform_credit_consumptions": [
+      "intent_id",
+      "evidence_id",
+      "fund_transaction_id",
+      "created_at"
+    ],
+    "platform_credit_audit": [
+      "id",
+      "event_type",
+      "object_id",
+      "actor_user_id",
+      "network",
+      "amount_stroops",
+      "reason",
+      "created_at"
     ]
   },
   "indexes": [
@@ -2771,6 +2839,212 @@
         [
           "evidence_id",
           "reward_funding_evidence",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_backing_intents": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "requester_user_id",
+          "idempotency_key"
+        ],
+        [
+          "memo_hash"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "requester_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_backing_deposits": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "network",
+          "operation_id"
+        ],
+        [
+          "intent_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "verified_by_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "platform_backing_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_requests": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "requester_user_id",
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "beneficiary_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "requester_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_grants": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "approved_by_user_id",
+          "approval_key"
+        ],
+        [
+          "request_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "approved_by_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "request_id",
+          "platform_credit_requests",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_reservations": {
+      "primary": [
+        "intent_id"
+      ],
+      "unique": [
+        [
+          "intent_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "grant_id",
+          "platform_credit_grants",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_consumptions": {
+      "primary": [
+        "intent_id"
+      ],
+      "unique": [
+        [
+          "fund_transaction_id"
+        ],
+        [
+          "evidence_id"
+        ],
+        [
+          "intent_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "fund_transaction_id",
+          "reward_transactions",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "evidence_id",
+          "reward_funding_evidence",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "platform_credit_reservations",
+          "intent_id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_audit": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "actor_user_id",
+          "users",
           "id",
           "NO ACTION",
           "RESTRICT"

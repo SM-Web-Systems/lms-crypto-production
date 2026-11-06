@@ -123,4 +123,21 @@ describe('reward funding availability and confirmation', () => {
     expect(screen.queryByRole('button', {name: 'Verify payment'})).not.toBeInTheDocument();
     expect(mocks.fund).not.toHaveBeenCalled();
   });
+  it('reserves an offered credit allocation and retains its reference after a funding rejection',async()=>{
+    const user=userEvent.setup(),done=vi.fn();
+    mocks.options.mockResolvedValue([{sourceType:'platform_credit',available:true,reason:null,creditGrants:[{id:'approved-credit',availableStroops:10000000}]}]);
+    mocks.prepare.mockResolvedValue({id:'reserved-intent',reference:'approved-credit',amount_stroops:1234567,network:'public',expires_at:new Date(Date.now()+60000).toISOString()});
+    mocks.fund.mockRejectedValueOnce({response:{status:402}}).mockResolvedValueOnce({status:'funded'});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={done}/>);
+    await user.click(await screen.findByRole('button',{name:'Reserve platform credit'}));
+    expect(await screen.findByText(/Authorize 0.1234567 XLM from the reserved platform credit/)).toBeVisible();
+    expect(screen.getByText('Public network — real XLM')).toBeVisible();
+    expect(mocks.prepare.mock.calls[0][4]).toBe('approved-credit');
+    await user.click(screen.getByRole('button',{name:'Authorize platform credit'}));
+    await screen.findByRole('alert');
+    await user.click(screen.getByRole('button',{name:'Authorize platform credit'}));
+    await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
+    expect(mocks.fund.mock.calls[0]).toEqual(mocks.fund.mock.calls[1]);
+    expect(mocks.fund.mock.calls[0]).toEqual(['sponsor','reward','platform_credit','approved-credit',mocks.prepare.mock.calls[0][3],'reserved-intent']);
+  });
 });

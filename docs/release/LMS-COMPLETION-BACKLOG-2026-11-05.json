@@ -301,7 +301,7 @@
         "LMS-030-DURABLE-FUNDING.md",
         "evidence/lms-030-validation.json"
       ],
-      "reason": "Durable intents, atomic grant evidence, current-source availability and confirmation UI implemented locally. Full final validation and staging acceptance remain; closure still depends on LMS-011. External Stellar/backed-credit adapters and settlement remain LMS-031/032/033."
+      "reason": "Durable intents plus Stellar and backed-credit adapters are implemented locally with shared atomic consumption. Staging acceptance and LMS-011 remain open; Paystack settlement is LMS-033."
     },
     {
       "id": "LMS-031",
@@ -320,21 +320,25 @@
         "evidence/lms-031-verifier-validation.json",
         "evidence/lms-031-integration-validation.json"
       ],
-      "reason": "Stored bindings, receiver readiness, provider verification, atomic consumption and UI integrated locally. Owner selected public network; supplied receiver is active. Hosted integrated validation, actual purpose-bound payment, actual testnet acceptance and staging/RBAC gates remain open."
+      "reason": "Integrated Stellar candidate c74f352 passed all hosted jobs: 2,448 API passes, one existing skip; 721 web and 89 Chromium passes. Owner-selected public receiver is active. Actual purpose-bound payment/testnet acceptance and staging/RBAC gates remain open."
     },
     {
       "id": "LMS-032",
       "title": "Implement backed platform-credit provisioning",
       "priority": "P2",
       "ownerRole": "API + Platform",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-030"
       ],
       "acceptance": [
         "Independent authorization and audit required; backed ledger credit provisioned/reserved/consumed atomically; insufficient/duplicate/concurrent attempts cannot create or overspend value"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-032-BACKED-PLATFORM-CREDIT.md",
+        "evidence/lms-032-validation.json"
+      ],
+      "reason": "Verified-backed pool, independent allocation approval, audited reservations and atomic reward consumption implemented locally. Unit/HTTP/cross-browser and separate-process overspend/restart checks pass. Hosted integrated validation, actual treasury/staging acceptance and LMS-030 dependency remain open."
     },
     {
       "id": "LMS-033",

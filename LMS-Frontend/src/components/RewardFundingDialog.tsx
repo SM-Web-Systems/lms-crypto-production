@@ -15,7 +15,8 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
   const [attempt, setAttempt] = useState(0);
   const [exposure, setExposure] = useState<number | null>(null);
   const [prepared, setPrepared] = useState(false);
-  const [preparedSource, setPreparedSource] = useState<'admin_grant' | 'stellar'>('admin_grant');
+  const [preparedSource, setPreparedSource] = useState<'admin_grant' | 'stellar' | 'platform_credit'>('admin_grant');
+  const [selectedCredit,setSelectedCredit] = useState('');
   const [instructions, setInstructions] = useState<FundingIntent | null>(null);
   const [operationId, setOperationId] = useState('');
   const [referenceLocked, setReferenceLocked] = useState(false);
@@ -43,17 +44,21 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
     return () => { cancelled = true; alive.current = false; };
   }, [role, rewardId, attempt]);
 
-  const prepare = async (sourceType: 'admin_grant' | 'stellar') => {
+  const prepare = async (sourceType: 'admin_grant' | 'stellar' | 'platform_credit',reference?:string) => {
     setBusy(true); setError('');
     try {
-      const result = await rewardService.createFundingIntent(role, rewardId, sourceType, key.current);
+      const result = reference===undefined?await rewardService.createFundingIntent(role, rewardId, sourceType, key.current)
+        :await rewardService.createFundingIntent(role,rewardId,sourceType,key.current,reference);
       if (!alive.current) return;
+      if(!Number.isSafeInteger(result.amount_stroops) || result.amount_stroops<=0 || typeof result.id!=='string' || !result.id) throw new Error('Invalid funding amount');
+      if(sourceType==='platform_credit' && (!reference || result.reference!==reference || !['public','testnet'].includes(result.network??''))) throw new Error('Invalid credit reservation');
       if (sourceType === 'stellar' && (!['public', 'testnet'].includes(result.network ?? '')
         || !/^G[A-Z2-7]{55}$/.test(result.destination ?? '') || !/^[a-f0-9]{64}$/.test(result.memo_hash ?? '')
         || !Number.isSafeInteger(result.amount_stroops) || result.amount_stroops <= 0 || !Number.isFinite(Date.parse(result.expires_at)))) {
         throw new Error('Invalid deposit instructions');
       }
       intent.current = result.id;
+      if(sourceType==='platform_credit') submittedReference.current=reference!;
       setExposure(result.amount_stroops);
       setPreparedSource(sourceType);
       setInstructions(result);
@@ -75,7 +80,7 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
     } catch (err) {
       if (alive.current) {
         const status = (err as {response?: {status?: number}})?.response?.status;
-        if (status === 400 || status === 402) {submittedReference.current = null; setReferenceLocked(false);}
+        if (preparedSource==='stellar' && (status === 400 || status === 402)) {submittedReference.current = null; setReferenceLocked(false);}
         setError(preparedSource === 'stellar' ? 'Payment was not confirmed. Check the operation ID and retry the same request.' : 'Grant was not confirmed. Retry to check the same request.');
       }
     }
@@ -87,7 +92,7 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
     onKeyDown={event => {
       if (event.key === 'Escape' && !busy) { event.preventDefault(); onClose(); }
       if (event.key !== 'Tab') return;
-      const buttons = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled)') ?? []);
+      const buttons = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)') ?? []);
       const first = buttons[0], last = buttons[buttons.length - 1];
       if (!first) { event.preventDefault(); return; }
       if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
@@ -104,10 +109,24 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
         {!option.available && <p className="text-sm text-neutral-600">{option.reason ?? 'Unavailable'}</p>}
         {option.available && option.sourceType === 'admin_grant' && !prepared && <Button type="button" size="sm" disabled={busy} onClick={() => prepare('admin_grant')}>Prepare grant</Button>}
         {option.available && option.sourceType === 'stellar' && !prepared && <Button type="button" size="sm" disabled={busy} onClick={() => prepare('stellar')}>Prepare Stellar payment</Button>}
+        {option.available && option.sourceType==='platform_credit' && !prepared && !!option.creditGrants?.length && <div>
+          <label>Available platform credit
+            <select value={selectedCredit||option.creditGrants[0].id} onChange={event=>setSelectedCredit(event.target.value)} disabled={busy} className="block w-full rounded border border-neutral-300 p-2">
+              {option.creditGrants.map((grant,index)=><option key={grant.id} value={grant.id}>Allocation {index+1}: {(BigInt(grant.availableStroops)/10_000_000n).toString()}.{(BigInt(grant.availableStroops)%10_000_000n).toString().padStart(7,'0')} XLM available</option>)}
+            </select>
+          </label>
+          <Button type="button" size="sm" disabled={busy} onClick={()=>prepare('platform_credit',selectedCredit||option.creditGrants![0].id)}>Reserve platform credit</Button>
+        </div>}
       </li>)}</ul>}
       {prepared && preparedSource === 'admin_grant' && <div>
         <p>Authorize a grant of {exactAmount} to fund and reserve this reward.</p>
         <Button type="button" size="sm" disabled={busy} onClick={authorize}>Authorize grant</Button>
+      </div>}
+      {prepared && preparedSource==='platform_credit' && <div>
+        <p>{instructions?.network==='public'?'Public network — real XLM':'Testnet — test XLM'}</p>
+        <p>Authorize {exactAmount} from the reserved platform credit to fund this reward.</p>
+        <p className="text-sm">Unused reservations expire at {new Date(instructions!.expires_at).toLocaleString()}.</p>
+        <Button type="button" size="sm" disabled={busy} onClick={authorize}>Authorize platform credit</Button>
       </div>}
       {prepared && preparedSource === 'stellar' && instructions && <div className="space-y-3 text-sm">
         <p className="font-semibold">{instructions.network === 'public' ? 'Public network — real XLM' : 'Testnet — test XLM'}</p>

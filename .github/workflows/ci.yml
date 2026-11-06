@@ -64,6 +64,8 @@ jobs:
         run: npm run test:rbac-runtime
       - name: Test durable funding restart and concurrent writers
         run: npm run test:reward-funding-runtime
+      - name: Test backed credit approval, concurrent reservations and restart
+        run: npm run test:platform-credit-runtime
       - run: npx vitest run
       - name: Typecheck BVC validator script
         run: npx tsc --noEmit --esModuleInterop --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck src/scripts/validateBvcContent.ts

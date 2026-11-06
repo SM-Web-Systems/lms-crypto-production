@@ -1,6 +1,6 @@
 # LMS-031 — Stellar funding verification
 
-Status: **in progress**. Stored intent binding, provider verification, atomic consumption and the portal flow are implemented locally. Hosted validation of this integration, staging acceptance, an actual purpose-bound payment receipt and the LMS-030/LMS-011 closure dependencies remain open. No agent-signed or agent-submitted transaction was performed.
+Status: **in progress**. Stored intent binding, provider verification, atomic consumption and the portal flow are implemented locally. Staging acceptance, an actual purpose-bound payment receipt and the LMS-030/LMS-011 closure dependencies remain open. No agent-signed or agent-submitted transaction was performed.
 
 ## Implemented path
 
@@ -24,6 +24,6 @@ The owner selected **public network** and supplied the receiver privately. Check
 
 See the [integration receipt](evidence/lms-031-integration-validation.json) and [preparatory receipt](evidence/lms-031-verifier-validation.json). Local checks: 28 provider/binding/schema tests; 100 existing funding authorization/reference/idempotency/HTTP regressions; 49 focused web assertions; 169 Windows CRLF migration cases; compiled funding concurrency/restart, source-free startup and RBAC restart checks. All 18 Chromium/Firefox/WebKit funding cases pass at 320/390/768px with retries disabled. Stellar UI cases simulate provider timeouts; they do not establish a real-chain credit.
 
-The first preparatory commit failed [CI 42257144416](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257144416) at TypeScript narrowing. Corrected candidate `7ae766d` passed all eight [CI jobs](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257646293). The newer integration requires its own hosted run; previous green results do not certify changed code.
+The first preparatory commit failed [CI 42257144416](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257144416) at TypeScript narrowing. Corrected candidate `7ae766d` passed all eight [CI jobs](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257646293). Integrated candidate `c74f352` subsequently passed [all eight CI jobs](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42261183099) and mobile CI: 2,448 API tests passed with one existing protected-copy skip, 721 web tests and all 89 Chromium cases without retries. See the [hosted receipt](evidence/lms-031-hosted-validation.json).
 
 Before closure: validate the published integrated candidate; accept the staging RBAC/recovery gates and configure its receiver; exercise actual purpose-bound payment, duplicate/reorder/restart, wrong-network and timeout acceptance. The original actual-testnet requirement remains outstanding; mocked testnet records and a public-account lookup do not replace it. A public-network payment needs a concrete owner-authorized payment rather than automatic real-XLM spending. Backed credit and Paystack settlement remain LMS-032/LMS-033.

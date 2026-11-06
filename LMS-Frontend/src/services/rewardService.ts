@@ -22,6 +22,7 @@ export interface FundingOption {
   sourceType: 'platform_credit' | 'admin_grant' | 'stellar' | 'paystack';
   available: boolean;
   reason: string | null;
+  creditGrants?: Array<{id:string;availableStroops:number}>;
 }
 
 export interface FundingIntent {
@@ -32,6 +33,7 @@ export interface FundingIntent {
   network?: 'public' | 'testnet' | 'internal';
   destination?: string;
   memo_hash?: string;
+  reference?: string | null;
 }
 
 export type ScopeType = 'sponsor_cohort' | 'employer_team' | 'parent_child' | 'parent_family' | 'teacher_class';
@@ -189,8 +191,8 @@ export const rewardService = {
     return res.data.data;
   },
 
-  async createFundingIntent(role: string, rewardId: string, sourceType: string, idempotencyKey: string): Promise<FundingIntent> {
-    const res = await api.post<ApiRes<FundingIntent>>(`${prefix(role)}/rewards/${rewardId}/funding-intents`, {sourceType, idempotencyKey});
+  async createFundingIntent(role: string, rewardId: string, sourceType: string, idempotencyKey: string, reference?: string): Promise<FundingIntent> {
+    const res = await api.post<ApiRes<FundingIntent>>(`${prefix(role)}/rewards/${rewardId}/funding-intents`, {sourceType, idempotencyKey,...(reference!==undefined?{reference}:{})});
     return res.data.data;
   },
 

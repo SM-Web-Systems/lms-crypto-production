@@ -155,7 +155,7 @@ function fundingReplay(rewardId: string, actorId: string, source: FundingSource,
       idem.rewardId !== rewardId ||
       idem.transactionType !== 'fund' ||
       idem.fundingSourceType !== source.type ||
-      (source.type === 'stellar' && !source.intentId) ||
+      ((source.type === 'stellar' || source.type==='platform_credit') && !source.intentId) ||
       idem.fundingReference !== fundingLedgerReference(source)
     ) {
       throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);

@@ -101,7 +101,7 @@ describe('durable reward funding intents', () => {
     const options = getFundingAvailability(r.id, f.other);
     expect(options.filter(option => option.available).map(option => option.sourceType)).toEqual(['admin_grant']);
     for (const type of ['stellar', 'paystack', 'platform_credit'] as const) {
-      expect(() => createFundingIntent(r.id, f.other, {type}, uuidv4())).toThrowError(expect.objectContaining({code: 'FUNDING_UNVERIFIED', statusCode: 402}));
+      expect(() => createFundingIntent(r.id, f.other, {type}, uuidv4())).toThrowError(expect.objectContaining({code: type==='platform_credit'?'INSUFFICIENT_CREDIT':'FUNDING_UNVERIFIED', statusCode: 402}));
     }
     expect(count('reward_transactions')).toBe(0);
   });

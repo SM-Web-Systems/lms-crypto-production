@@ -46,7 +46,12 @@
     "compiledBootstrap": "passed_source_free",
     "rbacRuntime": "passed_no_grant_resurrection",
     "compiledFundingRuntime": "passed_additive_upgrade_three_processes_restart_single_credit",
-    "hostedIntegratedCandidate": "pending"
+    "hostedIntegratedCandidate": {
+      "status": "passed",
+      "candidate": "c74f35256ddaf0bb4ab05da842c14fa83b342819",
+      "run": 42261183099,
+      "receipt": "lms-031-hosted-validation.json"
+    }
   },
   "initialAttempts": {
     "firstIntegration": {

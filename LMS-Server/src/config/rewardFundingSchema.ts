@@ -1,3 +1,4 @@
+import {platformCreditTables} from './platformCreditSchema.js';
 // Additive schema only. Never backfill evidence for historical ledger entries.
 export const rewardFundingSchema = `
 CREATE TABLE IF NOT EXISTS reward_funding_intents (
@@ -75,4 +76,4 @@ BEGIN SELECT RAISE(ABORT, 'Stellar evidence is immutable'); END;
 `;
 
 export const fundingSchemaTables = ['reward_funding_intents', 'reward_funding_evidence',
-  'reward_stellar_funding_bindings', 'reward_stellar_funding_evidence'];
+  'reward_stellar_funding_bindings', 'reward_stellar_funding_evidence', ...platformCreditTables];
