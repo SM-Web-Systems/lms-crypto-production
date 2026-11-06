@@ -152,6 +152,43 @@ class InventoryTests(unittest.TestCase):
             inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory'), self.run_command)
         self.assertEqual(self.calls[-1][:3], ['docker', 'rm', '--force'])
 
+    def unverified_capture(self):
+        recovery = self.state / ('recovery-' + self.manifest_id + '.json')
+        manifest = json.loads(recovery.read_text(encoding='utf-8'))
+        manifest['eligibility'] = 'UNVERIFIED'
+        file = self.state / ('capture-' + self.manifest_id + '.json')
+        file.write_text(json.dumps(manifest), encoding='utf-8')
+        file.chmod(0o600)
+        return file
+
+    def test_existing_capture_inventory_keeps_recovery_unverified_and_never_prepares_again(self):
+        file = self.unverified_capture()
+        before = file.read_bytes()
+        result = inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory-capture',
+                                        LMS_INVENTORY_MANIFEST=''), self.run_command)
+        self.assertEqual(result['status'], 'PRIVATE_SNAPSHOT_INVENTORIED')
+        self.assertTrue(result['inventoryOnly'])
+        self.assertEqual(result['recoveryEligibility'], 'UNVERIFIED')
+        self.assertFalse(result['summary']['gates']['migrationReady'])
+        self.assertFalse(any(args[0] == 'env' for args in self.calls))
+        self.assertEqual(file.read_bytes(), before)
+        self.assertFalse((self.state / 'current-recovery.json').exists())
+
+    def test_capture_evidence_cannot_be_used_by_the_recovery_inventory_mode(self):
+        file = self.unverified_capture()
+        recovery = self.state / ('recovery-' + self.manifest_id + '.json')
+        recovery.write_bytes(file.read_bytes())
+        with self.assertRaisesRegex(inventory.Refused, 'MANIFEST_ELIGIBILITY_MISMATCH'):
+            inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory'), self.run_command)
+        self.assertFalse(any(args[:2] == ['docker', 'run'] for args in self.calls))
+
+    def test_capture_inventory_refuses_stale_closed_copy_before_any_container(self):
+        self.unverified_capture()
+        os.utime(self.snapshot, (time.time() - 4000,) * 2)
+        with self.assertRaisesRegex(inventory.Refused, 'FRESH_SNAPSHOT_REQUIRED'):
+            inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory-capture'), self.run_command)
+        self.assertFalse(any(args[:2] == ['docker', 'run'] for args in self.calls))
+
     def capture_fixture(self):
         files = {}
         for relative in inventory.TRUSTED_RELEASE_FILES:
