@@ -2,11 +2,11 @@
 
 The owner confirmed `https://lms.smwebsystems.com` is staging. Its existing GitHub environment is named `production` and permits only `main`. This workflow retains that protection and the existing pinned SSH host fingerprint. Adding it does not trigger any server action automatically.
 
-The execution-disabled access check [42174117506](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42174117506) authenticated to SSH and received a remote exit status of 1 without a recovery-preparation result. The precise checkout/precondition failure is not yet known. It did not provide an interactive key or a private account inventory.
+The execution-disabled access check [42174117506](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42174117506) authenticated to SSH but exited before a recovery result. The approved read-only [probe 42177426724](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42177426724) succeeded: the clean checkout and both running images identify `f5a64e8ac92aca6b33ae54bda70617d475893e3e`. This differs from the newer main SHA demanded by the earlier bootstrap. No checkout or service change was made to bypass it.
 
 ## Probe
 
-After review/merge, manually dispatch **Read-only staging server inventory** on `main` with `mode=probe`. Its synthetic controller tests run before SSH. Probe mode reads only the two configured containers' running state, project/image/revision metadata and checkout Git metadata. It prints hashes and booleans, not SSH credentials, environment contents, remote URLs, filenames or account records.
+Manually dispatch **Staging runtime and private RBAC inventory** on `main` with `mode=probe`. Its synthetic controller tests run before SSH. Probe mode reads only the two configured containers' running state, project/image/revision metadata and checkout Git metadata. It prints hashes and booleans, not SSH credentials, environment contents, remote URLs, filenames or account records.
 
 Probe mode creates no server files or containers and runs no checkout update, application startup, migration, backup, role change, service restart, SSH/key/firewall/user configuration command. Git uses `--no-optional-locks`. This provides a narrow way to diagnose the preparation precondition without changing it.
 
@@ -18,6 +18,14 @@ The controller starts one resource-limited container from the existing API image
 
 Account-level exception details stay in a new private directory under the configured backup root. Only the inventory tool's aggregate summary is returned to GitHub logs. No snapshot or account-details artifact is uploaded. The workflow does not claim mobile installed-build, endpoint-usage or account-decision acceptance; those remain separate review gates.
 
+## Optional capture on the observed checkout
+
+`mode=capture` first requires **both** running images and the clean checkout to remain exactly at the observed `f5a64e8` revision. It verifies raw SHA-256 hashes of that revision's four release entrypoints before invoking only `python3 scripts/release_recovery.py prepare`, with execution and dry-run flags fixed to zero. The source revision is pinned in code, not supplied by a caller. A later revision requires a new review; no branch policy or deployment SHA check is relaxed.
+
+The existing prepare routine validates repository, compose/container/database volume context, backup location and a minimum 512 MB or three times the database size of free space. It uses SQLite's WAL-safe online backup, writes private backup/evidence/recovery files and retains image tags. It does not stop writers, build/deploy images, start/restart services, update the checkout, modify live database contents or touch SSH/firewall/account configuration. The small difference between this revision's recovery helper and main's helper concerns publication after a writer release; prepare does not enter that path.
+
+Only a successful, recovery-eligible result can proceed to the closed-snapshot inventory checks above. A refused inventory may leave its private backup evidence retained; no automatic destructive cleanup is performed. Capture is a server-writing preparation action and must be explicitly approved separately from a metadata probe. The initial capture proposal has not been dispatched.
+
 ## Validation
 
-Six synthetic tests cover probe-only commands and privacy, target/injection refusal, bounded read-only mounts and unique-container cleanup, stale snapshots, snapshot/tool drift and rejection of account identifiers in the public summary. Workflow YAML and generated Bash syntax are checked. No server is contacted by those tests.
+Ten synthetic tests cover the probe/inventory checks plus capture's fixed prepare-only command, revision/checkout/script-drift refusals and rejection of ineligible preparation before inventory. Workflow YAML and generated Bash syntax are checked. No server is contacted by those tests. The pinned release hashes are separately compared with raw Git objects from `f5a64e8`.

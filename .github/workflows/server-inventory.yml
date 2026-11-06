@@ -1,12 +1,12 @@
-name: Read-only staging server inventory
+name: Staging runtime and private RBAC inventory
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Probe reads runtime metadata; inventory reads a fresh existing private recovery snapshot'
+        description: 'Probe reads metadata; inventory uses an existing snapshot; capture prepares a private snapshot first'
         type: choice
-        options: [probe, inventory]
+        options: [probe, inventory, capture]
         default: probe
         required: true
       manifest_id:
@@ -45,8 +45,8 @@ jobs:
           import base64, hashlib, os, re
           from pathlib import Path
           mode = os.environ['INVENTORY_MODE']
-          assert mode in ('probe', 'inventory')
-          assert mode == 'probe' or re.fullmatch(r'[a-f0-9]{32}', os.environ['INVENTORY_MANIFEST'])
+          assert mode in ('probe', 'inventory', 'capture')
+          assert mode != 'inventory' or re.fullmatch(r'[a-f0-9]{32}', os.environ['INVENTORY_MANIFEST'])
           source = Path('scripts/server_rbac_inventory.py').read_bytes()
           payload = base64.b64encode(source).decode('ascii')
           Path('.inventory-ssh.sh').write_text("python3 - <<'LMS_READ_ONLY_INVENTORY'\nimport base64\nexec(compile(base64.b64decode('" + payload + "'), '<reviewed-inventory>', 'exec'))\nLMS_READ_ONLY_INVENTORY\n", encoding='utf-8', newline='\n')
@@ -63,6 +63,8 @@ jobs:
           DEPLOY_WEB_CONTAINER: ${{ vars.DEPLOY_WEB_CONTAINER }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
           DEPLOY_BACKUP_DIR: ${{ vars.DEPLOY_BACKUP_DIR }}
+          DEPLOY_DB_VOLUME: ${{ vars.DEPLOY_DB_VOLUME }}
+          DEPLOY_RECOVERY_POLICY: ${{ vars.DEPLOY_RECOVERY_POLICY }}
           LMS_INVENTORY_MODE: ${{ inputs.mode }}
           LMS_INVENTORY_MANIFEST: ${{ inputs.manifest_id }}
           LMS_INVENTORY_TOOL_SHA256: ${{ env.LMS_INVENTORY_TOOL_SHA256 }}
@@ -71,6 +73,6 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           fingerprint: SHA256:I5zV96zrTQ9+SGQnGxNu17GZKIl10PZabaR6IUtNH5o
-          command_timeout: 4m
-          envs: DEPLOY_BASE_URL,DEPLOY_PROJECT,DEPLOY_API_CONTAINER,DEPLOY_WEB_CONTAINER,DEPLOY_DIR,DEPLOY_BACKUP_DIR,LMS_INVENTORY_MODE,LMS_INVENTORY_MANIFEST,LMS_INVENTORY_TOOL_SHA256
+          command_timeout: 6m
+          envs: DEPLOY_BASE_URL,DEPLOY_PROJECT,DEPLOY_API_CONTAINER,DEPLOY_WEB_CONTAINER,DEPLOY_DIR,DEPLOY_BACKUP_DIR,DEPLOY_DB_VOLUME,DEPLOY_RECOVERY_POLICY,LMS_INVENTORY_MODE,LMS_INVENTORY_MANIFEST,LMS_INVENTORY_TOOL_SHA256
           script_path: .inventory-ssh.sh
