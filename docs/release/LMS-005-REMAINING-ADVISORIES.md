@@ -18,6 +18,8 @@ All seven dependency checks, five offline tooling checks, TypeScript, 159 native
 
 The safe direction is to obtain an upstream-compatible fix or update/remove the affected configuration/test consumers together, then repeat clean installs, audit, tooling, native tests and both exports. A numeric audit reduction alone is insufficient.
 
+Accountable role: API + Mobile dependency maintainer (named assignee still required). Next review: **13 November 2026**, or earlier if an upstream patch is published. Review is recorded here; no scheduled reminder or risk waiver was created.
+
 ## API patch phase
 
 The five API moderate entries are removed by consumer-scoped glob 14.0.2 (Swagger) and minimatch 11.0.1 (archive traversal) overrides. Clean npm 10.9.9 installation succeeds; the installed full API graph reports **zero findings**. Two direct consumer checks parse real annotated nested source and create/read an archive with exclusion patterns. TypeScript, source-free bootstrap and 177 related API regressions pass. CI now enforces the moderate audit gate and runs the consumer checks.

@@ -1002,17 +1002,45 @@ describe('COMPAT-REGRESSION: in-memory suite sentinel', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement', () => {
+  // Isolate the reward migration gate: the historical reward schema must already
+  // satisfy the independent RBAC cutover gate. Read that gate from the canonical
+  // schema rather than duplicating its DDL in this fixture.
+  function installCurrentAuthorizationGate(conn: SqliteDatabase): void {
+    const canonical = new Database(':memory:');
+    try {
+      canonical.exec(fixtureSqlForDatabase(readSqlFixture(
+        path.resolve(__dirname, '../../database/schema.sql')
+      )));
+      for (const [type, name] of [
+        ['table', 'authorization_migrations'],
+        ['trigger', 'trg_auto_assign_user_role'],
+      ]) {
+        const definition = canonical.prepare(
+          'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?'
+        ).get(type, name) as { sql: string };
+        conn.exec(`DROP ${type.toUpperCase()} IF EXISTS ${name}`);
+        conn.exec(definition.sql);
+      }
+      conn.prepare('INSERT INTO authorization_migrations(id, review_reference) VALUES (?, ?)')
+        .run('rbac-only-v1', 'reward-preflight-test');
+    } finally {
+      canonical.close();
+    }
+  }
+
   it('COMPAT-PREFLIGHT-1: validateDatabase throws on old-schema with migration-required message', () => {
-    const { conn } = makeTempDb(OLD_SCHEMA);
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
     let threw = false;
     let message = '';
     try {
+      installCurrentAuthorizationGate(conn);
       validateDatabase(conn);
     } catch (err) {
       threw = true;
       message = err instanceof Error ? err.message : String(err);
     } finally {
       conn.close();
+      cleanupTempDb(dbPath);
     }
     expect(threw).toBe(true);
     expect(message).toMatch(/migration|migrate|release_unused/i);
@@ -1037,20 +1065,22 @@ describe('COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement', () 
 
   it('COMPAT-PREFLIGHT-3: false migration receipt does not bypass validation', () => {
     // Insert migration key in system_config but leave old schema
-    const { conn } = makeTempDb(OLD_SCHEMA);
+    const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+    installCurrentAuthorizationGate(conn);
     conn.prepare(
       "INSERT OR REPLACE INTO system_config (key, value, updated_at, updated_by) VALUES (?, '2026-10-30', datetime('now'), NULL)"
     ).run(MIGRATION_ID);
-    let threw = false;
+    let message = '';
     try {
       validateDatabase(conn);
-    } catch {
-      threw = true;
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
     } finally {
       conn.close();
+      cleanupTempDb(dbPath);
     }
     // validateDatabase must check actual DDL, not just system_config
-    expect(threw).toBe(true);
+    expect(message).toMatch(/db:migrate-reward-txn-check|002/i);
   });
 });
 

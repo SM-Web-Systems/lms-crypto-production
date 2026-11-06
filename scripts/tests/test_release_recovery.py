@@ -410,6 +410,25 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
         self.assertEqual(self.containers['fixture-web']['Image'], NEW_WEB)
 
+    def test_rbac_candidate_schema_mismatch_refuses_before_any_writer_stop(self):
+        original = self.rec.inspect_image
+
+        def inspected(runner, target, reference):
+            image = original(runner, target, reference)
+            if image['Id'] == NEW_API:
+                image['Config']['Labels'][pre.AUTHORIZATION_SCHEMA_LABEL] = 'rbac-only-v1'
+            return image
+
+        # This fixture is a legacy database. The candidate must not start on it
+        # merely because its revision and immutable image ID were reviewed.
+        with patch.object(self.rec, 'inspect_image', side_effect=inspected):
+            with self.assertRaisesRegex(pre.ReleaseError, 'RBAC_IMAGE_SCHEMA_MISMATCH'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1',
+                                http=self.deployed_http, timeout=0)
+        self.assert_no_up()
+        self.assertFalse(any(call[1:3] == ['container', 'stop'] for call in self.runner.calls))
+        self.assertTrue(all(container['State']['Running'] for container in self.containers.values()))
+
     def test_runtime_database_configuration_drift_refuses_before_stop(self):
         self.capture()
         api_config = self.containers['fixture-api']['Config']

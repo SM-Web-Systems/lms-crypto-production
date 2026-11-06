@@ -13,6 +13,7 @@ dotenv.config();
 
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { createRbacAccount } from '../services/rbacAccountService.js';
 import { db, close } from '../config/database.js';
 
 const PASSWORD = 'student123';
@@ -27,10 +28,6 @@ const STUDENTS = [
 async function seed() {
   try {
     const now = new Date().toISOString();
-    const insertUser = db.prepare(
-      `INSERT OR IGNORE INTO users (id, name, email, password_hash, role, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    );
     const insertStudent = db.prepare(
       `INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -44,7 +41,9 @@ async function seed() {
       const s = STUDENTS[i];
       const userId = uuidv4();
       const hash = await bcrypt.hash(PASSWORD, 10);
-      insertUser.run(userId, s.name, s.email.toLowerCase(), hash, 'student', now, now);
+      if(!db.prepare('SELECT id FROM users WHERE email=?').get(s.email.toLowerCase())) {
+        createRbacAccount({id:userId,name:s.name,email:s.email.toLowerCase(),passwordHash:hash,initialRoleId:'role_student'});
+      }
 
       const row = db.prepare('SELECT id FROM users WHERE email = ?').get(s.email.toLowerCase()) as { id: string } | undefined;
       if (!row) {

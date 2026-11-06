@@ -64,9 +64,11 @@ describe('A03 — effective authorization context', () => {
     expect(me.body.data.defaultWorkspace).toBeNull();
     expect((await get(a,'/courses')).status).toBe(403);
   });
-  it('current session context reflects an additive grant without trusting token role hints', async () => {
+  it('additive grants invalidate the previous session and a new session receives current context', async () => {
     const admin = actor('role_admin2','admin'), a = actor('role_student');
     expect((await request(app).post(`/api/v1/admin/users/${a.id}/roles`).auth(admin.token,{type:'bearer'}).send({roleId:'role_sponsor'})).status).toBe(201);
+    expect((await get(a,'/auth/me')).status).toBe(401);
+    a.token=generateToken({userId:a.id,email:a.email,role:'student'});
     const me = await get(a,'/auth/me');
     expect(me.body.data.workspaces).toEqual(['sponsor','student']);
   });

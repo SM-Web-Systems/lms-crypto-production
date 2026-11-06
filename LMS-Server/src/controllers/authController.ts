@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, query, queryOne, execute, createSession, hashToken } from "../config/database.js";
 import { invalidateAuthorization } from '../services/roleSecurityService.js';
 import { generateToken } from "../config/jwt.js";
-import { AuthRequest, User, ErrorCodes, Student, LegacyRole } from "../types/index.js";
+import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { createUserWallet } from "../services/walletService.js";
 import { getUserRoles } from "../middleware/rbac.js";
@@ -20,6 +20,8 @@ import {
   type AmmaWalletSSOUser,
 } from "../services/ammaWalletSSOService.js";
 import logger from "../utils/logger.js";
+import { compatibleRole } from '../services/roleCompatibilityService.js';
+import { createRbacAccount, type InitialRoleId } from '../services/rbacAccountService.js';
 import { resolveAmmaAccount, SsoPolicyError } from "../services/ammaAccountService.js";
 import { createNotification } from "../services/notificationService.js";
 import { createMobileHandoff, consumeMobileHandoff, isMobileSsoContext, MOBILE_SSO_CALLBACK, type MobileSsoContext } from '../services/mobileSsoService.js';
@@ -141,17 +143,9 @@ export async function login(
 
     // Existing accounts are governed by role management, not provisioning lists.
     // Reapplying ADMIN_EMAILS here would undo an intentional demotion on login.
-    const role = user.role;
+    const role = compatibleRole(user.id);
 
-    // Get studentId if user is a student
-    let studentId: string | undefined;
-    if (role === "student") {
-      const student = queryOne<Student>(
-        "SELECT id FROM students WHERE user_id = ?",
-        [user.id],
-      );
-      studentId = student?.id;
-    }
+    const studentId = queryOne<Student>('SELECT id FROM students WHERE user_id = ?', [user.id])?.id;
 
     // Generate JWT token
     const token = generateToken({
@@ -263,7 +257,6 @@ export async function register(
 
     // Public email/password registration has not verified email ownership.
     // Staff allowlists apply only after a verified provider assertion.
-    const role: LegacyRole = "student";
     const userId = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -289,22 +282,8 @@ export async function register(
     const maskedEmail = email.replace(/^(.).*@/, '$1***@');
     logger.info({ module: 'authController', action: 'register', userId, email: maskedEmail, transition: `none→${walletLinkingStatus}` }, 'User registered');
 
-    execute(
-      "INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [userId, name, email, passwordHash, role, walletAddress, walletLinkingStatus],
-    );
-
-    // Students get a profile row so submissions/enrollment work immediately.
-    let studentId: string | undefined;
-    if (role === "student") {
-      studentId = uuidv4();
-      const enrollmentNumber = `REG-${userId.replace(/-/g, "").slice(0, 12).toUpperCase()}`;
-      execute(
-        `INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
-         VALUES (?, ?, ?, ?, ?, 'General', 1)`,
-        [studentId, userId, name, email, enrollmentNumber],
-      );
-    }
+    const {studentId} = createRbacAccount({id:userId,name,email,passwordHash,initialRoleId:'role_student',walletAddress,walletLinkingStatus});
+    const role = compatibleRole(userId);
 
     const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
 
@@ -373,7 +352,7 @@ export async function getMe(
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: compatibleRole(user.id),
         walletAddress: user.walletAddress,
         walletLinkingStatus: user.wallet_linking_status,
         authProvider: user.auth_provider ?? 'local',
@@ -634,7 +613,7 @@ export async function ammaCallback(
     }
 
     const verifiedEmail = ammaUser.email?.trim().toLowerCase() ?? '';
-    const initialRole: LegacyRole = isAdminEmail(verifiedEmail) ? 'admin' : isLecturerEmail(verifiedEmail) ? 'lecturer' : 'student';
+    const initialRole: InitialRoleId = isAdminEmail(verifiedEmail) ? 'role_admin' : isLecturerEmail(verifiedEmail) ? 'role_instructor' : 'role_student';
     let resolved: ReturnType<typeof resolveAmmaAccount>;
     try {
       resolved = resolveAmmaAccount(ammaUser, initialRole, link);
@@ -643,7 +622,8 @@ export async function ammaCallback(
       throw error;
     }
     const {user, studentId} = resolved;
-    const {id: userId, email, role} = user;
+    const {id: userId, email} = user;
+    const role = compatibleRole(userId);
 
     // Native clients receive only a short-lived proof-bound code. The access
     // token is issued through HTTPS after the app proves possession of its verifier.
@@ -676,34 +656,13 @@ export function ammaMobileSession(req: Request, res: Response, next: NextFunctio
       throw new AppError('Sign-in has expired or is invalid. Please sign in with AmmaWallet again.',401,ErrorCodes.INVALID_CREDENTIALS);
     }
     const studentId = queryOne<{id:string}>('SELECT id FROM students WHERE user_id=?',[user.id])?.id;
-    const token = generateToken({userId:user.id,email:user.email,role:user.role,roles:getUserRoles(user.id),studentId});
+    const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId});
     createSession(user.id,token,req);
     recordLoginHistory(user.id,req,'sso');
     res.json({success:true,data:{token,user:{
-      id:user.id,name:user.name,email:user.email,role:user.role,
+      id:user.id,name:user.name,email:user.email,role:compatibleRole(user.id),
       walletAddress:user.walletAddress,walletLinkingStatus:user.wallet_linking_status,authProvider:user.auth_provider ?? 'local',
       courseCodes:getUserCourseCodes(user.id),...getAuthorizationContext(user.id),
     }}});
   } catch (error) { next(error); }
-}
-
-// Helper function to create a user (for seeding/registration)
-export async function createUser(
-  name: string,
-  email: string,
-  password: string,
-  role: LegacyRole,
-): Promise<User> {
-  const id = uuidv4();
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const stmt = `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`;
-  query(stmt, [id, name, email.toLowerCase(), passwordHash, role]);
-
-  const user = queryOne<User>("SELECT * FROM users WHERE id = ?", [id]);
-  if (!user) {
-    throw new Error("Failed to create user");
-  }
-
-  return user;
 }

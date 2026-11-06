@@ -511,6 +511,8 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
         image = inspect_image(runner, target, retained['tag'])
         require(image['Id'] == retained['image_id'] == target['services'][service]['image_id'] and
                 (image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == retained['revision'], 'RECOVERY_RETAINED_IMAGE_CHANGED')
+        if service == 'api':
+            pre.validate_image_authorization(image, Path(target['database']['host_path']))
         expected[service] = retained['image_id']
     base_url = validate_base_url(config.get('base_url'))
     # Stop the sole application writer and verify it is stopped BEFORE taking
@@ -698,6 +700,10 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
         # reviewed image IDs and baseline just before any replacement; ongoing
         # financial activity blocks this mode.
         built = reviewed_images(target, policy, runner)
+        # Keep the reviewed immutable images; do not restore the old inline
+        # build path. Validate the selected API's RBAC contract before stopping.
+        pre.validate_image_authorization(inspect_image(runner, target, built['api']),
+                                         Path(target['database']['host_path']))
         containers = verify_checkout_context(config, target, runner, source_configs(target))
         require(all(containers[service]['Image'] == target['services'][service]['image_id'] for service in ('api', 'web')), 'PRE_DEPLOY_CONTAINER_IMAGE_CHANGED')
         verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])
