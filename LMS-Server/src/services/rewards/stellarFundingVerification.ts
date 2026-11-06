@@ -31,9 +31,10 @@ const deny = () => new RewardError('FUNDING_UNVERIFIED', 'Stellar operation does
 // Public-data reads only. Never signs, submits a transaction or follows a
 // provider-supplied link. The caller must supply a stored authoritative intent.
 export async function verifyStellarFunding(binding: StellarFundingBinding, operationId: string): Promise<VerifiedStellarFunding> {
-  const provider = binding.network === 'testnet' || binding.network === 'public' ? providers[binding.network] : undefined;
+  if (binding.network !== 'testnet' && binding.network !== 'public') throw deny();
+  const provider = providers[binding.network];
   const created = Date.parse(binding.createdAt), expiry = Date.parse(binding.expiresAt);
-  if (!provider || !StrKey.isValidEd25519PublicKey(binding.destination) || !hashPattern.test(binding.memoHash)
+  if (!StrKey.isValidEd25519PublicKey(binding.destination) || !hashPattern.test(binding.memoHash)
     || !Number.isSafeInteger(binding.amountStroops) || binding.amountStroops <= 0
     || !Number.isFinite(created) || !Number.isFinite(expiry) || expiry <= Date.now()
     || expiry <= created || typeof operationId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(operationId)) throw deny();

@@ -6,7 +6,7 @@ The verifier reads only fixed HTTPS Horizon endpoints for the explicitly selecte
 
 The [Stellar operation](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/operations/object), [payment](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/payments/object) and [transaction](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/transactions/object) contracts define the fields being checked. Verification trusts the pinned HTTPS provider's ledger view; it is not an independent consensus implementation.
 
-Fifteen local provider-contract tests pass with mocked responses; see the [receipt](evidence/lms-031-verifier-validation.json). Mocked testnet records are not an actual testnet funding receipt.
+Sixteen local provider-contract tests pass with mocked responses; see the [receipt](evidence/lms-031-verifier-validation.json). Mocked testnet records are not an actual testnet funding receipt.
 
 Required next work:
 
@@ -16,3 +16,5 @@ Required next work:
 4. Obtain the staging network and public receiving account from the owner, then perform authorized synthetic testnet acceptance, provider timeout/retry and wrong-network/replay cases. The owner was asked for the public configuration; no secret key is needed to verify payments.
 
 LMS-030 and LMS-011 closure dependencies remain open. Provider integration and actual testnet evidence are not supplied by this preparatory verifier commit.
+
+The first published preparatory commit failed [CI 42257144416](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257144416) at TypeScript compilation: the nested request helper could not retain the optional provider narrowing. Rejecting an invalid network before selecting the provider fixes the compile error and adds an inherited-property network regression. The corrected local build and all 16 verifier cases pass; the published correction still requires its hosted rerun.

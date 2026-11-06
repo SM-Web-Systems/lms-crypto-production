@@ -48,6 +48,11 @@ describe('Stellar funding operation verification', () => {
     await expect(verifyStellarFunding(f.binding, '../accounts/secret')).rejects.toThrow();
     expect(f.fetcher).not.toHaveBeenCalled();
   });
+  it('rejects an unknown network instead of selecting an inherited object property', async () => {
+    const f = fixture();
+    await expect(verifyStellarFunding({...f.binding, network: 'constructor' as 'testnet'}, '123')).rejects.toMatchObject({statusCode: 402});
+    expect(f.fetcher).not.toHaveBeenCalled();
+  });
   it('returns a retryable safe error for provider timeout without exposing raw provider text', async () => {
     const f = fixture(); f.fetcher.mockRejectedValueOnce(new Error('private upstream details'));
     await expect(verifyStellarFunding(f.binding, '123')).rejects.toMatchObject({statusCode: 503, message: expect.not.stringContaining('private')});
