@@ -1,7 +1,8 @@
-"""Inspect the staging runtime or inventory an existing private recovery snapshot.
+"""Inspect staging, inventory a snapshot, or prepare one on a pinned revision.
 
 No SSH configuration, daemon, firewall, account, checkout or live DB changes.
 Inventory starts one bounded, network-disabled container; it never starts the API.
+Capture creates private backup/recovery files and retained image tags only.
 """
 from datetime import datetime, timezone
 import hashlib
@@ -21,6 +22,13 @@ SUMMARY_KEYS = {'generatedAt', 'snapshotSha256', 'deployedApplication', 'reportV
                 'productionInventoryVerified', 'purpose', 'schema', 'users', 'rbac', 'interpretation', 'gates'}
 CONTAINER_FORMAT = '{"image":{{json .Image}},"running":{{json .State.Running}},"project":{{json (index .Config.Labels "com.docker.compose.project")}}}'
 IMAGE_FORMAT = '{"id":{{json .Id}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"workdir":{{json .Config.WorkingDir}}}'
+PREPARED_REVISION = 'f5a64e8ac92aca6b33ae54bda70617d475893e3e'
+TRUSTED_RELEASE_FILES = {
+    'scripts/release_preflight.py': '4531d402a48f53fe1886304ab82c4e91dc2ff53379bde74b151a77c49e8f1737',
+    'scripts/release_recovery.py': 'f648136975a10168c2d04a02d0f391cb3e7b85d6e5e74aeb94d7de833adde29b',
+    'scripts/deploy.sh': '3a44747f1dd3684c0d218d6c58de08467307051aaa435394331a0384d5c9b76d',
+    'scripts/rollback.sh': '3de3868ce0e5c00b5aaadb253ac8d1d90d2663958c66d7c4c88dbedb04d29595',
+}
 
 
 class Refused(Exception):
@@ -61,12 +69,46 @@ def within(child, parent):
         return False
 
 
+def prepare_snapshot(environment, observed, runner):
+    """Only the reviewed execution-disabled preparation on the observed revision.
+
+    Reuses the existing WAL-safe backup/free-space/recovery checks. No checkout
+    update, deployment, writer stop, SSH or firewall operation is available here.
+    """
+    require(all(image['revision'] == PREPARED_REVISION for image in observed.values()), 'PREPARED_REVISION_REQUIRED')
+    checkout = Path(environment.get('DEPLOY_DIR', ''))
+    require(checkout.is_absolute() and checkout.is_dir() and checkout.resolve() == checkout, 'CHECKOUT_REQUIRED')
+    git = lambda args: runner(['git', '--no-optional-locks', '-C', str(checkout), *args]).strip()
+    require(git(['rev-parse', 'HEAD']) == PREPARED_REVISION, 'CHECKOUT_REVISION_MISMATCH')
+    require(git(['remote', 'get-url', 'origin']) in (
+        'https://github.com/SM-Web-Systems/lms-crypto-production',
+        'https://github.com/SM-Web-Systems/lms-crypto-production.git',
+        'git@github.com:SM-Web-Systems/lms-crypto-production.git',
+        'ssh://git@github.com/SM-Web-Systems/lms-crypto-production.git'), 'CHECKOUT_REPOSITORY_MISMATCH')
+    require(not git(['status', '--porcelain=v1', '--untracked-files=all']), 'CHECKOUT_DIRTY')
+    for relative, expected in TRUSTED_RELEASE_FILES.items():
+        file = checkout / relative
+        require(file.is_file() and not file.is_symlink() and within(file.resolve(), checkout)
+                and digest(file) == expected, 'RELEASE_FILE_HASH_MISMATCH')
+    tool = checkout / 'LMS-Server/scripts/rbac-inventory.mjs'
+    require(tool.is_file() and not tool.is_symlink() and within(tool.resolve(), checkout)
+            and digest(tool) == environment.get('LMS_INVENTORY_TOOL_SHA256'), 'TOOL_HASH_MISMATCH')
+    prepared = json.loads(runner(['env', 'DEPLOY_SHA=' + PREPARED_REVISION, 'DEPLOY_EXECUTE=0', 'DEPLOY_DRY_RUN=0',
+        'DEPLOY_REPOSITORY=SM-Web-Systems/lms-crypto-production', 'python3',
+        str(checkout / 'scripts/release_recovery.py'), 'prepare'], timeout=180))
+    require(prepared.get('status') == 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED'
+            and prepared.get('requested_sha') == PREPARED_REVISION
+            and prepared.get('recovery_eligible') is True
+            and re.fullmatch(r'[a-f0-9]{32}', prepared.get('manifest_id', '')), 'VERIFIED_PREPARATION_REQUIRED')
+    return prepared['manifest_id']
+
+
 def execute(environment, runner=command):
     require(environment.get('DEPLOY_BASE_URL', '').rstrip('/') == 'https://lms.smwebsystems.com', 'STAGING_TARGET_REQUIRED')
     project = environment.get('DEPLOY_PROJECT', '')
     require(NAME.fullmatch(project), 'PROJECT_REQUIRED')
     mode = environment.get('LMS_INVENTORY_MODE', 'probe')
-    require(mode in ('probe', 'inventory'), 'INVALID_MODE')
+    require(mode in ('probe', 'inventory', 'capture'), 'INVALID_MODE')
     observed = {}
     for service in ('api', 'web'):
         name = environment.get('DEPLOY_' + service.upper() + '_CONTAINER', '')
@@ -97,15 +139,15 @@ def execute(environment, runner=command):
             except Refused:
                 result['checkout']['inspection'] = 'unavailable'
         return dict(result, status='SSH_RUNTIME_READ_CONFIRMED')
-    require(mode == 'inventory', 'INVALID_MODE')
-    identifier = environment.get('LMS_INVENTORY_MANIFEST', '')
-    require(re.fullmatch(r'[a-f0-9]{32}', identifier), 'MANIFEST_ID_REQUIRED')
     root = Path(environment.get('DEPLOY_BACKUP_DIR', ''))
     require(root.is_absolute() and root.is_dir() and not root.is_symlink(), 'BACKUP_ROOT_REQUIRED')
     require(not any(part in ('.ssh', 'etc', 'proc', 'sys', 'dev', 'bin', 'usr') for part in root.parts), 'BACKUP_LOCATION_REFUSED')
     require(root.resolve() == root, 'CANONICAL_BACKUP_ROOT_REQUIRED')
     if os.name != 'nt':
         require(stat.S_IMODE(root.stat().st_mode) & 0o077 == 0, 'PRIVATE_BACKUP_DIRECTORY_REQUIRED')
+    identifier = (prepare_snapshot(environment, observed, runner) if mode == 'capture'
+                  else environment.get('LMS_INVENTORY_MANIFEST', ''))
+    require(re.fullmatch(r'[a-f0-9]{32}', identifier), 'MANIFEST_ID_REQUIRED')
     manifest_file = root / 'release-state' / ('recovery-' + identifier + '.json')
     private_file(manifest_file)
     require(within(manifest_file.resolve(), root), 'MANIFEST_PATH_REFUSED')

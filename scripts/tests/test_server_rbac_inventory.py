@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('inventory', Path(__file__).resolve().parents[1] / 'server_rbac_inventory.py')
 inventory = importlib.util.module_from_spec(spec)
@@ -128,6 +129,75 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(inventory.Refused, 'AGGREGATE_SUMMARY_REQUIRED'):
             inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory'), self.run_command)
         self.assertEqual(self.calls[-1][:3], ['docker', 'rm', '--force'])
+
+    def capture_fixture(self):
+        files = {}
+        for relative in inventory.TRUSTED_RELEASE_FILES:
+            file = self.checkout / relative
+            file.parent.mkdir(exist_ok=True)
+            file.write_text('synthetic reviewed ' + relative, encoding='utf-8')
+            files[relative] = inventory.digest(file)
+        return files
+
+    def capture_command(self, args, timeout=45):
+        if args[0] == 'git':
+            self.calls.append(args)
+            if args[-1] == 'HEAD':
+                return SHA
+            if args[-1] == 'origin':
+                return 'https://github.com/SM-Web-Systems/lms-crypto-production.git'
+            return ''
+        if args[0] == 'env':
+            self.calls.append(args)
+            return json.dumps({'status': 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED', 'requested_sha': SHA,
+                               'manifest_id': self.manifest_id, 'recovery_eligible': True})
+        return self.run_command(args, timeout)
+
+    def test_capture_invokes_only_reviewed_preparation_and_inventories_its_closed_snapshot(self):
+        files = self.capture_fixture()
+        with patch.object(inventory, 'PREPARED_REVISION', SHA), patch.object(inventory, 'TRUSTED_RELEASE_FILES', files):
+            result = inventory.execute(dict(self.env, LMS_INVENTORY_MODE='capture'), self.capture_command)
+        self.assertEqual(result['mode'], 'capture')
+        self.assertEqual(result['status'], 'PRIVATE_SNAPSHOT_INVENTORIED')
+        prepare = next(args for args in self.calls if args[0] == 'env')
+        self.assertIn('DEPLOY_EXECUTE=0', prepare)
+        self.assertIn('DEPLOY_DRY_RUN=0', prepare)
+        self.assertEqual(prepare[-2:], [str(self.checkout / 'scripts/release_recovery.py'), 'prepare'])
+        self.assertFalse(any('deploy.sh' in arg or arg in ('stop', 'restart', 'up', 'reboot', 'systemctl')
+                             for args in self.calls for arg in args))
+        self.assertTrue(self.snapshot.exists())
+
+    def test_capture_refuses_changed_revision_before_preparation(self):
+        self.capture_fixture()
+        with self.assertRaisesRegex(inventory.Refused, 'PREPARED_REVISION_REQUIRED'):
+            inventory.execute(dict(self.env, LMS_INVENTORY_MODE='capture'), self.capture_command)
+        self.assertFalse(any(args[0] == 'env' for args in self.calls))
+
+    def test_capture_refuses_dirty_checkout_or_reviewed_script_drift_before_preparation(self):
+        files = self.capture_fixture()
+        with patch.object(inventory, 'PREPARED_REVISION', SHA), patch.object(inventory, 'TRUSTED_RELEASE_FILES', files):
+            def dirty(args, timeout=45):
+                if args[0] == 'git' and 'status' in args:
+                    return '?? private-file'
+                return self.capture_command(args, timeout)
+            with self.assertRaisesRegex(inventory.Refused, 'CHECKOUT_DIRTY'):
+                inventory.execute(dict(self.env, LMS_INVENTORY_MODE='capture'), dirty)
+            (self.checkout / 'scripts/release_recovery.py').write_text('drift', encoding='utf-8')
+            with self.assertRaisesRegex(inventory.Refused, 'RELEASE_FILE_HASH_MISMATCH'):
+                inventory.execute(dict(self.env, LMS_INVENTORY_MODE='capture'), self.capture_command)
+        self.assertFalse(any(args[0] == 'env' for args in self.calls))
+
+    def test_capture_ineligible_preparation_never_starts_inventory_container(self):
+        files = self.capture_fixture()
+        def ineligible(args, timeout=45):
+            if args[0] == 'env':
+                return json.dumps({'status': 'RECOVERY_PREPARED_DEPLOYMENT_DISABLED', 'requested_sha': SHA,
+                                   'manifest_id': self.manifest_id, 'recovery_eligible': False})
+            return self.capture_command(args, timeout)
+        with patch.object(inventory, 'PREPARED_REVISION', SHA), patch.object(inventory, 'TRUSTED_RELEASE_FILES', files):
+            with self.assertRaisesRegex(inventory.Refused, 'VERIFIED_PREPARATION_REQUIRED'):
+                inventory.execute(dict(self.env, LMS_INVENTORY_MODE='capture'), ineligible)
+        self.assertFalse(any(args[:2] == ['docker', 'run'] for args in self.calls))
 
 
 if __name__ == '__main__':
