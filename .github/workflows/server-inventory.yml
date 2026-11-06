@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Probe reads metadata; inventory uses an existing snapshot; capture prepares a private snapshot first'
+        description: 'Probe metadata; inventory verified recovery; capture prepares; inventory-capture reads a retained unapproved copy'
         type: choice
-        options: [probe, inventory, capture]
+        options: [probe, inventory, capture, inventory-capture]
         default: probe
         required: true
       manifest_id:
@@ -45,8 +45,9 @@ jobs:
           import base64, hashlib, os, re
           from pathlib import Path
           mode = os.environ['INVENTORY_MODE']
-          assert mode in ('probe', 'inventory', 'capture')
+          assert mode in ('probe', 'inventory', 'capture', 'inventory-capture')
           assert mode != 'inventory' or re.fullmatch(r'[a-f0-9]{32}', os.environ['INVENTORY_MANIFEST'])
+          assert not os.environ['INVENTORY_MANIFEST'] or re.fullmatch(r'[a-f0-9]{32}', os.environ['INVENTORY_MANIFEST'])
           source = Path('scripts/server_rbac_inventory.py').read_bytes()
           payload = base64.b64encode(source).decode('ascii')
           Path('.inventory-ssh.sh').write_text("python3 - <<'LMS_READ_ONLY_INVENTORY'\nimport base64\nexec(compile(base64.b64decode('" + payload + "'), '<reviewed-inventory>', 'exec'))\nLMS_READ_ONLY_INVENTORY\n", encoding='utf-8', newline='\n')
