@@ -12,3 +12,7 @@ The existing sponsor tab keyboard behavior remains reachable through Billing and
 - Tests use the disposable local database and built app with the LMS-007 authentication fixture changes. This is local browser acceptance, not physical-device or staging account acceptance.
 
 See [validation receipt](evidence/lms-006-validation.json) for source and raw-result hashes. Original audit evidence remains unchanged. The two edited search files also normalize their previously mixed stored newlines.
+
+## Cross-browser follow-up — 6 November 2026
+
+LMS-022 found a WebKit pointer-focus difference: opening Search can leave the page body as the previous active element. Closing now returns to the persistent Search trigger for body/root focus, while keyboard shortcut activation still restores the actual prior control. Two unit regressions cover both paths. Follow-up validation passes 713 web tests, 40 Firefox/WebKit sponsor/RBAC cases and all 83 Chromium cases, with retries disabled. See [cross-browser evidence](LMS-022-CROSS-BROWSER-ACCEPTANCE.md); physical Safari/iOS acceptance remains separate.

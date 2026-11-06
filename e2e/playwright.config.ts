@@ -34,15 +34,16 @@ export default defineConfig({
     serviceWorkers: 'block',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
-    extraHTTPHeaders: {
-      'Accept': 'application/json',
-    },
   },
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    ...(process.env.E2E_CROSS_BROWSER === '1' ? [
+      { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+      { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    ] : []),
   ],
   // Local acceptance serves the built app, matching the CI browser target.
   webServer: process.env.CI ? undefined : [

@@ -39,7 +39,9 @@ function authenticatedPage(email: string) {
     const context = await browser.newContext({
       baseURL,
       serviceWorkers: 'block',
-      extraHTTPHeaders: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      // Let each engine negotiate HTML for document navigation. Forcing JSON
+      // here makes Vite's SPA fallback return 404 to Firefox deep links.
+      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
       // Exact-origin storage is present on the first real navigation. There is
       // no preliminary landing-page load and no init script that can restore a
       // logged-out token or put it in a third-party frame's storage.

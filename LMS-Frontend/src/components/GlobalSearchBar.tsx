@@ -39,7 +39,11 @@ const GlobalSearchBar: React.FC = () => {
   // Focus input when opened
   useEffect(() => {
     if (open) {
-      const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      // Pointer activation does not focus buttons in WebKit. Body/root are not
+      // useful return targets; keyboard shortcuts still restore a real control.
+      const active = document.activeElement;
+      const previous = active instanceof HTMLElement && active !== document.body
+        && active !== document.documentElement ? active : triggerRef.current;
       inputRef.current?.focus();
       return () => {
         if (previous?.isConnected) previous.focus();

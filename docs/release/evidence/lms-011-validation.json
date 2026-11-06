@@ -30,6 +30,12 @@
       "numPassedTests": 2403,
       "numFailedTests": 0,
       "numPendingTests": 1
+    },
+    "lms-012-windows-full.json": {
+      "numTotalTests": 2409,
+      "numPassedTests": 2408,
+      "numFailedTests": 0,
+      "numPendingTests": 1
     }
   },
   "additionalChecks": {
@@ -118,12 +124,14 @@
     "lms-011-linux-bootstrap.log": "972af183987b511c04b70111caa6a71c624f2464a308071d8259e6f8e911c5d1",
     "lms-011-linux-dependencies.log": "5cccdb0b62050244fbad69c93ea4d62691629a1521e7d95d48c550291ed9e53e",
     "lms-011-linux-inventory.log": "4279e426a1f037c065552e27f847e227b9fac3fc93a2eca92d3239e86865884d",
-    "lms-011-linux-runtime.log": "fb45d0f2b5b410cf646e8761a1d5fa7378060933f07d59adabfb87138a8aa759"
+    "lms-011-linux-runtime.log": "fb45d0f2b5b410cf646e8761a1d5fa7378060933f07d59adabfb87138a8aa759",
+    "lms-012-windows-full.json": "ae7d375305c61e6198564df132c1454d634e88f1706284166b8653535ec61716"
   },
   "limitations": [
-    "Full Windows combined-candidate validation pending; the unprivileged attempt was interrupted without a complete report.",
-    "Private inventory, installed-client evidence and accepted recovery remain outstanding.",
-    "Synthetic local validation only; no cutover or application deployment executed."
+    "Linux full evidence covers the RBAC backend checkpoint ba1011d; Windows full evidence covers combined API/client checkpoint af363d6.",
+    "One existing protected-copy test is skipped; private inventory, installed-client and accepted recovery remain outstanding.",
+    "Synthetic validation only; no cutover or application deployment executed."
   ],
-  "linuxSourceCandidate": "ba1011d002416c536fe306a95c71dc8556391723"
+  "linuxSourceCandidate": "ba1011d002416c536fe306a95c71dc8556391723",
+  "windowsCombinedSourceCandidate": "af363d6fee96249ea4337febeded8ff32698d2cd"
 }

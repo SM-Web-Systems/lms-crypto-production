@@ -35,6 +35,12 @@
       "numPassedTests": 136,
       "numFailedTests": 0,
       "numPendingTests": 0
+    },
+    "lms-012-windows-full.json": {
+      "numTotalTests": 2409,
+      "numPassedTests": 2408,
+      "numFailedTests": 0,
+      "numPendingTests": 1
     }
   },
   "typecheck": "passed",
@@ -59,12 +65,13 @@
     "lms-012-browser-full.json": "7db19525bbb334687aea77fc8b22ad8cea6a71ceb4fc3dd3546d195d9d11f259",
     "lms-012-bootstrap.log": "c5577584425c7d85c037583a45599e3248bf9f7c2fc405ee2bbadd5c6aae8ac2",
     "lms-012-e2e-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "lms-012-windows-export.json": "c7a31d46daf55a1d8dd6f65f6035403ac18704bfb92a9b045847a8f8036990a3"
+    "lms-012-windows-export.json": "c7a31d46daf55a1d8dd6f65f6035403ac18704bfb92a9b045847a8f8036990a3",
+    "lms-012-windows-full.json": "ae7d375305c61e6198564df132c1454d634e88f1706284166b8653535ec61716"
   },
   "limitations": [
-    "Full Windows combined-candidate backend run pending.",
+    "One existing protected-copy test is skipped.",
     "No previous installed binary or physical-device acceptance.",
-    "Private inventory and final backend acceptance remain open."
+    "Private inventory decisions and recovery approval remain open."
   ],
   "combinedSourceCandidate": "af363d6fee96249ea4337febeded8ff32698d2cd",
   "compiledBootstrap": "passed",

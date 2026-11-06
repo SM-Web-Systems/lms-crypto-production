@@ -3,7 +3,7 @@
   "baselineSha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
   "audit": "../audits/2026-11-05-lms-completion/AUDIT.md",
   "plan": "LMS-COMPLETION-PLAN-2026-11-05.md",
-  "status": "planned",
+  "status": "in_progress",
   "ownerNote": "Accountable role proposals; named assignees must be recorded at kickoff.",
   "tasks": [
     {
@@ -105,7 +105,8 @@
       ],
       "evidence": [
         "LMS-006-ACCESSIBLE-MOBILE-WEB.md",
-        "evidence/lms-006-validation.json"
+        "evidence/lms-006-validation.json",
+        "LMS-022-CROSS-BROWSER-ACCEPTANCE.md"
       ]
     },
     {
@@ -248,7 +249,7 @@
       "title": "Execute sponsor staging and cross-browser/accessibility acceptance",
       "priority": "P2",
       "ownerRole": "QA",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-006",
         "LMS-020",
@@ -258,7 +259,10 @@
       "acceptance": [
         "Chrome/Firefox/Safari and phone-width workflows pass against pinned staging; representative cohort owner/revocation and receipt/CSV evidence signed off"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-022-CROSS-BROWSER-ACCEPTANCE.md",
+        "evidence/lms-022-validation.json"
+      ]
     },
     {
       "id": "LMS-023",
