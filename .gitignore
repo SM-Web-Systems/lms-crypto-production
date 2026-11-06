@@ -65,3 +65,7 @@ output/playwright/local-stack/
 
 # Raw audit exports, dependencies and runtime output; curated evidence is in docs/audits.
 output/playwright/lms-audit-2026-11-05/
+
+# Generated private RBAC reports and local browser fixtures
+/output/rbac-*.json
+/output/playwright/rbac-*-fixture.js
