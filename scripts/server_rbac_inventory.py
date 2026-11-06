@@ -22,6 +22,7 @@ SUMMARY_KEYS = {'generatedAt', 'snapshotSha256', 'deployedApplication', 'reportV
                 'productionInventoryVerified', 'purpose', 'schema', 'users', 'rbac', 'interpretation', 'gates'}
 CONTAINER_FORMAT = '{"image":{{json .Image}},"running":{{json .State.Running}},"project":{{json (index .Config.Labels "com.docker.compose.project")}}}'
 IMAGE_FORMAT = '{"id":{{json .Id}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"workdir":{{json .Config.WorkingDir}}}'
+OWNER_SCRIPT = "const f=require('node:fs'),s=f.statSync('/tmp/lms-snapshot.sqlite3'),r=f.statSync('/tmp/lms-private-report');console.log(JSON.stringify({sourceUid:s.uid,reportUid:r.uid,reportGid:r.gid}));"
 PREPARED_REVISION = 'f5a64e8ac92aca6b33ae54bda70617d475893e3e'
 TRUSTED_RELEASE_FILES = {
     'scripts/release_preflight.py': '4531d402a48f53fe1886304ab82c4e91dc2ff53379bde74b151a77c49e8f1737',
@@ -42,6 +43,29 @@ def require(condition, code):
 
 def command(arguments, timeout=45):
     result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout, check=False)
+    if result.returncode != 0 and arguments[:2] == ['docker', 'run'] and arguments[-2:] == ['-e', OWNER_SCRIPT]:
+        raise Refused('INVENTORY_OWNER_METADATA_PROBE_FAILED')
+    if result.returncode != 0 and arguments[:2] == ['docker', 'run'] \
+            and '--snapshot' in arguments and any(arg.endswith('/.lms-inventory.mjs') for arg in arguments):
+        # Classify this checksum-verified tool's fixed failures; never echo raw
+        # Docker/Node output, host paths or SQLite messages.
+        stderr = result.stderr[:1024 * 1024]
+        fixed = {
+            'RBAC inventory refused: Unsupported snapshot schema:': 'INVENTORY_SCHEMA_UNSUPPORTED',
+            'RBAC inventory refused: Snapshot integrity check failed.': 'INVENTORY_INTEGRITY_REFUSED',
+            'RBAC inventory refused: Snapshot is still in WAL mode.': 'INVENTORY_SNAPSHOT_NOT_FINALIZED',
+            'RBAC inventory refused: Snapshot changed during inspection;': 'INVENTORY_SNAPSHOT_CHANGED',
+            "Cannot find package 'better-sqlite3'": 'INVENTORY_RUNTIME_DEPENDENCY_UNAVAILABLE',
+            'RBAC inventory refused:': 'INVENTORY_TOOL_REFUSED',
+        }
+        for marker, code in fixed.items():
+            if marker in stderr:
+                raise Refused(code)
+        if result.returncode == 137:
+            raise Refused('INVENTORY_MEMORY_LIMIT')
+        if result.returncode == 125:
+            raise Refused('INVENTORY_CONTAINER_START_REFUSED')
+        raise Refused('INVENTORY_CONTAINER_COMMAND_FAILED')
     if result.returncode != 0 and len(arguments) >= 4 and arguments[0] == 'env' \
             and arguments[-3] == 'python3' and Path(arguments[-2]).name == 'release_recovery.py' \
             and arguments[-1] == 'prepare' and len(result.stderr) < 1024 * 1024:
@@ -80,6 +104,15 @@ def within(child, parent):
         return True
     except ValueError:
         return False
+
+
+def inventory_container_user(owners):
+    require(isinstance(owners, dict) and set(owners) == {'sourceUid', 'reportUid', 'reportGid'}
+            and all(type(value) is int and 0 <= value < 2 ** 32 for value in owners.values()), 'PRIVATE_FILE_OWNER_METADATA_REQUIRED')
+    require(owners['sourceUid'] == owners['reportUid'], 'PRIVATE_SNAPSHOT_OWNER_MISMATCH')
+    # CAP_DAC_OVERRIDE is deliberately absent. Match private 0600/0700 owners
+    # as observed inside the namespace, including rootless Docker mappings.
+    return str(owners['reportUid']) + ':' + str(owners['reportGid'])
 
 
 def prepare_snapshot(environment, observed, runner):
@@ -201,10 +234,24 @@ def execute(environment, runner=command):
     report = root / ('rbac-inventory-' + uuid.uuid4().hex)
     report.mkdir(mode=0o700)
     name = 'lms-rbac-inventory-' + uuid.uuid4().hex
+    owner_name = name + '-owner'
     mounted_tool = str(workdir / '.lms-inventory.mjs')
+    owner_arguments = ['docker', 'run', '--rm', '--name', owner_name, '--network', 'none', '--read-only',
+        '--memory', '64m', '--cpus', '0.5', '--pids-limit', '32', '--cap-drop', 'ALL',
+        '--security-opt', 'no-new-privileges', '--user', '0:0',
+        '--mount', f'type=bind,src={snapshot},dst=/tmp/lms-snapshot.sqlite3,readonly',
+        '--mount', f'type=bind,src={report},dst=/tmp/lms-private-report,readonly',
+        '--entrypoint', 'node', observed['api']['id'], '-e', OWNER_SCRIPT]
+    try:
+        container_user = inventory_container_user(json.loads(runner(owner_arguments, timeout=30)))
+    finally:
+        try:
+            runner(['docker', 'rm', '--force', owner_name])
+        except Refused:
+            pass
     arguments = ['docker', 'run', '--rm', '--name', name, '--network', 'none', '--read-only',
                  '--memory', '256m', '--cpus', '0.5', '--pids-limit', '64', '--cap-drop', 'ALL',
-                 '--security-opt', 'no-new-privileges', '--user', '0:0', '--workdir', str(workdir),
+                 '--security-opt', 'no-new-privileges', '--user', container_user, '--workdir', str(workdir),
                  '--mount', f'type=bind,src={snapshot},dst=/tmp/lms-snapshot.sqlite3,readonly',
                  '--mount', f'type=bind,src={tool},dst={mounted_tool},readonly',
                  '--mount', f'type=bind,src={report},dst=/tmp/lms-private-report',
