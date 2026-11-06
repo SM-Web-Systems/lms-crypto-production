@@ -1,0 +1,147 @@
+CI failure excerpts — candidate 124aecd
+Source: https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42244131462
+Only failure diagnostics retained here; fixture keys and runner credential metadata excluded.
+
+Windows fixture job 127981775255
+Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+2026-11-06T15:43:15.6542141Z
+2026-11-06T15:43:15.6544461Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > reviewed FK baseline > refuses added evidence between checks
+2026-11-06T15:43:15.6550188Z Error: Test timed out in 10000ms.
+2026-11-06T15:43:15.6550913Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:43:15.6551544Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:2360:43
+2026-11-06T15:43:15.6574824Z     2358|     } finally { cleanupTempDb(file); }
+2026-11-06T15:43:15.6575260Z     2359|   });
+2026-11-06T15:43:15.6575615Z     2360|   it.each(['added', 'removed', 'changed'])('refuses %s evidence betwee…
+2026-11-06T15:43:15.6576145Z        |                                           ^
+2026-11-06T15:43:15.6576566Z     2361|     const file = fixture();
+2026-11-06T15:43:15.6576882Z     2362|     try {
+2026-11-06T15:43:15.6577007Z
+2026-11-06T15:43:15.6577249Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+2026-11-06T15:43:15.6577431Z
+2026-11-06T15:43:15.6578523Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation > AUTH-14-WR-2: refuses before receipt write when a FK violation is in a WITHOUT ROWID table
+2026-11-06T15:43:15.6579155Z Error: Test timed out in 10000ms.
+2026-11-06T15:43:15.6579588Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:43:15.6580100Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:2639:3
+2026-11-06T15:43:15.6588580Z     2637|   // migration must refuse before writing receipts.
+2026-11-06T15:43:15.6588965Z     2638|
+2026-11-06T15:43:15.6589462Z     2639|   it('AUTH-14-WR-2: refuses before receipt write when a FK violation i…
+2026-11-06T15:43:15.6589979Z        |   ^
+2026-11-06T15:43:15.6590341Z     2640|     const file = worFixture();
+2026-11-06T15:43:15.6590662Z     2641|     try {
+2026-11-06T15:43:15.6590813Z
+2026-11-06T15:43:15.6591025Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+2026-11-06T15:43:15.6591164Z
+2026-11-06T15:43:15.6591736Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation > AUTH-14-WR-3: source schema and orphan data intact after WITHOUT ROWID refusal
+2026-11-06T15:43:15.6592645Z Error: Test timed out in 10000ms.
+2026-11-06T15:43:15.6593067Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:43:15.6593532Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:2656:3
+2026-11-06T15:43:15.6599118Z     2654|   // no migration receipt written.
+2026-11-06T15:43:15.6599503Z     2655|
+2026-11-06T15:43:15.6600006Z     2656|   it('AUTH-14-WR-3: source schema and orphan data intact after WITHOUT…
+2026-11-06T15:43:15.6600735Z        |   ^
+2026-11-06T15:43:15.6601085Z     2657|     const file = worFixture();
+2026-11-06T15:43:15.6601425Z     2658|     try {
+2026-11-06T15:43:15.6601596Z
+2026-11-06T15:43:15.6601809Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+2026-11-06T15:43:15.6602018Z
+2026-11-06T15:43:15.6602523Z
+2026-11-06T15:43:15.6606667Z
+
+Windows fixture job 127981775782
+Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+2026-11-06T15:49:01.2249643Z
+2026-11-06T15:49:01.2252283Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection > COMPAT-PARTIAL-SWAP-EXT-1: both reward_transactions and _new exist → refuses; original unchanged
+2026-11-06T15:49:01.2259198Z Error: Test timed out in 10000ms.
+2026-11-06T15:49:01.2259874Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:49:01.2261111Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:1547:3
+2026-11-06T15:49:01.2289635Z     1545|   });
+2026-11-06T15:49:01.2290350Z     1546|
+2026-11-06T15:49:01.2290882Z     1547|   it('COMPAT-PARTIAL-SWAP-EXT-1: both reward_transactions and _new exi…
+2026-11-06T15:49:01.2291386Z        |   ^
+2026-11-06T15:49:01.2291937Z     1548|     const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+2026-11-06T15:49:01.2292483Z     1549|     seedMinimalFixtures(conn);
+2026-11-06T15:49:01.2292921Z
+2026-11-06T15:49:01.2293772Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+2026-11-06T15:49:01.2303097Z
+2026-11-06T15:49:01.2304818Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused > COMPAT-F4-0: SQLite itself accepts NOT_A_REAL_KIND on permissive fixture (proves bypass)
+2026-11-06T15:49:01.2306418Z Error: Test timed out in 10000ms.
+2026-11-06T15:49:01.2307856Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:49:01.2309480Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:1624:3
+2026-11-06T15:49:01.2310550Z     1622|
+2026-11-06T15:49:01.2311796Z     1623| describe('COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected an…
+2026-11-06T15:49:01.2312881Z     1624|   it('COMPAT-F4-0: SQLite itself accepts NOT_A_REAL_KIND on permissive…
+2026-11-06T15:49:01.2313559Z        |   ^
+2026-11-06T15:49:01.2314487Z     1625|     const { dbPath, conn } = makeTempDb(PERMISSIVE_TARGET_SCHEMA);
+2026-11-06T15:49:01.2315134Z     1626|     try {
+2026-11-06T15:49:01.2315372Z
+2026-11-06T15:49:01.2315826Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+2026-11-06T15:49:01.2316163Z
+2026-11-06T15:49:01.2317730Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > COMPAT-F4-TOKENS: comment and string literal tokenization > COMPAT-F4-TOKENS-1: block comment containing realistic text does not affect classification
+2026-11-06T15:49:01.2319243Z Error: Test timed out in 10000ms.
+2026-11-06T15:49:01.2320293Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:49:01.2321458Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:1865:3
+2026-11-06T15:49:01.2332527Z     1863|
+2026-11-06T15:49:01.2333713Z     1864| describe('COMPAT-F4-TOKENS: comment and string literal tokenization', …
+2026-11-06T15:49:01.2334759Z     1865|   it('COMPAT-F4-TOKENS-1: block comment containing realistic text does…
+2026-11-06T15:49:01.2335663Z        |   ^
+2026-11-06T15:49:01.2365220Z     1866|     // Source DDL with a SQL comment containing target-like text — sho…
+2026-11-06T15:49:01.2368557Z     1867|     const WITH_COMMENT = mutateSqlFixture(OLD_SCHEMA,
+2026-11-06T15:49:01.2369020Z
+2026-11-06T15:49:01.2369397Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+2026-11-06T15:49:01.2417799Z
+2026-11-06T15:49:01.2447108Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > COMPAT-F4-TOKENS: comment and string literal tokenization > COMPAT-F4-TOKENS-2: string literal containing comment chars does not strip literal content
+2026-11-06T15:49:01.2452313Z Error: Test timed out in 10000ms.
+2026-11-06T15:49:01.2453686Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:49:01.2454924Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:1880:3
+2026-11-06T15:49:01.2455600Z     1878|   });
+2026-11-06T15:49:01.2456023Z     1879|
+2026-11-06T15:49:01.2456722Z     1880|   it('COMPAT-F4-TOKENS-2: string literal containing comment chars does…
+2026-11-06T15:49:01.2457413Z        |   ^
+2026-11-06T15:49:01.2458105Z     1881|     // source_account_type CHECK contains string literals with no spec…
+2026-11-06T15:49:01.2459004Z     1882|     // we test that a -- inside a string literal does not truncate the…
+2026-11-06T15:49:01.2459469Z
+2026-11-06T15:49:01.2569753Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+2026-11-06T15:49:01.2570058Z
+2026-11-06T15:49:01.2572115Z  FAIL  src/__tests__/reward-txn-check-migration.test.ts > COMPAT-F4-REPO: actual repository schema files classified correctly > COMPAT-F4-REPO-1: database from schema-v117-fixture.sql is classified source
+2026-11-06T15:49:01.2573681Z Error: Test timed out in 10000ms.
+2026-11-06T15:49:01.2574757Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+2026-11-06T15:49:01.2575911Z  ❯ src/__tests__/reward-txn-check-migration.test.ts:1948:3
+2026-11-06T15:49:01.2576538Z     1946|
+2026-11-06T15:49:01.2577165Z     1947| describe('COMPAT-F4-REPO: actual repository schema files classified co…
+2026-11-06T15:49:01.2578008Z     1948|   it('COMPAT-F4-REPO-1: database from schema-v117-fixture.sql is class…
+2026-11-06T15:49:01.2578571Z        |   ^
+2026-11-06T15:49:01.2579096Z     1949|     const { dbPath, conn } = makeTempDb(OLD_SCHEMA);
+2026-11-06T15:49:01.2579632Z     1950|     try {
+2026-11-06T15:49:01.2579838Z
+2026-11-06T15:49:01.2580155Z ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+2026-11-06T15:49:01.2580454Z
+2026-11-06T15:49:01.2580489Z
+2026-11-06T15:49:01.2581025Z
+
+Browser job 127984916519
+1) [chromium] › tests/sponsor-reporting.spec.ts:54:5 › LMS-021: report retries a failed request and date filtering reaches the empty state
+2026-11-06T15:42:10.4220165Z
+2026-11-06T15:42:10.4220393Z     Test timeout of 30000ms exceeded.
+2026-11-06T15:42:10.4220691Z
+2026-11-06T15:42:10.4221074Z     Error: locator.click: Target page, context or browser has been closed
+2026-11-06T15:42:10.4221681Z     Call log:
+2026-11-06T15:42:10.4222239Z       - waiting for getByRole('button', { name: 'Try again', exact: true })
+2026-11-06T15:42:10.4222712Z
+2026-11-06T15:42:10.4222721Z
+2026-11-06T15:42:10.4224018Z       57 |     ? route.fulfill({ status: 503, json: { success: false, error: { message: 'Synthetic reporting outage' } } }) : route.continue());
+2026-11-06T15:42:10.4224778Z       58 |   await page.goto('/sponsor/impact');
+2026-11-06T15:42:10.4225318Z     > 59 |   await page.getByRole('button', { name: 'Try again', exact: true }).click();
+2026-11-06T15:42:10.4225827Z          |                                                                      ^
+2026-11-06T15:42:10.4226400Z       60 |   await expect(page.getByRole('cell', { name: 'Full cohort', exact: true })).toBeVisible();
+2026-11-06T15:42:10.4226959Z       61 |   await page.getByLabel('From').fill('2026-04-01');
+2026-11-06T15:42:10.4227373Z       62 |   await page.getByLabel('To').fill('2026-04-30');
+2026-11-06T15:42:10.4228000Z         at /home/runner/work/lms-crypto-production/lms-crypto-production/e2e/tests/sponsor-reporting.spec.ts:59:70
+2026-11-06T15:42:10.4228437Z
+2026-11-06T15:42:10.4228870Z     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+2026-11-06T15:42:10.4229649Z     test-results/sponsor-reporting-LMS-021--dd5ff-ing-reaches-the-empty-state-chromium/test-failed-1.png
+2026-11-06T15:42:10.4230623Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-11-06T15:42:10.4230911Z
+2026-11-06T15:42:10.4231368Z     Error Context: test-results/sponsor-reporting-LMS-021--dd5ff-ing-reaches-the-empty-state-chromium/error-context.md
+2026-11-06T15:42:10.4231860Z
+2026-11-06T15:42:10.4232214Z
+All three attempts failed; 82 cases passed and one case failed.

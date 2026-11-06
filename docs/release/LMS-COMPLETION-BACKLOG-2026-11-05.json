@@ -35,7 +35,8 @@
       ],
       "evidence": [
         "LMS-002-FIXTURE-REPRODUCIBILITY.md",
-        "evidence/lms-002-validation.json"
+        "evidence/lms-002-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
       ]
     },
     {
@@ -123,12 +124,13 @@
       ],
       "evidence": [
         "LMS-007-COLD-TEST-STABILITY.md",
-        "evidence/lms-007-validation.json"
+        "evidence/lms-007-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
       ]
     },
     {
       "id": "LMS-010",
-      "title": "Complete private production account/schema/client inventory",
+      "title": "Complete private account/schema/installed-client inventory",
       "priority": "P1",
       "ownerRole": "Platform owner",
       "status": "in_progress",
@@ -140,9 +142,11 @@
       ],
       "evidence": [
         "LMS-010-SERVER-ACCESS.md",
-        "evidence/lms-010-access-validation.json"
+        "LMS-010-PRIVATE-REVIEW.md",
+        "evidence/lms-010-access-validation.json",
+        "evidence/lms-010-staging-inventory.json"
       ],
-      "reason": "Approved read-only probe succeeded; clean checkout and both running images are at f5a64e8. Main-only recovery workflow requires a newer checkout; safe snapshot/inventory preparation and private account/client decisions remain outstanding."
+      "reason": "Read-only staging inventory obtained: 19 accounts; 3 learner-profile gaps and 1 students FK violation require private owner decisions. Encrypted report delivery requested. Installed build/legacy endpoint evidence and recovery approval remain outstanding."
     },
     {
       "id": "LMS-011",
@@ -241,7 +245,8 @@
       ],
       "evidence": [
         "LMS-021-QUANTITATIVE-SPONSOR-REPORTING.md",
-        "evidence/lms-021-validation.json"
+        "evidence/lms-021-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
       ]
     },
     {
@@ -261,7 +266,8 @@
       ],
       "evidence": [
         "LMS-022-CROSS-BROWSER-ACCEPTANCE.md",
-        "evidence/lms-022-validation.json"
+        "evidence/lms-022-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
       ]
     },
     {

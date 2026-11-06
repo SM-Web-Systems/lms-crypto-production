@@ -52,11 +52,14 @@ test('LMS-021: currency totals, date edges and receipt permissions remain distin
 });
 
 test('LMS-021: report retries a failed request and date filtering reaches the empty state', async ({ reportingSponsorPage: page }) => {
-  let requests = 0;
-  await page.route('**/api/v1/sponsor/impact-report', route => ++requests === 1
+  let outage = true;
+  await page.route('**/api/v1/sponsor/impact-report', route => outage
     ? route.fulfill({ status: 503, json: { success: false, error: { message: 'Synthetic reporting outage' } } }) : route.continue());
   await page.goto('/sponsor/impact');
-  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  const retry = page.getByRole('button', { name: 'Try again', exact: true });
+  await expect(retry).toBeVisible();
+  outage = false;
+  await retry.click();
   await expect(page.getByRole('cell', { name: 'Full cohort', exact: true })).toBeVisible();
   await page.getByLabel('From').fill('2026-04-01');
   await page.getByLabel('To').fill('2026-04-30');

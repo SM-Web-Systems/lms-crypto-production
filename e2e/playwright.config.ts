@@ -69,6 +69,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
+        NODE_ENV: 'production',
         VITE_API_BASE_URL: `${apiURL}/api/v1`,
       },
     },

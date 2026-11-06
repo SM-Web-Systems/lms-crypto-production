@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-06",
+  "failedHostedCandidate": "124aecd3c6cb847e2dc04f905951f80678cd6f67",
+  "failedHostedRun": 42244131462,
+  "originalFailures": {
+    "windowsLf": {
+      "passed": 166,
+      "timeouts": 3
+    },
+    "windowsCrlf": {
+      "passed": 164,
+      "timeouts": 5
+    },
+    "chromium": {
+      "passed": 82,
+      "failed": 1,
+      "attempts": 3
+    }
+  },
+  "correctedChecks": {
+    "windowsLfPassed": 169,
+    "windowsCrlfPassed": 169,
+    "developmentReportingPassed": 3,
+    "productionChromiumPassed": 83,
+    "firefoxWebkitReportingPassed": 6,
+    "failed": 0,
+    "flaky": 0,
+    "browserRetries": 0,
+    "standardDeadlinesUnchanged": true
+  },
+  "originalReceiptHashes": {
+    "lms-ci-followup-windows-lf.json": "40ed0a25598d21a255ce6f82fba4a825443cdf41f8de1c0d5669e979816976ad",
+    "lms-ci-followup-windows-crlf.json": "a8dc3869281e3194b15297c4a403e863e8a2764ce1e008cc24a7463539d6f687",
+    "lms-ci-followup-reporting-dev.json": "1e610ee58cf0960478e9402c455b13d74f7318b0ed27063c7ec7e0bc7af4e7a5",
+    "lms-ci-followup-chromium.json": "f3879a3fcfc1e9ec0c89812fee32654550287f0365b81f11ef06433039898084",
+    "lms-ci-followup-reporting-cross.json": "994a0ae90cfe57c9c14facfd2f9d0a830d95766c2316be66cf864696e6ab6b22"
+  },
+  "hostedCorrectionRerun": "pending"
+}

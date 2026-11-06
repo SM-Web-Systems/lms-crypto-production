@@ -88,7 +88,10 @@ function makeTempDb(schema: string): { dbPath: string; conn: SqliteDatabase } {
   const dbPath = path.join(dir, 'test.db');
   const conn = new Database(dbPath);
   conn.pragma('foreign_keys = ON');
-  conn.exec(fixtureSqlForDatabase(schema));
+  // Commit historical fixture DDL once instead of fsyncing every table/index.
+  // The real migration still runs later against the committed file, with its
+  // original durability, foreign-key checks and standard test deadline.
+  conn.transaction(() => conn.exec(fixtureSqlForDatabase(schema)))();
   return { dbPath, conn };
 }
 

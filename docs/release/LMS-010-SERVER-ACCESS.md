@@ -1,6 +1,6 @@
 # LMS-010 — private inventory and staging access
 
-Status: **in progress; private inventory not yet obtained**. Updated 6 November 2026.
+Status: **in progress; private staging inventory obtained, decisions/client evidence pending**. Updated 6 November 2026.
 
 The owner confirmed that `https://lms.smwebsystems.com` and `https://ammawallet.com` are staging. GitHub's existing environment is named `production`; its LMS URL is the confirmed staging URL and its branch policy permits only `main`. The configured SSH secret names are `DEPLOY_HOST`, `DEPLOY_USER` and `DEPLOY_SSH_KEY`. Their values were neither retrieved nor printed.
 
@@ -17,3 +17,11 @@ The optional inventory mode requires a fresh, existing, private, hash-verified r
 The follow-up [draft capture PR #155](https://github.com/SM-Web-Systems/lms-crypto-production/pull/155), head `8c5d697e2c19b5e26a1850d4d3fef24fbe2daf9d`, is prepared and all four GitHub CI jobs pass. Ten synthetic controller checks, workflow preparation/Bash validation and comparison of all four pinned release hashes with raw Git objects pass. It requires the exact observed checkout and both image revisions, then invokes only the existing recovery helper's execution-disabled prepare action and inventories its verified closed snapshot. It retains the existing backup/free-space checks and does not update checkout, change SSH, stop/restart services or modify live database contents. Private backup/evidence files and retained image tags are explicit side effects. Owner approval to merge and run capture is pending; metadata-probe approval has not been treated as capture approval.
 
 Next: obtain a consistent snapshot through that reviewed path, inventory it offline, then have the actual zero/multi/custom/revoked-grant and learner-profile exceptions reviewed privately. Record installed supported web/mobile builds and legacy endpoint usage separately; Docker image metadata cannot establish those facts. LMS-010 remains open until all those acceptance inputs exist. Optional snapshot inventory has not been dispatched.
+
+## Completed retained-copy inventory
+
+The owner approved capture PR #155. Subsequent diagnostic/retained-copy/owner fixes (#157–#159) preserve all SSH/service and recovery-policy protections. The earlier usage-limit review failure on #158 cleared when the owner resumed work; no action bypassed that review. A fresh capture in run 42243938402 retained a private copy before refusing independent recovery eligibility with `PREPARATION_COMPATIBILITY_POLICY_MISMATCH`.
+
+[Run 42247323277](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42247323277) successfully inventoried that closed copy: **19 accounts, 22 assignments, two multi-role accounts, three missing learner profiles and one students FK violation**. Two explicit administrators were observed; no catalog/dangling-assignment/orphan-course-code issues were reported. Names, emails and credentials were excluded from the private exception report. Recovery eligibility stays UNVERIFIED and migration readiness false.
+
+See the [public aggregate receipt](evidence/lms-010-staging-inventory.json) and [private review instructions](LMS-010-PRIVATE-REVIEW.md). The owner has requested retrieval of the private report for review; encrypted delivery to a private local file is being prepared so account identifiers do not enter Actions logs or the repository. No account/profile/role repair, migration, application deployment or SSH configuration change has been performed.

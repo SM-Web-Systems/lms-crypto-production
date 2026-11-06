@@ -1,0 +1,9 @@
+# Hosted CI follow-up — 6 November 2026
+
+[Run 42244131462](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42244131462), candidate `124aecd3c6cb847e2dc04f905951f80678cd6f67`, passed backend, frontend, mobile, monitoring and both Linux fixture jobs. Windows LF had three timeouts (166 passed); Windows CRLF had five timeouts (164 passed). The browser job passed 82 cases and failed the reporting outage/retry case on all three attempts. [Failure excerpts](evidence/lms-ci-124aecd-failure-excerpts.txt) preserve the diagnostics without runner credential metadata or fixture keys.
+
+The older large migration suite created its historical file-backed fixture with one commit/fsync per schema statement. Batch only that fixture construction into one transaction, then run the actual migration on the committed file. Durability, FK checks, migration validation and the ten-second test deadline stay unchanged. The affected 135-case suite now takes about one second locally; all **169 fixture/migration cases pass with LF and CRLF**.
+
+The hosted browser job inherited `NODE_ENV=test` when building the frontend. The frontend build now explicitly uses `NODE_ENV=production`, as does local preview configuration, while the API keeps its isolated test environment. The outage fixture also keeps reporting unavailable until the test sees the retry control, rather than failing only the first request; this remains meaningful when development effects issue duplicate requests. No application behavior or deadline is changed by that fixture correction.
+
+Validation: three reporting cases pass with development effects enabled; the corrected production frontend passes the complete **83-case Chromium suite** and all **six Firefox/WebKit reporting cases**, retries disabled. Hosted rerun remains required for the published correction. See [validation receipt](evidence/lms-ci-followup-validation.json).
