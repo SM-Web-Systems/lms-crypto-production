@@ -42,6 +42,19 @@ def require(condition, code):
 
 def command(arguments, timeout=45):
     result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout, check=False)
+    if result.returncode != 0 and len(arguments) >= 4 and arguments[0] == 'env' \
+            and arguments[-3] == 'python3' and Path(arguments[-2]).name == 'release_recovery.py' \
+            and arguments[-1] == 'prepare' and len(result.stderr) < 1024 * 1024:
+        # This reviewed helper emits fixed gate codes. Never forward its raw
+        # stderr, command arguments, paths or a traceback to workflow logs.
+        for line in reversed(result.stderr.splitlines()):
+            try:
+                refusal = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(refusal, dict) and refusal.get('status') == 'REFUSED' \
+                    and re.fullmatch(r'[A-Z][A-Z0-9_]{0,79}', str(refusal.get('code', ''))):
+                raise Refused('PREPARATION_' + refusal['code'])
     require(result.returncode == 0, 'COMMAND_REFUSED')
     require(len(result.stdout) < 1024 * 1024, 'OUTPUT_TOO_LARGE')
     return result.stdout

@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('inventory', Path(__file__).resolve().parents[1] / 'server_rbac_inventory.py')
 inventory = importlib.util.module_from_spec(spec)
@@ -17,6 +18,27 @@ SHA = 'a' * 40
 
 
 class InventoryTests(unittest.TestCase):
+    def test_preparation_reports_only_a_fixed_safe_refusal_code(self):
+        arguments = ['env', 'DEPLOY_EXECUTE=0', 'python3', '/reviewed/scripts/release_recovery.py', 'prepare']
+        result = SimpleNamespace(returncode=2, stdout='', stderr='private diagnostic\n' + json.dumps(
+            {'status': 'REFUSED', 'code': 'BACKUP_DISK_SPACE_INSUFFICIENT'}))
+        with patch.object(inventory.subprocess, 'run', return_value=result):
+            with self.assertRaisesRegex(inventory.Refused, '^PREPARATION_BACKUP_DISK_SPACE_INSUFFICIENT$'):
+                inventory.command(arguments)
+
+    def test_preparation_never_forwards_private_or_untrusted_command_errors(self):
+        arguments = ['env', 'DEPLOY_EXECUTE=0', 'python3', '/reviewed/scripts/release_recovery.py', 'prepare']
+        for stderr, command in [
+            ('private traceback /srv/PRIVATE', arguments),
+            (json.dumps({'status': 'REFUSED', 'code': '/srv/PRIVATE'}), arguments),
+            (json.dumps({'status': 'REFUSED', 'code': 'PRIVATE_TOKEN'}), ['docker', 'inspect', 'private']),
+        ]:
+            with self.subTest(stderr=stderr):
+                result = SimpleNamespace(returncode=2, stdout='', stderr=stderr)
+                with patch.object(inventory.subprocess, 'run', return_value=result):
+                    with self.assertRaisesRegex(inventory.Refused, '^COMMAND_REFUSED$'):
+                        inventory.command(command)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='lms-readonly-controller-')
         self.root = Path(self.temp.name).resolve()
