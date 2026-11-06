@@ -1,0 +1,48 @@
+{
+  "task": "LMS-012",
+  "phase": "client reconciliation",
+  "date": "2026-11-06",
+  "status": "in_progress",
+  "sourcePr": 100,
+  "sourcePrHead": "9bb88b056e2d968c5298c876ab32e166c8032aa6",
+  "checks": {
+    "lms-012-web.json": {
+      "numTotalTests": 711,
+      "numPassedTests": 710,
+      "numFailedTests": 1,
+      "numPendingTests": 0
+    },
+    "lms-012-web-final.json": {
+      "numTotalTests": 711,
+      "numPassedTests": 711,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "lms-012-mobile.json": {
+      "numTotalTests": 163,
+      "numPassedTests": 163,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    }
+  },
+  "typecheck": "passed",
+  "webBuild": "passed",
+  "hermesExports": [
+    "android",
+    "ios"
+  ],
+  "originalReceiptHashes": {
+    "lms-012-web.json": "8a9fc466fc5ff0d14778a11c73047118b3e46135d07d48e0acce9dc05831c4b3",
+    "lms-012-web-final.json": "747dc42cd5d865493b63bebb1a585a29512fa881509974cadbd09bc245432295",
+    "lms-012-web-build.log": "b8700418269de1ba307e0170be159f454e6d0e0fc1125d418aea903a08ffccf0",
+    "lms-012-mobile.json": "888ee2900af4603f35040bcde0dc31b585becf59a4a4e925d5f4054abda9255d",
+    "lms-012-mobile-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lms-012-android-export.log": "2a8d9089e7eea8f8c693283b3413ac3eaaba67f2e7cd41b31b54a5bfdb831bbd",
+    "lms-012-ios-export.log": "674b8b0705ddd0637d8c22ffccd64599cdcbd4bcfc2dd10ca7b81b2a6a07bced"
+  },
+  "limitations": [
+    "Additive API contract changes and combined browser acceptance pending.",
+    "No previous installed binary or physical-device acceptance.",
+    "Private inventory and final backend acceptance remain open."
+  ]
+}

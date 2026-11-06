@@ -1,3 +1,4 @@
+import { rolesText } from '../utils/rolePresentation';
 /**
  * GlobalSearchBar — Ctrl+K / Cmd+K command palette for unified search.
  * Renders in the Layout navbar. Results grouped by type.
@@ -181,7 +182,7 @@ const GlobalSearchBar: React.FC = () => {
                       <Users className="h-4 w-4 text-green-500 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-neutral-800 truncate">{u.name}</p>
-                        <p className="text-xs text-neutral-500 truncate">{u.email} &middot; {u.role}</p>
+                        <p className="text-xs text-neutral-500 truncate">{u.email} &middot; {rolesText(u)}</p>
                       </div>
                     </button>
                   ))}

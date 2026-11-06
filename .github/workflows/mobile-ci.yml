@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'LMS-Mobile/**'
+      - 'LMS-Frontend/src/utils/rolePresentation.ts'
+      - 'LMS-Frontend/src/types/**'
       - 'scripts/local-services/**'
       - '.github/workflows/mobile-ci.yml'
       - 'docs/release/mobile-device-acceptance-followup.md'
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - 'LMS-Mobile/**'
+      - 'LMS-Frontend/src/utils/rolePresentation.ts'
+      - 'LMS-Frontend/src/types/**'
       - 'scripts/local-services/**'
       - '.github/workflows/mobile-ci.yml'
       - 'docs/release/mobile-device-acceptance-followup.md'
@@ -52,3 +56,12 @@ jobs:
         run: node --test ../scripts/local-services/*.test.mjs
       - name: Offline acceptance regressions and TypeScript
         run: npm run acceptance:local
+      - name: Bundle Android and iOS against isolated service targets
+        run: |
+          npx expo export --platform android --output-dir dist/ci-android --max-workers 2
+          npx expo export --platform ios --output-dir dist/ci-ios --max-workers 2
+        env:
+          EXPO_NO_DOTENV: '1'
+          EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:4998/api/v1
+          EXPO_PUBLIC_WEB_BASE_URL: http://127.0.0.1:4998
+          EXPO_PUBLIC_AMMA_WALLET_URL: http://127.0.0.1:4999

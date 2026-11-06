@@ -174,7 +174,10 @@
       "acceptance": [
         "Use effective context and scoped role summaries; multi-role UI and learner IDs correct; no client inference from legacy labels; previous supported binary compatibility exercised"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-012-CLIENT-RECONCILIATION.md",
+        "evidence/lms-012-client-validation.json"
+      ]
     },
     {
       "id": "LMS-013",

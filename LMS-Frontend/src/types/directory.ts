@@ -1,11 +1,15 @@
-import type { UserRole } from './api';
-export type { UserRole };
+import type { RolePresentation } from '../utils/rolePresentation';
 
-export interface DirectoryUser {
+export interface DirectoryUser extends RolePresentation {
   id: string;
   name: string;
   email?: string;
-  role: UserRole;
   /** Course codes this user can access (students); set by admin when adding to courses or editing. */
   courseCodes?: string[];
+}
+
+/** Scoped course enrollment with learner-profile membership, not an access grant. */
+export interface CourseMember extends DirectoryUser {
+  email: string;
+  studentId?: string | null;
 }
