@@ -138,9 +138,10 @@
         "Finalized consistent snapshot inventoried offline; real zero/multi/custom/revoked grant and learner-profile exceptions reviewed; schema/endpoint usage and installed builds recorded privately"
       ],
       "evidence": [
-        "LMS-010-SERVER-ACCESS.md"
+        "LMS-010-SERVER-ACCESS.md",
+        "evidence/lms-010-access-validation.json"
       ],
-      "reason": "Owner confirmed snapshot is on staging server; GitHub SSH authenticated, but execute=false preparation exited before producing a result. Diagnostic PR #154 awaits merge/probe approval; private account/client inventory is not yet obtained."
+      "reason": "Approved read-only probe succeeded; clean checkout and both running images are at f5a64e8. Main-only recovery workflow requires a newer checkout; safe snapshot/inventory preparation and private account/client decisions remain outstanding."
     },
     {
       "id": "LMS-011",
@@ -165,7 +166,7 @@
       "title": "Reconcile and implement RBAC web/mobile contracts (#100)",
       "priority": "P1",
       "ownerRole": "Web + Mobile",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-011",
         "LMS-004"
