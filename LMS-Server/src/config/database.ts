@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { openApplicationDatabase, loadCanonicalSchema, validateDatabase } from './databaseBootstrap.js';
+import { rewardFundingSchema } from './rewardFundingSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
@@ -1707,6 +1708,7 @@ function ensureRewardTables(): void {
   `);
 }
 startupMigrations.push(ensureRewardTables);
+startupMigrations.push(() => db.exec(rewardFundingSchema));
 
 // ──── Scheduler Tables ────
 function ensureSchedulerTables(): void {

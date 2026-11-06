@@ -52,7 +52,7 @@ function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<ty
   }
 }
 const baseline = (expected.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
-  .map(({ name }) => ({ name, keys: keys(expected, name), columns: (expected.pragma(`table_info("${name}")`) as { name: string }[]).map(c => c.name) }));
+  .map(({ name }) => ({ name, ddl: (expected.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name) as {sql:string}).sql, keys: keys(expected, name), columns: (expected.pragma(`table_info("${name}")`) as { name: string }[]).map(c => c.name) }));
 const baselineTriggers = expected.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'").all() as {name:string;sql:string}[];
 expected.close();
 
@@ -75,6 +75,16 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
   if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
 
   for (const table of baseline) {
+    // LMS-030 adds these empty tables without synthesizing historical evidence.
+    // Only a wholly absent new table is allowed before the additive migration;
+    // an existing partial/altered table must still satisfy its full contract.
+    if (!afterMigrations && ['reward_funding_intents', 'reward_funding_evidence'].includes(table.name)
+      && !db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table.name)) continue;
+    if (['reward_funding_intents', 'reward_funding_evidence'].includes(table.name)) {
+      const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table.name) as {sql:string} | undefined;
+      const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+      if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed funding schema (${table.name})`);
+    }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
     validateKeys(db, table.name, table.keys, afterMigrations);
     for (const column of table.columns) {

@@ -30,7 +30,8 @@
     "test:rbac-inventory": "node --test scripts/rbac-inventory.test.mjs scripts/rbac-cutover.test.mjs",
     "test:dependencies": "node --test scripts/dependency-acceptance.test.mjs",
     "rbac:cutover": "node scripts/rbac-cutover.mjs",
-    "test:rbac-runtime": "node scripts/test-rbac-runtime.mjs"
+    "test:rbac-runtime": "node scripts/test-rbac-runtime.mjs",
+    "test:reward-funding-runtime": "node scripts/test-reward-funding-runtime.mjs"
   },
   "keywords": [
     "student",

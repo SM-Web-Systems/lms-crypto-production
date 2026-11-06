@@ -35,5 +35,11 @@
     "lms-ci-followup-chromium.json": "f3879a3fcfc1e9ec0c89812fee32654550287f0365b81f11ef06433039898084",
     "lms-ci-followup-reporting-cross.json": "994a0ae90cfe57c9c14facfd2f9d0a830d95766c2316be66cf864696e6ab6b22"
   },
-  "hostedCorrectionRerun": "pending"
+  "hostedCorrectionRerun": {
+    "status": "passed",
+    "candidate": "a7a96dce427211c79b9997ff086ebf47edc4558c",
+    "ciRun": 42251550532,
+    "mobileRun": 42251550431,
+    "receipt": "lms-ci-a7a96dc-hosted.json"
+  }
 }

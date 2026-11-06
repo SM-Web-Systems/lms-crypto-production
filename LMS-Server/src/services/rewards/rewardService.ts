@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { prepareVerifiedFundingIntent, consumeFundingIntent, assertFundingIntentReplay, validateFundingRequest } from './rewardFundingIntentService.js';
 import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
 import { validateScope, resolveAudienceMembers, createAudienceSnapshot } from './rewardScopeService.js';
@@ -46,6 +47,7 @@ export interface CreateRewardParams {
 export interface FundingSource {
   type: FundingSourceType;
   reference?: string;
+  intentId?: string;
 }
 
 export interface RewardFilters {
@@ -135,21 +137,7 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
   return getReward(id)!;
 }
 
-/**
- * Fund a reward: transitions draft → pending_funding → funded.
- * Creates 2 ledger entries (fund + reserve) atomically.
- *
- * W01: Verifies funding evidence before the state transition.
- * For external sources (stellar, paystack), use fundRewardAsync() which
- * performs async provider verification. This synchronous entry point
- * performs all checks that can be done synchronously.
- */
-export function fundReward(
-  rewardId: string,
-  actorId: string,
-  source: FundingSource,
-  idempotencyKey: string
-): RewardRow {
+function fundingReplay(rewardId: string, actorId: string, source: FundingSource, idempotencyKey: string): RewardRow | null {
   const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
   if (idem.exists) {
     // W02-R1C (C2): Resolve and authorize the actual requested resource BEFORE revealing
@@ -172,8 +160,31 @@ export function fundReward(
     ) {
       throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
     }
+    assertFundingIntentReplay(source.intentId, idem.transactionId!, actorId);
     return cached;
   }
+
+  return null;
+}
+
+/**
+ * Fund a reward: transitions draft → pending_funding → funded.
+ * Creates 2 ledger entries (fund + reserve) atomically.
+ *
+ * W01: Verifies funding evidence before the state transition.
+ * For external sources (stellar, paystack), use fundRewardAsync() which
+ * performs async provider verification. This synchronous entry point
+ * performs all checks that can be done synchronously.
+ */
+export function fundReward(
+  rewardId: string,
+  actorId: string,
+  source: FundingSource,
+  idempotencyKey: string
+): RewardRow {
+  validateFundingRequest(source, idempotencyKey);
+  const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
+  if (replay) return replay;
 
   // W01-R1: Look up reward creator for internal source authorization context.
   const rewardForAuth = getRewardRow(rewardId);
@@ -187,6 +198,8 @@ export function fundReward(
   verifyFundingSourceSync(source, rewardId, authContext);
 
   const txn = db.transaction(() => {
+    const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
+    if (replay) return replay;
     const reward = getRewardForUpdate(rewardId);
 
     // W01-R1 (F2 fix): Recheck internal-source authorization inside the
@@ -206,6 +219,8 @@ export function fundReward(
     if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
+
+    const fundingIntent = prepareVerifiedFundingIntent(reward, actorId, source, idempotencyKey);
 
     assertTransition(reward.status as RewardState, 'pending_funding');
     updateRewardStatus(rewardId, 'pending_funding');
@@ -279,13 +294,15 @@ export function fundReward(
       idempotencyKey: `${idempotencyKey}_reserve`,
     });
 
+    consumeFundingIntent(fundingIntent, `${idempotencyKey}_fund`);
+
     assertTransition('pending_funding', 'funded');
     updateRewardStatus(rewardId, 'funded');
 
     return getRewardRow(rewardId)!;
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 /**
@@ -299,27 +316,9 @@ export async function fundRewardAsync(
   source: FundingSource,
   idempotencyKey: string
 ): Promise<RewardRow> {
-  const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
-  if (idem.exists) {
-    // W02-R1C (C2): Resolve and authorize the actual requested resource first.
-    const cached = getReward(rewardId);
-    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
-    if (!hasPermission(actorId, 'reward.manage') &&
-        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
-      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
-    }
-    // W02-R1: Resource/action binding. W02-R1C (C1): Source type and reference binding.
-    const normalizedRef = normalizeReference(source.reference);
-    if (
-      idem.rewardId !== rewardId ||
-      idem.transactionType !== 'fund' ||
-      idem.fundingSourceType !== source.type ||
-      idem.fundingReference !== normalizedRef
-    ) {
-      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
-    }
-    return cached;
-  }
+  validateFundingRequest(source, idempotencyKey);
+  const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
+  if (replay) return replay;
 
   // W01-R1: Look up reward creator for internal source authorization context.
   const rewardForAuth = getRewardRow(rewardId);
@@ -370,29 +369,13 @@ function fundRewardVerified(
   source: FundingSource,
   idempotencyKey: string
 ): RewardRow {
-  const idem = checkTransactionIdempotency(`${idempotencyKey}_fund`);
-  if (idem.exists) {
-    // W02-R1C (C2, defense-in-depth): Resolve and authorize first.
-    const cached = getReward(rewardId);
-    if (!cached) throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
-    if (!hasPermission(actorId, 'reward.manage') &&
-        !validateScope(actorId, cached.scope_type as ScopeType, cached.scope_id)) {
-      throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
-    }
-    // W02-R1: Resource/action binding. W02-R1C (C1): Source type and reference binding.
-    const normalizedRef = normalizeReference(source.reference);
-    if (
-      idem.rewardId !== rewardId ||
-      idem.transactionType !== 'fund' ||
-      idem.fundingSourceType !== source.type ||
-      idem.fundingReference !== normalizedRef
-    ) {
-      throw new RewardError('IDEMPOTENCY_CONFLICT', 'Idempotency key already used for a different operation or resource', 409);
-    }
-    return cached;
-  }
+  validateFundingRequest(source, idempotencyKey);
+  const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
+  if (replay) return replay;
 
   const txn = db.transaction(() => {
+    const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
+    if (replay) return replay;
     const reward = getRewardForUpdate(rewardId);
 
     // W01-R1 (F2 fix): Recheck internal-source authorization inside the
@@ -410,6 +393,8 @@ function fundRewardVerified(
     if (!hasManage && !validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
+
+    const fundingIntent = prepareVerifiedFundingIntent(reward, actorId, source, idempotencyKey);
 
     assertTransition(reward.status as RewardState, 'pending_funding');
     updateRewardStatus(rewardId, 'pending_funding');
@@ -479,13 +464,15 @@ function fundRewardVerified(
       idempotencyKey: `${idempotencyKey}_reserve`,
     });
 
+    consumeFundingIntent(fundingIntent, `${idempotencyKey}_fund`);
+
     assertTransition('pending_funding', 'funded');
     updateRewardStatus(rewardId, 'funded');
 
     return getRewardRow(rewardId)!;
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 /**

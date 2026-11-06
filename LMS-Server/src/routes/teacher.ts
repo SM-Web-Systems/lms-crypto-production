@@ -1,3 +1,4 @@
+import { registerRewardFundingRoutes } from './rewardFunding.js';
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
@@ -22,6 +23,7 @@ import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
+registerRewardFundingRoutes(router, '/teacher');
 
 // GET /teacher/dashboard — class stats overview
 router.get('/teacher/dashboard', authenticate, requirePermission('student.view_assigned'), (req, res: Response) => {
@@ -257,7 +259,7 @@ router.post('/teacher/rewards', authenticate, requirePermission('reward.create')
 router.post('/teacher/rewards/:id/fund', authenticate, requirePermission('reward.fund'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const reward = await fundRewardAsync(req.params.id, req.user!.userId,
-      { type: req.body.sourceType, reference: req.body.reference },
+      { type: req.body.sourceType, reference: req.body.reference, intentId: req.body.intentId },
       req.body.idempotencyKey);
     res.json({ success: true, data: reward });
   } catch (err) {

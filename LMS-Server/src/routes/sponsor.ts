@@ -1,3 +1,4 @@
+import { registerRewardFundingRoutes } from './rewardFunding.js';
 /**
  * sponsor.ts — Phase B: Sponsor-scoped endpoints.
  *
@@ -31,6 +32,7 @@ import {
 import { RewardError } from '../services/rewards/rewardErrors.js';
 
 const router = Router();
+registerRewardFundingRoutes(router, '/sponsor');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function parseSponsorDateRange(req: AuthRequest, res: Response): {from:string|null;to:string|null} | 'error' {
@@ -294,7 +296,7 @@ router.post(
       const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
-        { type: req.body.sourceType, reference: req.body.reference },
+        { type: req.body.sourceType, reference: req.body.reference, intentId: req.body.intentId },
         req.body.idempotencyKey,
       );
       res.json({ success: true, data: reward });

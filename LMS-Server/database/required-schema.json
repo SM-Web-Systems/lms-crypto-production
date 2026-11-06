@@ -748,6 +748,33 @@
       "source_snapshot_sha256",
       "source_grants_sha256",
       "review_reference"
+    ],
+    "reward_funding_intents": [
+      "id",
+      "reward_id",
+      "owner_user_id",
+      "actor_user_id",
+      "source_type",
+      "network",
+      "asset",
+      "currency_code",
+      "amount_stroops",
+      "reference",
+      "idempotency_key",
+      "status",
+      "expires_at",
+      "consumed_at",
+      "created_at"
+    ],
+    "reward_funding_evidence": [
+      "id",
+      "intent_id",
+      "ledger_transaction_id",
+      "source_type",
+      "network",
+      "reference",
+      "verification_method",
+      "verified_at"
     ]
   },
   "indexes": [
@@ -2623,6 +2650,80 @@
       ],
       "unique": [],
       "foreign": []
+    },
+    "reward_funding_intents": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "actor_user_id",
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "actor_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "owner_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_funding_evidence": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "source_type",
+          "network",
+          "reference"
+        ],
+        [
+          "ledger_transaction_id"
+        ],
+        [
+          "intent_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "ledger_transaction_id",
+          "reward_transactions",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
     }
   }
 }

@@ -146,7 +146,7 @@
         "evidence/lms-010-access-validation.json",
         "evidence/lms-010-staging-inventory.json"
       ],
-      "reason": "Read-only staging inventory obtained: 19 accounts; 3 learner-profile gaps and 1 students FK violation require private owner decisions. Encrypted report delivery requested. Installed build/legacy endpoint evidence and recovery approval remain outstanding."
+      "reason": "Read-only staging inventory obtained: 19 accounts; 3 learner-profile gaps and 1 students FK violation require private owner decisions. The requested read-only report command was supplied. Installed build/legacy endpoint evidence and recovery approval remain outstanding."
     },
     {
       "id": "LMS-011",
@@ -290,14 +290,18 @@
       "title": "Implement durable reward funding intents and availability contract",
       "priority": "P2",
       "ownerRole": "API",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-011"
       ],
       "acceptance": [
         "Intent binds owner, reward, source, network/asset/currency and integer amount; verified evidence consumed uniquely in same ledger transaction; UI advertises only supported funding paths; restart/replay/concurrency cannot credit twice"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-030-DURABLE-FUNDING.md",
+        "evidence/lms-030-validation.json"
+      ],
+      "reason": "Durable intents, atomic grant evidence, current-source availability and confirmation UI implemented locally. Full final validation and staging acceptance remain; closure still depends on LMS-011. External Stellar/backed-credit adapters and settlement remain LMS-031/032/033."
     },
     {
       "id": "LMS-031",

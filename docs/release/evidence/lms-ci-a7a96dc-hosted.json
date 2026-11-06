@@ -1,0 +1,70 @@
+{
+  "candidate": "a7a96dce427211c79b9997ff086ebf47edc4558c",
+  "run": 42251550532,
+  "mobileRun": 42251550431,
+  "jobs": [
+    {
+      "name": "Offline Monitoring and Restore",
+      "id": 128007659763,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (windows-latest, lf)",
+      "id": 128007659966,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (ubuntu-latest, crlf)",
+      "id": 128007659970,
+      "conclusion": "success"
+    },
+    {
+      "name": "Frontend Tests & Build",
+      "id": 128007660137,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (windows-latest, crlf)",
+      "id": 128007660220,
+      "conclusion": "success"
+    },
+    {
+      "name": "Backend Tests",
+      "id": 128007660427,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (ubuntu-latest, lf)",
+      "id": 128007660470,
+      "conclusion": "success"
+    },
+    {
+      "name": "E2E Tests",
+      "id": 128009531934,
+      "conclusion": "success"
+    },
+    {
+      "name": "mobile-local",
+      "id": 128007660320,
+      "conclusion": "success"
+    }
+  ],
+  "backend": {
+    "passed": 2408,
+    "skipped": 1,
+    "failed": 0
+  },
+  "windowsLf": 169,
+  "windowsCrlf": 169,
+  "chromium": {
+    "passed": 83,
+    "retried": false,
+    "failed": 0
+  },
+  "native": {
+    "passed": 163,
+    "androidHermesExport": true,
+    "iosHermesExport": true
+  },
+  "applicationDeployed": false
+}
