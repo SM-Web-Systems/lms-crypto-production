@@ -18,6 +18,43 @@ SHA = 'a' * 40
 
 
 class InventoryTests(unittest.TestCase):
+    def test_private_files_use_their_owner_without_dac_override(self):
+        self.assertEqual(inventory.inventory_container_user({'sourceUid': 1234, 'reportUid': 1234, 'reportGid': 5678}), '1234:5678')
+        self.assertEqual(inventory.inventory_container_user({'sourceUid': 0, 'reportUid': 0, 'reportGid': 0}), '0:0')
+
+    def test_private_file_owner_mismatch_refuses_instead_of_changing_permissions(self):
+        with self.assertRaisesRegex(inventory.Refused, 'PRIVATE_SNAPSHOT_OWNER_MISMATCH'):
+            inventory.inventory_container_user({'sourceUid': 4321, 'reportUid': 1234, 'reportGid': 5678})
+
+    def test_private_owner_metadata_rejects_untrusted_values(self):
+        for owners in [{}, {'sourceUid': 0, 'reportUid': True, 'reportGid': 0},
+                       {'sourceUid': 0, 'reportUid': 0, 'reportGid': -1},
+                       {'sourceUid': 0, 'reportUid': 0, 'reportGid': 0, 'PRIVATE': 'value'}]:
+            with self.assertRaisesRegex(inventory.Refused, 'PRIVATE_FILE_OWNER_METADATA_REQUIRED'):
+                inventory.inventory_container_user(owners)
+
+    def test_inventory_failures_return_fixed_codes_without_private_stderr(self):
+        arguments = ['docker', 'run', '/app/.lms-inventory.mjs', '--snapshot']
+        for stderr, exit_code, expected in [
+            ('RBAC inventory refused: Unsupported snapshot schema: required columns missing from private.', 2, 'INVENTORY_SCHEMA_UNSUPPORTED'),
+            ('RBAC inventory refused: Unable to inspect PRIVATE /srv/private', 2, 'INVENTORY_TOOL_REFUSED'),
+            ("Cannot find package 'better-sqlite3' imported from /PRIVATE", 1, 'INVENTORY_RUNTIME_DEPENDENCY_UNAVAILABLE'),
+            ('PRIVATE', 137, 'INVENTORY_MEMORY_LIMIT'),
+            ('PRIVATE', 125, 'INVENTORY_CONTAINER_START_REFUSED'),
+            ('PRIVATE', 1, 'INVENTORY_CONTAINER_COMMAND_FAILED'),
+        ]:
+            with self.subTest(expected=expected):
+                result = SimpleNamespace(returncode=exit_code, stdout='', stderr=stderr)
+                with patch.object(inventory.subprocess, 'run', return_value=result):
+                    with self.assertRaisesRegex(inventory.Refused, '^' + expected + '$'):
+                        inventory.command(arguments)
+
+    def test_owner_probe_failure_never_exposes_private_docker_output(self):
+        result = SimpleNamespace(returncode=1, stdout='', stderr='PRIVATE host path and credentials')
+        with patch.object(inventory.subprocess, 'run', return_value=result):
+            with self.assertRaisesRegex(inventory.Refused, '^INVENTORY_OWNER_METADATA_PROBE_FAILED$'):
+                inventory.command(['docker', 'run', '-e', inventory.OWNER_SCRIPT])
+
     def test_preparation_reports_only_a_fixed_safe_refusal_code(self):
         arguments = ['env', 'DEPLOY_EXECUTE=0', 'python3', '/reviewed/scripts/release_recovery.py', 'prepare']
         result = SimpleNamespace(returncode=2, stdout='', stderr='private diagnostic\n' + json.dumps(
@@ -86,6 +123,8 @@ class InventoryTests(unittest.TestCase):
                 return 'https://PRIVATE-TOKEN@example.invalid/PRIVATE-REPOSITORY'
             return '?? PRIVATE-UNTRACKED-FILENAME\n'
         if args[:2] == ['docker', 'run']:
+            if '-e' in args:
+                return json.dumps({'sourceUid': 1234, 'reportUid': 1234, 'reportGid': 5678})
             return json.dumps(self.summary)
         if args[:3] == ['docker', 'rm', '--force']:
             return ''
@@ -117,12 +156,19 @@ class InventoryTests(unittest.TestCase):
         before = self.snapshot.read_bytes()
         result = inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory'), self.run_command)
         self.assertEqual(result['status'], 'PRIVATE_SNAPSHOT_INVENTORIED')
-        run = next(args for args in self.calls if args[:2] == ['docker', 'run'])
+        run = next(args for args in self.calls if args[:2] == ['docker', 'run'] and '--snapshot' in args)
         self.assertEqual(run[run.index('--network') + 1], 'none')
         self.assertEqual(run[run.index('--entrypoint') + 1], 'node')
         self.assertIn('--read-only', run)
         self.assertIn('256m', run)
         self.assertIn('0.5', run)
+        self.assertEqual(run[run.index('--user') + 1], '1234:5678')
+        owner_run = next(args for args in self.calls if args[:2] == ['docker', 'run'] and '-e' in args)
+        self.assertEqual(owner_run[-1], inventory.OWNER_SCRIPT)
+        self.assertIn('64m', owner_run)
+        self.assertTrue(any('dst=/tmp/lms-private-report,readonly' in arg for arg in owner_run))
+        self.assertIn('--cap-drop', run)
+        self.assertEqual(run[run.index('--cap-drop') + 1], 'ALL')
         self.assertIn(f'type=bind,src={self.snapshot},dst=/tmp/lms-snapshot.sqlite3,readonly', run)
         self.assertNotIn('DATABASE_PATH', ' '.join(run))
         name = run[run.index('--name') + 1]
