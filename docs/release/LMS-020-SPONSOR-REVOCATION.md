@@ -16,4 +16,4 @@ Synthetic fixture seeding is restricted to a disposable `lms-e2e-*` database and
 - Sponsor authorization/responsive browser suite: **14/14 passed**, one worker, retries disabled, including the real revocation lifecycle.
 - [Validation receipt](evidence/lms-020-validation.json) retains source/result hashes and the initial failed attempt.
 
-Repeat this suite after LMS-011 reconciliation before closing the task. It does not prove private account cutover, arbitrary cohort ownership transfer, staging sign-off or physical-device behavior.
+The suite was repeated after local LMS-011 reconciliation: sponsor authorization/reporting passed 17/17, then the combined LMS-012 candidate passed the complete 83-case browser suite without retries. Private inventory decisions and final LMS-011 acceptance remain open before formal task closure. It does not prove private account cutover, arbitrary cohort ownership transfer, staging sign-off or physical-device behavior.

@@ -35,6 +35,8 @@ for (const width of [320, 390, 768]) {
     await expect(manage).toBeFocused();
     await page.keyboard.press('Enter');
 
+    await expect(page.getByRole('combobox', { name: 'Select role to assign' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('combobox', { name: 'Select role to assign' }).selectOption(roleId);
     await page.getByRole('button', { name: 'Assign selected role' }).click();
     await page.getByRole('alertdialog', { name: 'Confirm action' }).getByRole('button', { name: 'Confirm', exact: true }).click();

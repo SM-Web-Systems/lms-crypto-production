@@ -23,6 +23,18 @@
       "numPassedTests": 163,
       "numFailedTests": 0,
       "numPendingTests": 0
+    },
+    "lms-012-api-focused.json": {
+      "numTotalTests": 136,
+      "numPassedTests": 18,
+      "numFailedTests": 118,
+      "numPendingTests": 0
+    },
+    "lms-012-api-focused-final.json": {
+      "numTotalTests": 136,
+      "numPassedTests": 136,
+      "numFailedTests": 0,
+      "numPendingTests": 0
     }
   },
   "typecheck": "passed",
@@ -38,11 +50,42 @@
     "lms-012-mobile.json": "888ee2900af4603f35040bcde0dc31b585becf59a4a4e925d5f4054abda9255d",
     "lms-012-mobile-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "lms-012-android-export.log": "2a8d9089e7eea8f8c693283b3413ac3eaaba67f2e7cd41b31b54a5bfdb831bbd",
-    "lms-012-ios-export.log": "674b8b0705ddd0637d8c22ffccd64599cdcbd4bcfc2dd10ca7b81b2a6a07bced"
+    "lms-012-ios-export.log": "674b8b0705ddd0637d8c22ffccd64599cdcbd4bcfc2dd10ca7b81b2a6a07bced",
+    "lms-012-api-focused.json": "af43c6567b437b7ccf6327063ae67cd01f469c266b23f273e6779f1dfd7a5ade",
+    "lms-012-api-focused-final.json": "1903772d62fa3b8c138f0e67a0f075230c4cc867a7e030a0852a05c709bc6227",
+    "lms-012-api-build.log": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
+    "lms-012-role-browser-final.json": "07d3960a627f3e18f6d031deb8e3c2cc6dd64ffa394844d595bff46fdfda3887",
+    "lms-012-panel-browser.json": "e04254522c84bc6277ded78a37ef5300795c7766427d83bc61d8becf65843982",
+    "lms-012-browser-full.json": "7db19525bbb334687aea77fc8b22ad8cea6a71ceb4fc3dd3546d195d9d11f259",
+    "lms-012-bootstrap.log": "c5577584425c7d85c037583a45599e3248bf9f7c2fc405ee2bbadd5c6aae8ac2",
+    "lms-012-e2e-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lms-012-windows-export.json": "c7a31d46daf55a1d8dd6f65f6035403ac18704bfb92a9b045847a8f8036990a3"
   },
   "limitations": [
-    "Additive API contract changes and combined browser acceptance pending.",
+    "Full Windows combined-candidate backend run pending.",
     "No previous installed binary or physical-device acceptance.",
     "Private inventory and final backend acceptance remain open."
+  ],
+  "combinedSourceCandidate": "af363d6fee96249ea4337febeded8ff32698d2cd",
+  "compiledBootstrap": "passed",
+  "e2eTypecheck": "passed",
+  "browser": {
+    "fullPassed": 83,
+    "unexpected": 0,
+    "flaky": 0,
+    "retries": 0,
+    "roleWidths": [
+      320,
+      390,
+      768
+    ],
+    "roleCasesPassed": 3,
+    "openedPanelFitCasesPassed": 3
+  },
+  "sourceExportManifestSha256": "5231d1ae7750fc622315079e36be358cd10db709091776af2a12d4f5121e4db6",
+  "finalBrowserTestSourceSha256": "98357ec0bc1f08121fe9f1f4e079a5a153850f3ae6d3b99c4b3ce38db5018c7b",
+  "incompleteAttempts": [
+    "Unprivileged Windows backend and browser attempts interrupted; no complete backend report.",
+    "Scoped unprivileged API run: 18 passed, 118 local socket EACCES failures; unchanged code passed 136/136 with loopback permitted."
   ]
 }

@@ -24,6 +24,12 @@
       "numPassedTests": 38,
       "numFailedTests": 0,
       "numPendingTests": 0
+    },
+    "lms-011-linux-full.json": {
+      "numTotalTests": 2404,
+      "numPassedTests": 2403,
+      "numFailedTests": 0,
+      "numPendingTests": 1
     }
   },
   "additionalChecks": {
@@ -105,11 +111,19 @@
     "lms-011-previous-build.log": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
     "lms-011-release-python.log": "c4b462a8e66c609b88216facd2a38375cbd4ef34d5a572e5fdf6fca495cf1edf",
     "lms-011-deploy-schema-order.log": "4674cd1eb3ac1fe3eec802ea5181d4bd871f8345a2a19d46ea4bc3339db6cc44",
-    "lms-011-sponsor-browser.json": "24d121a887080795e8eccfa61fdc38707cb7b49e37dfd1e9111486038f5e96db"
+    "lms-011-sponsor-browser.json": "24d121a887080795e8eccfa61fdc38707cb7b49e37dfd1e9111486038f5e96db",
+    "lms-011-linux-full.json": "e864d79a0d6d94e554fa534368d9e6d4ee0343efe3c4e420758811862250f0a1",
+    "lms-011-linux-install.log": "6ff81113ceefecd99a6ba428ef3c82adb683a5dbefe9cf0a840bc69825cd5f89",
+    "lms-011-linux-build.log": "e972e39ac5dbf6dc38f1129f391ba2469efee0fa8dfdf3b1af936278ddf4c1c2",
+    "lms-011-linux-bootstrap.log": "972af183987b511c04b70111caa6a71c624f2464a308071d8259e6f8e911c5d1",
+    "lms-011-linux-dependencies.log": "5cccdb0b62050244fbad69c93ea4d62691629a1521e7d95d48c550291ed9e53e",
+    "lms-011-linux-inventory.log": "4279e426a1f037c065552e27f847e227b9fac3fc93a2eca92d3239e86865884d",
+    "lms-011-linux-runtime.log": "fb45d0f2b5b410cf646e8761a1d5fa7378060933f07d59adabfb87138a8aa759"
   },
   "limitations": [
-    "Full Windows backend rerun pending after the reward preflight fixture correction.",
-    "Private inventory, installed-client evidence and final Linux candidate run remain outstanding.",
+    "Full Windows combined-candidate validation pending; the unprivileged attempt was interrupted without a complete report.",
+    "Private inventory, installed-client evidence and accepted recovery remain outstanding.",
     "Synthetic local validation only; no cutover or application deployment executed."
-  ]
+  ],
+  "linuxSourceCandidate": "ba1011d002416c536fe306a95c71dc8556391723"
 }
