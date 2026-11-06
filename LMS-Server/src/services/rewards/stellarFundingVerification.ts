@@ -30,10 +30,11 @@ const deny = () => new RewardError('FUNDING_UNVERIFIED', 'Stellar operation does
 
 function horizonReader(provider: {url: string}) {
   const signal = AbortSignal.timeout(5000);
-  async function read(endpoint: string, allowMissing = false): Promise<Record<string, unknown>> {
+  async function read(endpoint: string, allowMissing = false, missingEvidence = false): Promise<Record<string, unknown>> {
     try {
       const response = await fetch(`${provider.url}${endpoint}`, {signal, redirect: 'error', headers: {Accept: 'application/json'}});
       if (allowMissing && response.status === 404) return {missing: true};
+      if (missingEvidence && response.status === 404) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar operation was not found. Check its ID or retry after ingestion.', 402);
       if (!response.ok || !response.body) throw new Error('provider');
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -50,7 +51,8 @@ function horizonReader(provider: {url: string}) {
       const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('provider');
       return value as Record<string, unknown>;
-    } catch {
+    } catch (err) {
+      if (err instanceof RewardError) throw err;
       throw new RewardError('FUNDING_UNVERIFIED', 'Stellar verification is temporarily unavailable. Retry the same intent.', 503);
     }
   }
@@ -70,7 +72,7 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   const read = horizonReader(provider);
   const root = await read('/');
   if (root.network_passphrase !== provider.passphrase) throw deny();
-  const operation = await read(`/operations/${operationId}`);
+  const operation = await read(`/operations/${operationId}`, false, true);
   if (operation.id !== operationId || operation.type !== 'payment' || operation.transaction_successful !== true
     || operation.asset_type !== 'native' || operation.asset_code !== undefined || operation.asset_issuer !== undefined
     || operation.to !== binding.destination || operation.to_muxed !== undefined || operation.to_muxed_id !== undefined

@@ -57,4 +57,9 @@ describe('Stellar funding operation verification', () => {
     const f = fixture(); f.fetcher.mockRejectedValueOnce(new Error('private upstream details'));
     await expect(verifyStellarFunding(f.binding, '123')).rejects.toMatchObject({statusCode: 503, message: expect.not.stringContaining('private')});
   });
+  it('makes a missing operation reference correctable while retaining provider outages as retryable', async () => {
+    const f=fixture(),original=f.fetcher.getMockImplementation()!;
+    f.fetcher.mockImplementation(async url=>new URL(url).pathname.startsWith('/operations/')?new Response('{}',{status:404}):original(url));
+    await expect(verifyStellarFunding(f.binding,'123')).rejects.toMatchObject({statusCode:402,message:expect.stringContaining('not found')});
+  });
 });
