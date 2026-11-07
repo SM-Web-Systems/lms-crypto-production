@@ -138,7 +138,9 @@ Preserve the existing reward ledger, unique-reference constraints, ownership che
 - **Paystack → XLM:** record verified fiat receipt first. Keep the intent awaiting settlement until the chosen treasury/settlement integration proves delivery of the committed XLM amount to backing custody. Persist the accepted quote, fees, expiry, fiat/XLM amounts and evidence links; handle underpayment, expired quote, settlement failure and chargeback/refund reconciliation. A successful fiat payment is not XLM backing, and an in-memory conversion rate is not settlement.
 - **Availability:** return server capability/availability metadata so portal funding controls explain actual source availability. This improves truthfulness but does not close an unimplemented funding task.
 
-Before LMS-033 implementation, the product/platform owner must name the permitted settlement/treasury provider, custody destination, supported fiat currencies, fees/expiry policy, reversal policy and test environment. These are external prerequisites, not values a coding agent should invent. Build the provider-neutral intent adapter and other sources meanwhile. No default automatic mainnet transfer or currency conversion is authorized by committing this plan.
+The owner selected SM Web Systems as the treasury owner for the prototype's company-funded XLM reward reserve. SM Web Systems plans to pursue applicable licensing and a regulated partnership for the next funding stage. The remaining LMS-033 decisions cover the approved conversion execution route, custody destination and signers, currencies, fees and quote expiry, reversals, reconciliation, and the test environment.
+
+For the South African merchant flow, Paystack lists cryptocurrency trading as ineligible and settles merchant proceeds to a bank account. Obtain written confirmation for the exact flow before linking Paystack payments to conversion. Review client-fund ownership and intermediary obligations with qualified South African counsel. [Paystack eligibility](https://support.paystack.com/en/articles/2127042) · [Paystack South Africa terms](https://paystack.com/za/terms) · [FIC crypto service provider guidance](https://www.fic.gov.za/accountable-institut/crypto-asset-service-providers/)
 
 Separately validate the existing course-payment flow, authenticated checkout, signed/duplicated/reordered webhooks, refunds, receipts and reconciliation in a provider sandbox. Verify Wallet SSO, verified email, CAPTCHA/2FA and recovery with authorized staging accounts and captured email/SMS arrangements. A production enablement receipt remains distinct from sandbox or mocked tests.
 
@@ -208,7 +210,7 @@ Record at kickoff:
 - Reachable staging LMS/Wallet plus synthetic course/sponsor/student/staff accounts and mail/SMS capture.
 - Physical Android and iOS testers/devices and macOS/signing capability.
 - Protected-snapshot inventory and supported installed-client records.
-- Settlement/custody/provider policy for LMS-033 and offline lease/content policy for LMS-051.
+- Conversion execution and settlement policy for LMS-033, and offline lease and content policy for LMS-051.
 - Private evidence storage, off-host recoverability, release/monitoring owner and maintenance authority.
 
 Start with separate reviewable changes for **LMS-002 + LMS-003**, **LMS-004**, **LMS-006**, and **LMS-007**; prepare LMS-010 inventory in the same period. Draft LMS-020/021 tests before reconciling the revocation behavior so they constrain the implementation. Then reconcile #99 against the actual current main and continue through the gated sequence.
@@ -240,7 +242,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-030 | Implement durable reward funding intents and availability contract | API | LMS-011 | Open |
 | LMS-031 | Implement Stellar funding verification | API + Platform | LMS-030 | Open |
 | LMS-032 | Implement backed platform-credit provisioning | API + Platform | LMS-030 | Open |
-| LMS-033 | Implement Paystack-to-XLM settlement workflow | API + Platform + Product owner | LMS-030, LMS-031 | Open |
+| LMS-033 | Implement Paystack-to-XLM settlement workflow | API + Platform + Product owner | LMS-030, LMS-031 | Awaiting conversion and settlement approval. Prototype treasury owner selected. |
 | LMS-034 | Accept complete reward funding lifecycle | QA + Platform | LMS-031, LMS-032, LMS-033, LMS-023 | Open |
 | LMS-040 | Prepare pinned signed mobile acceptance builds | Mobile + Platform | LMS-004, LMS-007, LMS-012, LMS-023 | Open |
 | LMS-041 | Run physical Android acceptance | QA + Mobile | LMS-040 | Open |

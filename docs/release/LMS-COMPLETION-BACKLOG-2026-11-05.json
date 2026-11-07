@@ -357,7 +357,7 @@
         "Approved settlement/treasury integration reconciles actual fiat receipt, quote fees/expiry, delivered XLM and reversals; stays awaiting settlement until delivery proof; repeated callbacks/restarts never double-fund"
       ],
       "evidence": [],
-      "inputRequired": "Owner confirmed no settlement or custody arrangement is in place; select provider, treasury/custody and settlement policy."
+      "inputRequired": "The owner selected SM Web Systems as the prototype treasury for its company-owned reward reserve. It plans to pursue applicable licensing and a regulated partnership for a later funding stage. Paystack-linked conversion remains gated on an approved execution route, written Paystack confirmation, a named custody destination and signers, and an approved settlement, fee, reversal and reconciliation policy."
     },
     {
       "id": "LMS-034",
