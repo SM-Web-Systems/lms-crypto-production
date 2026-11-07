@@ -58,9 +58,9 @@ jobs:
         run: npm run test:dependencies
       - run: npm run build
       - run: npm run test:compiled-bootstrap
-      - name: Test offline RBAC inventory
+      - name: Test offline RBAC inventory, cutover and retirement
         run: npm run test:rbac-inventory
-      - name: Test RBAC cutover and repeated runtime startup
+      - name: Rehearse RBAC cutover, retirement refusal and restored startup
         run: npm run test:rbac-runtime
       - name: Test durable funding restart and concurrent writers
         run: npm run test:reward-funding-runtime

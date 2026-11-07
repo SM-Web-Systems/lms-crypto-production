@@ -15,7 +15,7 @@ const BUILT_INS = {
 const LEGACY_MAP = { student: 'role_student', lecturer: 'role_instructor', admin: 'role_admin' };
 const ADMIN_IDS = ['role_admin', 'role_admin2', 'role_super_admin'];
 const REQUIRED = {
-  users: ['id', 'role', 'authorization_version', 'deletion_status'],
+  users: ['id', 'authorization_version', 'deletion_status'],
   roles: ['id', 'name', 'is_system'], user_roles: ['user_id', 'role_id'],
   permissions: ['id', 'name'], role_permissions: ['role_id', 'permission_id'],
   students: ['id', 'user_id'], courses: ['id', 'course_code'],
@@ -66,7 +66,14 @@ function validateSchema(db) {
 function inventory(db, metadata) {
   validateSchema(db);
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('Snapshot integrity check failed.');
-  const users = db.prepare('SELECT id,role,authorization_version,deletion_status FROM users ORDER BY id').all();
+  const hasLegacyRole = db.pragma('table_info(users)').some(column => column.name === 'role');
+  if (!hasLegacyRole) {
+    const ledger = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").get();
+    const marker = ledger && db.prepare("SELECT 1 FROM authorization_migrations WHERE id='rbac-only-v2'").get();
+    if (!marker) refuse('Unsupported snapshot schema: users.role is absent without a retirement marker.');
+  }
+  const legacyRole = hasLegacyRole ? 'role' : 'NULL AS role';
+  const users = db.prepare(`SELECT id,${legacyRole},authorization_version,deletion_status FROM users ORDER BY id`).all();
   const roles = db.prepare('SELECT id,name,is_system FROM roles ORDER BY id').all();
   const assignments = db.prepare('SELECT user_id,role_id FROM user_roles ORDER BY user_id,role_id').all();
   const capabilities = db.prepare(`SELECT DISTINCT ur.user_id,p.name FROM user_roles ur
@@ -108,8 +115,8 @@ function inventory(db, metadata) {
     const flags = [];
     const note = code => { flags.push(code); increment(code); };
     const mapped = Object.hasOwn(LEGACY_MAP, user.role) ? LEGACY_MAP[user.role] : null;
-    legacyCounts[mapped ? user.role : 'unknown']++;
-    if (!mapped) note('unknown_legacy_value');
+    if (hasLegacyRole) legacyCounts[mapped ? user.role : 'unknown']++;
+    if (hasLegacyRole && !mapped) note('unknown_legacy_value');
     if (!grants.length) note(user.authorization_version > 0 ? 'managed_account_without_grants' : 'unmanaged_account_without_grants');
     if (mapped && !grants.includes(mapped)) {
       note('legacy_mapping_absent_from_rbac');

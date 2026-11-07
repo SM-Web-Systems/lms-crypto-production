@@ -204,7 +204,7 @@
       "title": "Reconcile and rehearse legacy schema retirement (#101)",
       "priority": "P1",
       "ownerRole": "API + Platform",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-013",
         "LMS-061"
@@ -212,7 +212,11 @@
       "acceptance": [
         "Explicit offline contraction on protected copy preserves retained cells/grants/history; old image/new DB refuses before writes; release-ready migration and compatible recovery evidence recorded; live contraction remains in the release procedure"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-014-SCHEMA-RETIREMENT-REHEARSAL.md",
+        "evidence/lms-014-synthetic-retirement-validation.json"
+      ],
+      "reason": "Synthetic current-schema contraction preserved retained data and grants, compiled v1 refused the contracted database before writes, and a restored v1 copy started. Reconciled v2 application, installed-client retirement and exact-image protected-copy acceptance remain open."
     },
     {
       "id": "LMS-020",
