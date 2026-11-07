@@ -16,6 +16,8 @@ The worker claims each due row using an immediate transaction and a durable 60-s
 
 Expo calls use fixed HTTPS send/receipt endpoints, reject redirects, bound response bodies to 48 KiB and time out after 10 seconds. Only generic text plus notification ID, installation ID and generation leave the LMS. Course titles, message bodies, email addresses and resource links are excluded. After ticket acceptance, receipts are checked after 15 minutes. Transient send errors retry with backoff up to five attempts; receipt absence retries within the 24-hour delivery lifetime. Permanent failures stop. `DeviceNotRegistered` clears the matching binding and cancels remaining work without disabling a newer generation. Unknown provider messages/bodies are not persisted or logged.
 
+A `DeviceNotRegistered` result must still own the current delivery claim before it can disable an installation. The result, binding cleanup and cancellation of remaining work commit together. A response from a replaced worker leaves the current binding alone. If a cleanup write fails, the worker can retry the receipt without leaving the installation partially disabled.
+
 Provider acceptance is not a device-delivery guarantee. A crash or timeout after provider submission can repeat a generic alert: the transport is at least once under an ambiguous outcome, not exactly once. The native client must deduplicate notification responses. Already submitted generic alerts cannot be recalled after logout. Notification details and destination resources must still be authorized on the server when opened.
 
 ## API and native integration contract

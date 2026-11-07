@@ -475,7 +475,7 @@
         "evidence/lms-050-server-validation.json",
         "evidence/lms-050-native-validation.json"
       ],
-      "reason": "Server outbox and native installation lifecycle implemented. Prior server candidate passed all hosted CI/mobile jobs. Native Windows suite passed 173 tests and both platform bundle exports passed. Hosted CI and mobile passed after the npm 10 lockfile correction. Expo/APNs/FCM setup, signed builds, physical Android/iOS delivery and navigation acceptance, and LMS-012/LMS-023 dependencies remain open."
+      "reason": "Server outbox and native installation lifecycle implemented. Device removal now requires a current delivery claim and commits with cancellation of sibling work. Prior hosted CI, native tests and platform exports passed. Expo/APNs/FCM setup, signed builds, physical Android/iOS delivery and navigation acceptance, and LMS-012/LMS-023 dependencies remain open."
     },
     {
       "id": "LMS-051",

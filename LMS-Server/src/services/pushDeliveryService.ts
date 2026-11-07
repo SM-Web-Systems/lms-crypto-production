@@ -80,8 +80,8 @@ function claim(now:number):Delivery|undefined {
   }).immediate();
 }
 function finish(row:Delivery,state:string,code:string|null,next:number,ticket:string|null=row.ticket_id) {
-  db.prepare(`UPDATE push_outbox SET state=?,last_error=?,next_attempt_at=?,ticket_id=?,lease_until=0,claim_id=NULL
-    WHERE id=? AND claim_id=?`).run(state,code,next,ticket,row.id,row.claim_id);
+  return db.prepare(`UPDATE push_outbox SET state=?,last_error=?,next_attempt_at=?,ticket_id=?,lease_until=0,claim_id=NULL
+    WHERE id=? AND claim_id=?`).run(state,code,next,ticket,row.id,row.claim_id).changes === 1;
 }
 function retry(row:Delivery,code:string,now:number,retryable=true) {
   const attempts=row.ticket_id ? row.receipt_attempts+1 : row.attempts+1;
@@ -89,12 +89,16 @@ function retry(row:Delivery,code:string,now:number,retryable=true) {
   const exhausted=!retryable || (!row.ticket_id && attempts>=5) || next>=row.expires_at;
   finish(row,exhausted?'failed':row.ticket_id?'awaiting_receipt':'pending',code,next);
 }
-function deviceGone(row:Delivery) {
-  // A delayed receipt for an older binding must never disable a new account/token.
-  db.prepare(`UPDATE push_installations SET enabled=0,expo_token=NULL,user_id=NULL,session_hash=NULL,lease_expires_at=0
-    WHERE id=? AND generation=?`).run(row.installation_id,row.generation);
-  db.prepare(`UPDATE push_outbox SET state='cancelled',last_error='DeviceNotRegistered',claim_id=NULL,lease_until=0
-    WHERE installation_id=? AND generation=? AND id<>? AND state IN ('pending','sending','awaiting_receipt')`).run(row.installation_id,row.generation,row.id);
+function deviceGone(row: Delivery, now: number) {
+  db.transaction(() => {
+    // Fence device cleanup as well as the receipt. A replacement worker can
+    // complete the same delivery without changing the installation generation.
+    if (!finish(row, 'failed', 'DeviceNotRegistered', now)) return;
+    db.prepare(`UPDATE push_installations SET enabled=0,expo_token=NULL,user_id=NULL,session_hash=NULL,lease_expires_at=0
+      WHERE id=? AND generation=?`).run(row.installation_id,row.generation);
+    db.prepare(`UPDATE push_outbox SET state='cancelled',last_error='DeviceNotRegistered',claim_id=NULL,lease_until=0
+      WHERE installation_id=? AND generation=? AND id<>? AND state IN ('pending','sending','awaiting_receipt')`).run(row.installation_id,row.generation,row.id);
+  }).immediate();
 }
 /** Leased per-delivery work survives restarts. Unknown send outcomes can repeat a generic alert; no exactly-once delivery claim. */
 export async function processPushOutbox(options:{provider?:PushProvider;now?:()=>number;limit?:number;shouldContinue?:()=>boolean}={}) {
@@ -128,8 +132,8 @@ export async function processPushOutbox(options:{provider?:PushProvider;now?:()=
         else retry(row,'InvalidProviderResponse',completed);
       } else {
         const code=errorCode(reply.details?.error);
-        if(code==='DeviceNotRegistered')deviceGone(row);
-        retry(row,code,completed,code==='MessageRateExceeded' || code==='ProviderUnavailable');
+        if (code === 'DeviceNotRegistered') deviceGone(row, completed);
+        else retry(row,code,completed,code==='MessageRateExceeded' || code==='ProviderUnavailable');
       }
       processed++;
     } catch(error) {

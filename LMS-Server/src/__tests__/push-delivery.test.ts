@@ -8,7 +8,7 @@ import {validateDatabase} from '../config/databaseBootstrap.js';
 import {pushSchema,pushSchemaTables} from '../config/pushSchema.js';
 import {registerInstallation,unregisterInstallation,pushConfiguration} from '../services/pushInstallationService.js';
 import {createNotification,updatePreferences} from '../services/notificationService.js';
-import {processPushOutbox,expoPushProvider,type PushMessage} from '../services/pushDeliveryService.js';
+import {processPushOutbox,expoPushProvider,type PushMessage,type PushResult} from '../services/pushDeliveryService.js';
 
 const project='a1111111-1111-4111-8111-111111111111';
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
@@ -24,7 +24,7 @@ function fixture() {
   const owner=account(),other=account();
   const binding={installationId:randomUUID(),credential:'a'.repeat(64),generation:1,projectId:project,platform:'android',expoToken:`ExpoPushToken[${randomUUID()}]`};
   const note=()=>{createNotification({userId:owner.id,type:'course_enrolled',title:'PRIVATE course title',body:'PRIVATE learner details',link:'https://private.invalid/secret'});return db.prepare('SELECT id FROM notifications WHERE user_id=? ORDER BY rowid DESC LIMIT 1').get(owner.id) as {id:string};};
-  const provider={send:vi.fn(async(_message:PushMessage)=>({status:'ok' as const,id:randomUUID()})),receipt:vi.fn(async(_ticket:string)=>({status:'ok' as const}))};
+  const provider={send:vi.fn(async(_message:PushMessage)=>({status:'ok' as const,id:randomUUID()})),receipt:vi.fn(async(_ticket:string):Promise<PushResult|null>=>({status:'ok'}))};
   const state=()=>db.prepare('SELECT * FROM push_outbox ORDER BY rowid').all() as any[];
   const register=()=>registerInstallation(binding,owner.token);
   return {owner,other,binding,note,provider,state,register};
@@ -156,6 +156,56 @@ describe('durable outbox and current authorization',()=>{
     resolve({status:'error',details:{error:'DeviceNotRegistered'}});await pending;
     expect(db.prepare('SELECT enabled,user_id,expo_token FROM push_installations').get()).toEqual({enabled:1,user_id:f.other.id,expo_token:'ExpoPushToken[new-token]'});
     expect(f.state()[0].state).toBe('cancelled');
+  });
+  it('ignores a late device removal after another worker completes the same claim', async () => {
+    const f = fixture();
+    f.register();
+    f.note();
+    const startedAt = Date.now() + 1000;
+    await processPushOutbox({ provider: f.provider, now: () => startedAt });
+    let release!: () => void;
+    f.provider.receipt.mockImplementationOnce(() => new Promise(resolve => {
+      release = () => resolve({ status: 'error', details: { error: 'DeviceNotRegistered' } });
+    }));
+    let now = startedAt + 16 * 60_000;
+    const original = processPushOutbox({ provider: f.provider, now: () => now, limit: 1 });
+    now += 61_000;
+    try {
+      await processPushOutbox({ provider: f.provider, now: () => now, limit: 1 });
+      expect(f.state()[0]).toMatchObject({ state: 'delivered', receipt_attempts: 2 });
+      f.note();
+    } finally {
+      release();
+      await original;
+    }
+    expect(db.prepare('SELECT enabled,expo_token,generation FROM push_installations').get())
+      .toEqual({ enabled: 1, expo_token: f.binding.expoToken, generation: 1 });
+    expect(f.state().map(row => row.state)).toEqual(['delivered', 'pending']);
+  });
+  it('retries cleanup without partially disabling the installation if its transaction fails', async () => {
+    const f = fixture();
+    f.register();
+    f.note();
+    const startedAt = Date.now() + 1000;
+    await processPushOutbox({ provider: f.provider, now: () => startedAt });
+    f.note();
+    const now = startedAt + 16 * 60_000;
+    db.prepare("UPDATE push_outbox SET next_attempt_at=? WHERE ticket_id IS NULL").run(now + 1);
+    db.exec(`CREATE TRIGGER refuse_test_cleanup BEFORE UPDATE OF state ON push_outbox
+      WHEN NEW.state='cancelled' AND NEW.last_error='DeviceNotRegistered'
+      BEGIN SELECT RAISE(ABORT,'synthetic cleanup failure'); END;`);
+    f.provider.receipt.mockResolvedValue({ status: 'error', details: { error: 'DeviceNotRegistered' } });
+    await processPushOutbox({ provider: f.provider, now: () => now, limit: 1 });
+    expect(db.prepare('SELECT enabled,expo_token FROM push_installations').get())
+      .toEqual({ enabled: 1, expo_token: f.binding.expoToken });
+    expect(f.state().map(row => row.state)).toEqual(['awaiting_receipt', 'pending']);
+    db.exec('DROP TRIGGER refuse_test_cleanup');
+    const retryAt = f.state()[0].next_attempt_at as number;
+    db.prepare("UPDATE push_outbox SET next_attempt_at=? WHERE ticket_id IS NULL").run(retryAt + 1);
+    await processPushOutbox({ provider: f.provider, now: () => retryAt, limit: 1 });
+    expect(db.prepare('SELECT enabled,expo_token FROM push_installations').get())
+      .toEqual({ enabled: 0, expo_token: null });
+    expect(f.state().map(row => row.state)).toEqual(['failed', 'cancelled']);
   });
   it('keeps missing receipts pending and expires the delivery without replaying a submitted payment-like event',async()=>{
     const f=fixture();f.register();f.note();await processPushOutbox({provider:f.provider});
