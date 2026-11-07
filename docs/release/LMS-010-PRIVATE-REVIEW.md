@@ -11,6 +11,20 @@ Public binding evidence:
 - 19 accounts, 22 role assignments, two multi-role accounts, two explicit administrators, three missing learner profiles and one `students` foreign-key violation.
 - No custom roles, catalog issues, dangling assignments or orphan course codes were reported. Installed builds and legacy endpoint usage were not collected.
 
+## Private review coverage update
+
+The initial inventory counted multi-role accounts even when an account had no other findings or scope observations. Such an account could be absent from the private exception list. The updated inventory lists all accounts with multiple grants or an assigned custom role in the private file. The public summary retains counts and omits account identifiers. The change passed a disposable-snapshot regression that verified the source file stayed byte-identical.
+
+Before recording decisions, an authorized reviewer can run the updated read-only inventory against the existing finalized copy and save the expanded details to a new file. Use the captured deployment SHA and confirm the resulting snapshot hash matches the binding evidence above. Run from `LMS-Server` in a checkout with the updated tool:
+
+```bash
+npm run rbac:inventory -- --snapshot --database "$PRIVATE_FINALIZED_SNAPSHOT" \
+  --deployed-sha f5a64e8ac92aca6b33ae54bda70617d475893e3e \
+  --details-output "$PRIVATE_REVIEW_DIR/exceptions-review.json"
+```
+
+Keep the original report and the new file private. This local fix does not establish which accounts were in the original server file or record the owner's decisions.
+
 ## Decisions required
 
 1. Review current administrator/multiple grants and confirm the intended authoritative RBAC assignments. A legacy label does not supply a missing grant, and multiple grants may be legitimate.

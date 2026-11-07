@@ -131,7 +131,8 @@ function inventory(db, metadata) {
     const explicitAdmin = ADMIN_IDS.filter(id => grants.includes(id) &&
       roleById.get(id)?.name === BUILT_INS[id] && roleById.get(id)?.is_system === 1);
     if (explicitAdmin.length) note('explicit_administrator');
-    if (grants.length > 1) increment('multi_role_accounts');
+    if (grants.length > 1) note('multi_role_accounts');
+    if (grants.some(id => !Object.hasOwn(BUILT_INS, id))) note('custom_role_assignment');
     // Absence of assignments can be legitimate for a newly provisioned role.
     const scopeObservations = [];
     if (can.has('course.manage') && !instructors.has(user.id) && !explicitAdmin.length) scopeObservations.push('no_instructor_course_assignment');
