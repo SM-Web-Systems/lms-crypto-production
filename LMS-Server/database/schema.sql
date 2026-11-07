@@ -411,6 +411,11 @@ CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
 CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 
+CREATE TABLE IF NOT EXISTS paystack_checkout_links (
+  payment_id TEXT PRIMARY KEY NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  authorization_url TEXT NOT NULL
+);
+
 -- Phase F4: disputes — payment dispute / refund workflow
 CREATE TABLE IF NOT EXISTS disputes (
   id              TEXT PRIMARY KEY,

@@ -14,6 +14,7 @@ import { requirePermission, requireAdministrator, getRequestPermissions, hasPerm
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
+import { isWriterHoldActive } from '../services/writerHold.js';
 import {
   getCoursePricing,
   setCoursePricing,
@@ -23,7 +24,8 @@ import {
   listPayments,
   getPaymentForApplication,
   getPaymentByReference,
-  createPaystackPayment,
+  reservePaystackCheckout,
+  savePaystackCheckout,
   createStellarPayment,
   failPayment,
   refundPayment,
@@ -36,6 +38,7 @@ import {
 import { getTiersEnabled, getBadge } from '../services/badgeService.js';
 import {
   initializeTransaction,
+  isPaystackConfigured,
   verifyWebhookSignature,
   createRefund as paystackCreateRefund,
 } from '../services/paystackService.js';
@@ -511,67 +514,61 @@ router.post(
       return;
     }
 
-    // Check existing payment
-    const existingPayment = getPaymentForApplication(applicationId);
-    if (existingPayment) {
-      if (existingPayment.status === 'confirmed' || existingPayment.status === 'waived') {
-        res.status(409).json({
-          success: false,
-          error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment already completed' },
+    if (!Number.isSafeInteger(pricing.price_cents) || pricing.price_cents < 0 || !/^[A-Z]{3}$/.test(pricing.currency)) {
+      res.status(409).json({ success: false, error: { code: 'INVALID_CARD_PRICE', message: 'This course price needs review before card payment.' } });
+      return;
+    }
+    if (!isPaystackConfigured()) {
+      res.status(503).json({ success: false, error: { code: 'PAYSTACK_UNAVAILABLE', message: 'Card payments are temporarily unavailable.' } });
+      return;
+    }
+    const checkout = reservePaystackCheckout(req.user!.userId, application.course_id, applicationId, pricing);
+    if (checkout.kind === 'settled') {
+      res.status(409).json({ success: false, error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment already completed' } });
+      return;
+    }
+    if (!('payment' in checkout)) {
+      res.status(409).json({ success: false, error: { code: 'PAYSTACK_RECONCILIATION_REQUIRED', message: 'An earlier card payment needs review. Contact support before paying again.' } });
+      return;
+    }
+    const payment = checkout.payment;
+    if (checkout.kind === 'existing') {
+      if (!payment.paystack_checkout_url || !payment.paystack_access_code || payment.user_id !== req.user!.userId ||
+          payment.amount_cents !== pricing.price_cents || payment.currency !== pricing.currency) {
+        res.status(409).json({ success: false, error: { code: 'PAYSTACK_RECONCILIATION_REQUIRED', message: 'A card payment is already being prepared or needs review. Check its status before paying again.' } });
+        return;
+      }
+      res.json({ success: true, data: {
+        paymentId: payment.id, checkoutUrl: payment.paystack_checkout_url,
+        reference: payment.paystack_reference, accessCode: payment.paystack_access_code,
+      } });
+      return;
+    }
+
+    const reference = payment.paystack_reference!;
+    const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/callback`;
+    const user = queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
+    try {
+      const paystackData = await initializeTransaction(
+        user?.email || req.user!.email, payment.amount_cents, payment.currency, reference, callbackUrl,
+        { applicationId, courseId: application.course_id, userId: req.user!.userId },
+      );
+      if (isWriterHoldActive()) {
+        res.set('Retry-After', '120').status(503).json({
+          success: false, error: { code: 'WRITER_HOLD', message: 'Maintenance in progress. Check the card payment status after maintenance.' },
         });
         return;
       }
-      // If pending paystack payment exists, return same checkout info
-      if (existingPayment.payment_method === 'paystack' && existingPayment.status === 'pending' && existingPayment.paystack_reference) {
-        res.json({
-          success: true,
-          data: {
-            paymentId: existingPayment.id,
-            checkoutUrl: null, // Re-init needed — Paystack URLs expire
-            reference: existingPayment.paystack_reference,
-            message: 'Existing pending payment found. Re-initializing checkout.',
-          },
-        });
-        // Fall through to re-initialize with same reference... actually let's just create new
+      if (!savePaystackCheckout(payment.id, paystackData.authorization_url, paystackData.access_code)) {
+        res.status(409).json({ success: false, error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment status changed. Refresh before paying again.' } });
+        return;
       }
-    }
-
-    // Create Paystack transaction
-    const reference = `lms-pay-${uuidv4().replace(/-/g, '').slice(0, 16)}`;
-    const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/callback`;
-
-    const user = queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
-
-    try {
-      const paystackData = await initializeTransaction(
-        user?.email || req.user!.email,
-        pricing.price_cents,
-        reference,
-        callbackUrl,
-        { applicationId, courseId: application.course_id, userId: req.user!.userId },
-      );
-
-      // Create payment record
-      const payment = createPaystackPayment(
-        req.user!.userId,
-        application.course_id,
-        applicationId,
-        pricing.price_cents,
-        reference,
-        paystackData.access_code,
-      );
-
-      res.status(201).json({
-        success: true,
-        data: {
-          paymentId: payment.id,
-          checkoutUrl: paystackData.authorization_url,
-          reference: paystackData.reference,
-          accessCode: paystackData.access_code,
-        },
-      });
-    } catch (err) {
-      logger.error({ module: 'payments', action: 'paystackCheckout', err }, 'Paystack checkout error');
+      res.status(201).json({ success: true, data: {
+        paymentId: payment.id, checkoutUrl: paystackData.authorization_url,
+        reference, accessCode: paystackData.access_code,
+      } });
+    } catch {
+      logger.warn({ module: 'payments', action: 'paystackCheckout', paymentId: payment.id }, 'Paystack checkout outcome requires reconciliation');
       res.status(502).json({
         success: false,
         error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Payment gateway error' },

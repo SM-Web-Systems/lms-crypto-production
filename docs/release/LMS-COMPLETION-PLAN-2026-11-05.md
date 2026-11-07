@@ -240,7 +240,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-020 | Implement real sponsor access-revocation lifecycle coverage | API + QA | LMS-011 | Open |
 | LMS-021 | Build quantitative sponsor reporting and billing acceptance pack | API + Web + QA | LMS-001 | Open |
 | LMS-022 | Execute sponsor staging and cross-browser/accessibility acceptance | QA | LMS-006, LMS-020, LMS-021, LMS-012 | Open |
-| LMS-023 | Verify integrated Wallet/account and course-payment providers | API + QA + Platform | LMS-012, LMS-030 | Open |
+| LMS-023 | Verify integrated Wallet/account and course-payment providers | API + QA + Platform | LMS-012, LMS-030 | [Checkout locally verified](LMS-023-COURSE-CHECKOUT.md). Wallet and Paystack sandbox evidence remains open. |
 | LMS-030 | Implement durable reward funding intents and availability contract | API | LMS-011 | Open |
 | LMS-031 | Implement Stellar funding verification | API + Platform | LMS-030 | Open |
 | LMS-032 | Implement backed platform-credit provisioning | API + Platform | LMS-030 | Open |

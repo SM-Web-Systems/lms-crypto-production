@@ -284,7 +284,7 @@
       "title": "Verify integrated Wallet/account and course-payment providers",
       "priority": "P2",
       "ownerRole": "API + QA + Platform",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-012",
         "LMS-030"
@@ -292,7 +292,10 @@
       "acceptance": [
         "Staging Wallet SSO/verified-email/recovery/CAPTCHA/2FA and email capture tested; course payment authorization, signed webhooks, duplicate/reorder, receipts and refunds verified in sandbox; live enablement has separate approved receipt"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-023-COURSE-CHECKOUT.md"
+      ],
+      "reason": "Local checkout now reserves one currency-bound reference before initialization, handles safe replay and preserves ambiguous attempts for reconciliation. Real Wallet and Paystack sandbox evidence remains open."
     },
     {
       "id": "LMS-030",

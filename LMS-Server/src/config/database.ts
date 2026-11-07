@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import { openApplicationDatabase, loadCanonicalSchema, validateDatabase } from './databaseBootstrap.js';
 import { rewardFundingSchema } from './rewardFundingSchema.js';
 import { platformCreditSchema } from './platformCreditSchema.js';
+import { paystackCheckoutSchema } from './paystackCheckoutSchema.js';
 import { pushSchema } from './pushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
@@ -657,7 +658,7 @@ function ensurePaystackColumns(): void {
     CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id ON webhook_events(event_id);
   `);
 }
-startupMigrations.push(ensurePaystackColumns);
+startupMigrations.push(ensurePaystackColumns, () => db.exec(paystackCheckoutSchema));
 
 // ─── Phase 20 C1: Multi-Tenant Architecture ──────────────────────────────────
 function ensureTenantTables(): void {

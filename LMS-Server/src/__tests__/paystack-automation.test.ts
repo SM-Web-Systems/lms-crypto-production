@@ -26,6 +26,9 @@ import bcrypt from 'bcryptjs';
 import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
+import { engageWriterHold, releaseWriterHold } from '../services/writerHold.js';
+
+afterEach(() => vi.unstubAllGlobals());
 
 const HASH = bcrypt.hashSync('password123', 4);
 const TEST_PAYSTACK_SECRET = 'test-only-jwt-secret-do-not-use-in-production'; // matches vitest env
@@ -101,16 +104,12 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
 
     const studentToken = makeToken({ userId: studentId, role: 'student' });
 
-    // Mock global fetch for Paystack API
-    const mockFetch = vi.fn().mockResolvedValue({
-      json: async () => ({
-        status: true,
-        data: {
-          authorization_url: 'https://checkout.paystack.com/test123',
-          access_code: 'test-access-code',
-          reference: 'lms-pay-mockref123456',
-        },
-      }),
+    const mockFetch = vi.fn(async (_url: string, options: RequestInit) => {
+      const body = JSON.parse(String(options.body));
+      return { ok: true, json: async () => ({ status: true, data: {
+        authorization_url: 'https://checkout.paystack.com/test123', access_code: 'test-access-code',
+        reference: body.reference,
+      } }) };
     });
     vi.stubGlobal('fetch', mockFetch);
 
@@ -125,6 +124,106 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
     expect(res.body.data.paymentId).toBeTruthy();
 
     vi.unstubAllGlobals();
+  });
+
+  it('reserves one currency-bound reference during concurrent initialization and replays its checkout', async () => {
+    const user = seedUser('student', 'checkout-race');
+    const course = seedCourse('Checkout race', 'CHECKOUT-RACE');
+    seedPricing(course, 4300);
+    db.prepare("UPDATE course_pricing SET currency='ZAR' WHERE course_id=?").run(course);
+    const applicationId = seedApplication(user, course);
+    const checkout = () => request(app).post('/api/v1/payments/checkout/paystack')
+      .auth(makeToken({ userId: user, role: 'student' }), { type: 'bearer' }).send({ applicationId });
+
+    let finish!: () => void;
+    let began!: () => void;
+    const providerBegan = new Promise<void>(resolve => { began = resolve; });
+    const releaseProvider = new Promise<void>(resolve => { finish = resolve; });
+    const provider = vi.fn(async (_url: string, options: RequestInit) => {
+      const body = JSON.parse(String(options.body));
+      began();
+      await releaseProvider;
+      return { ok: true, json: async () => ({ status: true, data: {
+        authorization_url: 'https://checkout.paystack.com/race', access_code: 'race', reference: body.reference,
+      } }) };
+    });
+    vi.stubGlobal('fetch', provider);
+    const initial = checkout().then(response => response);
+    try {
+      await providerBegan;
+      expect((await checkout()).status).toBe(409);
+      const reserved = db.prepare('SELECT currency,amount_cents,paystack_reference FROM payments WHERE application_id=?').get(applicationId);
+      const payload = JSON.parse(String(provider.mock.calls[0][1].body));
+      expect(reserved).toEqual({ currency: 'ZAR', amount_cents: 4300, paystack_reference: payload.reference });
+      expect(payload).toMatchObject({ currency: 'ZAR', amount: 4300 });
+    } finally {
+      finish();
+    }
+    const created = await initial;
+    expect(created.status).toBe(201);
+    const resumed = await checkout();
+    expect(resumed.status).toBe(200);
+    expect(resumed.body.data).toEqual(created.body.data);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM payments WHERE application_id=?').get(applicationId)).toEqual({ n: 1 });
+  });
+
+  it('retains a payment reference and withholds the link if a release hold begins in flight', async () => {
+    const user = seedUser('student', 'checkout-hold');
+    const course = seedCourse('Checkout hold', 'CHECKOUT-HOLD');
+    seedPricing(course, 2000);
+    const applicationId = seedApplication(user, course);
+    const provider = vi.fn(async (_url: string, options: RequestInit) => {
+      const body = JSON.parse(String(options.body));
+      engageWriterHold();
+      return { ok: true, json: async () => ({ status: true, data: {
+        authorization_url: 'https://checkout.paystack.com/hold', access_code: 'hold', reference: body.reference,
+      } }) };
+    });
+    vi.stubGlobal('fetch', provider);
+    const checkout = () => request(app).post('/api/v1/payments/checkout/paystack')
+      .auth(makeToken({ userId: user, role: 'student' }), { type: 'bearer' }).send({ applicationId });
+    try {
+      expect((await checkout()).status).toBe(503);
+      expect(db.prepare('SELECT COUNT(*) AS n FROM paystack_checkout_links').get()).toEqual({ n: 0 });
+      expect(db.prepare('SELECT COUNT(*) AS n FROM payments WHERE application_id=?').get(applicationId)).toEqual({ n: 1 });
+    } finally {
+      releaseWriterHold();
+    }
+    expect((await checkout()).status).toBe(409);
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['reference', 'destination'])('keeps an ambiguous checkout reserved after an unexpected %s', async (defect) => {
+    const user = seedUser('student', 'checkout-' + defect);
+    const course = seedCourse('Ambiguous checkout', 'CHECKOUT-' + defect);
+    seedPricing(course, 2000);
+    const applicationId = seedApplication(user, course);
+    const provider = vi.fn(async (_url: string, options: RequestInit) => {
+      const body = JSON.parse(String(options.body));
+      return { ok: true, json: async () => ({ status: true, data: {
+        authorization_url: defect === 'destination' ? 'https://checkout.paystack.com.evil.invalid/other' : 'https://checkout.paystack.com/test123',
+        access_code: 'test-access-code', reference: defect === 'reference' ? 'foreign-reference' : body.reference,
+      } }) };
+    });
+    vi.stubGlobal('fetch', provider);
+    const checkout = () => request(app).post('/api/v1/payments/checkout/paystack')
+      .auth(makeToken({ userId: user, role: 'student' }), { type: 'bearer' }).send({ applicationId });
+    expect((await checkout()).status).toBe(502);
+    const retry = await checkout();
+    expect(retry.status).toBe(409);
+    expect(retry.body.error.code).toBe('PAYSTACK_RECONCILIATION_REQUIRED');
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM paystack_checkout_links').get()).toEqual({ n: 0 });
+    const pending = db.prepare('SELECT status,paystack_reference FROM payments WHERE application_id=?').get(applicationId) as { status:string; paystack_reference:string };
+    expect(pending.status).toBe('pending');
+    const body = JSON.stringify({ event: 'charge.success', data: {
+      reference: pending.paystack_reference, status: 'success', amount: 2000, currency: 'USD',
+    } });
+    const webhook = await request(app).post('/api/v1/webhooks/paystack')
+      .set('Content-Type','application/json').set('x-paystack-signature', makeWebhookSignature(body)).send(body);
+    expect(webhook.status).toBe(200);
+    expect(db.prepare('SELECT status FROM payments WHERE application_id=?').get(applicationId)).toEqual({ status: 'confirmed' });
   });
 
   // PAY-B12: Paystack checkout rejects free course

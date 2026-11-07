@@ -1,7 +1,8 @@
 import { fundingSchemaTables } from './rewardFundingSchema.js';
 import { pushSchemaTables } from './pushSchema.js';
 import { offlineLearningSchemaTables } from './offlineLearningSchema.js';
-const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...offlineLearningSchemaTables];
+import { paystackCheckoutTable } from './paystackCheckoutSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...offlineLearningSchemaTables, paystackCheckoutTable];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -89,7 +90,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
       const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table.name) as {sql:string} | undefined;
       const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
       const feature = fundingSchemaTables.includes(table.name) ? 'funding'
-        : pushSchemaTables.includes(table.name) ? 'push' : 'offline learning';
+        : pushSchemaTables.includes(table.name) ? 'push'
+        : table.name === paystackCheckoutTable ? 'card checkout' : 'offline learning';
       if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${feature} schema (${table.name})`);
     }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
