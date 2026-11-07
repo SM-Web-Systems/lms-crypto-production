@@ -526,7 +526,7 @@
       "title": "Rehearse exact images, migrations and recoverability",
       "priority": "P1",
       "ownerRole": "Platform owner",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-010",
         "LMS-011"
@@ -534,7 +534,10 @@
       "acceptance": [
         "Private WAL-safe backup with off-host recoverability proven; exact candidate/recovery image + schema combinations, writer hold, restoration and reconciliation rehearsed on protected copies"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-061-RECOVERY-REHEARSAL.md"
+      ],
+      "reason": "The retrieved-backup verifier passed a synthetic WAL backup, relocation and tamper refusal rehearsal. Actual off-host retrieval, protected-copy runtime restore, exact candidate/recovery images and LMS-010/LMS-011 remain open."
     },
     {
       "id": "LMS-062",
