@@ -248,7 +248,9 @@ export class OfflineLearning {
   private async drain(session: Session) {
     const {courses} = await this.view();
     this.current(session);
+    let firstFailure: {error: unknown} | undefined;
     for (const saved of courses) {
+      this.current(session);
       const {course, leaseId, contentVersion} = saved.pack;
       try {
         const startedAt = this.deps.now();
@@ -273,11 +275,13 @@ export class OfflineLearning {
           if (!applied) break;
         }
       } catch (error) {
+        this.current(session);
         const notice = this.deps.rejection(error);
-        if (!notice) throw error;
-        await this.update(session, saved, () => null, notice);
+        if (notice) await this.update(session, saved, () => null, notice);
+        else firstFailure ??= {error};
       }
     }
+    if (firstFailure) throw firstFailure.error;
   }
 
   private async update(
