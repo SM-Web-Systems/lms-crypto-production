@@ -1,7 +1,7 @@
 /**
  * paystackService — Phase 12 C1: Paystack checkout + webhook verification + refund.
  *
- * Uses Paystack REST API v2. All amounts in kobo (cents * 100 for ZAR, or cents for USD).
+ * Paystack amounts are integer subunits of the transaction currency.
  * Webhook signature: HMAC SHA-512 of raw body with PAYSTACK_SECRET_KEY.
  */
 
@@ -9,6 +9,10 @@ import crypto from 'crypto';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || '';
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
+
+export function isPaystackConfigured(): boolean {
+  return PAYSTACK_SECRET_KEY.trim().length > 0;
+}
 
 interface PaystackInitResponse {
   status: boolean;
@@ -52,12 +56,15 @@ interface PaystackRefundResponse {
 export async function initializeTransaction(
   email: string,
   amountCents: number,
+  currency: string,
   reference: string,
   callbackUrl: string,
   metadata?: Record<string, unknown>,
 ): Promise<PaystackInitResponse['data']> {
   const res = await fetch(`${PAYSTACK_BASE_URL}/transaction/initialize`, {
     method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10000),
     headers: {
       Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
       'Content-Type': 'application/json',
@@ -65,16 +72,22 @@ export async function initializeTransaction(
     body: JSON.stringify({
       email,
       amount: amountCents, // Paystack expects amount in smallest currency unit
-      currency: 'USD',
+      currency,
       reference,
       callback_url: callbackUrl,
-      metadata: metadata ?? {},
+      metadata: JSON.stringify(metadata ?? {}),
     }),
   });
 
   const json = (await res.json()) as PaystackInitResponse;
-  if (!json.status) {
-    throw new Error(`Paystack initialization failed: ${json.message}`);
+  if (!res.ok || json.status !== true || json.data?.reference !== reference ||
+      typeof json.data.access_code !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(json.data.access_code) ||
+      typeof json.data.authorization_url !== 'string') {
+    throw new Error('Paystack returned invalid checkout evidence');
+  }
+  const checkout = new URL(json.data.authorization_url);
+  if (checkout.origin !== 'https://checkout.paystack.com' || checkout.username || checkout.password) {
+    throw new Error('Paystack returned an unexpected checkout destination');
   }
   return json.data;
 }

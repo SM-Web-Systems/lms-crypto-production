@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, execute } from '../config/database.js';
+import { db, query, queryOne, execute } from '../config/database.js';
 import type { CoursePricing, Payment } from '../types/index.js';
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
@@ -147,22 +147,56 @@ export function listPayments(filters?: { status?: string; courseId?: string }): 
 
 // ─── Phase 12 C1: Paystack + Stellar extensions ─────────────────────────────
 
-export function createPaystackPayment(
-  userId: string,
-  courseId: string,
-  applicationId: string,
-  amountCents: number,
-  reference: string,
-  accessCode: string,
-): Payment {
-  const id = uuidv4();
-  execute(
-    `INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency,
-     payment_method, status, paystack_reference, paystack_access_code, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'USD', 'paystack', 'pending', ?, ?, datetime('now'), datetime('now'))`,
-    [id, userId, courseId, applicationId, amountCents, reference, accessCode],
-  );
-  return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [id])!;
+type CheckoutPayment = Payment & { paystack_checkout_url: string | null };
+
+export function reservePaystackCheckout(
+  userId: string, courseId: string, applicationId: string, pricing: CoursePricing,
+): { kind: 'settled' | 'reconciliation' } | { kind: 'existing' | 'reserved'; payment: CheckoutPayment } {
+  return db.transaction(() => {
+    const settled = queryOne(
+      "SELECT 1 FROM payments WHERE application_id = ? AND status IN ('confirmed','waived')",
+      [applicationId],
+    );
+    if (settled) return { kind: 'settled' } as const;
+
+    const existing = query<CheckoutPayment>(
+      `SELECT p.*, l.authorization_url AS paystack_checkout_url
+       FROM payments p LEFT JOIN paystack_checkout_links l ON l.payment_id = p.id
+       WHERE p.application_id = ? AND p.payment_method = 'paystack' AND p.status IN ('pending','failed')
+       LIMIT 2`,
+      [applicationId],
+    );
+    if (existing.length > 1 || (existing[0] && !existing[0].paystack_reference)) {
+      return { kind: 'reconciliation' } as const;
+    }
+    if (existing[0]) return { kind: 'existing', payment: existing[0] } as const;
+
+    const id = uuidv4();
+    const reference = 'lms-pay-' + uuidv4().replace(/-/g, '');
+    execute(
+      `INSERT INTO payments (id,user_id,course_id,application_id,amount_cents,currency,
+        payment_method,status,paystack_reference,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,'paystack','pending',?,datetime('now'),datetime('now'))`,
+      [id,userId,courseId,applicationId,pricing.price_cents,pricing.currency,reference],
+    );
+    const payment = queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [id])!;
+    return { kind: 'reserved', payment: { ...payment, paystack_checkout_url: null } } as const;
+  }).immediate();
+}
+
+export function savePaystackCheckout(paymentId: string, checkoutUrl: string, accessCode: string): boolean {
+  return db.transaction(() => {
+    const saved = execute(
+      `UPDATE payments SET paystack_access_code = ?, updated_at = datetime('now')
+       WHERE id = ? AND payment_method = 'paystack' AND status IN ('pending','failed')
+       AND NOT EXISTS (SELECT 1 FROM payments p
+         WHERE p.application_id = payments.application_id AND p.status IN ('confirmed','waived'))`,
+      [accessCode, paymentId],
+    );
+    if (!saved) return false;
+    execute('INSERT INTO paystack_checkout_links (payment_id,authorization_url) VALUES (?,?)', [paymentId, checkoutUrl]);
+    return true;
+  }).immediate();
 }
 
 export function createStellarPayment(
