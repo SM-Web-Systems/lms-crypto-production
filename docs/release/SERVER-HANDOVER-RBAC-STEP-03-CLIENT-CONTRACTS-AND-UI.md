@@ -106,7 +106,7 @@ docker logs --since "$LOG_READ_FROM" --until "$LOG_READ_UNTIL" lms-api |
 
 Keep raw logs private. Review container replacements, rotation, log levels, and gaps before accepting any zero count. The timestamp span alone cannot establish continuous coverage. The counter does not identify installed builds or enforce a minimum build. Continue to require a reviewed fleet record, supported signed builds and a tested upgrade rule.
 
-The local validation passed 17 API assertions across the logger and role endpoint suites and three counter tests. No server logs were collected.
+The local validation passed 19 API assertions across the logger and role endpoint suites and three counter tests. No server logs were collected.
 
 ## Server return record
 
