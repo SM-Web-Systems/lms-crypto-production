@@ -4,6 +4,12 @@ The read-only inventory succeeded in [run 42247323277](https://github.com/SM-Web
 
 The private report is `rbac-inventory-501d67b5bac94487861a23b4e2571915/exceptions.json` beneath the configured `DEPLOY_BACKUP_DIR` on the staging server. Keep account identifiers and decision records in that private server directory. The report excludes names, emails and credentials; an authorized operator can use the corresponding finalized snapshot or existing account-management tools to identify the affected accounts privately.
 
+In a private staging SSH session with `DEPLOY_BACKUP_DIR` set from the authorized server configuration, open the retained report with:
+
+```bash
+less -- "${DEPLOY_BACKUP_DIR:?set the authorized backup directory}/rbac-inventory-501d67b5bac94487861a23b4e2571915/exceptions.json"
+```
+
 Public binding evidence:
 
 - Snapshot SHA-256: `19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79`.
@@ -41,7 +47,18 @@ npm run rbac:inventory -- --snapshot --database "$PRIVATE_FINALIZED_SNAPSHOT" \
   --review-output "$PRIVATE_REVIEW_DIR/review-decisions.json"
 ```
 
-The tool refuses a different snapshot or an existing destination. It creates the worksheet with owner-only permissions on POSIX. On Windows, use a directory restricted by an operator-controlled ACL. The worksheet binds the snapshot, schema fingerprint and supplied deployment revision. It starts pending with blank decisions for account, learner-profile and integrity findings and blank references for installed builds and endpoint usage. Fill in the reviewer, date, private review reference, decisions and rationales. Keep the worksheet in the private review directory. Terminal output contains aggregate findings only.
+The tool refuses a different snapshot or an existing destination. It creates the worksheet with owner-only permissions on POSIX. On Windows, use a directory restricted by an operator-controlled ACL. The worksheet binds the snapshot, schema fingerprint and supplied deployment revision. Complete the reviewer, private review reference and `reviewedAt` in UTC with milliseconds, such as `2026-11-08T10:30:00.000Z`. Record a decision and rationale for every finding, keeping the generated finding rows and order. Fill `installedClientEvidence` and `legacyEndpointUsageEvidence` with private references. Set `status` to `reviewed` and confirm `acceptCurrentRbacAsAuthoritative` after agreeing that current RBAC grants are the authority for reconciliation.
+
+Verify the completed worksheet privately against the finalized copy:
+
+```bash
+npm run rbac:inventory -- --snapshot --database "$PRIVATE_FINALIZED_SNAPSHOT" \
+  --deployed-sha f5a64e8ac92aca6b33ae54bda70617d475893e3e \
+  --expected-snapshot-sha 19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79 \
+  --verify-review "$PRIVATE_REVIEW_DIR/review-decisions.json"
+```
+
+Share the `REVIEW_RECORD_VERIFIED` summary if needed. It includes the worksheet digest and finding counts. Keep the worksheet, identities, rationales and evidence references in the private directory. Verification checks the completeness and snapshot binding of the worksheet. The owner still checks the underlying client evidence and approves any repairs separately.
 
 Completing the worksheet records the review. Data corrections, cutover, image replacement and recovery-policy changes each require a separately reviewed action. After approved corrections, capture and validate fresh binding evidence before rehearsal or execution. Preserve existing private evidence and financial history.
 
