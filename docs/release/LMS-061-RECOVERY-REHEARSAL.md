@@ -15,6 +15,19 @@ python3 -I -S scripts/verify_retrieved_backup.py \
 
 On success the command prints `RETRIEVED_BACKUP_VERIFIED` and the two digests. It independently recomputes the SQLite integrity, schema, row counts, financial and protected data fingerprints, and foreign-key findings. Existing findings must match the receipt exactly. A known matching finding still needs its independent review before migration. The verifier leaves the copy byte-identical and prints fixed refusal codes for failed checks. On Windows, restrict both files and their directory using filesystem ACLs.
 
+## Diagnose the retained capture policy mismatch
+
+The staging inventory capture was retained after `PREPARATION_COMPATIBILITY_POLICY_MISMATCH`. In a private operator session, record the SHA-256 of the selected `capture-*.json` in the restricted evidence record before copying the file to an isolated review directory. Compare that copy with the separately reviewed policy using a checkout of the candidate tooling:
+
+```bash
+python3 -I -S scripts/check_recovery_policy.py \
+  --capture "$PRIVATE_CAPTURE_JSON_ABSOLUTE_PATH" \
+  --expected-capture-sha256 "$RECORDED_CAPTURE_SHA256" \
+  --policy "$PRIVATE_POLICY_JSON_ABSOLUTE_PATH"
+```
+
+The diagnostic reports mismatched field names and omits paths and values. Check the source and target revisions first. The retained capture used the observed deployed checkout as its target, so a policy for a later candidate can legitimately differ. Review the fields against the intended transition and fresh recovery evidence before approving a policy. A match checks the recorded capture and policy fields only. Backup integrity, current database state, candidate image availability and recovery eligibility require their separate checks.
+
 ## Finish the protected rehearsal
 
 Use a separate disposable volume for runtime restoration. Record the exact candidate and recovery API and web image IDs, the writer hold, the migration results, the final schema and foreign-key checks, and the reconciled data fingerprints. Exercise the supported image/schema combinations and recovery procedure on the protected copies. Keep the operator’s retrieval provenance and exact-image results together for review. The verifier checks the bytes and receipt presented to it. The separate operator record establishes the off-host retrieval and runtime restoration. [RBAC schema retirement handover](SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md)
