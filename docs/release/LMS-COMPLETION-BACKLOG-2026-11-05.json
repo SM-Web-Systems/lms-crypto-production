@@ -523,7 +523,7 @@
       "evidence": [
         "LMS-COMPLETION-STATUS.md"
       ],
-      "reason": "Current draft CI exercises the full Linux and Windows API suites and the candidate browser and mobile suites. Final candidate selection, protected-copy evidence and physical device acceptance are outstanding."
+      "reason": "Hosted draft CI passed full Linux and Windows API validation, browser tests and mobile checks. Each Windows suite skipped the existing protected-copy case. Final candidate selection, protected-copy evidence and physical device acceptance are outstanding."
     },
     {
       "id": "LMS-061",
@@ -571,7 +571,10 @@
       "acceptance": [
         "Old documents marked historical with current links; #62/#102/#103 disposition reviewed separately; every task has linked implementation, tests and acceptance evidence; any residual gap remains open"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-COMPLETION-STATUS.md"
+      ],
+      "reason": "Historical PR dispositions are recorded separately. Final ledger closure requires LMS-062 and linked acceptance receipts for the released candidate."
     }
   ],
   "executionContext": {
