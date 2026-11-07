@@ -189,9 +189,13 @@ router.get('/amma-callback', ammaCallback);
  *             properties:
  *               code: { type: string, minLength: 64, maxLength: 64 }
  *               code_verifier: { type: string, minLength: 43, maxLength: 128 }
+ *               app_platform: { type: string, enum: [android, ios], description: Required when the native build policy is enabled }
+ *               app_build: { type: string, description: Installed binary build number required when the native build policy is enabled }
  *     responses:
  *       200: { description: LMS session token and current effective user context; response is not cacheable }
  *       401: { description: Invalid, expired, consumed, or invalidated handoff }
+ *       403: { description: Installed app update required by the native build policy }
+ *       503: { description: Native build policy is incomplete or invalid }
  *       429: { description: Auth write rate limit exceeded }
  */
 router.post('/amma-mobile-session', ammaMobileSession);
