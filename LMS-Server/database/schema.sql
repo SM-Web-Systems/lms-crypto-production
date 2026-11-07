@@ -416,6 +416,12 @@ CREATE TABLE IF NOT EXISTS paystack_checkout_links (
   authorization_url TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS paystack_refund_requests (
+  payment_id TEXT PRIMARY KEY NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  refund_reference TEXT NOT NULL UNIQUE,
+  submitted INTEGER NOT NULL DEFAULT 0 CHECK (submitted IN (0, 1))
+);
+
 -- Phase F4: disputes — payment dispute / refund workflow
 CREATE TABLE IF NOT EXISTS disputes (
   id              TEXT PRIMARY KEY,

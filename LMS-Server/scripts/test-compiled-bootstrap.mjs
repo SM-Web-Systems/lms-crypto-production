@@ -44,13 +44,14 @@ try {
       'DROP TABLE offline_progress_receipts',
       'DROP TABLE offline_learning_leases',
       'DROP TABLE paystack_checkout_links',
+      'DROP TABLE paystack_refund_requests',
     ].join('; '))});
     db.close();
   `]);
   assert.equal(beforeOfflineUpgrade.status, 0, beforeOfflineUpgrade.stderr);
   const migrated = run(['--input-type=module', '-e', `
     const { db, close } = await import(${JSON.stringify(runtime)});
-    for (const table of ['offline_learning_leases', 'offline_progress_receipts', 'paystack_checkout_links']) {
+    for (const table of ['offline_learning_leases', 'offline_progress_receipts', 'paystack_checkout_links', 'paystack_refund_requests']) {
       if (db.prepare('SELECT COUNT(*) n FROM ' + table).get().n !== 0) throw Error('Unexpected additive data');
     }
     if (db.pragma('foreign_key_check').length !== 0) throw Error('Offline upgrade introduced foreign-key violations');
@@ -59,7 +60,7 @@ try {
   assert.equal(migrated.status, 0, migrated.stderr);
   assert.equal(run([cli, '--initialize-new']).status, 1, 'existing database must be refused');
   console.log('PASS: compiled initialization and restart without src, from an unrelated directory with spaces; no login accounts.');
-  console.log('PASS: compiled additive upgrade recreated empty offline and Paystack checkout tables on the disposable database.');
+  console.log('PASS: compiled additive upgrade recreated empty offline and Paystack payment tables on the disposable database.');
 } finally {
   rmSync(isolated, { recursive: true, force: true });
 }

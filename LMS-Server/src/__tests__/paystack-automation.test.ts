@@ -12,7 +12,7 @@
  * PAY-B19 — Stellar checkout rejects missing XLM price
  * PAY-B20 — Payment status returns correct state
  * PAY-B21 — Payment status rejects wrong user
- * PAY-B22 — Refund updates status to refunded
+ * PAY-B22 — Refund stays confirmed until signed settlement
  * PAY-B23 — Refund rejects non-paystack payment
  * PAY-B24 — Student payment history returns own payments
  * PAY-B25 — Pricing endpoint includes stellar fields
@@ -455,8 +455,7 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
     expect(res.status).toBe(403);
   });
 
-  // PAY-B22: Refund updates status
-  it('PAY-B22 — refund updates status to refunded (mocked)', async () => {
+  it('PAY-B22 — one refund request survives retries and only a signed processed event settles it', async () => {
     const adminId = seedUser('admin', 'b22-admin');
     const studentId = seedUser('student', 'b22-student');
     const courseId = seedCourse('Course B22', 'PAY-B22');
@@ -466,23 +465,110 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
 
     const adminToken = makeToken({ userId: adminId, role: 'admin' });
 
-    // Mock fetch for Paystack refund API
-    const mockFetch = vi.fn().mockResolvedValue({
-      json: async () => ({ status: true, data: { id: 1, status: 'processed', amount: 2500 } }),
+    let finish!: () => void;
+    let began!: () => void;
+    const providerBegan = new Promise<void>(resolve => { began = resolve; });
+    const releaseProvider = new Promise<void>(resolve => { finish = resolve; });
+    const mockFetch = vi.fn(async (_url: string, options: RequestInit) => {
+      const body = JSON.parse(String(options.body));
+      began();
+      await releaseProvider;
+      return { ok: true, json: async () => ({ status: true, data: {
+        reference: body.reference, transaction: { reference }, status: 'processed', amount: 2500, currency: 'USD',
+      } }) };
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    const res = await request(app)
+    const refund = () => request(app)
       .post(`/api/v1/admin/payments/${paymentId}/refund`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ notes: 'Customer requested refund' });
+    const initial = refund().then(response => response);
+    try {
+      await providerBegan;
+      const concurrent = await refund();
+      expect(concurrent.status).toBe(409);
+      expect(concurrent.body.error.code).toBe('PAYSTACK_REFUND_RECONCILIATION_REQUIRED');
+    } finally {
+      finish();
+    }
+    expect((await initial).status).toBe(202);
+    expect((await refund()).status).toBe(202);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const providerPayload = JSON.parse(String(mockFetch.mock.calls[0][1].body));
+    expect(providerPayload).toMatchObject({
+      transaction: reference, reference: expect.stringMatching(/^lms-refund-/),
+      amount: 2500, currency: 'USD', merchant_note: 'Customer requested refund',
+    });
+    expect(db.prepare('SELECT refund_reference, submitted FROM paystack_refund_requests WHERE payment_id = ?').get(paymentId))
+      .toEqual({ refund_reference: providerPayload.reference, submitted: 1 });
 
-    expect(res.status).toBe(200);
+    const payment = () => db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId);
+    const webhook = (status: string, amount = '2500') => {
+      const body = JSON.stringify({ event: `refund.${status}`, data: {
+        status, transaction_reference: reference, refund_reference: providerPayload.reference, amount, currency: 'USD',
+      } });
+      return request(app).post('/api/v1/webhooks/paystack').set('Content-Type', 'application/json')
+        .set('x-paystack-signature', makeWebhookSignature(body)).send(body);
+    };
+    expect(payment()).toEqual({ status: 'confirmed' });
+    expect((await webhook('pending')).status).toBe(200);
+    expect(payment()).toEqual({ status: 'confirmed' });
+    expect((await webhook('processed')).status).toBe(200);
+    expect((await webhook('processed')).status).toBe(200);
+    expect((await webhook('processing')).status).toBe(200);
+    expect(payment()).toEqual({ status: 'refunded' });
+    expect((await refund()).status).toBe(400);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 
-    const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as { status: string };
-    expect(payment.status).toBe('refunded');
+  it.each(['timeout', 'wrong currency', 'needs attention'])('keeps the refund reference after %s without resubmitting', async outcome => {
+    const adminId = seedUser('admin', 'refund-review-admin');
+    const studentId = seedUser('student', 'refund-review-student');
+    const courseId = seedCourse('Refund review', 'REFUND-REVIEW');
+    const applicationId = seedApplication(studentId, courseId);
+    const reference = 'lms-refund-review-transaction';
+    const paymentId = seedPayment(studentId, courseId, applicationId, 2500, 'confirmed', { method: 'paystack', reference });
+    const provider = vi.fn(async (_url: string, options: RequestInit) => {
+      if (outcome === 'timeout') throw new Error('Timeout');
+      const body = JSON.parse(String(options.body));
+      return { ok: true, json: async () => ({ status: true, data: {
+        reference: body.reference, transaction: { reference }, amount: 2500,
+        currency: outcome === 'wrong currency' ? 'ZAR' : 'USD',
+        status: outcome === 'needs attention' ? 'needs-attention' : 'pending',
+      } }) };
+    });
+    vi.stubGlobal('fetch', provider);
+    const refund = () => request(app).post(`/api/v1/admin/payments/${paymentId}/refund`)
+      .auth(makeToken({ userId: adminId, role: 'admin' }), { type: 'bearer' });
+    expect((await refund()).status).toBe(502);
+    expect((await refund()).status).toBe(409);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId)).toEqual({ status: 'confirmed' });
+    expect(db.prepare('SELECT refund_reference, submitted FROM paystack_refund_requests WHERE payment_id = ?').get(paymentId))
+      .toEqual({ refund_reference: JSON.parse(String(provider.mock.calls[0][1].body)).reference, submitted: 0 });
+  });
 
-    vi.unstubAllGlobals();
+  it('requires reconciliation before a full refund when a signed partial refund already exists', async () => {
+    const adminId = seedUser('admin', 'refund-partial-admin');
+    const studentId = seedUser('student', 'refund-partial-student');
+    const courseId = seedCourse('Refund partial', 'REFUND-PARTIAL');
+    const applicationId = seedApplication(studentId, courseId);
+    const reference = 'lms-refund-partial-transaction';
+    const paymentId = seedPayment(studentId, courseId, applicationId, 2500, 'confirmed', { method: 'paystack', reference });
+    const provider = vi.fn();
+    vi.stubGlobal('fetch', provider);
+    const body = JSON.stringify({ event: 'refund.processed', data: {
+      status: 'processed', transaction_reference: reference, refund_reference: 'partial-refund', amount: '1000', currency: 'USD',
+    } });
+    expect((await request(app).post('/api/v1/webhooks/paystack').set('Content-Type', 'application/json')
+      .set('x-paystack-signature', makeWebhookSignature(body)).send(body)).status).toBe(200);
+
+    const refund = await request(app).post(`/api/v1/admin/payments/${paymentId}/refund`)
+      .auth(makeToken({ userId: adminId, role: 'admin' }), { type: 'bearer' });
+    expect(refund.status).toBe(409);
+    expect(provider).not.toHaveBeenCalled();
+    expect(db.prepare('SELECT 1 FROM paystack_refund_requests WHERE payment_id = ?').get(paymentId)).toBeUndefined();
   });
 
   // PAY-B23: Refund rejects non-paystack payment

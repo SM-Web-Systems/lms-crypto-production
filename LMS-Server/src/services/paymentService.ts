@@ -199,6 +199,45 @@ export function savePaystackCheckout(paymentId: string, checkoutUrl: string, acc
   }).immediate();
 }
 
+export function reservePaystackRefund(paymentId: string) {
+  return db.transaction(() => {
+    const payment = queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+    if (!payment) return { kind: 'missing' } as const;
+    if (payment.status !== 'confirmed') return { kind: 'unconfirmed' } as const;
+    if (payment.payment_method !== 'paystack' || !payment.paystack_reference) {
+      return { kind: 'unsupported' } as const;
+    }
+
+    // Any previously recorded refund evidence needs reconciliation before
+    // initiating a full refund, even when the payment is still confirmed.
+    const priorRefund = queryOne(
+      `SELECT 1 FROM webhook_events WHERE provider = 'paystack' AND event_type = 'refund.processed'
+       AND (event_id = ? OR CASE WHEN json_valid(payload)
+            THEN json_extract(payload, '$.data.transaction_reference') END = ?) LIMIT 1`,
+      [payment.paystack_reference, payment.paystack_reference],
+    );
+    if (priorRefund) return { kind: 'reconciliation' } as const;
+
+    const existing = queryOne<{ submitted: number }>(
+      'SELECT submitted FROM paystack_refund_requests WHERE payment_id = ?', [paymentId],
+    );
+    if (existing) return existing.submitted ? { kind: 'submitted' } as const : { kind: 'reconciliation' } as const;
+
+    const refundReference = `lms-refund-${uuidv4()}`;
+    execute(
+      'INSERT INTO paystack_refund_requests (payment_id, refund_reference) VALUES (?, ?)',
+      [paymentId, refundReference],
+    );
+    return {
+      kind: 'reserved',
+      reference: payment.paystack_reference,
+      refundReference,
+      amount: payment.amount_cents,
+      currency: payment.currency,
+    } as const;
+  }).immediate();
+}
+
 export function createStellarPayment(
   userId: string,
   courseId: string,

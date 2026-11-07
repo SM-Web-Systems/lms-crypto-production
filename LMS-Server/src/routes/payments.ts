@@ -28,7 +28,7 @@ import {
   savePaystackCheckout,
   createStellarPayment,
   failPayment,
-  refundPayment,
+  reservePaystackRefund,
   getStudentPayments,
   recordWebhookEvent,
   isSponsorScopedPayment,
@@ -907,12 +907,14 @@ router.get(
  *                 type: string
  *                 description: Optional refund notes
  *     responses:
- *       '200':
- *         description: Refund initiated successfully
+ *       '202':
+ *         description: Refund request accepted by Paystack
  *       '400':
  *         description: Can only refund confirmed Paystack payments
  *       '404':
  *         description: Payment not found
+ *       '409':
+ *         description: Earlier refund requires provider reconciliation
  *       '502':
  *         description: Refund gateway error
  */
@@ -921,17 +923,24 @@ router.post(
   requirePermission('billing.confirm'),
   requireAdministrator,
   async (req: AuthRequest, res: Response): Promise<void> => {
-    const payment = queryOne<{ id: string; status: string; payment_method: string; paystack_reference: string | null }>(
-      'SELECT id, status, payment_method, paystack_reference FROM payments WHERE id = ?',
-      [req.params.paymentId],
-    );
+    const paymentId = req.params.paymentId;
+    const { notes } = req.body ?? {};
+    if (notes !== undefined && typeof notes !== 'string') {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refund notes must be text' } });
+      return;
+    }
+    if (!isPaystackConfigured()) {
+      res.status(503).json({ success: false, error: { code: 'PAYSTACK_UNAVAILABLE', message: 'Paystack refunds are unavailable' } });
+      return;
+    }
 
-    if (!payment) {
+    const refund = reservePaystackRefund(paymentId);
+    if (refund.kind === 'missing') {
       res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
       return;
     }
 
-    if (payment.status !== 'confirmed') {
+    if (refund.kind === 'unconfirmed') {
       res.status(400).json({
         success: false,
         error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Can only refund confirmed payments' },
@@ -939,25 +948,40 @@ router.post(
       return;
     }
 
-    if (payment.payment_method !== 'paystack') {
+    if (refund.kind === 'unsupported') {
       res.status(400).json({
         success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refunds only available for Paystack payments' },
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refunds require a Paystack payment with a transaction reference' },
       });
       return;
     }
 
-    const { notes } = req.body ?? {};
+    if (refund.kind === 'reconciliation') {
+      res.status(409).json({
+        success: false,
+        error: { code: 'PAYSTACK_REFUND_RECONCILIATION_REQUIRED', message: 'An earlier refund is in flight or needs review in Paystack' },
+      });
+      return;
+    }
 
     try {
-      await paystackCreateRefund(payment.paystack_reference!, notes);
-      refundPayment(payment.id, notes || 'Refunded via admin');
-      res.json({ success: true, message: 'Refund initiated' });
-    } catch (err) {
-      logger.error({ module: 'payments', action: 'paystackRefund', err }, 'Paystack refund error');
+      if (refund.kind === 'reserved') {
+        await paystackCreateRefund(refund.reference, refund.refundReference, refund.amount, refund.currency, notes);
+        if (isWriterHoldActive()) {
+          res.set('Retry-After', '120').status(503).json({
+            success: false, error: { code: 'WRITER_HOLD', message: 'Maintenance in progress. Check the refund status after maintenance.' },
+          });
+          return;
+        }
+        execute('UPDATE paystack_refund_requests SET submitted = 1 WHERE payment_id = ? AND refund_reference = ?',
+          [paymentId, refund.refundReference]);
+      }
+      res.status(202).json({ success: true, message: 'Refund request accepted by Paystack' });
+    } catch {
+      logger.warn({ module: 'payments', action: 'paystackRefund', paymentId }, 'Paystack refund outcome requires reconciliation');
       res.status(502).json({
         success: false,
-        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Refund gateway error' },
+        error: { code: 'PAYSTACK_REFUND_RECONCILIATION_REQUIRED', message: 'Check the refund outcome in Paystack before retrying' },
       });
     }
   },

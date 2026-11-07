@@ -43,9 +43,11 @@ interface PaystackRefundResponse {
   status: boolean;
   message: string;
   data: {
-    id: number;
+    reference: string;
+    transaction: { reference: string };
     status: string;
     amount: number;
+    currency: string;
   };
 }
 
@@ -133,24 +135,28 @@ export function verifyWebhookSignature(rawBody: string | Buffer, signature: stri
  * Create a refund for a Paystack transaction.
  */
 export async function createRefund(
-  reference: string,
+  transactionReference: string,
+  refundReference: string,
+  amount: number,
+  currency: string,
   merchantNote?: string,
-): Promise<PaystackRefundResponse['data']> {
-  const body: Record<string, unknown> = { transaction: reference };
-  if (merchantNote) body.merchant_note = merchantNote;
-
+): Promise<void> {
   const res = await fetch(`${PAYSTACK_BASE_URL}/refund`, {
     method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10000),
     headers: {
       Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ transaction: transactionReference, reference: refundReference, amount, currency, merchant_note: merchantNote }),
   });
 
   const json = (await res.json()) as PaystackRefundResponse;
-  if (!json.status) {
-    throw new Error(`Paystack refund failed: ${json.message}`);
+  const data = json.data;
+  if (!res.ok || json.status !== true || data?.reference !== refundReference ||
+      data.transaction?.reference !== transactionReference || data.amount !== amount || data.currency !== currency ||
+      !['pending', 'processing', 'processed'].includes(data.status)) {
+    throw new Error('Paystack refund response requires reconciliation');
   }
-  return json.data;
 }
