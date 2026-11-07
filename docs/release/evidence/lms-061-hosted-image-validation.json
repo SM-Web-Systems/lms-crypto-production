@@ -1,0 +1,51 @@
+{
+  "task": "LMS-061",
+  "date": "2026-11-07",
+  "scope": "GitHub-hosted pull-request merge revisions, synthetic databases only",
+  "v1": {
+    "pullRequest": 156,
+    "headSha": "236048289b9cb830dcaf01fc67f4e9255e7c1791",
+    "builtRevision": "922408c44058fcc7e1c22a23bbe921c913121631",
+    "run": 42379187001,
+    "imageJob": 128422997317,
+    "apiImageId": "sha256:1cba5c14214f20dd9430634d5c255f9fbdae84be4ff1e1af2424442cf25ac736",
+    "webImageId": "sha256:d2bcc43006a7c15a03f940e3a8e1c138f200b0eee09dc922aa8844c884634e61",
+    "imageJobConclusion": "success",
+    "runtime": {
+      "unupgradedStartup": "REFUSED_WITHOUT_WRITES",
+      "cutover": "PASS",
+      "repeatedRestart": "NO_GRANT_RESURRECTION",
+      "v1StartupOnV2": "REFUSED_WITHOUT_WRITES",
+      "restoredV1Startup": "PASS"
+    },
+    "recoveryJob": 128422997005,
+    "recoveryJobConclusion": "success",
+    "releaseToolingTests": 295,
+    "syntheticRestoreRows": 2,
+    "syntheticSourceRowsUnchanged": true
+  },
+  "v2": {
+    "pullRequest": 169,
+    "headSha": "38d0aa251f50e4b4e251f67a4154bcdd3ebca8a4",
+    "builtRevision": "728727592799e8f6efb36bddd56f27c50f3335cf",
+    "run": 42379215687,
+    "imageJob": 128423082403,
+    "apiImageId": "sha256:3cccd18e6ef3337a43ee750da0085f9fbdae84be4ff1e1af2424442cf25ac736",
+    "webImageId": "sha256:14f72f1cc172bd032792811d2ccb4383183d27d332d2299cd4727f4c81e3b20f",
+    "imageJobConclusion": "success",
+    "runtime": {
+      "freshInitialization": "ROLE_FREE",
+      "v1Startup": "REFUSED_WITHOUT_WRITES",
+      "contraction": "EXACT_RETAINED_DATA_AND_GRANTS",
+      "repeatedRestart": "NO_GRANT_RESURRECTION",
+      "previousBackend": "NOT_RUN"
+    },
+    "recoveryJob": 128423082513,
+    "recoveryJobConclusion": "success",
+    "releaseToolingTests": 298,
+    "syntheticRestoreRows": 2,
+    "syntheticSourceRowsUnchanged": true
+  },
+  "protectedOffHostRetrievalVerified": false,
+  "releaseSelectedImagePairVerified": false
+}
