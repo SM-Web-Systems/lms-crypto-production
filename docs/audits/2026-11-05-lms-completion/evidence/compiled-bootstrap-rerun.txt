@@ -1,0 +1,5 @@
+
+> lms-server@1.0.0 test:compiled-bootstrap
+> node scripts/test-compiled-bootstrap.mjs
+
+PASS: compiled initialization and restart without src, from an unrelated directory with spaces; no login accounts.

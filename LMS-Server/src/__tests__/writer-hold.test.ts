@@ -60,6 +60,52 @@ describe('AUTH-14 writer hold', () => {
     expect(isWriterHoldActive()).toBe(true);
   });
 
+  it('stays held when the expected hold directory is missing', () => {
+    process.env.WRITER_HOLD_FILE = path.join(dir, 'missing', '.writer-hold');
+    expect(isWriterHoldActive()).toBe(true);
+  });
+
+  it('stays held when parent-directory inspection fails', () => {
+    const parent = dir;
+    const original = fs.statSync;
+    const spy = vi.spyOn(fs, 'statSync').mockImplementation(((file: fs.PathLike, ...args: unknown[]) => {
+      if (String(file) === parent) throw Object.assign(new Error('Synthetic permission denial'), { code: 'EACCES' });
+      return Reflect.apply(original, fs, [file, ...args]);
+    }) as typeof fs.statSync);
+    try { expect(isWriterHoldActive()).toBe(true); } finally { spy.mockRestore(); }
+  });
+
+  it('refuses HTTP mutations when the hold directory is missing', async () => {
+    process.env.WRITER_HOLD_FILE = path.join(dir, 'missing', '.writer-hold');
+    const response = await request(app).post('/api/v1/auth/login').send({});
+    expect(response.status).toBe(503);
+    expect(response.body.error.code).toBe('WRITER_HOLD');
+  });
+
+  it('detects a hold marker created while inspecting its directory', () => {
+    const original = fs.statSync;
+    const spy = vi.spyOn(fs, 'statSync').mockImplementation(((file: fs.PathLike, ...args: unknown[]) => {
+      if (String(file) === dir) hold();
+      return Reflect.apply(original, fs, [file, ...args]);
+    }) as typeof fs.statSync);
+    try { expect(isWriterHoldActive()).toBe(true); } finally { spy.mockRestore(); }
+  });
+
+  it('keeps worker startup paused until the missing directory is restored', () => {
+    vi.useFakeTimers();
+    const parent = path.join(dir, 'missing');
+    process.env.WRITER_HOLD_FILE = path.join(parent, '.writer-hold');
+    const start = vi.fn();
+    runWhenWriterHoldReleased(start, 1000);
+    vi.advanceTimersByTime(3000);
+    expect(start).not.toHaveBeenCalled();
+    fs.mkdirSync(parent);
+    vi.advanceTimersByTime(1000);
+    expect(start).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(2000);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses mutations and provider webhooks with a retryable 503', async () => {
     hold();
     const mutation = await request(app).post('/api/v1/auth/login').send({ email: 'a@example.test', password: 'x' });

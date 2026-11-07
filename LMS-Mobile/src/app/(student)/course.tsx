@@ -7,6 +7,7 @@ import { MaterialViewer } from '@/components/MaterialViewer';
 import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
+import { OfflineLearningPanel } from '@/components/OfflineLearningPanel';
 import { getCourseWeeks, type Course, type CourseItem, type CourseSection } from '@/types/course';
 import { getErrorMessage } from '@/utils/apiError';
 import { brand } from '@/theme/colors';
@@ -87,6 +88,7 @@ export default function CourseScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.accent.teal} />}>
       {error ? <ErrorBanner message={error} onRetry={load} /> : null}
       {learning.error ? <ErrorBanner message={learning.error} onRetry={learning.refresh} /> : null}
+      <OfflineLearningPanel courseId={selectedCourse?.id} />
 
       {!selectedCourse ? (
         <>

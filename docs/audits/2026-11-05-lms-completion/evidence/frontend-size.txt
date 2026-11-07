@@ -1,0 +1,16 @@
+
+> student-ms@1.0.0 size
+> size-limit
+
+
+  App entry (JS)
+  Size limit: 350 kB
+  Size:       88.74 kB brotlied
+
+  React vendor
+  Size limit: 200 kB
+  Size:       16.18 kB brotlied
+
+  Styles (CSS)
+  Size limit: 100 kB
+  Size:       13.67 kB brotlied

@@ -4,7 +4,7 @@ import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
-import { db, execute, queryOne, ensureAuthorizationVersionColumn, hashToken, migrateUsersToRbac } from '../config/database.js';
+import { db, execute, queryOne, ensureAuthorizationVersionColumn, hashToken } from '../config/database.js';
 import { generateToken, verifyToken } from '../config/jwt.js';
 import { getUserRoles, hasPermission } from '../middleware/rbac.js';
 import { assertNotLastSuperAdmin } from '../services/roleSecurityService.js';
@@ -23,7 +23,7 @@ function revoke(caller: ReturnType<typeof actor>, target: ReturnType<typeof acto
   return request(app).delete(`/api/v1/admin/users/${target.id}/roles/${role}`).auth(caller.token,{type:'bearer'});
 }
 function change(caller: ReturnType<typeof actor>, target: ReturnType<typeof actor>, role: LegacyRole) {
-  return request(app).patch(`/api/v1/users/${target.id}/role`).auth(caller.token,{type:'bearer'}).send({role});
+  return request(app).put(`/api/v1/admin/users/${target.id}/roles`).auth(caller.token,{type:'bearer'}).send({roleIds:[{student:'role_student',lecturer:'role_instructor',admin:'role_admin'}[role]]});
 }
 function course(tenantId: string | null = null) {
   const id = randomUUID();
@@ -77,7 +77,7 @@ describe('A01 — revocation hierarchy and atomicity', () => {
     expect((await revoke(a,target,'role_admin')).status).toBe(200);
     expect(getUserRoles(target.id)).toEqual([]);
     expect(hasPermission(target.id,'course.delete')).toBe(false);
-    expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('student');
+    expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('admin');
     expect((await request(app).get('/api/v1/auth/me').auth(target.token,{type:'bearer'})).status).toBe(401);
     expect(queryOne<{revoked_at: string}>('SELECT revoked_at FROM active_sessions WHERE user_id = ?', [target.id])?.revoked_at).toBeTruthy();
   });
@@ -119,7 +119,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
     const staleLogin = generateToken({userId:target.id,email:target.email,role:'admin'});
     expect(verifyToken(staleLogin).role).toBe('student');
   });
-  it('cannot demote a peer or higher-tier user via the legacy endpoint', async () => {
+  it('cannot demote a peer or higher-tier user via RBAC replacement', async () => {
     const a = actor('role_admin2','admin');
     for (const role of ['role_admin2','role_super_admin']) {
       const target = actor(role,'admin');
@@ -161,7 +161,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
       const res = await request(app).get('/api/v1/auth/amma-callback?assertion=audit&state=audit');
       expect(res.status).toBe(302);
       expect(res.headers.location).toContain('/sso-callback');
-      expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('student');
+      expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('admin');
       expect(getUserRoles(target.id)).toEqual(['student']);
     } finally { vi.restoreAllMocks(); vi.unstubAllEnvs(); }
   });
@@ -169,7 +169,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
     const a = actor('role_admin2','admin');
     const target = actor('role_student');
     expect((await revoke(a,target,'role_student')).status).toBe(200);
-    migrateUsersToRbac();
+    expect(db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get()).toEqual({total:1});
     expect(getUserRoles(target.id)).toEqual([]);
   });
   it('rolls back replacement when invalidation fails', async () => {
@@ -181,7 +181,7 @@ describe('A02 — effective role replacement and token invalidation', () => {
   });
   it('migrates existing databases idempotently and preserves users', () => {
     const a = actor('role_student');
-    db.exec('ALTER TABLE users DROP COLUMN authorization_version');
+    db.exec('DROP TRIGGER IF EXISTS trg_fixture_legacy_roles; ALTER TABLE users DROP COLUMN authorization_version');
     ensureAuthorizationVersionColumn();
     ensureAuthorizationVersionColumn();
     expect(queryOne<{authorization_version: number}>('SELECT authorization_version FROM users WHERE id = ?', [a.id])?.authorization_version).toBe(0);

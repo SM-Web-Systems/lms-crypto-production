@@ -1,0 +1,3929 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "72c75666e1b622d96beea2a767cc19b4e16c4679c2a0b13abd68e4c92ee85918",
+  "numTotalTestSuites": 238,
+  "numPassedTestSuites": 238,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 702,
+  "numPassedTests": 702,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "startTime": 1793910401528,
+  "success": true,
+  "testResults": [
+    {
+      "name": "LMS-Frontend/src/__tests__/amma-account-connection.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "Wallet connection and recovery journeys collects explicit password consent before conversion and navigates only to the server-issued URL",
+          "status": "passed",
+          "duration": 900.4948000000004
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys shows a local password error without starting Wallet navigation",
+          "status": "passed",
+          "duration": 326.4439999999995
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys refreshes a bound Wallet identity without another local password and explains recipient selection",
+          "status": "passed",
+          "duration": 83.8273999999983
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys offers Wallet settings for email_required",
+          "status": "passed",
+          "duration": 64.3028000000013
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys offers Wallet settings for email_unverified",
+          "status": "passed",
+          "duration": 39.14480000000185
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys keeps connection errors visible in the authenticated profile",
+          "status": "passed",
+          "duration": 24.787599999999657
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys opens the internal sign-in form with safe connection instructions",
+          "status": "passed",
+          "duration": 43.32749999999942
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys renders cleared server linkage rather than stale user context",
+          "status": "passed",
+          "duration": 82.53519999999844
+        },
+        {
+          "fullName": "Wallet connection and recovery journeys uses the status response address for its matching balance",
+          "status": "passed",
+          "duration": 90.16040000000066
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/amma-sso-composition.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "real AuthProvider and AmmaWallet callback composition replaces an earlier in-memory internal token when local storage becomes available for SSO",
+          "status": "passed",
+          "duration": 344.34330000000045
+        },
+        {
+          "fullName": "real AuthProvider and AmmaWallet callback composition finishes wallet navigation after provider-level outage recovery remounts the callback without its hash",
+          "status": "passed",
+          "duration": 153.47710000000006
+        },
+        {
+          "fullName": "real AuthProvider and AmmaWallet callback composition can establish the wallet session in memory when browser persistence is unavailable",
+          "status": "passed",
+          "duration": 67.34130000000005
+        },
+        {
+          "fullName": "real AuthProvider and AmmaWallet callback composition does not accept an older internal-login result after a wallet sign-in starts",
+          "status": "passed",
+          "duration": 181.5028999999995
+        },
+        {
+          "fullName": "real AuthProvider and AmmaWallet callback composition does not restore wallet identity after local logout during verification",
+          "status": "passed",
+          "duration": 85.64350000000195
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/audit-step2-session.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A03 — refresh effective authorization in an open session restores effective roles and refreshes grants on focus",
+          "status": "passed",
+          "duration": 136.78900000000067
+        },
+        {
+          "fullName": "A03 — refresh effective authorization in an open session a revoked authorization session signs out on revalidation",
+          "status": "passed",
+          "duration": 54.48619999999937
+        },
+        {
+          "fullName": "A03 — refresh effective authorization in an open session a temporary failure during revalidation retains the active session",
+          "status": "passed",
+          "duration": 48.4458999999988
+        },
+        {
+          "fullName": "A03 — refresh effective authorization in an open session a late authorization response cannot overwrite a newer context",
+          "status": "passed",
+          "duration": 67.55589999999938
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/audit-step2-ui.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A03 — workspace routes and navigation sponsor with legacy student opens the sponsor route and sponsor navigation",
+          "status": "passed",
+          "duration": 186.5324999999939
+        },
+        {
+          "fullName": "A03 — workspace routes and navigation multi-role workspace selection changes navigation without changing identity",
+          "status": "passed",
+          "duration": 410.4811999999947
+        },
+        {
+          "fullName": "A03 — workspace routes and navigation legacy admin alone cannot open an administrator route",
+          "status": "passed",
+          "duration": 10.699699999997392
+        },
+        {
+          "fullName": "A03 — workspace routes and navigation a valid admin workspace still needs the page capability",
+          "status": "passed",
+          "duration": 14.422000000005937
+        },
+        {
+          "fullName": "A03 — workspace routes and navigation updated authorization immediately removes an already-open restricted page",
+          "status": "passed",
+          "duration": 12.054699999993318
+        },
+        {
+          "fullName": "A03 — workspace routes and navigation unknown role names and missing authorization fail closed",
+          "status": "passed",
+          "duration": 1.0256000000008498
+        },
+        {
+          "fullName": "A09 — administrator tools honor individual capabilities baseline admin does not mount role or tenant controls",
+          "status": "passed",
+          "duration": 172.72200000000157
+        },
+        {
+          "fullName": "A09 — administrator tools honor individual capabilities RBAC admin-2 with legacy student can use roles without gaining tenant controls",
+          "status": "passed",
+          "duration": 68.91330000000016
+        },
+        {
+          "fullName": "SSO workspace restoration uses the verified server context instead of a JWT routing hint",
+          "status": "passed",
+          "duration": 106.07649999999558
+        },
+        {
+          "fullName": "SSO workspace restoration SSO verification keeps a recoverable token and retries a transient outage",
+          "status": "passed",
+          "duration": 104.41639999999461
+        },
+        {
+          "fullName": "SSO workspace restoration a late failed SSO verification cannot clear a newer login token",
+          "status": "passed",
+          "duration": 34.06100000000151
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/audit-step3-sponsor-ui.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A08 — URL is the tab state tabs, sidebar, Back, Forward and reload agree without unmounting between navigation",
+          "status": "passed",
+          "duration": 1419.813700000006
+        },
+        {
+          "fullName": "A08 — URL is the tab state keyboard tab navigation changes the URL and focuses the selected tab",
+          "status": "passed",
+          "duration": 462.2581999999966
+        },
+        {
+          "fullName": "A08 — URL is the tab state unavailable capabilities hide tabs and keyboard navigation skips them",
+          "status": "passed",
+          "duration": 161.9933000000019
+        },
+        {
+          "fullName": "A08 — URL is the tab state unknown tab URLs normalize to the overview",
+          "status": "passed",
+          "duration": 123.675900000002
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport overview failure does not turn successful reward cohorts into an empty state",
+          "status": "passed",
+          "duration": 178.96770000000106
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport spending failure preserves course options and the live cohort list",
+          "status": "passed",
+          "duration": 177.7647999999972
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport catalog failure disables creation while preserving cohorts and successful spending",
+          "status": "passed",
+          "duration": 231.77300000000105
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport cohort list failure displays retry without a false empty state",
+          "status": "passed",
+          "duration": 262.82280000000173
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport reward cohort errors can be retried without loading analytics or spending",
+          "status": "passed",
+          "duration": 205.67179999999644
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport member drill-down errors remain visible and retry the sponsor endpoint",
+          "status": "passed",
+          "duration": 564.7610999999961
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport collapsing and reopening a row ignores an older in-flight response",
+          "status": "passed",
+          "duration": 598.3280999999988
+        },
+        {
+          "fullName": "A05 — independent loading and scoped transport CSV export failure retains overview data and retries the scoped export",
+          "status": "passed",
+          "duration": 511.33899999999994
+        },
+        {
+          "fullName": "A06 — independent personal and member billing a personal billing failure preserves member payments and currency semantics",
+          "status": "passed",
+          "duration": 148.20180000000255
+        },
+        {
+          "fullName": "A06 — independent personal and member billing a member billing failure preserves personal payments, currency and receipt actions",
+          "status": "passed",
+          "duration": 274.6863000000012
+        },
+        {
+          "fullName": "A06 — independent personal and member billing receipts use the selected payment ID; failures retain the payment tables",
+          "status": "passed",
+          "duration": 192.27649999999994
+        },
+        {
+          "fullName": "A06 — independent personal and member billing a late response for an old billing range cannot overwrite the current range",
+          "status": "passed",
+          "duration": 196.74589999999444
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/audit-step4-learning-ui.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A12 — shared completion state on web does not display a native playback-only record as a completed lesson",
+          "status": "passed",
+          "duration": 315.1846000000005
+        },
+        {
+          "fullName": "A12 — shared completion state on web removes stale local assessment checks and opens assessments without manually completing them",
+          "status": "passed",
+          "duration": 434.95750000000044
+        },
+        {
+          "fullName": "A12 — shared completion state on web shows the server assessment result as completed",
+          "status": "passed",
+          "duration": 195.73430000000008
+        },
+        {
+          "fullName": "A12 — shared completion state on web web assignment upload includes a nonempty description accepted by the API",
+          "status": "passed",
+          "duration": 590.2066000000013
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/audit-step5-api.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "central browser API session transitions /courses status 401 only invalidates credentialed sessions",
+          "status": "passed",
+          "duration": 36.66120000000228
+        },
+        {
+          "fullName": "central browser API session transitions /courses status 403 only invalidates credentialed sessions",
+          "status": "passed",
+          "duration": 5.47780000000057
+        },
+        {
+          "fullName": "central browser API session transitions /courses status 503 only invalidates credentialed sessions",
+          "status": "passed",
+          "duration": 4.0296999999991385
+        },
+        {
+          "fullName": "central browser API session transitions /auth/login status 401 only invalidates credentialed sessions",
+          "status": "passed",
+          "duration": 3.275599999997212
+        },
+        {
+          "fullName": "central browser API session transitions /auth/reset-password status 401 only invalidates credentialed sessions",
+          "status": "passed",
+          "duration": 5.094199999999546
+        },
+        {
+          "fullName": "central browser API session transitions keeps logout tied to the captured token even when the active token changes",
+          "status": "passed",
+          "duration": 3.047099999999773
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/audit-step5-session.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A14 browser session recovery retains a saved token during startup failure: ApiRequestError: Unavailable",
+          "status": "passed",
+          "duration": 202.84909999999945
+        },
+        {
+          "fullName": "A14 browser session recovery retains a saved token during startup failure: ApiRequestError: Timeout",
+          "status": "passed",
+          "duration": 83.16979999999967
+        },
+        {
+          "fullName": "A14 browser session recovery retains a saved token during startup failure: Error: Network disconnected",
+          "status": "passed",
+          "duration": 42.349700000002485
+        },
+        {
+          "fullName": "A14 browser session recovery invalid credentials clear the token and return to sign in",
+          "status": "passed",
+          "duration": 14.569100000000617
+        },
+        {
+          "fullName": "A14 browser session recovery a later protected API 401 updates auth state centrally",
+          "status": "passed",
+          "duration": 63.659999999999854
+        },
+        {
+          "fullName": "A14 browser session recovery a stale protected request cannot sign out a newer login",
+          "status": "passed",
+          "duration": 48.745999999999185
+        },
+        {
+          "fullName": "A14 browser session recovery sign-out while hydration is in flight cannot restore the old user",
+          "status": "passed",
+          "duration": 65.24529999999868
+        },
+        {
+          "fullName": "A14 browser session recovery late profile writes cannot resurrect a signed-out account or replace a newer identity",
+          "status": "passed",
+          "duration": 45.91849999999977
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/billing-service-w07.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W07 employer billing service W7-FE-1: maps wire snake_case fields to camelCase EmployerBilling (RED→GREEN)",
+          "status": "passed",
+          "duration": 7.798399999999674
+        },
+        {
+          "fullName": "W07 employer billing service W7-FE-2: total is result count, not a monetary aggregate (no totalSpent)",
+          "status": "passed",
+          "duration": 2.145199999999022
+        },
+        {
+          "fullName": "W07 employer billing service W7-FE-3: success:false response propagates as ApiRequestError (RED→GREEN)",
+          "status": "passed",
+          "duration": 1.885600000001432
+        },
+        {
+          "fullName": "W07 employer billing service W7-FE-4: empty payment list is distinct from API failure (not undefined)",
+          "status": "passed",
+          "duration": 3.355999999999767
+        },
+        {
+          "fullName": "W07 employer billing service W7-FE-5: integer minor units preserved — no Number() coercion on null/malformed",
+          "status": "passed",
+          "duration": 1.0432999999975436
+        },
+        {
+          "fullName": "W07 sponsor billing service W7-FE-6: success:false response propagates as ApiRequestError (RED→GREEN)",
+          "status": "passed",
+          "duration": 1.5041000000019267
+        },
+        {
+          "fullName": "W07 sponsor billing service W7-FE-7: sponsor getBilling maps snake_case and optional fields correctly",
+          "status": "passed",
+          "duration": 1.8365999999987253
+        },
+        {
+          "fullName": "W07 sponsor billing service W7-FE-8: null course join yields undefined courseName (not fabricated title)",
+          "status": "passed",
+          "duration": 1.3190000000031432
+        },
+        {
+          "fullName": "W07 sponsor billing service W7-FE-9: empty successful billing distinct from failure (no throw on empty)",
+          "status": "passed",
+          "duration": 2.467400000001362
+        },
+        {
+          "fullName": "W07 sponsor billing service W7-FE-10: no sensitive fields exposed — no user_id, email, provider references in payment",
+          "status": "passed",
+          "duration": 1.1949000000022352
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/capability-gating-w08r1.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Exact post-W08 failures — RED before fix, GREEN after W8R1-SPONSOR-1: sponsor with only reward.view_assigned sees NO New Reward button",
+          "status": "passed",
+          "duration": 800.1826999999976
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Exact post-W08 failures — RED before fix, GREEN after W8R1-SPONSOR-2: same user sees NO Activate or Cancel for funded reward",
+          "status": "passed",
+          "duration": 128.43480000000272
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Exact post-W08 failures — RED before fix, GREEN after W8R1-TEACHER-GC-1: teacher with group.manage but NO group.create sees NO New Class button",
+          "status": "passed",
+          "duration": 110.13390000000072
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Exact post-W08 failures — RED before fix, GREEN after W8R1-EMPLOYER-GC-1: employer without group.create sees NO New Team button",
+          "status": "passed",
+          "duration": 96.70939999999973
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Authorized users retain create capability W8R1-TEACHER-GC-2: teacher WITH group.create sees New Class and can submit",
+          "status": "passed",
+          "duration": 528.5693000000028
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Authorized users retain create capability W8R1-EMPLOYER-GC-2: employer WITH group.create sees New Team and can submit",
+          "status": "passed",
+          "duration": 354.8827999999994
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-1: reward.view_assigned only — no New Reward, no action buttons for any status",
+          "status": "passed",
+          "duration": 721.0517000000036
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-2: reward.create only — New Reward visible; funded reward has no Activate/Cancel",
+          "status": "passed",
+          "duration": 261.6331999999966
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-3: reward.activate only — Activate shown for funded; no New Reward, no Cancel",
+          "status": "passed",
+          "duration": 179.86539999999513
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-4: reward.cancel only — Cancel shown for funded/active; no Activate, no New Reward",
+          "status": "passed",
+          "duration": 154.4444999999978
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-5: reward.approve only — Approve shown for eligible_pending_approval",
+          "status": "passed",
+          "duration": 335.379399999998
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-6: reward.release only — Release shown for eligible allocation",
+          "status": "passed",
+          "duration": 413.9360000000015
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-7: reward.refund + canRefund=true — Refund shown for released allocation",
+          "status": "passed",
+          "duration": 122.80769999999757
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Per-capability reward action matrix W8R1-MATRIX-8: canRefund=true but no reward.refund — Refund NOT shown",
+          "status": "passed",
+          "duration": 397.7375000000029
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Unknown and loading user — fails closed W8R1-LOADING-1: null user sees no mutation controls for funded reward",
+          "status": "passed",
+          "duration": 116.02620000000024
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Unknown and loading user — fails closed W8R1-LOADING-2: loading user sees no New Class button",
+          "status": "passed",
+          "duration": 39.3327000000063
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Capability revocation while form/action is pending W8R1-REVOKE-1: revoke reward.create while create form is open — form closes",
+          "status": "passed",
+          "duration": 173.981200000002
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Capability revocation while form/action is pending W8R1-REVOKE-2: revoke group.create while class form is open — form closes",
+          "status": "passed",
+          "duration": 324.8616000000038
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Capability revocation while form/action is pending W8R1-REVOKE-3: teacher without group.create cannot invoke createClass via direct submission",
+          "status": "passed",
+          "duration": 196.29720000000088
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Compatibility — authorized users retain controls (non-regression) W8R1-COMPAT-1: full-cap sponsor sees New Reward, Activate, Cancel for funded reward",
+          "status": "passed",
+          "duration": 182.02390000000014
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Compatibility — authorized users retain controls (non-regression) W8R1-COMPAT-2: canRefund=true + reward.refund: Refund appears; canRefund=false: absent",
+          "status": "passed",
+          "duration": 587.5990999999995
+        },
+        {
+          "fullName": "W08-R1 — Capability-gated portal controls Compatibility — authorized users retain controls (non-regression) W8R1-COMPAT-3: No Fund button for draft/pending_funding (W08 regression guard)",
+          "status": "passed",
+          "duration": 210.51369999999588
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/capability-gating-w08r2.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Grant-after-render: service called with newly-granted capabilities W8R2-GRANT-1: null user → authenticated with reward.activate → activateReward called",
+          "status": "passed",
+          "duration": 788.7632000000012
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Grant-after-render: service called with newly-granted capabilities W8R2-GRANT-2: view_assigned only → grant reward.activate → activateReward called (CORE RED→GREEN)",
+          "status": "passed",
+          "duration": 325.3119999999981
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Grant-after-render: service called with newly-granted capabilities W8R2-GRANT-3: view_assigned only → grant reward.cancel → cancelReward called",
+          "status": "passed",
+          "duration": 332.6102000000028
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Grant-after-render: service called with newly-granted capabilities W8R2-GRANT-4: grant reward.approve on eligible_pending_approval reward → approveReward called",
+          "status": "passed",
+          "duration": 412.4074000000037
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Grant-after-render: service called with newly-granted capabilities W8R2-GRANT-5: grant reward.release → click Release on eligible allocation → releaseAllocation called",
+          "status": "passed",
+          "duration": 310.40980000000127
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Grant-after-render: service called with newly-granted capabilities W8R2-GRANT-6: grant reward.refund (canRefund=true) → click Refund on released alloc → refundAllocation called",
+          "status": "passed",
+          "duration": 356.70320000000356
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Revocation: action disappears and service is not invoked W8R2-REVOKE-1: grant reward.activate then revoke it → button disappears; service not called",
+          "status": "passed",
+          "duration": 243.80660000000353
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Revocation: action disappears and service is not invoked W8R2-REVOKE-2: grant → revoke → regrant reward.cancel → cancelReward called on regrant click",
+          "status": "passed",
+          "duration": 482.6854999999996
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix Unknown action key — fail closed W8R2-UNKNOWN: unknown action key in ACTION_CAPABILITY → no service call (fail closed)",
+          "status": "passed",
+          "duration": 175.72299999999814
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix W06 compatibility — A→B→A target guard unaffected by user change W8R2-COMPAT-1: user change does not affect epoch/targetKey guards",
+          "status": "passed",
+          "duration": 418.3093000000008
+        },
+        {
+          "fullName": "W08-R2 — performAction stale-user closure fix W08-R1 submission guard compatibility W8R2-COMPAT-2: revoke capability between render and click → service not called",
+          "status": "passed",
+          "duration": 152.3073000000004
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/lazy-loading.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "Lazy loading (Phase 25 C3) PERF-FE-1: lazy-loaded BadgeGallery renders after Suspense resolves",
+          "status": "passed",
+          "duration": 497.3595999999998
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-1: both succeed → groups rendered in rewards section",
+          "status": "passed",
+          "duration": 264.02130000000034
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-2: getDashboard fails → top-level error alert shown",
+          "status": "passed",
+          "duration": 88.30589999999938
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-3: getGroups fails → groups error shown in rewards section (NOT empty-groups message)",
+          "status": "passed",
+          "duration": 69.41730000000098
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-3b: getGroups fails → retry button present in rewards section",
+          "status": "passed",
+          "duration": 266.25070000000414
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-4: getGroups fails → retry → getGroups succeeds → error replaced by groups",
+          "status": "passed",
+          "duration": 120.47909999999683
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-5: both fail → section-relevant error shown; no empty-groups message",
+          "status": "passed",
+          "duration": 55.9343000000008
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-6: loading state visible while requests pending",
+          "status": "passed",
+          "duration": 46.92439999999624
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-7: getDashboard succeeds + getGroups fails → dashboard data (children count) still shown",
+          "status": "passed",
+          "duration": 101.34790000000066
+        },
+        {
+          "fullName": "W09 — ParentDashboard data-fetch truthful states W9-PARENT-COMPAT-1: /parent/wallets shows no placeholder text (W08 deferred redirect preserved)",
+          "status": "passed",
+          "duration": 141.8804999999993
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r1.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R1 — ParentDashboard request ownership + truthful metric W9R1-PARENT-1: getDashboard fails → metric card (Linked Children) NOT rendered",
+          "status": "passed",
+          "duration": 258.87710000000516
+        },
+        {
+          "fullName": "W09-R1 — ParentDashboard request ownership + truthful metric W9R1-PARENT-2: refresh during initial load — older count=2 does not overwrite newer count=9",
+          "status": "passed",
+          "duration": 302.71450000000186
+        },
+        {
+          "fullName": "W09-R1 — ParentDashboard request ownership + truthful metric W9R1-PARENT-3: late failure from first load does not clear second load success",
+          "status": "passed",
+          "duration": 89.29129999999714
+        },
+        {
+          "fullName": "W09-R1 — ParentDashboard request ownership + truthful metric W9R1-PARENT-4: single load — loading disappears and count shown correctly",
+          "status": "passed",
+          "duration": 39.10639999999694
+        },
+        {
+          "fullName": "W09-R1 — RewardDashboard allocation expand error display W9R1-ALLOC-1: getAllocations fails → error alert shown in expanded row",
+          "status": "passed",
+          "duration": 381.3744000000006
+        },
+        {
+          "fullName": "W09-R1 — RewardDashboard allocation expand error display W9R1-ALLOC-2: getAllocations fails → \"Try again\" button present in allocation row",
+          "status": "passed",
+          "duration": 314.32210000000487
+        },
+        {
+          "fullName": "W09-R1 — RewardDashboard allocation expand error display W9R1-ALLOC-3: getAllocations fails → retry → succeeds → allocations shown, error gone",
+          "status": "passed",
+          "duration": 427.83179999999993
+        },
+        {
+          "fullName": "W09-R1 — RewardDashboard allocation expand error display W9R1-ALLOC-EPOCH: stale getAllocations failure after target switch does not appear on new target",
+          "status": "passed",
+          "duration": 212.7716999999975
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r2.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R2 parent state ownership does not present an old child count as current after a failed refresh",
+          "status": "passed",
+          "duration": 421.0168999999987
+        },
+        {
+          "fullName": "W09-R2 parent state ownership does not retain a previous account children list after account identity changes",
+          "status": "passed",
+          "duration": 79.50799999999799
+        },
+        {
+          "fullName": "W09-R2 parent state ownership discards a previous account response that arrives after an identity change",
+          "status": "passed",
+          "duration": 45.41519999999946
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r3.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R3 — ParentDashboard independent section settling W9R3-PARENT-IND-1: groups settles immediately; dashboard pending → rewards section renders without dashboard",
+          "status": "passed",
+          "duration": 303.0100999999995
+        },
+        {
+          "fullName": "W09-R3 — ParentDashboard independent section settling W9R3-PARENT-IND-2: dashboard settles immediately; groups pending → dashboard section renders without groups",
+          "status": "passed",
+          "duration": 88.89609999999811
+        },
+        {
+          "fullName": "W09-R3 — ParentDashboard independent section settling W9R3-PARENT-IND-3: dashboard fails; groups succeeds → dashboard error shown, rewards section usable",
+          "status": "passed",
+          "duration": 108.4010999999955
+        },
+        {
+          "fullName": "W09-R3 — ParentDashboard independent section settling W9R3-PARENT-IND-4: groups fails; dashboard succeeds → children shown, groups error shown on /parent/rewards",
+          "status": "passed",
+          "duration": 645.077400000002
+        },
+        {
+          "fullName": "W09-R3 — ParentDashboard independent section settling W9R3-PARENT-IND-5: Refresh while in-flight — reqIdRef guard preserved for independent commits",
+          "status": "passed",
+          "duration": 321.54609999999957
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard quiz completions error W9R3-STUDENT-QUIZ-1: quiz load fails → stat card does not show \"0\" as confirmed count",
+          "status": "passed",
+          "duration": 358.8229999999967
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard quiz completions error W9R3-STUDENT-QUIZ-2: quiz load fails → retry → succeeds → quiz count shown, error gone",
+          "status": "passed",
+          "duration": 526.3818000000028
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard quiz completions error W9R3-STUDENT-QUIZ-3: quiz load fails → checklist quiz step rendered as unknown (not confirmed-unchecked)",
+          "status": "passed",
+          "duration": 856.9366999999984
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard course load error W9R3-STUDENT-COURSE-1: course load fails → error alert shown in cert section (not silent empty)",
+          "status": "passed",
+          "duration": 292.19860000000335
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard course load error W9R3-STUDENT-COURSE-2: course load fails → checklist enrolled/lesson/applied steps not confirmed-false",
+          "status": "passed",
+          "duration": 206.57790000000386
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard course load error W9R3-STUDENT-COURSE-3: course load fails → retry → succeeds → course cert section shown, error gone",
+          "status": "passed",
+          "duration": 434.3683999999994
+        },
+        {
+          "fullName": "W09-R3 — StudentDashboard per-course progress error W9R3-STUDENT-PROG-1: progress load fails for a course → \"Eligibility unavailable\" shown (not \"not eligible\")",
+          "status": "passed",
+          "duration": 152.22560000000522
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r4.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R4 R1 — three-state hasCompletedLesson R1-1: 1 course, progress fails, app succeeds → \"Complete your first lesson\" shown as unknown (minus icon, NOT empty circle)",
+          "status": "passed",
+          "duration": 379.9082999999955
+        },
+        {
+          "fullName": "W09-R4 R1 — three-state hasCompletedLesson R1-2: 1 course, progress succeeds (0 completed) → \"Complete your first lesson\" shown as confirmed-incomplete (empty circle)",
+          "status": "passed",
+          "duration": 214.4925000000003
+        },
+        {
+          "fullName": "W09-R4 R1 — three-state hasCompletedLesson R1-3: 1 course, progress succeeds (> 0 completed) → \"Complete your first lesson\" shown as confirmed-done",
+          "status": "passed",
+          "duration": 123.39070000000356
+        },
+        {
+          "fullName": "W09-R4 R1 — three-state hasCompletedLesson R1-4: 2 courses: one progress fails, one succeeds (> 0 completed) → \"Complete your first lesson\" is true (confirmed positive wins)",
+          "status": "passed",
+          "duration": 416.5732999999964
+        },
+        {
+          "fullName": "W09-R4 R1 — three-state hasCompletedLesson R1-5: 2 courses, both progress fail → \"Complete your first lesson\" shown as unknown (no \"Done\", no empty circle)",
+          "status": "passed",
+          "duration": 171.86269999999786
+        },
+        {
+          "fullName": "W09-R4 R1 — three-state hasCompletedLesson R1-6: 2 courses: one progress fails, one succeeds (0 completed) → \"Complete your first lesson\" is unknown (error prevents confirmed negative)",
+          "status": "passed",
+          "duration": 152.14100000000326
+        },
+        {
+          "fullName": "W09-R4 R2 — three-state hasApplied R2-1: 1 course, app fetch fails → \"Apply for your certificate\" shown as unknown (minus icon, NOT empty circle)",
+          "status": "passed",
+          "duration": 119.51800000000367
+        },
+        {
+          "fullName": "W09-R4 R2 — three-state hasApplied R2-2: 1 course, app fetch succeeds (no app) → \"Apply for your certificate\" shown as confirmed-false (empty circle)",
+          "status": "passed",
+          "duration": 227.84939999999915
+        },
+        {
+          "fullName": "W09-R4 R2 — three-state hasApplied R2-3: 1 course, app fetch succeeds (app found) → \"Apply for your certificate\" shown as confirmed-done",
+          "status": "passed",
+          "duration": 461.76840000000084
+        },
+        {
+          "fullName": "W09-R4 R2 — three-state hasApplied R2-4: 2 courses: one app fetch fails, one succeeds (app found) → hasApplied is true (confirmed positive wins)",
+          "status": "passed",
+          "duration": 121.82910000000265
+        },
+        {
+          "fullName": "W09-R4 R2 — three-state hasApplied R2-5: 2 courses, both app fetches fail → \"Apply for your certificate\" shown as unknown",
+          "status": "passed",
+          "duration": 300.7620999999999
+        },
+        {
+          "fullName": "W09-R4 R2 — three-state hasApplied R2-6: 2 courses: one app fetch fails, one succeeds (no app) → hasApplied is unknown",
+          "status": "passed",
+          "duration": 321.8156000000017
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-1: 1 course, app fetch fails → accessible error shown in cert row",
+          "status": "passed",
+          "duration": 386.9467999999979
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-2: app fetch fails → retry → succeeds (no app) → error gone, no-app state shown correctly",
+          "status": "passed",
+          "duration": 572.8457000000053
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-3: retry button click triggers getCourseApplications again",
+          "status": "passed",
+          "duration": 245.97529999999824
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-4: app fetch fails, progress eligible → \"Request certificate\" button NOT shown",
+          "status": "passed",
+          "duration": 216.99530000000232
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-5: app fetch fails, progress not eligible → \"Request certificate\" button NOT shown",
+          "status": "passed",
+          "duration": 196.405399999996
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-6: app fetch succeeds (no app), progress eligible → \"Request certificate\" button SHOWN",
+          "status": "passed",
+          "duration": 133.96719999999914
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-7: handleApplyCertificate invocation guarded — applyForCertificate NOT called when appFailed",
+          "status": "passed",
+          "duration": 262.59909999999945
+        },
+        {
+          "fullName": "W09-R4 R3 — application fetch failure display R3-8: app fetch fails → retry → succeeds (pending app) → \"Application pending\" badge shown, error gone",
+          "status": "passed",
+          "duration": 359.83729999999923
+        },
+        {
+          "fullName": "W09-R4 R4 — progress retry R4-1: progress fetch fails → retry courses → progress succeeds → progress data shown, errors gone",
+          "status": "passed",
+          "duration": 120.50040000000445
+        },
+        {
+          "fullName": "W09-R4 R5 — 409 and known application status R5-1: app loads successfully as pending → cert row shows \"Application pending\" (existing W09-R3 preserved)",
+          "status": "passed",
+          "duration": 211.98159999999916
+        },
+        {
+          "fullName": "W09-R4 R7 — W09-R3 regression preservation R7-1: progress error course → \"Eligibility unavailable\" badge still shown (W09-R3 preserved)",
+          "status": "passed",
+          "duration": 162.52470000000176
+        },
+        {
+          "fullName": "W09-R4 R7 — W09-R3 regression preservation R7-2: coursesError → enrolled, hasCompletedLesson, hasApplied all null (W09-R3 preserved)",
+          "status": "passed",
+          "duration": 162.7928000000029
+        },
+        {
+          "fullName": "W09-R4 R7 — W09-R3 regression preservation R7-3: progress ok, app ok (no app), eligible → \"Eligible to apply\" badge + Request certificate button",
+          "status": "passed",
+          "duration": 204.7850000000035
+        },
+        {
+          "fullName": "W09-R4 R7 — W09-R3 regression preservation R7-STUDENT-PROG-1: progress load fails → \"Eligibility unavailable\" not \"not eligible\" (W09-R3 regression)",
+          "status": "passed",
+          "duration": 269.1475999999966
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r5.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R5 R1 — retry window: button suppressed while retry in flight R1-1: THE BUG — app fetch fails, eligible progress, retry clicked, retry held pending → \"Request certificate\" NOT shown during window",
+          "status": "passed",
+          "duration": 1191.4623000000065
+        },
+        {
+          "fullName": "W09-R5 R1 — retry window: button suppressed while retry in flight R1-2: retry pending → settles (no app), eligible → button becomes visible after settle",
+          "status": "passed",
+          "duration": 531.8899999999994
+        },
+        {
+          "fullName": "W09-R5 R1 — retry window: button suppressed while retry in flight R1-3: retry pending → settles (app found: pending) → \"Application pending\" badge shown, no button",
+          "status": "passed",
+          "duration": 591.5031999999992
+        },
+        {
+          "fullName": "W09-R5 R1 — retry window: button suppressed while retry in flight R1-4: retry pending → settles (fails again) → error still visible, no button",
+          "status": "passed",
+          "duration": 607.5371000000014
+        },
+        {
+          "fullName": "W09-R5 R2 — handler guard during retry R2-1: applyForCertificate NOT called when appLoadingIds has courseId (retry in flight)",
+          "status": "passed",
+          "duration": 281.6334999999963
+        },
+        {
+          "fullName": "W09-R5 R2 — handler guard during retry R2-2: applyForCertificate NOT called when appErrorIds has courseId (W09-R4 preserved)",
+          "status": "passed",
+          "duration": 156.87510000000475
+        },
+        {
+          "fullName": "W09-R5 R3 — retry service call R3-1: clicking \"Try again\" calls getCourseApplications again for the course",
+          "status": "passed",
+          "duration": 224.20739999999932
+        },
+        {
+          "fullName": "W09-R5 R4 — checklist three-state during retry R4-1: app fetch fails → retry in flight → hasApplied is null (minus icon, not empty circle)",
+          "status": "passed",
+          "duration": 251.67629999999917
+        },
+        {
+          "fullName": "W09-R5 R4 — checklist three-state during retry R4-2: retry completes (app found) → hasApplied is true → confirmed done (strikethrough)",
+          "status": "passed",
+          "duration": 218.21689999999944
+        },
+        {
+          "fullName": "W09-R5 R5 — multiple courses, independent status R5-1: c1 app fails, c2 app succeeds (no app, eligible) → c1 shows error; c2 shows eligible + button",
+          "status": "passed",
+          "duration": 298.8274999999994
+        },
+        {
+          "fullName": "W09-R5 R5 — multiple courses, independent status R5-2: retry for c1 in flight, c2 already confirmed empty+eligible → c2 button visible, c1 button NOT visible",
+          "status": "passed",
+          "duration": 471.91659999999683
+        },
+        {
+          "fullName": "W09-R5 R6 — mutation result not overwritten by stale retry R6-1: handleAppStatusChange commits app → retry settles with empty → app status preserved",
+          "status": "passed",
+          "duration": 588.1522000000041
+        },
+        {
+          "fullName": "W09-R5 R7 — concurrency: account switch and unmount R7-1: retry in flight → user identity changes → new user starts fresh (no stale loading state)",
+          "status": "passed",
+          "duration": 687.4747999999963
+        },
+        {
+          "fullName": "W09-R5 R7 — concurrency: account switch and unmount R7-2: unmount during retry → no unhandled state update",
+          "status": "passed",
+          "duration": 499.7839000000022
+        },
+        {
+          "fullName": "W09-R5 R8 — W09-R4 regression preservation R8-1: initial app fetch fails (not a retry) → amber alert shown (no regression)",
+          "status": "passed",
+          "duration": 206.72529999999824
+        },
+        {
+          "fullName": "W09-R5 R8 — W09-R4 regression preservation R8-2: app ok (no app), eligible progress → \"Request certificate\" button shown (no regression)",
+          "status": "passed",
+          "duration": 267.4054000000033
+        },
+        {
+          "fullName": "W09-R5 R8 — W09-R4 regression preservation R8-3: app ok (pending app) → \"Application pending\" badge, no button (no regression)",
+          "status": "passed",
+          "duration": 204.329899999997
+        },
+        {
+          "fullName": "W09-R5 R8 — W09-R4 regression preservation R8-4: hasApplied three-state preserved — app fails → unknown (minus icon, not empty circle)",
+          "status": "passed",
+          "duration": 151.62369999999646
+        },
+        {
+          "fullName": "W09-R5 R8 — W09-R4 regression preservation R8-5: hasApplied three-state preserved — app succeeds (no app) → confirmed false (empty circle)",
+          "status": "passed",
+          "duration": 255.72639999999956
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r6.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R6 C1 — coursesLoading skeleton prevents cert-button access during courses effect C1-1: courses loading — skeleton shown, cert button not accessible",
+          "status": "passed",
+          "duration": 870.2090000000026
+        },
+        {
+          "fullName": "W09-R6 C1 — coursesLoading skeleton prevents cert-button access during courses effect C1-2: cert button appears only after courses effect fully settles (data + loading=false)",
+          "status": "passed",
+          "duration": 197.32500000000073
+        },
+        {
+          "fullName": "W09-R6 C2 — app retry and courses effect do not race via product controls C2-1: initial courses effect completes → app retry triggered → merge commits without interference",
+          "status": "passed",
+          "duration": 578.5763999999981
+        },
+        {
+          "fullName": "W09-R6 C2 — app retry and courses effect do not race via product controls C2-2: handleAppStatusChange after courses effect done → status committed, no concurrent full replace",
+          "status": "passed",
+          "duration": 544.8018000000011
+        },
+        {
+          "fullName": "W09-R6 C4 — identity change cancels in-flight retry; new user starts fresh C4-1: retry in flight → user identity changes → appLoadingIds cleared, stale merge bails",
+          "status": "passed",
+          "duration": 445.596000000005
+        },
+        {
+          "fullName": "W09-R6 C5 — multi-course independent status preserved C5-1: two courses — c1 app fails, c2 app succeeds → each shows independent state after courses effect",
+          "status": "passed",
+          "duration": 397.6363999999958
+        },
+        {
+          "fullName": "W09-R6 C5 — multi-course independent status preserved C5-2: two courses — c1 has pending app, c2 has no app and is eligible → each shows correct state",
+          "status": "passed",
+          "duration": 344.7253999999957
+        },
+        {
+          "fullName": "W09-R6 C6 — courses-effect full replace is authoritative C6-1: courses effect returns pending app → \"Application pending\" shown (not eligible)",
+          "status": "passed",
+          "duration": 289.62920000000304
+        },
+        {
+          "fullName": "W09-R6 C6 — courses-effect full replace is authoritative C6-2: courses effect returns empty app list → \"Request certificate\" shown (eligible)",
+          "status": "passed",
+          "duration": 191.52009999999427
+        },
+        {
+          "fullName": "W09-R6 C6 — courses-effect full replace is authoritative C6-3: courses effect app fetch fails → amber alert shown, no cert button (full replace does not add to appStatusMap)",
+          "status": "passed",
+          "duration": 267.89140000000043
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/loading-states-w09r7.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W09-R7 T1 — same-user auth refresh full replace during in-flight mutation T1a: mutation commits before stale courses refetch → hasApplied wiped (DEFECT → GREEN with fix)",
+          "status": "passed",
+          "duration": 860.351200000001
+        },
+        {
+          "fullName": "W09-R7 T1 — same-user auth refresh full replace during in-flight mutation T1b: courses refetch resolves before mutation → no regression with fix",
+          "status": "passed",
+          "duration": 343.70010000000184
+        },
+        {
+          "fullName": "W09-R7 T2 — auth refresh with already-pending app: stale empty must not wipe T2: already-pending + auth-refresh stale empty → pending status preserved",
+          "status": "passed",
+          "duration": 135.9896000000008
+        },
+        {
+          "fullName": "W09-R7 T3 — 409 recovery commit + auth-refresh full replace T3: 409 recovery re-fetch commits app; auth-refresh stale empty wipes it (DEFECT → GREEN)",
+          "status": "passed",
+          "duration": 413.08820000000196
+        },
+        {
+          "fullName": "W09-R7 T4 — account replacement cancels old user courses refetch T4: user A courses refetch in-flight → switch to user B → stale refetch cancelled, user B clean",
+          "status": "passed",
+          "duration": 698.8833000000013
+        },
+        {
+          "fullName": "W09-R7 T5 — courses fetch error during auth refresh → hasApplied null T5: auth-refresh courses effect fetchCourses fails → hasApplied=null (not false)",
+          "status": "passed",
+          "duration": 107.40450000000055
+        },
+        {
+          "fullName": "Independent account isolation review does not carry the prior user application to the next user for the same course",
+          "status": "passed",
+          "duration": 357.2468000000008
+        },
+        {
+          "fullName": "Independent account isolation review does not apply an old user mutation result to the next user",
+          "status": "passed",
+          "duration": 277.4721999999965
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/portal-action-scoping-w08.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-1 — Employer nav has no Billing link",
+          "status": "passed",
+          "duration": 427.48099999999977
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-2 — Parent nav has no Wallets, Groups, or Billing links",
+          "status": "passed",
+          "duration": 119.32740000000194
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-3 — Teacher nav has no Analytics or Billing links",
+          "status": "passed",
+          "duration": 92.05170000000362
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-4 — Sponsor nav unchanged: Dashboard/Cohorts/Rewards/Impact/Billing present",
+          "status": "passed",
+          "duration": 149.26430000000255
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-5 — Employer nav retains: Dashboard, Rewards, Teams",
+          "status": "passed",
+          "duration": 70.8402999999962
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-6 — Teacher nav retains: Dashboard, Rewards, Classes",
+          "status": "passed",
+          "duration": 69.32719999999972
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-NAV-7 — Parent nav retains: Dashboard, Rewards, Children",
+          "status": "passed",
+          "duration": 50.000999999996566
+        },
+        {
+          "fullName": "W08 — Portal action scoping Navigation — deferred items absent W8-MULTI-1 — Multi-role user employer+teacher sees correct nav per workspace",
+          "status": "passed",
+          "duration": 122.36450000000332
+        },
+        {
+          "fullName": "W08 — Portal action scoping Deferred paths — no placeholder sections rendered W8-ROUTE-1 — EmployerDashboard at /employer/billing shows no billing placeholder",
+          "status": "passed",
+          "duration": 145.80199999999604
+        },
+        {
+          "fullName": "W08 — Portal action scoping Deferred paths — no placeholder sections rendered W8-ROUTE-2 — ParentDashboard at /parent/wallets shows no wallet placeholder",
+          "status": "passed",
+          "duration": 252.0639999999985
+        },
+        {
+          "fullName": "W08 — Portal action scoping Deferred paths — no placeholder sections rendered W8-ROUTE-3 — ParentDashboard at /parent/groups shows no groups placeholder",
+          "status": "passed",
+          "duration": 72.78889999999956
+        },
+        {
+          "fullName": "W08 — Portal action scoping Deferred paths — no placeholder sections rendered W8-ROUTE-4 — TeacherDashboard at /teacher/analytics shows no analytics placeholder",
+          "status": "passed",
+          "duration": 184.35629999999946
+        },
+        {
+          "fullName": "W08 — Portal action scoping Deferred paths — no placeholder sections rendered W8-ROUTE-5 — TeacherDashboard at /teacher/billing shows no billing placeholder",
+          "status": "passed",
+          "duration": 49.17149999999674
+        },
+        {
+          "fullName": "W08 — Portal action scoping Fund button — removed for unsupported platform_credit W8-REWARD-1 — No Fund button for draft reward",
+          "status": "passed",
+          "duration": 149.48180000000139
+        },
+        {
+          "fullName": "W08 — Portal action scoping Fund button — removed for unsupported platform_credit W8-REWARD-2 — No Fund button for pending_funding reward",
+          "status": "passed",
+          "duration": 116.01320000000123
+        },
+        {
+          "fullName": "W08 — Portal action scoping Fund button — removed for unsupported platform_credit W8-REWARD-3 — Activate and Cancel buttons present for funded reward (no regression)",
+          "status": "passed",
+          "duration": 81.62899999999354
+        },
+        {
+          "fullName": "W08 — Portal action scoping Fund button — removed for unsupported platform_credit W8-REWARD-4 — performAction fund cannot be triggered through rendered UI",
+          "status": "passed",
+          "duration": 184.22320000000036
+        },
+        {
+          "fullName": "W08 — Portal action scoping New Class button — wired to teacherService.createClass W8-CLASS-1 — Clicking New Class shows an inline input form",
+          "status": "passed",
+          "duration": 367.71050000000105
+        },
+        {
+          "fullName": "W08 — Portal action scoping New Team button — wired to employerService.createTeam W8-TEAM-1 — Clicking New Team shows an inline input form",
+          "status": "passed",
+          "duration": 108.83069999999861
+        },
+        {
+          "fullName": "W08 — Portal action scoping Parent rewards — fallback when no groups W8-PARENT-1 — Rewards section shows fallback message when no groups",
+          "status": "passed",
+          "duration": 32.08269999999902
+        },
+        {
+          "fullName": "W08 — Portal action scoping W8-INT-1 — Route redirect integration Employer visiting /employer/billing is redirected — no placeholder renders",
+          "status": "passed",
+          "duration": 31.11460000000079
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/UserRoleManager.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "UserRoleManager shows no mutation actions for a peer target and does not request the global role catalogue",
+          "status": "passed",
+          "duration": 1082.8836999999985
+        },
+        {
+          "fullName": "UserRoleManager does not expose role actions if the server cannot provide allowed options",
+          "status": "passed",
+          "duration": 351.3807000000015
+        },
+        {
+          "fullName": "UserRoleManager URM-01: renders loading state then displays user list",
+          "status": "passed",
+          "duration": 79.96300000000338
+        },
+        {
+          "fullName": "UserRoleManager URM-02: search filters user list by name or email",
+          "status": "passed",
+          "duration": 834.061099999999
+        },
+        {
+          "fullName": "UserRoleManager URM-03: user list table has Name, Email, Legacy Role, Actions columns",
+          "status": "passed",
+          "duration": 146.57010000000446
+        },
+        {
+          "fullName": "UserRoleManager URM-04: selecting a user loads and displays their RBAC roles",
+          "status": "passed",
+          "duration": 394.1692000000039
+        },
+        {
+          "fullName": "UserRoleManager URM-05: role dropdown excludes already-assigned roles",
+          "status": "passed",
+          "duration": 418.59969999999885
+        },
+        {
+          "fullName": "UserRoleManager URM-06: assign role with confirmation, then refresh roles",
+          "status": "passed",
+          "duration": 1594.8559999999998
+        },
+        {
+          "fullName": "UserRoleManager URM-07: remove role with confirmation, then refresh roles",
+          "status": "passed",
+          "duration": 1554.4460999999937
+        },
+        {
+          "fullName": "UserRoleManager URM-08: shows error state and retry when user load fails",
+          "status": "passed",
+          "duration": 306.1886000000013
+        },
+        {
+          "fullName": "UserRoleManager URM-09: displays 403 backend rejection message verbatim",
+          "status": "passed",
+          "duration": 1477.6940000000031
+        },
+        {
+          "fullName": "UserRoleManager URM-10: displays privilege boundary informational note near role selector",
+          "status": "passed",
+          "duration": 321.37279999999737
+        },
+        {
+          "fullName": "UserRoleManager REG-01: mock fixtures use the documented backend contract shape",
+          "status": "passed",
+          "duration": 3.084100000000035
+        },
+        {
+          "fullName": "UserRoleManager REG-02: current roles render using role_label from the contract",
+          "status": "passed",
+          "duration": 377.52560000000085
+        },
+        {
+          "fullName": "UserRoleManager REG-03: remove sends role_id from contract, not undefined",
+          "status": "passed",
+          "duration": 1031.329899999997
+        },
+        {
+          "fullName": "UserRoleManager REG-04: legacy-role vs RBAC-role explanation is displayed",
+          "status": "passed",
+          "duration": 397.6527999999962
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/pages/AdminDashboard.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "AdminDashboard — system info BUILD-FE-5: renders system info section with build SHAs",
+          "status": "passed",
+          "duration": 146.59499999999753
+        },
+        {
+          "fullName": "AdminDashboard — system info BUILD-FE-6: displays validated API SHA from health endpoint",
+          "status": "passed",
+          "duration": 26.270700000000943
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/pages/BadgeGallery.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "BadgeGallery GALLERY-FE-1: renders grid of NFTBadge components",
+          "status": "passed",
+          "duration": 297.3661000000029
+        },
+        {
+          "fullName": "BadgeGallery GALLERY-FE-2: filter dropdown shows unique course titles",
+          "status": "passed",
+          "duration": 476.15789999999834
+        },
+        {
+          "fullName": "BadgeGallery GALLERY-FE-3: sort toggle reverses order",
+          "status": "passed",
+          "duration": 237.2386000000006
+        },
+        {
+          "fullName": "BadgeGallery GALLERY-FE-4: shows empty state when no credentials",
+          "status": "passed",
+          "duration": 17.805499999998574
+        },
+        {
+          "fullName": "BadgeGallery SEARCH-FE-1: search input filters by course title",
+          "status": "passed",
+          "duration": 132.62099999999919
+        },
+        {
+          "fullName": "BadgeGallery SEARCH-FE-2: search input filters by course code",
+          "status": "passed",
+          "duration": 118.51250000000073
+        },
+        {
+          "fullName": "BadgeGallery SEARCH-FE-3: clear button resets search",
+          "status": "passed",
+          "duration": 276.6314999999995
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/pages/phase-g-frontend.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "Phase G Frontend G-TYPE-1 — UserRole includes all new roles",
+          "status": "passed",
+          "duration": 1708.7891000000018
+        },
+        {
+          "fullName": "Phase G Frontend G-NAV-1 — Sponsor sees sponsor nav items",
+          "status": "passed",
+          "duration": 324.70880000000034
+        },
+        {
+          "fullName": "Phase G Frontend G-NAV-2 — Employer sees employer nav items (W08: Billing deferred)",
+          "status": "passed",
+          "duration": 59.724999999998545
+        },
+        {
+          "fullName": "Phase G Frontend G-NAV-3 — Parent sees parent nav items (W08: Wallets/Groups/Billing deferred)",
+          "status": "passed",
+          "duration": 72.02839999999924
+        },
+        {
+          "fullName": "Phase G Frontend G-NAV-4 — Teacher sees teacher nav items (W08: Analytics/Billing deferred)",
+          "status": "passed",
+          "duration": 62.13800000000265
+        },
+        {
+          "fullName": "Phase G Frontend G-NAV-5 — TA sees TA-specific nav items",
+          "status": "passed",
+          "duration": 80.6288999999997
+        },
+        {
+          "fullName": "Phase G Frontend G-CUSTOM-1 — resolveClosestRole maps custom roles correctly",
+          "status": "passed",
+          "duration": 1.8245999999999185
+        },
+        {
+          "fullName": "Phase G Frontend G-CUSTOM-2 — resolveClosestRole defaults unknown to student",
+          "status": "passed",
+          "duration": 1.2662000000018452
+        },
+        {
+          "fullName": "Phase G Frontend G-CUSTOM-3 — PermissionGate renders children for allowed role",
+          "status": "passed",
+          "duration": 7.216799999998329
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/pages/SponsorDashboardA11y.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A11Y-01 — WCAG tab pattern A11Y-01a: each tab has aria-controls matching a panel id",
+          "status": "passed",
+          "duration": 416.9509999999973
+        },
+        {
+          "fullName": "A11Y-01 — WCAG tab pattern A11Y-01b: active panel has role=\"tabpanel\" with aria-labelledby matching its tab",
+          "status": "passed",
+          "duration": 89.65769999999975
+        },
+        {
+          "fullName": "A11Y-01 — WCAG tab pattern A11Y-01c: ArrowRight moves focus to next tab",
+          "status": "passed",
+          "duration": 237.90769999999975
+        },
+        {
+          "fullName": "A11Y-01 — WCAG tab pattern A11Y-01d: ArrowLeft from first tab wraps to last tab",
+          "status": "passed",
+          "duration": 156.53080000000045
+        },
+        {
+          "fullName": "A11Y-01 — WCAG tab pattern A11Y-01e: active tab has tabIndex 0, inactive tabs have tabIndex -1",
+          "status": "passed",
+          "duration": 158.3142000000007
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/pages/SponsorDashboardBatch2.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-01: date filter controls render on Impact Report tab",
+          "status": "passed",
+          "duration": 494.29609999999957
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-02: date filter passes params to getImpactReport",
+          "status": "passed",
+          "duration": 1056.224000000002
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-03: clear filter resets to all-time data",
+          "status": "passed",
+          "duration": 844.7931000000026
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-04: invalid date range shows validation message",
+          "status": "passed",
+          "duration": 992.4089000000022
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-05: date filter controls render on Billing tab",
+          "status": "passed",
+          "duration": 134.39459999999963
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-06: date filter passes params to getBilling",
+          "status": "passed",
+          "duration": 819.498400000004
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-07: drop-off analysis table renders with data",
+          "status": "passed",
+          "duration": 145.01090000000113
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-08: drop-off shows empty state when no data",
+          "status": "passed",
+          "duration": 126.53239999999641
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-09: CSV export button calls service",
+          "status": "passed",
+          "duration": 242.5121999999974
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-10: tab buttons have accessible aria-labels",
+          "status": "passed",
+          "duration": 58.22269999999844
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 2 Enhancements D3B2-FE-11: expandable course rows have aria-expanded",
+          "status": "passed",
+          "duration": 151.5179999999964
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/pages/SponsorDashboardTabs.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-01: renders Impact Report tab button",
+          "status": "passed",
+          "duration": 377.41239999999743
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-02: renders Billing tab button",
+          "status": "passed",
+          "duration": 77.58729999999923
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-03: /sponsor/impact routes to Impact Report tab",
+          "status": "passed",
+          "duration": 181.96440000000075
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-04: /sponsor/billing routes to Billing tab",
+          "status": "passed",
+          "duration": 139.27309999999852
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-05: Impact Report renders loading state",
+          "status": "passed",
+          "duration": 37.77400000000125
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-06: Impact Report renders cohort metrics with data",
+          "status": "passed",
+          "duration": 155.42159999999785
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-07: Impact Report renders empty state",
+          "status": "passed",
+          "duration": 51.45170000000144
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-08: Impact Report renders error state with retry",
+          "status": "passed",
+          "duration": 117.21199999999953
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-09: Billing tab renders loading state",
+          "status": "passed",
+          "duration": 35.513300000002346
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-10: Billing tab renders payment history with data",
+          "status": "passed",
+          "duration": 95.17439999999988
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-11: Billing tab renders empty state",
+          "status": "passed",
+          "duration": 45.679800000001705
+        },
+        {
+          "fullName": "SponsorDashboard — Batch 1 Tabs D3B1-12: Billing tab renders error state with retry",
+          "status": "passed",
+          "duration": 96.82340000000113
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/utils/buildInfo.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "buildInfo utilities BUILD-FE-1: validateBuildSha returns valid SHA unchanged",
+          "status": "passed",
+          "duration": 5.771200000001045
+        },
+        {
+          "fullName": "buildInfo utilities BUILD-FE-2: validateBuildSha returns \"unknown\" for undefined",
+          "status": "passed",
+          "duration": 1.358700000000681
+        },
+        {
+          "fullName": "buildInfo utilities BUILD-FE-3: validateBuildSha returns \"unknown\" for invalid input",
+          "status": "passed",
+          "duration": 1.8487000000004628
+        },
+        {
+          "fullName": "buildInfo utilities BUILD-FE-4: getShortSha returns first 7 chars of full SHA",
+          "status": "passed",
+          "duration": 1.1491000000005442
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/utils/mediaUrl.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "isValidYoutubeId accepts standard 11-char YouTube IDs",
+          "status": "passed",
+          "duration": 5.747400000000198
+        },
+        {
+          "fullName": "isValidYoutubeId rejects empty, null, undefined",
+          "status": "passed",
+          "duration": 11.946599999999307
+        },
+        {
+          "fullName": "isValidYoutubeId rejects strings with special characters",
+          "status": "passed",
+          "duration": 1.423399999999674
+        },
+        {
+          "fullName": "isValidYoutubeId rejects too-short IDs",
+          "status": "passed",
+          "duration": 0.8588000000017928
+        },
+        {
+          "fullName": "youtubeWatchUrl builds watch URL for valid ID",
+          "status": "passed",
+          "duration": 0.7385999999969499
+        },
+        {
+          "fullName": "youtubeWatchUrl returns null for invalid ID",
+          "status": "passed",
+          "duration": 0.9543999999987136
+        },
+        {
+          "fullName": "youtubeEmbedUrl builds embed URL for valid ID",
+          "status": "passed",
+          "duration": 0.6540999999997439
+        },
+        {
+          "fullName": "youtubeEmbedUrl returns null for invalid ID",
+          "status": "passed",
+          "duration": 0.5239999999976135
+        },
+        {
+          "fullName": "video and audio YouTube IDs remain distinct video ID extracts correctly from watch URL",
+          "status": "passed",
+          "duration": 2.895599999999831
+        },
+        {
+          "fullName": "video and audio YouTube IDs remain distinct audio ID extracts correctly from watch URL",
+          "status": "passed",
+          "duration": 0.9498999999996158
+        },
+        {
+          "fullName": "video and audio YouTube IDs remain distinct video embed converts correctly",
+          "status": "passed",
+          "duration": 1.070400000000518
+        },
+        {
+          "fullName": "video and audio YouTube IDs remain distinct audio watch URL is built from validated ID, not video ID",
+          "status": "passed",
+          "duration": 2.368000000002212
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/AnnouncementsPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "AnnouncementsPanel loads and displays announcements on mount",
+          "status": "passed",
+          "duration": 194.10589999999866
+        },
+        {
+          "fullName": "AnnouncementsPanel shows error state with retry button",
+          "status": "passed",
+          "duration": 80.13030000000072
+        },
+        {
+          "fullName": "AnnouncementsPanel shows student empty message when no announcements",
+          "status": "passed",
+          "duration": 31.330200000000332
+        },
+        {
+          "fullName": "AnnouncementsPanel shows admin empty message when no announcements",
+          "status": "passed",
+          "duration": 42.58929999999964
+        },
+        {
+          "fullName": "AnnouncementsPanel renders pinned and scope badges correctly",
+          "status": "passed",
+          "duration": 55.858500000002095
+        },
+        {
+          "fullName": "AnnouncementsPanel truncates long body and expands on click",
+          "status": "passed",
+          "duration": 320.7055999999975
+        },
+        {
+          "fullName": "AnnouncementsPanel shows admin buttons for admin, hides for student",
+          "status": "passed",
+          "duration": 118.23140000000058
+        },
+        {
+          "fullName": "AnnouncementsPanel validates title is required before save",
+          "status": "passed",
+          "duration": 241.8122000000003
+        },
+        {
+          "fullName": "AnnouncementsPanel deletes announcement after confirmation",
+          "status": "passed",
+          "duration": 208.91560000000027
+        },
+        {
+          "fullName": "AnnouncementsPanel opens create modal and closes on backdrop click",
+          "status": "passed",
+          "duration": 173.27390000000014
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/BroadcastPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "BroadcastPanel renders form fields",
+          "status": "passed",
+          "duration": 189.46909999999843
+        },
+        {
+          "fullName": "BroadcastPanel sends broadcast and shows success",
+          "status": "passed",
+          "duration": 1716.1205999999984
+        },
+        {
+          "fullName": "BroadcastPanel shows error on failure",
+          "status": "passed",
+          "duration": 722.1392999999989
+        },
+        {
+          "fullName": "BroadcastPanel allows selecting a target audience",
+          "status": "passed",
+          "duration": 1161.6114000000016
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/BulkExport.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "BULK-FE-1: BadgeGallery \"Download All\" button renders Download All button when credentials exist",
+          "status": "passed",
+          "duration": 900.9844999999987
+        },
+        {
+          "fullName": "BULK-FE-2: CohortManagement \"Export Certificates\" button renders Export Certificates button when cohort has NFT members",
+          "status": "passed",
+          "duration": 4222.378800000002
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/BulkUploadModal.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "BULK-UP-FE-1: BulkUploadModal renders with drop zone and section selector shows drop zone, week selector, and section selector when open",
+          "status": "passed",
+          "duration": 173.98849999999948
+        },
+        {
+          "fullName": "BULK-UP-FE-2: BulkUploadModal shows file list after file selection lists files with detected types after input change",
+          "status": "passed",
+          "duration": 117.67569999999978
+        },
+        {
+          "fullName": "BULK-UP-FE-3: BulkUploadModal shows progress during upload displays progress counter during upload",
+          "status": "passed",
+          "duration": 114.42859999999928
+        },
+        {
+          "fullName": "BULK-UP-FE-4: BulkUploadModal shows retry button on upload failure shows retry button when upload fails",
+          "status": "passed",
+          "duration": 151.78589999999895
+        },
+        {
+          "fullName": "BULK-EXT-1 — Extended MIME acceptance ACCEPTED_MIME_TYPES includes text/markdown",
+          "status": "passed",
+          "duration": 1.6679000000003725
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/CohortInsightsPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "CohortInsightsPanel (Phase 25 C4) COHORT-FE-1: renders summary cards with cohort data",
+          "status": "passed",
+          "duration": 271.58889999999883
+        },
+        {
+          "fullName": "SponsorROIPanel (Phase 25 C4) COHORT-FE-2: renders sponsor table with ROI metrics",
+          "status": "passed",
+          "duration": 66.61209999999846
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/CohortManagement.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "CohortManagement COH-F1 — renders cohort list with name, course, tier, members",
+          "status": "passed",
+          "duration": 316.1385999999984
+        },
+        {
+          "fullName": "CohortManagement COH-F2 — create cohort modal submits correct payload",
+          "status": "passed",
+          "duration": 2134.3750999999975
+        },
+        {
+          "fullName": "CohortManagement COH-F3 — shows members with enrollment status on expand",
+          "status": "passed",
+          "duration": 353.6837000000014
+        },
+        {
+          "fullName": "CohortManagement COH-F4 — bulk-apply button shows result summary",
+          "status": "passed",
+          "duration": 741.9303999999975
+        },
+        {
+          "fullName": "CohortManagement COH-F5 — payment button visible for paid-tier cohorts",
+          "status": "passed",
+          "duration": 962.2424000000028
+        },
+        {
+          "fullName": "CohortManagement COH-F6 — free-tier cohort hides payment section",
+          "status": "passed",
+          "duration": 361.91189999999915
+        },
+        {
+          "fullName": "CohortManagement COH-F7 — shows progress bars per member",
+          "status": "passed",
+          "duration": 333.44899999999325
+        },
+        {
+          "fullName": "CohortManagement COH-F8 — shows aggregate completion stats",
+          "status": "passed",
+          "duration": 504.9542000000001
+        },
+        {
+          "fullName": "CohortManagement COH-F9 — shows certificate status indicators (badge/nft)",
+          "status": "passed",
+          "duration": 689.4838000000018
+        },
+        {
+          "fullName": "CohortManagement CST-F1 — shows Mark Active button for draft cohorts",
+          "status": "passed",
+          "duration": 195.938900000001
+        },
+        {
+          "fullName": "CohortManagement CST-F2 — shows Mark Completed button for active cohorts",
+          "status": "passed",
+          "duration": 277.01459999999497
+        },
+        {
+          "fullName": "CohortManagement CST-F3 — Mark Active calls transitionStatus with correct args",
+          "status": "passed",
+          "duration": 528.284599999999
+        },
+        {
+          "fullName": "CohortManagement CST-F4 — shows transition history when status log has entries",
+          "status": "passed",
+          "duration": 431.8870999999999
+        },
+        {
+          "fullName": "CohortManagement SP-F1 — invite form renders in expanded cohort detail",
+          "status": "passed",
+          "duration": 199.5086999999985
+        },
+        {
+          "fullName": "CohortManagement SP-F2 — invite button calls bulkInviteToCohort with parsed emails",
+          "status": "passed",
+          "duration": 2628.8260999999984
+        },
+        {
+          "fullName": "CohortManagement SP-F3 — reminder result displays sent count",
+          "status": "passed",
+          "duration": 1074.0134000000035
+        },
+        {
+          "fullName": "CohortManagement SP-F4 — reminder button calls sendPaymentReminder",
+          "status": "passed",
+          "duration": 558.3516999999993
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/CourseImport.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "IMP-FE-1: CSV template includes all 12 columns template header has week, section, objective, outcome, type, title, url, information, quizid, description, filename, documentid",
+          "status": "passed",
+          "duration": 9.504399999997986
+        },
+        {
+          "fullName": "IMP-FE-2: Export round-trip preserves quizId and description csvRow helper includes extended fields in output",
+          "status": "passed",
+          "duration": 1.8463000000010652
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/EmailTemplatePanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "EmailTemplatePanel ET-F1 — renders template list with names and categories",
+          "status": "passed",
+          "duration": 192.57589999999982
+        },
+        {
+          "fullName": "EmailTemplatePanel ET-F2 — clicking template shows edit form",
+          "status": "passed",
+          "duration": 328.66549999999916
+        },
+        {
+          "fullName": "EmailTemplatePanel ET-F3 — save calls updateTemplate with correct payload",
+          "status": "passed",
+          "duration": 331.1192999999985
+        },
+        {
+          "fullName": "EmailTemplatePanel ET-F4 — preview button shows rendered HTML",
+          "status": "passed",
+          "duration": 240.1771000000008
+        },
+        {
+          "fullName": "EmailTemplatePanel SEC-XSS-02a — script tags in preview HTML are stripped",
+          "status": "passed",
+          "duration": 263.8858
+        },
+        {
+          "fullName": "EmailTemplatePanel SEC-XSS-02b — event handler attributes in preview HTML are stripped",
+          "status": "passed",
+          "duration": 232.89410000000134
+        },
+        {
+          "fullName": "EmailTemplatePanel SEC-XSS-02c — legitimate email HTML in preview is preserved",
+          "status": "passed",
+          "duration": 303.9289000000026
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/EmbeddedMaterialViewer.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "EmbeddedMaterialViewer — inline image rendering renders inline <img> for download item with .png fileName",
+          "status": "passed",
+          "duration": 352.22829999999885
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — inline image rendering renders inline <img> for download item with .jpg fileName",
+          "status": "passed",
+          "duration": 34.190300000002026
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — inline image rendering renders inline <img> for download item with .jpeg fileName",
+          "status": "passed",
+          "duration": 66.02089999999589
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — inline image rendering renders inline <img> for download item with .gif fileName",
+          "status": "passed",
+          "duration": 30.407600000005914
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — inline image rendering renders download card (no <img>) for non-image download item",
+          "status": "passed",
+          "duration": 67.62069999999949
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — inline image rendering renders inline <img> for .PNG extension (case-insensitive)",
+          "status": "passed",
+          "duration": 17.28519999999844
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering EMV-HTML-1: renders sanitized HTML in information field (not escaped)",
+          "status": "passed",
+          "duration": 170.28169999999955
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering EMV-HTML-2: renders plain text information without HTML (no tags)",
+          "status": "passed",
+          "duration": 81.08489999999438
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering SEC-XSS-01a: script tags in information field are stripped by DOMPurify",
+          "status": "passed",
+          "duration": 63.416000000004715
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering SEC-XSS-01b: event handler attributes in information field are stripped by DOMPurify",
+          "status": "passed",
+          "duration": 40.45259999999689
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering SEC-XSS-01c: iframe tags in information field are stripped by DOMPurify",
+          "status": "passed",
+          "duration": 30.932600000000093
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering SEC-XSS-01d: legitimate block HTML in information field is preserved after sanitization",
+          "status": "passed",
+          "duration": 53.53689999999915
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — information field HTML rendering SEC-LINK-1: links in information have rel=\"noopener noreferrer\"",
+          "status": "passed",
+          "duration": 23.155299999998533
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — video item rendering EMV-VID-1: renders YouTube embed as primary player for YouTube video URL",
+          "status": "passed",
+          "duration": 60.04170000000158
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — video item rendering EMV-VID-2: renders clean GitHub download button for video",
+          "status": "passed",
+          "duration": 39.64560000000347
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — video item rendering EMV-VID-3: does not render local server URLs as visible text",
+          "status": "passed",
+          "duration": 77.96519999999873
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — video item rendering EMV-VID-4: does not render download button when downloadUrl is absent",
+          "status": "passed",
+          "duration": 54.89589999999589
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — video item rendering EMV-VID-5: does not render native <video> element for YouTube URL",
+          "status": "passed",
+          "duration": 36.932300000000396
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — video item rendering EMV-VID-6: preserves expected YouTube video ID in embed",
+          "status": "passed",
+          "duration": 131.38130000000092
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-1: renders YouTube embed as primary when youtubeUrl is set",
+          "status": "passed",
+          "duration": 106.42280000000028
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-2: does NOT render redundant \"Listen on YouTube\" button",
+          "status": "passed",
+          "duration": 118.8701000000001
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-3: does not render native MP3 player when youtubeUrl is set",
+          "status": "passed",
+          "duration": 36.50489999999991
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-4: rejects invalid YouTube IDs (no embed or link rendered)",
+          "status": "passed",
+          "duration": 12.354700000003504
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-5: renders YouTube iframe (not just link) when youtubeUrl is valid",
+          "status": "passed",
+          "duration": 102.17729999999574
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-6: renders GitHub download button for audio",
+          "status": "passed",
+          "duration": 114.7870000000039
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-7: does not render local server domain as visible text",
+          "status": "passed",
+          "duration": 39.00170000000071
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-8: does not render raw GitHub URL as visible text",
+          "status": "passed",
+          "duration": 86.91629999999714
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-9: audio and video YouTube IDs cannot be swapped",
+          "status": "passed",
+          "duration": 163.1169000000009
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — audio YouTube primary EMV-AYT-10: fallback renders download button when no youtubeUrl",
+          "status": "passed",
+          "duration": 26.811399999998685
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — text item markdown rendering EMV-MD-1: renders MarkdownViewer for text item with approved GitHub URL",
+          "status": "passed",
+          "duration": 29.132900000004156
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — text item markdown rendering EMV-MD-2: falls back to ExternalResourceCard for non-approved text URL",
+          "status": "passed",
+          "duration": 13.019499999994878
+        },
+        {
+          "fullName": "EmbeddedMaterialViewer — text item markdown rendering EMV-MD-3: renders MarkdownViewer for study guide text item",
+          "status": "passed",
+          "duration": 9.062300000005052
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/EngagementStats.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "EngagementStats renders all four stat cards",
+          "status": "passed",
+          "duration": 278.3055999999997
+        },
+        {
+          "fullName": "EngagementStats counts submissions by status",
+          "status": "passed",
+          "duration": 44.16749999999956
+        },
+        {
+          "fullName": "EngagementStats shows rejection message when rejected > 0",
+          "status": "passed",
+          "duration": 33.45290000000023
+        },
+        {
+          "fullName": "EngagementStats hides rejection message when none rejected",
+          "status": "passed",
+          "duration": 33.749400000000605
+        },
+        {
+          "fullName": "EngagementStats counts passed quizzes and shows attempt subtitle",
+          "status": "passed",
+          "duration": 45.535400000000664
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/ErrorBoundary.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "ErrorBoundary EB-1: displays fallback UI when child throws during render",
+          "status": "passed",
+          "duration": 241.39450000000215
+        },
+        {
+          "fullName": "ErrorBoundary EB-2: Try again button resets error state",
+          "status": "passed",
+          "duration": 160.74819999999818
+        },
+        {
+          "fullName": "ErrorBoundary EB-3: renders children normally when no error",
+          "status": "passed",
+          "duration": 13.474299999998038
+        },
+        {
+          "fullName": "ErrorBoundary EB-4: renders custom fallback when provided",
+          "status": "passed",
+          "duration": 8.097000000001572
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/FlashcardDeck.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-1: parses Module 1 format (no --- delimiters)",
+          "status": "passed",
+          "duration": 8.81710000000021
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-2: parses Module 2+ format (with --- delimiters)",
+          "status": "passed",
+          "duration": 4.926999999996042
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-3: preserves card order",
+          "status": "passed",
+          "duration": 1.6995999999999185
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-4: generates deterministic card IDs",
+          "status": "passed",
+          "duration": 1.2756000000008498
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-5: preserves inline Markdown in card faces",
+          "status": "passed",
+          "duration": 0.9856999999974505
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-6: handles Concept/Definition and Term/Definition variants",
+          "status": "passed",
+          "duration": 1.1189000000013039
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-7: handles fill-in-the-blank format",
+          "status": "passed",
+          "duration": 1.058099999994738
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-8: skips malformed cards (missing Q or A)",
+          "status": "passed",
+          "duration": 1.064299999998184
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-9: does not silently drop valid content",
+          "status": "passed",
+          "duration": 2.0282999999981257
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-10: does not generate cards from arbitrary text",
+          "status": "passed",
+          "duration": 1.3479999999981374
+        },
+        {
+          "fullName": "parseFlashcards — parser FC-PARSE-11: returns empty array for empty input",
+          "status": "passed",
+          "duration": 2.3171000000002095
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-1: first card renders front/question state",
+          "status": "passed",
+          "duration": 265.0308999999979
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-2: flip button reveals answer/back state",
+          "status": "passed",
+          "duration": 394.13240000000224
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-3: flip button is keyboard accessible",
+          "status": "passed",
+          "duration": 176.46620000000257
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-4: Previous/Next navigation works",
+          "status": "passed",
+          "duration": 336.97389999999723
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-5: first/last navigation disabled states",
+          "status": "passed",
+          "duration": 112.59700000000157
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-6: progress indicator updates correctly",
+          "status": "passed",
+          "duration": 120.60980000000563
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-7: reset restores first card/front state",
+          "status": "passed",
+          "duration": 160.58400000000256
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-8: shuffle reorders cards",
+          "status": "passed",
+          "duration": 133.60429999999906
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-9: navigation resets flip state",
+          "status": "passed",
+          "duration": 310.4467999999979
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-10: inline code in card faces is sanitized",
+          "status": "passed",
+          "duration": 141.61260000000038
+        },
+        {
+          "fullName": "FlashcardDeck — component FC-COMP-11: long content renders safely",
+          "status": "passed",
+          "duration": 54.15269999999873
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-1: approved BVC flashcards URL renders deck",
+          "status": "passed",
+          "duration": 63.17939999999362
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-2: non-approved URL shows error",
+          "status": "passed",
+          "duration": 30.853799999997136
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-3: failed fetch shows safe error",
+          "status": "passed",
+          "duration": 53.5373000000036
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-4: empty file shows error",
+          "status": "passed",
+          "duration": 50.78110000000015
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-5: loading state shows spinner",
+          "status": "passed",
+          "duration": 32.33039999999892
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-6: card face sanitizes dangerous content",
+          "status": "passed",
+          "duration": 71.66459999999643
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-7: no completion triggered by viewing cards",
+          "status": "passed",
+          "duration": 185.10710000000108
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-8: deck has accessible region label",
+          "status": "passed",
+          "duration": 229.60840000000462
+        },
+        {
+          "fullName": "FlashcardDeck — integration FC-INT-9: card surface has aria-live for screen reader updates",
+          "status": "passed",
+          "duration": 85.7013999999981
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/ForumSoftDelete.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "Forum Soft-Delete FE-F01: Delete button visibility — topics shows delete button on own topics",
+          "status": "passed",
+          "duration": 309.65499999999884
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F01: Delete button visibility — topics hides delete button on other users' topics",
+          "status": "passed",
+          "duration": 82.58380000000034
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F02: Delete button visibility — posts shows delete button on own posts in thread view",
+          "status": "passed",
+          "duration": 362.51530000000275
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F02: Delete button visibility — posts hides delete button on other users' posts",
+          "status": "passed",
+          "duration": 229.66779999999926
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F03: Confirming delete calls API and renders tombstone deleting own topic calls API and refreshes list with tombstone",
+          "status": "passed",
+          "duration": 554.1023000000023
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F04: Error handling on failed delete failed topic delete shows error and does not alter state",
+          "status": "passed",
+          "duration": 435.45390000000043
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F05: Tombstone rendering — topic list deleted topics render as tombstones with no title/body",
+          "status": "passed",
+          "duration": 101.15639999999985
+        },
+        {
+          "fullName": "Forum Soft-Delete FE-F06: Tombstone rendering — post list deleted posts render as tombstones with no body",
+          "status": "passed",
+          "duration": 239.97520000000077
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/GlobalSearchBar.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "SRCH-FE-1: GlobalSearchBar renders and shows results displays search results after typing",
+          "status": "passed",
+          "duration": 1124.184000000001
+        },
+        {
+          "fullName": "SRCH-FE-2: GlobalSearchBar opens on Ctrl+K opens search modal on Ctrl+K keyboard shortcut",
+          "status": "passed",
+          "duration": 33.360899999999674
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/ImportWizard.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "ImportWizard (Phase 26 C4) IW-FE-1: renders three source options (ZIP, CSV, Folder)",
+          "status": "passed",
+          "duration": 192.21690000000308
+        },
+        {
+          "fullName": "ImportWizard (Phase 26 C4) IW-FE-2: does not render when open is false",
+          "status": "passed",
+          "duration": 6.397400000001653
+        },
+        {
+          "fullName": "ImportWizard (Phase 26 C4) IW-FE-3: Escape key calls onClose",
+          "status": "passed",
+          "duration": 190.8806999999979
+        },
+        {
+          "fullName": "WIZ-GH-1 — GitHub source option renders shows GitHub Repository button in Step 1",
+          "status": "passed",
+          "duration": 38.8695000000007
+        },
+        {
+          "fullName": "WIZ-GH-2 — GitHub form validation shows validation error when submitting empty repo URL",
+          "status": "passed",
+          "duration": 110.53069999999934
+        },
+        {
+          "fullName": "WIZ-GH-2b — Non-GitHub URL error display shows error for non-GitHub URL (backend validation)",
+          "status": "passed",
+          "duration": 185.77019999999902
+        },
+        {
+          "fullName": "WIZ-GH-3 — GitHub import error handling shows error message on 404 response",
+          "status": "passed",
+          "duration": 122.47749999999724
+        },
+        {
+          "fullName": "WIZ-GH-4 — Successful GitHub import shows preview displays preview sections and items after successful fetch",
+          "status": "passed",
+          "duration": 201.6286
+        },
+        {
+          "fullName": "WIZ-GH-5 — Non-whitelisted org error shows error message on 403 response",
+          "status": "passed",
+          "duration": 137.34690000000046
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/InlineQuizTaker.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "InlineQuizTaker shows loading state then intro with question count",
+          "status": "passed",
+          "duration": 166.70130000000063
+        },
+        {
+          "fullName": "InlineQuizTaker shows result immediately if already passed",
+          "status": "passed",
+          "duration": 40.355100000000675
+        },
+        {
+          "fullName": "InlineQuizTaker displays intro screen with description and Begin button",
+          "status": "passed",
+          "duration": 30.17389999999432
+        },
+        {
+          "fullName": "InlineQuizTaker shows error state when quiz not found",
+          "status": "passed",
+          "duration": 40.485200000002806
+        },
+        {
+          "fullName": "InlineQuizTaker navigates between questions and selects answers",
+          "status": "passed",
+          "duration": 721.6009999999951
+        },
+        {
+          "fullName": "InlineQuizTaker submits quiz via confirmation modal and shows pass result",
+          "status": "passed",
+          "duration": 483.5152999999991
+        },
+        {
+          "fullName": "InlineQuizTaker shows fail result with Not passed badge",
+          "status": "passed",
+          "duration": 444.85280000000057
+        },
+        {
+          "fullName": "InlineQuizTaker retake resets state to intro",
+          "status": "passed",
+          "duration": 470.42209999999614
+        },
+        {
+          "fullName": "InlineQuizTaker confirmation modal cancel returns to quiz",
+          "status": "passed",
+          "duration": 492.1970999999976
+        },
+        {
+          "fullName": "InlineQuizTaker shows progress bar with answered count",
+          "status": "passed",
+          "duration": 143.436099999999
+        },
+        {
+          "fullName": "InlineQuizTaker arrow keys navigate between questions",
+          "status": "passed",
+          "duration": 132.79639999999927
+        },
+        {
+          "fullName": "InlineQuizTaker review mode shows submitted answers after completion",
+          "status": "passed",
+          "duration": 215.95569999999861
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/LandingCourses.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-01: renders exactly 9 course entries",
+          "status": "passed",
+          "duration": 659.6525999999976
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Introduction to Autonomous Robotics with Arduino Hands-On\"",
+          "status": "passed",
+          "duration": 205.29249999999956
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Introduction to Electronics\"",
+          "status": "passed",
+          "duration": 193.31650000000081
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Stellar: The Vibe-Coding Crash Course\"",
+          "status": "passed",
+          "duration": 149.85229999999865
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Blockchain-Vibe-Coding: Stellar From Zero to dApp\"",
+          "status": "passed",
+          "duration": 151.90209999999934
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Ethereum From Zero to Smart Contracts\"",
+          "status": "passed",
+          "duration": 153.46549999999843
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Vibe Hack 101 — Learn How to Win Hackathons\"",
+          "status": "passed",
+          "duration": 111.44839999999749
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Build on Stellar — Soroban Crash Course\"",
+          "status": "passed",
+          "duration": 140.1175000000003
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Rust Crash Course — Programming Basics: Web3 & Smart Contract Development\"",
+          "status": "passed",
+          "duration": 145.3652000000002
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-02: renders course title \"Build on Stellar\"",
+          "status": "passed",
+          "duration": 167.3172999999988
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-03: stale title \"Stellar & Soroban\" does not appear anywhere",
+          "status": "passed",
+          "duration": 182.69280000000072
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-03: stale title \"Blockchain for Beginners\" does not appear anywhere",
+          "status": "passed",
+          "duration": 116.41349999999875
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-03: stale title \"Ethereum & security\" does not appear anywhere",
+          "status": "passed",
+          "duration": 108.56200000000172
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-03: stale title \"Solana & automation\" does not appear anywhere",
+          "status": "passed",
+          "duration": 147.7514999999985
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-04: no \"Coming soon\" badges appear",
+          "status": "passed",
+          "duration": 140.05749999999898
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-05: no \"Roadmap\" labels appear",
+          "status": "passed",
+          "duration": 109.51659999999902
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-06: each course links to its exact smwebsystems.com/courses/{slug}",
+          "status": "passed",
+          "duration": 197.74530000000232
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-07: login button text and destination unchanged",
+          "status": "passed",
+          "duration": 216.85649999999805
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-08: hero \"Continue to Sign in\" button links to /login",
+          "status": "passed",
+          "duration": 205.80459999999948
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-09: course levels are displayed as badges",
+          "status": "passed",
+          "duration": 122.928100000001
+        },
+        {
+          "fullName": "LMS Landing — Course Content Sync COURSE-10: course descriptions from main site are present",
+          "status": "passed",
+          "duration": 116.39479999999821
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/MarkdownViewer.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "toApprovedRawUrl MV-1: converts GitHub blob URL to pinned raw URL",
+          "status": "passed",
+          "duration": 8.453999999997905
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-2: converts raw.githubusercontent.com URL to pinned raw URL",
+          "status": "passed",
+          "duration": 2.1763000000064494
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-3: returns null for non-approved org",
+          "status": "passed",
+          "duration": 1.359199999998964
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-4: returns null for non-approved repo",
+          "status": "passed",
+          "duration": 1.1955000000016298
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-5: returns null for non-GitHub URL",
+          "status": "passed",
+          "duration": 0.9019000000043889
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-6: returns null for empty string",
+          "status": "passed",
+          "duration": 0.9710999999952037
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-7: returns null for invalid URL",
+          "status": "passed",
+          "duration": 1.368799999996554
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-8: handles www.github.com prefix",
+          "status": "passed",
+          "duration": 0.8716999999960535
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-9: accepts both approved repo names",
+          "status": "passed",
+          "duration": 8.228900000001886
+        },
+        {
+          "fullName": "toApprovedRawUrl MV-10: pins raw URLs to approved commit (ignores original commit)",
+          "status": "passed",
+          "duration": 3.16820000000007
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-1: renders headings with correct semantic tags",
+          "status": "passed",
+          "duration": 258.7898999999961
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-2: renders table with thead, tbody, th, and td",
+          "status": "passed",
+          "duration": 136.83370000000286
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-3: wraps table in accessible scrolling container",
+          "status": "passed",
+          "duration": 81.89429999999993
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-4: table wrapper contains the table element",
+          "status": "passed",
+          "duration": 63.56719999999768
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-5: table header cells have scope=\"col\"",
+          "status": "passed",
+          "duration": 67.42579999999725
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-6: renders ordered and unordered lists",
+          "status": "passed",
+          "duration": 39.02919999999722
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-7: renders blockquote",
+          "status": "passed",
+          "duration": 30.528200000000652
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-8: renders inline code and fenced code blocks safely",
+          "status": "passed",
+          "duration": 55.63980000000447
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-9: code blocks do not execute content",
+          "status": "passed",
+          "duration": 43.09780000000319
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-10: links retain rel=\"noopener noreferrer\" and target=\"_blank\"",
+          "status": "passed",
+          "duration": 28.845000000001164
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-11: dangerous javascript: URLs are stripped",
+          "status": "passed",
+          "duration": 67.414300000004
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-12: images constrained with alt text preserved",
+          "status": "passed",
+          "duration": 23.612300000000687
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-13: renders horizontal rule",
+          "status": "passed",
+          "duration": 77.47540000000299
+        },
+        {
+          "fullName": "MarkdownViewer — rendering MV-RENDER-14: uses scoped lms-markdown-content class",
+          "status": "passed",
+          "duration": 17.078099999998813
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-1: left-aligned column gets lms-md-align-left class",
+          "status": "passed",
+          "duration": 108.86330000000453
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-2: center-aligned column gets lms-md-align-center class",
+          "status": "passed",
+          "duration": 35.66960000000108
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-3: right-aligned column gets lms-md-align-right class",
+          "status": "passed",
+          "duration": 74.23170000000391
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-4: unspecified alignment receives no alignment class",
+          "status": "passed",
+          "duration": 56.349300000001676
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-5: no arbitrary class names from markdown are retained",
+          "status": "passed",
+          "duration": 85.19840000000113
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-6: no inline style attribute on table cells",
+          "status": "passed",
+          "duration": 65.26580000000104
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-7: align attribute is removed after class conversion",
+          "status": "passed",
+          "duration": 67.3813999999984
+        },
+        {
+          "fullName": "MarkdownViewer — table alignment MV-ALIGN-8: table headers retain scope=\"col\" with alignment",
+          "status": "passed",
+          "duration": 69.53600000000006
+        },
+        {
+          "fullName": "MarkdownViewer — mobile table scroll affordance MV-SCROLL-1: table wrapper has data-scrolled-end attribute",
+          "status": "passed",
+          "duration": 66.27530000000115
+        },
+        {
+          "fullName": "MarkdownViewer — mobile table scroll affordance MV-SCROLL-2: table wrapper remains keyboard focusable",
+          "status": "passed",
+          "duration": 57.688600000001315
+        },
+        {
+          "fullName": "MarkdownViewer — code copy button MV-COPY-1: fenced code block has a copy button",
+          "status": "passed",
+          "duration": 34.39400000000023
+        },
+        {
+          "fullName": "MarkdownViewer — code copy button MV-COPY-2: copy button only appears for fenced code blocks, not inline code",
+          "status": "passed",
+          "duration": 14.237600000000384
+        },
+        {
+          "fullName": "MarkdownViewer — code copy button MV-COPY-3: copy button is wrapped with code block preserving scroll",
+          "status": "passed",
+          "duration": 53.7899000000034
+        },
+        {
+          "fullName": "MarkdownViewer — code copy button MV-COPY-4: clipboard error does not break rendering",
+          "status": "passed",
+          "duration": 45.44229999999516
+        },
+        {
+          "fullName": "MarkdownViewer — regression guards MV-REG-1: table semantic tags survive sanitization",
+          "status": "passed",
+          "duration": 21.558900000003632
+        },
+        {
+          "fullName": "MarkdownViewer — regression guards MV-REG-2: table inside accessible scroll wrapper",
+          "status": "passed",
+          "duration": 39.25540000000183
+        },
+        {
+          "fullName": "MarkdownViewer — regression guards MV-REG-3: URL sanitization unchanged — javascript: still blocked",
+          "status": "passed",
+          "duration": 41.98410000000149
+        },
+        {
+          "fullName": "MarkdownViewer — loading and error states MV-STATE-1: shows loading state",
+          "status": "passed",
+          "duration": 237.9699000000037
+        },
+        {
+          "fullName": "MarkdownViewer — loading and error states MV-STATE-2: shows error without raw URLs or stack traces",
+          "status": "passed",
+          "duration": 67.45120000000315
+        },
+        {
+          "fullName": "MarkdownViewer — loading and error states MV-STATE-3: error state shows retry button",
+          "status": "passed",
+          "duration": 50.28469999999652
+        },
+        {
+          "fullName": "MarkdownViewer — loading and error states MV-STATE-4: non-approved URL shows error immediately",
+          "status": "passed",
+          "duration": 47.516999999999825
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/MessageAuditPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "FE-ADMIN-01: Access control non-admin user sees access denied and no data is fetched",
+          "status": "passed",
+          "duration": 109.2339000000029
+        },
+        {
+          "fullName": "FE-ADMIN-02: Conversation list rendering admin sees list of conversations with metadata",
+          "status": "passed",
+          "duration": 145.16890000000058
+        },
+        {
+          "fullName": "FE-ADMIN-03: Deleted message rendering deleted messages show original body, metadata, and visual distinction",
+          "status": "passed",
+          "duration": 334.71600000000035
+        },
+        {
+          "fullName": "FE-ADMIN-04: Anonymized sender handling anonymized sender shows \"Deleted User\" with original identity",
+          "status": "passed",
+          "duration": 167.875
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/MessageSoftDelete.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "FE-01: Delete button visibility shows delete button on own messages",
+          "status": "passed",
+          "duration": 628.4925000000003
+        },
+        {
+          "fullName": "FE-01: Delete button visibility does not show delete button on received messages",
+          "status": "passed",
+          "duration": 230.60239999999976
+        },
+        {
+          "fullName": "FE-02: Delete confirmation dialog clicking delete opens confirmation dialog",
+          "status": "passed",
+          "duration": 334.3719999999994
+        },
+        {
+          "fullName": "FE-02: Delete confirmation dialog clicking Cancel closes dialog without deleting",
+          "status": "passed",
+          "duration": 499.9981999999982
+        },
+        {
+          "fullName": "FE-03: Successful deletion confirming delete calls API and renders tombstone",
+          "status": "passed",
+          "duration": 475.549500000001
+        },
+        {
+          "fullName": "FE-04: Error handling failed delete shows error and message stays",
+          "status": "passed",
+          "duration": 535.6948000000011
+        },
+        {
+          "fullName": "Tombstone rendering renders tombstone for pre-deleted messages",
+          "status": "passed",
+          "duration": 319.7311000000009
+        },
+        {
+          "fullName": "Tombstone rendering tombstone does not show delete button",
+          "status": "passed",
+          "duration": 202.60670000000027
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/MindMapViewer.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "validateMindMap accepts a valid minimal tree",
+          "status": "passed",
+          "duration": 12.16710000000603
+        },
+        {
+          "fullName": "validateMindMap accepts a valid tree with children",
+          "status": "passed",
+          "duration": 2.6466999999975087
+        },
+        {
+          "fullName": "validateMindMap accepts empty children array",
+          "status": "passed",
+          "duration": 2.5408000000024913
+        },
+        {
+          "fullName": "validateMindMap rejects invalid JSON",
+          "status": "passed",
+          "duration": 1.7421999999933178
+        },
+        {
+          "fullName": "validateMindMap rejects non-object root (array)",
+          "status": "passed",
+          "duration": 2.8245000000024447
+        },
+        {
+          "fullName": "validateMindMap rejects non-object root (null)",
+          "status": "passed",
+          "duration": 2.2947999999960302
+        },
+        {
+          "fullName": "validateMindMap rejects missing name",
+          "status": "passed",
+          "duration": 1.3700000000026193
+        },
+        {
+          "fullName": "validateMindMap rejects empty name",
+          "status": "passed",
+          "duration": 1.1867999999958556
+        },
+        {
+          "fullName": "validateMindMap rejects non-string name",
+          "status": "passed",
+          "duration": 2.1774999999979627
+        },
+        {
+          "fullName": "validateMindMap rejects invalid children type",
+          "status": "passed",
+          "duration": 1.6947999999974854
+        },
+        {
+          "fullName": "validateMindMap rejects extra fields",
+          "status": "passed",
+          "duration": 1.3850000000020373
+        },
+        {
+          "fullName": "validateMindMap rejects __proto__ key",
+          "status": "passed",
+          "duration": 2.7327000000004773
+        },
+        {
+          "fullName": "validateMindMap rejects prototype key",
+          "status": "passed",
+          "duration": 1.269399999997404
+        },
+        {
+          "fullName": "validateMindMap rejects constructor key",
+          "status": "passed",
+          "duration": 1.7137999999977183
+        },
+        {
+          "fullName": "validateMindMap rejects payload over 100 KB",
+          "status": "passed",
+          "duration": 25.25239999999758
+        },
+        {
+          "fullName": "validateMindMap rejects over 200 nodes",
+          "status": "passed",
+          "duration": 2.4184000000022934
+        },
+        {
+          "fullName": "validateMindMap rejects depth over 10",
+          "status": "passed",
+          "duration": 5.807500000002619
+        },
+        {
+          "fullName": "isApprovedMindMapUrl accepts all seven correct pinned raw mind-map URLs",
+          "status": "passed",
+          "duration": 2.759300000005169
+        },
+        {
+          "fullName": "isApprovedMindMapUrl accepts github.com blob URLs that resolve to mind-map.json",
+          "status": "passed",
+          "duration": 0.47800000000279397
+        },
+        {
+          "fullName": "isApprovedMindMapUrl rejects URLs not ending in mind-map.json",
+          "status": "passed",
+          "duration": 1.5020000000004075
+        },
+        {
+          "fullName": "isApprovedMindMapUrl rejects URLs from another repository",
+          "status": "passed",
+          "duration": 0.5056000000040513
+        },
+        {
+          "fullName": "isApprovedMindMapUrl rejects URLs from another organization",
+          "status": "passed",
+          "duration": 0.46550000000570435
+        },
+        {
+          "fullName": "isApprovedMindMapUrl rejects null and empty",
+          "status": "passed",
+          "duration": 0.39140000000043074
+        },
+        {
+          "fullName": "isApprovedMindMapUrl rejects non-JSON file path",
+          "status": "passed",
+          "duration": 0.3326999999990221
+        },
+        {
+          "fullName": "isApprovedMindMapUrl rejects path traversal",
+          "status": "passed",
+          "duration": 0.3842999999978929
+        },
+        {
+          "fullName": "MindMapViewer shows loading state",
+          "status": "passed",
+          "duration": 247.50179999999818
+        },
+        {
+          "fullName": "MindMapViewer shows error state without raw URL or stack trace",
+          "status": "passed",
+          "duration": 102.11379999999917
+        },
+        {
+          "fullName": "MindMapViewer shows error for unapproved URL",
+          "status": "passed",
+          "duration": 57.96800000000076
+        },
+        {
+          "fullName": "MindMapViewer retry triggers another fetch",
+          "status": "passed",
+          "duration": 112.56850000000122
+        },
+        {
+          "fullName": "MindMapViewer renders root node",
+          "status": "passed",
+          "duration": 149.15810000000056
+        },
+        {
+          "fullName": "MindMapViewer renders child nodes",
+          "status": "passed",
+          "duration": 33.579600000004575
+        },
+        {
+          "fullName": "MindMapViewer renders labels as SVG text, not innerHTML",
+          "status": "passed",
+          "duration": 36.84730000000127
+        },
+        {
+          "fullName": "MindMapViewer text outline contains full hierarchy",
+          "status": "passed",
+          "duration": 68.5228999999963
+        },
+        {
+          "fullName": "MindMapViewer zoom-in works",
+          "status": "passed",
+          "duration": 77.24640000000363
+        },
+        {
+          "fullName": "MindMapViewer zoom-out works",
+          "status": "passed",
+          "duration": 75.77859999999782
+        },
+        {
+          "fullName": "MindMapViewer reset/fit works",
+          "status": "passed",
+          "duration": 71.85029999999824
+        },
+        {
+          "fullName": "MindMapViewer zoom controls have accessible labels",
+          "status": "passed",
+          "duration": 120.3122000000003
+        },
+        {
+          "fullName": "MindMapViewer viewport has overflow-auto class for containment",
+          "status": "passed",
+          "duration": 32.89650000000256
+        },
+        {
+          "fullName": "MindMapViewer reduced-motion is checked",
+          "status": "passed",
+          "duration": 34.859700000000885
+        },
+        {
+          "fullName": "MindMapViewer integration does not modify lesson completion, quiz, or NFT state",
+          "status": "passed",
+          "duration": 83.80840000000171
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/NFTBadge.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "NFTBadge BADGE-FE-1: renders course title, date, and wallet",
+          "status": "passed",
+          "duration": 239.73849999999948
+        },
+        {
+          "fullName": "NFTBadge BADGE-FE-2: shows Stellar explorer link when txHash present",
+          "status": "passed",
+          "duration": 242.11349999999948
+        },
+        {
+          "fullName": "NFTBadge BADGE-FE-3: share Copy Link copies verification URL",
+          "status": "passed",
+          "duration": 68.58799999999974
+        },
+        {
+          "fullName": "CertificateVerification BADGE-FE-4: renders verified credential data",
+          "status": "passed",
+          "duration": 201.16749999999956
+        },
+        {
+          "fullName": "CertificateVerification BADGE-FE-5: renders QR code image",
+          "status": "passed",
+          "duration": 192.95900000000256
+        },
+        {
+          "fullName": "CertificateVerification BADGE-FE-6: QR code image has data URL src",
+          "status": "passed",
+          "duration": 134.8737000000001
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/NotificationBell.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "NotificationBell fetches notifications on mount and renders bell button",
+          "status": "passed",
+          "duration": 312.0379999999968
+        },
+        {
+          "fullName": "NotificationBell shows unread count badge when count > 0",
+          "status": "passed",
+          "duration": 63.58679999999731
+        },
+        {
+          "fullName": "NotificationBell caps unread badge at 99+ when count exceeds 99",
+          "status": "passed",
+          "duration": 33.26499999999942
+        },
+        {
+          "fullName": "NotificationBell opens dropdown showing notification titles on bell click",
+          "status": "passed",
+          "duration": 217.46789999999964
+        },
+        {
+          "fullName": "NotificationBell shows \"No notifications\" when list is empty",
+          "status": "passed",
+          "duration": 93.42250000000058
+        },
+        {
+          "fullName": "NotificationBell marks unread notification as read and navigates on click",
+          "status": "passed",
+          "duration": 188.97179999999935
+        },
+        {
+          "fullName": "NotificationBell closes dropdown on outside mousedown",
+          "status": "passed",
+          "duration": 126.57150000000183
+        },
+        {
+          "fullName": "NotificationBell polls for notifications every 30 seconds",
+          "status": "passed",
+          "duration": 20.785500000001775
+        },
+        {
+          "fullName": "NotificationBell marks all as read when \"Read all\" button is clicked",
+          "status": "passed",
+          "duration": 146.0544000000009
+        },
+        {
+          "fullName": "NotificationBell navigates to notification settings page",
+          "status": "passed",
+          "duration": 122.0573000000004
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/NotificationSettings.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "NotificationSettings renders preference toggles from API",
+          "status": "passed",
+          "duration": 371.6340999999993
+        },
+        {
+          "fullName": "NotificationSettings toggles a preference and saves",
+          "status": "passed",
+          "duration": 389.89370000000054
+        },
+        {
+          "fullName": "NotificationSettings shows error state on load failure",
+          "status": "passed",
+          "duration": 35.71429999999964
+        },
+        {
+          "fullName": "NotificationSettings shows error state on save failure",
+          "status": "passed",
+          "duration": 158.23229999999967
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/OnboardingChecklist.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "OnboardingChecklist renders all five steps",
+          "status": "passed",
+          "duration": 165.72040000000197
+        },
+        {
+          "fullName": "OnboardingChecklist shows \"Done\" labels for completed steps",
+          "status": "passed",
+          "duration": 36.08569999999963
+        },
+        {
+          "fullName": "OnboardingChecklist shows completion message when all steps done",
+          "status": "passed",
+          "duration": 33.60559999999896
+        },
+        {
+          "fullName": "OnboardingChecklist dismisses and persists to localStorage",
+          "status": "passed",
+          "duration": 311.2599999999984
+        },
+        {
+          "fullName": "OnboardingChecklist stays hidden when previously dismissed",
+          "status": "passed",
+          "duration": 4.626599999999598
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/PaymentAnalyticsPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "PaymentAnalyticsPanel ANA-FE-1 — renders summary cards with total revenue and counts",
+          "status": "passed",
+          "duration": 306.18529999999737
+        },
+        {
+          "fullName": "PaymentAnalyticsPanel ANA-FE-2 — renders revenue by course table",
+          "status": "passed",
+          "duration": 128.27050000000236
+        },
+        {
+          "fullName": "PaymentAnalyticsPanel ANA-FE-3 — renders revenue by method table",
+          "status": "passed",
+          "duration": 78.86179999999877
+        },
+        {
+          "fullName": "PaymentAnalyticsPanel ANA-FE-4 — renders revenue by month table",
+          "status": "passed",
+          "duration": 83.7374000000018
+        },
+        {
+          "fullName": "PaymentAnalyticsPanel ANA-FE-5 — shows empty state when no payments",
+          "status": "passed",
+          "duration": 22.324100000001636
+        },
+        {
+          "fullName": "PaymentAnalyticsPanel ANA-FE-6 — shows error state with retry button",
+          "status": "passed",
+          "duration": 367.2691999999988
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/PaymentCheckout.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "PaymentCheckout PAY-F10 — renders nothing for free courses",
+          "status": "passed",
+          "duration": 101.45739999999932
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F11 — shows Paystack button when paystack method available",
+          "status": "passed",
+          "duration": 92.34240000000136
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F12 — shows Stellar XLM button with price",
+          "status": "passed",
+          "duration": 21.288300000000163
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F13 — shows Stellar USDC button with price",
+          "status": "passed",
+          "duration": 13.735599999999977
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F14 — clicking Paystack triggers checkout and redirects",
+          "status": "passed",
+          "duration": 302.76910000000134
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F15 — clicking Stellar shows payment instructions",
+          "status": "passed",
+          "duration": 157.22799999999916
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F16 — shows error on checkout failure",
+          "status": "passed",
+          "duration": 102.04910000000018
+        },
+        {
+          "fullName": "PaymentCheckout PAY-F17 — manual-only shows contact admin message",
+          "status": "passed",
+          "duration": 10.3195999999989
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/PostAuthor.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "PostAuthor deleted user styling DA-01: renders muted italic styling for deleted user in topic list",
+          "status": "passed",
+          "duration": 216.0004000000008
+        },
+        {
+          "fullName": "PostAuthor deleted user styling DA-02: renders normal styling for active user in topic list",
+          "status": "passed",
+          "duration": 90.43159999999989
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/PricingManagement.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "PricingManagement PAY-F1 — renders loading then pricing table",
+          "status": "passed",
+          "duration": 224.4757000000027
+        },
+        {
+          "fullName": "PricingManagement PAY-F2 — shows \"Free\" for courses with priceCents=0",
+          "status": "passed",
+          "duration": 38.721300000001065
+        },
+        {
+          "fullName": "PricingManagement PAY-F3 — shows dollar amount for priced courses",
+          "status": "passed",
+          "duration": 27.21350000000166
+        },
+        {
+          "fullName": "PricingManagement PAY-F4 — opens edit modal and saves new price",
+          "status": "passed",
+          "duration": 735.6054000000004
+        },
+        {
+          "fullName": "PricingManagement PAY-F5 — shows error state with retry button",
+          "status": "passed",
+          "duration": 135.41800000000148
+        },
+        {
+          "fullName": "PricingManagement PAY-F6 — \"Set Price\" button appears for free courses",
+          "status": "passed",
+          "duration": 48.81459999999788
+        },
+        {
+          "fullName": "PricingManagement PAY-F7 — shows empty state when no courses",
+          "status": "passed",
+          "duration": 54.88930000000255
+        },
+        {
+          "fullName": "PricingManagement PAY-F8 — edit modal shows Stellar XLM/USDC inputs",
+          "status": "passed",
+          "duration": 190.37480000000141
+        },
+        {
+          "fullName": "PricingManagement PAY-F9 — saves Stellar prices via setCoursePricing",
+          "status": "passed",
+          "duration": 528.7373999999982
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/QuizAnalyticsPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "QuizAnalyticsPanel shows loading skeleton then data table",
+          "status": "passed",
+          "duration": 189.22719999999754
+        },
+        {
+          "fullName": "QuizAnalyticsPanel renders quiz stats with correct values",
+          "status": "passed",
+          "duration": 63.50660000000062
+        },
+        {
+          "fullName": "QuizAnalyticsPanel shows empty state when no quizzes",
+          "status": "passed",
+          "duration": 54.992999999998574
+        },
+        {
+          "fullName": "QuizAnalyticsPanel shows error state with retry button",
+          "status": "passed",
+          "duration": 381.6828999999998
+        },
+        {
+          "fullName": "QuizAnalyticsPanel displays quiz with zero attempts as 0 and 0%",
+          "status": "passed",
+          "duration": 77.1417999999976
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/RbacAdminPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "Phase 16 C4 — RbacAdminPanel RBAC-FE-1 — renders role list after loading",
+          "status": "passed",
+          "duration": 227.07690000000002
+        },
+        {
+          "fullName": "Phase 16 C4 — RbacAdminPanel RBAC-FE-2 — shows create role form when Add button clicked",
+          "status": "passed",
+          "duration": 406.89719999999943
+        },
+        {
+          "fullName": "Phase 16 C4 — RbacAdminPanel RBAC-FE-3 — opens permission editor when Permissions button clicked",
+          "status": "passed",
+          "duration": 242.9571999999971
+        },
+        {
+          "fullName": "Phase 16 C4 — RbacAdminPanel RBAC-FE-4 — shows error state on API failure",
+          "status": "passed",
+          "duration": 47.095000000001164
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/RewardComponents.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "RewardStatusBadge R-FE-6a: renders correct label for each reward state",
+          "status": "passed",
+          "duration": 154.17789999999513
+        },
+        {
+          "fullName": "RewardStatusBadge R-FE-6b: renders unknown status with snake_case cleaned up",
+          "status": "passed",
+          "duration": 12.176699999996345
+        },
+        {
+          "fullName": "formatStroops R-FE-5a: formats 10000000 stroops as XLM",
+          "status": "passed",
+          "duration": 2.2036000000007334
+        },
+        {
+          "fullName": "formatStroops R-FE-5b: formatStroopsShort shows 2 decimal places",
+          "status": "passed",
+          "duration": 0.9430000000065775
+        },
+        {
+          "fullName": "formatStroops R-FE-5c: validates zero amount display",
+          "status": "passed",
+          "duration": 0.8442999999970198
+        },
+        {
+          "fullName": "RewardDashboard R-FE-1: renders for sponsor role with rewards",
+          "status": "passed",
+          "duration": 418.9667000000045
+        },
+        {
+          "fullName": "RewardDashboard R-FE-2: renders for employer role",
+          "status": "passed",
+          "duration": 47.82940000000235
+        },
+        {
+          "fullName": "RewardDashboard R-FE-3: renders for parent role",
+          "status": "passed",
+          "duration": 62.785200000005716
+        },
+        {
+          "fullName": "RewardDashboard R-FE-4: renders for teacher role",
+          "status": "passed",
+          "duration": 112.83520000000135
+        },
+        {
+          "fullName": "RewardDashboard R-FE-5d: RewardCreateForm validates negative amount",
+          "status": "passed",
+          "duration": 136.0833999999959
+        },
+        {
+          "fullName": "StudentRewardsPanel R-FE-7: renders student rewards received view",
+          "status": "passed",
+          "duration": 103.48389999999927
+        },
+        {
+          "fullName": "StudentRewardsPanel R-FE-8: no funder data exposed in student view",
+          "status": "passed",
+          "duration": 101.2789000000048
+        },
+        {
+          "fullName": "StudentRewardsPanel R-FE-7b: shows empty state when no rewards",
+          "status": "passed",
+          "duration": 62.492700000002515
+        },
+        {
+          "fullName": "W05-R1 Frontend select/payload coverage W5R1-FE1: completion and achievement are not selectable options",
+          "status": "passed",
+          "duration": 101.55069999999978
+        },
+        {
+          "fullName": "W05-R1 Frontend select/payload coverage W5R1-FE2a: default type is custom and createReward is called with rewardType \"custom\"",
+          "status": "passed",
+          "duration": 728.1840999999986
+        },
+        {
+          "fullName": "W05-R1 Frontend select/payload coverage W5R1-FE2b: selecting individual submits exact canonical string",
+          "status": "passed",
+          "duration": 406.17319999999745
+        },
+        {
+          "fullName": "W06 Frontend — parent target discriminator W6-FE-1: parent role with targetType=family calls listRewards with targetType argument",
+          "status": "passed",
+          "duration": 95.60680000000139
+        },
+        {
+          "fullName": "W06 Frontend — parent target discriminator W6-FE-2: sponsor role without targetType calls listRewards with undefined targetType",
+          "status": "passed",
+          "duration": 69.63410000000295
+        },
+        {
+          "fullName": "W06 Frontend — parent target discriminator W6-FE-3: parent createReward includes targetType=family in POST params",
+          "status": "passed",
+          "duration": 313.98429999999644
+        },
+        {
+          "fullName": "W06 Frontend — parent target discriminator W6-FE-4: sponsor role createReward does not send targetType",
+          "status": "passed",
+          "duration": 252.40149999999994
+        },
+        {
+          "fullName": "W06 Frontend — parent target discriminator W6-FE-5: re-renders with new targetType trigger separate listRewards calls",
+          "status": "passed",
+          "duration": 168.15759999999864
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-1: late child response does not overwrite current family rows",
+          "status": "passed",
+          "duration": 140.806700000001
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-2: late family response does not overwrite current child rows",
+          "status": "passed",
+          "duration": 252.82400000000052
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-3: late rejection from stale request does not obscure current data",
+          "status": "passed",
+          "duration": 154.2528999999995
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-4: re-visit of same scopeId wins over deferred first visit",
+          "status": "passed",
+          "duration": 361.2263000000021
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-5: switch to empty scopeId invalidates pending old request",
+          "status": "passed",
+          "duration": 163.0515000000014
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-6: unmount while load is pending does not commit state",
+          "status": "passed",
+          "duration": 58.72860000000219
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-7: performAction error after target switch does not show stale error on new target",
+          "status": "passed",
+          "duration": 314.16709999999875
+        },
+        {
+          "fullName": "W06-R1: stale response guard W6R1-FE-8: late old-target error does not overwrite current family data",
+          "status": "passed",
+          "duration": 356.5158999999985
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-1: deferred child create does not reload child list after family switch",
+          "status": "passed",
+          "duration": 495.00220000000263
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-2: deferred family create does not reload family list after child switch",
+          "status": "passed",
+          "duration": 518.1916000000056
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-3: old create completion cannot invalidate current pending list request",
+          "status": "passed",
+          "duration": 410.3214999999982
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-4: A→B→A: old first-visit create cannot initiate reload on second visit",
+          "status": "passed",
+          "duration": 393.4991999999984
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-5: old create failure after switch does not show error in new dashboard",
+          "status": "passed",
+          "duration": 531.5843000000023
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-6: old create completion does not close currently-open form on new target",
+          "status": "passed",
+          "duration": 463.39570000000094
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-7: stale getAllocations result is not applied to new target",
+          "status": "passed",
+          "duration": 326.98599999999715
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-8: form closes when target changes",
+          "status": "passed",
+          "duration": 187.15660000000207
+        },
+        {
+          "fullName": "W06-R2: create and operation ownership guard W6R2-FE-9: spinner cleared on target change; old-target finally does not clear new op spinner",
+          "status": "passed",
+          "duration": 584.8197
+        },
+        {
+          "fullName": "W06-R3: blocked-refund epoch guard W6R3-FE-10: deferred blocked refund A→B→A does not show stale blocked message on revisit",
+          "status": "passed",
+          "duration": 464.15690000000177
+        },
+        {
+          "fullName": "W06-R3: blocked-refund epoch guard W6R3-FE-11: same-visit blocked refund shows message and clears spinner",
+          "status": "passed",
+          "duration": 585.2265000000043
+        },
+        {
+          "fullName": "W06-R3: blocked-refund epoch guard W6R3-FE-12: old blocked response does not clear new visit pending operation spinner",
+          "status": "passed",
+          "duration": 662.3145000000004
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/SocialShare.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "SocialShare SHARE-FE-1: renders LinkedIn, Twitter, and Copy Link buttons",
+          "status": "passed",
+          "duration": 135.7561999999998
+        },
+        {
+          "fullName": "SocialShare SHARE-FE-2: LinkedIn button opens share URL in new window",
+          "status": "passed",
+          "duration": 45.4246000000021
+        },
+        {
+          "fullName": "SocialShare SHARE-FE-3: Copy Link button copies URL to clipboard",
+          "status": "passed",
+          "duration": 23.96549999999843
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/StatusBadge.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "StatusBadge renders Approved with green styling",
+          "status": "passed",
+          "duration": 203.64209999999912
+        },
+        {
+          "fullName": "StatusBadge renders Rejected with red styling",
+          "status": "passed",
+          "duration": 23.04740000000129
+        },
+        {
+          "fullName": "StatusBadge renders Pending for unknown status",
+          "status": "passed",
+          "duration": 11.358699999998862
+        },
+        {
+          "fullName": "StatusBadge defaults to Pending for unrecognised status",
+          "status": "passed",
+          "duration": 18.301900000000387
+        },
+        {
+          "fullName": "fmtSize formats bytes",
+          "status": "passed",
+          "duration": 0.9930999999996857
+        },
+        {
+          "fullName": "fmtSize formats kilobytes",
+          "status": "passed",
+          "duration": 0.7468000000008033
+        },
+        {
+          "fullName": "fmtSize formats megabytes",
+          "status": "passed",
+          "duration": 0.5460000000002765
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/StudentPayments.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "StudentPayments PAY-FE-1 — renders payment list with course name, amount, and status badge",
+          "status": "passed",
+          "duration": 262.2869999999966
+        },
+        {
+          "fullName": "StudentPayments PAY-FE-2 — shows receipt download link for confirmed payments only",
+          "status": "passed",
+          "duration": 281.9481999999989
+        },
+        {
+          "fullName": "StudentPayments PAY-FE-3 — shows empty state when no payments",
+          "status": "passed",
+          "duration": 51.476699999999255
+        },
+        {
+          "fullName": "StudentPayments PAY-FE-4 — shows error state with retry button",
+          "status": "passed",
+          "duration": 221.51390000000174
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/TenantAdminPanel.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-1 — renders tenant table after loading",
+          "status": "passed",
+          "duration": 248.0109999999986
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-2 — shows empty state when no tenants",
+          "status": "passed",
+          "duration": 39.092899999999645
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-3 — shows error state on API failure",
+          "status": "passed",
+          "duration": 79.42180000000008
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-4 — opens create form when button clicked",
+          "status": "passed",
+          "duration": 277.21380000000136
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-5 — calls createTenant on save",
+          "status": "passed",
+          "duration": 925.1015000000007
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-6 — calls deleteTenant on delete click",
+          "status": "passed",
+          "duration": 158.69890000000305
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-7 — toggles tenant status",
+          "status": "passed",
+          "duration": 147.9952000000012
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-8 — expands tenant to show users",
+          "status": "passed",
+          "duration": 218.81760000000213
+        },
+        {
+          "fullName": "Phase 20 C1 — TenantAdminPanel MT-FE-9 — shows retry button on error",
+          "status": "passed",
+          "duration": 44.23530000000028
+        }
+      ]
+    },
+    {
+      "name": "LMS-Frontend/src/__tests__/components/TierSelector.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "TierSelector TIER-F1 — renders tier selection modal when tiersEnabled=both",
+          "status": "passed",
+          "duration": 176.5796999999984
+        },
+        {
+          "fullName": "TierSelector TIER-F2 — auto-selects free when tiersEnabled=free_only",
+          "status": "passed",
+          "duration": 37.417199999999866
+        },
+        {
+          "fullName": "TierSelector TIER-F3 — auto-selects paid when tiersEnabled=paid_only",
+          "status": "passed",
+          "duration": 10.132299999997485
+        },
+        {
+          "fullName": "TierSelector TIER-F4 — clicking free tier calls onSelect with free",
+          "status": "passed",
+          "duration": 356.4523999999983
+        },
+        {
+          "fullName": "TierSelector TIER-F5 — clicking paid tier calls onSelect with paid",
+          "status": "passed",
+          "duration": 109.10089999999764
+        },
+        {
+          "fullName": "TierSelector TIER-F6 — shows paid tier price when not free",
+          "status": "passed",
+          "duration": 37.78700000000026
+        },
+        {
+          "fullName": "BadgeDisplay TIER-F7 — renders view and download buttons",
+          "status": "passed",
+          "duration": 19.535799999997835
+        },
+        {
+          "fullName": "BadgeDisplay TIER-F8 — shows preview modal on View Badge click",
+          "status": "passed",
+          "duration": 163.4419999999991
+        }
+      ]
+    }
+  ]
+}

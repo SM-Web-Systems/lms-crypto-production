@@ -1,5 +1,6 @@
 import api from '../lib/api';
 import { ApiRequestError } from '../utils/apiError';
+import type { CourseMember } from '../../../LMS-Frontend/src/types/directory';
 import type { Course, CourseSection } from '../types/course';
 import { courseFromApi } from '../utils/courseContent';
 
@@ -27,8 +28,8 @@ export const courseService = {
     }
   },
 
-  async fetchCourseMembers(courseId: string): Promise<{ id: string; name: string; email: string; role: string }[]> {
-    const response = await api.get<{ success?: boolean; data?: { members?: { id: string; name: string; email: string; role: string }[] } }>(
+  async fetchCourseMembers(courseId: string): Promise<CourseMember[]> {
+    const response = await api.get<{ success?: boolean; data?: { members?: CourseMember[] } }>(
       `/courses/${courseId}/members`
     );
     const members = response.data?.data?.members;

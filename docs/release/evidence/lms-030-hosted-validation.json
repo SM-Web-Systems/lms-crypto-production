@@ -1,0 +1,70 @@
+{
+  "candidate": "4bd7a631da1df6b35220a25b19986b62466b2ad5",
+  "ciRun": 42255590949,
+  "mobileRun": 42255590982,
+  "jobs": [
+    {
+      "name": "Offline Monitoring and Restore",
+      "id": 128021802061,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (windows-latest, crlf)",
+      "id": 128021802473,
+      "conclusion": "success"
+    },
+    {
+      "name": "Backend Tests",
+      "id": 128021802482,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (windows-latest, lf)",
+      "id": 128021802625,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (ubuntu-latest, lf)",
+      "id": 128021802671,
+      "conclusion": "success"
+    },
+    {
+      "name": "Migration Fixtures (ubuntu-latest, crlf)",
+      "id": 128021802717,
+      "conclusion": "success"
+    },
+    {
+      "name": "Frontend Tests & Build",
+      "id": 128021802747,
+      "conclusion": "success"
+    },
+    {
+      "name": "E2E Tests",
+      "id": 128024983856,
+      "conclusion": "success"
+    },
+    {
+      "name": "mobile-local",
+      "id": 128021802296,
+      "conclusion": "success"
+    }
+  ],
+  "checks": {
+    "linuxApi": {
+      "passed": 2423,
+      "skipped": 1,
+      "failed": 0
+    },
+    "web": {
+      "passed": 718,
+      "failed": 0
+    },
+    "chromium": {
+      "passed": 86,
+      "failed": 0,
+      "retried": false
+    },
+    "runtime": "three_concurrent_processes_and_restart_one_credit_one_reservation"
+  },
+  "applicationDeployed": false
+}

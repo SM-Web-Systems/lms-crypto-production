@@ -1,0 +1,48 @@
+{
+  "status": "server_api_implemented_native_acceptance_open",
+  "sourceBase": "a9e07c18770e77ef0fecac2d2cf0e80597c16ee6",
+  "sourceFileSha256": {
+    "LMS-Server/.env.example": "51e83a7de333753f8f8e61d226651472788e3fd782f9206df9543840033eab6f",
+    "LMS-Server/database/required-schema.json": "28f0baca74ac4f1d18a4c05da4688fe4607ed29f02f759bca7a504863180ff3d",
+    "LMS-Server/database/schema.sql": "be3ddb9106186eac0d649e0590c37362dbe2641165dabd05dbb458a98b4e8314",
+    "LMS-Server/scripts/test-compiled-bootstrap.mjs": "6f6977e35047c7b2c63adeaa2f8ce7bffc7cfef77e4a81ac83ad55c5f9247f59",
+    "LMS-Server/src/__tests__/offline-learning.test.ts": "fe13dd674ab39eb9552fba8b72a1e74b6fb62d071e3c44ef76c38ae83eaf0772",
+    "LMS-Server/src/config/database.ts": "6ff97e1da4e5e2acb729f89aca7b3ab1678f2881ffc64a5adf87f61c77b8938c",
+    "LMS-Server/src/config/databaseBootstrap.ts": "b457ed2cbdbc20f0c547f4f5fcf3161290354ff242036188a2ed0a1112ed23d9",
+    "LMS-Server/src/config/offlineLearningSchema.ts": "8ffd1635fa729f4e3750b56c45bfa827bee4bee57c3042e3dff61122d9211788",
+    "LMS-Server/src/routes/lessonCompletions.ts": "5423ecf9ed29d5e4c778a0097d83cae931d8cda28723d4dcb53697a78f3df195",
+    "LMS-Server/src/services/offlineLearningService.ts": "9a51e3e14a6cd9d08738d95873e3bbef228a5f016bf47c491e19e15c0c0bc169"
+  },
+  "checks": {
+    "serverTypeScript": "passed",
+    "focusedHttpAndCompatibility": {
+      "filesPassed": 5,
+      "testsPassed": 77,
+      "existingProtectedCopySkip": 1,
+      "failed": 0,
+      "offlineCases": 6
+    },
+    "compiledInitialization": "passed",
+    "compiledAdditiveMigration": "passed_disposable_database",
+    "sourceFreeRuntime": "passed"
+  },
+  "intermediateFailure": {
+    "file": "lms-051-server-final.log",
+    "cause": "The in-memory startup tried installing a new course trigger before the canonical test fixture created the courses table. The canonical reset now supplies that trigger in memory and the compiled on-disk test verifies the production migration separately."
+  },
+  "receiptSha256": {
+    "lms-051-server-first.log": "b0731211309f96a573f9bcbbd9ee6272119ca2150af4835b4ae818a94f0cb86f",
+    "lms-051-server-final.log": "1517c8d638e6690ded82bcf482e9cd5697a4bb66ff02da096c352eadd7e5ac15",
+    "lms-051-server-retry.log": "c20b4f5097cb13ab416919b2c011adedadc84ec8e22427abe1276ab6183ae00d",
+    "lms-051-server-build-final.log": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
+    "lms-051-compiled-bootstrap-retry.log": "be719c396a52a4e55c33952b9630060c03a55cadfcaaab692b2a8b24eb8fc5a8"
+  },
+  "acceptance": {
+    "ownerPolicy": "pending_course_allowlist_and_ttl",
+    "nativeEncryptedCacheAndQueue": "pending",
+    "physicalAndroid": "pending",
+    "physicalIos": "pending",
+    "hostedCandidate": "pending_publication",
+    "stagingDeployment": false
+  }
+}

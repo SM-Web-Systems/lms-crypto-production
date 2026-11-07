@@ -1,0 +1,69 @@
+PASS src/__tests__/session-restoration.test.tsx (11.789 s)
+  A14 resilient native sessions
+    √ establishes the wallet session with the effective authorization returned by the API (4302 ms)
+    √ does not restore a wallet result after local logout (108 ms)
+    √ does not rehydrate the previous identity when the browser foregrounds during wallet sign-in (97 ms)
+    √ restores an authoritative session (70 ms)
+    √ keeps recoverable credentials and retries a startup failure: ApiRequestError: Server unavailable
+    at <audit-root>\source\LMS-Mobile\src\__tests__\session-restoration.test.tsx:81:5
+    at _dispatchDescribe (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\index.js:91:26)
+    at describe (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\index.js:55:5)
+    at Object.describe (<audit-root>\source\LMS-Mobile\src\__tests__\session-restoration.test.tsx:44:1)
+    at Runtime._execModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:1439:24)
+    at Runtime._loadModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:1022:12)
+    at Runtime.requireModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:882:12)
+    at jestAdapter (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:77:13)
+    at runTestInternal (<audit-root>\source\LMS-Mobile\node_modules\jest-runner\build\runTest.js:367:16)
+    at runTest (<audit-root>\source\LMS-Mobile\node_modules\jest-runner\build\runTest.js:444:34) {
+  status: 503,
+  code: undefined,
+  details: undefined
+} (126 ms)
+    √ keeps recoverable credentials and retries a startup failure: ApiRequestError: Request timed out
+    at <audit-root>\source\LMS-Mobile\src\__tests__\session-restoration.test.tsx:82:5
+    at _dispatchDescribe (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\index.js:91:26)
+    at describe (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\index.js:55:5)
+    at Object.describe (<audit-root>\source\LMS-Mobile\src\__tests__\session-restoration.test.tsx:44:1)
+    at Runtime._execModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:1439:24)
+    at Runtime._loadModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:1022:12)
+    at Runtime.requireModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:882:12)
+    at jestAdapter (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:77:13)
+    at runTestInternal (<audit-root>\source\LMS-Mobile\node_modules\jest-runner\build\runTest.js:367:16)
+    at runTest (<audit-root>\source\LMS-Mobile\node_modules\jest-runner\build\runTest.js:444:34) {
+  status: undefined,
+  code: undefined,
+  details: undefined
+} (133 ms)
+    √ keeps recoverable credentials and retries a startup failure: ApiRequestError: Airplane mode
+    at <audit-root>\source\LMS-Mobile\src\__tests__\session-restoration.test.tsx:83:5
+    at _dispatchDescribe (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\index.js:91:26)
+    at describe (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\index.js:55:5)
+    at Object.describe (<audit-root>\source\LMS-Mobile\src\__tests__\session-restoration.test.tsx:44:1)
+    at Runtime._execModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:1439:24)
+    at Runtime._loadModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:1022:12)
+    at Runtime.requireModule (<audit-root>\source\LMS-Mobile\node_modules\jest-runtime\build\index.js:882:12)
+    at jestAdapter (<audit-root>\source\LMS-Mobile\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:77:13)
+    at runTestInternal (<audit-root>\source\LMS-Mobile\node_modules\jest-runner\build\runTest.js:367:16)
+    at runTest (<audit-root>\source\LMS-Mobile\node_modules\jest-runner\build\runTest.js:444:34) {
+  status: undefined,
+  code: undefined,
+  details: undefined
+} (131 ms)
+    √ clears an expired or revoked startup token (77 ms)
+    √ centrally clears a later unauthorized request (81 ms)
+    √ retains the active user on transient refresh failure and refreshes role context on foreground (89 ms)
+    √ a late old hydration or 401 cannot overwrite a newer login (168 ms)
+    √ a restore completing after sign-out cannot resurrect the user (163 ms)
+    √ keeps an in-memory login when secure persistence fails and explains it (73 ms)
+    √ does not interpret a secure-storage read error as an absent session (71 ms)
+    √ a late profile save cannot restore an identity after logout or replace newer permissions (119 ms)
+    √ offers a retry when clearing saved credentials fails (105 ms)
+    √ a delayed old logout cannot clear or revoke a newer login when storage returns saved-token (85 ms)
+    √ a delayed old logout cannot clear or revoke a newer login when storage returns new-token (85 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        13.312 s, estimated 18 s
+Ran all test suites matching /src\\__tests__\\session-restoration.test.tsx/i.
+Test results written to: ..\..\mobile-session-standard.json

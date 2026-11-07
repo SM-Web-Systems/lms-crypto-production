@@ -1,0 +1,72 @@
+{
+  "task": "LMS-007",
+  "closedDate": "2026-11-06",
+  "nativeRuns": [
+    {
+      "receipt": "lms-007-mobile-final-1.json",
+      "passed": 18,
+      "failed": 0,
+      "cachedTransforms": false,
+      "testDeadlineMs": 5000
+    },
+    {
+      "receipt": "lms-007-mobile-final-2.json",
+      "passed": 18,
+      "failed": 0,
+      "cachedTransforms": false,
+      "testDeadlineMs": 5000
+    },
+    {
+      "receipt": "lms-007-mobile-final-3.json",
+      "passed": 18,
+      "failed": 0,
+      "cachedTransforms": false,
+      "testDeadlineMs": 5000
+    }
+  ],
+  "browserRuns": [
+    {
+      "receipt": "lms-007-browser-1.json",
+      "passed": 76,
+      "failed": 0,
+      "flaky": 0,
+      "retries": 0
+    },
+    {
+      "receipt": "lms-007-browser-2.json",
+      "passed": 76,
+      "failed": 0,
+      "flaky": 0,
+      "retries": 0
+    },
+    {
+      "receipt": "lms-007-browser-3.json",
+      "passed": 76,
+      "failed": 0,
+      "flaky": 0,
+      "retries": 0
+    }
+  ],
+  "fullNative": {
+    "passed": 159,
+    "failed": 0,
+    "cachedTransforms": false
+  },
+  "sourceSha256": {
+    "LMS-Mobile/jest.setup.js": "290e09e7a95bd7eaa9917891bd17d244bc342c282eb946efea865b8ba1187196",
+    "LMS-Mobile/src/__tests__/session-restoration.test.tsx": "7be417fae39baa36d4bb1379a730f826b240cb2d7ea734074b910a6e0e27d427",
+    "e2e/fixtures/auth.ts": "3d498c7a858c0db90dcaefa7c99a7eb63544a75e95b49f337762a617049e418a",
+    "e2e/playwright.config.ts": "4162db9035234e424d9cdd73d42fc0ac4f92a65e280b4239eef1d851dda57201"
+  },
+  "originalReceiptHashes": {
+    "lms-007-mobile-final-1.json": "ef2f202803664d7fd39ff082e814d6f2337b53d15cf5ef678a2c98cf1b453790",
+    "lms-007-mobile-final-2.json": "8eeec1dd46c79aa9c4af0f1edbbdd06e66f2f990f091c9b6c4110e151045f53a",
+    "lms-007-mobile-final-3.json": "4c66ac8088b24afd08778a885c9ba7ad44be0e744e23bdd2fb7afdf16a12a24a",
+    "lms-007-browser-1.json": "8171ef800e111d132a316bd4892f8a99143ec05e9e701d92aad33da9d9f00a81",
+    "lms-007-browser-2.json": "5d6b79b05c87b1569b0cbecfa846e22cc1cd1b4c1c028a2875b9e0e919849e19",
+    "lms-007-browser-3.json": "1a17fadab8d2e7120b52708cf0b2d3a754b25d4250e63e455bbac2caccbd551f"
+  },
+  "limitations": [
+    "Local test reliability, not physical-device performance or unresolved RBAC acceptance."
+  ]
+}

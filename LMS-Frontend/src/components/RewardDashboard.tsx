@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
+import { RewardFundingDialog } from './RewardFundingDialog';
 import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
 import {
   rewardService,
@@ -235,6 +236,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Record<string, ExpandedEntry>>({});
   const [showCreate, setShowCreate] = useState(false);
+  const [fundingReward, setFundingReward] = useState<string | null>(null);
+  const fundingOpener = useRef<HTMLButtonElement | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Current effective capability checks — re-derived on every render so
@@ -301,6 +304,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
       ++reqIdRef.current;
       ++targetEpochRef.current;
       setShowCreate(false);
+      setFundingReward(null);
       setActionLoading(null);
     };
   }, [load]);
@@ -363,9 +367,6 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     const myEpoch = targetEpochRef.current;
     try {
       switch (action) {
-        case 'fund':
-          await rewardService.fundReward(role, rewardId, 'platform_credit', undefined, idem);
-          break;
         case 'activate':
           await rewardService.activateReward(role, rewardId, idem);
           break;
@@ -530,6 +531,9 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex gap-1 flex-wrap">
+                            {r.status === 'draft' && hasCapability(user, 'reward.fund') && (
+                              <Button type="button" variant="outline" size="sm" onClick={event => {fundingOpener.current = event.currentTarget; setFundingReward(r.id);}}>Funding options</Button>
+                            )}
                             {actions.map((a) => {
                               const loadKey = `${a.key}-${r.id}-`;
                               const isLoading = actionLoading === loadKey;
@@ -647,6 +651,15 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
         )}
       </CardContent>
 
+      {fundingReward && hasCapability(user, 'reward.fund') && (
+        <RewardFundingDialog key={`${targetKey}|${user?.id}|${fundingReward}`}
+          role={role} rewardId={fundingReward} returnFocus={fundingOpener.current} onClose={() => setFundingReward(null)}
+          onFunded={() => {
+            if (targetEpochRef.current !== capturedEpoch) return;
+            setFundingReward(null);
+            load();
+          }} />
+      )}
       {showCreate && (
         <RewardCreateForm
           role={role}

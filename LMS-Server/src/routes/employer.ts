@@ -1,3 +1,4 @@
+import { registerRewardFundingRoutes } from './rewardFunding.js';
 /**
  * employer.ts — Phase B: Employer-scoped endpoints.
  *
@@ -29,6 +30,7 @@ import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
+registerRewardFundingRoutes(router, '/employer');
 
 // GET /employer/dashboard — team stats
 router.get(
@@ -336,7 +338,7 @@ router.post(
       const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
-        { type: req.body.sourceType, reference: req.body.reference },
+        { type: req.body.sourceType, reference: req.body.reference, intentId: req.body.intentId },
         req.body.idempotencyKey,
       );
       res.json({ success: true, data: reward });

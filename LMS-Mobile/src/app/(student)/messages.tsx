@@ -26,7 +26,7 @@ export default function MessagesScreen() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
   const userName = user?.name ?? 'Me';
-  const isAdmin = user?.role === 'admin';
+  const canBrowseDirectory = user?.permissions?.includes('user.view_all') ?? false;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -49,8 +49,8 @@ export default function MessagesScreen() {
       setLoading(true);
       try {
         const [convs, peerList] = await Promise.all([
-          messageService.getConversationsForUser(userId, isAdmin),
-          enrollmentService.getPeersInMyCourses(userId, isAdmin),
+          messageService.getConversationsForUser(userId, canBrowseDirectory),
+          enrollmentService.getPeersInMyCourses(userId, canBrowseDirectory),
         ]);
         if (!cancelled) {
           setConversations(convs);
@@ -65,7 +65,7 @@ export default function MessagesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [userId, isAdmin]);
+  }, [userId, canBrowseDirectory]);
 
   useEffect(() => {
     if (!selectedConversation) {
@@ -86,7 +86,7 @@ export default function MessagesScreen() {
     if (!userId) return;
     try {
       const conv = await messageService.getOrCreateConversation(userId, userName, otherUserId);
-      const convs = await messageService.getConversationsForUser(userId, isAdmin);
+      const convs = await messageService.getConversationsForUser(userId, canBrowseDirectory);
       setConversations(convs);
       setSelectedConversation(conv);
       setShowNewConversation(false);
@@ -106,7 +106,7 @@ export default function MessagesScreen() {
       const msgs = await messageService.getMessages(selectedConversation.id);
       setMessages(msgs);
       setNewMessageBody('');
-      const convs = await messageService.getConversationsForUser(userId, isAdmin);
+      const convs = await messageService.getConversationsForUser(userId, canBrowseDirectory);
       setConversations(convs);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
@@ -119,7 +119,7 @@ export default function MessagesScreen() {
   if (loading) return <LoadingView message="Loading messages…" />;
 
   if (selectedConversation) {
-    const { otherUserName } = messageService.getOtherDisplayName(selectedConversation, userId, isAdmin);
+    const { otherUserName } = messageService.getOtherDisplayName(selectedConversation, userId, canBrowseDirectory);
     return (
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-neutral-50">
         <View className="border-b border-neutral-200 bg-white px-4 py-3 flex-row items-center gap-3">
@@ -180,7 +180,7 @@ export default function MessagesScreen() {
         <EmptyState icon="mail-outline" title="No conversations yet" message="Start a new message with a classmate." />
       ) : (
         conversations.map((conv) => {
-          const { otherUserName } = messageService.getOtherDisplayName(conv, userId, isAdmin);
+          const { otherUserName } = messageService.getOtherDisplayName(conv, userId, canBrowseDirectory);
           return (
             <Pressable key={conv.id} onPress={() => openConversation(conv)} className="flex-row items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 active:opacity-90">
               <View className="h-11 w-11 items-center justify-center rounded-full bg-accent-teal/15">

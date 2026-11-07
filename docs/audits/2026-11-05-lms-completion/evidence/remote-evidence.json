@@ -1,0 +1,490 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "781efb424b81c72e7f2db6bf4a2564a962698d0f0fe206e7b50e60644ef05d84",
+  "checkedDate": "2026-11-05",
+  "mainSha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+  "productionHealth": {
+    "url": "https://lms.smwebsystems.com/api/v1/health",
+    "status": 200,
+    "buildSha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+    "db": "ok",
+    "writerHold": false,
+    "walletNetwork": "public"
+  },
+  "openPullRequests": [
+    {
+      "number": 103,
+      "title": "docs(release): staged rollout plan — PLAN_ONLY, do not merge",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/103",
+      "head": "f0dacea150380a529c4570eb47cffe568eddf765",
+      "base": "codex/platform-wiring-audit",
+      "draft": false
+    },
+    {
+      "number": 102,
+      "title": "docs(audit): assess remaining platform wiring and release work",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/102",
+      "head": "4ffa8697cf1a70fef3206727a0fd2800a679122e",
+      "base": "codex/rbac-schema-retirement",
+      "draft": false
+    },
+    {
+      "number": 101,
+      "title": "feat(auth): remove legacy role schema and compatibility contracts",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/101",
+      "head": "b8015e27eae1328197bf248031da25c2e16c68cf",
+      "base": "codex/rbac-client-retirement",
+      "draft": false
+    },
+    {
+      "number": 100,
+      "title": "feat(auth): retire legacy role dependencies from web and mobile",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/100",
+      "head": "9bb88b056e2d968c5298c876ab32e166c8032aa6",
+      "base": "codex/rbac-backend-cutover",
+      "draft": false
+    },
+    {
+      "number": 99,
+      "title": "feat(auth): make backend authorization and provisioning RBAC-only",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/99",
+      "head": "360aa011ecde5304521cc5c5bbb119f28f682d10",
+      "base": "codex/rbac-role-inventory",
+      "draft": false
+    },
+    {
+      "number": 62,
+      "title": "docs(mobile): Deliverable 1 Batch 1 human verification handoff",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/62",
+      "head": "b629a997ec17610de02dae5acdf059cce04f455a",
+      "base": "main",
+      "draft": true
+    },
+    {
+      "number": 51,
+      "title": "chore(deps-dev): bump eslint-plugin-react-hooks from 4.6.2 to 7.1.1 in /LMS-Frontend",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/51",
+      "head": "0ca15c63e6765e20be77a396847480a819b49877",
+      "base": "main",
+      "draft": false
+    },
+    {
+      "number": 48,
+      "title": "chore(deps): bump isomorphic-dompurify from 3.19.0 to 4.2.0 in /LMS-Server",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/48",
+      "head": "41b3731b79c47e1155d824449e51ab80491fbe6d",
+      "base": "main",
+      "draft": false
+    },
+    {
+      "number": 46,
+      "title": "chore(deps-dev): bump typescript from 5.9.3 to 7.0.2 in /LMS-Frontend",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/46",
+      "head": "b20415bc9f02821d1ea56883b2ce337e7a4d849f",
+      "base": "main",
+      "draft": false
+    },
+    {
+      "number": 43,
+      "title": "chore(deps-dev): bump vitest from 4.1.10 to 5.0.0 in /LMS-Server",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/43",
+      "head": "a6185ee20334daf37745b087d122285379c04e85",
+      "base": "main",
+      "draft": false
+    },
+    {
+      "number": 42,
+      "title": "build(deps-dev): bump @size-limit/file from 12.1.0 to 14.3.0 in /LMS-Frontend",
+      "url": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/42",
+      "head": "38a678561f7dac70d9d3cb07087635d556b47a56",
+      "base": "main",
+      "draft": false
+    }
+  ],
+  "runs": [
+    {
+      "id": 41918032626,
+      "name": "CI",
+      "head_sha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41918032626"
+    },
+    {
+      "id": 41918032458,
+      "name": "Mobile local acceptance",
+      "head_sha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41918032458"
+    },
+    {
+      "id": 41723060952,
+      "name": "CI",
+      "head_sha": "afda6107f9bc5b9e91f8790284d04374817c4baf",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41723060952"
+    },
+    {
+      "id": 41648968622,
+      "name": "Lighthouse",
+      "head_sha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41648968622"
+    },
+    {
+      "id": 41602313867,
+      "name": "CI",
+      "head_sha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41602313867"
+    },
+    {
+      "id": 41602315084,
+      "name": "Mobile local acceptance",
+      "head_sha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41602315084"
+    },
+    {
+      "id": 41600528778,
+      "name": "CI",
+      "head_sha": "db08be04cb33288bae482092ecfae2de75af5312",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41600528778"
+    },
+    {
+      "id": 41600528801,
+      "name": "Mobile local acceptance",
+      "head_sha": "db08be04cb33288bae482092ecfae2de75af5312",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41600528801"
+    },
+    {
+      "id": 41595761423,
+      "name": "Mobile local acceptance",
+      "head_sha": "2b3c4e80b426006aa1fb2d1eeb884f6ad102dbef",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41595761423"
+    },
+    {
+      "id": 41595761486,
+      "name": "CI",
+      "head_sha": "2b3c4e80b426006aa1fb2d1eeb884f6ad102dbef",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/41595761486"
+    }
+  ],
+  "jobs": [
+    [
+      {
+        "name": "Backend Tests",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Audit backend dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run build",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run test:compiled-bootstrap",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test offline RBAC inventory",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npx vitest run",
+            "conclusion": "success"
+          },
+          {
+            "name": "Typecheck BVC validator script",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "Offline Monitoring and Restore",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run python3 -m unittest discover -s scripts/tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run bash scripts/test-monitoring.sh",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run bash scripts/test-scripts.sh",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run bash scripts/smoke-test-verify.sh",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run test:restore-drill",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "Frontend Tests & Build",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Audit frontend production dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Audit frontend including build tools",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npx tsc --noEmit",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npx vitest run",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npx vite build",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check bundle sizes",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "E2E Tests",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install backend dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install frontend dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install E2E dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Typecheck E2E harness",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install Playwright browsers",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify network guard and generate synthetic HMAC",
+            "conclusion": "success"
+          },
+          {
+            "name": "Start backend",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build and serve frontend",
+            "conclusion": "success"
+          },
+          {
+            "name": "Wait for services",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run E2E tests",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload Playwright report",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "name": "mobile-local",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Audit mobile dependencies including developer tools",
+            "conclusion": "success"
+          },
+          {
+            "name": "Offline EAS startup and profile schema compatibility",
+            "conclusion": "success"
+          },
+          {
+            "name": "Local device target configuration guards",
+            "conclusion": "success"
+          },
+          {
+            "name": "Local service isolation guards",
+            "conclusion": "success"
+          },
+          {
+            "name": "Offline acceptance regressions and TypeScript",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      }
+    ]
+  ]
+}

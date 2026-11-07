@@ -1,0 +1,44 @@
+
+> lms-mobile@1.0.0 test:local-setup
+> node --test scripts/local-android.test.mjs
+
+TAP version 13
+# Subtest: local endpoints allow loopback and preserve the existing Wallet flow
+ok 1 - local endpoints allow loopback and preserve the existing Wallet flow
+  ---
+  duration_ms: 6.0813
+  type: 'test'
+  ...
+# Subtest: missing, production and credential-bearing endpoints refuse local launch
+ok 2 - missing, production and credential-bearing endpoints refuse local launch
+  ---
+  duration_ms: 2.2292
+  type: 'test'
+  ...
+# Subtest: remote staging requires an exact explicit HTTPS target and still rejects production
+ok 3 - remote staging requires an exact explicit HTTPS target and still rejects production
+  ---
+  duration_ms: 2.1528
+  type: 'test'
+  ...
+# Subtest: newline-bearing targets cannot inject local environment variables
+ok 4 - newline-bearing targets cannot inject local environment variables
+  ---
+  duration_ms: 0.5793
+  type: 'test'
+  ...
+# Subtest: APK installation requires the dedicated AVD and refuses unrelated or physical devices
+ok 5 - APK installation requires the dedicated AVD and refuses unrelated or physical devices
+  ---
+  duration_ms: 1.0098
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 865.3916

@@ -35,13 +35,15 @@ Run every group on **both physical Android and physical iOS**. Emulator/simulato
 
 ## Evidence completeness command
 
-Copy `LMS-Mobile/acceptance/device-report.template.json` to a private acceptance record outside source, retaining every `not_run` until actually observed. Fill build/target/device metadata and one redacted evidence reference per group. Keep the reviewed approved app SHA separately from the report.
+Copy `LMS-Mobile/acceptance/device-report.template.json` to a private acceptance record outside source, retaining every `not_run` until actually observed. Fill build, target and device metadata and one redacted evidence reference per group.
+
+An independent reviewer checks the signed artifacts and deployed revisions, then records the approved full app SHA and SHA-256 of a separate private build manifest. The manifest contains `version` (1), `environment` (`authorized_staging`), `app_sha`, `api_sha`, `wallet_sha` and a `builds` array. Include one object per platform with `platform` (`android` or `ios`), `app_build_id` and `artifact_sha256`. Use lowercase full commit SHAs and lowercase artifact digests. Record the manifest digest separately from the device report and preserve the exact manifest bytes.
 
 ```text
-npm run acceptance:device:verify -- --file <completed-report.json> --expected-sha <approved-full-app-SHA>
+npm run acceptance:device:verify -- --file <completed-report.json> --expected-sha <approved-full-app-SHA> --expected-builds <approved-builds.json> --expected-builds-sha256 <approved-manifest-SHA256>
 ```
 
-The checker reads local JSON only and never talks to hardware or a server. It rejects wrong/missing SHA, missing or duplicate platforms, nonphysical device records, incomplete metadata, failed/not-run/missing cases and empty evidence references. Successful output is deliberately `COMPLETE_ATTESTATION` with `hardware_verified: false`: it checks completeness of the operator's assertions, not their truth or authenticity. An independent reviewer still needs to inspect the actual binary/device evidence. The synthetic positive checker fixture is only a schema test and is never release evidence. The committed template deliberately fails the gate.
+The checker reads local JSON and matches both devices' build identifiers and artifact hashes and the deployed API and Wallet revisions against the pinned manifest. It requires both platforms, physical device records, complete metadata and passing cases with evidence references. Successful staging output includes `COMPLETE_ATTESTATION`, `build_pins_verified: true` and `hardware_verified: false`. The reviewer still inspects the physical device evidence and checks the installed builds against the signed artifacts. Synthetic fixtures report `environment: "synthetic"` and `build_pins_verified: false`. The committed template deliberately fails the gate.
 
 Device acceptance remains open until both installed-platform reports and their underlying evidence are independently reviewed. Local green tests, a completed JSON file or a successful API deployment cannot close that gate.
 
@@ -58,6 +60,22 @@ Baseline: main `840d8c7541384114f2c38bd50abe924d8c9c2c1a`; original checkouts an
 - Running the evidence command against the committed unfilled template returned expected exit **2**, `NOT_ACCEPTED`, `hardware_verified: false`. It did not certify either device.
 
 Independent exact-head review and GitHub CI are recorded in the follow-up PR. No installed-device result or email receipt is implied by these local checks.
+
+## LMS-040 staging preview preflight — 7 November 2026
+
+The internal `preview` profile pins the owner-confirmed LMS API and web origin and the AmmaWallet account origin. The offline EAS check resolved Android and iOS, verified the internal distribution and Android APK profile, and checked the installed app identifiers and `lmsmobile` scheme from Expo config. Six tooling tests passed, including refusal of a mismatched Wallet target, an extra public profile variable, a store distribution and a changed scheme.
+
+The app's Wallet registration and recovery links use the embedded Wallet origin. SSO still uses the Wallet origin configured on the staging API. Verify that API/Wallet pairing under LMS-023. The profile check reads repository configuration. The reviewer must inspect the resolved signed build and recorded artifact before distribution.
+
+Once the compatible staging API and Wallet are accepted and the signing owner has access, use the exact approved source checkout and pinned EAS CLI:
+
+```text
+npm run acceptance:tooling
+npx --no-install eas build --profile preview --platform android
+npx --no-install eas build --profile preview --platform ios
+```
+
+Record the EAS project and build identifiers, Android version code and ARM support, iOS build number and registered-device provisioning, artifact SHA-256, app/API/Wallet revisions and callback targets. Keep signing files and account credentials out of the record. No signing, distribution or installation occurred during preflight.
 
 ## Separate dependency follow-up
 

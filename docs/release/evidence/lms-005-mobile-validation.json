@@ -1,0 +1,45 @@
+{
+  "task": "LMS-005",
+  "phase": "mobile",
+  "date": "2026-11-06",
+  "status": "in_progress",
+  "audit": {
+    "info": 0,
+    "low": 23,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 23
+  },
+  "directRemainingAdvisory": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+  "checks": {
+    "cleanNpm10Install": "passed",
+    "dependencyConsumersPassed": 7,
+    "offlineToolingPassed": 5,
+    "jestPassed": 159,
+    "typecheck": "passed",
+    "androidExport": "passed",
+    "iosExport": "passed"
+  },
+  "sourceSha256": {
+    "LMS-Mobile/package.json": "92a1a14892918082584a92c3ed3916a6825c4e99d278fb726fdc247f2a8f9e46",
+    "LMS-Mobile/package-lock.json": "37adf2b90dcbe1c4319f12bccb23efcce059e8902ead1c16500405227ea54c10",
+    "LMS-Mobile/scripts/dependency-acceptance.test.cjs": "2474f4a3447677d212d0e13038b06e5ac2e6c950df5c8a18e12638cc564a0f2b",
+    "LMS-Mobile/vendor/ts-deepmerge-compat/index.cjs": "d1093eab2dfadeb86d350c59bb27fce00dc23ca7fd9a0c234b5ffd99bdd641a3"
+  },
+  "originalReceiptHashes": {
+    "lms-005-mobile-install-final.log": "f2caaec92b1ca1421f72d5d02cbd84fc62e8105e51fff383961048981a4a1178",
+    "lms-005-mobile-audit.json": "ecaea36b606fd6e2a758190c449db33c6bc2150e34c87fa8d1ed31d0d3447f47",
+    "lms-005-dependencies-final-2.log": "bbfd3b59cab51ad9c7fcf6ea7891bd0d390aaeb23b695f9371a0698fd740c320",
+    "lms-005-tooling.log": "77d035bfb49655adb79afade7cbb41042c99df53141f0d0e590915157a25b8d5",
+    "lms-005-mobile-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lms-005-mobile-full.json": "5ff11f129d116e3ac9f9660374ca818ee33fa2b35a7cfd92b5e61fb2a5df47de",
+    "lms-005-android-export.log": "2a73ed8e8a3df25c62466ecdf235af9270e99c59367ec057b4558e214d6ea4d6",
+    "lms-005-ios-export.log": "4a51385d637dd55f0d0c80dc279640f318f311f06c39a12dbc43f8d51c74bd40"
+  },
+  "limitations": [
+    "One direct low upstream advisory and 22 dependency-chain entries remain.",
+    "API phase is not covered by this receipt.",
+    "No physical device, provider or release acceptance."
+  ]
+}

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {mkdtempSync, writeFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, dirname} from 'node:path';
@@ -18,17 +19,50 @@ function evidence() {
     cases:Object.fromEntries(cases.map(id=>[id,{status:'pass',evidence:'fixture-only evidence reference'}])),
   }))};
 }
-function check(value, expected=sha) {
+function stagingEvidence() {
+  const value = evidence();
+  for (const device of value.reports) {
+    device.environment = 'authorized_staging';
+    device.app_build_id = `fixture-${device.platform}`;
+  }
+  value.reports[1].artifact_sha256 = 'e'.repeat(64);
+  return value;
+}
+
+function buildPins(value) {
+  const [first] = value.reports;
+  return {
+    version: 1,
+    environment: 'authorized_staging',
+    app_sha: value.app_sha,
+    api_sha: first.api_sha,
+    wallet_sha: first.wallet_sha,
+    builds: value.reports.map(({platform, app_build_id, artifact_sha256}) =>
+      ({platform, app_build_id, artifact_sha256})),
+  };
+}
+
+function check(value, expected=sha, pins, digest) {
   const directory=mkdtempSync(join(tmpdir(),'mobile acceptance fixture '));
   try {
     const path=join(directory,'report.json');writeFileSync(path,JSON.stringify(value));
-    return spawnSync(process.execPath,[script,'--file',path,'--expected-sha',expected],{encoding:'utf8'});
+    const args = [script, '--file', path, '--expected-sha', expected];
+    if (pins) {
+      const pinsPath = join(directory, 'approved-builds.json');
+      const bytes = JSON.stringify(pins);
+      writeFileSync(pinsPath, bytes);
+      args.push('--expected-builds', pinsPath, '--expected-builds-sha256',
+        digest ?? createHash('sha256').update(bytes).digest('hex'));
+    }
+    return spawnSync(process.execPath, args, {encoding:'utf8'});
   } finally {rmSync(directory,{recursive:true,force:true});}
 }
 test('complete synthetic schema fixture is an attestation, never hardware verification',()=>{
   const result=check(evidence());assert.equal(result.status,0,result.stderr);
   const output=JSON.parse(result.stdout);assert.equal(output.status,'COMPLETE_ATTESTATION');
   assert.equal(output.hardware_verified,false);
+  assert.equal(output.build_pins_verified,false);
+  assert.equal(output.environment,'synthetic');
 });
 test('pending, failed, missing and duplicate platform evidence cannot pass',()=>{
   for (const mutate of [
@@ -56,4 +90,67 @@ test('wrong build, nonphysical device, absent evidence and invalid metadata cann
     const value=evidence();mutate(value);assert.equal(check(value).status,2);
   }
   assert.equal(check(evidence(),'main').status,2);
+});
+
+test('staging requires approved pins and both reports must share the same environment', () => {
+  const value = stagingEvidence();
+  const pins = buildPins(value);
+  const result = check(value);
+  assert.equal(result.status, 2);
+  assert.equal(JSON.parse(result.stderr).code, 'STAGING_BUILD_PINS_REQUIRED');
+
+  value.reports[1].environment = 'synthetic';
+  const mixed = check(value, sha, pins);
+  assert.equal(mixed.status, 2);
+  assert.equal(JSON.parse(mixed.stderr).code, 'MATCHING_ENVIRONMENTS_REQUIRED');
+
+  const synthetic = check(evidence(), sha, pins);
+  assert.equal(synthetic.status, 2);
+  assert.equal(JSON.parse(synthetic.stderr).code, 'SYNTHETIC_BUILD_PINS_FORBIDDEN');
+});
+
+test('matching independently pinned staging builds produce a complete attestation', () => {
+  const value = stagingEvidence();
+  const result = check(value, sha, buildPins(value));
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, 'COMPLETE_ATTESTATION');
+  assert.equal(output.environment, 'authorized_staging');
+  assert.equal(output.build_pins_verified, true);
+  assert.equal(output.hardware_verified, false);
+});
+
+test('staging rejects an unapproved manifest or invalid platform and revision pins', () => {
+  const value = stagingEvidence();
+  const pins = buildPins(value);
+  const result = check(value, sha, pins, 'f'.repeat(64));
+  assert.equal(result.status, 2);
+  assert.equal(JSON.parse(result.stderr).code, 'BUILD_PINS_DIGEST_MISMATCH');
+
+  for (const mutate of [
+    record => { record.app_sha = 'f'.repeat(40); },
+    record => { record.builds[1].platform = 'android'; },
+  ]) {
+    const invalidPins = buildPins(value);
+    mutate(invalidPins);
+    const invalid = check(value, sha, invalidPins);
+    assert.equal(invalid.status, 2);
+    assert.equal(JSON.parse(invalid.stderr).code, 'INVALID_BUILD_PINS');
+  }
+});
+
+test('staging rejects mismatched deployed revisions and platform artifacts', () => {
+  for (const mutate of [
+    device => { device.api_sha = 'f'.repeat(40); },
+    device => { device.wallet_sha = 'f'.repeat(40); },
+    device => { device.app_build_id = 'another-build'; },
+    device => { device.artifact_sha256 = 'f'.repeat(64); },
+  ]) {
+    const value = stagingEvidence();
+    const pins = buildPins(value);
+    mutate(value.reports[1]);
+    const result = check(value, sha, pins);
+    assert.equal(result.status, 2);
+    assert.equal(JSON.parse(result.stderr).code, 'DEVICE_BUILD_PIN_MISMATCH');
+  }
 });

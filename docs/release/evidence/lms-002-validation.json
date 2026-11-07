@@ -1,0 +1,75 @@
+{
+  "task": "LMS-002",
+  "closedDate": "2026-11-06",
+  "sourceCandidate": "ab74bdd2a138b06fbecf84f33c6b5a22c3ac1fd1",
+  "implementationCommits": [
+    "b1d6d8ba1d34dd6d75d41526a2574da281b269e7",
+    "ab74bdd2a138b06fbecf84f33c6b5a22c3ac1fd1"
+  ],
+  "tests": {
+    "lms-002-lf.json": {
+      "numTotalTests": 169,
+      "numPassedTests": 169,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "lms-002-crlf.json": {
+      "numTotalTests": 169,
+      "numPassedTests": 169,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "lms-002-linux-lf.json": {
+      "numTotalTests": 169,
+      "numPassedTests": 169,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "lms-002-linux-crlf.json": {
+      "numTotalTests": 169,
+      "numPassedTests": 169,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    }
+  },
+  "originalReceiptHashes": {
+    "lms-002-lf.json": "20042c66571487236a46ce052365001a6c6e27ee4099809fc4edc6064e53f077",
+    "lms-002-crlf.json": "238348d4e5dc978008e724a91edb31c5a2183ea5b54ab9ba0674e3a7b4d40420",
+    "lms-002-linux-lf.json": "ac3697215a89dee6a694cdaf073ff7f0e946a75b72afc3a1cd6f5933f5bce876",
+    "lms-002-linux-crlf.json": "82e0460fe8d22ac014a6e5d0e5893a18fa3d0b77f6b8c9b85019b317dbf9f00f",
+    "lms-002-red.json": "8edfbc6cb837759f52285897854298828a260f767aabd21cce343ac62c7c629a",
+    "lms-002-linux-install.log": "63e6a4d19da35850593bc6378aebaccaca55017e6d40a6e632a176b0ac194183",
+    "lms-002-install.log": "587723c5547028840657f35971d25e56255830cb1fdd0e3690859b90d1cc8b9c",
+    "lms-002-linux-build.log": "fcde24857c27c431e64c39ae2ac56b5df30e29277057aa6e0c219ba98e231836",
+    "lms-002-build.log": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
+    "lms-002-linux-export-tests.log": "352380383915a25a2c967900c18a4761c03f25f45a7fa96241f8ecad547d65db"
+  },
+  "limitations": [
+    "No production database or provider acceptance is implied.",
+    "Windows CRLF began as an initial corrected working-tree run; final explicit-style fixture helper cases also passed in Windows LF and both pinned Linux runs."
+  ],
+  "linuxRuntime": {
+    "platform": "linux",
+    "architecture": "x64",
+    "node": "v22.18.0"
+  },
+  "sourceExports": {
+    "manifestSha256": "cf9d95a2435098fe28ebba92260c3a47a7a9267b7bcadbf05901e9e37f4c364b",
+    "files": 2578,
+    "identicalAcrossWindowsLinux": true,
+    "caseAliases": 2
+  },
+  "exportTests": {
+    "windows": 9,
+    "linux": 9,
+    "failed": 0
+  },
+  "cleanLockedInstall": {
+    "windows": true,
+    "linux": true,
+    "buildsPassed": [
+      "windows",
+      "linux"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-06",
+  "sourceBase": "4bd7a631da1df6b35220a25b19986b62466b2ad5",
+  "sourceFileSha256": {
+    "LMS-Server/src/services/rewards/stellarFundingVerification.ts": "32086be46acc8a7e34f81638329d9a49750c6392cc0fb4a285083095b9f50132",
+    "LMS-Server/src/__tests__/stellar-funding-verification.test.ts": "56437cbb09a6094bd83c2e3f33a89401e5dbbd99ea866494ac799cca3b33ba97"
+  },
+  "command": "npx vitest run src/__tests__/stellar-funding-verification.test.ts",
+  "checks": {
+    "passed": 16,
+    "failed": 0,
+    "providerResponses": "mocked",
+    "realNetworkCalls": 0,
+    "build": "passed_after_network_guard_correction"
+  },
+  "rawReceiptSha256": "3bc06e717a966b7034dfd2ad24ff41f62b06b3f52267e3947eaa04ef8178a9d3",
+  "integration": "not_yet_connected_intent_ledger_ui_pending",
+  "stagingAcceptance": "not_run_network_and_public_destination_not_supplied",
+  "rawReceipt": "lms-031-provider-guard-fixed.json",
+  "initialHostedFailure": {
+    "candidate": "9cfc2472c5913f278c2fba80adf19f5e11d967b6",
+    "run": 42257144416,
+    "step": "Backend npm run build",
+    "diagnostic": "TS18048 provider possibly undefined in nested fetch helper",
+    "correction": "Reject invalid network before selecting the fixed provider; add inherited-property network regression."
+  }
+}

@@ -2,10 +2,10 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission, getUserRoles } from '../middleware/rbac.js';
+import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { auditLog } from '../services/auditService.js';
-import { revokeUserRole, ROLE_PRIVILEGE_LEVEL, assertCanModifyUser, getRoleManagementOptions } from '../services/roleSecurityService.js';
+import { revokeUserRole, getRoleManagementOptions, assignUserRole, replaceUserRoles, updateCustomRolePermissions, deleteCustomRole } from '../services/roleSecurityService.js';
 
 const router = Router();
 
@@ -14,9 +14,42 @@ router.get('/users/:id/role-options', authenticate, requirePermission('user.assi
   catch (error) { next(error); }
 });
 
-function getHighestPrivilegeLevel(roles: string[]): number {
-  return Math.max(0, ...roles.map((r) => ROLE_PRIVILEGE_LEVEL[r] ?? 0));
-}
+/**
+ * @openapi
+ * /admin/users/{id}/roles:
+ *   put:
+ *     tags: [RBAC]
+ *     summary: Atomically replace the complete RBAC role set and revoke existing sessions
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [roleIds]
+ *             properties:
+ *               roleIds:
+ *                 type: array
+ *                 maxItems: 100
+ *                 description: Canonical/custom role identifiers. An empty array intentionally removes all grants.
+ *                 items: { type: string }
+ *     responses:
+ *       200: { description: Roles replaced; previous sessions invalidated on change }
+ *       400: { description: Invalid roleIds }
+ *       401: { description: Authentication required }
+ *       403: { description: Missing user.assign_role or hierarchy/self/super-admin boundary }
+ *       404: { description: User or role not found }
+ */
+router.put('/users/:id/roles',authenticate,requirePermission('user.assign_role'),(req:AuthRequest,res:Response,next)=>{
+  try { replaceUserRoles(req.user!.userId,req.params.id,req.body?.roleIds); res.json({success:true,message:'Roles replaced'}); }
+  catch(error) { next(error); }
+});
 
 // ─── Role CRUD ──────────────────────────────────────────────────────────────
 
@@ -193,35 +226,8 @@ router.delete(
   '/roles/:id',
   authenticate,
   requirePermission('system.manage_roles'),
-  (req: AuthRequest, res: Response) => {
-    const role = queryOne<{ id: string; name: string; is_system: number }>(
-      'SELECT id, name, is_system FROM roles WHERE id = ?', [req.params.id],
-    );
-    if (!role) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'Role not found' },
-      });
-      return;
-    }
-    if (role.is_system) {
-      res.status(400).json({
-        success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Cannot delete system roles' },
-      });
-      return;
-    }
-
-    execute('DELETE FROM roles WHERE id = ?', [req.params.id]);
-
-    auditLog({
-      action: 'rbac.role_deleted',
-      actorId: req.user!.userId,
-      targetId: req.params.id,
-      details: `name=${role.name}`,
-    });
-
-    res.json({ success: true, message: 'Role deleted' });
+  (req: AuthRequest, res: Response, next) => {
+    try { deleteCustomRole(req.user!.userId,req.params.id); res.json({success:true,message:'Role deleted'}); } catch(error) { next(error); }
   },
 );
 
@@ -323,62 +329,8 @@ router.put(
   '/roles/:id/permissions',
   authenticate,
   requirePermission('system.manage_roles'),
-  (req: AuthRequest, res: Response) => {
-    const role = queryOne<{ id: string; is_system: number; name: string }>(
-      'SELECT id, is_system, name FROM roles WHERE id = ?', [req.params.id],
-    );
-    if (!role) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'Role not found' },
-      });
-      return;
-    }
-    if (role.is_system) {
-      res.status(400).json({
-        success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Cannot modify system role permissions' },
-      });
-      return;
-    }
-
-    const { permissionIds } = req.body as { permissionIds: string[] };
-    if (!Array.isArray(permissionIds)) {
-      res.status(400).json({
-        success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'permissionIds must be an array' },
-      });
-      return;
-    }
-
-    // ESC-3: Prevent system.manage_permissions AND system.manage_roles on custom roles
-    const forbidden = queryOne<{ id: string }>(
-      "SELECT id FROM permissions WHERE name IN ('system.manage_permissions', 'system.manage_roles') AND id IN (" +
-      permissionIds.map(() => '?').join(',') + ')',
-      permissionIds,
-    );
-    if (forbidden) {
-      res.status(400).json({
-        success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Cannot assign system management permissions to custom roles' },
-      });
-      return;
-    }
-
-    // Replace all permissions
-    execute('DELETE FROM role_permissions WHERE role_id = ?', [req.params.id]);
-    for (const pid of permissionIds) {
-      execute('INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)', [req.params.id, pid]);
-    }
-
-    auditLog({
-      action: 'rbac.permissions_updated',
-      actorId: req.user!.userId,
-      targetId: req.params.id,
-      details: `role=${role.name} permissionCount=${permissionIds.length}`,
-    });
-
-    res.json({ success: true, message: 'Permissions updated' });
+  (req: AuthRequest, res: Response, next) => {
+    try { updateCustomRolePermissions(req.user!.userId,req.params.id,req.body?.permissionIds); res.json({success:true,message:'Permissions updated'}); } catch(error) { next(error); }
   },
 );
 
@@ -447,82 +399,8 @@ router.post(
   '/users/:id/roles',
   authenticate,
   requirePermission('user.assign_role'),
-  (req: AuthRequest, res: Response) => {
-    const { roleId } = req.body;
-    if (!roleId) {
-      res.status(400).json({
-        success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'roleId is required' },
-      });
-      return;
-    }
-
-    // ESC-5: Cannot self-escalate
-    if (req.params.id === req.user!.userId) {
-      res.status(403).json({
-        success: false,
-        error: { code: ErrorCodes.FORBIDDEN, message: 'Cannot assign roles to yourself' },
-      });
-      return;
-    }
-
-    const role = queryOne<{ id: string; name: string }>(
-      'SELECT id, name FROM roles WHERE id = ?', [roleId],
-    );
-    if (!role) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'Role not found' },
-      });
-      return;
-    }
-
-    // ESC-4: super-admin cannot be assigned via API
-    if (role.name === 'super-admin') {
-      res.status(403).json({
-        success: false,
-        error: { code: ErrorCodes.FORBIDDEN, message: 'super-admin role cannot be assigned via API' },
-      });
-      return;
-    }
-
-    // The target-user boundary must match the options shown by the admin UI.
-    if (!queryOne('SELECT id FROM users WHERE id = ?', [req.params.id])) {
-      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'User not found' } });
-      return;
-    }
-    try { assertCanModifyUser(req.user!.userId, req.params.id); }
-    catch {
-      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Cannot modify roles of a user with equal or higher privilege' } });
-      return;
-    }
-
-    // ESC-1/ESC-2: Cannot assign a role higher than your own
-    const assignerRoles = getUserRoles(req.user!.userId);
-    const assignerLevel = getHighestPrivilegeLevel(assignerRoles);
-    const targetLevel = ROLE_PRIVILEGE_LEVEL[role.name] ?? 0;
-
-    if (targetLevel >= assignerLevel) {
-      res.status(403).json({
-        success: false,
-        error: { code: ErrorCodes.FORBIDDEN, message: 'Cannot assign a role with equal or higher privilege than your own' },
-      });
-      return;
-    }
-
-    execute(
-      'INSERT OR IGNORE INTO user_roles (user_id, role_id, granted_by) VALUES (?, ?, ?)',
-      [req.params.id, roleId, req.user!.userId],
-    );
-
-    auditLog({
-      action: 'rbac.role_assigned',
-      actorId: req.user!.userId,
-      targetId: req.params.id,
-      details: `roleId=${roleId} roleName=${role.name}`,
-    });
-
-    res.status(201).json({ success: true, message: 'Role assigned' });
+  (req: AuthRequest, res: Response, next) => {
+    try { assignUserRole(req.user!.userId,req.params.id,req.body?.roleId); res.status(201).json({success:true,message:'Role assigned'}); } catch(error) { next(error); }
   },
 );
 
@@ -568,13 +446,6 @@ router.delete(
       next(error);
       return;
     }
-
-    auditLog({
-      action: 'rbac.role_removed',
-      actorId: req.user!.userId,
-      targetId: req.params.id,
-      details: `roleId=${req.params.roleId} roleName=${removedRole}`,
-    });
 
     res.json({ success: true, message: 'Role removed' });
   },

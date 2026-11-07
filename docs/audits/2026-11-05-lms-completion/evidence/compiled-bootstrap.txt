@@ -1,0 +1,22 @@
+
+> lms-server@1.0.0 test:compiled-bootstrap
+> node scripts/test-compiled-bootstrap.mjs
+
+node:fs:1889
+  binding.symlink(
+          ^
+
+Error: EPERM: operation not permitted, symlink '<audit-root>\source\LMS-Server\node_modules' -> '<user-profile>\AppData\Local\Packages\sandbox.{d2b8fe16-b201-47eb-9c2f-de97ceb78ff9}\AC\Temp\auth13 compiled runtime qG1BD4\node_modules'
+    at symlinkSync (node:fs:1889:11)
+    at file:///<user-profile>/OneDrive/Documents/ChatGPT/LMS%20-%20SM%20Web%20Systems/lms-crypto-production/output/playwright/lms-audit-2026-11-05/source/LMS-Server/scripts/test-compiled-bootstrap.mjs:15:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:647:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'symlink',
+  path: 'C:\\Users\\mrmee\\OneDrive\\Documents\\ChatGPT\\LMS - SM Web Systems\\lms-crypto-production\\output\\playwright\\lms-audit-2026-11-05\\source\\LMS-Server\\node_modules',
+  dest: 'C:\\Users\\mrmee\\AppData\\Local\\Packages\\sandbox.{d2b8fe16-b201-47eb-9c2f-de97ceb78ff9}\\AC\\Temp\\auth13 compiled runtime qG1BD4\\node_modules'
+}
+
+Node.js v22.18.0

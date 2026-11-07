@@ -14,6 +14,7 @@ import { Button } from './Button';
 import { Users, Shield, Search, AlertCircle, Loader2, Info, X } from 'lucide-react';
 import { usersService, type UserDirectoryItem } from '../services/usersService';
 import { rbacService, type RbacRole, type UserRole, type RoleManagementOptions } from '../services/rbacService';
+import { RoleBadges } from './RoleBadges';
 import { getErrorMessage } from '../utils/apiError';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -81,6 +82,11 @@ export function UserRoleManager() {
       const [roles, options] = await Promise.all([rbacService.getUserRoles(userId), rbacService.getRoleOptions(userId)]);
       if (selectedId.current !== userId) return;
       setUserRoles(roles);
+      setUsers(current => current.map(user => user.id === userId ? {
+        ...user,
+        rbacRoles: roles.map(role => role.role_name),
+        roleSummaries: roles.map(role => ({id: role.role_id, name: role.role_name, label: role.role_label})),
+      } : user));
       setRoleOptions(options);
       setAllRoles(options.assignableRoles);
       setRolesState('data');
@@ -218,35 +224,34 @@ export function UserRoleManager() {
                     </p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
+                      <table className="block w-full text-sm sm:table">
+                        <thead className="sr-only sm:not-sr-only">
                           <tr className="border-b text-left text-neutral-500">
                             <th className="pb-2 font-medium">Name</th>
                             <th className="pb-2 font-medium">Email</th>
-                            <th className="pb-2 font-medium">Legacy Role</th>
+                            <th className="pb-2 font-medium">RBAC roles</th>
                             <th className="pb-2 font-medium">Actions</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="block space-y-3 sm:table-row-group sm:space-y-0">
                           {filteredUsers.map((u) => (
                             <tr
                               key={u.id}
                               className={[
-                                'border-b last:border-0',
+                                'grid grid-cols-1 gap-2 rounded-lg border p-3 sm:table-row sm:rounded-none sm:border-0 sm:border-b sm:p-0 sm:last:border-0',
                                 selectedUser?.id === u.id ? 'bg-accent-teal/5' : '',
                               ].join(' ')}
                             >
-                              <td className="py-2 font-medium">{u.name}</td>
-                              <td className="py-2 text-neutral-500">{u.email}</td>
-                              <td className="py-2">
-                                <span className="text-xs px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 capitalize">
-                                  {u.role}
-                                </span>
+                              <td className="block font-medium sm:table-cell sm:py-2 sm:pr-3">{u.name}</td>
+                              <td className="block break-all text-neutral-500 sm:table-cell sm:break-normal sm:py-2 sm:pr-3">{u.email}</td>
+                              <td className="block sm:table-cell sm:py-2 sm:pr-3">
+                                <RoleBadges subject={u} />
                               </td>
-                              <td className="py-2">
+                              <td className="block sm:table-cell sm:py-2">
                                 <Button
                                   variant={selectedUser?.id === u.id ? 'primary' : 'outline'}
                                   size="sm"
+                                  className="w-full sm:w-auto"
                                   onClick={() => handleSelectUser(u)}
                                   aria-label={`Manage roles for ${u.name}`}
                                 >
@@ -353,17 +358,6 @@ export function UserRoleManager() {
                       <Info className="h-4 w-4 shrink-0 mt-0.5" />
                       <p>
                         {roleOptions?.reason ?? 'Only role changes available to you are shown. Access is checked again when you save.'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Legacy role vs RBAC role explanation */}
-                  {rolesState === 'data' && (
-                    <div className="flex gap-2 p-3 bg-neutral-50 border border-neutral-200 rounded text-xs text-neutral-600">
-                      <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                      <p>
-                        Legacy Role and RBAC roles are separate. RBAC roles control API permissions;
-                        the Legacy Role column reflects the user&apos;s legacy account role.
                       </p>
                     </div>
                   )}

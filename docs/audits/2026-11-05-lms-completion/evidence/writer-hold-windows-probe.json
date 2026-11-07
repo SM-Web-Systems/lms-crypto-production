@@ -1,0 +1,8 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "4db0ba12a64cdaf293972eb06cc81c3bf5b262f1bd254b03d459bc00314b7b47",
+  "platform": "win32",
+  "parentIsFile": true,
+  "errorCode": "ENOENT",
+  "holdActiveByCurrentRule": false
+}

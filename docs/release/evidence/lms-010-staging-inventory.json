@@ -1,0 +1,126 @@
+{
+  "task": "LMS-010",
+  "date": "2026-11-06",
+  "status": "in_progress",
+  "workflowRun": 42247323277,
+  "workflowJob": 127992937789,
+  "workflowSource": "f4b9dba490ad67a722cc0fbdb13804a81c1a3086",
+  "controllerTestsPassed": 20,
+  "result": {
+    "inventoryOnly": true,
+    "legacyEndpointUsage": "not collected",
+    "mobileInstalledBuildInventory": "not collected",
+    "mode": "inventory-capture",
+    "observedImages": {
+      "api": {
+        "id": "sha256:393e4e6d2419987a931fb01a4e4b0fb910fc7d0c6148defa37ab4e4885f40d71",
+        "revision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e"
+      },
+      "web": {
+        "id": "sha256:cce2b4e7d80d2c510e55f487d7d98c5dfa346a7676e53c794f98d429a267ea2e",
+        "revision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e"
+      }
+    },
+    "privateReportReference": "rbac-inventory-501d67b5bac94487861a23b4e2571915",
+    "recoveryEligibility": "UNVERIFIED",
+    "snapshotCreatedAt": "2026-11-06T15:32:30.787708+00:00",
+    "status": "PRIVATE_SNAPSHOT_INVENTORIED",
+    "summary": {
+      "deployedApplication": {
+        "sha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+        "source": "operator-supplied; not verified against a running server"
+      },
+      "gates": {
+        "installedClientCompatibility": "NOT_REVIEWED",
+        "legacyEndpointUsage": "NOT_REVIEWED",
+        "migrationReady": false,
+        "productionAccountDecisions": "NOT_REVIEWED"
+      },
+      "generatedAt": "2026-11-06T15:54:27.734Z",
+      "interpretation": {
+        "administrator": "Explicit canonical built-in grant, not a privilege inferred from a name or legacy field.",
+        "legacyMismatch": "Often legitimate after additive RBAC grants; never union legacy grants into current RBAC automatically.",
+        "missingScopes": "Observation only: an unassigned/new role is not automatically a damaged account.",
+        "noGrants": "Preserve managed revocations and deletion status. Review before granting anything."
+      },
+      "productionInventoryVerified": false,
+      "purpose": "Inventory only; no migration or role changes are authorized by this report.",
+      "rbac": {
+        "accountFindingCounts": {
+          "explicit_administrator": 2,
+          "learner_profile_missing": 3,
+          "multi_role_accounts": 2
+        },
+        "accountsWithScopeObservations": 0,
+        "assignments": 22,
+        "builtInAssignmentCounts": {
+          "role_admin": 2,
+          "role_admin2": 0,
+          "role_custom": 0,
+          "role_employer": 0,
+          "role_instructor": 1,
+          "role_parent": 0,
+          "role_sponsor": 0,
+          "role_student": 18,
+          "role_super_admin": 1,
+          "role_supporter_student": 0,
+          "role_ta": 0,
+          "role_teacher": 0
+        },
+        "catalogIssueCount": 0,
+        "customRoleCount": 0,
+        "danglingAssignmentCount": 0,
+        "foreignKeyViolationCounts": {
+          "students": 1
+        },
+        "orphanCourseCodeCount": 0,
+        "roles": 12
+      },
+      "readOnly": true,
+      "reportVersion": 1,
+      "schema": {
+        "applicationMigrationVersion": null,
+        "fingerprintSha256": "31506217ed4e9f1cf7bc446a91954fd1b9cb54f88be76560043de490d9d7b53c",
+        "sqliteUserVersion": 0,
+        "sqliteVersion": "3.49.2",
+        "versionNote": "SQLite user_version and schema fingerprint do not establish the deployed application migration level."
+      },
+      "snapshotSha256": "19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79",
+      "users": {
+        "legacyCounts": {
+          "admin": 1,
+          "lecturer": 0,
+          "student": 18,
+          "unknown": 0
+        },
+        "total": 19,
+        "withDeletionStatus": 1,
+        "withoutDeletionStatus": 18
+      }
+    },
+    "version": 1
+  },
+  "remaining": [
+    "Private account/profile/integrity review; current cutover refuses the students foreign-key exception.",
+    "Installed mobile build and legacy endpoint usage evidence.",
+    "Independent recovery-policy approval; no recovery readiness or migration approval claimed."
+  ],
+  "earlierAttempts": [
+    {
+      "run": 42182053717,
+      "outcome": "COMMAND_REFUSED during preparation"
+    },
+    {
+      "run": 42183426898,
+      "outcome": "PREPARATION_COMPATIBILITY_POLICY_MISMATCH"
+    },
+    {
+      "run": 42243938402,
+      "outcome": "Fresh private capture retained before PREPARATION_COMPATIBILITY_POLICY_MISMATCH"
+    },
+    {
+      "run": 42244200278,
+      "outcome": "COMMAND_REFUSED from inventory container; owner-aware launcher correction followed."
+    }
+  ]
+}

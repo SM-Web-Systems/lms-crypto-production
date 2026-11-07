@@ -18,7 +18,7 @@ beforeEach(() => {
   db.exec('ALTER TABLE users ADD COLUMN auth_provider TEXT; ALTER TABLE users ADD COLUMN ammawallet_user_id TEXT');
   vi.spyOn(wallet, 'verifyAssertion').mockResolvedValue(identity);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 async function initiate(extra = {}) {
   return request(app).get('/api/v1/auth/amma-login').query({
@@ -27,6 +27,8 @@ async function initiate(extra = {}) {
 }
 async function callback() {
   const start = await initiate();
+  expect(start.status).toBe(302);
+  expect(start.headers['cache-control']).toBe('no-store');
   const state = new URL(start.headers.location).searchParams.get('state');
   return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'wallet-assertion'});
 }
@@ -35,15 +37,18 @@ async function code() {
   expect(response.headers.location).toMatch(/^lmsmobile:\/\/sso-callback\?/);
   return new URL(response.headers.location).searchParams.get('code');
 }
-const exchange = (value: string | null, proof = verifier) => request(app)
-  .post('/api/v1/auth/amma-mobile-session').send({code: value, code_verifier: proof});
+const exchange = (value: string | null, proof = verifier, metadata = {}) => request(app)
+  .post('/api/v1/auth/amma-mobile-session').send({code: value, code_verifier: proof, ...metadata});
 
 describe('Amma Wallet native session handoff', () => {
   it('keeps the existing web initiation and token callback working', async () => {
     const start = await request(app).get('/api/v1/auth/amma-login');
     expect(start.status).toBe(302);
+    expect(start.headers['cache-control']).toBe('no-store');
     const state = new URL(start.headers.location).searchParams.get('state');
     const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'web-assertion'});
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
     expect(response.headers.location).toContain('/sso-callback#token=');
     expect(response.headers.location).not.toContain('lmsmobile:');
   });
@@ -74,6 +79,32 @@ describe('Amma Wallet native session handoff', () => {
     expect((await exchange(value,'x'.repeat(64))).status).toBe(401);
     expect((await exchange(value)).status).toBe(200);
     expect((await exchange(value)).status).toBe(401);
+  });
+  it('rejects missing and outdated app builds without consuming the Wallet handoff', async () => {
+    vi.stubEnv('LMS_MIN_ANDROID_WALLET_BUILD', '42');
+    vi.stubEnv('LMS_MIN_IOS_WALLET_BUILD', '1.12.3');
+    const value = await code();
+    for (const metadata of [{}, {app_platform:'android',app_build:'41'}, {app_platform:'ios',app_build:'1.9.99'},
+      {app_platform:'android',app_build:'42.1'}, {app_platform:'ios',app_build:'1.12.3\n'}, {app_platform:'web',app_build:'99'}]) {
+      const refused = await exchange(value, verifier, metadata);
+      expect(refused.status).toBe(403);
+      expect(refused.body.error.code).toBe('MOBILE_UPDATE_REQUIRED');
+      expect(refused.headers['cache-control']).toBe('no-store');
+    }
+    expect(queryOne<{count:number}>('SELECT count(*) count FROM active_sessions')?.count).toBe(0);
+    expect((await exchange(value, verifier, {app_platform:'ios',app_build:'1.12.3'})).status).toBe(200);
+    expect((await exchange(value, verifier, {app_platform:'ios',app_build:'1.12.3'})).status).toBe(401);
+  });
+  it('requires both valid floors and leaves web Wallet sign-in available', async () => {
+    vi.stubEnv('LMS_MIN_ANDROID_WALLET_BUILD', '42');
+    vi.stubEnv('LMS_MIN_IOS_WALLET_BUILD', '');
+    const value = await code();
+    const refused = await exchange(value, verifier, {app_platform:'android',app_build:'42'});
+    expect(refused.status).toBe(503);
+    expect(refused.body.error.code).toBe('MOBILE_BUILD_POLICY_UNAVAILABLE');
+    expect((await request(app).get('/api/v1/auth/amma-login')).status).toBe(302);
+    vi.stubEnv('LMS_MIN_IOS_WALLET_BUILD', '1');
+    expect((await exchange(value, verifier, {app_platform:'android',app_build:'42'})).status).toBe(200);
   });
   it('expires unused codes', async () => {
     const value = await code();

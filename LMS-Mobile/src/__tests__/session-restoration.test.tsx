@@ -25,6 +25,7 @@ function Probe(){
   const auth=useAuth();profileUpdate=auth.updateUser;
   return <>
     <Text>{auth.user?auth.user.email:'Signed out'}</Text><Text>{mobileHome(auth.user)}</Text>
+    <Text testID="current-authorization">{JSON.stringify(auth.user)}</Text>
     {auth.sessionNotice?<Text>{auth.sessionNotice}</Text>:null}
     <Pressable onPress={()=>auth.login('sponsor@example.invalid','password')}><Text>Login</Text></Pressable>
     <Pressable onPress={()=>auth.loginWithAmma().catch(()=>{})}><Text>Wallet login</Text></Pressable>
@@ -35,8 +36,14 @@ function Probe(){
 function renderSession(){return render(<AuthProvider><SessionBoundary><Probe/></SessionBoundary></AuthProvider>);}
 beforeEach(()=>{
   jest.clearAllMocks();mockToken='saved-token';
+  // Clear unused once-results as well as call history, without erasing the
+  // onUnauthorized subscription implementation supplied by the module factory.
+  for(const mock of [getStoredToken,setStoredToken,clearStoredToken,service.getMe,service.login,
+    ammaWalletService.signIn,ammaWalletService.cancelSignIn,api.post]) (mock as jest.Mock).mockReset();
   (getStoredToken as jest.Mock).mockImplementation(()=>Promise.resolve(mockToken));
   (setStoredToken as jest.Mock).mockImplementation(async(token)=>{mockToken=token;return true;});
+  (clearStoredToken as jest.Mock).mockImplementation(async()=>{mockToken=null;});
+  (api.post as jest.Mock).mockResolvedValue({});
   service.getMe.mockResolvedValue(student);service.login.mockResolvedValue({token:'new-token',user:sponsor});
   jest.spyOn(AppState,'addEventListener').mockReturnValue({remove:jest.fn()});
 });
@@ -173,6 +180,19 @@ describe('A14 resilient native sessions',()=>{
     expect(screen.getByText(sponsor.email)).toBeTruthy();
     expect(mockToken).toBe('new-token');expect(clearStoredToken).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('discards old single-role hints and replaces authorization on foreground refresh',async()=>{
+    renderSession();
+    await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
+    expect(JSON.parse(screen.getByTestId('current-authorization').props.children)).not.toHaveProperty('role');
+    const {role: _legacy, ...current} = sponsor;
+    service.getMe.mockResolvedValueOnce({...current,rbacRoles:['sponsor'],roleSummaries:[]});
+    await act(async()=>fireEvent.press(screen.getByText('Refresh')));
+    await waitFor(()=>expect(screen.getByText('/workspace')).toBeTruthy());
+    const refreshed=JSON.parse(screen.getByTestId('current-authorization').props.children);
+    expect(refreshed).not.toHaveProperty('role');
+    expect(refreshed.rbacRoles).toEqual(['sponsor']);
   });
 
 });

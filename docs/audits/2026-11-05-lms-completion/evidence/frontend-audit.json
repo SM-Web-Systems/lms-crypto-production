@@ -1,0 +1,24 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "3d56d86c09d5bd17cda9a5771b3b7b5464490297b8420b40703b56ac4f8f3359",
+  "auditReportVersion": 2,
+  "vulnerabilities": {},
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 70,
+      "dev": 379,
+      "optional": 52,
+      "peer": 7,
+      "peerOptional": 0,
+      "total": 448
+    }
+  }
+}

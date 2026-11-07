@@ -1,3 +1,4 @@
+import { nativeBuildVersion } from 'expo-application';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { Linking, Platform } from 'react-native';
@@ -85,7 +86,8 @@ export const ammaWalletService = {
         throw new Error('The sign-in response is incomplete. Please start again.');
       }
       const response = await api.post<ApiResponse<AuthResult>>('/auth/amma-mobile-session',
-        {code,code_verifier:verifier},{headers:{Authorization:''}});
+        {code,code_verifier:verifier,app_platform:Platform.OS,app_build:nativeBuildVersion},
+        {headers:{Authorization:''}});
       assertActive();
       return assertApiSuccess(response,'Could not complete wallet sign-in. Please try again.');
     } finally {

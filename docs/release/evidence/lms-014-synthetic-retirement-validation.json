@@ -1,0 +1,34 @@
+{
+  "task": "LMS-014",
+  "date": "2026-11-07",
+  "baseCommit": "40103712388de92ec42ba6b571bc545b7d831e0b",
+  "historicalRetirementCommit": "b8015e27eae1328197bf248031da25c2e16c68cf",
+  "syntheticOnly": true,
+  "build": "passed",
+  "inventoryCutoverRetirementChecksPassed": 29,
+  "runtime": {
+    "retainedTables": 85,
+    "retainedRows": 558,
+    "retainedDataSha256": "dbd2c263aa4a05ecfbd188cc7d4bec06dd14563aa3cfd8b849f6f401a533cbd2",
+    "v1StartupOnV2": "REFUSED_WITHOUT_WRITES",
+    "restoredV1Startup": "PASS",
+    "restoredRevokedGrantPreserved": true,
+    "backupUnchanged": true,
+    "productionApprovalVerified": false
+  },
+  "sourceSha256": {
+    ".github/workflows/ci.yml": "1e4a306f6cb0aa2815f77ad25cb3becb15e22b1ff6e398fd811c4ff15cd1708c",
+    "LMS-Server/package.json": "118cf1fcf07c7e6a7b062e71200cde7694c0668ad0cf9061245b455bbd8bcac3",
+    "LMS-Server/database/schema.sql": "be3ddb9106186eac0d649e0590c37362dbe2641165dabd05dbb458a98b4e8314",
+    "LMS-Server/scripts/rbac-inventory.mjs": "1282eaac3c9b505194b1d3365c86325311c2585b12c6cd5b4cbb4a1180a6702a",
+    "LMS-Server/scripts/rbac-retire-legacy.mjs": "39c63bf72fa611f1da54bf0774cf1bb6b5c83be2ee84ce849d50040e3af3d900",
+    "LMS-Server/scripts/rbac-retire-legacy.test.mjs": "3590ddf8e39dc8797a45bc499708dd1fc12ab987be11737266b6ea7b55509eed",
+    "LMS-Server/scripts/test-rbac-runtime.mjs": "24b71fdd425186a2f91ec725a7d8782ec22e811cd80485ab77c2b51602d550f3",
+    "LMS-Server/dist/config/database.js": "f288f57719e78eee1cef02eb9d8c979582ae55e2b261e5c3927abaadfe674187",
+    "LMS-Server/dist/config/databaseBootstrap.js": "85ae00e5542ea70e15752f680333f9d5b4155b9ec391d913fc0bd5a20d1f2b09"
+  },
+  "remaining": [
+    "Reconcile and build the role-free v2 application and exact image.",
+    "Verify client retirement and protected-copy recovery before releasing."
+  ]
+}

@@ -71,3 +71,29 @@ test('the actual EAS metadata validator preserves draft-06 formats and readable 
   assert.equal(validator({ contact: 'invalid', unexpected: true }), false);
   assert.ok(getReadableErrors(validator.errors).length > 0);
 });
+
+test('staging preview requires pinned public targets, internal builds and the native callback identity', async () => {
+  const { validateStagingPreview } = require('./check-eas-tooling.cjs');
+  const { EasJsonAccessor } = createRequire(require.resolve('eas-cli/package.json'))('@expo/eas-json');
+  const eas = require('../eas.json');
+  const identity = {
+    scheme: 'lmsmobile',
+    android: { package: 'com.smwebsystems.lms' },
+    ios: { bundleIdentifier: 'com.smwebsystems.lms' },
+  };
+  const accessor = value => EasJsonAccessor.fromRawString(JSON.stringify(value));
+  await validateStagingPreview(accessor(eas), identity);
+
+  const drifted = structuredClone(eas);
+  drifted.build.preview.env.EXPO_PUBLIC_AMMA_WALLET_URL = 'https://other.example.invalid';
+  await assert.rejects(validateStagingPreview(accessor(drifted), identity), /INVALID_STAGING_PREVIEW_PUBLIC_ENV/);
+
+  const extraPublicField = structuredClone(eas);
+  extraPublicField.build.preview.env.EXPO_PUBLIC_UNKNOWN = 'synthetic';
+  await assert.rejects(validateStagingPreview(accessor(extraPublicField), identity), /INVALID_STAGING_PREVIEW_PUBLIC_ENV/);
+
+  const storeBuild = structuredClone(eas);
+  storeBuild.build.preview.distribution = 'store';
+  await assert.rejects(validateStagingPreview(accessor(storeBuild), identity), /INVALID_STAGING_PREVIEW_DISTRIBUTION/);
+  await assert.rejects(validateStagingPreview(accessor(eas), { ...identity, scheme: 'other' }), /INVALID_STAGING_PREVIEW_APP_IDENTITY/);
+});

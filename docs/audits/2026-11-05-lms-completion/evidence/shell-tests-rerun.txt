@@ -1,0 +1,1 @@
+PASS: deploy/rollback/smoke shell syntax; deployment refuses missing explicit identity

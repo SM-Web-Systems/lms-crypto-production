@@ -1,0 +1,46 @@
+{
+  "task": "LMS-023",
+  "observedAtUtc": "2026-11-07T09:33Z",
+  "status": "partial",
+  "method": "Unauthenticated HTTPS GETs with redirect following disabled. Only approved origin checks, status codes, policy tokens and public build metadata were retained.",
+  "lmsHealth": {
+    "url": "https://lms.smwebsystems.com/api/v1/health",
+    "http": 200,
+    "buildSha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+    "databaseOk": true,
+    "walletConfigured": true,
+    "reportedWalletNetwork": "public"
+  },
+  "webAndNativeSsoStart": {
+    "url": "https://lms.smwebsystems.com/api/v1/auth/amma-login",
+    "webHttp": 302,
+    "nativeHttp": 302,
+    "destinationOrigin": "https://ammawallet.com",
+    "destinationPath": "/sso/login",
+    "callback": "https://lms.smwebsystems.com/api/v1/auth/amma-callback",
+    "stateParameterPresent": true,
+    "callerChosenRedirectHttp": 400,
+    "callerChosenRedirectLocationPresent": false
+  },
+  "missingCallbackParameters": {
+    "http": 302,
+    "redirectedToLmsLoginWithOnlyMissingParametersError": true,
+    "cacheControlNoStore": true,
+    "publicReferrerPolicy": "strict-origin-when-cross-origin",
+    "applicationReferrerPolicyAtObservedBuild": "no-referrer",
+    "cloudflareResponse": true,
+    "publicPolicyMatchesApplication": false
+  },
+  "walletLogin": {
+    "url": "https://ammawallet.com/login",
+    "http": 200,
+    "walletBuildVerified": false
+  },
+  "acceptance": {
+    "finalLmsCandidateDeployed": false,
+    "publicCallbackReferrerPolicyVerified": false,
+    "walletTesterAccountVerified": false,
+    "walletSsoSessionVerified": false,
+    "paystackTestModeVerified": false
+  }
+}
