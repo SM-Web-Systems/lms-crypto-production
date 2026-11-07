@@ -46,6 +46,21 @@
     "syntheticRestoreRows": 2,
     "syntheticSourceRowsUnchanged": true
   },
+  "pairedApiImageRehearsal": {
+    "pullRequest": 169,
+    "headSha": "da1c485d4571e81b0b8aa4a967cf6aa0a72f1e86",
+    "run": 42379947855,
+    "job": 128425248729,
+    "conclusion": "success",
+    "completedAt": "2026-11-07T14:07:31Z",
+    "v1BaseRevision": "a7505ac77bfcdb6b4b76ac397814fbaf80a1de33",
+    "v1ApiImageId": "sha256:91f59e22f717bbc0a4be6f0ecf885f98687ccb11617349fc4cf078e89afb7950",
+    "v2BuiltRevision": "ee5ce24661c85536571de6b4eba2c6c3ff3621a7",
+    "v2ApiImageId": "sha256:c31fc55405221f392943f0526b8888804ed88f52b056a61bfc10ec73758ca96a",
+    "v2WebImageId": "sha256:023d4e1bfe36cb7db95ff05f854f0fa131e9acb77248fe20d0e396805b7bde7d",
+    "v1RefusedContractedV2WithoutWrites": true,
+    "restoredV1GrantsAndIntegrityVerified": true
+  },
   "protectedOffHostRetrievalVerified": false,
   "releaseSelectedImagePairVerified": false
 }

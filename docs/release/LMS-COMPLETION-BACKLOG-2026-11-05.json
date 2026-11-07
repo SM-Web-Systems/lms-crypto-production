@@ -375,8 +375,8 @@
       "evidence": [
         "LMS-COMPLETION-PLAN-2026-11-05.md"
       ],
-      "reason": "The owner supplied the treasury entity, wallet and contact privately and confirmed a rewards and contract-fee MVP. Paystack-to-XLM conversion is deferred beyond the MVP.",
-      "inputRequired": "Confirm wallet control, the independent initiator and approver, the pilot limits and reconciliation procedure, and obtain review of the real-XLM grant flow before enabling it."
+      "reason": "The owner supplied the treasury details privately, confirmed a rewards and contract-fee MVP, and set a 0.1 XLM cap per learner. Paystack-to-XLM conversion is deferred beyond the MVP.",
+      "inputRequired": "Confirm the total pilot allocation cap, wallet control, the independent initiator and approver, and reconciliation procedure. Obtain review of the real-XLM grant flow before enabling it."
     },
     {
       "id": "LMS-034",
@@ -539,7 +539,7 @@
         "LMS-061-RECOVERY-REHEARSAL.md",
         "evidence/lms-061-hosted-image-validation.json"
       ],
-      "reason": "The retrieved-backup verifier passed synthetic WAL backup and tamper refusal checks. Both hosted API/web image and synthetic recovery jobs passed with recorded image IDs. Protected off-host retrieval, runtime restoration with release-selected images and LMS-010/LMS-011 remain open."
+      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. Protected off-host retrieval, restoration with release-selected images and LMS-010/LMS-011 remain open."
     },
     {
       "id": "LMS-062",
