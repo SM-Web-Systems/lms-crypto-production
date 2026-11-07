@@ -14,10 +14,10 @@ describe('reward funding availability and confirmation', () => {
   it('explains unavailable sources without offering a funding submission', async () => {
     mocks.options.mockResolvedValue([
       {sourceType: 'stellar', available: false, reason: 'Stellar funding is not available yet.'},
-      {sourceType: 'paystack', available: false, reason: 'Card funding awaits a settlement provider.'},
+      {sourceType: 'paystack', available: false, reason: 'Card payments are available for course purchases only.'},
     ]);
     render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
-    expect(await screen.findByText('Card funding awaits a settlement provider.')).toBeVisible();
+    expect(await screen.findByText('Card payments are available for course purchases only.')).toBeVisible();
     expect(screen.queryByRole('button', {name: /grant/i})).not.toBeInTheDocument();
     expect(mocks.prepare).not.toHaveBeenCalled();
   });

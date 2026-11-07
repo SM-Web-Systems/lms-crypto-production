@@ -11,7 +11,7 @@ The CI corrections passed all eight [hosted jobs](https://github.com/SM-Web-Syst
 ## Confirmed execution inputs
 
 - The owner confirmed `https://lms.smwebsystems.com` and `https://ammawallet.com` are the authorized **staging** environments. Environment contact: Mukhtar Meer. The historical audit's production label was an inference, not the owner's environment classification.
-- No reward settlement/treasury provider or custody arrangement is in place. LMS-033 awaits that selection; independent funding/verification work can continue.
+- SM Web Systems is the designated treasury for company-funded prototype rewards and smart-contract fee support. LMS-033 awaits operational approval and acceptance. Paystack serves course payments and XLM conversion is deferred beyond the MVP.
 - Physical Android/iOS device and signing access remain to be supplied. Staging classification does not itself establish a provider's test mode or Stellar network: verify these before provider or chain operations and use identifiable synthetic fixtures.
 
 - [Audit findings and evidence](../audits/2026-11-05-lms-completion/AUDIT.md)

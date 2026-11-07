@@ -301,7 +301,7 @@
         "LMS-030-DURABLE-FUNDING.md",
         "evidence/lms-030-validation.json"
       ],
-      "reason": "Durable intents plus Stellar and backed-credit adapters are implemented locally with shared atomic consumption. Staging acceptance and LMS-011 remain open; Paystack settlement is LMS-033."
+      "reason": "Durable intents plus Stellar and backed-credit adapters are implemented locally with shared atomic consumption. Staging acceptance and LMS-011 remain open; Company treasury acceptance is LMS-033. Paystack conversion is deferred beyond the MVP."
     },
     {
       "id": "LMS-031",
@@ -345,19 +345,24 @@
     },
     {
       "id": "LMS-033",
-      "title": "Implement Paystack-to-XLM settlement workflow",
+      "title": "Accept company-funded MVP treasury and rewards",
       "priority": "P2",
       "ownerRole": "API + Platform + Product owner",
       "status": "awaiting_input",
       "dependencies": [
         "LMS-030",
-        "LMS-031"
+        "LMS-031",
+        "LMS-032"
       ],
       "acceptance": [
-        "Approved settlement/treasury integration reconciles actual fiat receipt, quote fees/expiry, delivered XLM and reversals; stays awaiting settlement until delivery proof; repeated callbacks/restarts never double-fund"
+        "Company-funded rewards and bounded smart-contract fee support use verified backing and independent allocation approval. Confirm wallet control, pilot limits and reserve reconciliation in acceptance. Course payments cannot create XLM backing or buy rewards.",
+        "Keep treasury registration, contact and wallet association out of public LMS surfaces and repository evidence. Treat Mainnet balances and transfers as public."
       ],
-      "evidence": [],
-      "inputRequired": "The owner selected SM Web Systems as the prototype treasury for its company-owned reward reserve. It plans to pursue applicable licensing and a regulated partnership for a later funding stage. Paystack-linked conversion remains gated on an approved execution route, written Paystack confirmation, a named custody destination and signers, and an approved settlement, fee, reversal and reconciliation policy."
+      "evidence": [
+        "LMS-COMPLETION-PLAN-2026-11-05.md"
+      ],
+      "reason": "The owner supplied the treasury entity, wallet and contact privately and confirmed a rewards and contract-fee MVP. Paystack-to-XLM conversion is deferred beyond the MVP.",
+      "inputRequired": "Confirm wallet control, the independent initiator and approver, the pilot limits and reconciliation procedure, and obtain review of the real-XLM grant flow before enabling it."
     },
     {
       "id": "LMS-034",

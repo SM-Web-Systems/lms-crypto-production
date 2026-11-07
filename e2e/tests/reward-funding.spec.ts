@@ -17,7 +17,7 @@ for (const width of [320, 390, 768]) {
     const options = row.getByRole('button', {name: 'Funding options'});
     await options.click();
     const dialog = page.getByRole('dialog', {name: 'Reward funding'});
-    await expect(dialog.getByText('Card funding awaits a settlement provider.')).toBeVisible();
+    await expect(dialog.getByText('Card payments are available for course purchases only.')).toBeVisible();
     await expect(dialog.getByText('An independent reward administrator must authorize this grant.')).toBeVisible();
     await expect(dialog.getByRole('button', {name: 'Prepare grant'})).toHaveCount(0);
     await dialog.getByRole('button', {name: 'Close'}).focus();

@@ -64,7 +64,7 @@ export function getFundingAvailability(rewardId: string, actorId: string) {
     ...(sourceType==='platform_credit' && independent?{creditGrants:credits.map(grant=>({id:grant.id,availableStroops:grant.availableStroops}))}:{}),
     reason: reward.status !== 'draft' ? 'This reward is no longer awaiting funding.'
       : sourceType === 'stellar' ? (stellar ? null : 'Stellar funding is not configured.')
-      : sourceType === 'paystack' ? 'Card funding awaits a settlement provider.'
+      : sourceType === 'paystack' ? 'Card payments are available for course purchases only.'
       : sourceType === 'platform_credit' ? (credits.length?null:independent?'Insufficient backed platform credit.':'An independent reward administrator must authorize platform credit.')
       : !independent ? 'An independent reward administrator must authorize this grant.' : null,
   }));
