@@ -45,7 +45,7 @@ jobs:
           cache-dependency-path: LMS-Mobile/package-lock.json
       - run: npm ci
       - name: Audit mobile dependencies including developer tools
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=low
       - name: Patched parser and Metro compatibility
         run: npm run acceptance:dependencies
       - name: Offline EAS startup and profile schema compatibility

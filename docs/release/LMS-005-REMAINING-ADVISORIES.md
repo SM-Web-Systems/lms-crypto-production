@@ -1,6 +1,6 @@
 # LMS-005 — remaining dependency findings
 
-Status: **in progress**, with an unresolved upstream low advisory. This task is not accepted as complete.
+Status **in progress**. Fresh API and mobile audits report zero findings. Hosted checks for the replacement are pending.
 
 ## Mobile patch phase — 6 November 2026
 
@@ -12,13 +12,13 @@ EAS CLI's default callable ts-deepmerge API differs from patched 8.0.0's named `
 
 All seven dependency checks, five offline tooling checks, TypeScript, 159 native assertions and both Android/iOS Metro exports pass. Glob matching/cancellation is checked from actual nested Expo/Sucrase resolution paths, with native Windows path separators. UUID generation uses the actual Xcode consumer. Diff patch round trips and Router/Metro compatibility remain covered. These are local graph checks, not signed-device acceptance.
 
-## Open finding
+## Verified replacement — 7 November 2026
 
-[GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) identifies prototype poisoning in deepmerge 4.2.0–4.3.1 and lists no patched version. npm currently publishes 4.3.1 as latest. No downgrade, advisory suppression, locally renamed parser/merger implementation, or SDK migration is used to erase that finding. Keep this task and the final dependency acceptance gate open until a reviewed upstream fix or a tested replacement of the consuming dependency removes it.
+[GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) covers prototype poisoning in upstream deepmerge 4.2.0–4.3.1. The installed mobile graph now resolves all eight consumer paths to pinned `@stackline/deepmerge@1.1.2`. The tarball matches the published release. npm verified its registry signature and provenance attestation. The reviewed CommonJS build filters hostile prototype keys and preserves the callable interface used by the installed consumers. [Published release](https://github.com/alexandroit/stackline-deepmerge/releases/tag/v1.1.2)
 
-The safe direction is to obtain an upstream-compatible fix or update/remove the affected configuration/test consumers together, then repeat clean installs, audit, tooling, native tests and both exports. A numeric audit reduction alone is insufficient.
+An empty npm 10.9.9 install succeeded. Fresh API and mobile audits at the low threshold report zero findings. The eight dependency tests cover actual Expo and EAS config consumers and Jest presets, including ordinary array and nested-object merge behavior and the hostile input. Five offline tooling checks, 182 Jest assertions, TypeScript and Android/iOS Hermes exports passed. Both CI audit thresholds now fail on low advisories.
 
-Accountable role: API + Mobile dependency maintainer (named assignee still required). Next review: **13 November 2026**, or earlier if an upstream patch is published. Review is recorded here; no scheduled reminder or risk waiver was created.
+See the [replacement validation receipt](evidence/lms-005-deepmerge-validation.json). Signed-device and final release acceptance remain separate.
 
 ## API patch phase
 

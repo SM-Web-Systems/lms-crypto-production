@@ -96,6 +96,63 @@ test('patched diff preserves EAS update patch behavior', () => {
   assert.equal(diff.applyPatch(before, patch), after);
 });
 
+test('Expo config and Jest preset merges reject inherited configuration from hostile nested keys', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require('node:fs');
+  const { tmpdir } = require('node:os');
+  const folder = mkdtempSync(join(tmpdir(), 'lms-dependency-deepmerge-'));
+  const hostile = () => JSON.parse('{"session":{"__proto__":{"allowed":true},"retained":"safe"},"list":["app"]}');
+  const assertSafe = result => {
+    assert.deepEqual(result.list, ['base', 'app']);
+    assert.equal(result.session.retained, 'safe');
+    assert.equal(result.session.allowed, undefined);
+    assert.equal(Object.hasOwn(result.session, '__proto__'), false);
+    assert.equal(Object.getPrototypeOf(result.session), Object.prototype);
+  };
+  try {
+    const { packages } = require('../package-lock.json');
+    const resolvedMergers = Object.entries(packages).filter(([name]) => name.endsWith('/deepmerge'));
+    assert.ok(resolvedMergers.length > 0);
+    for (const [, entry] of resolvedMergers) {
+      assert.equal(entry.name, '@stackline/deepmerge');
+      assert.equal(entry.version, '1.1.2');
+    }
+    writeFileSync(join(folder, 'package.json'), JSON.stringify({name: 'fixture', version: '1.0.0'}));
+    writeFileSync(join(folder, 'app.json'), JSON.stringify({
+      expo: {name: 'Fixture', slug: 'fixture', extra: {session: null, list: ['base']}},
+    }));
+    const fromExpo = createRequire(require.resolve('expo/package.json'));
+    const fromEas = createRequire(require.resolve('eas-cli/package.json'));
+    const fromEasPrebuild = createRequire(fromEas.resolve('@expo/prebuild-config/package.json'));
+    const origins = [fromExpo, fromEas, fromEasPrebuild];
+    for (const origin of origins) {
+      const fromConfig = createRequire(origin.resolve('@expo/config/package.json'));
+      const { modifyConfigAsync } = origin('@expo/config');
+      const result = await modifyConfigAsync(folder, {extra: hostile()},
+        {skipSDKVersionRequirement: true, skipPlugins: true}, {dryRun: true});
+      assert.equal(result.type, 'success');
+      assertSafe(result.config.extra);
+      const merge = fromConfig('deepmerge');
+      const nullPrototype = Object.assign(Object.create(null), hostile().session);
+      assertSafe(merge({session: null, list: ['base']}, {session: nullPrototype, list: ['app']}));
+      assertSafe(merge({session: nullPrototype, list: ['base']}, {list: ['app']}));
+    }
+
+    mkdirSync(join(folder, 'preset'));
+    writeFileSync(join(folder, 'preset', 'jest-preset.js'),
+      'module.exports = {globals: {session: null, list: ["base"]}};');
+    const { normalize } = require('jest-config');
+    const { options } = await normalize({
+      rootDir: folder, preset: '<rootDir>/preset', globals: hostile(), transform: {},
+      testEnvironment: require.resolve('jest-environment-node'),
+      testRunner: require.resolve('jest-circus/runner'),
+    }, {}, null);
+    assertSafe(options.globals);
+  } finally {
+    assert.equal(dirname(folder), tmpdir());
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test('the actual EAS project generator merges configuration through the patched API', async () => {
   require('./deny-tooling-network.cjs');
   const { mkdtempSync, writeFileSync, rmSync } = require('node:fs');

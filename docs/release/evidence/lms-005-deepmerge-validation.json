@@ -1,0 +1,77 @@
+{
+  "task": "LMS-005",
+  "date": "2026-11-07",
+  "baseCommit": "3f5a606739efdb510078121a4e5eae6bc9e1e945",
+  "advisory": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+  "replacement": {
+    "package": "@stackline/deepmerge@1.1.2",
+    "release": "https://github.com/alexandroit/stackline-deepmerge/releases/tag/v1.1.2",
+    "registrySignatureVerified": true,
+    "registryAttestationVerified": true,
+    "tarballSha512": "8c922e9213bca03baa619fcb11c9df0778057a6d7982ffb48f149655669df9cf5b10fda92f94b35363c09502871c62b0d2a75d4c6a5c9609d951a63708cba4c6",
+    "resolvedConsumerPaths": [
+      "node_modules/@expo/config/node_modules/deepmerge",
+      "node_modules/@expo/prebuild-config/node_modules/deepmerge",
+      "node_modules/expo-constants/node_modules/deepmerge",
+      "node_modules/expo-manifests/node_modules/deepmerge",
+      "node_modules/expo-splash-screen/node_modules/deepmerge",
+      "node_modules/expo/node_modules/deepmerge",
+      "node_modules/jest-config/node_modules/deepmerge",
+      "node_modules/jest-expo/node_modules/deepmerge"
+    ]
+  },
+  "freshAudit": {
+    "api": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "mobile": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "checks": {
+    "cleanNpm10Install": "passed",
+    "mobileDependencyConsumersPassed": 8,
+    "offlineToolingPassed": 5,
+    "apiDependencyConsumersPassed": 2,
+    "deviceEvidenceCheckerFixturesPassed": 3,
+    "jestPassed": 182,
+    "typecheck": "passed",
+    "androidHermesExport": "passed",
+    "iosHermesExport": "passed"
+  },
+  "firstAttempt": "The synthetic Jest preset used a relative path and could not load. The fixture now uses <rootDir>/preset and passed with the same installed dependency graph.",
+  "sourceSha256": {
+    ".github/workflows/ci.yml": "19abc84c71cf3893035ec2d84f6c63e200fdadf55d77acecdbb3b5c48823a270",
+    ".github/workflows/mobile-ci.yml": "246d1e5eeefa72d8eb0cfc8c0e65da586db630418a9dea63a7501d1eac96bc43",
+    "LMS-Mobile/package.json": "44b8289ae5ca46b6f05d8a86cb82734b9284254ff7e61f55bdf5f4b856e5407f",
+    "LMS-Mobile/package-lock.json": "f270fbaa33b44239e9e614276e49c5c0b2409950d593fcc624c75fcbf3b032b6",
+    "LMS-Mobile/scripts/dependency-acceptance.test.cjs": "5bf3eb9ef9a181b117afd39ae0077cd759bf28b3bddc92215c6288bbdb8ca53f"
+  },
+  "originalReceiptHashes": {
+    "lms-005-deepmerge-clean-ci.log": "b39e3429ecda2e8053a1367d589ff3973ee9d5130de98e31417cf0a9cd9de00d",
+    "lms-005-deepmerge-review/provenance.log": "321f46e1bbc4ae6ddc9dbc26479723bb7bef6692b653c872cfd65fb5290c13a0",
+    "lms-005-final-dependencies.log": "f7e764e7d47960c6a27368a18be3a6d888b615a95de969a16226a21a9e2f74a8",
+    "lms-005-final-dependencies-retry.log": "1b66aa9f998472dbde5bd0e0444a631bed2da3b2fd22165b85ef1b6e2fb9d35d",
+    "lms-005-final-tooling.log": "8d2781cdaf4db31579dfa6f365de544a73b7a584368434b98cb808685767a801",
+    "lms-005-final-native.log": "8b94c13b3f3fa0243e4c3ce4265ea9d953164ecdca74d9994b8591a630f155af",
+    "lms-005-final-api-dependencies.log": "ac922734ffd52c94abc1017b84531f8c72a50b9f924b3697f42e54a4583b860c",
+    "lms-005-deepmerge-android.log": "b20e4fca243bf3a3a4ffddebbf8c60d31552d2c6562eb2d8e1e9bd62147a47a5",
+    "lms-005-deepmerge-ios.log": "e547c442aecbc6afe311941b71323828cee5e317646a6dc21085d755a2897e07",
+    "lms-005-api-final-audit.json": "f45b918ae75d5cc9025b6c280ba4787fdfb64059f618156bbe1454497d767f61",
+    "lms-005-mobile-final-audit.json": "1eeed9628959fde3581f6aaf45c0e77912e3bbaa0dbebf2da94064716c220098"
+  },
+  "limitations": [
+    "Hosted dependency checks are pending for the replacement commit.",
+    "Bundle exports provide no signed-device acceptance. Exact release-candidate validation remains LMS-060."
+  ]
+}
