@@ -1,6 +1,6 @@
 # LMS-005 — remaining dependency findings
 
-Status **in progress**. Fresh API and mobile audits report zero findings. Hosted checks for the replacement are pending.
+Status **complete**. Fresh API and mobile audits report zero findings. Both hosted workflows passed at `4010371`, including their low-threshold audit gates. [API and browser CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42346118148) · [Mobile CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42346118130)
 
 ## Mobile patch phase — 6 November 2026
 

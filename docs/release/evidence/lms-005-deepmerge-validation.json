@@ -71,7 +71,15 @@
     "lms-005-mobile-final-audit.json": "1eeed9628959fde3581f6aaf45c0e77912e3bbaa0dbebf2da94064716c220098"
   },
   "limitations": [
-    "Hosted dependency checks are pending for the replacement commit.",
     "Bundle exports provide no signed-device acceptance. Exact release-candidate validation remains LMS-060."
-  ]
+  ],
+  "hosted": {
+    "head": "40103712388de92ec42ba6b571bc545b7d831e0b",
+    "ci": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42346118148",
+    "mobile": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42346118130",
+    "conclusion": "success",
+    "apiLowAuditGate": "success",
+    "mobileLowAuditGate": "success",
+    "hostedAndroidAndIosBundles": "success"
+  }
 }

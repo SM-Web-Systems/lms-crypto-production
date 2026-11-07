@@ -229,7 +229,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-002 | Make audit and migration fixtures reproducible across platforms | API + QA | LMS-001 | Open |
 | LMS-003 | Fix Windows writer-hold invalid-path handling | API + Platform | LMS-002 | Open |
 | LMS-004 | Resolve mobile high/critical dependency findings | Mobile | LMS-001 | Open |
-| LMS-005 | Resolve remaining API/mobile moderate and low advisories | API + Mobile | LMS-004 | Open |
+| LMS-005 | Resolve remaining API/mobile moderate and low advisories | API + Mobile | LMS-004 | Complete. [Verified local and hosted audit gates](LMS-005-REMAINING-ADVISORIES.md). |
 | LMS-006 | Fix mobile web accessible names and navigation usability | Web + QA | LMS-001 | Open |
 | LMS-007 | Stabilize cold mobile session and admin E2E tests | QA + API + Mobile | LMS-002 | Open |
 | LMS-010 | Complete private production account/schema/client inventory | Platform owner | LMS-001 | Open |

@@ -78,7 +78,7 @@
       "title": "Resolve remaining API/mobile moderate and low advisories",
       "priority": "P2",
       "ownerRole": "API + Mobile",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "LMS-004"
       ],
@@ -88,9 +88,10 @@
       "evidence": [
         "LMS-005-REMAINING-ADVISORIES.md",
         "evidence/lms-005-mobile-validation.json",
-        "evidence/lms-005-api-validation.json"
+        "evidence/lms-005-api-validation.json",
+        "evidence/lms-005-deepmerge-validation.json"
       ],
-      "remainingPrerequisite": "deepmerge 4.3.1 has no published patched release for GHSA-gcqx-w48m-w2h4; tested replacement/upstream fix remains required."
+      "reason": "The reviewed replacement removed the final low finding. Fresh API and mobile audits report zero findings, and both hosted workflows passed their low-threshold gates at 4010371."
     },
     {
       "id": "LMS-006",
