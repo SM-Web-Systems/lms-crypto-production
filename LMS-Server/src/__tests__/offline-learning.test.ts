@@ -92,6 +92,21 @@ describe('offline learning API', () => {
     expect(db.prepare('SELECT count(*) AS count FROM lesson_completions').get()).toEqual({count: 0});
   });
 
+  it('reports the shortened active session expiry when rechecking an existing lease', async () => {
+    const f = fixture();
+    const a = f.learner();
+    const lease = (await f.lease(a.token)).body.data;
+    const shorterExpiry = a.sessionExpiry - 300_000;
+    db.prepare('UPDATE active_sessions SET expires_at = ? WHERE token_hash = ?')
+      .run(new Date(shorterExpiry).toISOString(), hashToken(a.token));
+
+    const status = await f.inspect(a.token, lease.leaseId);
+    expect(status.status).toBe(200);
+    expect(status.body.data).toMatchObject({leaseId: lease.leaseId, expiresAt: shorterExpiry});
+    const savedAgain = await f.lease(a.token);
+    expect(savedAgain.body.data).toMatchObject({leaseId: lease.leaseId, expiresAt: shorterExpiry});
+  });
+
   it('invalidates expired, revised and revoked leases, even if enrollment is restored', async () => {
     const f = fixture();
     const a = f.learner();

@@ -171,13 +171,13 @@ function parseMutation(value: unknown): Mutation {
 
 function requireLease(actor: JWTPayload, token: string, courseId: string, leaseId: string, now: number) {
   const ttl = policy(courseId);
-  const {course, sessionHash, contentVersion} = currentCourse(actor, token, courseId, now);
+  const {course, sessionHash, authExpiresAt, contentVersion} = currentCourse(actor, token, courseId, now);
   const lease = queryOne<LeaseRow>(
     'SELECT * FROM offline_learning_leases WHERE id = ? AND user_id = ? AND course_id = ? AND session_hash = ?',
     [leaseId, actor.userId, courseId, sessionHash],
   );
   if (!lease) throw new OfflineLearningError(403, 'OFFLINE_LEASE_INVALID', 'This offline lease is unavailable.');
-  const expiresAt = Math.min(lease.expires_at, lease.issued_at + ttl);
+  const expiresAt = Math.min(lease.expires_at, lease.issued_at + ttl, authExpiresAt);
   if (expiresAt <= now) throw new OfflineLearningError(409, 'OFFLINE_LEASE_EXPIRED', 'This offline lease expired.');
   if (lease.content_version !== contentVersion) {
     throw new OfflineLearningError(409, 'OFFLINE_CONTENT_CHANGED', 'The course changed. Refresh its offline content.');

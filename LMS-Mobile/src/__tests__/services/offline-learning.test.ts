@@ -99,6 +99,33 @@ it('revalidates a saved course on reconnect even when the queue is empty', async
   expect(await reader.view()).toEqual({courses: [], notice: 'Access withdrawn.'});
 });
 
+it('purges another revoked course even when the first course loses a sync response', async () => {
+  const f = fixture();
+  const reader = f.create();
+  const second = {...pack, leaseId: 'second-lease', course: {...pack.course, id: 'second'}};
+  await reader.setSession('learner-a', true);
+  await reader.download('course');
+  f.download.mockResolvedValueOnce(second);
+  await reader.download('second');
+  await reader.setSession('learner-a');
+  await reader.queue('course', 'text', {kind: 'complete'});
+  await reader.queue('second', 'text', {kind: 'complete'});
+  const firstPending = f.savedCourse()?.pending;
+  f.inspect.mockResolvedValueOnce(pack).mockRejectedValueOnce('revoked');
+  f.submit.mockRejectedValueOnce(new Error('The response was lost.'));
+
+  await expect(reader.sync()).rejects.toThrow('The response was lost.');
+  expect(f.inspect.mock.calls.slice(-2)).toEqual([
+    ['learner-a', 'course', 'lease'],
+    ['learner-a', 'second', 'second-lease'],
+  ]);
+  expect(f.submit.mock.calls).toEqual([['learner-a', 'course', firstPending?.[0]]]);
+  expect(await reader.view()).toEqual({
+    courses: [expect.objectContaining({pending: firstPending, pack})],
+    notice: 'Access withdrawn.',
+  });
+});
+
 it('hides saved content across a cold account mismatch and erases the previous vault on logout', async () => {
   const f = fixture();
   const first = f.create();
