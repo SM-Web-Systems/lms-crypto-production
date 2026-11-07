@@ -265,6 +265,59 @@ test('CLI writes a pending private worksheet bound to the expected snapshot and 
     if (process.platform !== 'win32') assert.equal(statSync(target).mode & 0o777, 0o600);
     assert.equal(invoke(expected).status, 2);
     assert.deepEqual(readFileSync(target), worksheetBytes);
+
+    const verify = (...extra) => spawnSync(process.execPath, [
+      script, '--snapshot', '--database', file, '--deployed-sha', SHA, '--verify-review', target, ...extra,
+    ], { encoding: 'utf8' });
+    assert.match(verify().stderr, /requires --expected-snapshot-sha/);
+    assert.match(verify(...expected, '--details-output', path.join(directory, 'not-written.json')).stderr, /cannot be combined/);
+    assert.ok(!readdirSync(directory).includes('not-written.json'));
+    assert.match(verify(...expected).stderr, /Review is incomplete/);
+
+    Object.assign(review, {
+      status: 'reviewed',
+      reviewReference: 'PRIVATE-REVIEW-REFERENCE',
+      reviewer: 'PRIVATE-REVIEWER',
+      reviewedAt: new Date().toISOString(),
+      acceptCurrentRbacAsAuthoritative: true,
+      installedClientEvidence: 'PRIVATE-DEVICE-EVIDENCE',
+      legacyEndpointUsageEvidence: 'PRIVATE-ENDPOINT-EVIDENCE',
+    });
+    for (const group of [review.accountDecisions, review.learnerProfileDecisions, review.integrityDecisions]) {
+      for (const row of group) Object.assign(row, { decision: 'reviewed', rationale: 'PRIVATE-DECISION' });
+    }
+    const completed = JSON.stringify(review);
+    writeFileSync(target, completed);
+    const verified = verify(...expected);
+    assert.equal(verified.status, 0, verified.stderr);
+    const receipt = JSON.parse(verified.stdout);
+    assert.equal(receipt.status, 'REVIEW_RECORD_VERIFIED');
+    assert.match(receipt.reviewSha256, /^[a-f0-9]{64}$/);
+    assert.equal(receipt.migrationReady, false);
+    assert.deepEqual(receipt.findingCounts, {
+      accountDecisions: 1,
+      learnerProfileDecisions: 1,
+      integrityDecisions: review.integrityDecisions.length,
+    });
+    assert.ok(!verified.stdout.includes('PRIVATE-'));
+    assert.equal(readFileSync(target, 'utf8'), completed);
+
+    for (const [mutate, error] of [
+      [value => { value.deployedSha = '0'.repeat(40); }, /Review binding does not match/],
+      [value => { value.legacyEndpointUsageEvidence = ''; }, /Review is incomplete/],
+      [value => { value.learnerProfileDecisions[0].rationale = null; }, /decision and rationale/],
+      [value => { value.accountDecisions[0].currentRoleIds.pop(); }, /Review finding rows do not match/],
+      [value => { value.integrityDecisions.pop(); }, /Review finding rows do not match/],
+    ]) {
+      const changed = JSON.parse(completed);
+      mutate(changed);
+      writeFileSync(target, JSON.stringify(changed));
+      const refused = verify(...expected);
+      assert.equal(refused.status, 2);
+      assert.equal(refused.stdout, '');
+      assert.match(refused.stderr, error);
+      assert.ok(!refused.stderr.includes('PRIVATE-'));
+    }
     assert.deepEqual(readFileSync(file), before);
   });
 });

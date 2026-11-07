@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, fstatSync, lstatSync, openSync, readSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 const BUILT_INS = {
   role_student: 'student', role_supporter_student: 'super-student',
@@ -245,6 +246,7 @@ export function parseArguments(args) {
     '--deployed-sha': 'deployedSha',
     '--details-output': 'detailsOutput',
     '--review-output': 'reviewOutput',
+    '--verify-review': 'verifyReview',
     '--expected-snapshot-sha': 'expectedSnapshotSha',
   };
   for (let i=0;i<args.length;i++) {
@@ -261,6 +263,9 @@ export function parseArguments(args) {
   }
   if (options.reviewOutput && !options.expectedSnapshotSha) {
     refuse('Review output requires the previously recorded --expected-snapshot-sha.');
+  }
+  if (options.verifyReview && (!options.expectedSnapshotSha || options.detailsOutput || options.reviewOutput)) {
+    refuse('Review verification requires --expected-snapshot-sha and cannot be combined with output files.');
   }
   if (options.expectedSnapshotSha && !/^[a-f0-9]{64}$/.test(options.expectedSnapshotSha)) {
     refuse('Review snapshot SHA-256 must contain 64 lowercase hexadecimal characters.');
@@ -303,6 +308,76 @@ function reviewWorksheet(summary, details) {
   };
 }
 
+function readReview(filename) {
+  const file = path.resolve(filename);
+  const limit = 8 * 1024 * 1024;
+  const stat = lstatSync(file);
+  if (!stat.isFile() || stat.size > limit || (process.platform !== 'win32' && (stat.mode & 0o077) !== 0)) {
+    refuse('Review file must be a private regular file of at most 8 MiB.');
+  }
+  const fd = openSync(file, 'r');
+  try {
+    const opened = fstatSync(fd);
+    if (opened.dev !== stat.dev || opened.ino !== stat.ino || opened.size !== stat.size || opened.mode !== stat.mode) {
+      refuse('Review file changed while being opened.');
+    }
+    const buffer = Buffer.alloc(stat.size + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const read = readSync(fd, buffer, length, buffer.length - length, null);
+      if (read === 0) break;
+      length += read;
+    }
+    if (length !== stat.size || fstatSync(fd).mtimeMs !== stat.mtimeMs) {
+      refuse('Review file changed while being read.');
+    }
+    return buffer.subarray(0, length);
+  } finally { closeSync(fd); }
+}
+
+function verifyReview(filename, expected) {
+  const bytes = readReview(filename);
+  let review;
+  try { review = JSON.parse(bytes.toString('utf8')); }
+  catch { refuse('Review file is not valid JSON.'); }
+  if (review?.version !== expected.version || review.snapshotSha256 !== expected.snapshotSha256 ||
+      review.schemaFingerprintSha256 !== expected.schemaFingerprintSha256 || review.deployedSha !== expected.deployedSha) {
+    refuse('Review binding does not match the inspected snapshot and deployment revision.');
+  }
+
+  const filled = value => typeof value === 'string' && value.trim().length > 0;
+  const reviewedAt = filled(review.reviewedAt) ? Date.parse(review.reviewedAt) : NaN;
+  if (review.status !== 'reviewed' || review.acceptCurrentRbacAsAuthoritative !== true ||
+      ![review.reviewer, review.reviewReference, review.installedClientEvidence, review.legacyEndpointUsageEvidence].every(filled) ||
+      !Number.isFinite(reviewedAt) || reviewedAt > Date.now() || new Date(reviewedAt).toISOString() !== review.reviewedAt) {
+    refuse('Review is incomplete. Record reviewer, UTC date, RBAC decision and both client evidence references.');
+  }
+
+  const groups = ['accountDecisions', 'learnerProfileDecisions', 'integrityDecisions'];
+  for (const group of groups) {
+    const rows = review[group];
+    if (!Array.isArray(rows) || rows.length !== expected[group].length) {
+      refuse('Review finding rows do not match the inspected snapshot.');
+    }
+    if (!rows.every(row => filled(row?.decision) && filled(row.rationale))) {
+      refuse('Review is incomplete. Record a decision and rationale for every finding.');
+    }
+    const originalRows = rows.map(row => ({ ...row, decision: null, rationale: null }));
+    if (!isDeepStrictEqual(originalRows, expected[group])) {
+      refuse('Review finding rows do not match the inspected snapshot.');
+    }
+  }
+
+  return {
+    status: 'REVIEW_RECORD_VERIFIED',
+    reviewSha256: sha256(bytes),
+    snapshotSha256: expected.snapshotSha256,
+    deployedSha: expected.deployedSha,
+    findingCounts: Object.fromEntries(groups.map(group => [group, expected[group].length])),
+    migrationReady: false,
+  };
+}
+
 export function writePrivateDetails(filename, details) {
   // Exclusive creation rejects existing files/symlinks. Windows also requires a
   // private parent directory with operator-controlled ACLs; mode alone is not an ACL.
@@ -315,17 +390,18 @@ export function writePrivateDetails(filename, details) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   if (process.argv.length === 3 && process.argv[2] === '--help') {
-    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json] [--review-output /private/new-review.json --expected-snapshot-sha <64 lowercase hex characters>]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Private outputs contain identifiers. See docs/release/LMS-010-PRIVATE-REVIEW.md.');
+    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json] [--review-output /private/new-review.json --expected-snapshot-sha <64 lowercase hex characters>] [--verify-review /private/completed-review.json --expected-snapshot-sha <64 lowercase hex characters>]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Private outputs contain identifiers. See docs/release/LMS-010-PRIVATE-REVIEW.md.');
   } else {
     try {
       const options = parseArguments(process.argv.slice(2));
       const {summary,details} = inspectSnapshot(options);
       if (options.detailsOutput) writePrivateDetails(options.detailsOutput,details);
       if (options.reviewOutput) writePrivateDetails(options.reviewOutput,reviewWorksheet(summary,details));
-      console.log(JSON.stringify(summary,null,2));
+      const result = options.verifyReview ? verifyReview(options.verifyReview, reviewWorksheet(summary,details)) : summary;
+      console.log(JSON.stringify(result,null,2));
     } catch (error) {
       // Do not echo raw SQLite/path errors, which can include account data or SQL.
-      const known = /^(Snapshot |Unsupported snapshot |Explicit --snapshot|A database path|Missing or duplicate|Unknown inventory|Duplicate --snapshot|Review (output requires|snapshot SHA-256))/;
+      const known = /^(Snapshot |Unsupported snapshot |Explicit --snapshot|A database path|Missing or duplicate|Unknown inventory|Duplicate --snapshot|Review (output requires|snapshot SHA-256|verification requires|file |binding |is incomplete|finding rows))/;
       console.error('RBAC inventory refused: '+(known.test(error.message) ? error.message : 'Unable to inspect the snapshot or exclusively create the private report. Check the input schema, file existence and directory permissions.'));
       process.exitCode = 2;
     }
