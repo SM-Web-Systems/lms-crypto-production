@@ -1,4 +1,6 @@
 import { fundingSchemaTables } from './rewardFundingSchema.js';
+import { pushSchemaTables } from './pushSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -76,15 +78,15 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
   if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
 
   for (const table of baseline) {
-    // LMS-030 adds these empty tables without synthesizing historical evidence.
+    // Funding and push add empty tables without synthesizing historical evidence.
     // Only a wholly absent new table is allowed before the additive migration;
     // an existing partial/altered table must still satisfy its full contract.
-    if (!afterMigrations && fundingSchemaTables.includes(table.name)
+    if (!afterMigrations && additiveSchemaTables.includes(table.name)
       && !db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table.name)) continue;
-    if (fundingSchemaTables.includes(table.name)) {
+    if (additiveSchemaTables.includes(table.name)) {
       const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table.name) as {sql:string} | undefined;
       const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
-      if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed funding schema (${table.name})`);
+      if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${fundingSchemaTables.includes(table.name) ? 'funding' : 'push'} schema (${table.name})`);
     }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
     validateKeys(db, table.name, table.keys, afterMigrations);

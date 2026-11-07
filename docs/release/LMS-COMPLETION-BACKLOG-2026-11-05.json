@@ -320,7 +320,7 @@
         "evidence/lms-031-verifier-validation.json",
         "evidence/lms-031-integration-validation.json"
       ],
-      "reason": "Integrated Stellar candidate c74f352 passed all hosted jobs: 2,448 API passes, one existing skip; 721 web and 89 Chromium passes. Owner-selected public receiver is active. Actual purpose-bound payment/testnet acceptance and staging/RBAC gates remain open."
+      "reason": "Integrated Stellar and backed-credit follow-up 38a3d3a passed all hosted CI/mobile jobs, including 2,466 API passes with one existing skip. Owner-selected public receiver is active. Manual real-testnet runner is prepared but automatic approval review rejected the three external testnet payments until explicit approval; approval was granted and the reviewed runner has not yet executed. Purpose-bound payment, staging and RBAC gates remain open."
     },
     {
       "id": "LMS-032",
@@ -336,9 +336,10 @@
       ],
       "evidence": [
         "LMS-032-BACKED-PLATFORM-CREDIT.md",
-        "evidence/lms-032-validation.json"
+        "evidence/lms-032-validation.json",
+        "evidence/lms-032-hosted-validation.json"
       ],
-      "reason": "Verified-backed pool, independent allocation approval, audited reservations and atomic reward consumption implemented locally. Unit/HTTP/cross-browser and separate-process overspend/restart checks pass. Hosted integrated validation, actual treasury/staging acceptance and LMS-030 dependency remain open."
+      "reason": "Verified-backed pool, independent allocation approval, audited reservations and atomic reward consumption implemented. Hosted candidate d575fd8 passed all CI and mobile jobs: 2,465 API tests plus one existing skip, 722 web and 92 Chromium passes. Actual treasury/staging acceptance and LMS-030 dependency remain open."
     },
     {
       "id": "LMS-033",
@@ -438,7 +439,7 @@
       "title": "Complete push notifications",
       "priority": "P3",
       "ownerRole": "Mobile + API",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-012",
         "LMS-023"
@@ -446,7 +447,11 @@
       "acceptance": [
         "Permission/registration, user-installation token ownership, durable event outbox, delivery retries, foreground/background/deep links and logout/revocation behavior pass on physical Android/iOS"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-050-PUSH-NOTIFICATIONS.md",
+        "evidence/lms-050-server-validation.json"
+      ],
+      "reason": "Independent server preparation: authenticated installation generations, credential-only logout tombstones, atomic notification outbox, session-aware delivery, leases/retries/receipts and invalid-token cleanup implemented. Local HTTP/unit/schema, existing notification regressions and compiled multi-process/death/restart checks pass. Native integration, full hosted candidate, Expo/APNs/FCM configuration and physical Android/iOS acceptance remain open; LMS-012/LMS-023 closure dependencies remain outstanding."
     },
     {
       "id": "LMS-051",

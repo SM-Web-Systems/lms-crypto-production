@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import { openApplicationDatabase, loadCanonicalSchema, validateDatabase } from './databaseBootstrap.js';
 import { rewardFundingSchema } from './rewardFundingSchema.js';
 import { platformCreditSchema } from './platformCreditSchema.js';
+import { pushSchema } from './pushSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
@@ -1711,6 +1712,7 @@ function ensureRewardTables(): void {
 startupMigrations.push(ensureRewardTables);
 startupMigrations.push(() => db.exec(rewardFundingSchema));
 startupMigrations.push(() => db.exec(platformCreditSchema));
+startupMigrations.push(() => db.exec(pushSchema));
 
 // ──── Scheduler Tables ────
 function ensureSchedulerTables(): void {

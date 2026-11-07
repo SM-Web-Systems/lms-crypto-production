@@ -59,7 +59,7 @@
       "integrity": "PASS"
     },
     "serverAndWebBuilds": "passed",
-    "hostedCreditCandidate": "pending",
+    "hostedCreditCandidate": "passed_d575fd8_all_ci_and_mobile_jobs",
     "combinedRegressionAndHttpPassed": 79
   },
   "initialAttempts": {
@@ -88,5 +88,6 @@
     "stagingDeployment": "not_run",
     "serverConfigurationChanged": false,
     "agentSubmittedTransfers": 0
-  }
+  },
+  "hostedEvidence": "lms-032-hosted-validation.json"
 }

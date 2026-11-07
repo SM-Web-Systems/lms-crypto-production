@@ -165,6 +165,8 @@ Test upgrade from the actual supported previous build and document the minimum-b
 
 ### Push
 
+Server preparation and remaining native contract are recorded in [LMS-050](LMS-050-PUSH-NOTIFICATIONS.md). This does not close its RBAC/Wallet dependencies or physical-device acceptance.
+
 Add the SDK-compatible Expo notifications client with APNs/FCM configured for signed builds, plus a server delivery adapter and durable event outbox. Bind registration to user + installation, authenticate updates and remove/rebind tokens on logout/account switch. Reauthorize resource access when a notification is opened. Use minimal nonsensitive payloads, provider receipts, deduplication, backoff and invalid-token cleanup. Denied permission must not break the app.
 
 Acceptance includes foreground/background/terminated app, token rotation, multiple devices, account switching, revocation, duplicate delivery, provider outage and deep links on both physical platforms. Store success events and delivery evidence separately from business-operation acknowledgement.
@@ -242,7 +244,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-041 | Run physical Android acceptance | QA + Mobile | LMS-040 | Open |
 | LMS-042 | Run physical iOS acceptance | QA + Mobile | LMS-040 | Open |
 | LMS-043 | Approve installed-client compatibility and distribution | Mobile + QA + Platform | LMS-041, LMS-042 | Open |
-| LMS-050 | Complete push notifications | Mobile + API | LMS-012, LMS-023 | Open |
+| LMS-050 | Complete push notifications | Mobile + API | LMS-012, LMS-023 | In progress: server validated; native/device acceptance open |
 | LMS-051 | Complete durable offline learning and progress sync | Mobile + API | LMS-012, LMS-030 | Open |
 | LMS-060 | Run complete reconciled release-candidate validation | QA + Delivery lead | LMS-002, LMS-003, LMS-005, LMS-006, LMS-007, LMS-014, LMS-022, LMS-034, LMS-043, LMS-050, LMS-051 | Open |
 | LMS-061 | Rehearse exact images, migrations and recoverability | Platform owner | LMS-010, LMS-011 | Open |

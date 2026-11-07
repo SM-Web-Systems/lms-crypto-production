@@ -1,0 +1,66 @@
+{
+  "status": "server_validated_native_and_device_acceptance_open",
+  "sourceBase": "38a3d3a1e9361d97a3b8f0e1d07d289ce4566cc4",
+  "sourceFileSha256": {
+    ".github/workflows/ci.yml": "3642120019117c4afd6c7ca8726bb12acea15cc3e2d42070ec9f2784a0d803fa",
+    "LMS-Server/.env.example": "af3eef416b67a8486391860c5d0fcb1e06ff8f1c90ec5c422f2dcce831a034d0",
+    "LMS-Server/database/required-schema.json": "9806c868f9325a3d2285f3dbe8ca190cdc462f96df97ec7a5f314c16f6713f81",
+    "LMS-Server/database/schema.sql": "ced90ac986b4f7a6a283ebe8ea356032f142eb28c8768a432d90eaa7999495d5",
+    "LMS-Server/package.json": "9765fd77d935a5a8a7327fb326690b97af383245495440fa8812044406b43979",
+    "LMS-Server/scripts/test-push-runtime.mjs": "6381cab65b04343d0aca1195d60ecc13aaa1d98030b3218543b5d243d286287e",
+    "LMS-Server/src/__tests__/push-delivery.test.ts": "d926fb29dcd0b9fd93a9f47df7da9341b0ad24d9328809c8a04a833ba985c487",
+    "LMS-Server/src/__tests__/push-routes.test.ts": "7c43f39b9c84737173fa989c79033bce7a22732c1a1d1eb9e05ec85de75d9bbc",
+    "LMS-Server/src/app.ts": "c2fa7f0398ce3f9bc61b7a734dce23162dcb3444b3e07e45b9e747119d76ba8e",
+    "LMS-Server/src/config/database.ts": "5285565e208e39991c37c437c4dfa28d07809cd84cbb07f156b80a532751bdfc",
+    "LMS-Server/src/config/databaseBootstrap.ts": "39a2174ca2da0115c5c2872950b11085ca137870760c893cd0d7f9264a28ba20",
+    "LMS-Server/src/config/pushSchema.ts": "428c136c6b3699ced2a7738f8541e80c840c339cac216c32d0d4a8247b5e656b",
+    "LMS-Server/src/routes/push.ts": "495aa468f52b56578aad092c4853ace6e91d72b52b9ab7dffc4878bec72ef05e",
+    "LMS-Server/src/server.ts": "f7312a868bfaa11f3fbe0bfb915ab5675d65ba4f6edfe59941c4dece165b07f3",
+    "LMS-Server/src/services/pushDeliveryService.ts": "738861c23f70aec416931cb3adee9153ead6da8384fb3f656f2e582715083136",
+    "LMS-Server/src/services/pushInstallationService.ts": "89b6279acc35f3b061a75eb6eeb1c758b133856fc546d797a9bfe9e5429364d3"
+  },
+  "checks": {
+    "windowsLocal": {
+      "passed": 89,
+      "failed": 0,
+      "files": 31
+    },
+    "typescriptBuild": "passed",
+    "sourceFreeCompiledBootstrap": "passed",
+    "compiledPushRuntime": {
+      "syntheticOnly": true,
+      "networkForbidden": true,
+      "concurrentProcesses": 3,
+      "initialDeliveries": 3,
+      "receiptAfterRestart": "THREE_DELIVERED",
+      "actualKilledWorkerLeaseRecovery": "PASS",
+      "duplicateSyntheticSends": 0,
+      "oldAccountAndRevocation": "CANCELLED",
+      "newAccount": "ONE_NEW_DELIVERY",
+      "integrity": "PASS"
+    }
+  },
+  "initialAttempts": {
+    "sandboxLocalhostDenied": 10,
+    "fixtureValidationFailures": 3,
+    "fixtureCorrection": "Unit reset uses the canonical base, not every application startup migration. The unit case verifies pre-migration acceptance and post-migration trigger refusal; compiled initialization verifies the full post-migration schema. No production checks were relaxed."
+  },
+  "receiptSha256": {
+    "lms-050-server-initial.json": "0af2098d0f093ff1727f7a1e8589184c4956cf63b8a9396c3e1d232d237b44bf",
+    "lms-050-server-second.json": "795ac1bfa1b8de2613b1d5d9175ba5dfb3d66dc87303fae8fe5dd23f550b0f5a",
+    "lms-050-server-final.json": "6b8c12ab502a9fd92b3ceba3163d3f0795425e8a9867acab40e8b3d6e7a99aae",
+    "lms-050-server-acceptance.json": "c30bbe72c48fac6503fc5031f3250dd09f4fccada00cabe4e90694db40104850",
+    "lms-050-runtime-final.log": "2eda2bd2e3f2b220e855d8d5e7721ab3afd0bf3d1e8f2ba0d1c550263b042162",
+    "lms-050-compiled-bootstrap-final.log": "c5577584425c7d85c037583a45599e3248bf9f7c2fc405ee2bbadd5c6aae8ac2"
+  },
+  "acceptance": {
+    "hostedCandidate": "pending_publication",
+    "nativeIntegration": "not_done",
+    "providerCredentials": "not_configured",
+    "physicalAndroid": "not_run",
+    "physicalIos": "not_run",
+    "realPushesSent": 0,
+    "stagingDeployment": false,
+    "stagingConfigurationChanged": false
+  }
+}

@@ -854,6 +854,37 @@
       "amount_stroops",
       "reason",
       "created_at"
+    ],
+    "push_installations": [
+      "id",
+      "credential_hash",
+      "generation",
+      "user_id",
+      "session_hash",
+      "authorization_version",
+      "token_issued_at",
+      "expo_token",
+      "project_id",
+      "platform",
+      "enabled",
+      "lease_expires_at",
+      "updated_at"
+    ],
+    "push_outbox": [
+      "id",
+      "notification_id",
+      "installation_id",
+      "generation",
+      "state",
+      "attempts",
+      "receipt_attempts",
+      "next_attempt_at",
+      "expires_at",
+      "lease_until",
+      "claim_id",
+      "ticket_id",
+      "last_error",
+      "created_at"
     ]
   },
   "indexes": [
@@ -962,7 +993,9 @@
     "idx_user_roles_user",
     "idx_users_clerk_user_id",
     "idx_users_reset_token",
-    "idx_webhook_events_event_id"
+    "idx_webhook_events_event_id",
+    "idx_push_outbox_due",
+    "idx_push_installations_user"
   ],
   "keys": {
     "active_sessions": {
@@ -3048,6 +3081,59 @@
           "id",
           "NO ACTION",
           "RESTRICT"
+        ]
+      ]
+    },
+    "push_installations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "expo_token"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "push_outbox": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "notification_id",
+          "installation_id",
+          "generation"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "installation_id",
+          "push_installations",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "notification_id",
+          "notifications",
+          "id",
+          "NO ACTION",
+          "CASCADE"
         ]
       ]
     }
