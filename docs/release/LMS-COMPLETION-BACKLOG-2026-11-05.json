@@ -190,7 +190,7 @@
       "title": "Prove client retirement and schema-recovery readiness",
       "priority": "P1",
       "ownerRole": "Platform + Mobile + QA",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-012",
         "LMS-043"
@@ -198,7 +198,10 @@
       "acceptance": [
         "Old endpoint/build usage measured; minimum supported builds enforced; supported new builds distributed and verified; v1/v2-compatible recovery choices documented and rehearsed"
       ],
-      "evidence": []
+      "evidence": [
+        "SERVER-HANDOVER-RBAC-STEP-03-CLIENT-CONTRACTS-AND-UI.md"
+      ],
+      "reason": "A redacted legacy route label and tested offline usage counter are available. Actual retained-log coverage, installed-build inventory and enforcement, distribution and release recovery acceptance remain open."
     },
     {
       "id": "LMS-014",
