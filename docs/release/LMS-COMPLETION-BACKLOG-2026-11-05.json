@@ -293,9 +293,10 @@
         "Staging Wallet SSO/verified-email/recovery/CAPTCHA/2FA and email capture tested; course payment authorization, signed webhooks, duplicate/reorder, receipts and refunds verified in sandbox; live enablement has separate approved receipt"
       ],
       "evidence": [
-        "LMS-023-COURSE-CHECKOUT.md"
+        "LMS-023-COURSE-CHECKOUT.md",
+        "evidence/lms-023-staging-sso-entry.json"
       ],
-      "reason": "Local checkout and full refund requests reserve a currency-bound provider reference before submission and preserve ambiguous outcomes for reconciliation. Signed full settlement evidence finalizes refunds. Real Wallet and Paystack sandbox evidence remains open."
+      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. The staging SSO entry points target AmmaWallet.com, but the public callback referrer policy differs from the API policy. Exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
     },
     {
       "id": "LMS-030",

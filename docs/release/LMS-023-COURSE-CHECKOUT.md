@@ -14,6 +14,18 @@ In the approved merchant environment, reconcile by the stored merchant refund re
 
 ## Remaining sandbox acceptance
 
+An unauthenticated staging probe on 7 November observed LMS build `f5a64e8`, which predates the current candidate. Web and native SSO starts pointed to `https://ammawallet.com/sso/login` with the exact staging LMS callback. The API rejected a caller-supplied callback and returned to the LMS login page when the required callback parameters were missing. The public Wallet sign-in page responded, but its deployed build and test account were unverified. The LMS health response reported the Wallet network as public. [Staging probe receipt](evidence/lms-023-staging-sso-entry.json)
+
+The public LMS callback carried `Referrer-Policy: strict-origin-when-cross-origin` while that deployed API revision sets `no-referrer`. The public response identified Cloudflare. The origin of the header change is unverified. Before authenticated staging acceptance, the platform owner should check the staging proxy and edge response rules for the callback and confirm the public response preserves `Referrer-Policy: no-referrer` and `Cache-Control: no-store`. Use a parameter-free callback to recheck the headers before using real sign-in assertions. [Referrer Policy specification](https://www.w3.org/TR/referrer-policy/#referrer-policy)
+
+```bash
+curl --silent --show-error --dump-header - --output /dev/null \
+  https://lms.smwebsystems.com/api/v1/auth/amma-callback \
+  | grep -Ei '^(HTTP/|referrer-policy:|cache-control:)'
+```
+
+The candidate now also applies `Cache-Control: no-store` at web and native SSO entry, where the redirect carries an attempt-specific signed state.
+
 Use the approved staging course, authorized synthetic learner, and a confirmed Paystack test-mode merchant. Record the deployed LMS and Wallet revisions and the test-mode evidence. Verify paid checkout for the configured merchant currency, duplicate/concurrent initiation, mismatched and reordered signed webhooks, receipt ownership, and a sandbox refund. Record the provider outcome and local payment ledger for each reference without including payment credentials. Test Wallet SSO, verified-email recovery and the enabled challenge and second-factor flows using the approved capture mechanism. A separate decision governs any live enablement.
 
 Local regressions use mocked responses at the HTTP boundary and synthetic signatures. They cover the checkout race, replay, price currency, provider mismatch, late webhook settlement, release hold and additive schema startup. No real transaction or provider call was made.

@@ -537,6 +537,8 @@ export function ammaLogin(
   res: Response,
   next: NextFunction,
 ): void {
+  // The Location header carries a short-lived signed state for this attempt.
+  res.setHeader('Cache-Control', 'no-store');
   try {
     let mobile: MobileSsoContext | undefined;
     const nativeParameters = ['client','code_challenge','code_challenge_method','app_state','redirect_uri'];
