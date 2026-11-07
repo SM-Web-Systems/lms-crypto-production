@@ -147,7 +147,7 @@
         "evidence/lms-010-access-validation.json",
         "evidence/lms-010-staging-inventory.json"
       ],
-      "reason": "Read-only staging inventory obtained: 19 accounts; 3 learner-profile gaps and 1 students FK violation require private owner decisions. The requested read-only report command was supplied. Installed build/legacy endpoint evidence and recovery approval remain outstanding."
+      "reason": "Read-only staging inventory obtained: 19 accounts, 3 learner-profile gaps and 1 students FK violation. A tested private worksheet generator binds the review to that snapshot and prepopulates exceptions. Owner decisions, installed build/legacy endpoint evidence and recovery approval remain outstanding."
     },
     {
       "id": "LMS-011",

@@ -214,3 +214,57 @@ test('CLI validates arguments, does not load .env, refuses output overwrite and 
     assert.throws(()=>parseArguments(['--database','x','--database','y']),/Missing or duplicate/);
   });
 });
+
+test('CLI writes a pending private worksheet bound to the expected snapshot and covers all findings', () => {
+  fixture(({ db, file, directory, inspect }) => {
+    const userId = 'PRIVATE-REVIEW-USER';
+    user(db, userId, 'student', ['role_student', 'role_admin'], 1);
+    db.pragma('foreign_keys=OFF');
+    profile(db, 'PRIVATE-MISSING-PARENT');
+    db.prepare('UPDATE students SET rowid = ? WHERE user_id = ?').run(9007199254740993n, 'PRIVATE-MISSING-PARENT');
+    const { summary, details } = inspect();
+    const before = readFileSync(file);
+    const target = path.join(directory, 'review.json');
+    const invoke = extra => spawnSync(process.execPath, [
+      script, '--snapshot', '--database', file, '--deployed-sha', SHA, '--review-output', target, ...extra,
+    ], { encoding: 'utf8' });
+    const missing = invoke([]);
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /requires the previously recorded/);
+    const mismatch = invoke(['--expected-snapshot-sha', '0'.repeat(64)]);
+    assert.equal(mismatch.status, 2);
+    assert.match(mismatch.stderr, /does not match/);
+    assert.ok(!readdirSync(directory).includes('review.json'));
+
+    const expected = ['--expected-snapshot-sha', summary.snapshotSha256];
+    const generated = invoke(expected);
+    assert.equal(generated.status, 0, generated.stderr);
+    assert.ok(!generated.stdout.includes(userId));
+    assert.equal(JSON.parse(generated.stdout).gates.migrationReady, false);
+    const worksheetBytes = readFileSync(target);
+    const review = JSON.parse(worksheetBytes);
+    assert.equal(review.status, 'pending');
+    assert.equal(review.acceptCurrentRbacAsAuthoritative, false);
+    assert.equal(review.snapshotSha256, summary.snapshotSha256);
+    assert.equal(review.schemaFingerprintSha256, summary.schema.fingerprintSha256);
+    assert.equal(review.deployedSha, SHA);
+    const pending = { decision: null, rationale: null };
+    assert.deepEqual(review.accountDecisions, [{
+      userId, currentRoleIds: details.accounts[0].roleIds,
+      flags: details.accounts[0].flags, scopeObservations: [], ...pending,
+    }]);
+    assert.deepEqual(review.learnerProfileDecisions, [{ userId, flags: ['learner_profile_missing'], ...pending }]);
+    assert.equal(details.foreignKeyViolations[0].rowid, '9007199254740993');
+    assert.deepEqual(review.integrityDecisions, [
+      ...details.catalogIssues.map(reference => ({ kind: 'catalog_issue', reference, ...pending })),
+      { kind: 'foreign_key_violation', reference: details.foreignKeyViolations[0], ...pending },
+    ]);
+    for (const secret of ['PRIVATE-NAME', 'private.example.test', 'PRIVATE-PASSWORD-HASH']) {
+      assert.ok(!worksheetBytes.includes(secret));
+    }
+    if (process.platform !== 'win32') assert.equal(statSync(target).mode & 0o777, 0o600);
+    assert.equal(invoke(expected).status, 2);
+    assert.deepEqual(readFileSync(target), worksheetBytes);
+    assert.deepEqual(readFileSync(file), before);
+  });
+});

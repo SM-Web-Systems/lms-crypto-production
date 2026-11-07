@@ -159,7 +159,15 @@ function inventory(db, metadata) {
     const role = roleById.get(id);
     if (!role || role.name !== name || role.is_system !== 1) catalogIssues.push({roleId:id, issue:'missing_or_changed_canonical_role'});
   }
-  const foreignKeys = db.pragma('foreign_key_check');
+  const foreignKeys = db.prepare('PRAGMA foreign_key_check').safeIntegers().all().map(violation => {
+    // Keep the exact row locator for private review, including 64-bit row IDs.
+    let rowid = violation.rowid;
+    if (rowid !== null) {
+      const numericRowId = Number(rowid);
+      rowid = Number.isSafeInteger(numericRowId) ? numericRowId : String(rowid);
+    }
+    return { ...violation, rowid, fkid: Number(violation.fkid) };
+  });
   const foreignKeyCounts = {};
   for (const violation of foreignKeys) foreignKeyCounts[violation.table] = (foreignKeyCounts[violation.table] ?? 0) + 1;
   const orphanCourseCodes = db.prepare(`SELECT uc.user_id AS userId,uc.course_code AS courseCode FROM user_course_codes uc
@@ -199,7 +207,7 @@ function inventory(db, metadata) {
   }};
 }
 
-export function inspectSnapshot({ database, snapshot, deployedSha }) {
+export function inspectSnapshot({ database, snapshot, deployedSha, expectedSnapshotSha }) {
   if (snapshot !== true) refuse('Explicit --snapshot confirmation is required. Inspect a separate finalized snapshot, never the live database.');
   if (!database || !/^[a-f0-9]{40}$/i.test(deployedSha ?? '')) refuse('A database path and full 40-character --deployed-sha are required.');
   const requested = path.resolve(database);
@@ -213,6 +221,9 @@ export function inspectSnapshot({ database, snapshot, deployedSha }) {
   // rather than immutable=1 (which can silently ignore committed WAL content).
   if (original.header[18] !== 1 || original.header[19] !== 1) refuse('Snapshot is still in WAL mode. Finalize journal_mode=DELETE on the separate snapshot only, never on the live database.');
   const hash = original.sha256;
+  if (expectedSnapshotSha !== undefined && expectedSnapshotSha !== hash) {
+    refuse('Snapshot SHA-256 does not match the expected review snapshot.');
+  }
   const db = new Database(file, { readonly: true, fileMustExist: true });
   let result;
   try {
@@ -229,19 +240,67 @@ export function inspectSnapshot({ database, snapshot, deployedSha }) {
 
 export function parseArguments(args) {
   const options = {};
+  const valueFlags = {
+    '--database': 'database',
+    '--deployed-sha': 'deployedSha',
+    '--details-output': 'detailsOutput',
+    '--review-output': 'reviewOutput',
+    '--expected-snapshot-sha': 'expectedSnapshotSha',
+  };
   for (let i=0;i<args.length;i++) {
     const flag = args[i];
     if (flag === '--snapshot') {
       if (options.snapshot) refuse('Duplicate --snapshot argument.');
       options.snapshot = true;
-    } else if (['--database','--deployed-sha','--details-output'].includes(flag)) {
-      const key = {'--database':'database','--deployed-sha':'deployedSha','--details-output':'detailsOutput'}[flag];
+    } else if (Object.hasOwn(valueFlags, flag)) {
+      const key = valueFlags[flag];
       const value = args[++i];
       if (options[key] || !value || value.startsWith('--')) refuse('Missing or duplicate inventory argument.');
       options[key] = value;
     } else refuse('Unknown inventory argument. Use --help.');
   }
+  if (options.reviewOutput && !options.expectedSnapshotSha) {
+    refuse('Review output requires the previously recorded --expected-snapshot-sha.');
+  }
+  if (options.expectedSnapshotSha && !/^[a-f0-9]{64}$/.test(options.expectedSnapshotSha)) {
+    refuse('Review snapshot SHA-256 must contain 64 lowercase hexadecimal characters.');
+  }
   return options;
+}
+
+function reviewWorksheet(summary, details) {
+  const pending = { decision: null, rationale: null };
+  const integrity = [
+    ['catalog_issue', details.catalogIssues],
+    ['dangling_assignment', details.danglingAssignments],
+    ['foreign_key_violation', details.foreignKeyViolations],
+    ['orphan_course_code', details.orphanCourseCodes],
+  ];
+  return {
+    version: 1,
+    status: 'pending',
+    snapshotSha256: summary.snapshotSha256,
+    schemaFingerprintSha256: summary.schema.fingerprintSha256,
+    deployedSha: summary.deployedApplication.sha,
+    reviewReference: null,
+    reviewer: null,
+    reviewedAt: null,
+    acceptCurrentRbacAsAuthoritative: false,
+    accountDecisions: details.accounts.map(account => ({
+      userId: account.userId,
+      currentRoleIds: account.roleIds,
+      flags: account.flags,
+      scopeObservations: account.scopeObservations,
+      ...pending,
+    })),
+    learnerProfileDecisions: details.accounts.flatMap(account => {
+      const flags = account.flags.filter(flag => flag === 'learner_profile_missing' || flag === 'multiple_learner_profiles');
+      return flags.length ? [{ userId: account.userId, flags, ...pending }] : [];
+    }),
+    integrityDecisions: integrity.flatMap(([kind, rows]) => rows.map(row => ({ kind, reference: row, ...pending }))),
+    installedClientEvidence: null,
+    legacyEndpointUsageEvidence: null,
+  };
 }
 
 export function writePrivateDetails(filename, details) {
@@ -256,16 +315,17 @@ export function writePrivateDetails(filename, details) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   if (process.argv.length === 3 && process.argv[2] === '--help') {
-    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Details contain identifiers; use a private output directory. See docs/release/RBAC_ROLE_INVENTORY.md.');
+    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json] [--review-output /private/new-review.json --expected-snapshot-sha <64 lowercase hex characters>]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Private outputs contain identifiers. See docs/release/LMS-010-PRIVATE-REVIEW.md.');
   } else {
     try {
       const options = parseArguments(process.argv.slice(2));
       const {summary,details} = inspectSnapshot(options);
       if (options.detailsOutput) writePrivateDetails(options.detailsOutput,details);
+      if (options.reviewOutput) writePrivateDetails(options.reviewOutput,reviewWorksheet(summary,details));
       console.log(JSON.stringify(summary,null,2));
     } catch (error) {
       // Do not echo raw SQLite/path errors, which can include account data or SQL.
-      const known = /^(Snapshot |Unsupported snapshot |Explicit --snapshot|A database path|Missing or duplicate|Unknown inventory|Duplicate --snapshot)/;
+      const known = /^(Snapshot |Unsupported snapshot |Explicit --snapshot|A database path|Missing or duplicate|Unknown inventory|Duplicate --snapshot|Review (output requires|snapshot SHA-256))/;
       console.error('RBAC inventory refused: '+(known.test(error.message) ? error.message : 'Unable to inspect the snapshot or exclusively create the private report. Check the input schema, file existence and directory permissions.'));
       process.exitCode = 2;
     }

@@ -32,26 +32,17 @@ Keep the original report and the new file private. This local fix does not estab
 3. Resolve the `students` foreign-key exception through an explicitly reviewed data-repair decision. Identify the affected private row and intended parent/history. The current cutover tool refuses even planning while integrity exceptions remain; it performs no automatic repair or deletion.
 4. Record the installed/supported mobile build inventory and legacy endpoint usage evidence, including source, observation period and any minimum-build/upgrade decision. Source exports and JavaScript bundles do not establish installed-binary compatibility.
 
-An operator can create a private `review-decisions.json` next to the report using this worksheet structure, filling account/row references only in the private copy:
+From `LMS-Server` in a checkout with the updated tool, generate the private worksheet directly from the finalized snapshot:
 
-```json
-{
-  "version": 1,
-  "status": "pending",
-  "snapshotSha256": "19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79",
-  "deployedSha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
-  "reviewReference": null,
-  "reviewer": null,
-  "reviewedAt": null,
-  "acceptCurrentRbacAsAuthoritative": false,
-  "accountDecisions": [],
-  "learnerProfileDecisions": [],
-  "integrityDecisions": [],
-  "installedClientEvidence": null,
-  "legacyEndpointUsageEvidence": null
-}
+```bash
+npm run rbac:inventory -- --snapshot --database "$PRIVATE_FINALIZED_SNAPSHOT" \
+  --deployed-sha f5a64e8ac92aca6b33ae54bda70617d475893e3e \
+  --expected-snapshot-sha 19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79 \
+  --review-output "$PRIVATE_REVIEW_DIR/review-decisions.json"
 ```
 
-This is an operator worksheet, not an implemented automatic approval format. Completing it records decisions; any data correction, cutover, image replacement or recovery-policy change still requires its own concrete reviewed action. After approved corrections, capture and validate fresh binding evidence before rehearsal or execution. Preserve existing private evidence and financial history.
+The tool refuses a different snapshot or an existing destination. It creates the worksheet with owner-only permissions on POSIX. On Windows, use a directory restricted by an operator-controlled ACL. The worksheet binds the snapshot, schema fingerprint and supplied deployment revision. It starts pending with blank decisions for account, learner-profile and integrity findings and blank references for installed builds and endpoint usage. Fill in the reviewer, date, private review reference, decisions and rationales. Keep the worksheet in the private review directory. Terminal output contains aggregate findings only.
+
+Completing the worksheet records the review. Data corrections, cutover, image replacement and recovery-policy changes each require a separately reviewed action. After approved corrections, capture and validate fresh binding evidence before rehearsal or execution. Preserve existing private evidence and financial history.
 
 Recovery remains **UNVERIFIED** because the configured policy did not match the captured state. Inventory did not change that policy, publish a recovery pointer, modify grants/profiles/live database contents, update checkout, restart services or change SSH settings.
