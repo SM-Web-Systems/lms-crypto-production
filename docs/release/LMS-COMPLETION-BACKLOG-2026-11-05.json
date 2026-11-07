@@ -535,9 +535,10 @@
         "Private WAL-safe backup with off-host recoverability proven; exact candidate/recovery image + schema combinations, writer hold, restoration and reconciliation rehearsed on protected copies"
       ],
       "evidence": [
-        "LMS-061-RECOVERY-REHEARSAL.md"
+        "LMS-061-RECOVERY-REHEARSAL.md",
+        "evidence/lms-061-hosted-image-validation.json"
       ],
-      "reason": "The retrieved-backup verifier passed a synthetic WAL backup, relocation and tamper refusal rehearsal. Actual off-host retrieval, protected-copy runtime restore, exact candidate/recovery images and LMS-010/LMS-011 remain open."
+      "reason": "The retrieved-backup verifier passed synthetic WAL backup and tamper refusal checks. Both hosted API/web image and synthetic recovery jobs passed with recorded image IDs. Protected off-host retrieval, runtime restoration with release-selected images and LMS-010/LMS-011 remain open."
     },
     {
       "id": "LMS-062",
