@@ -17,7 +17,10 @@ function fixture() {
   const store: OfflineStore = {
     list: async () => [...rows.values()],
     get: async id => rows.get(id) ?? null,
-    save: async course => { rows.set(course.pack.course.id, course); },
+    save: async (course, reason) => {
+      rows.set(course.pack.course.id, course);
+      if (reason !== undefined) notice = reason;
+    },
     discard: async (id, reason) => { rows.delete(id); notice = reason; },
     notice: async () => notice,
     clock: async () => lastClock,
@@ -29,6 +32,7 @@ function fixture() {
     itemId: operation.itemId, completedAt: '2026-11-07 00:00:00', progressPct: 100, lastPositionS: null,
   }));
   const inspect = jest.fn(async (_token: string, _id: string, _lease: string) => pack);
+  const download = jest.fn(async () => pack);
   const clear = jest.fn(async () => { rows.clear(); scope = undefined; notice = null; lastClock = 0; });
   const deps = {
     open: async (requested: string, create: boolean, verified: boolean) => {
@@ -37,10 +41,14 @@ function fixture() {
       return scope === requested ? store : null;
     },
     clear, fingerprint: async (token: string) => 'digest:' + token, id: () => 'operation-' + ++sequence,
-    now: () => now, download: async () => pack, inspect, submit,
+    now: () => now, download, inspect, submit,
     rejection: (error: unknown) => error === 'revoked' ? 'Access withdrawn.' : null,
   };
-  return {create: () => new OfflineLearning(deps), write, submit, inspect, clear, setTime: (value: number) => { now = value; }};
+  return {
+    create: () => new OfflineLearning(deps), write, submit, inspect, download, clear,
+    savedCourse: () => rows.get('course'),
+    setTime: (value: number) => { now = value; },
+  };
 }
 
 it('restores a pending completion after process death and retries the exact operation after a lost acknowledgment', async () => {
@@ -151,5 +159,34 @@ it('preserves the queue and displays no completion when a local update cannot be
   f.write.mockRejectedValueOnce(new Error('Storage is full.'));
   await expect(reader.queue('course', 'text', {kind: 'complete'})).rejects.toThrow('Storage is full');
   expect((await reader.view()).courses[0]).toMatchObject({pending: [], pack: {progress: []}});
+  expect(f.submit).not.toHaveBeenCalled();
+});
+
+it('keeps the old queue on a failed replacement and clears it with a notice only after a successful save', async () => {
+  const f = fixture();
+  const reader = f.create();
+  await reader.setSession('learner-a', true);
+  await reader.download('course');
+  await reader.setSession('learner-a');
+  await reader.queue('course', 'text', {kind: 'complete'});
+  const saved = f.savedCourse();
+  expect(saved?.pending).toHaveLength(1);
+
+  f.inspect.mockRejectedValueOnce(new Error('Temporary network failure.'));
+  await reader.setSession('learner-a', true);
+  await expect(reader.sync()).rejects.toThrow('Temporary network failure');
+  const nextTime = serverTime + 64_000;
+  const nextPack = {...pack, leaseId: 'replacement', serverTime: nextTime, issuedAt: nextTime, expiresAt: nextTime + 60_000};
+  f.setTime(nextTime);
+  f.download.mockResolvedValue(nextPack);
+  f.write.mockRejectedValueOnce(new Error('Storage is full.'));
+  await expect(reader.download('course')).rejects.toThrow('Storage is full');
+  expect(f.savedCourse()).toEqual(saved);
+
+  await reader.download('course');
+  expect(await reader.view()).toEqual({
+    courses: [{pack: nextPack, deadline: nextTime + 60_000, pending: []}],
+    notice: expect.stringContaining('Pending updates for this lease were discarded'),
+  });
   expect(f.submit).not.toHaveBeenCalled();
 });

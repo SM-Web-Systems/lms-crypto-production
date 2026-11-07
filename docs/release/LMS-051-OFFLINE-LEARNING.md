@@ -30,6 +30,8 @@ The course screen offers to save approved text lessons. If the app launches with
 
 Progress and completion stay pending until the server acknowledges them. Each local operation includes its lease, content version and stable operation ID. Automatic sync follows a successful session refresh, and the reader also offers manual sync. A lost response leaves the operation queued for replay. Current server denial removes stale content and pending work and records a message in the vault. Storage errors leave the prior progress and queue intact.
 
+Replacing an expired package that has pending work commits the replacement and the discard notice in one SQLite transaction. A failed write leaves the prior record intact and the expiry check still prevents opening it. The regression test injects a storage-full error before retrying the replacement.
+
 ## Remaining device acceptance
 
 Check both signed Android and iOS builds in airplane mode. Exercise cold restore, expiry, enrollment and session revocation, course replacement, lost acknowledgements, low storage and shared-device sign-out. During disconnection a device can enforce the lease it holds. The server applies current revocation when the device reconnects.

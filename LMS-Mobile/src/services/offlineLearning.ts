@@ -38,7 +38,7 @@ export interface SavedCourse {
 export interface OfflineStore {
   list(): Promise<SavedCourse[]>;
   get(courseId: string): Promise<SavedCourse | null>;
-  save(course: SavedCourse): Promise<void>;
+  save(course: SavedCourse, notice?: string): Promise<void>;
   discard(courseId: string, notice: string): Promise<void>;
   notice(): Promise<string | null>;
   clock(): Promise<number>;
@@ -184,9 +184,7 @@ export class OfflineLearning {
       }
       if (!prior && (await store.list()).length >= 8) throw new Error('Remove a saved course before adding another.');
       this.current(session);
-      if (prior?.pending.length) await store.discard(courseId, expired);
-      this.current(session);
-      await store.save({pack, deadline, pending: []});
+      await store.save({pack, deadline, pending: []}, prior?.pending.length ? expired : undefined);
       this.current(session);
     });
     this.publish();

@@ -496,7 +496,7 @@
         "evidence/lms-051-server-validation.json",
         "evidence/lms-051-native-validation.json"
       ],
-      "reason": "Server lease and replay-safe progress API and native SQLCipher cache, offline reader and durable queue are implemented. Local mobile, HTTP, config and platform export checks passed. Owner-approved course and lease policy, signed Android/iOS device acceptance, and LMS-012/LMS-030 remain open."
+      "reason": "Server lease and replay-safe progress API, native SQLCipher cache and durable queue are implemented. Local checks include retrying a failed expired-package replacement without losing its prior queue during the failed write. Owner-approved course and lease policy, signed Android/iOS device acceptance, and LMS-012/LMS-030 remain open."
     },
     {
       "id": "LMS-060",
