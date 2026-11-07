@@ -4,6 +4,7 @@ import api, { setTokenGetter, onUnauthorized } from '../lib/api';
 import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { authService } from '../services/authService';
 import { ammaWalletService } from '../services/ammaWalletService';
+import { setPushSession } from '../services/pushNotifications';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/token';
 import { currentSessionUser } from '../../../LMS-Frontend/src/utils/rolePresentation';
 import type { User } from '../types/api';
@@ -42,9 +43,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const started = generation.current;
     if (await getStoredToken().catch(() => null) !== token || started !== generation.current || !mounted.current) return;
     generation.current++; request.current++;
+    const pushCleanup = setPushSession(null);
     setUser(null); setSessionError(null); setIsLoading(false);
     setNotice('Your session expired or was revoked. Please sign in again.');
     await clearStoredToken().catch(() => setWarning('This device could not remove the saved session. Please retry signing out.'));
+    if (!await pushCleanup && generation.current === started + 1 && mounted.current) {
+      setWarning(current => current ?? 'This device could not save notification cleanup. Reopen the app when connected to retry.');
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -56,9 +61,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       token = await getStoredToken();
       if (!current()) return;
-      if (!token) { setUser(null); setSessionError(null); return; }
+      if (!token) { void setPushSession(null); setUser(null); setSessionError(null); return; }
       const me = await authService.getMe();
-      if (current()) { setUser(currentSessionUser(me)); setSessionError(null); }
+      if (current()) {
+        void setPushSession(me.deletionStatus === 'pending_deletion' ? null : me.id, token);
+        setUser(currentSessionUser(me)); setSessionError(null);
+      }
     } catch (error) {
       if (!current()) return;
       if (token && error instanceof ApiRequestError && error.status === 401) await expire(token);
@@ -79,8 +87,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const started = ++generation.current; request.current++;
     const result = await work();
     if (!mounted.current || generation.current !== started) throw new Error('Sign-in was cancelled. Please try again.');
+    void setPushSession(null);
     const persisted = await setStoredToken(result.token);
     if (!mounted.current || generation.current !== started) throw new Error('Sign-in was cancelled. Please try again.');
+    void setPushSession(result.user.deletionStatus === 'pending_deletion' ? null : result.user.id, result.token);
     setUser(currentSessionUser(result.user)); setSessionError(null); setNotice(null); setIsLoading(false);
     setWarning(persisted ? null : 'You are signed in, but this device could not save the session. You may need to sign in again after closing the app.');
     return currentSessionUser(result.user);
@@ -103,6 +113,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = useCallback(async () => {
     walletRequest.current++; walletPending.current = false; setWalletPending(false); ammaWalletService.cancelSignIn();
     const started = ++generation.current; request.current++;
+    const pushCleanup = setPushSession(null);
     const token = await getStoredToken().catch(() => null);
     // A delayed storage lookup can return a newer login's token. Superseded
     // logout work must neither clear local state nor revoke that newer token.
@@ -114,6 +125,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (token) {
       try { await api.post('/auth/logout', undefined, {headers:{Authorization: `Bearer ${token}`},timeout:5000}); }
       catch { /* Local sign-out still succeeds while offline. */ }
+    }
+    if (!await pushCleanup && mounted.current && generation.current === started) {
+      setWarning(current => current ?? 'This device could not save notification cleanup. Reopen the app when connected to retry.');
     }
   }, []);
   const renderedGeneration = generation.current;

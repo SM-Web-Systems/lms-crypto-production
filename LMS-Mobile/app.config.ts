@@ -38,6 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: false,
     permissions: ['INTERNET'],
     blockedPermissions: ['android.permission.RECORD_AUDIO'],
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile,
   },
   web: {
     output: 'static',
@@ -55,6 +56,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
+    ['expo-notifications', { defaultChannel: 'lms-updates' }],
     'expo-video',
     ['expo-audio', { microphonePermission: false, recordAudioAndroid: false }],
     [
@@ -85,6 +87,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   extra: {
+    androidPushConfigured: !!(process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile),
     eas: {
       projectId: process.env.EAS_PROJECT_ID,
     },

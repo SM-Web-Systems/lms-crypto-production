@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, isAxiosError } from 'axios';
 import { fromAxiosError } from '../utils/apiError';
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001/api/v1';
 
 const api: AxiosInstance = axios.create({
@@ -43,10 +43,10 @@ api.interceptors.request.use(async (config) => {
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     delete config.headers['Content-Type'];
   }
-  if (tokenGetter) {
+  if (tokenGetter && !config.headers.has('Authorization')) {
     try {
       const token = await tokenGetter();
-      if (token && !config.headers.Authorization) {
+      if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch {

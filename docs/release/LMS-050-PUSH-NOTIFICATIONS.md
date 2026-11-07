@@ -1,6 +1,6 @@
 # LMS-050 — Push notifications
 
-Status: **in progress**. The server installation lifecycle, durable outbox and Expo transport are implemented and tested. Native permission/registration UI, secure installation persistence, foreground/background response handling, native configuration and physical Android/iOS acceptance remain outstanding. LMS-012 and LMS-023 closure dependencies are still open. This server preparation is independent work while their external acceptance prerequisites are pending.
+**In progress.** The server delivery pipeline and native installation lifecycle are implemented. Signed builds, provider setup, physical Android and iOS acceptance, and closure of LMS-012 and LMS-023 remain open.
 
 ## Server behavior
 
@@ -31,19 +31,24 @@ All paths are under `/api/v1`:
 
 The existing list, preferences and mark-read paths remain compatible. A caller-supplied user ID cannot change installation ownership.
 
-Remaining native work must:
+## Native behavior
 
-1. Read SDK-version-compatible Expo APIs and add native notification configuration without an incidental SDK upgrade. Keep the existing SDK 54 application aligned with its installed React Native version.
-2. Store installation credentials, monotonic generation and pending cleanup durably in SecureStore; serialize updates and never send a registration whose captured session has been superseded. A failed local persistence write must not send a state the device cannot later revoke.
-3. Request OS permission only from an explicit enable action, create the Android channel before token acquisition, verify the matching Expo project, handle denied permission/token rotation, and renew an enabled binding on foreground while its session remains valid.
-4. Advance the generation and invalidate in-flight work immediately at logout, account switch or session expiry. Persist offline cleanup and retry it before newer registration. Stale cleanup must not disable a newer account.
-5. Validate response IDs and match the current installation/generation before navigating. Fetch details with the captured current JWT, recheck identity after awaits and authorize destination resources separately. Handle cold start, foreground and background taps; deduplicate repeated responses and clear stale OS responses on logout.
-6. Provide enable/disable/retry feedback and an authorized notification destination. Exercise process death, storage failure, offline logout, account switch, permission changes and token rotation in native tests and then on actual devices.
+Account and security includes push controls on a supported Android or iOS build linked to an Expo project. Setup checks the server project before asking permission and creates the Android channel before acquiring the token. The app only asks permission after the user selects Turn on push notifications. It checks permission again on foreground and uses token rotation events to refresh the binding. The SDK 54 dependency is pinned to expo-notifications 0.32.17. [Expo SDK 54 notifications source](https://github.com/expo/expo/tree/sdk-54/packages/expo-notifications)
+
+SecureStore keeps the installation credential, generation, session and token fingerprints, pending cleanup, and the 12 most recent opened notification IDs. The storage key is scoped to the LMS API base URL. Registration starts after the local record is saved. Logout, account switch and session expiry invalidate in-flight work and queue a credential-only disable. The app retries offline cleanup before another account can register. A new session on a shared device needs its own opt-in. Foreground checks refresh valid bindings and retry cleanup. An active app also retries pending cleanup once a minute.
+
+The native bridge checks the notification ID and current installation generation before showing a foreground alert or opening a tap. A cold tap waits for session restoration and router readiness. Duplicate taps are suppressed using the saved IDs. Notification details are fetched with the captured JWT and discarded if the session changed. The details page can open the native course or submissions screen only when the current workspace permits it. Each destination continues to use the authenticated LMS APIs.
+
+## Build and device acceptance
+
+Use an EAS project ID matching the server. Set the Android build file variable `GOOGLE_SERVICES_JSON` to the matching Firebase configuration and provision FCM v1 credentials in the Expo project. Provision APNs for the signed iOS app. Confirm the application IDs, notification entitlement, Android channel `lms-updates`, and staging API in the final signed builds. Configure the server's Expo push access token only in the server environment and enable delivery for the approved staging test. [Expo push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/)
+
+On a physical Android phone and a physical iPhone, record build identity and device OS. Test permission allow, deny and settings recovery, then send an ordinary LMS notification and match the provider receipt to its arrival. Test foreground presentation, background and terminated taps, duplicate taps, token rotation and delivery on two devices. Exercise online and offline logout, restart, account switch, revoked sessions and an unauthorized notification ID. Confirm settings persist and stale responses cannot open account data. Record provider retry and unavailable-device behavior separately from device observations.
 
 ## Evidence and acceptance
 
-See [server validation](evidence/lms-050-server-validation.json). Local unit/HTTP/schema checks and existing notification/writer-hold regressions passed. The compiled runtime harness uses real SQLite and three competing processes; a deliberately terminated worker's lease survives and is recovered by a fresh process. Receipt processing, restart, account switching and revocation are verified with synthetic transport. All real network calls are forbidden in that harness.
+Local server checks covered unit, HTTP, schema, existing notification and writer-hold behavior. The compiled runtime harness uses SQLite and three competing processes. A replacement process recovered a claim after the original worker was terminated. The harness also exercised receipt processing, account switches and revocation with synthetic transport. [Server validation](evidence/lms-050-server-validation.json)
 
-Source-free compiled initialization/restart passed. The full hosted candidate still requires its own CI result after publication. No real push was sent, no Expo project or APNs/FCM credential was provisioned, no signed native build was produced and no staging service or database was changed. Foreground/background behavior, OS permission and notification-center behavior, physical receipt and authorized navigation must be accepted on physical Android/iOS before closure.
+Hosted candidate `98e10e0` passed all eight CI jobs and mobile acceptance. The jobs logged 2,502 API passes with one existing protected-copy skip, 722 web passes, 92 Chromium cases and 163 mobile passes. This candidate includes the server and predates the native integration. [Hosted CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42332439281) · [Hosted mobile](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42332439279)
 
-Transport design follows the official [Expo push delivery documentation](https://docs.expo.dev/push-notifications/sending-notifications/). The repository-required [SDK 56 reference](https://docs.expo.dev/versions/v56.0.0/) was read; it does not authorize upgrading this SDK 54 app. The attempted version-54 notifications URL currently redirects to latest, so native implementation must check the installed SDK-compatible package's API rather than copy current-latest examples blindly.
+The native receipt records the final local suite, platform bundle exports, config inspection and dependency audit. Native tests use synthetic provider responses, and signed device delivery remains open. The audit counts an additional path through expo-notifications to the existing low-severity deepmerge advisory. [Native validation](evidence/lms-050-native-validation.json)

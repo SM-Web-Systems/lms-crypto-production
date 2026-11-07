@@ -1,0 +1,93 @@
+{
+  "status": "native_and_server_implemented_physical_acceptance_open",
+  "sourceBase": "98e10e0df81df3422ccd389bfbecf7290ae4bfdd",
+  "sourceFileSha256": {
+    "LMS-Mobile/app.config.ts": "1407b1793658fb2755a6c70583ff95cfe8df285272787319c9be1266d1e5c6a0",
+    "LMS-Mobile/package-lock.json": "a73b9b31bc99c41c6de75487279e7e02819a96ee59707c257be053e0749786e9",
+    "LMS-Mobile/package.json": "8f4469b08d867e9d469f20b66f8b91fe88f70683f712e7753754e5325aa48a50",
+    "LMS-Mobile/src/__tests__/screens/push-navigation.test.tsx": "13b9731ab756465abc56221145eccc490b8f0efdbe92af54cdb372bc3a65acb3",
+    "LMS-Mobile/src/__tests__/services/push-lifecycle.test.ts": "61c641fd9b352ff1567b97afe464d3a77b635636238d87b3bdf12346b6a727f2",
+    "LMS-Mobile/src/__tests__/services/session-api.test.ts": "51ca051cbf607f52804cab08ab7dc70dd81b16fc5468f21096f91ed877923f15",
+    "LMS-Mobile/src/app/_layout.tsx": "a635f52c77cc9642cff2ec6cf04a688dda629785e569228724c001399f81651f",
+    "LMS-Mobile/src/app/account.tsx": "0d63820a1ef0efe548fecfe53e489223eae7b9af6daf7433637267caf28c3988",
+    "LMS-Mobile/src/app/notification.tsx": "5aba434f828fb810c6f734d553c34073a6d27d709c8d1b5f28c0e1d343722a3e",
+    "LMS-Mobile/src/components/PushNotifications.tsx": "f4e039258c919fe8622de64ba166928d5465345871823bc6ffe85a49f4bdc6ec",
+    "LMS-Mobile/src/context/AuthContext.tsx": "8cc84cb3c2ce5410b009759335c550cec233e3388cbcfe92d5182022bf31ceaf",
+    "LMS-Mobile/src/lib/api.ts": "89c1226144143c7b2167aa1b86742d33683da26abdcfb133f94738fa64ee0511",
+    "LMS-Mobile/src/services/pushLifecycle.ts": "48a7f3a2cef7e68528bebd00af31ef035d5eed05d48657d472c875ec0081ddba",
+    "LMS-Mobile/src/services/pushNotifications.ts": "0a1d49e35e49b8c433b057869705b22a80007f4e1162cfba03c85287db842707"
+  },
+  "local": {
+    "expoSdk": "54",
+    "expoNotifications": "0.32.17",
+    "windowsJest": {
+      "suitesPassed": 21,
+      "passed": 173,
+      "failed": 0
+    },
+    "deviceEvidenceCheckerCasesPassed": 3,
+    "typescript": "passed",
+    "dependencyCompatibilityCasesPassed": 7,
+    "offlineHermesExports": {
+      "android": {
+        "status": "passed",
+        "bytecodeSha256": "1e36c20f1b01df4cfe2ada7daa5d8808f424eba01b9fdcc66c147b15e90825ef",
+        "bytes": 5074792
+      },
+      "ios": {
+        "status": "passed",
+        "bytecodeSha256": "53e8544b5e84c471aaece047380aa9b1a6069ef8a02aeeb5c10432afb7ed3415",
+        "bytes": 5073727
+      }
+    },
+    "configIntrospection": {
+      "androidDefaultChannel": "lms-updates",
+      "iosEntitlement": "development",
+      "syntheticExpoProject": true,
+      "androidGoogleServicesFileConfigured": false
+    },
+    "npmAudit": {
+      "info": 0,
+      "low": 24,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 24
+    },
+    "rootAdvisory": "GHSA-gcqx-w48m-w2h4. The added expo-notifications dependency inherits this existing low advisory through expo-constants."
+  },
+  "firstAttempt": {
+    "passed": 171,
+    "failed": 2,
+    "finding": "The new bridge tests could not reach the notification module through the dynamic import in Jest. A lazy native loader replaced that import, and the same tests passed."
+  },
+  "priorHostedServerCandidate": {
+    "commit": "98e10e0df81df3422ccd389bfbecf7290ae4bfdd",
+    "ciRun": 42332439281,
+    "mobileRun": 42332439279,
+    "jobsPassed": 9,
+    "apiPassed": 2502,
+    "apiSkipped": 1,
+    "webPassed": 722,
+    "chromiumPassed": 92,
+    "mobilePassed": 163,
+    "pushRuntime": "passed"
+  },
+  "receiptSha256": {
+    "lms-050-native-acceptance.log": "d7351920e31eb1ae56305d9542058e22986b63403623bf8db7c6a801fbb07121",
+    "lms-050-native-acceptance-final.log": "ca4a6fb098a7ad6ef12dd0d081355c4248128e05b0870df00f2b39628edf5dbe",
+    "lms-050-android-final.log": "dc49cbb6af477442a360f2f154ae182bf5158de7a289772896c390637c919433",
+    "lms-050-ios-final.log": "10123a435b1c400f424f7629a83816d07d296ef192ec8db11b5860d2c5c7857c",
+    "lms-050-native-audit.json": "cc2de2b011a2bdb2ed86acacebfc6922cfee27a2ed4ad4fbc7bd3e8bc0d79439",
+    "lms-050-native-config.json": "b2092db39f7550d6723cb980002c0e17e9c0d871247b5fbb765252e0d8f0cf92"
+  },
+  "acceptance": {
+    "nativeCandidateHosted": "pending_publication",
+    "expoProjectAndCredentials": "pending_staging_setup",
+    "signedNativeBuilds": "pending",
+    "physicalAndroid": "pending",
+    "physicalIos": "pending",
+    "realPushReceipt": "pending",
+    "stagingDeployment": false
+  }
+}
