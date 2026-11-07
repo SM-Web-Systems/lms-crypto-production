@@ -37,6 +37,8 @@ describe('platform credit administrative API',()=>{
     const f=fixture();
     expect((await request(app).get(base)).status).toBe(401);
     expect((await request(app).get(base).set('Authorization',f.token(f.owner))).status).toBe(403);
+    expect((await request(app).get(`${base}/reconciliation/testnet`)).status).toBe(401);
+    expect((await request(app).get(`${base}/reconciliation/testnet`).set('Authorization',f.token(f.owner))).status).toBe(403);
     expect((await request(app).post(`${base}/deposit-intents`).set('Authorization',f.token(f.owner)).send({amountStroops:'1000',reason:'Not authorized',idempotencyKey:'no'})).status).toBe(403);
     expect(db.prepare('SELECT COUNT(*) n FROM platform_backing_intents').get()).toEqual({n:0});
   });
@@ -67,6 +69,33 @@ describe('platform credit administrative API',()=>{
     expect(summary.body.data.backingIntents[0].effective_status).toBe('verified');
     expect(summary.body.data.reservations[0].effective_status).toBe('consumed');
     expect(summary.body.data.audit).toHaveLength(6);
+    expect(db.prepare('SELECT COUNT(*) n FROM reward_transactions').get()).toEqual({n:2});
+
+    const reconcile = (network: string) => request(app).get(`${base}/reconciliation/${network}`).set('Authorization',f.token(f.b));
+    expect((await reconcile('unknown')).status).toBe(400);
+    const report = await reconcile('testnet');
+    expect(report.status).toBe(200);
+    expect(report.headers['cache-control']).toBe('no-store');
+    expect(report.body.data).toMatchObject({
+      network:'testnet', depositedStroops:1000, allocatedStroops:600, reservedStroops:0,
+      availableStroops:400, heldGrantStroops:'0', consumedGrantStroops:'200',
+      unreservedGrantStroops:'400', internalLedgerBalanced:true,
+    });
+    for (const value of [f.owner, f.a, f.b, f.token(f.b), approved.body.data.id, intent.body.data.id]) {
+      expect(report.text).not.toContain(value);
+    }
+    expect((await reconcile('public')).body.data).toMatchObject({
+      depositedStroops:0, consumedGrantStroops:'0', internalLedgerBalanced:true,
+    });
+
+    // Model pre-existing bad evidence in this disposable database only.
+    db.exec('DROP TRIGGER reward_funding_evidence_no_update');
+    db.prepare("UPDATE reward_funding_evidence SET reference='misbound' WHERE intent_id=?").run(intent.body.data.id);
+    const anomaly = await reconcile('testnet');
+    expect(anomaly.body.data).toMatchObject({
+      internalLedgerBalanced:false, exceptionCounts:{consumptionBinding:1},
+    });
+    expect(anomaly.text).not.toContain('misbound');
     expect(db.prepare('SELECT COUNT(*) n FROM reward_transactions').get()).toEqual({n:2});
   });
 });
