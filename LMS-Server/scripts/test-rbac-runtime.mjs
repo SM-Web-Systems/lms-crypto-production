@@ -1,7 +1,7 @@
 // Real process rehearsal, synthetic disposable databases only; never accepts a DB path.
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
-import { mkdtempSync,readFileSync,copyFileSync,rmSync } from 'node:fs';
+import { constants,existsSync,lstatSync,mkdtempSync,readFileSync,copyFileSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath,pathToFileURL } from 'node:url';
@@ -84,6 +84,22 @@ try {
     assert.equal(db.pragma('foreign_key_check').length,0);
     assert.equal(db.pragma('quick_check',{simple:true}),'ok');
   } finally {db.close();}
+  const output = process.env.RBAC_REHEARSAL_EXPORT_DIR;
+  if (output) {
+    assert.ok(path.isAbsolute(output) && lstatSync(output).isDirectory(), 'export needs an existing absolute directory');
+    // This fixture is disposable and all writer processes have exited.
+    // Finalize the last v2 startup's WAL before exporting a standalone copy.
+    const fixture = new Database(file, {fileMustExist:true});
+    try {
+      assert.equal(fixture.pragma('journal_mode=DELETE', {simple:true}), 'delete');
+    } finally { fixture.close(); }
+    for (const [source, name] of [[backup, 'v1-backup.db'], [file, 'v2-contracted.db']]) {
+      for (const suffix of ['-wal', '-shm', '-journal']) {
+        assert.ok(!existsSync(source + suffix), 'synthetic fixture must be closed without sidecars');
+      }
+      copyFileSync(source, path.join(output, name), constants.COPYFILE_EXCL);
+    }
+  }
   console.log(JSON.stringify({syntheticOnly:true,freshInitialization:'ROLE_FREE',v1Startup:'REFUSED_WITHOUT_WRITES',
     contraction:'EXACT_RETAINED_DATA_AND_GRANTS',repeatedRestart:'NO_GRANT_RESURRECTION',previousBackend},null,2));
 } finally {
