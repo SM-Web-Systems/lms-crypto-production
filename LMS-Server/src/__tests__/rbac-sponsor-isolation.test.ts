@@ -44,12 +44,17 @@ function seedSponsorIsolation() {
   // permissions. This avoids the trg_auto_assign_user_role trigger granting
   // role_admin (which includes reward.manage admin bypass).
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',    'WI04 Admin',     'wi04-admin-${adminId}@test.com',       'hash', 'admin'),
-      ('${sponsorAId}', 'WI04 Sponsor A', 'wi04-spa-${sponsorAId}@test.com',     'hash', 'student'),
-      ('${sponsorBId}', 'WI04 Sponsor B', 'wi04-spb-${sponsorBId}@test.com',     'hash', 'student'),
-      ('${studentId}',  'WI04 Student',   'wi04-student-${studentId}@test.com',   'hash', 'student');
+      ('${adminId}','WI04 Admin','wi04-admin-${adminId}@test.com','hash'),
+      ('${sponsorAId}','WI04 Sponsor A','wi04-spa-${sponsorAId}@test.com','hash'),
+      ('${sponsorBId}','WI04 Sponsor B','wi04-spb-${sponsorBId}@test.com','hash'),
+      ('${studentId}','WI04 Student','wi04-student-${studentId}@test.com','hash');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${sponsorAId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${sponsorBId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
   `);
 
   // --- RBAC role assignments ---

@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * enhanced-provider.test.ts — EnhancedStellarProvider lifecycle tests
  *
@@ -55,8 +56,7 @@ function seedUserAndCredential(overrides?: {
   const credId = uuidv4();
   const appId = uuidv4();
 
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'EP User', 'hash', 'student')`)
-    .run(userId, `ep-${userId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'EP User','hash')`, [userId,`ep-${userId}@test.com`], ["role_student"]);
   db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP Course', 'Test', ?)`)
     .run(courseId, `EPC-${courseId.slice(0, 8)}`);
   db.prepare(
@@ -989,8 +989,7 @@ describe('EnhancedStellarProvider', () => {
       const credId = uuidv4();
       const appId = uuidv4();
 
-      db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'EP User', 'hash', 'student')`)
-        .run(userId, `ep-d8-${userId.slice(0, 8)}@test.com`);
+      seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'EP User','hash')`, [userId,`ep-d8-${userId.slice(0, 8)}@test.com`], ["role_student"]);
       db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP D8 Course', 'Test', ?)`)
         .run(courseId, `D8-${courseId.slice(0, 8)}`);
 
@@ -1068,8 +1067,7 @@ describe('EnhancedStellarProvider', () => {
       const courseId = uuidv4();
       const appId = uuidv4();
 
-      db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'EP User', 'hash', 'student')`)
-        .run(userId, `ep-r2-${userId.slice(0, 8)}@test.com`);
+      seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'EP User','hash')`, [userId,`ep-r2-${userId.slice(0, 8)}@test.com`], ["role_student"]);
       db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'EP R2 Course', 'Test', ?)`)
         .run(courseId, `R2-${courseId.slice(0, 8)}`);
 

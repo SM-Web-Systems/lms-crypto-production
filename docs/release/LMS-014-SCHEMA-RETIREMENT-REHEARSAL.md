@@ -1,6 +1,6 @@
 # LMS-014 schema retirement rehearsal
 
-Status **in progress**. The current v1 candidate can rehearse contraction and restore on disposable databases. Its runtime, image label and deployment contract still require v1.
+Status **in progress**. The v1 candidate rehearsed contraction and restore on disposable databases. Its runtime, image label and deployment contract require v1. A separate v2 candidate reconciles the role-free application and image preflight.
 
 The original [PR #101](https://github.com/SM-Web-Systems/lms-crypto-production/pull/101) predates the latest funding, push and offline-learning changes. The three-way probe against `4010371` reported 11 conflicts in CI, server scripts, search and client/reward tests. Reconcile the role-free application and recovery policy on a separate release candidate after the supported-client and recovery reviews.
 
@@ -8,4 +8,14 @@ The offline engine checks the finalized source, the reviewed SHA-256 and the ind
 
 On the current compiled backend, a disposable contraction preserved 558 rows across 85 tables, including sample funding, push and offline-learning records. The compiled v1 process refused the contracted copy and left its bytes intact. A separate restoration from the untouched backup started under v1 and preserved the revoked grant. The [validation receipt](evidence/lms-014-synthetic-retirement-validation.json) records these checks. Run `npm run test:rbac-inventory` and `npm run build && npm run test:rbac-runtime` from the server directory.
 
-The engine is exercised through tests. The v1 candidate has no v2 operator entry point. Release acceptance requires the reconciled v2 application and exact image, installed-client retirement, an accepted recovery policy, and a rehearsal on a protected copy. Live contraction belongs in the authorized release procedure.
+The v1 candidate exercises the engine through tests. The v2 candidate exposes the guarded offline command documented in the [Step 4 handover](SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md). Release acceptance requires the reconciled v2 application and exact image, installed-client retirement, an accepted recovery policy, and a rehearsal on a protected copy. Live contraction belongs in the authorized release procedure.
+
+## Role-free v2 candidate
+
+The v2 branch incorporates the earlier retirement change and resolves all 15 overlaps against the v1 rehearsal commit. It preserves the current search behavior, sponsor authorization fixtures, writer-hold isolation, and funding, push and offline-learning startup checks. New role summaries and current authorization grants remain the source of effective access. Valid older tokens keep their identity and authorization-version checks. Their historical role claims are discarded.
+
+The compiled v2 application initialized a fresh role-free database, refused an uncontracted current-schema v1 copy without changing its bytes, and restarted twice after offline contraction without recreating revoked grants. The previously compiled v1 application refused that contracted copy and started from a separate restoration of the unchanged v1 backup. The rehearsal includes synthetic rows for reward funding, push installation and offline progress. Run the v2 runtime check with `RBAC_PREVIOUS_SERVER` pointing at the compiled v1 checkout to exercise both binaries.
+
+The ordinary deploy path verifies the image against the database before stopping writers. Coordinating the cross-schema replacement still requires the reviewed maintenance procedure in the Step 4 handover. Protected-copy rehearsal, installed-client retirement and the exact image/restore proof remain open.
+
+The [v2 local receipt](evidence/lms-014-v2-local-validation.json) records the compiled rehearsal, 23 inventory and migration cases, 135 focused reward migration checks, nine image compatibility cases, 722 web tests, 182 native tests and 92 Chromium cases without retries. It also records the initial web failures, the corrected API fixture and the Windows shell timeouts. Both hosted workflows passed at `2abca23`, including 214 backend test files and 92 Chromium cases. The later merge carries forward the independently tested staging preview preflight. [Hosted CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42355479570) · [Hosted mobile](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42355479577)

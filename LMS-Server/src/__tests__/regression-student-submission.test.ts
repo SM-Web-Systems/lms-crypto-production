@@ -47,8 +47,10 @@ function seedBase() {
   const courseId  = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${studentId}', 'Reg Student', 'student-reg@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${studentId}','Reg Student','student-reg@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Regression Course', 'Test', 'REG-2026-01', '${SECTIONS.replace(/'/g, "''")}');

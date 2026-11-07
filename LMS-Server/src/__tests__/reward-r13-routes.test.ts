@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -26,20 +27,13 @@ function seedSponsorWithReleasedReward(): {
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
-  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'lecturer')"
-  ).run(sponsorId, `${sponsorId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [sponsorId,`${sponsorId}@test.com`], ["role_instructor"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
 
   // W01-R1: Independent admin for funding authorization
   const adminId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
-  ).run(adminId, `${adminId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'FundAdmin', ?, 'hash')", [adminId, `${adminId}@test.com`], ["role_admin"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`
@@ -70,9 +64,7 @@ function seedSponsorWithReleasedReward(): {
 
 function seedAdminUser(): { adminId: string; token: string } {
   const adminId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(adminId, `${adminId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Admin',?,'hash')`, [adminId,`${adminId}@test.com`], ["role_admin"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(adminId, 'role_admin');
   const token = makeToken({ userId: adminId, email: `${adminId}@test.com`, role: 'admin' });
   return { adminId, token };
@@ -89,20 +81,13 @@ function seedEmployerWithReward(): {
   const studentId = uuidv4();
   const groupId = uuidv4();
 
-  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Employer', ?, 'hash', 'lecturer')"
-  ).run(employerId, `${employerId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Employer',?,'hash')`, [employerId,`${employerId}@test.com`], ["role_instructor"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(employerId, 'role_employer');
 
   // W01-R1: Independent admin for funding authorization
   const adminId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
-  ).run(adminId, `${adminId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'FundAdmin', ?, 'hash')", [adminId, `${adminId}@test.com`], ["role_admin"]);
 
   db.prepare(
     `INSERT INTO user_groups (id, owner_user_id, group_type, name) VALUES (?, ?, 'team', 'Test Team')`
@@ -228,9 +213,7 @@ describe('R13 Admin Reconciliation', () => {
   it('R13-RECON-1: GET /admin/rewards/reconcile requires reward.manage', async () => {
     // Create a sponsor-only user (no admin role) — should NOT have reward.manage
     const id = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'student')"
-    ).run(id, `${id}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [id,`${id}@test.com`], ["role_student"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(id, 'role_sponsor');
     const sponsorToken = makeToken({ userId: id, email: `${id}@test.com`, role: 'student' });
 
@@ -265,9 +248,8 @@ describe('R13 Admin Reconciliation', () => {
       const stid = uuidv4();
       const cid = uuidv4();
       const chid = uuidv4();
-      // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
-      db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sid, `${sid}@t.com`);
-      db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'ST', ?, 'hash', 'student')").run(stid, `${stid}@t.com`);
+      seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'S',?,'hash')`, [sid,`${sid}@t.com`], ["role_instructor"]);
+      seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'ST',?,'hash')`, [stid,`${stid}@t.com`], ["role_student"]);
       db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sid, 'role_sponsor');
       db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(cid, `C-${cid.slice(0,8)}`);
       db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'C')`).run(chid, sid, cid);
@@ -301,8 +283,8 @@ function seedSponsorForCreate(): { sponsorId: string; token: string; cohortId: s
   const cohortId = uuidv4();
   const courseId = uuidv4();
   const studentId = uuidv4();
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sp', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'St', ?, 'hash', 'student')").run(studentId, `${studentId}@t.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Sp', ?, 'hash')", [sponsorId, `${sponsorId}@t.com`], ["role_instructor"]);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'St', ?, 'hash')", [studentId, `${studentId}@t.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
   db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
   db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);
@@ -315,8 +297,8 @@ function seedEmployerForCreate(): { employerId: string; token: string; groupId: 
   const employerId = uuidv4();
   const groupId = uuidv4();
   const studentId = uuidv4();
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Em', ?, 'hash', 'lecturer')").run(employerId, `${employerId}@t.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'St', ?, 'hash', 'student')").run(studentId, `${studentId}@t.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Em', ?, 'hash')", [employerId, `${employerId}@t.com`], ["role_instructor"]);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'St', ?, 'hash')", [studentId, `${studentId}@t.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(employerId, 'role_employer');
   db.prepare(`INSERT INTO user_groups (id, owner_user_id, group_type, name) VALUES (?, ?, 'team', 'T')`).run(groupId, employerId);
   db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(groupId, studentId);
@@ -328,8 +310,8 @@ function seedTeacherForCreate(): { teacherId: string; token: string; classId: st
   const teacherId = uuidv4();
   const classId = uuidv4();
   const studentId = uuidv4();
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Tc', ?, 'hash', 'lecturer')").run(teacherId, `${teacherId}@t.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'St', ?, 'hash', 'student')").run(studentId, `${studentId}@t.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Tc', ?, 'hash')", [teacherId, `${teacherId}@t.com`], ["role_instructor"]);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'St', ?, 'hash')", [studentId, `${studentId}@t.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(teacherId, 'role_teacher');
   db.prepare(`INSERT INTO user_groups (id, owner_user_id, group_type, name) VALUES (?, ?, 'class', 'C')`).run(classId, teacherId);
   db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(classId, studentId);
@@ -340,8 +322,8 @@ function seedTeacherForCreate(): { teacherId: string; token: string; classId: st
 function seedParentForCreate(): { parentId: string; token: string; childId: string } {
   const parentId = uuidv4();
   const childId = uuidv4();
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Pa', ?, 'hash', 'lecturer')").run(parentId, `${parentId}@t.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Ch', ?, 'hash', 'student')").run(childId, `${childId}@t.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Pa', ?, 'hash')", [parentId, `${parentId}@t.com`], ["role_instructor"]);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Ch', ?, 'hash')", [childId, `${childId}@t.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(parentId, 'role_parent');
   db.prepare("INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')").run(uuidv4(), parentId, childId);
   const token = makeToken({ userId: parentId, email: `${parentId}@t.com`, role: 'lecturer' });
@@ -491,7 +473,7 @@ describe('W05 Reward Type Validation — direct service calls', () => {
   // W5-T16: direct service call with invalid type
   it('W5-T16: createReward() throws RewardError INVALID_REWARD_TYPE for invalid type', () => {
     const sponsorId = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'S', ?, 'hash')", [sponsorId, `${sponsorId}@t.com`], ["role_instructor"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     const cohortId = uuidv4();
     const courseId = uuidv4();
@@ -526,7 +508,7 @@ describe('W05 Reward Type Validation — direct service calls', () => {
   // W5-T17: null type via service
   it('W5-T17: createReward() throws INVALID_REWARD_TYPE for null rewardType', () => {
     const sponsorId = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'S', ?, 'hash')", [sponsorId, `${sponsorId}@t.com`], ["role_instructor"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     const cohortId = uuidv4();
     const courseId = uuidv4();
@@ -551,7 +533,7 @@ describe('W05 Reward Type Validation — direct service calls', () => {
   // W5-T19: valid same-key replay preserves existing behavior
   it('W5-T19: valid same-key replay returns cached reward unchanged', () => {
     const sponsorId = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'S', ?, 'hash')", [sponsorId, `${sponsorId}@t.com`], ["role_instructor"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     const cohortId = uuidv4();
     const courseId = uuidv4();
@@ -574,7 +556,7 @@ describe('W05 Reward Type Validation — direct service calls', () => {
   // W5-T20: incompatible valid type reuse produces IDEMPOTENCY_CONFLICT
   it('W5-T20: same key different valid type → IDEMPOTENCY_CONFLICT not INVALID_REWARD_TYPE', () => {
     const sponsorId = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'S', ?, 'hash')", [sponsorId, `${sponsorId}@t.com`], ["role_instructor"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     const cohortId = uuidv4();
     const courseId = uuidv4();
@@ -687,7 +669,7 @@ describe('W05-R1 Error Safety — direct service calls', () => {
     const sponsorId = uuidv4();
     const cohortId = uuidv4();
     const courseId = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'hash', 'lecturer')").run(sponsorId, `${sponsorId}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'S', ?, 'hash')", [sponsorId, `${sponsorId}@t.com`], ["role_instructor"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     db.prepare(`INSERT INTO courses (id, title, description, course_code) VALUES (?, 'C', 'd', ?)`).run(courseId, `C-${courseId.slice(0,8)}`);
     db.prepare(`INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Ch')`).run(cohortId, sponsorId, courseId);

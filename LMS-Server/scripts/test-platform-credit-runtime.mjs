@@ -65,8 +65,8 @@ if(process.argv[2]==='--worker') {
     const init=spawnSync(process.execPath,[path.join(server,'dist/scripts/initDb.js'),'--initialize-new'],{cwd:directory,env,encoding:'utf8',windowsHide:true,timeout:60000});
     assert.equal(init.status,0,init.stderr);
     db=new Database(file);
-    db.exec(`INSERT INTO users(id,name,email,password_hash,role) VALUES
-      ('admin-a','Synthetic','a@example.invalid','synthetic','admin'),('admin-b','Synthetic','b@example.invalid','synthetic','admin'),('owner','Synthetic','owner@example.invalid','synthetic','student');
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES
+      ('admin-a','Synthetic','a@example.invalid','synthetic'),('admin-b','Synthetic','b@example.invalid','synthetic'),('owner','Synthetic','owner@example.invalid','synthetic');
       INSERT INTO user_roles(user_id,role_id) VALUES ('admin-a','role_admin'),('admin-b','role_admin'),('owner','role_sponsor');
       INSERT INTO courses(id,title,course_code) VALUES ('course','Credit','CREDIT');
       INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES ('cohort','owner','course','Credit');`);

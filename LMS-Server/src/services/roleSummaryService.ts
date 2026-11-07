@@ -25,3 +25,12 @@ export function roleSummariesForUsers(userIds: string[]): Map<string, RoleSummar
 export function roleSummariesForUser(userId: string): RoleSummary[] {
   return roleSummariesForUsers([userId]).get(userId)!;
 }
+
+export function userRoleSummaries(userIds: string[]) {
+  return new Map([...roleSummariesForUsers(userIds)].map(([id, roleSummaries]) =>
+    [id, { roleSummaries, rbacRoles: roleSummaries.map(role => role.name) }] as const));
+}
+
+export function userRoleSummary(userId: string) {
+  return userRoleSummaries([userId]).get(userId)!;
+}

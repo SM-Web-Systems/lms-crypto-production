@@ -27,8 +27,9 @@ function seedUserWithRole(roleId: string): { userId: string; token: string } {
   const userId = uuidv4();
   const email = `${userId.slice(0, 8)}@test-w08r1.com`;
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'W08R1 User', ?, 'hash', 'student')",
+    "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'W08R1 User', ?, 'hash')",
   ).run(userId, email);
+  db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_student')").run(userId);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, roleId);
   const token = makeToken({ userId, email, role: 'student' });
   return { userId, token };
@@ -39,8 +40,9 @@ function seedUserWithPermissions(permNames: string[]): { userId: string; token: 
   const userId = uuidv4();
   const email = `${userId.slice(0, 8)}@test-w08r1-custom.com`;
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Custom Perm User', ?, 'hash', 'student')",
+    "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Custom Perm User', ?, 'hash')",
   ).run(userId, email);
+  db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_student')").run(userId);
 
   // Create a temporary role with a unique name and assign only the requested permissions.
   // roles.name is UNIQUE; use a slug derived from userId. roles has no workspace column.
@@ -73,8 +75,9 @@ function seedClass(ownerId: string): string {
 function seedStudentInClass(classId: string): void {
   const studentId = uuidv4();
   db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'W08R1 Student', ?, 'hash', 'student')",
+    "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'W08R1 Student', ?, 'hash')",
   ).run(studentId, `${studentId.slice(0, 8)}@student-w08r1.com`);
+  db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_student')").run(studentId);
   db.prepare('INSERT OR IGNORE INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(classId, studentId);
 }
 

@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W01-R3: Atomic payment-reference consumption tests.
  *
@@ -92,17 +93,13 @@ function applyMigrationOnlySchema(testDb: InstanceType<typeof Database>): void {
 
 function createUser(role = 'admin'): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, 'hash', ?)"
-  ).run(id, `${id}@test.com`, role);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Test', ?, 'hash')", [id, `${id}@test.com`], [fixtureRoleId(role)]);
   return id;
 }
 
 function createIndependentAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
@@ -116,9 +113,7 @@ function createCohort(sponsorId: string): string {
     `INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Test Cohort')`
   ).run(cohortId, sponsorId, courseId);
   const studentId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Student', ?, 'hash')", [studentId, `${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
   return cohortId;
 }
@@ -505,7 +500,7 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
         // Insert a valid fund transaction with a reference
         const rewardId = uuidv4();
         const userId = uuidv4();
-        testDb.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'U', 'u@t.com', 'h', 'admin')").run(userId);
+        testDb.prepare("INSERT INTO users (id, name, email, password_hash) VALUES (?, 'U', 'u@t.com', 'h')").run(userId);
         testDb.prepare("INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, currency_code, status, idempotency_key) VALUES (?, ?, 'sponsor_cohort', 'sc1', 'custom', 10000000, 'XLM', 'funded', ?)").run(rewardId, userId, `idem-${uuidv4()}`);
         testDb.prepare("INSERT INTO reward_accounts (id, user_id, account_type, currency_code, available_stroops) VALUES (?, ?, 'funder', 'XLM', 10000000)").run(uuidv4(), userId);
         testDb.prepare(`
@@ -554,7 +549,7 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
         const userId = uuidv4();
         const rewardA = uuidv4();
         const rewardB = uuidv4();
-        testDb.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'U', 'u@t.com', 'h', 'admin')").run(userId);
+        testDb.prepare("INSERT INTO users (id, name, email, password_hash) VALUES (?, 'U', 'u@t.com', 'h')").run(userId);
         testDb.prepare("INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, currency_code, status, idempotency_key) VALUES (?, ?, 'sponsor_cohort', 'sc1', 'custom', 10000000, 'XLM', 'funded', ?)").run(rewardA, userId, `idem-${uuidv4()}`);
         testDb.prepare("INSERT INTO rewards (id, creator_user_id, scope_type, scope_id, reward_type, amount_stroops, currency_code, status, idempotency_key) VALUES (?, ?, 'sponsor_cohort', 'sc1', 'custom', 10000000, 'XLM', 'funded', ?)").run(rewardB, userId, `idem-${uuidv4()}`);
         testDb.prepare("INSERT INTO reward_accounts (id, user_id, account_type, currency_code, available_stroops) VALUES (?, ?, 'funder', 'XLM', 20000000)").run(uuidv4(), userId);

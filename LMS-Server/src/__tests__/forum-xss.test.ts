@@ -43,8 +43,10 @@ function seedForumUser() {
   ensureForumTables();
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'XSS User', 'xss-${userId}@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','XSS User','xss-${userId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   return { userId };
 }

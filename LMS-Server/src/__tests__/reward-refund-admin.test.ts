@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-refund-admin.test.ts — N4-N6: Admin refund review/retry/resolve API tests
  */
@@ -17,9 +18,7 @@ import {
 /** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
 function createIndependentAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
@@ -29,12 +28,8 @@ function seedRefundScenario() {
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
-  ).run(sponsorId, `${sponsorId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [sponsorId,`${sponsorId}@test.com`], ["role_admin"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`
   ).run(courseId, `C-${courseId.slice(0, 8)}`);
@@ -86,9 +81,7 @@ function createBlockedAttempt(data: ReturnType<typeof seedRefundScenario>) {
 
 function makeAdminUser(role: string): { userId: string; token: string } {
   const userId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', 'admin')"
-  ).run(userId, `Admin ${role}`, `${userId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,'hash')`, [userId,`Admin ${role}`,`${userId}@test.com`], ["role_admin"]);
   // Assign the specific admin role
   const roleId = role === 'admin' ? 'role_admin'
     : role === 'admin-2' ? 'role_admin2'
@@ -100,9 +93,7 @@ function makeAdminUser(role: string): { userId: string; token: string } {
 
 function makeStudentUser(): { userId: string; token: string } {
   const userId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(userId, `${userId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [userId,`${userId}@test.com`], ["role_student"]);
   return { userId, token: makeToken({ userId, email: `${userId}@test.com`, role: 'student' }) };
 }
 

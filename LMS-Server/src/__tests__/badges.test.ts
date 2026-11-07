@@ -28,9 +28,10 @@ function seedUser(role: 'admin' | 'student', suffix: string, wallet = true) {
   const walletAddr = wallet ? `GTEST${suffix.toUpperCase()}` : null;
   const walletStatus = wallet ? 'linked' : 'none';
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-    VALUES ('${userId}', 'Tier User ${suffix}', 'tier-${suffix}@test.com', '${HASH}', '${role}',
-            ${walletAddr ? `'${walletAddr}'` : 'NULL'}, '${walletStatus}');
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+    VALUES ('${userId}','Tier User ${suffix}','tier-${suffix}@test.com','${HASH}',${walletAddr ? `'${walletAddr}'` : 'NULL'},'${walletStatus}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}',CASE '${role}' WHEN 'student' THEN 'role_student' WHEN 'lecturer' THEN 'role_instructor' WHEN 'admin' THEN 'role_admin' END);
+
   `);
   return userId;
 }

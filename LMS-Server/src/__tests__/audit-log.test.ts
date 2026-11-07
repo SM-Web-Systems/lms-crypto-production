@@ -20,7 +20,7 @@ describe('LMS-ADM-001/006 — audit logging for admin mutations', () => {
   });
 
   it('atomic RBAC replacement records actor, target and the exact before/after role set', async () => {
-    db.exec("INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('audit-actor','Actor','actor@example.invalid','synthetic',1),('audit-target','Target','target@example.invalid','synthetic',1); INSERT INTO user_roles(user_id,role_id) VALUES('audit-actor','role_admin2'),('audit-target','role_admin')");
+    db.exec(`INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('audit-actor','Actor','actor@example.invalid','synthetic',1),('audit-target','Target','target@example.invalid','synthetic',1); INSERT INTO user_roles(user_id,role_id) VALUES('audit-actor','role_admin2'),('audit-target','role_admin')`);
     const token=generateToken({userId:'audit-actor',email:'actor@example.invalid',role:'admin'});
     const response=await request(app).put('/api/v1/admin/users/audit-target/roles').auth(token,{type:'bearer'}).send({roleIds:['role_student']});
     expect(response.status).toBe(200);

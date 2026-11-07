@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import './setup.js';
 import {Keypair,Networks} from '@stellar/stellar-sdk';
@@ -13,7 +14,7 @@ afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 function fixture(network: 'testnet' | 'public' = 'testnet') {
   const a=uuid(),b=uuid(),owner=uuid(),other=uuid(),course=uuid();
   for(const [id,role] of [[a,'admin'],[b,'admin'],[owner,'lecturer'],[other,'lecturer']]) {
-    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash',?)").run(id,`${id}@test.invalid`,role);
+    seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic',?,'hash')", [id,`${id}@test.invalid`], [fixtureRoleId(role)]);
     if(role==='lecturer') db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_sponsor')").run(id);
   }
   db.prepare("INSERT INTO courses(id,title,course_code) VALUES (?,'Credit',?)").run(course,course);
@@ -177,8 +178,8 @@ describe('backed platform credit',()=>{
     vi.stubEnv('REWARD_TREASURY_PILOT_TOTAL_STROOPS', '3000000');
     await f.deposit('3000000');
     const learner = uuid();
-    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic learner',?,'hash','student')")
-      .run(learner, `${learner}@test.invalid`);
+    seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic learner',?,'hash')",
+      [learner, `${learner}@test.invalid`], ['role_student']);
     for (const cohort of f.cohorts.values()) {
       db.prepare('INSERT INTO cohort_members(cohort_id,user_id) VALUES (?,?)').run(cohort, learner);
     }

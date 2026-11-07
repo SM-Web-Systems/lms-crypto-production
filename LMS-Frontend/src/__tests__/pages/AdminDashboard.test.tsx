@@ -9,7 +9,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 // Mock context providers
 vi.mock('../../context/useAuth', () => ({
-  useAuth: () => ({ user: { name: 'Admin', role: 'admin' } }),
+  useAuth: () => ({ user: { name: 'Admin' } }),
 }));
 
 vi.mock('../../context/DataContext', () => ({

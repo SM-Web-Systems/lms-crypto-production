@@ -113,7 +113,7 @@ export function requirePermission(...permissions: string[]) {
 /**
  * RBAC-aware replacement for legacy requireCourseAccess.
  *
- * Checks RBAC permissions (not legacy users.role) to determine course access:
+ * Checks current RBAC permissions and resource assignments to determine course access:
  *   1. Explicit administrator grant plus course.delete → platform/administered-tenant scope.
  *   2. course.manage permission + course_lecturers assignment → instructor scope
  *   3. course.grade_pending permission + course_tas assignment → TA scope

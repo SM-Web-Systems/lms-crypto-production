@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * Account Deletion → Forum Soft-Delete Integration tests.
  *
@@ -34,9 +35,7 @@ function createUser(overrides: Partial<{
   const name = overrides.name ?? 'Test User';
   const email = overrides.email ?? `adf-${id.slice(0, 8)}@test.com`;
   const role = overrides.role ?? 'student';
-  db.prepare(
-    'INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, name, email, HASH, role);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,?)`, [id,name,email,HASH], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]);
   return { id, name, email, role };
 }
 

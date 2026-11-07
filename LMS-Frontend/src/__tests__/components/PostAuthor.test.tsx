@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: () => ({
-    user: { id: 'viewer-1', name: 'Viewer', email: 'viewer@test.com', role: 'student' },
+    user: { id: 'viewer-1', name: 'Viewer', email: 'viewer@test.com' },
   }),
 }));
 
@@ -43,7 +43,7 @@ describe('PostAuthor deleted user styling', () => {
         id: 'topic-1',
         title: 'Test Topic',
         body: 'Body',
-        author: { id: 'del-user', name: 'Deleted User', email: null, role: 'student', isDeleted: true },
+        author: { id: 'del-user', name: 'Deleted User', email: null,  isDeleted: true },
         createdAt: new Date().toISOString(),
         postCount: 0,
       },
@@ -65,7 +65,7 @@ describe('PostAuthor deleted user styling', () => {
         id: 'topic-2',
         title: 'Active Topic',
         body: 'Body',
-        author: { id: 'active-user', name: 'Active User', email: 'active@test.com', role: 'student' },
+        author: { id: 'active-user', name: 'Active User', email: 'active@test.com' },
         createdAt: new Date().toISOString(),
         postCount: 0,
       },

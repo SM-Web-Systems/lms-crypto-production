@@ -26,8 +26,8 @@ describe('AUTH-14 writer hold worker gates', () => {
     await expect(executeTick()).resolves.toMatchObject({ result: 'skipped' });
     expect(logged()).toBe(before);
     await expect(processEmailRetryQueue()).resolves.toMatchObject({ retried: 0, skipped: 'writer_hold' });
-    db.prepare(`INSERT INTO users (id, email, name, password_hash, role, deletion_status)
-      VALUES ('held-user', 'held@test.example', 'Held', 'x', 'student', 'pending_deletion')`).run();
+    db.prepare(`INSERT INTO users (id, email, name, password_hash, deletion_status)
+      VALUES ('held-user', 'held@test.example', 'Held', 'x', 'pending_deletion')`).run();
     db.prepare(`INSERT INTO deletion_requests (id, user_id, status, grace_period_ends_at)
       VALUES ('held-request', 'held-user', 'pending', datetime('now', '-1 day'))`).run();
     expect(processExpiredDeletions()).toBe(0);

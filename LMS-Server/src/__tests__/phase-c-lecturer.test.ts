@@ -32,13 +32,19 @@ function seedBase() {
   const stu2RecordId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',     'Admin',      'admin-c@test.com',     '${HASH}', 'admin'),
-      ('${lecturerId}',  'Lecturer',   'lecturer-c@test.com',  '${HASH}', 'lecturer'),
-      ('${lecturer2Id}', 'Lecturer2',  'lecturer2-c@test.com', '${HASH}', 'lecturer'),
-      ('${studentId}',   'Student',    'student-c@test.com',   '${HASH}', 'student'),
-      ('${student2Id}',  'Student2',   'student2-c@test.com',  '${HASH}', 'student');
+      ('${adminId}','Admin','admin-c@test.com','${HASH}'),
+      ('${lecturerId}','Lecturer','lecturer-c@test.com','${HASH}'),
+      ('${lecturer2Id}','Lecturer2','lecturer2-c@test.com','${HASH}'),
+      ('${studentId}','Student','student-c@test.com','${HASH}'),
+      ('${student2Id}','Student2','student2-c@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturer2Id}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student2Id}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES
@@ -214,11 +220,11 @@ describe('C1 — DELETE /courses/:id/lecturers/:lecturerUserId', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('C2 — retired legacy role endpoint',()=>{
-  it('returns 410 instead of replacing the RBAC grant set',async()=>{
+  it('does not expose the removed role replacement route',async()=>{
     const ids=seedBase();
     const token=makeToken({userId:ids.adminId,email:'admin-c@test.com',role:'admin'});
     const response=await request(app).patch('/api/v1/users/'+ids.studentId+'/role').auth(token,{type:'bearer'}).send({role:'lecturer'});
-    expect(response.status).toBe(410);
+    expect(response.status).toBe(404);
     expect(db.prepare('SELECT role_id FROM user_roles WHERE user_id=?').all(ids.studentId)).toEqual([{role_id:'role_student'}]);
   });
 });

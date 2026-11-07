@@ -58,9 +58,9 @@ jobs:
         run: npm run test:dependencies
       - run: npm run build
       - run: npm run test:compiled-bootstrap
-      - name: Test offline RBAC inventory, cutover and retirement
+      - name: Test offline RBAC inventory and retirement
         run: npm run test:rbac-inventory
-      - name: Rehearse RBAC cutover, retirement refusal and restored startup
+      - name: Rehearse RBAC contraction and role-free startup
         run: npm run test:rbac-runtime
       - name: Test durable funding restart and concurrent writers
         run: npm run test:reward-funding-runtime
@@ -125,6 +125,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Build and rehearse the API and web images from committed sources
+        id: candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -144,6 +145,7 @@ jobs:
             test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$revision"
           done
           echo "Synthetic candidate $revision API $api_id web $web_id"
+          echo "api_id=$api_id" >> "$GITHUB_OUTPUT"
 
           docker run --rm --network none --read-only --tmpfs /tmp:size=128m \
             --env "EXPECTED_REVISION=$revision" "$api_id" sh -ec '
@@ -162,6 +164,19 @@ jobs:
               grep -qF "<div id=\"root\"></div>" /tmp/index.html
               grep -rqF "$EXPECTED_REVISION" /usr/share/nginx/html/assets
             '
+      - name: Check out the exact v1 base of the stacked RBAC draft
+        if: github.event_name == 'pull_request' && github.base_ref == 'codex/lms-002-fixture-reproducibility' && github.event.pull_request.base.repo.full_name == github.repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .ci-rbac-v1
+          persist-credentials: false
+      - name: Rehearse v1 recovery against synthetic v2 fixtures
+        if: github.event_name == 'pull_request' && github.base_ref == 'codex/lms-002-fixture-reproducibility' && github.event.pull_request.base.repo.full_name == github.repository
+        env:
+          V1_REVISION: ${{ github.event.pull_request.base.sha }}
+          V2_IMAGE: ${{ steps.candidate.outputs.api_id }}
+        run: bash scripts/rehearse-rbac-recovery-images.sh
 
   e2e:
     name: E2E Tests

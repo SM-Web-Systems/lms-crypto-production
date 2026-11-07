@@ -59,9 +59,9 @@ if (process.argv[2] === '--worker') {
     // Recreate the pre-funding-table state, keeping all existing data/history.
     for (const name of ['reward_funding_intent_immutable', 'reward_funding_intent_no_delete', 'reward_funding_evidence_no_update', 'reward_funding_evidence_no_delete']) db.exec(`DROP TRIGGER ${name}`);
     db.exec('DROP TABLE platform_credit_consumptions; DROP TABLE platform_credit_reservations; DROP TABLE platform_credit_grants; DROP TABLE platform_credit_requests; DROP TABLE platform_backing_deposits; DROP TABLE platform_backing_intents; DROP TABLE platform_credit_audit; DROP TABLE reward_stellar_funding_evidence; DROP TABLE reward_stellar_funding_bindings; DROP TABLE reward_funding_evidence; DROP TABLE reward_funding_intents');
-    db.exec(`INSERT INTO users(id,name,email,password_hash,role) VALUES
-      ('owner','Synthetic','owner@example.invalid','synthetic','student'),
-      ('authorizer','Synthetic','authorizer@example.invalid','synthetic','admin');
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES
+      ('owner','Synthetic','owner@example.invalid','synthetic'),
+      ('authorizer','Synthetic','authorizer@example.invalid','synthetic');
       INSERT INTO user_roles(user_id,role_id) VALUES ('authorizer','role_admin');
       INSERT INTO courses(id,title,course_code) VALUES ('course','Funding','FUNDING');
       INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES ('cohort','owner','course','Funding');

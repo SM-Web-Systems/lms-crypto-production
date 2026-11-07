@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import './setup.js';
 import { Keypair, Networks } from '@stellar/stellar-sdk';
@@ -10,7 +11,7 @@ afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks()
 function fixture() {
   const owner = uuidv4(), stranger = uuidv4(), course = uuidv4(), cohort = uuidv4();
   for (const id of [owner, stranger]) {
-    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash','lecturer')").run(id, `${id}@test.invalid`);
+    seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic',?,'hash')", [id, `${id}@test.invalid`], ["role_instructor"]);
     db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_sponsor')").run(id);
   }
   db.prepare("INSERT INTO courses(id,title,course_code) VALUES (?,'Stellar',?)").run(course, course);

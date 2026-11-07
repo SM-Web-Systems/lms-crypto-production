@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect, vi } from 'vitest';
 import './setup.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -9,7 +10,7 @@ import { reconcileAccount } from '../services/rewards/rewardLedger.js';
 function fixture() {
   const owner = uuidv4(), admin = uuidv4(), other = uuidv4(), course = uuidv4(), cohort = uuidv4();
   for (const id of [owner, admin, other]) {
-    db.prepare("INSERT INTO users (id,name,email,password_hash,role) VALUES (?,'Test',?,'hash','admin')").run(id, `${id}@test.invalid`);
+    seedTestAccount(db, "INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test',?,'hash')", [id, `${id}@test.invalid`], ["role_admin"]);
   }
   db.prepare("INSERT INTO courses (id,title,course_code) VALUES (?,'Funding',?)").run(course, course);
   db.prepare("INSERT INTO sponsor_cohorts (id,sponsor_user_id,course_id,name) VALUES (?,?,?,'Funding')").run(cohort, owner, course);

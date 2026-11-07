@@ -86,8 +86,8 @@ if(process.argv[2]==='--worker') {
     const funding=await import(pathToFileURL(path.join(server,'dist/services/rewards/rewardFundingIntentService.js')).href);
     const credit=await import(pathToFileURL(path.join(server,'dist/services/rewards/platformCreditService.js')).href);
     const verifier=await import(pathToFileURL(path.join(server,'dist/services/rewards/stellarFundingVerification.js')).href);
-    db.exec(`INSERT INTO users(id,name,email,password_hash,role) VALUES
-      ('owner','Synthetic','owner@example.invalid','synthetic','student'),('admin-a','Synthetic','a@example.invalid','synthetic','admin'),('admin-b','Synthetic','b@example.invalid','synthetic','admin');
+    db.exec(`INSERT INTO users(id,name,email,password_hash) VALUES
+      ('owner','Synthetic','owner@example.invalid','synthetic'),('admin-a','Synthetic','a@example.invalid','synthetic'),('admin-b','Synthetic','b@example.invalid','synthetic');
       INSERT INTO user_roles(user_id,role_id) VALUES ('owner','role_sponsor'),('admin-a','role_admin'),('admin-b','role_admin');
       INSERT INTO courses(id,title,course_code) VALUES ('course','Testnet acceptance','TESTNET');
       INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES ('cohort','owner','course','Synthetic testnet acceptance');`);

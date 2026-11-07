@@ -55,14 +55,21 @@ function seedSubmissionDeleteData() {
   const crossCourseSubId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Admin', 'admin-del-${adminId.slice(0, 6)}@test.com', '${HASH}', 'admin'),
-      ('${instructorAId}', 'Instructor A', 'inst-a-${instructorAId.slice(0, 6)}@test.com', '${HASH}', 'lecturer'),
-      ('${instructorBId}', 'Instructor B', 'inst-b-${instructorBId.slice(0, 6)}@test.com', '${HASH}', 'lecturer'),
-      ('${studentUserId}', 'Student', 'stud-${studentUserId.slice(0, 6)}@test.com', '${HASH}', 'student'),
-      ('${otherStudentUserId}', 'Other Student', 'other-${otherStudentUserId.slice(0, 6)}@test.com', '${HASH}', 'student'),
-      ('${taId}', 'TA User', 'ta-del-${taId.slice(0, 6)}@test.com', '${HASH}', 'student');
+      ('${adminId}','Admin','admin-del-${adminId.slice(0, 6)}@test.com','${HASH}'),
+      ('${instructorAId}','Instructor A','inst-a-${instructorAId.slice(0, 6)}@test.com','${HASH}'),
+      ('${instructorBId}','Instructor B','inst-b-${instructorBId.slice(0, 6)}@test.com','${HASH}'),
+      ('${studentUserId}','Student','stud-${studentUserId.slice(0, 6)}@test.com','${HASH}'),
+      ('${otherStudentUserId}','Other Student','other-${otherStudentUserId.slice(0, 6)}@test.com','${HASH}'),
+      ('${taId}','TA User','ta-del-${taId.slice(0, 6)}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${instructorAId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${instructorBId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${otherStudentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${taId}','role_student');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES
@@ -227,8 +234,10 @@ describe('WI-12 — DELETE /submissions/:id authorization', () => {
   it('DEL-10 — route-level requirePermission blocks users without course.view', async () => {
     const userId = uuidv4();
     db.exec(`
-      INSERT INTO users (id, name, email, password_hash, role)
-      VALUES ('${userId}', 'No Perms', 'noperms-${userId.slice(0, 6)}@test.com', '${HASH}', 'student');
+      INSERT INTO users (id,name,email,password_hash)
+      VALUES ('${userId}','No Perms','noperms-${userId.slice(0, 6)}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
     `);
     // Remove auto-assigned student role, replace with a custom role that has no course permissions
     execute('DELETE FROM user_roles WHERE user_id = ?', [userId]);

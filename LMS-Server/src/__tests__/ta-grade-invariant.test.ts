@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * CI-Level Invariant: TA Grade Approval Gating (Decision #4)
  *
@@ -12,13 +13,13 @@
 
 import { describe, it, expect } from 'vitest';
 import './setup.js';
-import { execute, query, queryOne } from '../config/database.js';
+import { db, execute, query, queryOne } from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
 describe('TA Grade Invariant: Decision #4 — Always Explicit Approval', () => {
   it('TA-GRADE-INV-1: pending_approval submissions have status=pending (not approved/rejected)', () => {
     const userId = uuidv4();
-    execute("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, '$2a$10$test', 'student')", [userId, `inv-${userId.slice(0,8)}@test.com`]);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test',?,'$2a$10$test')`, [userId,`inv-${userId.slice(0,8)}@test.com`], ["role_student"]).changes;
     const studentRecordId = uuidv4();
     execute("INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester) VALUES (?, ?, 'Test', ?, 'INV-001', 'CS', 1)", [studentRecordId, userId, `inv-${userId.slice(0,8)}@test.com`]);
 

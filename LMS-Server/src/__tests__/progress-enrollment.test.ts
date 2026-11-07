@@ -18,8 +18,10 @@ function seedData() {
   const code = `PROG-${uuidv4().slice(0, 6)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${studentId}', 'Unenrolled Student', 'unenrolled-${studentId}@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${studentId}','Unenrolled Student','unenrolled-${studentId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Enrollment Check Course', 'Test', '${code}', '[]');

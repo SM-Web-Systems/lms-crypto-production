@@ -181,7 +181,7 @@ function inventory(db, metadata) {
       sqliteUserVersion: db.pragma('user_version', {simple:true}), fingerprintSha256: schemaFingerprint,
       applicationMigrationVersion: null,
       versionNote: 'SQLite user_version and schema fingerprint do not establish the deployed application migration level.' },
-    users: { total: users.length, withoutDeletionStatus: users.filter(user => user.deletion_status === null).length,
+    users: { total: users.length, legacyColumnPresent: hasLegacyRole, withoutDeletionStatus: users.filter(user => user.deletion_status === null).length,
       withDeletionStatus: users.filter(user => user.deletion_status !== null).length, legacyCounts },
     rbac: { assignments: assignments.length, roles: roles.length, legacyBridgeActive,
       builtInAssignmentCounts: Object.fromEntries(Object.keys(BUILT_INS).map(id => [id, assignments.filter(row => row.role_id === id).length])),

@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W02: Cross-owner reward scope checks.
  *
@@ -37,9 +38,7 @@ import { makeToken } from './helpers/auth.js';
 
 function createUserWithRole(legacyRole: 'student' | 'lecturer' | 'admin', rbacRoleId?: string): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', ?)"
-  ).run(id, `User-${legacyRole}-${id.slice(0, 8)}`, `${id}@test.com`, legacyRole);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, 'hash')", [id, `User-${legacyRole}-${id.slice(0, 8)}`, `${id}@test.com`], [fixtureRoleId(legacyRole)]);
   if (rbacRoleId) {
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(id, rbacRoleId);
   }

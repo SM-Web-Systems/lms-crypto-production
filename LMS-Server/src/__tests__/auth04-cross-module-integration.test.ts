@@ -37,8 +37,10 @@ function seedUser(legacyRole: 'admin' | 'student', suffix: string): { userId: st
   const userId = uuidv4();
   const email = `auth04-${suffix}-${Date.now()}@test.com`;
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-    VALUES ('${userId}', 'User ${suffix}', '${email}', '${HASH}', '${legacyRole}', NULL, 'none');
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+    VALUES ('${userId}','User ${suffix}','${email}','${HASH}',NULL,'none');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}',CASE '${legacyRole}' WHEN 'student' THEN 'role_student' WHEN 'lecturer' THEN 'role_instructor' WHEN 'admin' THEN 'role_admin' END);
+
   `);
   return { userId, email };
 }

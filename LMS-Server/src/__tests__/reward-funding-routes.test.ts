@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import './setup.js';
@@ -10,7 +11,7 @@ import { createReward } from '../services/rewards/rewardService.js';
 function fixture() {
   const owner = uuidv4(), admin = uuidv4(), stranger = uuidv4(), course = uuidv4(), cohort = uuidv4();
   for (const [id, role] of [[owner, 'lecturer'], [admin, 'admin'], [stranger, 'lecturer']]) {
-    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash',?)").run(id, `${id}@test.invalid`, role);
+    seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic',?,'hash')", [id, `${id}@test.invalid`], [fixtureRoleId(role)]);
   }
   for (const id of [owner, stranger]) db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES (?,?)').run(id, 'role_sponsor');
   db.prepare("INSERT INTO courses(id,title,course_code) VALUES (?,'Funding',?)").run(course, course);

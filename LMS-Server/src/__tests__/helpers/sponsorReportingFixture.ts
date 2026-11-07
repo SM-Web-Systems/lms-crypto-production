@@ -30,7 +30,8 @@ export function seedSponsorReporting(db: ReportingDatabase, owner: string, other
   ] as const;
   for (const [name, cohort, course, lessons] of members) {
     const user = REPORT_PREFIX + name;
-    add("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,?,?,'synthetic-nonlogin-fixture','student')", user, name, `${user}@example.invalid`);
+    add("INSERT INTO users(id,name,email,password_hash) VALUES (?,?,?,'synthetic-nonlogin-fixture')", user, name, `${user}@example.invalid`);
+    add("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_student')", user);
     add('INSERT INTO cohort_members(cohort_id,user_id) VALUES (?,?)', REPORT_PREFIX + cohort, user);
     for (let lesson = 1; lesson <= lessons; lesson++) add(
       'INSERT INTO lesson_completions(id,user_id,course_id,item_id,section_id,completed_at) VALUES (?,?,?,?,?,?)',

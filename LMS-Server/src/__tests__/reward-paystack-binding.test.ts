@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W01-R2: Paystack payment binding tests.
  *
@@ -21,9 +22,7 @@ import { RewardError } from '../services/rewards/rewardErrors.js';
 function createUser(role = 'admin', email?: string): string {
   const id = uuidv4();
   const userEmail = email ?? `${id}@test.com`;
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, 'hash', ?)"
-  ).run(id, userEmail, role);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Test', ?, 'hash')", [id, userEmail], [fixtureRoleId(role)]);
   return id;
 }
 
@@ -37,9 +36,7 @@ function createCohort(sponsorId: string): string {
     `INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Test Cohort')`
   ).run(cohortId, sponsorId, courseId);
   const studentId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Student', ?, 'hash')", [studentId, `${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
   return cohortId;
 }
@@ -243,9 +240,7 @@ describe('W01-R2: Paystack payment binding', () => {
 
       // Pre-create a funder account with a known balance (from a previous admin_grant)
       const adminId = uuidv4();
-      db.prepare(
-        "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-      ).run(adminId, `${adminId}@test.com`);
+      seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [adminId, `${adminId}@test.com`], ["role_admin"]);
       const otherRewardId = draftReward(sponsor, cohortId);
       // Fund with admin_grant to create a real funder account
       const { fundReward } = await import('../services/rewards/rewardService.js');

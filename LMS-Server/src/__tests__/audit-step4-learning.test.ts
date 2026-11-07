@@ -1,16 +1,17 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import app from '../app.js';
-import { execute, queryOne } from '../config/database.js';
+import { db, execute, queryOne } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
-import type { LegacyRole } from '../types/index.js';
+type UntrustedRoleHint = 'student' | 'lecturer' | 'admin';
 
 const hash = bcrypt.hashSync('audit-learning', 4);
-function actor(roleId = 'role_student', legacy: LegacyRole = 'student') {
+function actor(roleId = 'role_student', legacy: UntrustedRoleHint = 'student') {
   const id = randomUUID(), email = `${id}@learning.invalid`;
-  execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (?,'Learner',?,?,?)", [id,email,hash,legacy]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Learner',?,?)`, [id,email,hash], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(legacy) as "student"|"lecturer"|"admin"])]).changes;
   execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
   execute('INSERT INTO user_roles (user_id,role_id) VALUES (?,?)', [id,roleId]);
   return { id, token: generateToken({userId:id,email,role:legacy}) };

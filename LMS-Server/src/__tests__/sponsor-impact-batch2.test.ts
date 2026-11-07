@@ -27,8 +27,10 @@ function seedSponsor() {
   const userId = uuidv4();
   const email = `sponsor-b2-${Date.now()}@test.com`;
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'Sponsor B2', '${email}', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','Sponsor B2','${email}','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   db.exec(`INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${userId}', 'role_sponsor');`);
   return { userId, email, token: makeToken({ userId, email, role: 'student' }) };
@@ -57,8 +59,10 @@ function seedMember(cohortId: string, addedAt: string): string {
   const userId = uuidv4();
   const email = `member-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@test.com`;
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${userId}', 'Member', '${email}', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${userId}','Member','${email}','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   db.exec(`
     INSERT INTO cohort_members (cohort_id, user_id, added_at)

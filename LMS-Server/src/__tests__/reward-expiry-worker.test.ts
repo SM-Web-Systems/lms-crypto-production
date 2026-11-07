@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-expiry-worker.test.ts — N3: Automatic expiry worker tests
  *
@@ -16,9 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 /** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
 function createIndependentAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
@@ -28,12 +27,8 @@ function seedTestData() {
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
-  ).run(sponsorId, `${sponsorId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [sponsorId,`${sponsorId}@test.com`], ["role_admin"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`
   ).run(courseId, `C-${courseId.slice(0, 8)}`);

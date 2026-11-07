@@ -218,9 +218,10 @@
       ],
       "evidence": [
         "LMS-014-SCHEMA-RETIREMENT-REHEARSAL.md",
-        "evidence/lms-014-synthetic-retirement-validation.json"
+        "evidence/lms-014-synthetic-retirement-validation.json",
+        "evidence/lms-014-v2-local-validation.json"
       ],
-      "reason": "Synthetic current-schema contraction preserved retained data and grants, compiled v1 refused the contracted database before writes, and a restored v1 copy started. Reconciled v2 application, installed-client retirement and exact-image protected-copy acceptance remain open."
+      "reason": "The separate role-free v2 candidate passed compiled startup and synthetic contraction. Compiled v1 refused the v2 copy and started from a restored v1 backup. Both v2 hosted workflows passed at 2abca23. Installed-client retirement and exact-image protected-copy acceptance remain open."
     },
     {
       "id": "LMS-020",
@@ -542,7 +543,7 @@
         "LMS-061-RECOVERY-REHEARSAL.md",
         "evidence/lms-061-hosted-image-validation.json"
       ],
-      "reason": "The retrieved-backup verifier passed synthetic WAL backup and tamper refusal checks. Both hosted API/web image and synthetic recovery jobs passed with recorded image IDs. Protected off-host retrieval, runtime restoration with release-selected images and LMS-010/LMS-011 remain open."
+      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. Protected off-host retrieval, restoration with release-selected images and LMS-010/LMS-011 remain open."
     },
     {
       "id": "LMS-062",
