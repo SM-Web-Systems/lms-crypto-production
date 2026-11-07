@@ -100,6 +100,23 @@ test('classifies canonical administrators, custom roles, learner profiles, multi
   });
 });
 
+test('lists otherwise unflagged multi-role and custom-grant accounts in the private review',()=>{
+  fixture(({db,file,inspect})=>{
+    db.exec("INSERT INTO roles(id,name,label) VALUES('delegated','delegated-reader','Delegated reader')");
+    user(db,'private-multi','student',['role_student','delegated'],1);
+    profile(db,'private-multi');
+    const before=readFileSync(file);
+    const {summary,details}=inspect();
+    assert.deepEqual(readFileSync(file),before);
+    assert.equal(summary.rbac.accountFindingCounts.multi_role_accounts,1);
+    assert.equal(summary.rbac.accountFindingCounts.custom_role_assignment,1);
+    assert.ok(!JSON.stringify(summary).includes('private-multi'));
+    assert.deepEqual(details.accounts.map(({userId,flags,scopeObservations})=>({userId,flags,scopeObservations})),[
+      {userId:'private-multi',flags:['multi_role_accounts','custom_role_assignment'],scopeObservations:[]},
+    ]);
+  });
+});
+
 test('reports changed canonical identities, dangling grants and broken links without repairing them',()=>{
   fixture(({db,inspect})=>{
     db.pragma('foreign_keys=OFF'); // Deliberately model existing orphaned records in this synthetic fixture only.
