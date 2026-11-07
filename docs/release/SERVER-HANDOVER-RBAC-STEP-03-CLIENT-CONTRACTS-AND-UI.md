@@ -94,6 +94,22 @@ The PR records final counts, skips, CI run/head and any local visual evidence. S
 
 Local Playwright visual evidence uses synthetic `.invalid` identities, mocked loopback API responses and blocked nonlocal requests: [desktop](../../output/playwright/rbac-step3-roles-desktop.png), [390px](../../output/playwright/rbac-step3-roles-390.png). At 390px the document width is 390px and all three management buttons are inside the viewport. These images assess the web UI; they are not native-device acceptance.
 
+## Legacy route usage evidence
+
+After the v1 candidate is deployed, its API logger records calls to the old role endpoint using the fixed `/api/v1/users/:id/role` template. The label covers all completion statuses, including denied and retired responses, and omits the target account and query. Earlier Express logs may contain only the router-relative path. The counter reports those entries separately as ambiguous.
+
+An authorized operator can stream existing container logs into the local counter. Set `LOG_READ_FROM` and `LOG_READ_UNTIL` wide enough to include request entries on both sides of the exact UTC review window. Set `REVIEW_START` and `REVIEW_END` to canonical `YYYY-MM-DDTHH:MM:SSZ` values. Run from the repository root:
+
+```bash
+set -o pipefail
+docker logs --since "$LOG_READ_FROM" --until "$LOG_READ_UNTIL" lms-api |
+  python3 scripts/rbac_legacy_usage.py --start "$REVIEW_START" --end "$REVIEW_END"
+```
+
+Keep raw logs private. Review container replacements, rotation, log levels, and gaps before accepting any zero count. The timestamp span alone cannot establish continuous coverage. The counter does not identify installed builds or enforce a minimum build. Continue to require a reviewed fleet record, supported signed builds and a tested upgrade rule.
+
+The local validation passed 19 API assertions across the logger and role endpoint suites and three counter tests. No server logs were collected.
+
 ## Server return record
 
 ```text

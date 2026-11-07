@@ -235,7 +235,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-010 | Complete private production account/schema/client inventory | Platform owner | LMS-001 | Open |
 | LMS-011 | Reconcile and implement RBAC backend cutover (#99) | API | LMS-010, LMS-003 | Open |
 | LMS-012 | Reconcile and implement RBAC web/mobile contracts (#100) | Web + Mobile | LMS-011, LMS-004 | Open |
-| LMS-013 | Prove client retirement and schema-recovery readiness | Platform + Mobile + QA | LMS-012, LMS-043 | Open |
+| LMS-013 | Prove client retirement and schema-recovery readiness | Platform + Mobile + QA | LMS-012, LMS-043 | Usage counter implemented. Observed fleet, enforcement and recovery acceptance remain open. |
 | LMS-014 | Reconcile and rehearse legacy schema retirement (#101) | API + Platform | LMS-013, LMS-061 | [Synthetic rehearsal passed](LMS-014-SCHEMA-RETIREMENT-REHEARSAL.md). v2 compiled rehearsal passed. Installed-client retirement and protected-copy acceptance remain open. |
 | LMS-020 | Implement real sponsor access-revocation lifecycle coverage | API + QA | LMS-011 | Open |
 | LMS-021 | Build quantitative sponsor reporting and billing acceptance pack | API + Web + QA | LMS-001 | Open |

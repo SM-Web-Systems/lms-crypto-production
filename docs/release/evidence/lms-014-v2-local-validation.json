@@ -21,7 +21,7 @@
   },
   "attemptsAndLimitations": [
     "The first full web attempt reported 5 failures. The 28 tests in the affected files passed with one worker and the full 722 passed with two workers.",
-    "The first API attempt was started before the final fixture correction and observed one reward migration failure. All 135 cases in that file passed after the correction. This receipt does not claim a full exact-candidate Windows API pass.",
+    "The first full Windows API attempt began before the final fixture correction and completed with 2,505 passes, one reward migration failure and one existing skip. All 135 cases in that file passed after the correction, and the hosted exact-candidate API job passed. The first attempt does not certify a full exact-candidate Windows run.",
     "The full Windows Python run reported 5 shell timeouts and 3 skips across 290 cases. The 9 image-compatibility cases passed separately. Hosted offline monitoring and recovery passed.",
     "The checks use synthetic local data. Installed-client retirement, exact Docker images, protected-copy acceptance and guarded release remain open."
   ],
