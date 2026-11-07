@@ -23,7 +23,7 @@ import { findSectionForItem, parseFlatSections } from '../utils/courseHelpers.js
 import { createNotification } from '../services/notificationService.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
 import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
-import { OfflineLearningError, issueOfflineLease, syncOfflineProgress } from '../services/offlineLearningService.js';
+import { OfflineLearningError, inspectOfflineLease, issueOfflineLease, syncOfflineProgress } from '../services/offlineLearningService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -131,6 +131,12 @@ function offlineResponse(res: Response, work: () => unknown) {
 
 router.post('/courses/:courseId/offline-lease', authenticate, (req: AuthRequest, res: Response) => {
   offlineResponse(res, () => issueOfflineLease(req.user!, req.headers.authorization!.slice(7), req.params.courseId));
+});
+
+router.get('/courses/:courseId/offline-lease/:leaseId', authenticate, (req: AuthRequest, res: Response) => {
+  offlineResponse(res, () => inspectOfflineLease(
+    req.user!, req.headers.authorization!.slice(7), req.params.courseId, req.params.leaseId,
+  ));
 });
 
 router.put('/courses/:courseId/offline-progress', authenticate, (req: AuthRequest, res: Response) => {

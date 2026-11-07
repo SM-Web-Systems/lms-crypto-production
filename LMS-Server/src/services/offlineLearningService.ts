@@ -169,26 +169,38 @@ function parseMutation(value: unknown): Mutation {
   return {...input, idempotencyKey: input.idempotencyKey.toLowerCase()} as Mutation;
 }
 
+function requireLease(actor: JWTPayload, token: string, courseId: string, leaseId: string, now: number) {
+  const ttl = policy(courseId);
+  const {course, sessionHash, contentVersion} = currentCourse(actor, token, courseId, now);
+  const lease = queryOne<LeaseRow>(
+    'SELECT * FROM offline_learning_leases WHERE id = ? AND user_id = ? AND course_id = ? AND session_hash = ?',
+    [leaseId, actor.userId, courseId, sessionHash],
+  );
+  if (!lease) throw new OfflineLearningError(403, 'OFFLINE_LEASE_INVALID', 'This offline lease is unavailable.');
+  const expiresAt = Math.min(lease.expires_at, lease.issued_at + ttl);
+  if (expiresAt <= now) throw new OfflineLearningError(409, 'OFFLINE_LEASE_EXPIRED', 'This offline lease expired.');
+  if (lease.content_version !== contentVersion) {
+    throw new OfflineLearningError(409, 'OFFLINE_CONTENT_CHANGED', 'The course changed. Refresh its offline content.');
+  }
+  return {course, lease, expiresAt};
+}
+
+export function inspectOfflineLease(actor: JWTPayload, token: string, courseId: string, leaseId: string) {
+  return db.transaction(() => {
+    const serverTime = Date.now();
+    const {lease, expiresAt} = requireLease(actor, token, courseId, leaseId, serverTime);
+    return {leaseId: lease.id, contentVersion: lease.content_version, expiresAt, serverTime};
+  })();
+}
+
 export function syncOfflineProgress(
   actor: JWTPayload, token: string, courseId: string, raw: unknown,
   apply: (sectionId: string, operation: Mutation) => boolean,
 ) {
   const operation = parseMutation(raw);
   return db.transaction(() => {
-    const now = Date.now();
-    const ttl = policy(courseId);
-    const {course, sessionHash, contentVersion} = currentCourse(actor, token, courseId, now);
-    const lease = queryOne<LeaseRow>(
-      'SELECT * FROM offline_learning_leases WHERE id = ? AND user_id = ? AND course_id = ? AND session_hash = ?',
-      [operation.leaseId, actor.userId, courseId, sessionHash],
-    );
-    if (!lease) {
-      throw new OfflineLearningError(403, 'OFFLINE_LEASE_INVALID', 'This offline lease is unavailable.');
-    }
-    if (Math.min(lease.expires_at, lease.issued_at + ttl) <= now) {
-      throw new OfflineLearningError(409, 'OFFLINE_LEASE_EXPIRED', 'This offline lease expired.');
-    }
-    if (lease.content_version !== contentVersion || operation.contentVersion !== lease.content_version) {
+    const {course, lease} = requireLease(actor, token, courseId, operation.leaseId, Date.now());
+    if (operation.contentVersion !== lease.content_version) {
       throw new OfflineLearningError(409, 'OFFLINE_CONTENT_CHANGED', 'The course changed. Refresh its offline content.');
     }
     const section = offlineSections(course).find(section => section.items.some(item => item.id === operation.itemId));

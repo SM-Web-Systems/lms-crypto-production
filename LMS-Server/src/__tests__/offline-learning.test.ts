@@ -42,6 +42,8 @@ function fixture(textOnly = false) {
     lease: (token: string) => request(app).post(path + '/offline-lease').set('Authorization', 'Bearer ' + token),
     sync: (token: string, operation: object) => request(app).put(path + '/offline-progress')
       .set('Authorization', 'Bearer ' + token).send(operation),
+    inspect: (token: string, leaseId: string) => request(app).get(path + '/offline-lease/' + leaseId)
+      .set('Authorization', 'Bearer ' + token),
   };
 }
 
@@ -70,6 +72,9 @@ describe('offline learning API', () => {
     expect(expiresAt).toBe(a.sessionExpiry);
     expect(expiresAt).toBeGreaterThan(serverTime);
     expect((await f.lease(a.token)).body.data.leaseId).toBe(leaseId);
+    const status = await f.inspect(a.token, leaseId);
+    expect(status.status).toBe(200);
+    expect(status.body.data).toEqual({leaseId, expiresAt, contentVersion, serverTime: expect.any(Number)});
   });
 
   it('denies nonmembers, missing durable sessions, and another enrolled account’s lease', async () => {
@@ -81,6 +86,7 @@ describe('offline learning API', () => {
     expect((await f.lease(noEnrollment.token)).status).toBe(403);
     expect((await f.lease(noSession.token)).status).toBe(401);
     const lease = (await f.lease(a.token)).body.data;
+    expect((await f.inspect(b.token, lease.leaseId)).status).toBe(403);
     expect((await f.sync(b.token, complete(lease))).body.error.code).toBe('OFFLINE_LEASE_INVALID');
     expect(db.prepare('SELECT count(*) AS count FROM lesson_completions').get()).toEqual({count: 0});
   });
@@ -90,6 +96,7 @@ describe('offline learning API', () => {
     const a = f.learner();
     const lease = (await f.lease(a.token)).body.data;
     db.prepare('UPDATE courses SET title = ? WHERE id = ?').run('Revised', f.courseId);
+    expect((await f.inspect(a.token, lease.leaseId)).body.error.code).toBe('OFFLINE_CONTENT_CHANGED');
     expect((await f.sync(a.token, complete(lease))).body.error.code).toBe('OFFLINE_CONTENT_CHANGED');
     const newer = (await f.lease(a.token)).body.data;
     expect(newer.leaseId).not.toBe(lease.leaseId);

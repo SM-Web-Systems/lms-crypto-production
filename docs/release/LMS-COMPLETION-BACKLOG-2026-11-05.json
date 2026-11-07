@@ -471,9 +471,10 @@
       ],
       "evidence": [
         "LMS-051-OFFLINE-LEARNING.md",
-        "evidence/lms-051-server-validation.json"
+        "evidence/lms-051-server-validation.json",
+        "evidence/lms-051-native-validation.json"
       ],
-      "reason": "Server issues approved inline-text packages with session, membership and course-version leases. Offline mutations reauthorize and commit atomically with replay receipts. Focused HTTP and compiled migration checks passed. Native encrypted cache, queue and reader, owner lease/content policy and physical-device acceptance remain open."
+      "reason": "Server lease and replay-safe progress API and native SQLCipher cache, offline reader and durable queue are implemented. Local mobile, HTTP, config and platform export checks passed. Owner-approved course and lease policy, signed Android/iOS device acceptance, and LMS-012/LMS-030 remain open."
     },
     {
       "id": "LMS-060",
