@@ -294,7 +294,7 @@
       "evidence": [
         "LMS-023-COURSE-CHECKOUT.md"
       ],
-      "reason": "Local checkout now reserves one currency-bound reference before initialization, handles safe replay and preserves ambiguous attempts for reconciliation. Real Wallet and Paystack sandbox evidence remains open."
+      "reason": "Local checkout and full refund requests reserve a currency-bound provider reference before submission and preserve ambiguous outcomes for reconciliation. Signed full settlement evidence finalizes refunds. Real Wallet and Paystack sandbox evidence remains open."
     },
     {
       "id": "LMS-030",
