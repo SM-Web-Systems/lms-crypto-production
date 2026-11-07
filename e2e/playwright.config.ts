@@ -13,6 +13,10 @@ process.env.PAYSTACK_SECRET_KEY = process.env.E2E_SYNTHETIC_HMAC_KEY;
 
 const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
 const apiURL = process.env.E2E_API_URL || 'http://localhost:3001';
+const crossBrowser = process.env.E2E_CROSS_BROWSER;
+const crossBrowserScope = crossBrowser === 'sponsor-rbac'
+  ? { testMatch: /(?:sponsor-authorization|sponsor-reporting|rbac-client-roles)\.spec\.ts$/ }
+  : {};
 assertFixtureConfiguration();
 
 export default defineConfig({
@@ -40,9 +44,9 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    ...(process.env.E2E_CROSS_BROWSER === '1' ? [
-      { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-      { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    ...(crossBrowser === '1' || crossBrowser === 'sponsor-rbac' ? [
+      { name: 'firefox', ...crossBrowserScope, use: { ...devices['Desktop Firefox'] } },
+      { name: 'webkit', ...crossBrowserScope, use: { ...devices['Desktop Safari'] } },
     ] : []),
   ],
   // Local acceptance serves the built app, matching the CI browser target.

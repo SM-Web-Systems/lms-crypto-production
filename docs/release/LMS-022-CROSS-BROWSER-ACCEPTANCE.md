@@ -13,3 +13,9 @@ Final validation: **713 web tests pass**; **40/40 Firefox/WebKit sponsor and RBA
 The original interrupted Firefox logs and 37-pass/3-fail WebKit receipt remain preserved alongside corrected receipts; see [validation evidence](evidence/lms-022-validation.json). Desktop Playwright WebKit is engine-level evidence, not physical Safari/iOS acceptance.
 
 Remaining acceptance: provisioned authorized staging accounts/fixtures, staging sign-off across the supported browser/device matrix, Wallet/provider integration and actual signed native binaries/physical devices. No staging role changes or provider transactions were performed by these local tests. Keep LMS-022 open until those gates are accepted.
+
+## Candidate checks and staging preflight, 7 November 2026
+
+Candidate CI runs the complete Chromium suite and the sponsor authorization, reporting and RBAC client suites in Firefox and WebKit. The workflow uses the existing disposable loopback environment and runs each case once. The CI selection lists 92 Chromium cases and 20 cases in each additional engine. Local use of `E2E_CROSS_BROWSER=1` still enables all suites in all three engines.
+
+Read-only GETs on [staging](https://lms.smwebsystems.com) returned HTML with status 200 for `/sponsor/cohorts`, `/sponsor/billing` and `/sponsor/impact`. Their corresponding JSON API routes returned 401 without a session. This establishes public reachability and unauthenticated rejection. Authenticated sponsor ownership, revocation, receipts, CSV and browser sign-off remain pending against a pinned staging deployment.
