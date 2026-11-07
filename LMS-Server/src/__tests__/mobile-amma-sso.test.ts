@@ -28,6 +28,8 @@ async function initiate(extra = {}) {
 }
 async function callback() {
   const start = await initiate();
+  expect(start.status).toBe(302);
+  expect(start.headers['cache-control']).toBe('no-store');
   const state = new URL(start.headers.location).searchParams.get('state');
   return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'wallet-assertion'});
 }
@@ -43,8 +45,11 @@ describe('Amma Wallet native session handoff', () => {
   it('keeps the existing web initiation and token callback working', async () => {
     const start = await request(app).get('/api/v1/auth/amma-login');
     expect(start.status).toBe(302);
+    expect(start.headers['cache-control']).toBe('no-store');
     const state = new URL(start.headers.location).searchParams.get('state');
     const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'web-assertion'});
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
     expect(response.headers.location).toContain('/sso-callback#token=');
     expect(response.headers.location).not.toContain('lmsmobile:');
   });
