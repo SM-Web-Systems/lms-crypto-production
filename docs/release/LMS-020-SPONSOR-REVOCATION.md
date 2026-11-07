@@ -17,3 +17,11 @@ Synthetic fixture seeding is restricted to a disposable `lms-e2e-*` database and
 - [Validation receipt](evidence/lms-020-validation.json) retains source/result hashes and the initial failed attempt.
 
 The suite was repeated after local LMS-011 reconciliation: sponsor authorization/reporting passed 17/17, then the combined LMS-012 candidate passed the complete 83-case browser suite without retries. Private inventory decisions and final LMS-011 acceptance remain open before formal task closure. It does not prove private account cutover, arbitrary cohort ownership transfer, staging sign-off or physical-device behavior.
+
+## Sponsor response caching and delegated exports
+
+Sponsor API responses, cohort administration, scoped payments and badges now carry `Cache-Control: no-store`. The lifecycle test checks that delegated receipts and badges are denied after membership removal and that the member disappears from both billing and the roster CSV for existing and new sessions. Restoring membership restores access. Role revocation then denies the old token and a fresh login on the scoped routes, including both CSV exports. The unrelated sponsor retains access. The cache directive governs HTTP responses and cannot recall a file already downloaded. [HTTP caching standard](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5)
+
+In staging acceptance, verify that the deployed proxy passes this directive through for authenticated cohort data, payment receipts and CSVs, and that denied requests do not return previously authorized content.
+
+The v2 candidate passed 59 sponsor HTTP tests and 51 Playwright cases across Chromium, Firefox and WebKit with retries disabled. The browser suite used the compiled local app and disposable fixtures.
