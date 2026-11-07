@@ -215,7 +215,8 @@
       ],
       "evidence": [
         "LMS-014-SCHEMA-RETIREMENT-REHEARSAL.md",
-        "evidence/lms-014-synthetic-retirement-validation.json"
+        "evidence/lms-014-synthetic-retirement-validation.json",
+        "evidence/lms-014-v2-local-validation.json"
       ],
       "reason": "The separate role-free v2 candidate passed compiled startup and synthetic contraction. Compiled v1 refused the v2 copy and started from a restored v1 backup. Installed-client retirement, hosted v2 validation and exact-image protected-copy acceptance remain open."
     },
