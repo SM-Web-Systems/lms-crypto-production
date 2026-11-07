@@ -47,10 +47,13 @@ function seedQuizAutoComplete() {
   ]);
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Admin', 'qac-admin-${adminId}@test.com', '${HASH}', 'admin'),
-      ('${studentUserId}', 'Student', 'qac-student-${studentUserId}@test.com', '${HASH}', 'student');
+      ('${adminId}','Admin','qac-admin-${adminId}@test.com','${HASH}'),
+      ('${studentUserId}','Student','qac-student-${studentUserId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES ('${studentId}', '${studentUserId}', 'Student', 'qac-student-${studentUserId}@test.com', 'QAC-001', 'CS', 1);
@@ -123,8 +126,10 @@ describe('Quiz auto-complete on pass', () => {
     ]);
 
     db.exec(`
-      INSERT INTO users (id, name, email, password_hash, role)
-      VALUES ('${studentUserId}', 'No-Course Student', 'nc-${studentUserId}@test.com', '${HASH}', 'student');
+      INSERT INTO users (id,name,email,password_hash)
+      VALUES ('${studentUserId}','No-Course Student','nc-${studentUserId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+
 
       INSERT INTO quizzes (id, title, course_id, passing_score, questions)
       VALUES ('${quizId}', 'Standalone Quiz', NULL, 70, '${questions.replace(/'/g, "''")}');

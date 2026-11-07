@@ -7,8 +7,8 @@ import { awardSuperStudentIfEligible } from '../services/earnedRoleService.js';
 import { getUserRoles } from '../middleware/rbac.js';
 
 beforeEach(()=>{
-  db.exec(`DROP TRIGGER IF EXISTS trg_fixture_legacy_roles;
-    INSERT INTO users(id,name,email,password_hash,role,authorization_version) VALUES('learner','Synthetic','learner@example.invalid','synthetic','admin',2);
+  db.exec(`
+    INSERT INTO users(id,name,email,password_hash,authorization_version) VALUES('learner','Synthetic','learner@example.invalid','synthetic',2);
     INSERT INTO user_roles(user_id,role_id) VALUES('learner','role_student');`);
   for(let index=0;index<3;index++) {
     db.prepare("INSERT INTO courses(id,title,course_code) VALUES(?,'Synthetic',?)").run('course-'+index,'CODE-'+index);

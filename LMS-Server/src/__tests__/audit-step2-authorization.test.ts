@@ -1,16 +1,17 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import app from '../app.js';
-import { execute, queryOne } from '../config/database.js';
+import { db, execute, queryOne } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
-import type { LegacyRole } from '../types/index.js';
+type UntrustedRoleHint = 'student' | 'lecturer' | 'admin';
 
 const hash = bcrypt.hashSync('audit-password', 4);
-function actor(role: string, legacy: LegacyRole = 'student') {
+function actor(role: string, legacy: UntrustedRoleHint = 'student') {
   const id = randomUUID(), email = `${id}@audit.invalid`;
-  execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (?, 'Audit account', ?, ?, ?)",[id,email,hash,legacy]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Audit account',?,?)`, [id,email,hash], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(legacy) as "student"|"lecturer"|"admin"])]).changes;
   execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
   execute('INSERT INTO user_roles (user_id,role_id) VALUES (?,?)', [id,role]);
   return {id,email,token:generateToken({userId:id,email,role:legacy})};
@@ -34,7 +35,7 @@ describe('A03 — effective authorization context', () => {
     const login = await request(app).post('/api/v1/auth/login').send({email:a.email,password:'audit-password'});
     const me = await get(a,'/auth/me');
     expect(login.status).toBe(200);
-    expect(me.body.data).toMatchObject({role:'student',rbacRoles:['sponsor'],workspaces:['sponsor'],defaultWorkspace:'sponsor',adminTier:null});
+    expect(me.body.data).toMatchObject({rbacRoles:['sponsor'],workspaces:['sponsor'],defaultWorkspace:'sponsor',adminTier:null});
     for (const key of ['permissions','workspaces','rbacRoles','assignedCourses','adminTier']) expect(login.body.data.user[key]).toEqual(me.body.data[key]);
   });
   it('multi-role users retain both workspaces and prioritize staff over student', async () => {

@@ -27,11 +27,15 @@ function seedUsers() {
   const stuRecordId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',    'Admin',    'admin@a.com',    '${HASH}', 'admin'),
-      ('${lecturerId}', 'Lecturer', 'lect@a.com',     '${HASH}', 'lecturer'),
-      ('${studentId}',  'Student',  'student@a.com',  '${HASH}', 'student');
+      ('${adminId}','Admin','admin@a.com','${HASH}'),
+      ('${lecturerId}','Lecturer','lect@a.com','${HASH}'),
+      ('${studentId}','Student','student@a.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES
@@ -49,46 +53,14 @@ function seedUsers() {
   return { adminId, lecturerId, studentId, courseId, course2Id };
 }
 
-// ─── A9.1 — users.role CHECK constraint ─────────────────────────────────────
-
-describe('A9.1 — users.role CHECK constraint', () => {
-  it('accepts lecturer role on INSERT', () => {
-    const id = uuidv4();
-    expect(() => {
-      db.exec(`INSERT INTO users (id, name, email, password_hash, role)
-               VALUES ('${id}', 'L', 'l@x.com', '${HASH}', 'lecturer')`);
-    }).not.toThrow();
-
-    const row = db.prepare("SELECT role FROM users WHERE id = ?").get(id) as { role: string };
-    expect(row.role).toBe('lecturer');
+describe('RBAC-only user schema', () => {
+  it('has no independent role column or assignment trigger', () => {
+    expect(db.pragma('table_info(users)').map((column:any)=>column.name)).not.toContain('role');
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='users'").all()).toEqual([]);
   });
-
-  it('accepts student and admin roles (regression)', () => {
-    const id1 = uuidv4();
-    const id2 = uuidv4();
-    expect(() => {
-      db.exec(`INSERT INTO users (id, name, email, password_hash, role)
-               VALUES ('${id1}', 'S', 's2@x.com', '${HASH}', 'student')`);
-      db.exec(`INSERT INTO users (id, name, email, password_hash, role)
-               VALUES ('${id2}', 'A', 'a2@x.com', '${HASH}', 'admin')`);
-    }).not.toThrow();
-  });
-
-  it('rejects invalid role with CHECK constraint error', () => {
-    const id = uuidv4();
-    expect(() => {
-      db.exec(`INSERT INTO users (id, name, email, password_hash, role)
-               VALUES ('${id}', 'X', 'x@x.com', '${HASH}', 'superuser')`);
-    }).toThrow(/CHECK constraint failed/);
-  });
-
-  it('accepts UPDATE from student to lecturer', () => {
-    const ids = seedUsers();
-    expect(() => {
-      db.exec(`UPDATE users SET role = 'lecturer' WHERE id = '${ids.studentId}'`);
-    }).not.toThrow();
-    const row = db.prepare("SELECT role FROM users WHERE id = ?").get(ids.studentId) as { role: string };
-    expect(row.role).toBe('lecturer');
+  it('cannot insert or update a removed role field', () => {
+    expect(()=>db.exec("INSERT INTO users(id,name,email,password_hash,role) VALUES('old','Old','old@invalid.test','unused','admin')")).toThrow(/role/);
+    expect(()=>db.exec("UPDATE users SET role='admin'")).toThrow(/role/);
   });
 });
 
@@ -111,11 +83,11 @@ describe('A9.2 — lecturer role-based access', () => {
     expect(res.status).toBe(200);
   });
 
-  it('lecturer token in JWT payload has role=lecturer', () => {
+  it('instructor token identifies the user without a role hint', () => {
     const token = makeToken({ userId: ids.lecturerId, email: 'lect@a.com', role: 'lecturer' });
     // Decode the middle segment (payload)
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    expect(payload.role).toBe('lecturer');
+    expect(payload).not.toHaveProperty('role'); expect(payload).not.toHaveProperty('roles');
   });
 
   it('admin token passes routes that allow lecturer (admin >= lecturer)', async () => {

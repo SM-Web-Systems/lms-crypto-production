@@ -33,10 +33,13 @@ function seedBase() {
   const studentId = uuidv4();
   const courseId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
     VALUES
-      ('${adminId}',   'RM Admin',   'rm-admin@test.com',   '${HASH}', 'admin',   '${WALLET}',  'linked'),
-      ('${studentId}', 'RM Student', 'rm-student@test.com', '${HASH}', 'student', '${WALLET2}', 'linked');
+      ('${adminId}','RM Admin','rm-admin@test.com','${HASH}','${WALLET}','linked'),
+      ('${studentId}','RM Student','rm-student@test.com','${HASH}','${WALLET2}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
     INSERT INTO courses (id, title, course_code, sections)
     VALUES ('${courseId}', 'RM Course', 'RM-001', '[]');
   `);

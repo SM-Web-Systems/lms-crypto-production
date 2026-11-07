@@ -24,7 +24,7 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../../context/useAuth', () => ({
   useAuth: () => ({
-    user: { id: 'user-1', name: 'Alice', email: 'alice@test.com', role: 'student' },
+    user: { id: 'user-1', name: 'Alice', email: 'alice@test.com' },
   }),
 }));
 

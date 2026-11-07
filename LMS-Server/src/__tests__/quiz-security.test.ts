@@ -45,11 +45,15 @@ function seedQuizData() {
   ]);
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'QSec Admin', 'qsec-admin-${adminId}@test.com', '${HASH}', 'admin'),
-      ('${studentAId}', 'Student A', 'qsec-a-${studentAId}@test.com', '${HASH}', 'student'),
-      ('${studentBId}', 'Student B', 'qsec-b-${studentBId}@test.com', '${HASH}', 'student');
+      ('${adminId}','QSec Admin','qsec-admin-${adminId}@test.com','${HASH}'),
+      ('${studentAId}','Student A','qsec-a-${studentAId}@test.com','${HASH}'),
+      ('${studentBId}','Student B','qsec-b-${studentBId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentAId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentBId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Security Course', 'Test', '${code}', '[]');

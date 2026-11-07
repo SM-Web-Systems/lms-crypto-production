@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import {it,expect,afterEach,vi} from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -10,7 +11,7 @@ afterEach(()=>vi.unstubAllEnvs());
 function fixture(){
   vi.stubEnv('PUSH_NOTIFICATIONS_ENABLED','true');vi.stubEnv('EXPO_PUSH_PROJECT_ID','a1111111-1111-4111-8111-111111111111');vi.stubEnv('EXPO_PUSH_ACCESS_TOKEN','synthetic-test-access-token');
   const accounts=Array.from({length:2},()=>{
-    const id=randomUUID();db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash','student')").run(id,`${id}@test.invalid`);
+    const id=randomUUID();seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic',?,'hash')", [id,`${id}@test.invalid`], ["role_student"]);
     const token=jwt.sign({userId:id,role:'student',authorizationVersion:0},process.env.JWT_SECRET!,{expiresIn:'1h',jwtid:randomUUID()});
     db.prepare('INSERT INTO active_sessions(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)').run(randomUUID(),id,hashToken(token),new Date(Date.now()+3_600_000).toISOString());return {id,token};
   });

@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-notifications.test.ts — N7-N8: Reward notification tests
  *
@@ -18,9 +19,7 @@ import { CONFIGURABLE_TYPES, updatePreferences } from '../services/notificationS
 
 function createUser(role = 'student'): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, 'hash', ?)"
-  ).run(id, `${id}@test.com`, role);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test',?,'hash')`, [id,`${id}@test.com`], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]);
   return id;
 }
 

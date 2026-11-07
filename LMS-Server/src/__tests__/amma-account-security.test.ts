@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
@@ -25,9 +26,8 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 async function localUser(boundId: string | null = null) {
-  execute(`INSERT INTO users(id,name,email,password_hash,role,auth_provider,ammawallet_user_id,walletAddress,wallet_linking_status)
-    VALUES('owner','Local owner',?,?,'admin',?,?,?,'linked')`,
-  [email, await bcrypt.hash(password, 4), boundId ? 'ammawallet' : 'local', boundId, walletAddress]);
+  seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash,auth_provider,ammawallet_user_id,walletAddress,wallet_linking_status)
+    VALUES('owner','Local owner',?,?,?,?,?,'linked')`, [email,await bcrypt.hash(password, 4),boundId ? 'ammawallet' : 'local',boundId,walletAddress], ["role_admin"]).changes;
   const token = generateToken({userId: 'owner', email, role: 'admin'});
   createSession('owner', token);
   return token;
@@ -109,13 +109,13 @@ describe('Amma identity and explicit linking policy', () => {
     const result = await callback();
     expect(result.headers.location).toContain('/sso-callback#token=');
     expect(row().email).toBe(email);
-    expect(row().role).toBe('admin');
+    expect(db.prepare("SELECT role_id FROM user_roles WHERE user_id='owner'").all()).toEqual([{role_id:'role_admin'}]);
     expect(row().ammawallet_user_id).toBe(identity.userId);
   });
   it('rejects pre-existing duplicate provider bindings for administrative recovery', async () => {
     await localUser(identity.userId);
-    execute(`INSERT INTO users(id,name,email,password_hash,role,ammawallet_user_id)
-      VALUES('duplicate','Duplicate','duplicate@example.invalid','$sso$','student',?)`, [identity.userId]);
+    seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash,ammawallet_user_id)
+      VALUES('duplicate','Duplicate','duplicate@example.invalid','$sso$',?)`, [identity.userId], ["role_student"]).changes;
     expectError(await callback(), 'identity_conflict');
   });
   it('requires authentication and a correct LMS password before offering a link', async () => {
@@ -134,7 +134,7 @@ describe('Amma identity and explicit linking policy', () => {
     expect(fresh).toBeTruthy();
     expect(row().auth_provider).toBe('ammawallet');
     expect(row().ammawallet_user_id).toBe(identity.userId);
-    expect(row().role).toBe('admin');
+    expect(db.prepare("SELECT role_id FROM user_roles WHERE user_id='owner'").all()).toEqual([{role_id:'role_admin'}]);
     expect(row().authorization_version).toBe(1);
     expect((await request(app).get('/api/v1/auth/me').auth(token, {type: 'bearer'})).status).toBe(401);
     expect((await request(app).get('/api/v1/auth/me').auth(fresh, {type: 'bearer'})).status).toBe(200);
@@ -161,8 +161,8 @@ describe('Amma identity and explicit linking policy', () => {
   it('cannot link an identity already bound to another LMS account', async () => {
     const token = await localUser();
     const state = await linkState(token);
-    execute(`INSERT INTO users(id,name,email,password_hash,role,ammawallet_user_id)
-      VALUES('other','Other','other@example.invalid','$sso$','student',?)`, [identity.userId]);
+    seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash,ammawallet_user_id)
+      VALUES('other','Other','other@example.invalid','$sso$',?)`, [identity.userId], ["role_student"]).changes;
     expectError(await callback(state), 'identity_conflict');
     expect(row().auth_provider).toBe('local');
   });

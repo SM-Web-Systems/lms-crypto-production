@@ -60,7 +60,7 @@ if(process.argv[2]==='--worker') {
     db=new Database(file);db.exec(`CREATE TABLE synthetic_push_sends(notification_id TEXT,installation_id TEXT,generation INTEGER);`);
     const tokens={};
     for(const owner of ['owner-a','owner-b']){
-      db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash','student')").run(owner,`${owner}@example.invalid`);
+      db.prepare("INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic',?,'hash')").run(owner,`${owner}@example.invalid`);
       db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_student')").run(owner);
       const token=jwt.sign({userId:owner,role:'student',authorizationVersion:0},env.JWT_SECRET,{expiresIn:'2h',jwtid:randomUUID()});tokens[owner]=token;
       db.prepare('INSERT INTO active_sessions(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)').run(randomUUID(),owner,createHash('sha256').update(token).digest('hex'),new Date(Date.now()+7_200_000).toISOString());

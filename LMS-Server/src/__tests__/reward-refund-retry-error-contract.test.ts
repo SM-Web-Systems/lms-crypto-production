@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W02 closure follow-up — error-contract and visibility-policy tests.
  *
@@ -30,9 +31,7 @@ function createUserWithRole(
   rbacRoleId: string,
 ): { userId: string; token: string } {
   const userId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', ?)"
-  ).run(userId, `User-${rbacRoleId}-${userId.slice(0, 8)}`, `${userId}@test.com`, legacyRole);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, 'hash')", [userId, `User-${rbacRoleId}-${userId.slice(0, 8)}`, `${userId}@test.com`], [fixtureRoleId(legacyRole)]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, rbacRoleId);
   const token = makeToken({ userId, email: `${userId}@test.com`, role: legacyRole });
   return { userId, token };
@@ -92,9 +91,7 @@ function makeManageOnlyUser(): { userId: string; token: string } {
 /** Independent funder with reward.manage for grant operations. */
 function createFundingAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'FundAdmin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(id, 'role_admin');
   return id;
 }
@@ -120,9 +117,7 @@ function seedReleasedAllocation(): RewardScenario {
   db.prepare(
     `INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Test Cohort')`
   ).run(cohortId, ownerSponsor.userId, courseId);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Student', ?, 'hash')", [studentId, `${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(studentId, 'role_student');
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
 

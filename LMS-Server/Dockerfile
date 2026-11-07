@@ -11,7 +11,7 @@ RUN npm ci
 
 ARG BUILD_SHA=unknown
 LABEL org.opencontainers.image.revision=$BUILD_SHA
-LABEL org.smwebsystems.lms.authorization-schema=rbac-only-v1
+LABEL org.smwebsystems.lms.authorization-schema=rbac-only-v2
 COPY . .
 RUN echo "$BUILD_SHA" > /app/BUILD_SHA
 RUN npm run build

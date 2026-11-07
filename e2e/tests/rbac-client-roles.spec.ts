@@ -16,8 +16,6 @@ for (const width of [320, 390, 768]) {
     const roleId = `adviser-${suffix}`;
     withFixtureDatabase(db => {
       db.prepare('INSERT INTO roles(id,name,label) VALUES(?,?,?)').run(roleId, roleId, 'Learning adviser');
-      // A stale compatibility label must never manufacture a displayed grant.
-      db.prepare("UPDATE users SET role='admin' WHERE id=?").run(id);
     });
 
     await page.setViewportSize({ width, height: 900 });
@@ -53,6 +51,7 @@ for (const width of [320, 390, 768]) {
     expect(directory.status()).toBe(200);
     const target = (await directory.json()).data.users.find((user: { id: string }) => user.id === id);
     expect(target.roleSummaries).toEqual([]);
+    expect(target).not.toHaveProperty('role');
     expect(target).not.toHaveProperty('permissions');
     expect(target).not.toHaveProperty('workspaces');
   });

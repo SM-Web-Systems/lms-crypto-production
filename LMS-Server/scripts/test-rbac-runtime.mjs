@@ -1,110 +1,93 @@
-// Real child-process startup proof, using only a synthetic disposable database.
+// Real process rehearsal, synthetic disposable databases only; never accepts a DB path.
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
-import { copyFileSync,mkdtempSync,readFileSync,rmSync } from 'node:fs';
+import { mkdtempSync,readFileSync,copyFileSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath,pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { cutover } from './rbac-cutover.mjs';
-import { fingerprintFile } from './rbac-inventory.mjs';
 import { retireLegacy } from './rbac-retire-legacy.mjs';
+import { fingerprintFile } from './rbac-inventory.mjs';
+import { syntheticV1Schema } from './rbac-retirement-fixture.mjs';
 
 const server=fileURLToPath(new URL('..',import.meta.url));
-const directory=mkdtempSync(path.join(tmpdir(),'lms-rbac-runtime-'));
-const file=path.join(directory,'synthetic.db');
+const directory=mkdtempSync(path.join(tmpdir(),'lms-rbac-retired-runtime-'));
+const fresh=path.join(directory,'fresh.db'), file=path.join(directory,'migration.db'), backup=path.join(directory,'backup.db');
 const environment=Object.fromEntries(Object.entries(process.env).filter(([name])=>
   ['PATH','SYSTEMROOT','WINDIR','TEMP','TMP','COMSPEC','PATHEXT','APPDATA','LOCALAPPDATA'].includes(name.toUpperCase())));
-environment.NODE_ENV='production';
-function run(root,initialize=false,database=file) {
+Object.assign(environment,{NODE_ENV:'production'});
+function run(root,database,initialize=false) {
   const module=pathToFileURL(path.join(root,'dist/config/database.js')).href;
   return spawnSync(process.execPath,initialize?[path.join(root,'dist/scripts/initDb.js'),'--initialize-new']:
     ['--input-type=module','-e',`const {db,close}=await import(${JSON.stringify(module)});console.log(JSON.stringify(db.prepare('SELECT user_id,role_id FROM user_roles ORDER BY user_id,role_id').all()));close();`],
     {cwd:directory,env:{...environment,DATABASE_PATH:database},encoding:'utf8',windowsHide:true,timeout:60000});
 }
 try {
-  let result=run(server,true); assert.equal(result.status,0,result.stderr);
-  let db=new Database(file);
-  db.pragma('journal_mode=DELETE');
-  db.exec('DROP TABLE authorization_migrations; DROP TRIGGER trg_auto_assign_user_role');
-  db.exec(readFileSync(new URL('../database/migrations/rbac-only-v1-legacy-trigger.sql',import.meta.url),'utf8'));
-  db.exec(`INSERT INTO users(id,name,email,password_hash,role) VALUES('revoked','Synthetic','revoked@example.invalid','synthetic','admin');
-    DELETE FROM user_roles WHERE user_id='revoked';`);
+  let result=run(server,fresh,true); assert.equal(result.status,0,result.stderr);
+  let db=new Database(fresh,{readonly:true});
+  const seed=Object.fromEntries(['roles','permissions','role_permissions'].map(table=>[table,db.prepare('SELECT * FROM '+table).all()]));
+  assert.ok(!db.pragma('table_info(users)').some(column=>column.name==='role'));
   db.close();
+  db=new Database(file);
+  db.exec(syntheticV1Schema);
+  for(const [table,rows] of Object.entries(seed)) for(const row of rows) {
+    const columns=Object.keys(row);db.prepare('INSERT INTO '+table+'('+columns.join(',')+') VALUES('+columns.map(()=>'?').join(',')+')').run(...Object.values(row));
+  }
+  db.exec(`INSERT INTO users(id,name,email,password_hash,role,authorization_version) VALUES
+    ('revoked','Synthetic','revoked@example.invalid','unused','admin',9),
+    ('learner','Synthetic','learner@example.invalid','unused','lecturer',3);
+    INSERT INTO user_roles(user_id,role_id) VALUES('learner','role_student');
+    INSERT INTO rewards(id,creator_user_id,scope_type,scope_id,reward_type,amount_stroops,idempotency_key)
+      VALUES('reward','learner','sponsor_cohort','synthetic','custom',1000,'reward');
+    INSERT INTO reward_funding_intents(id,reward_id,owner_user_id,actor_user_id,source_type,network,asset,currency_code,amount_stroops,idempotency_key,expires_at)
+      VALUES('intent','reward','learner','learner','admin_grant','internal','native','XLM',1000,'intent','2099-01-01');
+    INSERT INTO push_installations(id,credential_hash,generation,user_id,enabled,lease_expires_at,updated_at)
+      VALUES('device','synthetic',1,'learner',0,1000,0);
+    INSERT INTO offline_progress_receipts(user_id,idempotency_key,request_hash,retain_until)
+      VALUES('learner','offline-receipt','synthetic',1000);`);
+  db.close(); copyFileSync(file,backup);
   const before=readFileSync(file);
-  result=run(server);
-  assert.notEqual(result.status,0,'new backend must require explicit cutover');
-  assert.match(result.stderr,/reviewed offline rbac-cutover/);
+  result=run(server,file);
+  assert.notEqual(result.status,0,'v1 requires explicit offline contraction');
+  assert.match(result.stderr,/reviewed offline rbac-retire-legacy/);
   assert.deepEqual(readFileSync(file),before,'refused startup must be read-only');
-  cutover({mode:'apply',database:file,snapshot:true,deployedSha:'a'.repeat(40),acceptRbac:true,
-    expectedHash:fingerprintFile(file).sha256,reviewReference:'RBAC-STEP-01/synthetic-runtime'});
+  const migrated=retireLegacy({mode:'apply',database:file,backupDatabase:backup,snapshot:true,deployedSha:'a'.repeat(40),
+    expectedHash:fingerprintFile(file).sha256,reviewReference:'RBAC-STEP-01-03/synthetic-runtime-and-recovery',
+    acceptClients:true,acceptRecovery:true});
+  assert.equal(migrated.changed,true);assert.deepEqual(readFileSync(backup),before);
+  assert.equal(migrated.retainedDataSha256After,migrated.retainedData.sha256);
   let previousBackend='NOT_RUN';
   if(process.env.RBAC_PREVIOUS_SERVER) {
     const upgraded=readFileSync(file);
-    result=run(path.resolve(process.env.RBAC_PREVIOUS_SERVER));
-    assert.notEqual(result.status,0,'previous backend must not accept the new fence');
-    assert.match(result.stderr,/missing or changed role trigger/);
-    assert.deepEqual(readFileSync(file),upgraded,'old startup transaction must roll back all writes');
-    previousBackend='REFUSED_WITHOUT_WRITES';
+    result=run(path.resolve(process.env.RBAC_PREVIOUS_SERVER),file);
+    assert.notEqual(result.status,0,'previous backend must refuse the v2 floor');
+    assert.match(result.stderr,/Database startup refused/);
+    assert.deepEqual(readFileSync(file),upgraded,'prior backend refusal must not change bytes');
+    const restored=path.join(directory,'restored-v1.db');
+    copyFileSync(backup,restored);
+    result=run(path.resolve(process.env.RBAC_PREVIOUS_SERVER),restored);
+    assert.equal(result.status,0,result.stderr);
+    assert.match(result.stdout,/"user_id":"learner","role_id":"role_student"/);
+    assert.ok(!result.stdout.includes('"user_id":"revoked"'));
+    assert.deepEqual(readFileSync(backup),before);
+    previousBackend='REFUSED_V2_WITHOUT_WRITES_AND_RESTORED_V1';
   }
   for(let restart=0;restart<2;restart++) {
-    result=run(server); assert.equal(result.status,0,result.stderr);
-    assert.match(result.stdout,/\[\]/,'restart must not recreate a revoked legacy admin');
+    result=run(server,file);assert.equal(result.status,0,result.stderr);
+    assert.match(result.stdout,/"user_id":"learner","role_id":"role_student"/);
+    assert.ok(!result.stdout.includes('"user_id":"revoked"'),'restart must not recreate revoked grants');
   }
   db=new Database(file,{readonly:true});
   try {
-    assert.equal(db.prepare("SELECT role FROM users WHERE id='revoked'").get().role,'admin');
-    assert.equal(db.prepare("SELECT COUNT(*) AS total FROM user_roles WHERE user_id='revoked'").get().total,0);
+    assert.ok(!db.pragma('table_info(users)').some(column=>column.name==='role'));
+    assert.equal(db.prepare("SELECT authorization_version FROM users WHERE id='revoked'").get().authorization_version,9);
+    assert.equal(db.pragma('foreign_key_check').length,0);
     assert.equal(db.pragma('quick_check',{simple:true}),'ok');
-  } finally { db.close(); }
-  db=new Database(file,{fileMustExist:true});
-  try {
-    db.pragma('journal_mode=DELETE');
-    db.exec(`
-      INSERT INTO rewards(id,creator_user_id,scope_type,scope_id,reward_type,amount_stroops,idempotency_key)
-        VALUES('reward','revoked','sponsor_cohort','synthetic','custom',1000,'reward');
-      INSERT INTO reward_funding_intents(id,reward_id,owner_user_id,actor_user_id,source_type,network,asset,currency_code,amount_stroops,idempotency_key,expires_at)
-        VALUES('intent','reward','revoked','revoked','admin_grant','internal','native','XLM',1000,'intent','2099-01-01');
-      INSERT INTO push_installations(id,credential_hash,generation,user_id,enabled,lease_expires_at,updated_at)
-        VALUES('device','synthetic',1,'revoked',0,1000,0);
-      INSERT INTO offline_progress_receipts(user_id,idempotency_key,request_hash,retain_until)
-        VALUES('revoked','offline-receipt','synthetic',1000);
-    `);
-  } finally { db.close(); }
-
-  const backup=path.join(directory,'uncontracted.db'), restored=path.join(directory,'restored.db');
-  copyFileSync(file,backup);
-  const source=fingerprintFile(file).sha256;
-  const options={database:file,snapshot:true,deployedSha:'a'.repeat(40)};
-  const plan=retireLegacy({...options,mode:'plan'});
-  assert.equal(plan.snapshotSha256,source);
-  const retirement=retireLegacy({...options,mode:'apply',expectedHash:source,backupDatabase:backup,
-    acceptClients:true,acceptRecovery:true,reviewReference:'LMS-014/synthetic-runtime'});
-  assert.equal(retirement.productionApprovalVerified,false);
-  assert.equal(retirement.changed,true);
-  assert.equal(retirement.retainedDataSha256After,plan.retainedData.sha256);
-  assert.equal(fingerprintFile(backup).sha256,source);
-
-  const contracted=fingerprintFile(file).sha256;
-  result=run(server);
-  assert.notEqual(result.status,0,'compiled v1 backend must refuse contracted v2');
-  assert.match(result.stderr,/reviewed offline rbac-cutover/);
-  assert.equal(fingerprintFile(file).sha256,contracted,'v1 refusal must preserve the contracted file');
-  assert.equal(retireLegacy({...options,mode:'plan'}).sourceState,'rbac-only-v2');
-
-  copyFileSync(backup,restored);
-  result=run(server,false,restored);
-  assert.equal(result.status,0,result.stderr);
-  assert.match(result.stdout,/\[\]/,'restored v1 copy must preserve revoked grants');
-  assert.equal(fingerprintFile(backup).sha256,source);
-  assert.equal(fingerprintFile(file).sha256,contracted);
-  console.log(JSON.stringify({syntheticOnly:true,unupgradedStartup:'REFUSED_WITHOUT_WRITES',cutover:'PASS',
-    repeatedRestart:'NO_GRANT_RESURRECTION',previousBackend,
-    retirement:{retainedData:plan.retainedData,legacyColumnRemoved:retirement.legacyColumnRemoved,
-      v1StartupOnV2:'REFUSED_WITHOUT_WRITES',restoredV1Startup:'PASS',backupUnchanged:true,
-      productionApprovalVerified:false}},null,2));
+  } finally {db.close();}
+  console.log(JSON.stringify({syntheticOnly:true,freshInitialization:'ROLE_FREE',v1Startup:'REFUSED_WITHOUT_WRITES',
+    contraction:'EXACT_RETAINED_DATA_AND_GRANTS',repeatedRestart:'NO_GRANT_RESURRECTION',previousBackend},null,2));
 } finally {
   assert.equal(path.dirname(path.resolve(directory)),path.resolve(tmpdir()));
-  assert.ok(path.basename(directory).startsWith('lms-rbac-runtime-'));
+  assert.ok(path.basename(directory).startsWith('lms-rbac-retired-runtime-'));
   rmSync(directory,{recursive:true,force:true});
 }

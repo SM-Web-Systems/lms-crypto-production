@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,15 +11,14 @@ function seedTeacher(): { teacherId: string; token: string; adminToken: string; 
   const studentId = uuidv4();
   const classId = uuidv4();
 
-  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Teacher', ?, 'hash', 'lecturer')").run(teacherId, `${teacherId}@test.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')").run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Teacher',?,'hash')`, [teacherId,`${teacherId}@test.com`], ["role_instructor"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
 
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(teacherId, 'role_teacher');
 
   // W01-R1: Independent admin for funding authorization
   const adminId = uuidv4();
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')").run(adminId, `${adminId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'FundAdmin', ?, 'hash')", [adminId, `${adminId}@test.com`], ["role_admin"]);
 
   db.prepare('INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, ?, ?)').run(classId, 'Test Class', 'class', teacherId);
   db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(classId, studentId);

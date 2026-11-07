@@ -20,8 +20,10 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedUser(suffix: string) {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-    VALUES ('${userId}', 'Amt User ${suffix}', 'amt-${suffix}@test.com', '${HASH}', 'student', 'GAMT${suffix}', 'linked');
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+    VALUES ('${userId}','Amt User ${suffix}','amt-${suffix}@test.com','${HASH}','GAMT${suffix}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   return userId;
 }

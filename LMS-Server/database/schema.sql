@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'lecturer', 'admin')),
   description TEXT,
   clerk_user_id TEXT,
   walletAddress TEXT UNIQUE,
@@ -521,7 +520,7 @@ CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id
 CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
 CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
 
--- RBAC-only schema marker and backwards-startup fence; no legacy mapping.
+-- RBAC-only schema floor; application startup never infers grants from user data.
 CREATE TABLE IF NOT EXISTS authorization_migrations (
   id TEXT PRIMARY KEY,
   applied_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -529,16 +528,9 @@ CREATE TABLE IF NOT EXISTS authorization_migrations (
   source_grants_sha256 TEXT,
   review_reference TEXT NOT NULL
 );
-INSERT OR IGNORE INTO authorization_migrations(id,review_reference) VALUES('rbac-only-v1','new-database');
+INSERT OR IGNORE INTO authorization_migrations(id,review_reference) VALUES('rbac-only-v2','new-database');
 
--- Non-grant rollback fence: older AUTH-13 backends reject the changed canonical
--- trigger and roll their startup transaction back. Initial grants are explicit.
-CREATE TRIGGER IF NOT EXISTS trg_auto_assign_user_role
-AFTER INSERT ON users
-FOR EACH ROW
-BEGIN
-  SELECT 1;
-END;
+
 
 -- Phase 12 C1: Paystack webhook audit trail
 CREATE TABLE IF NOT EXISTS webhook_events (

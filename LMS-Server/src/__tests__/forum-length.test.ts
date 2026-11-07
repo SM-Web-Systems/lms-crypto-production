@@ -11,7 +11,9 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedUserWithCourse() {
   const userId = uuidv4();
   const courseId = uuidv4();
-  db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES ('${userId}', 'User', 'user-${userId}@test.com', '${HASH}', 'student')`);
+  db.exec(`INSERT INTO users (id,name,email,password_hash) VALUES ('${userId}','User','user-${userId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+`);
   db.exec(`INSERT INTO courses (id, title, course_code, description) VALUES ('${courseId}', 'Test Course', 'TC-${courseId.slice(0,6)}', 'desc')`);
   db.exec(`INSERT INTO user_course_codes (user_id, course_code) VALUES ('${userId}', 'TC-${courseId.slice(0,6)}')`);
   const token = makeToken({ userId, email: `user-${userId}@test.com`, role: 'student' });

@@ -26,11 +26,15 @@ function seedBase() {
   const courseId   = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}',    'Admin',    'admin-e@test.com',    '${HASH}', 'admin'),
-      ('${studentId}',  'Student',  'student-e@test.com',  '${HASH}', 'student'),
-      ('${student2Id}', 'Student2', 'student2-e@test.com', '${HASH}', 'student');
+      ('${adminId}','Admin','admin-e@test.com','${HASH}'),
+      ('${studentId}','Student','student-e@test.com','${HASH}'),
+      ('${student2Id}','Student2','student2-e@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${student2Id}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'Course E', 'desc', 'E-E-001', '[]');

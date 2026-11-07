@@ -21,9 +21,10 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedUser(role: 'admin' | 'student', suffix: string, wallet?: string) {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-    VALUES ('${userId}', 'SS User ${suffix}', 'ss-${suffix}@test.com', '${HASH}', '${role}',
-            ${wallet ? `'${wallet}'` : 'NULL'}, '${wallet ? 'linked' : 'none'}');
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+    VALUES ('${userId}','SS User ${suffix}','ss-${suffix}@test.com','${HASH}',${wallet ? `'${wallet}'` : 'NULL'},'${wallet ? 'linked' : 'none'}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}',CASE '${role}' WHEN 'student' THEN 'role_student' WHEN 'lecturer' THEN 'role_instructor' WHEN 'admin' THEN 'role_admin' END);
+
   `);
   return userId;
 }

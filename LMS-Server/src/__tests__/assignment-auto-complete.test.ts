@@ -35,10 +35,13 @@ function seedAssignmentAutoComplete() {
   ]);
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Admin', 'aac-admin-${adminId}@test.com', '${HASH}', 'admin'),
-      ('${studentUserId}', 'Student', 'aac-student-${studentUserId}@test.com', '${HASH}', 'student');
+      ('${adminId}','Admin','aac-admin-${adminId}@test.com','${HASH}'),
+      ('${studentUserId}','Student','aac-student-${studentUserId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES ('${studentId}', '${studentUserId}', 'Student', 'aac-student-${studentUserId}@test.com', 'AAC-001', 'CS', 1);
@@ -105,10 +108,13 @@ describe('Assignment auto-complete on approval', () => {
     const submissionId = uuidv4();
 
     db.exec(`
-      INSERT INTO users (id, name, email, password_hash, role)
+      INSERT INTO users (id,name,email,password_hash)
       VALUES
-        ('${adminId}', 'Admin NC', 'aac-nc-admin-${adminId}@test.com', '${HASH}', 'admin'),
-        ('${studentUserId}', 'Student NC', 'aac-nc-stu-${studentUserId}@test.com', '${HASH}', 'student');
+        ('${adminId}','Admin NC','aac-nc-admin-${adminId}@test.com','${HASH}'),
+        ('${studentUserId}','Student NC','aac-nc-stu-${studentUserId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+
 
       INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
       VALUES ('${studentId}', '${studentUserId}', 'Student NC', 'aac-nc-stu-${studentUserId}@test.com', 'AAC-NC', 'CS', 1);

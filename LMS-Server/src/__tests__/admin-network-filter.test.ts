@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * admin-network-filter.test.ts — Network filter for issued credentials
  *
@@ -16,12 +17,10 @@ import { makeToken } from './helpers/auth.js';
 
 function seedAdminAndCredentials(): { token: string; testnetCredId: string; publicCredId: string } {
   const adminId = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, 'anf-admin@test.com', 'ANF Admin', 'hash', 'admin')`)
-    .run(adminId);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,'anf-admin@test.com','ANF Admin','hash')`, [adminId], ["role_admin"]);
 
   const studentId = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, 'anf-student@test.com', 'ANF Student', 'hash', 'student')`)
-    .run(studentId);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,'anf-student@test.com','ANF Student','hash')`, [studentId], ["role_student"]);
 
   const testnetCredId = uuidv4();
   db.prepare(

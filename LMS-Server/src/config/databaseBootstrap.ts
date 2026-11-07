@@ -69,14 +69,15 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
   // Existing databases require an operator-reviewed offline cutover, never an
   // implicit startup grant/backfill or trigger repair.
   const ledger = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").get();
-  if (!ledger || !db.prepare("SELECT 1 FROM authorization_migrations WHERE id='rbac-only-v1'").get()
-    || (db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get() as {total:number}).total !== 1) {
-    refuse('RBAC-only schema requires the reviewed offline rbac-cutover migration');
+  if (!ledger) refuse('RBAC schema requires the reviewed offline rbac-retire-legacy migration');
+  const ids = (db.prepare('SELECT id FROM authorization_migrations ORDER BY id').all() as {id:string}[]).map(row=>row.id);
+  if (!['rbac-only-v2','rbac-only-v1,rbac-only-v2'].includes(ids.join(','))) {
+    refuse('RBAC schema requires the reviewed offline rbac-retire-legacy migration');
   }
-  const expectedGuard = baselineTriggers.find(trigger => trigger.name === 'trg_auto_assign_user_role');
-  const actualGuard = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get() as {sql:string}|undefined;
-  const normalizeGuard = (sql:string) => sql.replace(/\s+/g,' ').trim();
-  if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
+  if ((db.pragma('table_xinfo(users)') as {name:string}[]).some(column=>column.name==='role')
+    || db.prepare("SELECT 1 FROM sqlite_master WHERE name='trg_auto_assign_user_role' OR (type='trigger' AND tbl_name='users')").get()) {
+    refuse('retired authorization schema objects remain');
+  }
 
   for (const table of baseline) {
     // Funding, push and offline learning add empty tables without synthesizing historical evidence.
@@ -114,7 +115,6 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
   if (afterMigrations) assertNoNewForeignKeyEvidence(foreignKeys, foreignKeyBaseline);
   if (foreignKeys.size) console.warn(`Database has ${foreignKeys.size} unchanged legacy foreign key violation(s); reviewed repair remains required.`);
   const ddl = (table: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql: string }).sql;
-  if (!ddl('users').includes("'lecturer'")) refuse('legacy users constraint requires a reviewed migration');
   if (!ddl('payments').includes("'refunded'")) refuse('legacy payments constraint requires a reviewed migration');
   // W03-R3 F1 fix: use comment-aware detectSchemaVersion instead of raw substring check.
   // A SQL comment containing 'release_unused' must not bypass this preflight.

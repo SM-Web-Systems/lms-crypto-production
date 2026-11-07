@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,14 +12,8 @@ function seedSponsor(): { sponsorId: string; token: string; adminToken: string; 
   const courseId = uuidv4();
   const cohortId = uuidv4();
 
-  // W01-R1: Use legacy role 'lecturer' for sponsor to avoid trigger auto-assigning
-  // role_admin (which has reward.manage). Sponsor should NOT have reward.manage.
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'lecturer')"
-  ).run(sponsorId, `${sponsorId}@test.com`);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Sponsor',?,'hash')`, [sponsorId,`${sponsorId}@test.com`], ["role_instructor"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Student',?,'hash')`, [studentId,`${studentId}@test.com`], ["role_student"]);
 
   // Assign sponsor role with reward permissions (reward.fund but NOT reward.manage)
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
@@ -26,9 +21,7 @@ function seedSponsor(): { sponsorId: string; token: string; adminToken: string; 
   // W01-R1: Create independent admin for internal funding authorization.
   // The trigger auto-assigns role_admin (which has reward.manage).
   const adminId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')"
-  ).run(adminId, `${adminId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'FundAdmin', ?, 'hash')", [adminId, `${adminId}@test.com`], ["role_admin"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code) VALUES (?, 'Test Course', 'desc', ?)`

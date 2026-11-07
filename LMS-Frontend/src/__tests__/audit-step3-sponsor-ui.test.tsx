@@ -8,7 +8,7 @@ const mock = vi.hoisted(() => ({
   user: {
     id: 'sponsor',
     name: 'Sponsor',
-    role: 'student',
+
     permissions: [] as string[],
     workspaces: ['sponsor'],
   },

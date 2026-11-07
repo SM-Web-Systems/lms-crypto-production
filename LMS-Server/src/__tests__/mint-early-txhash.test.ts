@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * mint-early-txhash.test.ts — Verify tx_hash can be saved before poll loop
  *
@@ -12,8 +13,7 @@ import { db, execute, queryOne } from '../config/database.js';
 
 function seedUser(): string {
   const id = uuidv4();
-  db.prepare(`INSERT INTO users (id, email, name, password_hash, role) VALUES (?, ?, 'ETXH User', 'hash', 'student')`)
-    .run(id, `etxh-${id}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,email,name,password_hash) VALUES (?,?,'ETXH User','hash')`, [id,`etxh-${id}@test.com`], ["role_student"]);
   return id;
 }
 

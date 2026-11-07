@@ -21,9 +21,10 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedStudent(suffix: string) {
   const userId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-    VALUES ('${userId}', 'SMP Student', 'smp-${suffix}@test.com', '${HASH}', 'student',
-            'GSMPWALLET${userId.slice(0, 8).toUpperCase()}', 'linked');
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+    VALUES ('${userId}','SMP Student','smp-${suffix}@test.com','${HASH}','GSMPWALLET${userId.slice(0, 8).toUpperCase()}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${userId}','role_student');
+
   `);
   return userId;
 }

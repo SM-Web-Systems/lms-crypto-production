@@ -103,6 +103,8 @@ class ReleasePreflightTests(unittest.TestCase):
                 for table in self.mod.REQUIRED_TABLES:
                     db.execute(f'CREATE TABLE {table} (id INTEGER PRIMARY KEY, value TEXT)')
                     db.execute(f'INSERT INTO {table} (value) VALUES (?)', ('fixture-private-value',))
+                # The unlabelled fake images represent the pre-RBAC-floor schema.
+                db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student'")
         labels = {'com.docker.compose.project': 'fixture',
                   'com.docker.compose.project.working_dir': str(self.checkout),
                   'com.docker.compose.project.config_files': str(self.checkout / 'docker-compose.yml')}
@@ -367,6 +369,7 @@ class OverlayValidationTests(unittest.TestCase):
                 for table in self.mod.REQUIRED_TABLES:
                     db.execute(f'CREATE TABLE {table} (id INTEGER PRIMARY KEY, value TEXT)')
                     db.execute(f'INSERT INTO {table} (value) VALUES (?)', ('fixture-private-value',))
+                db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student'")
         self.compose_file = self.checkout / 'docker-compose.yml'
         self.backup_root = self.root / 'backups'; self.backup_root.mkdir(mode=0o700)
         self.state = self.backup_root / 'release-state'; self.state.mkdir(mode=0o700)

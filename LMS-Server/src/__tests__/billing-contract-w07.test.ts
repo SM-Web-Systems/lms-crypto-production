@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W07 — Billing contract reconciliation backend tests
  *
@@ -32,9 +33,7 @@ import { makeToken } from './helpers/auth.js';
 function createSponsor() {
   const userId = uuidv4();
   const email = `w07-sponsor-${userId.slice(0, 8)}@test.com`;
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'W07 Sponsor', ?, '$2a$10$test', 'student')"
-  ).run(userId, email);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'W07 Sponsor', ?, '$2a$10$test')", [userId, email], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_sponsor');
   return { userId, email, token: makeToken({ userId, email, role: 'student' }) };
 }
@@ -42,9 +41,7 @@ function createSponsor() {
 function createEmployer() {
   const userId = uuidv4();
   const email = `w07-employer-${userId.slice(0, 8)}@test.com`;
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'W07 Employer', ?, '$2a$10$test', 'student')"
-  ).run(userId, email);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'W07 Employer', ?, '$2a$10$test')", [userId, email], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_employer');
   return { userId, email, token: makeToken({ userId, email, role: 'student' }) };
 }
@@ -52,9 +49,7 @@ function createEmployer() {
 function createUserNoRole() {
   const userId = uuidv4();
   const email = `w07-norole-${userId.slice(0, 8)}@test.com`;
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'No Role', ?, '$2a$10$test', 'student')"
-  ).run(userId, email);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'No Role', ?, '$2a$10$test')", [userId, email], ["role_student"]);
   // trg_auto_assign_user_role fires on INSERT and adds role_student (which has billing.view_own).
   // Revoke it so this user truly has no billing permissions.
   db.prepare('DELETE FROM user_roles WHERE user_id = ?').run(userId);
@@ -64,9 +59,7 @@ function createUserNoRole() {
 function createStudent() {
   const userId = uuidv4();
   const email = `w07-student-${userId.slice(0, 8)}@test.com`;
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'W07 Student', ?, '$2a$10$test', 'student')"
-  ).run(userId, email);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'W07 Student', ?, '$2a$10$test')", [userId, email], ["role_student"]);
   // trg_auto_assign_user_role assigns role_student: billing.view_own but NOT billing.view_all
   return { userId, email, token: makeToken({ userId, email, role: 'student' }) };
 }
@@ -218,9 +211,7 @@ describe('W07-BE: Own-payment isolation', () => {
     // User has both roles; billing.view_own is present for both routes
     const userId = uuidv4();
     const email = `w07-multi-${userId.slice(0, 8)}@test.com`;
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Multi Role', ?, '$2a$10$test', 'student')"
-    ).run(userId, email);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Multi Role', ?, '$2a$10$test')", [userId, email], ["role_student"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_sponsor');
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_employer');
     const token = makeToken({ userId, email, role: 'student' });
@@ -275,9 +266,7 @@ describe('W07-BE: Cohort scope permission matrix', () => {
     // admin role has billing.view_all; sponsor role + admin role together
     const userId = uuidv4();
     const email = `w07-cohort-${userId.slice(0, 8)}@test.com`;
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Cohort Sponsor', ?, '$2a$10$test', 'student')"
-    ).run(userId, email);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Cohort Sponsor', ?, '$2a$10$test')", [userId, email], ["role_student"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_sponsor');
     // Give billing.view_all via admin role (admin has all billing permissions)
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_admin');
@@ -304,9 +293,7 @@ describe('W07-BE: Cohort scope permission matrix', () => {
   it('W7-BE-8b: cohort member on unrelated cohort/course excluded', async () => {
     const userId = uuidv4();
     const email = `w07-cohort2-${userId.slice(0, 8)}@test.com`;
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Cohort Sponsor 2', ?, '$2a$10$test', 'student')"
-    ).run(userId, email);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Cohort Sponsor 2', ?, '$2a$10$test')", [userId, email], ["role_student"]);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_sponsor');
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(userId, 'role_admin');
     const token = makeToken({ userId, email, role: 'student' });

@@ -32,7 +32,7 @@ export function createRbacAccount(input: {
     const role = queryOne<{id:string}>('SELECT id FROM roles WHERE id = ? AND name = ? AND is_system = 1', [input.initialRoleId,names[input.initialRoleId]]);
     if (!role) throw new AppError('Initial role is unavailable',500,ErrorCodes.INTERNAL_ERROR);
     const id = input.id ?? uuidv4();
-    // users.role is inert compatibility storage. New identities start versioned.
+    // New identities receive only explicit RBAC grants and start versioned.
     if(input.authProvider==='ammawallet') {
       execute(`INSERT INTO users(id,name,email,password_hash,authorization_version,auth_provider,
         ammawallet_user_id,walletAddress,wallet_linking_status) VALUES(?,?,?,?,1,'ammawallet',?,?,?)`,

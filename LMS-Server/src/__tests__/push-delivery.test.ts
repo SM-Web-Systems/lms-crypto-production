@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe,it,expect,vi,afterEach } from 'vitest';
 import {randomUUID} from 'node:crypto';
 import jwt from 'jsonwebtoken';
@@ -14,7 +15,7 @@ const project='a1111111-1111-4111-8111-111111111111';
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
 function account() {
   const id=randomUUID();
-  db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash','student')").run(id,`${id}@test.invalid`);
+  seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,'Synthetic',?,'hash')", [id,`${id}@test.invalid`], ["role_student"]);
   const token=jwt.sign({userId:id,role:'student',authorizationVersion:0},process.env.JWT_SECRET!,{expiresIn:'2h',jwtid:randomUUID()});
   db.prepare('INSERT INTO active_sessions(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)').run(randomUUID(),id,hashToken(token),new Date(Date.now()+7_200_000).toISOString());
   return {id,token};

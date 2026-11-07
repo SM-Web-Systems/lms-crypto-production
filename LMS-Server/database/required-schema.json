@@ -711,7 +711,6 @@
       "name",
       "email",
       "password_hash",
-      "role",
       "description",
       "clerk_user_id",
       "walletAddress",

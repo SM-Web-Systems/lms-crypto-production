@@ -46,14 +46,21 @@ function seedUserLookupData() {
   const cohortId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Admin User', 'admin-usr-${adminId.slice(0, 6)}@test.com', '${HASH}', 'admin'),
-      ('${instructorId}', 'Instructor User', 'inst-usr-${instructorId.slice(0, 6)}@test.com', '${HASH}', 'lecturer'),
-      ('${studentUserId}', 'Student A', 'stud-a-${studentUserId.slice(0, 6)}@test.com', '${HASH}', 'student'),
-      ('${otherStudentUserId}', 'Student B', 'stud-b-${otherStudentUserId.slice(0, 6)}@test.com', '${HASH}', 'student'),
-      ('${sponsorId}', 'Sponsor User', 'sponsor-${sponsorId.slice(0, 6)}@test.com', '${HASH}', 'student'),
-      ('${taId}', 'TA User', 'ta-${taId.slice(0, 6)}@test.com', '${HASH}', 'student');
+      ('${adminId}','Admin User','admin-usr-${adminId.slice(0, 6)}@test.com','${HASH}'),
+      ('${instructorId}','Instructor User','inst-usr-${instructorId.slice(0, 6)}@test.com','${HASH}'),
+      ('${studentUserId}','Student A','stud-a-${studentUserId.slice(0, 6)}@test.com','${HASH}'),
+      ('${otherStudentUserId}','Student B','stud-b-${otherStudentUserId.slice(0, 6)}@test.com','${HASH}'),
+      ('${sponsorId}','Sponsor User','sponsor-${sponsorId.slice(0, 6)}@test.com','${HASH}'),
+      ('${taId}','TA User','ta-${taId.slice(0, 6)}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${instructorId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${otherStudentUserId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${sponsorId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${taId}','role_student');
+
 
     INSERT INTO students (id, user_id, name, email, enrollment_number, department, semester)
     VALUES

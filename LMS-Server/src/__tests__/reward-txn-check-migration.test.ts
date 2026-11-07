@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-txn-check-migration.test.ts
  *
@@ -119,14 +120,22 @@ function seedMinimalFixtures(conn: SqliteDatabase): {
     ).run(id, name, label);
   }
 
+  const columns = conn.pragma('table_info(users)') as { name: string }[];
+  const hasLegacyRole = columns.some(column => column.name === 'role');
+  function insertUser(id: string, name: string, fixtureRole: 'admin' | 'student') {
+    const email = id + '@t.com';
+    if (hasLegacyRole) {
+      conn.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,?,?,'h',?)")
+        .run(id, name, email, fixtureRole);
+      return;
+    }
+    conn.prepare("INSERT INTO users(id,name,email,password_hash) VALUES (?,?,?,'h')")
+      .run(id, name, email);
+  }
   const adminId = uuidv4();
   const sponsorId = uuidv4();
-  conn.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
-  ).run(adminId, `${adminId}@t.com`);
-  conn.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'h', 'admin')"
-  ).run(sponsorId, `${sponsorId}@t.com`);
+  insertUser(adminId, 'Admin', 'admin');
+  insertUser(sponsorId, 'Sponsor', 'admin');
 
   const courseId = uuidv4();
   conn.prepare(
@@ -141,9 +150,7 @@ function seedMinimalFixtures(conn: SqliteDatabase): {
   const studentIds: string[] = [];
   for (let i = 0; i < 3; i++) {
     const sid = uuidv4();
-    conn.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'S', ?, 'h', 'student')"
-    ).run(sid, `${sid}@t.com`);
+    insertUser(sid, 'S', 'student');
     conn.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, sid);
     studentIds.push(sid);
   }
@@ -171,25 +178,19 @@ function txnKeysForReward(conn: SqliteDatabase, rewardId: string): string[] {
 
 function makeSponsor(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Sponsor', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
 function makeAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
 function makeStudent(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Student', ?, 'hash')", [id, `${id}@test.com`], ["role_student"]);
   return id;
 }
 
@@ -413,9 +414,7 @@ describe('COMPAT-APPLY-PRESERVE: apply preserves ledger rows and unrelated data'
 
     // Also insert an unrelated user and announcement to verify cross-table preservation
     const unrelatId = uuidv4();
-    conn.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'U', ?, 'h', 'student')"
-    ).run(unrelatId, `${unrelatId}@t.com`);
+    conn.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'U', ?, 'h', 'student')").run(unrelatId, `${unrelatId}@t.com`);
 
     const rowsBefore = conn.prepare('SELECT * FROM reward_transactions ORDER BY created_at').all();
     const userCountBefore = conn.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
@@ -1014,18 +1013,16 @@ describe('COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement', () 
       canonical.exec(fixtureSqlForDatabase(readSqlFixture(
         path.resolve(__dirname, '../../database/schema.sql')
       )));
-      for (const [type, name] of [
-        ['table', 'authorization_migrations'],
-        ['trigger', 'trg_auto_assign_user_role'],
-      ]) {
-        const definition = canonical.prepare(
-          'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?'
-        ).get(type, name) as { sql: string };
-        conn.exec(`DROP ${type.toUpperCase()} IF EXISTS ${name}`);
-        conn.exec(definition.sql);
-      }
-      conn.prepare('INSERT INTO authorization_migrations(id, review_reference) VALUES (?, ?)')
-        .run('rbac-only-v1', 'reward-preflight-test');
+      const definition = canonical.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='authorization_migrations'"
+      ).get() as { sql: string };
+      conn.exec(`
+        DROP TRIGGER IF EXISTS trg_auto_assign_user_role;
+        ALTER TABLE users DROP COLUMN role;
+        DROP TABLE IF EXISTS authorization_migrations;
+        ${definition.sql};
+        INSERT INTO authorization_migrations(id, review_reference) VALUES ('rbac-only-v2','reward-preflight-test');
+      `);
     } finally {
       canonical.close();
     }

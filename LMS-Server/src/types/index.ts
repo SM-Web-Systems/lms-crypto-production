@@ -2,9 +2,6 @@ import { Request } from "express";
 
 // User Types
 
-/** Legacy role stored in the `users.role` column (CHECK constraint). */
-export type LegacyRole = 'student' | 'lecturer' | 'admin';
-
 /**
  * All RBAC role names from the `roles` table.
  * Matches the 12 system roles seeded by seedRbacData().
@@ -25,7 +22,6 @@ export interface User {
   name: string;
   email: string;
   password_hash: string | null;  // null / sentinel '$sso$' for AmmaWallet SSO users
-  role: LegacyRole;
   walletAddress: string | null;
   wallet_linking_status: 'none' | 'linked' | 'existing_account';
   /** 'local' = password-authenticated; 'ammawallet' = SSO via AmmaWallet */
@@ -44,7 +40,6 @@ export interface UserResponse {
   id: string;
   name: string;
   email: string;
-  role: LegacyRole;
   walletAddress: string;
   courseCodes?: string[];
 }
@@ -132,16 +127,13 @@ export interface SubmissionResponse {
 export interface JWTPayload {
   userId: string;
   email: string;
-  /** Legacy role from users.role; effective role changes invalidate older tokens. */
-  role: LegacyRole;
-  /** All assigned RBAC roles (from user_roles table). */
-  roles?: UserRole[];
   /** Compared with users.authorization_version on every authenticated request. */
   authorizationVersion?: number;
   studentId?: string;
   // Standard JWT claim set automatically by jsonwebtoken
   iat?: number;
   exp?: number;
+  jti?: string;
 }
 
 // Extended Request Type
@@ -213,7 +205,6 @@ export interface ForumAuthor {
   id: string;
   name: string;
   email: string | null;
-  role: LegacyRole;
   rbacRoles?: string[];
   roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
   isDeleted?: boolean;
@@ -393,7 +384,6 @@ export interface UserDirectoryItem {
   id: string;
   name: string;
   email?: string;
-  role: LegacyRole;
   rbacRoles?: string[];
   roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
   /** Roster profile membership; does not confer current learning access. */
