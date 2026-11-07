@@ -72,6 +72,23 @@ jobs:
       - name: Typecheck BVC validator script
         run: npx tsc --noEmit --esModuleInterop --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck src/scripts/validateBvcContent.ts
 
+  backend-windows:
+    name: Backend Tests (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: LMS-Server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LMS-Server/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
   frontend:
     name: Frontend Tests & Build
     runs-on: ubuntu-latest

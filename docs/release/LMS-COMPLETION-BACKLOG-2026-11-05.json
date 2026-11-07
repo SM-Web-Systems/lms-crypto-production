@@ -520,7 +520,10 @@
       "acceptance": [
         "One exact final candidate has fresh full Linux/Windows API, web, native, E2E and dependency receipts; affected device groups rerun after final changes; no expected-failure authorization targets or unexplained failures/skips"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-COMPLETION-STATUS.md"
+      ],
+      "reason": "Current draft CI exercises the full Linux and Windows API suites and the candidate browser and mobile suites. Final candidate selection, protected-copy evidence and physical device acceptance are outstanding."
     },
     {
       "id": "LMS-061",
