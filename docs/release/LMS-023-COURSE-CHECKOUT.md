@@ -26,6 +26,24 @@ curl --silent --show-error --dump-header - --output /dev/null \
 
 The candidate now also applies `Cache-Control: no-store` at web and native SSO entry, where the redirect carries an attempt-specific signed state.
 
+The assertion exchange sends its POST only to the configured AmmaWallet verification endpoint. It rejects redirects and applies the request deadline through response parsing. Provider error bodies and malformed identity payloads are excluded from the errors logged by the LMS callback. The loopback regression uses a second origin to verify that HTTP 307 and 308 deliver no request to the redirect target.
+
+The parameter-free public callback recheck still returned HTTP 302, `Cache-Control: no-store` and `Referrer-Policy: strict-origin-when-cross-origin`. The repository's deployment compose delegates the public edge to the host's shared proxy. To isolate the hop, the authorized server operator can compare the public check above with this check directly inside the LMS API container. Both commands report only status and the two relevant headers.
+
+```bash
+docker exec lms-api node -e '
+fetch("http://127.0.0.1:3001/api/v1/auth/amma-callback", {
+  redirect: "manual", signal: AbortSignal.timeout(5000)
+}).then(response => {
+  console.log(response.status, response.headers.get("cache-control"),
+    response.headers.get("referrer-policy"));
+  return response.body?.cancel();
+}).catch(() => { process.exitCode = 1; });
+'
+```
+
+If the container returns `no-referrer` and the public response differs, compare the shared proxy response with the public response to identify the overriding hop. If the container also differs, verify its running image and callback route. Recheck the public response before using authenticated assertions.
+
 Use the approved staging course, authorized synthetic learner, and a confirmed Paystack test-mode merchant. Record the deployed LMS and Wallet revisions and the test-mode evidence. Verify paid checkout for the configured merchant currency, duplicate/concurrent initiation, mismatched and reordered signed webhooks, receipt ownership, and a sandbox refund. Record the provider outcome and local payment ledger for each reference without including payment credentials. Test Wallet SSO, verified-email recovery and the enabled challenge and second-factor flows using the approved capture mechanism. A separate decision governs any live enablement.
 
 Local regressions use mocked responses at the HTTP boundary and synthetic signatures. They cover the checkout race, replay, price currency, provider mismatch, late webhook settlement, release hold and additive schema startup. No real transaction or provider call was made.
