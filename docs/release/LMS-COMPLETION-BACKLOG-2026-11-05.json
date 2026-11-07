@@ -414,7 +414,7 @@
       "evidence": [
         "mobile-device-acceptance-followup.md"
       ],
-      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. Exact staging provider pairing, signing, artifact inspection and device distribution remain open."
+      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. The device report checker requires an independently pinned manifest of both artifacts and the API and Wallet revisions. Staging provider pairing, signing, artifact inspection and device distribution remain open."
     },
     {
       "id": "LMS-041",
