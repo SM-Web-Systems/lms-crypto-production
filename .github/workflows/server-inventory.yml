@@ -55,6 +55,15 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write('LMS_INVENTORY_TOOL_SHA256=' + tool_hash + '\n')
           PY
+      # Joins the tailnet as an ephemeral tag:ci node, so SSH reaches the server's
+      # Tailscale address (DEPLOY_HOST) instead of the public internet.
+      - name: Join tailnet
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
       - name: Read staging runtime or private snapshot via SSH
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
