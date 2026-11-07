@@ -373,9 +373,10 @@
         "Keep treasury registration, contact and wallet association out of public LMS surfaces and repository evidence. Treat Mainnet balances and transfers as public."
       ],
       "evidence": [
-        "LMS-COMPLETION-PLAN-2026-11-05.md"
+        "LMS-COMPLETION-PLAN-2026-11-05.md",
+        "LMS-032-BACKED-PLATFORM-CREDIT.md"
       ],
-      "reason": "The owner supplied the treasury details privately, confirmed a rewards and contract-fee MVP, and set a 0.1 XLM cap per learner. Paystack-to-XLM conversion is deferred beyond the MVP.",
+      "reason": "The owner supplied treasury details privately and set a cumulative 0.1 XLM cap per learner. The draft enforces this cap for public company-credit-backed rewards and requires a configured total budget. Paystack-to-XLM conversion is deferred beyond the MVP.",
       "inputRequired": "Confirm the total pilot allocation cap, wallet control, the independent initiator and approver, and reconciliation procedure. Obtain review of the real-XLM grant flow before enabling it."
     },
     {

@@ -23,6 +23,12 @@ Consumed credit is represented in the existing reward ledger; do not add it agai
 
 This is ledger backing, not on-chain escrow. Treasury custody, reserve control and reconciliation still require operational acceptance under LMS-033/034/061; historical payment evidence does not establish permanent control over an externally managed account.
 
+### Public treasury pilot limits
+
+The owner set a cumulative limit of **0.1 XLM per learner account**. Activation checks existing pending and eligible allocations plus amounts already released, including released amounts later refunded. Release rechecks amounts already credited before it writes to the ledger. The checks use immutable public-network platform-credit evidence and include rewards from different funders. Cancelled allocations that never reached the learner free their capacity.
+
+An authorized operator sets the separately approved total in `REWARD_TREASURY_PILOT_TOTAL_STROOPS`. The server rejects new public pilot credit requests and approvals and blocks new allocations or releases while this value is missing or invalid. Requests reserve capacity against the budget, and approvals recheck the current budget against approved commitments. A lower budget does not erase recorded commitments. Testnet credit stays separate. The total remains pending and the public pilot requires operational acceptance.
+
 ## Administrative API
 
 Every route below is under `/api/v1/admin/rewards/platform-credit`, authenticated and guarded by current `reward.manage`. Requests return the normal `{success,data}` envelope. No secrets or signing keys are accepted.

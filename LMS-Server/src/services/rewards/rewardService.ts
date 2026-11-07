@@ -8,6 +8,7 @@ import { writeLedgerEntry } from './rewardLedger.js';
 import { assertTransition, validateTransition, deriveAggregateStatus } from './rewardStateMachine.js';
 import { checkTransactionIdempotency, checkRewardIdempotency } from './rewardIdempotencyService.js';
 import { parseStroops, calculateMaxExposure, validateCurrency, MAX_RECIPIENTS } from './currencyConfig.js';
+import { enforceTreasuryLearnerCap } from './treasuryPilot.js';
 import {
   verifyFundingSourceSync,
   verifyFundingSourceAsync,
@@ -563,6 +564,7 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
       );
     }
 
+    enforceTreasuryLearnerCap(rewardId, members, reward.amount_stroops, true);
     createAudienceSnapshot(rewardId, members);
 
     const insertAlloc = db.prepare(
@@ -577,7 +579,7 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
     return getRewardRow(rewardId)!;
   });
 
-  return txn();
+  return txn.immediate();
 }
 
 /**
@@ -757,6 +759,7 @@ export function releaseAllocation(
       throw new RewardError('INVALID_STATE_TRANSITION', `Cannot release allocation in status '${allocation.status}'`);
     }
 
+    enforceTreasuryLearnerCap(reward.id, [allocation.student_user_id], allocation.amount_stroops, false);
     // W01-R1: Look up actual funder (may differ from creator with independent authorizer)
     const funderId = getRewardFunderId(reward.id, reward.creator_user_id);
     writeLedgerEntry({
@@ -785,7 +788,7 @@ export function releaseAllocation(
     return getAllocationRow(allocationId)!;
   });
 
-  const result = txn();
+  const result = txn.immediate();
 
   // Best-effort notification — must not roll back financial state
   try {
