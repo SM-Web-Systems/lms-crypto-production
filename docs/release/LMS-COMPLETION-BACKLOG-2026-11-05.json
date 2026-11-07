@@ -201,7 +201,7 @@
       "evidence": [
         "SERVER-HANDOVER-RBAC-STEP-03-CLIENT-CONTRACTS-AND-UI.md"
       ],
-      "reason": "A redacted legacy route label and tested offline usage counter are available. Actual retained-log coverage, installed-build inventory and enforcement, distribution and release recovery acceptance remain open."
+      "reason": "A redacted legacy route counter and opt-in native Wallet build check are implemented. Real log coverage, approved floors and installed builds, other legacy sessions and clients, distribution, and release recovery acceptance remain open."
     },
     {
       "id": "LMS-014",

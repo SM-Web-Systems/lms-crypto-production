@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import api from '@/lib/api';
 import { ammaWalletService, WalletSignInCancelled, walletAccountUrl } from '@/services/ammaWalletService';
 
+jest.mock('expo-application',()=>({nativeBuildVersion:'42'}));
 jest.mock('expo-crypto',()=>({getRandomBytesAsync:jest.fn(),digestStringAsync:jest.fn(),CryptoDigestAlgorithm:{SHA256:'SHA-256'},CryptoEncoding:{BASE64:'base64'}}));
 jest.mock('expo-web-browser',()=>({openAuthSessionAsync:jest.fn(),dismissAuthSession:jest.fn()}));
 jest.mock('@/lib/api',()=>({__esModule:true,default:{post:jest.fn()}}));
@@ -36,7 +37,7 @@ describe('proof-bound Amma Wallet mobile sign-in',()=>{
     const verifier = '01'.repeat(32);
     expect(start.searchParams.get('code_challenge')).toBe(createHash('sha256').update(verifier).digest('base64url'));
     expect(start.toString()).not.toContain(verifier);
-    expect(post).toHaveBeenCalledWith('/auth/amma-mobile-session',{code,code_verifier:verifier},{headers:{Authorization:''}});
+    expect(post).toHaveBeenCalledWith('/auth/amma-mobile-session',{code,code_verifier:verifier,app_platform:Platform.OS,app_build:'42'},{headers:{Authorization:''}});
   });
   it.each([
     (initial:string)=>response(initial,{url:`lmsmobile://sso-callback?code=${code}&state=wrong`}),

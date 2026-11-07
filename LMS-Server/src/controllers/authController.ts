@@ -22,7 +22,7 @@ import logger from "../utils/logger.js";
 import { createRbacAccount, type InitialRoleId } from '../services/rbacAccountService.js';
 import { resolveAmmaAccount, SsoPolicyError } from "../services/ammaAccountService.js";
 import { createNotification } from "../services/notificationService.js";
-import { createMobileHandoff, consumeMobileHandoff, isMobileSsoContext, MOBILE_SSO_CALLBACK, type MobileSsoContext } from '../services/mobileSsoService.js';
+import { createMobileHandoff, consumeMobileHandoff, isMobileSsoContext, mobileBuildStatus, MOBILE_SSO_CALLBACK, type MobileSsoContext } from '../services/mobileSsoService.js';
 
 
 /** Record a login event in the login_history table. Best-effort — never throws. */
@@ -640,6 +640,13 @@ export async function ammaCallback(
 export function ammaMobileSession(req: Request, res: Response, next: NextFunction): void {
   res.setHeader('Cache-Control','no-store');
   try {
+    const buildStatus = mobileBuildStatus(req.body?.app_platform, req.body?.app_build);
+    if (buildStatus === 'unavailable') {
+      throw new AppError('Mobile Wallet sign-in is temporarily unavailable. Try again later or use the LMS web dashboard.',503,'MOBILE_BUILD_POLICY_UNAVAILABLE');
+    }
+    if (buildStatus === 'update_required') {
+      throw new AppError('Update the LMS app to continue with AmmaWallet sign-in. You can also sign in on the LMS web dashboard.',403,'MOBILE_UPDATE_REQUIRED');
+    }
     const handoff = consumeMobileHandoff(req.body?.code,req.body?.code_verifier);
     const user = handoff ? queryOne<User & {authorization_version:number}>('SELECT * FROM users WHERE id=?',[handoff.userId]) : null;
     if (!handoff || !user || user.authorization_version !== handoff.authorizationVersion || user.auth_provider !== 'ammawallet') {

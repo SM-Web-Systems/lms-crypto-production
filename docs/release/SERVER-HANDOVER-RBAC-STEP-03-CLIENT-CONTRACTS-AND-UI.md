@@ -106,9 +106,17 @@ docker logs --since "$LOG_READ_FROM" --until "$LOG_READ_UNTIL" lms-api |
   python3 scripts/rbac_legacy_usage.py --start "$REVIEW_START" --end "$REVIEW_END"
 ```
 
-Keep raw logs private. Review container replacements, rotation, log levels, and gaps before accepting any zero count. The timestamp span alone cannot establish continuous coverage. The counter does not identify installed builds or enforce a minimum build. Continue to require a reviewed fleet record, supported signed builds and a tested upgrade rule.
+Keep raw logs private. Review container replacements, rotation, log levels, and gaps before accepting any zero count. The timestamp span alone cannot establish continuous coverage. The counter does not identify installed builds. Continue to require a reviewed fleet record and supported signed builds.
 
 The local validation passed 19 API assertions across the logger and role endpoint suites and three counter tests. No server logs were collected.
+
+## Native Wallet minimum build
+
+The installed app sends its binary build version from the native Expo Application module at Wallet code exchange. To enable the compatibility check, configure both `LMS_MIN_ANDROID_WALLET_BUILD` and `LMS_MIN_IOS_WALLET_BUILD` on the API using the first reviewed and distributed builds. Android uses the integer version code. iOS compares up to three numeric build-number components. Leave both settings absent until the signed builds and upgrade path have been accepted. A missing or invalid half of an enabled policy makes native exchange unavailable.
+
+The API refuses a missing or outdated build before consuming the handoff code. The check covers the native Wallet code exchange. The build fields are client claims and confer no authorization. Browser Wallet login, shared password login and already-issued sessions retain their existing contracts. Verify or retire the remaining legacy clients and sessions as part of fleet acceptance before contracting the schema.
+
+Local validation passed 20 API tests and 182 native tests, TypeScript, an isolated npm 10 lockfile dry run, and Android and iOS exports. Signed binaries and actual approved build floors remain release inputs.
 
 ## Server return record
 
