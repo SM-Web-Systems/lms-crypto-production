@@ -59,6 +59,22 @@ Baseline: main `840d8c7541384114f2c38bd50abe924d8c9c2c1a`; original checkouts an
 
 Independent exact-head review and GitHub CI are recorded in the follow-up PR. No installed-device result or email receipt is implied by these local checks.
 
+## LMS-040 staging preview preflight — 7 November 2026
+
+The internal `preview` profile pins the owner-confirmed LMS API and web origin and the AmmaWallet account origin. The offline EAS check resolved Android and iOS, verified the internal distribution and Android APK profile, and checked the installed app identifiers and `lmsmobile` scheme from Expo config. Six tooling tests passed, including refusal of a mismatched Wallet target, an extra public profile variable, a store distribution and a changed scheme.
+
+The app's Wallet registration and recovery links use the embedded Wallet origin. SSO still uses the Wallet origin configured on the staging API. Verify that API/Wallet pairing under LMS-023. The profile check reads repository configuration. The reviewer must inspect the resolved signed build and recorded artifact before distribution.
+
+Once the compatible staging API and Wallet are accepted and the signing owner has access, use the exact approved source checkout and pinned EAS CLI:
+
+```text
+npm run acceptance:tooling
+npx --no-install eas build --profile preview --platform android
+npx --no-install eas build --profile preview --platform ios
+```
+
+Record the EAS project and build identifiers, Android version code and ARM support, iOS build number and registered-device provisioning, artifact SHA-256, app/API/Wallet revisions and callback targets. Keep signing files and account credentials out of the record. No signing, distribution or installation occurred during preflight.
+
 ## Separate dependency follow-up
 
 The following is the baseline inventory at `fdbaa12`. The separate `2026-10-25-mobile-dependency-security.md` report records later dependency changes and superseding counts; it does not close physical-device acceptance.

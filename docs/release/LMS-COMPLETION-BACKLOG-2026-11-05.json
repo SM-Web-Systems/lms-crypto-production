@@ -218,7 +218,7 @@
         "evidence/lms-014-synthetic-retirement-validation.json",
         "evidence/lms-014-v2-local-validation.json"
       ],
-      "reason": "The separate role-free v2 candidate passed compiled startup and synthetic contraction. Compiled v1 refused the v2 copy and started from a restored v1 backup. Installed-client retirement, hosted v2 validation and exact-image protected-copy acceptance remain open."
+      "reason": "The separate role-free v2 candidate passed compiled startup and synthetic contraction. Compiled v1 refused the v2 copy and started from a restored v1 backup. Both v2 hosted workflows passed at 2abca23. Installed-client retirement and exact-image protected-copy acceptance remain open."
     },
     {
       "id": "LMS-020",
@@ -392,7 +392,7 @@
       "title": "Prepare pinned signed mobile acceptance builds",
       "priority": "P1",
       "ownerRole": "Mobile + Platform",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-004",
         "LMS-007",
@@ -402,7 +402,10 @@
       "acceptance": [
         "Android ARM device artifact and iOS signed build generated for authorized staging with correct callback scheme/endpoints; hashes/version IDs recorded; no embedded private secrets"
       ],
-      "evidence": []
+      "evidence": [
+        "mobile-device-acceptance-followup.md"
+      ],
+      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. Exact staging provider pairing, signing, artifact inspection and device distribution remain open."
     },
     {
       "id": "LMS-041",

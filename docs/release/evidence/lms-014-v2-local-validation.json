@@ -32,7 +32,10 @@
     "monitoringAndRestore": "passed",
     "fixtureMatrix": "four passed",
     "mobileConclusion": "success",
-    "backendAndBrowserFinal": "not yet recorded"
+    "ciConclusion": "success",
+    "backend": "passed",
+    "backendFilesPassed": 214,
+    "chromiumPassed": 92
   },
   "rawLogSha256": {
     "chromium": "bb2e1b49a642ccbf789a4d20ca87a8ad5afa20ecfb94a6b53d814d6f20c05829",
