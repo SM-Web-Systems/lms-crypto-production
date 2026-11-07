@@ -97,6 +97,55 @@ jobs:
       - name: Check bundle sizes
         run: npx size-limit
 
+  candidate-images:
+    name: Synthetic candidate image rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and rehearse the API and web images from committed sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(git rev-parse HEAD)"
+          test "$revision" = "$GITHUB_SHA"
+          source_dir="$(mktemp -d "${RUNNER_TEMP}/lms-image-source.XXXXXXXX")"
+          git archive "$revision" LMS-Server LMS-Frontend | tar -x -C "$source_dir"
+          api_tag="lms-ci-api:$revision"
+          web_tag="lms-ci-web:$revision"
+          docker build --build-arg "BUILD_SHA=$revision" --tag "$api_tag" "$source_dir/LMS-Server"
+          docker build --build-arg "BUILD_SHA=$revision" --tag "$web_tag" "$source_dir/LMS-Frontend"
+
+          api_id="$(docker image inspect --format '{{.Id}}' "$api_tag")"
+          web_id="$(docker image inspect --format '{{.Id}}' "$web_tag")"
+          for image in "$api_id" "$web_id"; do
+            [[ "$image" =~ ^sha256:[a-f0-9]{64}$ ]]
+            test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$revision"
+          done
+          echo "Synthetic candidate $revision API $api_id web $web_id"
+
+          docker run --rm --network none --read-only --tmpfs /tmp:size=128m \
+            --env "EXPECTED_REVISION=$revision" "$api_id" sh -ec '
+              test "$(cat /app/BUILD_SHA)" = "$EXPECTED_REVISION"
+              export DATABASE_PATH=/tmp/writer-hold-fixture.db
+              test "$(node dist/scripts/writerHold.js hold)" = held
+              test "$(node dist/scripts/writerHold.js status)" = held
+              test "$(node dist/scripts/writerHold.js release)" = released
+              exec node scripts/test-rbac-runtime.mjs
+            '
+          docker run --rm --network none --entrypoint sh \
+            --env "EXPECTED_REVISION=$revision" "$web_id" -ec '
+              nginx -t
+              nginx
+              wget -qO /tmp/index.html http://127.0.0.1/
+              grep -qF "<div id=\"root\"></div>" /tmp/index.html
+              grep -rqF "$EXPECTED_REVISION" /usr/share/nginx/html/assets
+            '
+
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
