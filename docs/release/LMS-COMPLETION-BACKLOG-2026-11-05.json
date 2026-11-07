@@ -296,7 +296,7 @@
         "LMS-023-COURSE-CHECKOUT.md",
         "evidence/lms-023-staging-sso-entry.json"
       ],
-      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. The staging SSO entry points target AmmaWallet.com, but the public callback referrer policy differs from the API policy. Exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
+      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com; the public callback still differs from the API referrer policy. Exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
     },
     {
       "id": "LMS-030",

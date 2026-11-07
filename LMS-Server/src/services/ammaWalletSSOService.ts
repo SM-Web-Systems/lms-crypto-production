@@ -155,30 +155,24 @@ export function parseSsoIdentity(value: unknown): AmmaWalletSSOUser {
  * Throws on network error, non-2xx response, or replay.
  */
 export async function verifyAssertion(assertion: string): Promise<AmmaWalletSSOUser> {
-  const verifyUrl = walletUrl("api/v1/sso/verify");
-
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10_000);
-
-  let res: Response;
-  try {
-    res = await fetch(verifyUrl, {
-      method:  "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key":    AMMA_API_KEY,
-      },
-      body:   JSON.stringify({ assertion }),
-      signal: ctrl.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await fetch(walletUrl("api/v1/sso/verify"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": AMMA_API_KEY,
+    },
+    body: JSON.stringify({ assertion }),
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`SSO verify failed (${res.status}): ${text.slice(0, 200)}`);
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error(`SSO verify failed (${res.status})`);
   }
 
-  return parseSsoIdentity(await res.json());
+  const identity = await res.json().catch(() => {
+    throw new Error("Invalid Wallet identity response");
+  });
+  return parseSsoIdentity(identity);
 }
