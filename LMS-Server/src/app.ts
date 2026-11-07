@@ -247,6 +247,17 @@ app.get('/healthz', (_req, res) => {
 app.use('/verify', readLimiter, ogPagesRoutes);
 
 // API routes
+// Sponsor access can change between requests, including access to saved reports and receipts.
+app.use([
+  '/api/v1/sponsor',
+  '/api/v1/admin/cohorts',
+  '/api/v1/admin/payments',
+  '/api/v1/payments',
+  '/api/v1/badges',
+], (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use('/api/v1/auth', authLimiter, authRoutes);
 // studentProgressRoutes MUST be mounted before studentsRoutes — the students router applies
 // requirePermission('user.manage') to all /students/* paths, so /students/me/progress would be

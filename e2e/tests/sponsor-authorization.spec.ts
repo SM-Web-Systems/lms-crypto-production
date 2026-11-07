@@ -152,22 +152,51 @@ test.describe('Sponsor Authorization — Admin and Edge Cases', () => {
     const session = await login();
     expect(session.user.workspaces).toContain('sponsor');
     const read = (token: string, path: string) => request.get(`${apiURL}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
-    const protectedPaths = [`/admin/cohorts/${cohort}`, '/sponsor/impact-report', '/sponsor/billing?scope=cohort', `/payments/${PAYMENT_A}/receipt`];
-    for (const path of protectedPaths) expect((await read(session.token, path)).status()).toBe(200);
+    const receiptPath = `/payments/${PAYMENT_A}/receipt`;
+    const billingPath = '/sponsor/billing?scope=cohort';
+    const rosterExportPath = '/sponsor/courses/export';
+    const memberEmail = 'sponsor-student@test.com';
+    const protectedPaths = [
+      `/admin/cohorts/${cohort}`, '/admin/payments', '/sponsor/impact-report?format=csv',
+      billingPath, rosterExportPath, receiptPath, `/badges/${BADGE_A}`,
+    ];
+    for (const path of protectedPaths) {
+      const response = await read(session.token, path);
+      expect(response.status()).toBe(200);
+      expect(response.headers()['cache-control']).toBe('no-store');
+    }
+    const billingIds = async (token: string) => {
+      const response = await read(token, billingPath);
+      expect(response.status()).toBe(200);
+      return (await response.json()).data.payments.map((payment: { id: string }) => payment.id);
+    };
+    const rosterExport = async (token: string) => {
+      const response = await read(token, rosterExportPath);
+      expect(response.status()).toBe(200);
+      return response.text();
+    };
+    expect(await billingIds(session.token)).toContain(PAYMENT_A);
+    expect(await rosterExport(session.token)).toContain(memberEmail);
 
     // Removing the delegated member scope is effective for existing and new
     // sessions, even though the sponsor role and cohort ownership remain.
     const removed = await request.delete(`${apiURL}/api/v1/admin/cohorts/${cohort}/members/${memberId}`, { headers: { Authorization: `Bearer ${session.token}` } });
     expect(removed.status()).toBe(200);
-    expect((await read(session.token, `/payments/${PAYMENT_A}/receipt`)).status()).toBe(403);
     const narrowed = await login();
     expect(narrowed.user.workspaces).toContain('sponsor');
-    expect((await read(narrowed.token, `/payments/${PAYMENT_A}/receipt`)).status()).toBe(403);
+    for (const token of [session.token, narrowed.token]) {
+      expect((await read(token, receiptPath)).status()).toBe(403);
+      expect((await read(token, `/badges/${BADGE_A}`)).status()).toBe(403);
+      expect(await billingIds(token)).not.toContain(PAYMENT_A);
+      expect(await rosterExport(token)).not.toContain(memberEmail);
+    }
     const restored = await request.post(`${apiURL}/api/v1/admin/cohorts/${cohort}/members`, {
       headers: { Authorization: `Bearer ${narrowed.token}` }, data: { userIds: [memberId] },
     });
     expect(restored.status()).toBe(200);
-    expect((await read(session.token, `/payments/${PAYMENT_A}/receipt`)).status()).toBe(200);
+    expect((await read(session.token, receiptPath)).status()).toBe(200);
+    expect(await billingIds(session.token)).toContain(PAYMENT_A);
+    expect(await rosterExport(session.token)).toContain(memberEmail);
     expect((await sponsorBPage.request.get(`${apiURL}/api/v1/admin/cohorts/${COHORT_B}`)).status()).toBe(200);
     const before = withFixtureDatabase(db => ({
       targetVersion: db.prepare('SELECT authorization_version FROM users WHERE id=?').get(target).authorization_version,
@@ -182,7 +211,11 @@ test.describe('Sponsor Authorization — Admin and Edge Cases', () => {
       expect(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE target_id=? AND action='rbac.role_removed'").get(target).n).toBeGreaterThan(0);
       expect(db.prepare('SELECT sponsor_user_id FROM sponsor_cohorts WHERE id=?').get(cohort).sponsor_user_id).toBe(target);
     });
-    for (const path of protectedPaths) expect((await read(session.token, path)).status()).toBe(401);
+    for (const path of protectedPaths) {
+      const response = await read(session.token, path);
+      expect(response.status()).toBe(401);
+      expect(response.headers()['cache-control']).toBe('no-store');
+    }
 
     const renewed = await login();
     expect(renewed.user.workspaces).not.toContain('sponsor');
