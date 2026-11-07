@@ -543,7 +543,7 @@
         "LMS-061-RECOVERY-REHEARSAL.md",
         "evidence/lms-061-hosted-image-validation.json"
       ],
-      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. Protected off-host retrieval, restoration with release-selected images and LMS-010/LMS-011 remain open."
+      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. An offline comparison reports why the retained staging capture differs from the reviewed policy. Protected off-host retrieval, restoration with release-selected images and LMS-010/LMS-011 remain open."
     },
     {
       "id": "LMS-062",

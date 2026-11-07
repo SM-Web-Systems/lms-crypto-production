@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 import unittest
 from contextlib import closing
@@ -242,6 +243,47 @@ class RecoveryTests(unittest.TestCase):
                 self.policy[field] = original
         with self.assertRaises(pre.ReleaseError): self.rec.preserve_recovery(self.target, self.backup, self.state, self.runner, None)
         self.assert_no_up()
+
+    def test_read_only_capture_policy_diagnostic_reports_field_names_without_private_values(self):
+        capture = self.capture()
+        capture_path = self.state / ('capture-' + capture['manifest_id'] + '.json')
+        capture_sha = pre.file_sha256(capture_path)
+        policy_path = self.state / 'reviewed-policy.json'
+        pointer_path = self.state / 'current-recovery.json'
+        capture_before = capture_path.read_bytes()
+        pointer_before = pointer_path.read_bytes()
+
+        def check(policy, pin=capture_sha):
+            policy_path.unlink(missing_ok=True)
+            self.rec.immutable_json(policy_path, policy)
+            policy_before = policy_path.read_bytes()
+            result = subprocess.run([
+                sys.executable, '-I', '-S', str(ROOT / 'scripts' / 'check_recovery_policy.py'),
+                '--capture', str(capture_path), '--expected-capture-sha256', pin,
+                '--policy', str(policy_path),
+            ], capture_output=True, text=True, check=False)
+            self.assertEqual(capture_path.read_bytes(), capture_before)
+            self.assertEqual(pointer_path.read_bytes(), pointer_before)
+            self.assertEqual(policy_path.read_bytes(), policy_before)
+            self.assertNotIn('fixture-private-policy-value', result.stdout + result.stderr)
+            self.assertNotIn(str(capture_path), result.stdout + result.stderr)
+            return result
+
+        matched = check(self.policy)
+        self.assertEqual(matched.returncode, 0, matched.stderr)
+        self.assertEqual(json.loads(matched.stdout), {
+            'status': 'POLICY_MATCHES_RECORDED_CAPTURE', 'recovery_eligibility_verified': False,
+        })
+        mismatched = check({**self.policy, 'target_sha': 'e' * 40, 'database': 'fixture-private-policy-value'})
+        self.assertEqual(mismatched.returncode, 2)
+        self.assertEqual(json.loads(mismatched.stderr), {
+            'status': 'REFUSED', 'code': 'COMPATIBILITY_POLICY_MISMATCH',
+            'mismatched_fields': ['target_sha', 'database'], 'recovery_eligibility_verified': False,
+        })
+        schema = check({**self.policy, 'schema_sha256': '0' * 64})
+        self.assertEqual(json.loads(schema.stderr)['mismatched_fields'], ['schema_sha256'])
+        tampered = check(self.policy, '0' * 64)
+        self.assertEqual(json.loads(tampered.stderr)['code'], 'METADATA_HASH_MISMATCH')
 
     def test_reviewed_foreign_key_baseline_must_match_capture(self):
         for key, value in (('foreign_key_violation_count', 1), ('foreign_key_violations_sha256', '0' * 64)):
