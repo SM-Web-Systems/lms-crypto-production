@@ -391,7 +391,7 @@
       "title": "Prepare pinned signed mobile acceptance builds",
       "priority": "P1",
       "ownerRole": "Mobile + Platform",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-004",
         "LMS-007",
@@ -401,7 +401,10 @@
       "acceptance": [
         "Android ARM device artifact and iOS signed build generated for authorized staging with correct callback scheme/endpoints; hashes/version IDs recorded; no embedded private secrets"
       ],
-      "evidence": []
+      "evidence": [
+        "mobile-device-acceptance-followup.md"
+      ],
+      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. Exact staging provider pairing, signing, artifact inspection and device distribution remain open."
     },
     {
       "id": "LMS-041",

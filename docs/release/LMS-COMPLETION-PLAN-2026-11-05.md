@@ -246,7 +246,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-032 | Implement backed platform-credit provisioning | API + Platform | LMS-030 | Open |
 | LMS-033 | Accept company-funded MVP treasury and rewards | API + Platform + Product owner | LMS-030, LMS-031, LMS-032 | Treasury details supplied privately. Operating controls and acceptance are open. Paystack conversion is deferred. |
 | LMS-034 | Accept complete reward funding lifecycle | QA + Platform | LMS-031, LMS-032, LMS-033, LMS-023 | Open |
-| LMS-040 | Prepare pinned signed mobile acceptance builds | Mobile + Platform | LMS-004, LMS-007, LMS-012, LMS-023 | Open |
+| LMS-040 | Prepare pinned signed mobile acceptance builds | Mobile + Platform | LMS-004, LMS-007, LMS-012, LMS-023 | [Preview preflight passed](mobile-device-acceptance-followup.md). Signing and artifact review remain open. |
 | LMS-041 | Run physical Android acceptance | QA + Mobile | LMS-040 | Open |
 | LMS-042 | Run physical iOS acceptance | QA + Mobile | LMS-040 | Open |
 | LMS-043 | Approve installed-client compatibility and distribution | Mobile + QA + Platform | LMS-041, LMS-042 | Open |
