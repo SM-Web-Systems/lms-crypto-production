@@ -454,14 +454,14 @@
         "evidence/lms-050-server-validation.json",
         "evidence/lms-050-native-validation.json"
       ],
-      "reason": "Server outbox and native installation lifecycle implemented. Prior server candidate passed all hosted CI/mobile jobs. Native Windows suite passed 173 tests and both platform bundle exports passed. Expo/APNs/FCM setup, signed builds, physical Android/iOS delivery and navigation acceptance, and LMS-012/LMS-023 dependencies remain open."
+      "reason": "Server outbox and native installation lifecycle implemented. Prior server candidate passed all hosted CI/mobile jobs. Native Windows suite passed 173 tests and both platform bundle exports passed. Hosted CI and mobile passed after the npm 10 lockfile correction. Expo/APNs/FCM setup, signed builds, physical Android/iOS delivery and navigation acceptance, and LMS-012/LMS-023 dependencies remain open."
     },
     {
       "id": "LMS-051",
       "title": "Complete durable offline learning and progress sync",
       "priority": "P3",
       "ownerRole": "Mobile + API",
-      "status": "open",
+      "status": "in_progress",
       "dependencies": [
         "LMS-012",
         "LMS-030"
@@ -469,7 +469,11 @@
       "acceptance": [
         "Versioned per-account cached permitted content and durable idempotent progress queue survive process kill; acknowledged completion only; replay/conflict/revocation/expiry/account-switch and storage exhaustion cases pass"
       ],
-      "evidence": []
+      "evidence": [
+        "LMS-051-OFFLINE-LEARNING.md",
+        "evidence/lms-051-server-validation.json"
+      ],
+      "reason": "Server issues approved inline-text packages with session, membership and course-version leases. Offline mutations reauthorize and commit atomically with replay receipts. Focused HTTP and compiled migration checks passed. Native encrypted cache, queue and reader, owner lease/content policy and physical-device acceptance remain open."
     },
     {
       "id": "LMS-060",

@@ -885,6 +885,22 @@
       "ticket_id",
       "last_error",
       "created_at"
+    ],
+    "offline_learning_leases": [
+      "id",
+      "user_id",
+      "course_id",
+      "course_code",
+      "session_hash",
+      "content_version",
+      "issued_at",
+      "expires_at"
+    ],
+    "offline_progress_receipts": [
+      "user_id",
+      "idempotency_key",
+      "request_hash",
+      "retain_until"
     ]
   },
   "indexes": [
@@ -995,7 +1011,10 @@
     "idx_users_reset_token",
     "idx_webhook_events_event_id",
     "idx_push_outbox_due",
-    "idx_push_installations_user"
+    "idx_push_installations_user",
+    "idx_offline_learning_leases_expiry",
+    "idx_offline_progress_receipts_expiry",
+    "idx_offline_learning_leases_course"
   ],
   "keys": {
     "active_sessions": {
@@ -3131,6 +3150,51 @@
         [
           "notification_id",
           "notifications",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "offline_learning_leases": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "course_id",
+          "session_hash",
+          "content_version"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "offline_progress_receipts": {
+      "primary": [
+        "user_id",
+        "idempotency_key"
+      ],
+      "unique": [],
+      "foreign": [
+        [
+          "user_id",
+          "users",
           "id",
           "NO ACTION",
           "CASCADE"

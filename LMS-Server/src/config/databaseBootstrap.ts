@@ -1,6 +1,7 @@
 import { fundingSchemaTables } from './rewardFundingSchema.js';
 import { pushSchemaTables } from './pushSchema.js';
-const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables];
+import { offlineLearningSchemaTables } from './offlineLearningSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...offlineLearningSchemaTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,7 +79,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
   if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
 
   for (const table of baseline) {
-    // Funding and push add empty tables without synthesizing historical evidence.
+    // Funding, push and offline learning add empty tables without synthesizing historical evidence.
     // Only a wholly absent new table is allowed before the additive migration;
     // an existing partial/altered table must still satisfy its full contract.
     if (!afterMigrations && additiveSchemaTables.includes(table.name)
@@ -86,7 +87,9 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
     if (additiveSchemaTables.includes(table.name)) {
       const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table.name) as {sql:string} | undefined;
       const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
-      if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${fundingSchemaTables.includes(table.name) ? 'funding' : 'push'} schema (${table.name})`);
+      const feature = fundingSchemaTables.includes(table.name) ? 'funding'
+        : pushSchemaTables.includes(table.name) ? 'push' : 'offline learning';
+      if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${feature} schema (${table.name})`);
     }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
     validateKeys(db, table.name, table.keys, afterMigrations);

@@ -173,6 +173,8 @@ Acceptance includes foreground/background/terminated app, token rotation, multip
 
 ### Offline content and progress
 
+The gated server lease and progress contract has local validation. Native storage, queue and device acceptance are next. [LMS-051](LMS-051-OFFLINE-LEARNING.md)
+
 Use a versioned per-account cache and a durable local queue, rather than the mounted reader's in-memory retry list. Scope records by identity, course/lesson and content version. Protect private storage using platform-backed keys and a reviewed compatible storage/encryption implementation; do not invent cryptography. Clear or quarantine the previous account's data on sign-out/switch.
 
 Each queued progress mutation carries a stable idempotency key and relevant content/enrollment version; the server reauthorizes on sync. Merge progress with explicit monotonic rules and acknowledged completion. Passing quizzes, instructor approval, minting and financial actions remain server-authoritative. Persist “pending sync,” retries and terminal denial visibly; never display final completion from an unacknowledged write.
@@ -245,7 +247,7 @@ The JSON backlog is the state authority; this initial table is a reading view. D
 | LMS-042 | Run physical iOS acceptance | QA + Mobile | LMS-040 | Open |
 | LMS-043 | Approve installed-client compatibility and distribution | Mobile + QA + Platform | LMS-041, LMS-042 | Open |
 | LMS-050 | Complete push notifications | Mobile + API | LMS-012, LMS-023 | In progress. Server and native validated locally. Signed device acceptance open. |
-| LMS-051 | Complete durable offline learning and progress sync | Mobile + API | LMS-012, LMS-030 | Open |
+| LMS-051 | Complete durable offline learning and progress sync | Mobile + API | LMS-012, LMS-030 | In progress. Server API validated locally. Native work open. |
 | LMS-060 | Run complete reconciled release-candidate validation | QA + Delivery lead | LMS-002, LMS-003, LMS-005, LMS-006, LMS-007, LMS-014, LMS-022, LMS-034, LMS-043, LMS-050, LMS-051 | Open |
 | LMS-061 | Rehearse exact images, migrations and recoverability | Platform owner | LMS-010, LMS-011 | Open |
 | LMS-062 | Execute guarded release and observation | Platform owner | LMS-060, LMS-061 | Open |

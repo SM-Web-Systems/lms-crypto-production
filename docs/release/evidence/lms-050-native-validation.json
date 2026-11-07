@@ -82,7 +82,7 @@
     "lms-050-native-config.json": "b2092db39f7550d6723cb980002c0e17e9c0d871247b5fbb765252e0d8f0cf92"
   },
   "acceptance": {
-    "nativeCandidateHosted": "pending_publication",
+    "nativeCandidateHosted": "passed_after_lockfile_correction",
     "expoProjectAndCredentials": "pending_staging_setup",
     "signedNativeBuilds": "pending",
     "physicalAndroid": "pending",
@@ -101,6 +101,10 @@
       "initial-ci.log": "006f1fc1db3b9623ad782b8605c08ab11ce06a655a7d5c0e831cb0d884b11abf",
       "corrected-ci.log": "4173965b3b279174ba4aa69594b3a533b302f889d47132c13d7c927061dd96fb",
       "clean-ci.log": "0905d506d19b1059c260f23a352b1d8b3fe5feb90f17a46e1f5d32abd659a404"
-    }
+    },
+    "correctedCommit": "a9e07c18770e77ef0fecac2d2cf0e80597c16ee6",
+    "correctedCiRun": 42342717429,
+    "correctedMobileRun": 42342717409,
+    "correctedHostedStatus": "ci_and_mobile_passed"
   }
 }
