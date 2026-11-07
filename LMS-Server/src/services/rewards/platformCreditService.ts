@@ -7,6 +7,7 @@ import {MAX_SAFE_STROOPS} from './currencyConfig.js';
 import {stellarFundingConfiguration} from './stellarFundingConfig.js';
 import {stellarReceiverReadiness, verifyStellarFunding} from './stellarFundingVerification.js';
 import {enforceTreasuryBudget} from './treasuryPilot.js';
+import {reconcileCreditLedger} from './platformCreditReconciliation.js';
 
 type Network = 'public' | 'testnet';
 type BackingIntent = {id:string;requester_user_id:string;network:Network;destination:string;memo_hash:string;amount_stroops:number;reason:string;idempotency_key:string;created_at:string;expires_at:string};
@@ -39,12 +40,23 @@ function beneficiary(user:string) {
 // Backing is an asset pool, not another user reward balance. Approved grants
 // partition that capital; reward consumption moves an entitlement into the
 // existing fund/reserve ledger, never back into the unallocated pool.
-export function platformPool(network:Network) {
+export function platformPool(network:Network, asOf=now()) {
   const deposited=total('SELECT COALESCE(SUM(amount_stroops),0) n FROM platform_backing_deposits WHERE network=?',network);
   const allocated=total(`SELECT COALESCE(SUM(r.amount_stroops),0) n FROM platform_credit_grants g JOIN platform_credit_requests r ON r.id=g.request_id WHERE r.network=?`,network);
-  const reserved=total("SELECT COALESCE(SUM(amount_stroops),0) n FROM platform_credit_requests WHERE network=? AND status='pending' AND expires_at>?",network,now());
+  const reserved=total("SELECT COALESCE(SUM(amount_stroops),0) n FROM platform_credit_requests WHERE network=? AND status='pending' AND expires_at>?",network,asOf);
   return {network,currency:'XLM',depositedStroops:deposited,allocatedStroops:allocated,reservedStroops:reserved,availableStroops:deposited-allocated-reserved};
 }
+export function reconcilePlatformCredit(actor: string, network: string) {
+  if (network !== 'public' && network !== 'testnet') {
+    throw new RewardError('INVALID_FUNDING_SOURCE', 'Select the public or testnet backing ledger.', 400);
+  }
+  return db.transaction(() => {
+    manage(actor);
+    const asOf = now();
+    return reconcileCreditLedger(platformPool(network, asOf), asOf);
+  })();
+}
+
 export function platformCreditSummary(actor:string) {
   manage(actor);
   return {

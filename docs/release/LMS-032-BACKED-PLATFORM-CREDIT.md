@@ -29,6 +29,12 @@ The owner set a cumulative limit of **0.1 XLM per learner account**. Activation 
 
 An authorized operator sets the separately approved total in `REWARD_TREASURY_PILOT_TOTAL_STROOPS`. The server rejects new public pilot credit requests and approvals and blocks new allocations or releases while this value is missing or invalid. Requests reserve capacity against the budget, and approvals recheck the current budget against approved commitments. A lower budget does not erase recorded commitments. Testnet credit stays separate. The total remains pending and the public pilot requires operational acceptance.
 
+### Treasury reconciliation
+
+An operator with current reward-management permission can request `GET /api/v1/admin/rewards/platform-credit/reconciliation/public` or the corresponding `testnet` report. Each response reads one SQLite snapshot and uses the same instant for request and grant hold expiry. It returns totals and exception counts for the full network ledger, including deposit-to-intent links, independent approvals, reservation bindings, missing or mismatched consumption evidence, and grants or pools committed beyond their backing. The report sends `Cache-Control: no-store` and contains no account, wallet, transaction or evidence identifiers.
+
+Record the report alongside independently checked reserve custody evidence. A balanced LMS report confirms the internal relationships checked by the endpoint. The operator still needs to compare the authorized wallet's available reserves and any external disbursements with the private source records before approving the pilot.
+
 ## Administrative API
 
 Every route below is under `/api/v1/admin/rewards/platform-credit`, authenticated and guarded by current `reward.manage`. Requests return the normal `{success,data}` envelope. No secrets or signing keys are accepted.
