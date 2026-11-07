@@ -89,5 +89,18 @@
     "physicalIos": "pending",
     "realPushReceipt": "pending",
     "stagingDeployment": false
+  },
+  "hostedInstallFollowUp": {
+    "failedRun": 42342286558,
+    "npmVersion": "10.9.9",
+    "failure": "The lockfile generated with npm 11 omitted nested glob and minimatch dependency entries required by npm 10 clean install.",
+    "reproducedOnWindows": true,
+    "correctedLockSha256": "7520f734bf602004aff26b2379f547553497b1500bb6ab1d775c152b5e84d432",
+    "cleanInstall": "passed_isolated_npm_10_9_9",
+    "logSha256": {
+      "initial-ci.log": "006f1fc1db3b9623ad782b8605c08ab11ce06a655a7d5c0e831cb0d884b11abf",
+      "corrected-ci.log": "4173965b3b279174ba4aa69594b3a533b302f889d47132c13d7c927061dd96fb",
+      "clean-ci.log": "0905d506d19b1059c260f23a352b1d8b3fe5feb90f17a46e1f5d32abd659a404"
+    }
   }
 }
