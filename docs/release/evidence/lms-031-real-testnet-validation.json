@@ -1,0 +1,76 @@
+{
+  "status": "approved_real_stellar_testnet_passed_staging_acceptance_open",
+  "approval": "Owner explicitly approved one run of the reviewed script after the initial automatic approval rejection.",
+  "reviewedScriptCommit": "38a3d3a1e9361d97a3b8f0e1d07d289ce4566cc4",
+  "reviewedScriptGitBlob": "045fa290a1d9cfce485d7a01f53115a137a6cca2",
+  "rawReceiptSha256": "24fb7fab626c2d77aee64703913fff33e4db9b737e8abbd8b85dc453b0047d09",
+  "receipt": {
+    "version": 1,
+    "status": "passed",
+    "network": "testnet",
+    "syntheticOnly": true,
+    "keysPersisted": false,
+    "publicTransfersSubmitted": 0,
+    "sourceCommit": "b812f6ca4a42d67af3c8895c48373831e59a4c28",
+    "scriptSha256": "85285ec0ec4666ee7d737768e320be1ce295312a9aca436e45ba120b35aaa8d9",
+    "compiledVerifierSha256": "73dccd25ad4220faa519e0a8e3e08dab0e1d554d55c6ccc9c5b3a0a1ea7d9b75",
+    "compiledRewardServiceSha256": "7864cfcfd2e35e55dfa2064c0a96aa3933b63a222a1c81c1f449696c0e9fd0ee",
+    "compiledCreditServiceSha256": "e47dc4bb2bc0c8c78227d3b2a95853c2f8a38545b1e35f6b595ecaad16fec8e8",
+    "lockfileSha256": "5d350ca57469c08f03c31199ebf681f3dfbfe2604fede2dad73375296b5f7153",
+    "nodeVersion": "v22.18.0",
+    "startedAt": "2026-11-07T03:02:58.455Z",
+    "payments": [
+      {
+        "label": "underpayment",
+        "transactionHash": "81f8babbccedf89ad20813eda9b88da5f4687f0513cd157e9660f21ad38a818f",
+        "operationId": "24049218402406401",
+        "ledger": 5599395,
+        "amountStroops": "199"
+      },
+      {
+        "label": "direct-reward",
+        "transactionHash": "2ad8c6795853e9212158b370f63e1df257d73ae5561b82893307dc675b06d767",
+        "operationId": "24049222697373697",
+        "ledger": 5599396,
+        "amountStroops": "200"
+      },
+      {
+        "label": "platform-backing",
+        "transactionHash": "db3d71cbaa3ac1ff80fdd8f5a8005227908b1a01d117057f112c9bb7ad593f4b",
+        "operationId": "24049231287296001",
+        "ledger": 5599398,
+        "amountStroops": "1000"
+      }
+    ],
+    "verificationRetries": [],
+    "checks": {
+      "underpayment": "DENIED_WITHOUT_CREDIT",
+      "directReplay": "ONE_CREDIT_ONE_RESERVATION",
+      "wrongNetwork": "DENIED",
+      "providerTimeout": "INJECTED_NO_CREDIT",
+      "backingAndCredit": "ONE_DEPOSIT_ONE_APPROVAL_ONE_CONSUMPTION",
+      "remainingCreditStroops": 800,
+      "integrity": "PASS"
+    },
+    "accounts": [
+      {
+        "account": "GCKSWWFIIMQZCIIC3N6KOV7OBWFLETTWT2OKLNY27Z7JMGQIPZAZTVKG",
+        "friendbotStatus": 200
+      },
+      {
+        "account": "GAILJGEPCPWWNHQPVDWMJD7HETATIXGA5RLTZVSWDW44VIA75CNDNJNR",
+        "friendbotStatus": 200
+      }
+    ],
+    "finishedAt": "2026-11-07T03:03:54.059Z"
+  },
+  "limits": {
+    "testnetTransfers": 3,
+    "publicNetworkTransfers": 0,
+    "existingWalletsUsed": false,
+    "stagingDatabaseAccessed": false,
+    "stagingServerConfigurationChanged": false,
+    "testnetNegativeProviderTimeout": "injected locally",
+    "treasuryCustodyAccepted": false
+  }
+}

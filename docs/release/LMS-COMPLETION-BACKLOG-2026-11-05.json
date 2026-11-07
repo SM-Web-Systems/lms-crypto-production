@@ -318,9 +318,10 @@
       "evidence": [
         "LMS-031-STELLAR-VERIFICATION.md",
         "evidence/lms-031-verifier-validation.json",
-        "evidence/lms-031-integration-validation.json"
+        "evidence/lms-031-integration-validation.json",
+        "evidence/lms-031-real-testnet-validation.json"
       ],
-      "reason": "Integrated Stellar and backed-credit follow-up 38a3d3a passed all hosted CI/mobile jobs, including 2,466 API passes with one existing skip. Owner-selected public receiver is active. Manual real-testnet runner is prepared but automatic approval review rejected the three external testnet payments until explicit approval; approval was granted and the reviewed runner has not yet executed. Purpose-bound payment, staging and RBAC gates remain open."
+      "reason": "Hosted Stellar/backed-credit follow-up 38a3d3a passed all CI and mobile jobs. The approved real Stellar testnet run on compiled b812f6c passed exact payment, underpayment, replay, wrong-network rejection, injected provider failure and backing/credit checks. Owner-selected public receiver is active; purpose-bound public staging payment, RBAC and recovery gates remain open."
     },
     {
       "id": "LMS-032",
@@ -337,9 +338,10 @@
       "evidence": [
         "LMS-032-BACKED-PLATFORM-CREDIT.md",
         "evidence/lms-032-validation.json",
-        "evidence/lms-032-hosted-validation.json"
+        "evidence/lms-032-hosted-validation.json",
+        "evidence/lms-031-real-testnet-validation.json"
       ],
-      "reason": "Verified-backed pool, independent allocation approval, audited reservations and atomic reward consumption implemented. Hosted candidate d575fd8 passed all CI and mobile jobs: 2,465 API tests plus one existing skip, 722 web and 92 Chromium passes. Actual treasury/staging acceptance and LMS-030 dependency remain open."
+      "reason": "Verified-backed pool, independent allocation approval, audited reservations and atomic reward consumption implemented. Hosted d575fd8 passed all CI/mobile jobs. Approved real Stellar testnet run verified actual backing, independent approval and replay-safe consumption. Actual treasury/staging acceptance and LMS-030 dependency remain open."
     },
     {
       "id": "LMS-033",
