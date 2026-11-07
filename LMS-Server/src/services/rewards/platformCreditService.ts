@@ -6,6 +6,7 @@ import {RewardError} from './rewardErrors.js';
 import {MAX_SAFE_STROOPS} from './currencyConfig.js';
 import {stellarFundingConfiguration} from './stellarFundingConfig.js';
 import {stellarReceiverReadiness, verifyStellarFunding} from './stellarFundingVerification.js';
+import {enforceTreasuryBudget} from './treasuryPilot.js';
 
 type Network = 'public' | 'testnet';
 type BackingIntent = {id:string;requester_user_id:string;network:Network;destination:string;memo_hash:string;amount_stroops:number;reason:string;idempotency_key:string;created_at:string;expires_at:string};
@@ -115,7 +116,9 @@ export function requestPlatformCredit(actor:string, owner:unknown, quantity:unkn
     const previous=db.prepare('SELECT * FROM platform_credit_requests WHERE requester_user_id=? AND idempotency_key=?').get(actor,key) as CreditRequest|undefined;
     if(previous){if(previous.beneficiary_user_id!==owner || previous.amount_stroops!==units || previous.reason!==reason) conflict();return previous;}
     const config=stellarFundingConfiguration();if(!config) throw new RewardError('INSUFFICIENT_CREDIT','No backing network is configured.',402);
-    if(platformPool(config.network).availableStroops<units) throw new RewardError('INSUFFICIENT_CREDIT','Insufficient unallocated verified backing.',402);
+    const pool = platformPool(config.network);
+    enforceTreasuryBudget(config.network, pool.allocatedStroops + pool.reservedStroops, units);
+    if(pool.availableStroops<units) throw new RewardError('INSUFFICIENT_CREDIT','Insufficient unallocated verified backing.',402);
     const id=uuid();
     db.prepare(`INSERT INTO platform_credit_requests(id,requester_user_id,beneficiary_user_id,network,amount_stroops,reason,idempotency_key,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(id,actor,owner,config.network,units,reason,key,expires(),now());
@@ -134,6 +137,9 @@ export function approvePlatformCredit(id:string,actor:string,key:unknown,reason:
     const previous=db.prepare('SELECT * FROM platform_credit_grants WHERE approved_by_user_id=? AND approval_key=?').get(actor,key) as {request_id:string;reason:string}|undefined;
     if(previous){if(previous.request_id!==id || previous.reason!==reason) conflict();return previous;}
     if(request.status!=='pending' || request.expires_at<=now()) throw new RewardError('FUNDING_UNVERIFIED','Credit request is closed or expired.',409);
+    if (request.network === 'public') {
+      enforceTreasuryBudget(request.network, platformPool(request.network).allocatedStroops, request.amount_stroops);
+    }
     const grant=uuid();db.prepare('INSERT INTO platform_credit_grants(id,request_id,approved_by_user_id,approval_key,reason,created_at) VALUES (?,?,?,?,?,?)').run(grant,id,actor,key,reason,now());
     db.prepare("UPDATE platform_credit_requests SET status='approved' WHERE id=?").run(id);
     audit('credit_approved',grant,actor,request.network,request.amount_stroops,reason);

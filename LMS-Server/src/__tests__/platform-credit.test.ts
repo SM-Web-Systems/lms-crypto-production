@@ -4,13 +4,13 @@ import {Keypair,Networks} from '@stellar/stellar-sdk';
 import {createHash} from 'node:crypto';
 import {v4 as uuid} from 'uuid';
 import {db} from '../config/database.js';
-import {createReward,fundReward,fundRewardAsync} from '../services/rewards/rewardService.js';
+import {activateReward,createReward,fundReward,fundRewardAsync,releaseAllocation} from '../services/rewards/rewardService.js';
 import {createFundingIntent,getFundingAvailability} from '../services/rewards/rewardFundingIntentService.js';
 import {createBackingIntent,verifyBackingDeposit,platformPool,requestPlatformCredit,approvePlatformCredit,cancelPlatformCreditRequest,
   creditGrant,releasePlatformCreditReservation,availablePlatformCredits} from '../services/rewards/platformCreditService.js';
 
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
-function fixture() {
+function fixture(network: 'testnet' | 'public' = 'testnet') {
   const a=uuid(),b=uuid(),owner=uuid(),other=uuid(),course=uuid();
   for(const [id,role] of [[a,'admin'],[b,'admin'],[owner,'lecturer'],[other,'lecturer']]) {
     db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash',?)").run(id,`${id}@test.invalid`,role);
@@ -19,8 +19,8 @@ function fixture() {
   db.prepare("INSERT INTO courses(id,title,course_code) VALUES (?,'Credit',?)").run(course,course);
   const cohorts=new Map<string,string>();
   for(const id of [owner,other]) {const cohort=uuid();cohorts.set(id,cohort);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES (?,?,?,'Credit')").run(cohort,id,course);}
-  const destination=Keypair.random().publicKey();vi.stubEnv('REWARD_STELLAR_NETWORK','testnet');vi.stubEnv('REWARD_STELLAR_DESTINATION',destination);
-  const records=new Map<string,unknown>();records.set('/',{network_passphrase:Networks.TESTNET,history_latest_ledger:50});records.set(`/accounts/${destination}`,{account_id:destination});
+  const destination=Keypair.random().publicKey();vi.stubEnv('REWARD_STELLAR_NETWORK',network);vi.stubEnv('REWARD_STELLAR_DESTINATION',destination);
+  const records=new Map<string,unknown>();records.set('/',{network_passphrase:network === 'public' ? Networks.PUBLIC : Networks.TESTNET,history_latest_ledger:50});records.set(`/accounts/${destination}`,{account_id:destination});
   const fetcher=vi.fn(async(url:string)=>new Response(JSON.stringify(records.get(new URL(url).pathname)??{}),{status:records.has(new URL(url).pathname)?200:404}));vi.stubGlobal('fetch',fetcher);
   function proof(intent:{memo_hash?:string;amount_stroops:number;created_at:string},operation:string) {
     const hash=createHash('sha256').update(operation).digest('hex'),amount=BigInt(intent.amount_stroops),time=intent.created_at.includes('T')?new Date(Math.floor(Date.parse(intent.created_at)/1000)*1000).toISOString():intent.created_at.replace(' ','T')+'Z';
@@ -31,7 +31,7 @@ function fixture() {
   async function deposit(units='1000',operation='101') {const intent=await createBackingIntent(a,units,'Verified capital',uuid());proof(intent,operation);await verifyBackingDeposit(intent.id,a,operation);return intent;}
   function reward(user=owner,units='200') {return createReward(user,{scopeType:'sponsor_cohort',scopeId:cohorts.get(user)!,rewardType:'custom',amountStroops:units,idempotencyKey:uuid()});}
   function grant(units='600') {const request=requestPlatformCredit(a,owner,units,'Learner incentives',uuid());const approved=approvePlatformCredit(request.id,b,uuid(),'Approved budget') as {id:string};return {request,grant:approved};}
-  return {a,b,owner,other,deposit,reward,grant,proof,fetcher,destination};
+  return {a,b,owner,other,cohorts,deposit,reward,grant,proof,fetcher,destination};
 }
 const count=(table:string)=>(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get() as {n:number}).n;
 
@@ -144,9 +144,68 @@ describe('backed platform credit',()=>{
   it('keeps testnet backing separate from public-network credit availability',async()=>{
     const f=fixture();await f.deposit();f.grant();
     vi.stubEnv('REWARD_STELLAR_NETWORK','public');
+    vi.stubEnv('REWARD_TREASURY_PILOT_TOTAL_STROOPS','1000');
     expect(platformPool('public').availableStroops).toBe(0);expect(availablePlatformCredits(f.owner)).toEqual([]);
     expect(()=>requestPlatformCredit(f.a,f.owner,'1','No conversion','public')).toThrowError(expect.objectContaining({code:'INSUFFICIENT_CREDIT'}));
     expect(getFundingAvailability(f.reward().id,f.a).find(o=>o.sourceType==='platform_credit')?.available).toBe(false);
+  });
+  it('requires a public budget and caps pending requests and approved grants independently of backing', async () => {
+    const f = fixture('public');
+    await f.deposit('2000000');
+    const request = (owner: string, units: string, key: string) => requestPlatformCredit(f.a, owner, units, 'Pilot', key);
+    const configure = (units: string) => vi.stubEnv('REWARD_TREASURY_PILOT_TOTAL_STROOPS', units);
+    for (const units of ['', '0', '0.1', '1000\n', '9007199254740992']) {
+      configure(units);
+      expect(() => request(f.owner, '1', 'first')).toThrowError(expect.objectContaining({code:'TREASURY_PILOT_UNAVAILABLE'}));
+    }
+    configure('1000000');
+    const reserved = request(f.owner, '700000', 'first');
+    expect(() => request(f.other, '300001', 'over')).toThrowError(expect.objectContaining({code:'TREASURY_PILOT_LIMIT_EXCEEDED'}));
+    const pending = request(f.other, '300000', 'second');
+    configure('750000');
+    const approved = approvePlatformCredit(reserved.id, f.b, 'approve-first', 'Reviewed');
+    expect(() => approvePlatformCredit(pending.id, f.b, 'approve-second', 'Reviewed'))
+      .toThrowError(expect.objectContaining({code:'TREASURY_PILOT_LIMIT_EXCEEDED'}));
+    configure('');
+    expect(approvePlatformCredit(reserved.id, f.b, 'approve-first', 'Reviewed')).toEqual(approved);
+    expect(() => approvePlatformCredit(pending.id, f.b, 'approve-second', 'Reviewed'))
+      .toThrowError(expect.objectContaining({code:'TREASURY_PILOT_UNAVAILABLE'}));
+    expect(platformPool('public')).toMatchObject({allocatedStroops:700000, reservedStroops:300000});
+  });
+  it('caps a learner across two public credit funders at activation and release', async () => {
+    const f = fixture('public');
+    vi.stubEnv('REWARD_TREASURY_PILOT_TOTAL_STROOPS', '3000000');
+    await f.deposit('3000000');
+    const learner = uuid();
+    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic learner',?,'hash','student')")
+      .run(learner, `${learner}@test.invalid`);
+    for (const cohort of f.cohorts.values()) {
+      db.prepare('INSERT INTO cohort_members(cohort_id,user_id) VALUES (?,?)').run(cohort, learner);
+    }
+    function funded(owner: string, units: string) {
+      const request = requestPlatformCredit(f.a, owner, units, 'Pilot', uuid());
+      const grant = approvePlatformCredit(request.id, f.b, uuid(), 'Reviewed') as {id:string};
+      const reward = f.reward(owner, units);
+      const intent = createFundingIntent(reward.id, f.a, {type:'platform_credit',reference:grant.id}, uuid());
+      return fundReward(reward.id, f.a, {type:'platform_credit',reference:grant.id,intentId:intent.id}, uuid());
+    }
+    const first = funded(f.owner, '700000'), over = funded(f.other, '300001'), exact = funded(f.other, '300000');
+    activateReward(first.id, f.owner, uuid());
+    expect(() => activateReward(over.id, f.other, uuid()))
+      .toThrowError(expect.objectContaining({code:'TREASURY_PILOT_LIMIT_EXCEEDED'}));
+    expect(count('reward_allocations')).toBe(1);
+    activateReward(exact.id, f.other, uuid());
+    vi.stubEnv('REWARD_STELLAR_NETWORK', 'testnet');
+    db.exec("UPDATE reward_allocations SET status='eligible'");
+    const allocationId = (rewardId: string) => (db.prepare('SELECT id FROM reward_allocations WHERE reward_id=?').get(rewardId) as {id:string}).id;
+    releaseAllocation(allocationId(first.id), f.owner, uuid(), first.id);
+    // Model an oversized allocation that predates enforcement and reaches the release path.
+    db.prepare('UPDATE reward_allocations SET amount_stroops=300001 WHERE reward_id=?').run(exact.id);
+    expect(() => releaseAllocation(allocationId(exact.id), f.other, uuid(), exact.id))
+      .toThrowError(expect.objectContaining({code:'TREASURY_PILOT_LIMIT_EXCEEDED'}));
+    db.prepare('UPDATE reward_allocations SET amount_stroops=300000 WHERE reward_id=?').run(exact.id);
+    expect(releaseAllocation(allocationId(exact.id), f.other, uuid(), exact.id).status).toBe('released');
+    expect(db.prepare("SELECT SUM(amount_stroops) AS n FROM reward_allocations WHERE status='released'").get()).toEqual({n:1000000});
   });
   it('refuses a backing operation at the direct reward evidence database boundary too',async()=>{
     const f=fixture();await f.deposit();const r=f.reward(),intent=createFundingIntent(r.id,f.owner,{type:'stellar'},'direct');
