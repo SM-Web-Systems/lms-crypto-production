@@ -59,10 +59,17 @@ function repository(db: SQLiteDatabase): OfflineStore {
       const row = await db.getFirstAsync<{data: string}>('SELECT data FROM courses WHERE id = ?', id);
       return row ? decode(row) : null;
     },
-    save: async course => {
-      try {
+    save: async (course, notice) => {
+      const upsert = async () => {
         await db.runAsync('INSERT INTO courses(id,data) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
           course.pack.course.id, JSON.stringify(course));
+      };
+      try {
+        if (notice === undefined) await upsert();
+        else await db.withTransactionAsync(async () => {
+          await upsert();
+          await set('notice', notice);
+        });
       } catch { throw new Error('Could not save the offline update. Check available device storage and try again.'); }
     },
     discard: async (id, notice) => {
