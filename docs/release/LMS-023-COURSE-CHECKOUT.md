@@ -44,6 +44,16 @@ fetch("http://127.0.0.1:3001/api/v1/auth/amma-callback", {
 
 If the container returns `no-referrer` and the public response differs, compare the shared proxy response with the public response to identify the overriding hop. If the container also differs, verify its running image and callback route. Recheck the public response before using authenticated assertions.
 
+For candidate acceptance, run the smoke check with the approved full API revision:
+
+```bash
+SMOKE_BASE_URL=https://lms.smwebsystems.com/api/v1 \
+  SMOKE_EXPECTED_BUILD_SHA="$APPROVED_LMS_API_SHA" \
+  SMOKE_REQUIRE_WALLET_CALLBACK=1 bash scripts/smoke-test.sh
+```
+
+On 8 November 2026 the public staging API matched the observed `f5a64e8ac92aca6b33ae54bda70617d475893e3e` revision and passed the other four API checks. The callback header check failed, so authenticated Wallet acceptance remains pending.
+
 Use the approved staging course, authorized synthetic learner, and a confirmed Paystack test-mode merchant. Record the deployed LMS and Wallet revisions and the test-mode evidence. Verify paid checkout for the configured merchant currency, duplicate/concurrent initiation, mismatched and reordered signed webhooks, receipt ownership, and a sandbox refund. Record the provider outcome and local payment ledger for each reference without including payment credentials. Test Wallet SSO, verified-email recovery and the enabled challenge and second-factor flows using the approved capture mechanism. A separate decision governs any live enablement.
 
 Local regressions use mocked responses at the HTTP boundary and synthetic signatures. They cover the checkout race, replay, price currency, provider mismatch, late webhook settlement, release hold and additive schema startup. No real transaction or provider call was made.
