@@ -36,7 +36,9 @@ On 8 November 2026 the retained staging backup passed its checksum, companion-re
 
 The operator's cron schedules daily database jobs for LMS, Wallet, Wallet Testnet, the website and CRM, plus media and a separate off-site job. The LMS job uses SQLite online backup and the Wallet job uses a PostgreSQL dump. The separate encrypted Restic job references Cloudflare R2 and mail data and configuration. Its latest readable run on 8 November recorded one saved snapshot. [Backup schedule evidence](evidence/lms-061-server-backup-schedule-audit.json)
 
-The job log establishes a reported save. The R2 snapshot manifest, the inclusion of each database backup, and restoration of LMS and mail still need direct verification. Inspect the repository with the operator's approved access and use a separate approved restore host for any protected data retrieval.
+A direct read of the encrypted R2 snapshot at 02:15 UTC on 8 November found files in the scheduled LMS, Wallet, Wallet Testnet, website and CRM backup directories. It also found media, Stalwart data, and Nginx and cron configuration. A 20,635,648-byte LMS SQLite backup retrieved into memory on the backup server matched the scheduled local file by SHA-256 and had the expected SQLite header. [R2 snapshot evidence](evidence/lms-061-r2-snapshot-verification.json)
+
+Use an approved isolated recovery host to retrieve and verify the selected release capture and its receipt, run the pinned image restore, and test mail restoration. The mail file listing establishes snapshot coverage. Mail consistency and usability require restoring and opening the data with the appropriate Stalwart configuration.
 
 ## Finish the protected rehearsal
 

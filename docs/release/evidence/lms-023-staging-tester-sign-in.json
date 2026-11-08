@@ -10,5 +10,9 @@
   "walletApiSourceRevisionVerified": false,
   "earlierInterruptionReportedByOwner": true,
   "interruptionRootCauseVerified": false,
-  "passwordRecoveryVerified": false
+  "passwordRecoveryVerified": false,
+  "ownerReportedConcurrentServerWork": [
+    "performance improvements",
+    "server hardening"
+  ]
 }

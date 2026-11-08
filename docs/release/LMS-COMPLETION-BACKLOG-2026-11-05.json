@@ -555,9 +555,10 @@
       "evidence": [
         "LMS-061-RECOVERY-REHEARSAL.md",
         "evidence/lms-061-hosted-image-validation.json",
-        "evidence/lms-061-staging-retained-recovery-diagnostic.json"
+        "evidence/lms-061-staging-retained-recovery-diagnostic.json",
+        "evidence/lms-061-r2-snapshot-verification.json"
       ],
-      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. The retained staging backup passed its receipt and database contract checks. The configured policy differs on source SHA, target SHA and recovery image IDs. Protected off-host retrieval, restoration with release-selected images and LMS-010/LMS-011 remain open."
+      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. The retained staging backup passed its receipt and database contract checks. The configured policy differs on source SHA, target SHA and recovery image IDs. The encrypted R2 manifest includes the scheduled application and mail backup scopes. A scheduled LMS SQLite sample retrieved from R2 matched the local copy. Verification of the selected release capture on a separate recovery host, restoration with release-selected images and LMS-010/LMS-011 remain open."
     },
     {
       "id": "LMS-062",
