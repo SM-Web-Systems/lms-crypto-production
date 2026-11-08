@@ -1,0 +1,30 @@
+{
+  "task": "LMS-023",
+  "observedOn": "2026-11-08",
+  "stagingNginxVersion": "1.29.4",
+  "stagingReadOnlyFindings": {
+    "httpsVhostReferrerPolicy": "strict-origin-when-cross-origin",
+    "httpsVhostUsesAlways": true,
+    "apiLocationHidesUpstreamReferrerPolicy": true,
+    "configurationIsDirectoryBindMounted": true,
+    "hostAndContainerConfigurationMatch": true
+  },
+  "loopbackRehearsal": {
+    "nginxVersion": "1.24.0 (Ubuntu)",
+    "baselineOverrideReproduced": true,
+    "correctionCasesPassed": 9,
+    "cases": [
+      "callback",
+      "callback with synthetic query",
+      "callback with trailing slash",
+      "mixed-case callback",
+      "similar path",
+      "API health",
+      "API authorization failure",
+      "frontend login",
+      "separate virtual host"
+    ]
+  },
+  "stagingConfigurationChanged": false,
+  "stagingCorrectionVerified": false
+}
