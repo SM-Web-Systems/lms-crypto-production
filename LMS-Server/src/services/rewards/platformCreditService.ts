@@ -54,7 +54,9 @@ export function reconcilePlatformCredit(actor: string, network: string) {
   return db.transaction(() => {
     manage(actor);
     const asOf = now();
-    return reconcileCreditLedger(platformPool(network, asOf), asOf);
+    const ledger = reconcileCreditLedger(platformPool(network, asOf), asOf);
+    if (network === 'testnet') return ledger;
+    return {...ledger, treasurySourceBinding: reconcileTreasurySource(ledger.depositedStroops)};
   })();
 }
 
@@ -74,10 +76,15 @@ export function platformCreditSummary(actor:string) {
   };
 }
 
+function configuredTreasurySource() {
+  const source = process.env.REWARD_TREASURY_SOURCE_ACCOUNT;
+  return source && StrKey.isValidEd25519PublicKey(source) ? source : undefined;
+}
+
 function treasurySource(network: Network, destination: string): string | undefined {
   if (network === 'testnet') return undefined;
-  const source = process.env.REWARD_TREASURY_SOURCE_ACCOUNT;
-  if (!source || !StrKey.isValidEd25519PublicKey(source) || source === destination) {
+  const source = configuredTreasurySource();
+  if (!source || source === destination) {
     throw new RewardError('TREASURY_PILOT_UNAVAILABLE', 'The public treasury sending account is not configured.', 503);
   }
   return source;
@@ -87,6 +94,32 @@ function backingMemo(intent: Pick<BackingIntent, 'id'|'requester_user_id'|'netwo
   const fields = [intent.id, intent.requester_user_id, intent.network, intent.destination, intent.amount_stroops];
   return createHash('sha256').update(JSON.stringify(source
     ? ['platform-backing-v2', ...fields, source] : ['platform-backing-v1', ...fields])).digest('hex');
+}
+
+function reconcileTreasurySource(depositedStroops: number) {
+  const source = configuredTreasurySource();
+  const receipts = db.prepare(`
+    SELECT i.id, i.requester_user_id, i.network, i.destination, i.amount_stroops, i.memo_hash,
+           d.amount_stroops AS deposited
+    FROM platform_backing_deposits d
+    LEFT JOIN platform_backing_intents i ON i.id = d.intent_id
+    WHERE d.network = 'public'
+  `).iterate() as Iterable<Pick<BackingIntent, 'id'|'requester_user_id'|'network'|'destination'|'amount_stroops'|'memo_hash'>
+    & {deposited: number}>;
+  let total = 0, matches = 0, matchedStroops = 0;
+  for (const receipt of receipts) {
+    total++;
+    if (source && receipt.network === 'public' && receipt.destination !== source &&
+        receipt.amount_stroops === receipt.deposited && backingMemo(receipt, source) === receipt.memo_hash) {
+      matches++;
+      matchedStroops += receipt.deposited;
+    }
+  }
+  return {
+    sourceConfigured: source !== undefined, receipts: total,
+    receiptsOutsideCurrentSource: source ? total - matches : null,
+    stroopsOutsideCurrentSource: source ? depositedStroops - matchedStroops : null,
+  };
 }
 
 function verifyBackingSourceBinding(intent: BackingIntent) {

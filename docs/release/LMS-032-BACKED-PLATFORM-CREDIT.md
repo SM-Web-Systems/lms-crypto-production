@@ -37,6 +37,8 @@ Reconcile any open public backing intents before a sender rotation. Intents issu
 
 An operator with current reward-management permission can request `GET /api/v1/admin/rewards/platform-credit/reconciliation/public` or the corresponding `testnet` report. Each response reads one SQLite snapshot and uses the same instant for request and grant hold expiry. It returns totals and exception counts for the full network ledger, including deposit-to-intent links, independent approvals, reservation bindings, missing or mismatched consumption evidence, and grants or pools committed beyond their backing. The report sends `Cache-Control: no-store` and contains no account, wallet, transaction or evidence identifiers.
 
+The public report also returns treasurySourceBinding. It counts receipts and the amount whose intent memo cannot be matched to the current configured sender. The unmatched values are null when no valid sender is configured. Review those receipts against the private on-chain evidence, including receipts from an earlier authorized treasury wallet. This summary leaves balances and historical receipts intact.
+
 Record the report alongside independently checked reserve custody evidence. A balanced LMS report confirms the internal relationships checked by the endpoint. The operator still needs to compare the authorized wallet's available reserves and any external disbursements with the private source records before approving the pilot.
 
 ## Administrative API
