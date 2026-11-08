@@ -18,9 +18,9 @@ Deployment no longer builds. `scripts/build-candidate.sh` builds at the exact ch
 | Host cron: `lms-data-check`, `backup_lms_db` | Only run read queries and backups, but `sudo sqlite3` opens the database as root and can create sidecars on a stopped database. Start only with at least 30 minutes before the next 00:00, 03:00, 06:00, 12:00 or 18:00 run. A collision fails closed, which after migration means a halted outage. | None |
 | Stellar payment monitor | Defined but never started | None |
 | Candidate import-time schema statements in `config/database.ts` | Run at start, before any hold check. Written to be no-ops on an existing database. Deploy fails if the schema or any protected row changes across the held start. | None |
-| Amma SSO callback | Browser redirect refused during the outage; the user signs in again | No durable event |
+| Amma SSO callback | An authenticated callback is refused during the hold. The user signs in again after release. | No durable event |
 
-Only `/health`, `/api/v1/health` and a credential-free `GET /api/v1/courses` pass the guard. That probe returns 401 before any database access. `/healthz` is refused because its readiness probe writes. The hold is a file beside the database, so it travels with the volume, and production ignores any override of its path. An unreadable hold state counts as held.
+The guard permits `/health`, `/api/v1/health`, a credential-free `GET /api/v1/courses` and the exact parameter-free, credential-free Wallet callback GET. The course probe returns 401 before any database access. `/healthz` is refused because its readiness probe writes. The hold is a file beside the database, so it travels with the volume, and production ignores any override of its path. An unreadable hold state counts as held.
 
 ## Sequence
 
@@ -91,6 +91,8 @@ No release gate or flag controls reward funding, which is a permission-checked u
 4. Run `scripts/deploy.sh` with `DEPLOY_EXECUTE=1` and `DEPLOY_RECOVERY_POLICY` set.
 5. Run smoke checks on the held candidate.
 6. Run `scripts/release-hold.sh` with `DEPLOY_EXECUTE=1`.
+
+For a GitHub-triggered deployment, use the approved workflow revision and complete operator preparation before dispatch. The restricted CI key submits `ci deploy <sha> <true|false>` over Tailscale. The server wrapper requires the existing checkout to match that exact SHA and verifies that the committed release scripts match their files. If `main` advances before dispatch, recheck the reviewed SHA and the prepared checkout. `execute=false` prepares recovery evidence and can create private backup files and recovery image tags. An approved `execute=true` runs the deployment and leaves writers held for the separate release step. [Restricted SSH workflow](https://github.com/SM-Web-Systems/lms-crypto-production/pull/173)
 
 For a Wallet-enabled release, include the boolean `"require_wallet_callback": true` in the independently reviewed policy before capture. The writer release checks the public parameter-free callback for HTTP 302, exactly one `Referrer-Policy: no-referrer` and exactly one `Cache-Control: no-store`. It performs a credential-free GET and leaves the redirect unfollowed. The held API permits only this exact callback GET. Requests carrying parameters, cookies or authorization remain subject to the hold. A failed probe leaves writers held and returns the failed check. Resolve the public route or proxy policy before repeating the approved writer-release command. [Staging Wallet acceptance](LMS-023-COURSE-CHECKOUT.md)
 

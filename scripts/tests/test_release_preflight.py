@@ -29,7 +29,7 @@ class EntrypointSafetyTests(unittest.TestCase):
     def test_workflow_requires_approved_sha_without_git_pull(self):
         workflow=(ROOT/'.github/workflows/deploy.yml').read_text()
         self.assertNotIn('git pull',workflow)
-        self.assertIn('APPROVED_SHA: ${{ github.sha }}',workflow)
+        self.assertIn('script: ci deploy ${{ github.sha }} ${{ inputs.execute }}',workflow)
         self.assertNotIn("|| '/home/",workflow)
 
     def test_shell_delegates_without_prune_or_mutable_checkout(self):
@@ -62,23 +62,22 @@ case "$*" in
   *) exit 99 ;;
 esac
 ''',encoding='utf8',newline='\n');(fake/'git').chmod(0o700)
-            workflow=(ROOT/'.github/workflows/deploy.yml').read_text()
-            bootstrap=textwrap.dedent(workflow.split('          script: |\n',1)[1])
-            env=dict(os.environ,APPROVED_SHA=SHA,DEPLOY_DIR=shell_path(checkout),
-                     DEPLOY_REPOSITORY='SM-Web-Systems/lms-crypto-production',FIXTURE_ROOT=shell_path(checkout),
+            # The bootstrap runs server-side behind the forced-command gate (ops/ci-gate).
+            bootstrap=(ROOT/'ops/ci-gate/lms-deploy.sh').read_text()
+            env=dict(os.environ,DEPLOY_DIR=shell_path(checkout),FIXTURE_ROOT=shell_path(checkout),
                      FIXTURE_SHA='e'*40,FIXTURE_REMOTE='git@github.com:SM-Web-Systems/lms-crypto-production.git',
-                     FIXTURE_DIRTY='',SENTINEL=shell_path(sentinel),DEPLOY_EXECUTE_REQUEST='false')
-            command='export PATH="$1:$PATH"; '+bootstrap
+                     FIXTURE_DIRTY='',SENTINEL=shell_path(sentinel))
+            command='export PATH="$1:$PATH"; shift; '+bootstrap
             for key,value in [('FIXTURE_SHA','e'*40),('FIXTURE_REMOTE','https://example.invalid/other'),('FIXTURE_DIRTY',' M tracked'),('FIXTURE_BLOB','modified')]:
                 with self.subTest(key=key):
                     invalid=dict(env,FIXTURE_SHA=SHA);invalid[key]=value
-                    result=subprocess.run([BASH,'-c',command,'--',shell_path(fake)],env=invalid,capture_output=True,text=True,timeout=20)
+                    result=subprocess.run([BASH,'-c',command,'--',shell_path(fake),SHA,'false'],env=invalid,capture_output=True,text=True,timeout=20)
                     self.assertNotEqual(result.returncode,0);self.assertFalse(sentinel.exists())
             invalid=dict(env,FIXTURE_SHA=SHA,FIXTURE_STATUS_FAIL='1')
-            result=subprocess.run([BASH,'-c',command,'--',shell_path(fake)],env=invalid,capture_output=True,text=True,timeout=20)
+            result=subprocess.run([BASH,'-c',command,'--',shell_path(fake),SHA,'false'],env=invalid,capture_output=True,text=True,timeout=20)
             self.assertNotEqual(result.returncode,0);self.assertFalse(sentinel.exists());self.assertNotIn('SECRET',result.stderr)
             env['FIXTURE_SHA']=SHA
-            result=subprocess.run([BASH,'-c',command,'--',shell_path(fake)],env=env,capture_output=True,text=True,timeout=20)
+            result=subprocess.run([BASH,'-c',command,'--',shell_path(fake),SHA,'false'],env=env,capture_output=True,text=True,timeout=20)
             self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(sentinel.read_text(),'invoked')
 
 

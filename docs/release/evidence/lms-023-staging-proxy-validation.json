@@ -1,0 +1,30 @@
+{
+  "task": "LMS-023",
+  "observedOn": "2026-11-08",
+  "stagingApiRevision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+  "originReceipt": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42452140347/job/128643469809",
+  "origin": {
+    "httpStatus": 302,
+    "noReferrer": true,
+    "strictOriginWhenCrossOrigin": false,
+    "noStore": true
+  },
+  "sharedNginxProxy": {
+    "httpStatus": 302,
+    "missingParamsRedirect": true,
+    "noReferrer": false,
+    "strictOriginWhenCrossOrigin": true,
+    "noStore": true
+  },
+  "publicCallback": {
+    "httpStatus": 302,
+    "referrerPolicy": "strict-origin-when-cross-origin",
+    "cacheControl": "no-store"
+  },
+  "publicHealth": {
+    "status": "ok",
+    "buildSha": "f5a64e8ac92aca6b33ae54bda70617d475893e3e"
+  },
+  "method": "One TLS-verified parameter-free proxy GET over an authorized operator SSH session, followed by a public callback GET and health check.",
+  "conclusion": "The differing policy is already present on the shared Nginx response before Cloudflare. The exact proxy configuration or directive responsible remains unverified."
+}

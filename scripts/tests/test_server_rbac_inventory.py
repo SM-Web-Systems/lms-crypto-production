@@ -113,7 +113,7 @@ class InventoryTests(unittest.TestCase):
     def run_command(self, args, timeout=45):
         self.calls.append(args)
         if args[:3] == ['docker', 'container', 'inspect']:
-            return json.dumps({'image': API if args[-1] == 'lms-api' else WEB, 'running': True, 'project': 'lms'})
+            return json.dumps({'image': API if args[-1] == 'lms-api' else WEB, 'running': True, 'project': 'lms', 'containerId': 'a' * 64})
         if args[:3] == ['docker', 'image', 'inspect']:
             return json.dumps({'id': args[-1], 'revision': SHA, 'workdir': '/app'})
         if args[0] == 'git':
@@ -142,6 +142,40 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(before, set(self.root.rglob('*')))
         self.assertFalse(any(args[:2] in (['docker', 'run'], ['docker', 'rm']) for args in self.calls))
         self.assertTrue(all('--no-optional-locks' in args for args in self.calls if args[0] == 'git'))
+
+    def test_wallet_probe_uses_only_the_pinned_api_container_and_keeps_files_private(self):
+        settings = dict(self.env, LMS_INVENTORY_MODE='wallet-callback', LMS_INVENTORY_MANIFEST='')
+        reply = {'httpStatus': 302, 'noReferrer': True, 'strictOriginWhenCrossOrigin': False, 'noStore': True}
+        before = set(self.root.rglob('*'))
+
+        def run(args, timeout=45):
+            if args[:2] != ['docker', 'exec']:
+                return self.run_command(args, timeout)
+            self.calls.append(args)
+            self.assertEqual(args, ['docker', 'exec', '--workdir', '/', '--env', 'NODE_OPTIONS=',
+                                    'a' * 64, 'node', '-e', inventory.WALLET_CALLBACK_SCRIPT])
+            self.assertEqual(timeout, 12)
+            return json.dumps(reply)
+
+        with patch.object(inventory, 'PREPARED_REVISION', SHA):
+            result = inventory.execute(settings, run)
+            self.assertEqual(result['status'], 'WALLET_CALLBACK_ORIGIN_OBSERVED')
+            self.assertEqual(result['callback'], reply)
+            self.assertEqual([args[:2] for args in self.calls], [['docker', 'container'], ['docker', 'image'],
+                                                                 ['docker', 'container'], ['docker', 'image'],
+                                                                 ['docker', 'exec']])
+            self.assertEqual(before, set(self.root.rglob('*')))
+            reply['unexpected'] = 'private-location'
+            with self.assertRaisesRegex(inventory.Refused, '^WALLET_CALLBACK_PROBE_INVALID$'):
+                inventory.execute(settings, run)
+
+    def test_wallet_probe_refuses_unreviewed_revision_or_manifest(self):
+        with self.assertRaisesRegex(inventory.Refused, '^UNEXPECTED_MANIFEST_ID$'):
+            inventory.execute(dict(self.env, LMS_INVENTORY_MODE='wallet-callback'), self.run_command)
+        self.assertEqual(self.calls, [])
+        with self.assertRaisesRegex(inventory.Refused, '^PREPARED_REVISION_REQUIRED$'):
+            inventory.execute(dict(self.env, LMS_INVENTORY_MODE='wallet-callback', LMS_INVENTORY_MANIFEST=''), self.run_command)
+        self.assertFalse(any(args[:2] == ['docker', 'exec'] for args in self.calls))
 
     def test_wrong_target_or_command_injection_is_refused_before_execution(self):
         for key, value in [('DEPLOY_BASE_URL', 'https://other.invalid'), ('DEPLOY_PROJECT', 'lms;reboot'),
