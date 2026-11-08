@@ -146,9 +146,10 @@
         "LMS-010-PRIVATE-REVIEW.md",
         "evidence/lms-010-access-validation.json",
         "evidence/lms-010-staging-inventory.json",
+        "evidence/lms-010-private-review-preparation.json",
         "evidence/lms-013-staging-legacy-role-usage.json"
       ],
-      "reason": "Read-only staging inventory obtained: 19 accounts, 3 learner-profile gaps and 1 students FK violation. The private worksheet generator and verifier bind the review to that snapshot and check that every finding has a decision. A preliminary 24-hour staging log sample found zero legacy role PATCH requests among 6,009 recognized requests. Owner decisions, continuous usage coverage, installed builds and recovery approval remain outstanding."
+      "reason": "Read-only staging inventory obtained: 19 accounts, 3 learner-profile gaps and 1 students FK violation. A pending owner-only worksheet was generated from the hash-verified retained snapshot, with four account, three learner-profile and one integrity decision rows. A preliminary 24-hour staging log sample found zero legacy role PATCH requests among 6,009 recognized requests. Owner decisions, continuous usage coverage, installed builds and recovery approval remain outstanding."
     },
     {
       "id": "LMS-011",

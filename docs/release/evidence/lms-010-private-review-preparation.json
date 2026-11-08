@@ -1,0 +1,18 @@
+{
+  "task": "LMS-010",
+  "observedOn": "2026-11-08",
+  "status": "PRIVATE_REVIEW_WORKSHEET_READY",
+  "snapshotSha256": "19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79",
+  "schemaFingerprintSha256": "31506217ed4e9f1cf7bc446a91954fd1b9cb54f88be76560043de490d9d7b53c",
+  "capturedApiRevision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+  "inventoryToolRevision": "80745921dcb058c74c8710f71cf6eb15dace7bbe",
+  "snapshotHashMatchedBeforeAndAfter": true,
+  "privateWorksheetPermissionsVerified": true,
+  "findingCounts": {
+    "accountDecisions": 4,
+    "learnerProfileDecisions": 3,
+    "integrityDecisions": 1
+  },
+  "reviewCompleted": false,
+  "migrationReady": false
+}

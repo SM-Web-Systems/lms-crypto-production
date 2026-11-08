@@ -33,6 +33,16 @@ npm run rbac:inventory -- --snapshot --database "$PRIVATE_FINALIZED_SNAPSHOT" \
 
 Keep the original report and the new file private. This local fix does not establish which accounts were in the original server file or record the owner's decisions.
 
+## Prepared private worksheet
+
+The pending worksheet is `review-decisions.json` next to the original report in the private staging backup directory. It contains four account decision rows, three learner-profile decision rows and one integrity decision row. The retained snapshot matched its recorded digest before and after generation. The worksheet passed the private file permission check. These are rows to review and may refer to the same account across groups. [Worksheet preparation evidence](evidence/lms-010-private-review-preparation.json)
+
+Open it from the private staging shell:
+
+```bash
+less -- "${DEPLOY_BACKUP_DIR:?set the authorized backup directory}/rbac-inventory-501d67b5bac94487861a23b4e2571915/review-decisions.json"
+```
+
 ## Decisions required
 
 1. Review current administrator/multiple grants and confirm the intended authoritative RBAC assignments. A legacy label does not supply a missing grant, and multiple grants may be legitimate.
@@ -40,7 +50,7 @@ Keep the original report and the new file private. This local fix does not estab
 3. Resolve the `students` foreign-key exception through an explicitly reviewed data-repair decision. Identify the affected private row and intended parent/history. The current cutover tool refuses even planning while integrity exceptions remain; it performs no automatic repair or deletion.
 4. Record the installed/supported mobile build inventory and legacy endpoint usage evidence, including source, observation period and any minimum-build/upgrade decision. Source exports and JavaScript bundles do not establish installed-binary compatibility.
 
-From `LMS-Server` in a checkout with the updated tool, generate the private worksheet directly from the finalized snapshot:
+Use the prepared worksheet above. If another reviewer needs an independent worksheet, run the updated tool from `LMS-Server` against the same finalized snapshot with a new private destination:
 
 ```bash
 npm run rbac:inventory -- --snapshot --database "$PRIVATE_FINALIZED_SNAPSHOT" \
