@@ -109,7 +109,7 @@ Compare the result with a fresh public callback check on the same deployed API r
 
 On 8 November 2026, the authorized operator SSH probe confirmed the expected HTTP 302 and `no-store` at shared Nginx, with `strict-origin-when-cross-origin`. The public callback still returned the same policy, and public health reported the same full API revision. The policy change is already present before Cloudflare. [Staging proxy evidence](evidence/lms-023-staging-proxy-validation.json)
 
-### Proposed shared proxy correction
+### Shared proxy correction
 
 In the LMS HTTPS virtual host, the `/api/` location hides the upstream `Referrer-Policy`. The server then adds `strict-origin-when-cross-origin` with `always`. The inspected configuration is on a directory bind mount and the container and host copies matched.
 
@@ -127,9 +127,11 @@ map $uri $lms_referrer_policy {
 add_header Referrer-Policy $lms_referrer_policy always;
 ```
 
-An isolated Ubuntu Nginx 1.24.0 fixture reproduced the original override and passed nine correction checks, including callback variants, an adjacent API denial, and a separate virtual host. Staging runs Nginx 1.29.4 and still needs its own configuration test and post-reload checks. [Rehearsal evidence](evidence/lms-023-proxy-correction-rehearsal.json)
+An isolated Ubuntu Nginx 1.24.0 fixture reproduced the original override and passed nine correction checks, including callback variants, an adjacent API denial, and a separate virtual host. The staging correction subsequently passed its own Nginx 1.29.4 syntax and post-reload checks. [Rehearsal evidence](evidence/lms-023-proxy-correction-rehearsal.json)
 
 For the authorized staging change, verify the current host and container configuration still match the reviewed snapshot. Retain a private backup outside the active include glob and preserve file metadata on replacement. Run `nginx -t` in the existing proxy container before a graceful reload. Check the parameter-free callback directly through Nginx and through the public endpoint. Require the expected 302, exactly one `Referrer-Policy: no-referrer`, and exactly one `Cache-Control: no-store`. Check that the adjacent LMS health and login routes retain their baseline and that other virtual hosts pass their agreed smoke checks. Restore the saved configuration if syntax or smoke validation fails. If the candidate was loaded, validate and gracefully reload the restoration before repeating the baseline checks.
+
+On 8 November 2026 the approved staging correction passed the Nginx configuration test, graceful reload, and direct and public callback verification. The adjacent LMS health and login routes matched their baselines. An independent workstation smoke run passed all six checks against the same deployed API revision. Authenticated AmmaWallet and Paystack sandbox acceptance remain open. [Staging correction evidence](evidence/lms-023-staging-proxy-correction.json)
 
 For the selected Wallet-enabled release, the independent compatibility policy should include `"require_wallet_callback": true` before recovery capture. The release tool checks the public parameter-free callback while writes are held. A failed check leaves the hold active. [Guarded release procedure](AUTH-14-held-release.md)
 

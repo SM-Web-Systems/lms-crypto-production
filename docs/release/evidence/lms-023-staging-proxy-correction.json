@@ -1,0 +1,30 @@
+{
+  "task": "LMS-023",
+  "observedOn": "2026-11-08",
+  "stagingApiRevision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+  "stagingNginxVersion": "1.29.4",
+  "ownerApproved": true,
+  "privateBackupVerifiedBeforeReplacement": true,
+  "originalConfigSha256": "c9b0bdb23e46d62a266f75a5b3124dfbe48ccf102ea8f4701297dd799e20091d",
+  "activeConfigSha256": "3812afb87556137f21fab1f5018dc1307c70106a974fef5ef0f5e9c5d8cd325b",
+  "nginxSyntaxTestPassed": true,
+  "gracefulReloadVerified": true,
+  "callbackAtNginxAndPublic": {
+    "httpStatus": 302,
+    "referrerPolicy": [
+      "no-referrer"
+    ],
+    "cacheControl": [
+      "no-store"
+    ],
+    "expectedMissingParametersRedirect": true
+  },
+  "adjacentStagingHealthAndLoginMatchBaseline": true,
+  "independentPublicSmoke": {
+    "passed": 6,
+    "failed": 0,
+    "buildShaMatched": true,
+    "anonymousCourseAccessStatus": 401
+  },
+  "authenticatedWalletAndPaystackAcceptance": "pending"
+}
