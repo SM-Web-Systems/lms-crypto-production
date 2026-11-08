@@ -527,7 +527,7 @@
         "LMS-051"
       ],
       "acceptance": [
-        "One exact final candidate has fresh full Linux/Windows API, web, native, E2E and dependency receipts; affected device groups rerun after final changes; no expected-failure authorization targets or unexplained failures/skips"
+        "One exact final candidate has fresh full Linux/Windows API, web, native, E2E and dependency receipts; affected device groups rerun after final changes and integrated attestation covers core, push and offline groups on both platforms; no expected-failure authorization targets or unexplained failures/skips"
       ],
       "evidence": [
         "LMS-COMPLETION-STATUS.md"

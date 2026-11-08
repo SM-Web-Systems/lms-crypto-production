@@ -7,6 +7,7 @@ const sha=/^[a-f0-9]{40}$/;
 const hash=/^[a-f0-9]{64}$/;
 const cases=['wallet_sso','callback_lifecycle','session_lifecycle','role_handoffs',
   'learning_content','learning_progress','account_controls','documents_accessibility'];
+const integratedCases=[...cases,'push_notifications','offline_learning'];
 const text=value=>typeof value==='string' && value.trim().length>0 && value.length<=512;
 function requireValue(condition,code) {if (!condition) throw new Error(code);}
 function readReport(path) {
@@ -37,6 +38,9 @@ function verifyBuildPins(path, digest, appSha, reports) {
 
 try {
   const args=process.argv.slice(2);
+  const integrated=args.at(-1)==='--integrated';
+  if (integrated) args.pop();
+  const requiredCases=integrated ? integratedCases : cases;
   requireValue((args.length===4 || args.length===8) && args[0]==='--file' &&
     args[2]==='--expected-sha' && sha.test(args[3]),'EXPLICIT_FILE_AND_FULL_SHA_REQUIRED');
   const hasPins = args.length === 8;
@@ -55,23 +59,26 @@ try {
       Number.isFinite(Date.parse(device.tested_at)) && new Date(device.tested_at).toISOString()===device.tested_at &&
       Date.parse(device.tested_at)<=Date.now()+300000,'UTC_TEST_TIMESTAMP_REQUIRED');
     requireValue(device.cases && typeof device.cases==='object' &&
-      Object.keys(device.cases).length===cases.length,'ALL_ACCEPTANCE_CASES_REQUIRED');
-    for (const id of cases) requireValue(device.cases[id]?.status==='pass' &&
+      Object.keys(device.cases).every(id=>integratedCases.includes(id)) &&
+      requiredCases.every(id=>Object.hasOwn(device.cases,id)),'ALL_ACCEPTANCE_CASES_REQUIRED');
+    for (const id of requiredCases) requireValue(device.cases[id]?.status==='pass' &&
       text(device.cases[id]?.evidence),'DEVICE_ACCEPTANCE_INCOMPLETE');
   }
   const environment = report.reports[0].environment;
+  requireValue(!integrated || environment === 'authorized_staging', 'INTEGRATED_STAGING_REQUIRED');
   requireValue(report.reports.every(device => device.environment === environment), 'MATCHING_ENVIRONMENTS_REQUIRED');
   requireValue(environment !== 'authorized_staging' || hasPins, 'STAGING_BUILD_PINS_REQUIRED');
   requireValue(environment !== 'synthetic' || !hasPins, 'SYNTHETIC_BUILD_PINS_FORBIDDEN');
   if (hasPins) verifyBuildPins(args[5], args[7], args[3], report.reports);
   console.log(JSON.stringify({status:'COMPLETE_ATTESTATION',hardware_verified:false,build_pins_verified:hasPins,
-    environment,platforms:2,cases_per_platform:cases.length,app_sha:report.app_sha}));
+    environment,scope:integrated ? 'integrated' : 'core',platforms:2,
+    cases_per_platform:requiredCases.length,app_sha:report.app_sha}));
 } catch (error) {
   const codes=['EXPLICIT_FILE_AND_FULL_SHA_REQUIRED','REPORT_TOO_LARGE','APP_SHA_MISMATCH',
     'BOTH_PLATFORMS_REQUIRED','PHYSICAL_PLATFORM_REQUIRED','AUTHORIZED_TEST_ENVIRONMENT_REQUIRED',
     'BUILD_AND_DEVICE_METADATA_REQUIRED','UTC_TEST_TIMESTAMP_REQUIRED','ALL_ACCEPTANCE_CASES_REQUIRED','DEVICE_ACCEPTANCE_INCOMPLETE',
     'EXPLICIT_BUILD_PINS_AND_DIGEST_REQUIRED','MATCHING_ENVIRONMENTS_REQUIRED','STAGING_BUILD_PINS_REQUIRED',
-    'SYNTHETIC_BUILD_PINS_FORBIDDEN','BUILD_PINS_DIGEST_MISMATCH','INVALID_BUILD_PINS','DEVICE_BUILD_PIN_MISMATCH'];
+    'INTEGRATED_STAGING_REQUIRED','SYNTHETIC_BUILD_PINS_FORBIDDEN','BUILD_PINS_DIGEST_MISMATCH','INVALID_BUILD_PINS','DEVICE_BUILD_PIN_MISMATCH'];
   console.error(JSON.stringify({status:'NOT_ACCEPTED',hardware_verified:false,
     code:codes.includes(error?.message)?error.message:'INVALID_ACCEPTANCE_REPORT'}));
   process.exitCode=2;
