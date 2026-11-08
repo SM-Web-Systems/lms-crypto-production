@@ -24,16 +24,22 @@ def visit(key):
     if not row['ownerRole'] or not row['acceptance'] or row['priority'] not in ['P1', 'P2', 'P3']:
         raise ValueError(f'Incomplete task: {key}')
     visiting.add(key)
+    if row['status'] not in {'open', 'in_progress', 'awaiting_input', 'done'}:
+        raise ValueError(f'Invalid task status: {key}')
     for dependency in row['dependencies']:
         visit(dependency)
+        if row['status'] == 'done' and tasks[dependency]['status'] != 'done':
+            raise ValueError(f'Open dependency for closed task: {key} depends on {dependency}')
+    if row['status'] == 'done' and not row['evidence']:
+        raise ValueError(f'Missing closure evidence: {key}')
+    for evidence in row['evidence']:
+        file = (release / evidence).resolve()
+        if not file.is_file() or not any(file.is_relative_to(root.resolve()) for root in (release, packet)):
+            raise ValueError(f'Invalid task evidence for {key}: {evidence}')
+        if file.suffix == '.json':
+            json.loads(file.read_text(encoding='utf-8'))
     visiting.remove(key)
     visited.add(key)
-    if row['status'] == 'done':
-        if not row['evidence']:
-            raise ValueError(f'Missing closure evidence: {key}')
-        for evidence in row['evidence']:
-            if not (release / evidence).is_file():
-                raise ValueError(f'Missing evidence: {evidence}')
 
 
 for key in tasks:
