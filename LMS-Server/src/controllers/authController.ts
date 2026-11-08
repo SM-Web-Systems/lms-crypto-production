@@ -24,7 +24,7 @@ import { compatibleRole } from '../services/roleCompatibilityService.js';
 import { createRbacAccount, type InitialRoleId } from '../services/rbacAccountService.js';
 import { resolveAmmaAccount, SsoPolicyError } from "../services/ammaAccountService.js";
 import { createNotification } from "../services/notificationService.js";
-import { createMobileHandoff, consumeMobileHandoff, isMobileSsoContext, mobileBuildStatus, MOBILE_SSO_CALLBACK, type MobileSsoContext } from '../services/mobileSsoService.js';
+import { createMobileHandoff, consumeMobileHandoff, isMobileSsoContext, mobileBuildObservation, mobileBuildStatus, MOBILE_SSO_CALLBACK, type MobileSsoContext } from '../services/mobileSsoService.js';
 
 
 /** Record a login event in the login_history table. Best-effort — never throws. */
@@ -668,6 +668,12 @@ export function ammaMobileSession(req: Request, res: Response, next: NextFunctio
     const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId});
     createSession(user.id,token,req);
     recordLoginHistory(user.id,req,'sso');
+    if (process.env.LMS_NATIVE_WALLET_BUILD_OBSERVATION_ENABLED === 'true') {
+      logger.info({
+        event: 'native_wallet_build_observed',
+        ...mobileBuildObservation(req.body?.app_platform, req.body?.app_build),
+      }, 'Native Wallet build observed');
+    }
     res.json({success:true,data:{token,user:{
       id:user.id,name:user.name,email:user.email,role:compatibleRole(user.id),
       walletAddress:user.walletAddress,walletLinkingStatus:user.wallet_linking_status,authProvider:user.auth_provider ?? 'local',

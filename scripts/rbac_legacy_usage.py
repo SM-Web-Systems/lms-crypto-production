@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count legacy role-route requests from a private stream of API JSON logs."""
+"""Count legacy role-route requests and native build observations from private API logs."""
 import argparse
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -11,6 +11,14 @@ UTC = timezone.utc
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 LEGACY = re.compile(r'/api/v1/users/[^/]+/role/?', re.I)
 UNSCOPED = re.compile(r'/[^/]+/role/?', re.I)
+ANDROID_BUILD = re.compile(r'[1-9][0-9]{0,9}')
+IOS_BUILD = re.compile(r'[1-9][0-9]{0,9}(?:\.(?:0|[1-9][0-9]{0,9})){0,2}')
+
+
+def log_timestamp(milliseconds):
+    if type(milliseconds) is int and 0 <= milliseconds <= 253402300799999:
+        return EPOCH + timedelta(milliseconds=milliseconds)
+    return None
 
 
 def utc_bound(value):
@@ -26,6 +34,7 @@ def summarize(lines, start, end):
     first = last = None
     in_window = unscoped = malformed = 0
     statuses = Counter()
+    builds = {platform: Counter() for platform in ('android', 'ios', 'unknown')}
     for line in lines:
         try:
             row = json.loads(line)
@@ -33,15 +42,28 @@ def summarize(lines, start, end):
             if line.strip():
                 malformed += 1
             continue
-        if not isinstance(row, dict) or not all(key in row for key in ('method', 'path', 'statusCode', 'time')):
+        if not isinstance(row, dict):
+            continue
+        if row.get('event') == 'native_wallet_build_observed':
+            observed = log_timestamp(row.get('time'))
+            platform, build = row.get('platform'), row.get('build')
+            pattern = ANDROID_BUILD if platform == 'android' else IOS_BUILD
+            if (observed is None or platform not in ('android', 'ios', 'unknown')
+                    or (build is not None and (platform == 'unknown' or not isinstance(build, str)
+                                               or not pattern.fullmatch(build)))):
+                malformed += 1
+            elif start <= observed < end:
+                builds[platform][build or 'unreported'] += 1
+            continue
+        if not all(key in row for key in ('method', 'path', 'statusCode', 'time')):
             continue
         method, path, code, milliseconds = (row[key] for key in ('method', 'path', 'statusCode', 'time'))
+        observed = log_timestamp(milliseconds)
         if (not isinstance(method, str) or not isinstance(path, str)
                 or type(code) is not int or not 100 <= code <= 599
-                or type(milliseconds) is not int or not 0 <= milliseconds <= 253402300799999):
+                or observed is None):
             malformed += 1
             continue
-        observed = EPOCH + timedelta(milliseconds=milliseconds)
         first = observed if first is None else min(first, observed)
         last = observed if last is None else max(last, observed)
         if not start <= observed < end:
@@ -63,6 +85,7 @@ def summarize(lines, start, end):
         'legacyRoleRequestsByStatus': dict(sorted(statuses.items())),
         'legacyRoleRequests': sum(statuses.values()),
         'unscopedLegacyShapeRequests': unscoped,
+        'nativeWalletSignInsByReportedBuild': {platform: dict(sorted(counts.items())) for platform, counts in builds.items()},
         'continuousCoverageVerified': False,
         'installedClientCompatibilityVerified': False,
     }
