@@ -39,6 +39,13 @@ BEGIN
   DELETE FROM offline_learning_leases WHERE user_id = OLD.user_id AND course_code = OLD.course_code;
 END;
 
+CREATE TRIGGER IF NOT EXISTS offline_learning_revoke_content_change
+AFTER UPDATE OF title, sections ON courses
+WHEN NEW.title IS NOT OLD.title OR NEW.sections IS NOT OLD.sections
+BEGIN
+  DELETE FROM offline_learning_leases WHERE course_id = OLD.id;
+END;
+
 CREATE TRIGGER IF NOT EXISTS offline_learning_revoke_course
 AFTER UPDATE OF approval_status, course_code ON courses
 WHEN NEW.course_code IS NOT OLD.course_code OR COALESCE(NEW.approval_status, '') NOT IN ('approved', 'published')

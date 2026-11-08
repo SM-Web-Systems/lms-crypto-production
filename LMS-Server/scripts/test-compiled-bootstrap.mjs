@@ -41,6 +41,7 @@ try {
       'DROP TRIGGER offline_learning_revoke_course_code_delete',
       'DROP TRIGGER offline_learning_revoke_course_code_update',
       'DROP TRIGGER offline_learning_revoke_course',
+      'DROP TRIGGER offline_learning_revoke_content_change',
       'DROP TABLE offline_progress_receipts',
       'DROP TABLE offline_learning_leases',
       'DROP TABLE paystack_checkout_links',
@@ -53,6 +54,9 @@ try {
     const { db, close } = await import(${JSON.stringify(runtime)});
     for (const table of ['offline_learning_leases', 'offline_progress_receipts', 'paystack_checkout_links', 'paystack_refund_requests']) {
       if (db.prepare('SELECT COUNT(*) n FROM ' + table).get().n !== 0) throw Error('Unexpected additive data');
+    }
+    if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND name = 'offline_learning_revoke_content_change'").get()) {
+      throw Error('Missing offline content-change revocation trigger');
     }
     if (db.pragma('foreign_key_check').length !== 0) throw Error('Offline upgrade introduced foreign-key violations');
     close();
