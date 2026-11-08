@@ -1,0 +1,87 @@
+#!/usr/bin/python3 -I
+"""Forced-command gate for CI deploy keys (installed root-owned at /usr/local/sbin/ci-gate).
+
+authorized_keys:  restrict,command="/usr/local/sbin/ci-gate <app>" ssh-ed25519 ... comment
+The SSH command a workflow sends (appleboy/ssh-action) may contain only:
+  * `export NAME='value'` lines for allow-listed names with plain values, and
+  * exactly one `ci <action> [args]` line.
+Anything else is refused, so a leaked key can trigger the named actions but never a shell.
+"""
+import os, re, sys
+
+LIB = "/usr/local/lib/ci-gate"
+SAFE = re.compile(r"[A-Za-z0-9._:/@+=,-]*")
+SHA = re.compile(r"[0-9a-f]{40}")
+
+LMS_ENV = {"DEPLOY_DIR", "DEPLOY_PROJECT", "DEPLOY_API_CONTAINER", "DEPLOY_WEB_CONTAINER",
+           "DEPLOY_DB_VOLUME", "DEPLOY_BACKUP_DIR", "DEPLOY_BASE_URL", "DEPLOY_RECOVERY_POLICY",
+           "LMS_INVENTORY_TOOL_SHA256"}
+
+APPS = {
+    "lms": {
+        "env": LMS_ENV,
+        "actions": {
+            # ci deploy <40-hex sha> <true|false>
+            "deploy": lambda a: len(a) == 2 and SHA.fullmatch(a[0]) and a[1] in ("true", "false"),
+            # ci inventory <mode> [32-hex manifest]
+            "inventory": lambda a: 1 <= len(a) <= 2
+                and a[0] in ("probe", "wallet-callback", "inventory", "capture", "inventory-capture")
+                and (len(a) == 1 or re.fullmatch(r"[0-9a-f]{32}", a[1]))
+                and (a[0] != "inventory" or len(a) == 2)
+                and (a[0] != "wallet-callback" or len(a) == 1),
+        },
+    },
+    "blog": {
+        "env": set(),
+        "actions": {
+            "deploy": lambda a: a == [],
+            "legacy": lambda a: len(a) == 1 and a[0] in ("migrate-and-preview", "convert", "restore-preview", "restore"),
+        },
+    },
+}
+
+def die(msg):
+    print(f"ci-gate: refused: {msg}", file=sys.stderr)
+    sys.exit(126)
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in APPS:
+        die("gate misconfigured (unknown app)")
+    app = APPS[sys.argv[1]]
+    raw = os.environ.get("SSH_ORIGINAL_COMMAND", "")
+    env, call = {}, None
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = re.fullmatch(r"export ([A-Z_][A-Z0-9_]*)='([^']*)'", line)
+        if m:
+            name, value = m.groups()
+            if name not in app["env"]:
+                die(f"variable {name} not allowed")
+            if not SAFE.fullmatch(value):
+                die(f"variable {name} has unexpected characters")
+            env[name] = value
+            continue
+        parts = line.split()
+        if parts and parts[0] == "ci" and call is None and all(SAFE.fullmatch(p) for p in parts):
+            call = parts[1:]
+            continue
+        die(f"unexpected line: {line[:80]!r}")
+    if not call:
+        die("no `ci <action>` line")
+    action, args = call[0], call[1:]
+    check = app["actions"].get(action)
+    if not check or not check(args):
+        die(f"action not allowed: {' '.join(call)}")
+
+    run_env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": os.environ.get("HOME", "/home/webadmin"),
+               "USER": os.environ.get("USER", "webadmin"), "LANG": "C.UTF-8"}
+    run_env.update(env)
+    run_env["CI_GATE_ARGS"] = " ".join(args)
+    script = f"{LIB}/{sys.argv[1]}-{action}.sh"
+    print(f"ci-gate: {sys.argv[1]} {action} {' '.join(args)}", file=sys.stderr, flush=True)
+    os.execve("/bin/bash", ["/bin/bash", "--noprofile", "--norc", script, *args], run_env)
+
+if __name__ == "__main__":
+    main()
