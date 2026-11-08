@@ -90,7 +90,7 @@ router.get(
     const paymentMethods: string[] = [];
     if (!isFree) {
       paymentMethods.push('manual');
-      if (process.env.PAYSTACK_SECRET_KEY) paymentMethods.push('paystack');
+      if (isPaystackConfigured()) paymentMethods.push('paystack');
       if (pricing?.stellar_price_xlm) paymentMethods.push('stellar_xlm');
       if (pricing?.stellar_price_usdc) paymentMethods.push('stellar_usdc');
     }

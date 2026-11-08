@@ -28,7 +28,10 @@ import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 import { engageWriterHold, releaseWriterHold } from '../services/writerHold.js';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 const HASH = bcrypt.hashSync('password123', 4);
 const TEST_PAYSTACK_SECRET = 'test-only-jwt-secret-do-not-use-in-production'; // matches vitest env
@@ -122,6 +125,28 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
     expect(res.body.data.paymentId).toBeTruthy();
 
     vi.unstubAllGlobals();
+  });
+
+  it('hides Paystack and refuses checkout before reserving a payment when the key mode mismatches', async () => {
+    const user = seedUser('student', 'checkout-mode');
+    const course = seedCourse('Checkout mode', 'CHECKOUT-MODE');
+    seedPricing(course, 2500);
+    const applicationId = seedApplication(user, course);
+    const token = makeToken({ userId: user, role: 'student' });
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    vi.stubEnv('PAYSTACK_REQUIRED_MODE', 'test');
+
+    const pricing = await request(app).get(`/api/v1/courses/${course}/pricing`).auth(token, { type: 'bearer' });
+    expect(pricing.status).toBe(200);
+    expect(pricing.body.data.paymentMethods).not.toContain('paystack');
+    const checkout = await request(app).post('/api/v1/payments/checkout/paystack')
+      .auth(token, { type: 'bearer' }).send({ applicationId });
+    expect(checkout.status).toBe(503);
+    expect(checkout.body.error.code).toBe('PAYSTACK_UNAVAILABLE');
+    expect(db.prepare('SELECT count(*) AS count FROM payments WHERE application_id = ?').get(applicationId))
+      .toEqual({ count: 0 });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('reserves one currency-bound reference during concurrent initialization and replays its checkout', async () => {
