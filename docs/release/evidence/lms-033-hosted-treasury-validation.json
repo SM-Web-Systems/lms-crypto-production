@@ -1,0 +1,47 @@
+{
+  "repository": "SM-Web-Systems/lms-crypto-production",
+  "observedOn": "2026-11-08",
+  "runs": [
+    {
+      "change": "public treasury sender binding",
+      "candidateLine": "v1",
+      "candidate": "e385fdb0fa71be4aacd8dc14819f7d6ec10e7b4b",
+      "ciRun": 42451549104,
+      "linuxBackendJob": 128641643926,
+      "windowsBackendJob": 128641643726,
+      "successfulJobs": 10,
+      "conclusion": "success"
+    },
+    {
+      "change": "public treasury sender binding",
+      "candidateLine": "v2",
+      "candidate": "8812399e770271d1c48d1d7fb66f5b82ab2b9c9e",
+      "ciRun": 42451565466,
+      "linuxBackendJob": 128641695756,
+      "windowsBackendJob": 128641695625,
+      "successfulJobs": 10,
+      "conclusion": "success"
+    },
+    {
+      "change": "public backing reconciliation",
+      "candidateLine": "v1",
+      "candidate": "79e8680374e3168c797041f82607799d4f754026",
+      "ciRun": 42451818436,
+      "linuxBackendJob": 128642464745,
+      "windowsBackendJob": 128642464779,
+      "successfulJobs": 10,
+      "conclusion": "success"
+    },
+    {
+      "change": "public backing reconciliation",
+      "candidateLine": "v2",
+      "candidate": "ecdb626ce06c3ab7b29b0566dcc689bc926a92c6",
+      "ciRun": 42451835325,
+      "linuxBackendJob": 128642519072,
+      "windowsBackendJob": 128642519286,
+      "successfulJobs": 10,
+      "conclusion": "success"
+    }
+  ],
+  "scope": "Hosted synthetic candidate checks. Staging configuration, wallet control, live reserve reconciliation and real-XLM pilot acceptance were not exercised."
+}

@@ -39,6 +39,8 @@ An operator with current reward-management permission can request `GET /api/v1/a
 
 The public report also returns treasurySourceBinding. It counts receipts and the amount whose intent memo cannot be matched to the current configured sender. The unmatched values are null when no valid sender is configured. Review those receipts against the private on-chain evidence, including receipts from an earlier authorized treasury wallet. This summary leaves balances and historical receipts intact.
 
+Both candidate lines passed hosted CI for treasury sender binding and the public reconciliation report. [Hosted treasury receipt](evidence/lms-033-hosted-treasury-validation.json)
+
 Record the report alongside independently checked reserve custody evidence. A balanced LMS report confirms the internal relationships checked by the endpoint. The operator still needs to compare the authorized wallet's available reserves and any external disbursements with the private source records before approving the pilot.
 
 ## Administrative API
