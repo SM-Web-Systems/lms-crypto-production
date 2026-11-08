@@ -376,7 +376,7 @@
         "LMS-COMPLETION-PLAN-2026-11-05.md",
         "LMS-032-BACKED-PLATFORM-CREDIT.md"
       ],
-      "reason": "The owner supplied treasury details privately and set a cumulative 0.1 XLM cap per learner. The draft enforces the learner cap and requires a configured total budget. A read-only report checks internal credit reconciliation; wallet reconciliation remains an operator gate. Paystack-to-XLM conversion is deferred beyond the MVP.",
+      "reason": "The owner supplied treasury details privately and set a cumulative 0.1 XLM cap per learner. The treasury account was observed on the public network. New public backing verifies the configured company sender. The draft enforces the learner cap and requires a configured total budget. Internal reconciliation is implemented. Wallet control and reserve reconciliation remain operator gates. Paystack-to-XLM conversion is deferred beyond the MVP.",
       "inputRequired": "Confirm the total pilot allocation cap, wallet control, the independent initiator and approver, and reconciliation procedure. Obtain review of the real-XLM grant flow before enabling it."
     },
     {

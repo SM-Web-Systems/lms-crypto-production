@@ -21,18 +21,20 @@ function fixture(network: 'testnet' | 'public' = 'testnet') {
   const cohorts=new Map<string,string>();
   for(const id of [owner,other]) {const cohort=uuid();cohorts.set(id,cohort);db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES (?,?,?,'Credit')").run(cohort,id,course);}
   const destination=Keypair.random().publicKey();vi.stubEnv('REWARD_STELLAR_NETWORK',network);vi.stubEnv('REWARD_STELLAR_DESTINATION',destination);
+  const source = Keypair.random().publicKey();
+  vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', source);
   const records=new Map<string,unknown>();records.set('/',{network_passphrase:network === 'public' ? Networks.PUBLIC : Networks.TESTNET,history_latest_ledger:50});records.set(`/accounts/${destination}`,{account_id:destination});
   const fetcher=vi.fn(async(url:string)=>new Response(JSON.stringify(records.get(new URL(url).pathname)??{}),{status:records.has(new URL(url).pathname)?200:404}));vi.stubGlobal('fetch',fetcher);
-  function proof(intent:{memo_hash?:string;amount_stroops:number;created_at:string},operation:string) {
+  function proof(intent:{memo_hash?:string;amount_stroops:number;created_at:string},operation:string, from = source) {
     const hash=createHash('sha256').update(operation).digest('hex'),amount=BigInt(intent.amount_stroops),time=intent.created_at.includes('T')?new Date(Math.floor(Date.parse(intent.created_at)/1000)*1000).toISOString():intent.created_at.replace(' ','T')+'Z';
-    records.set(`/operations/${operation}`,{id:operation,type:'payment',transaction_successful:true,to:destination,asset_type:'native',amount:`${amount/10_000_000n}.${(amount%10_000_000n).toString().padStart(7,'0')}`,transaction_hash:hash});
+    records.set(`/operations/${operation}`,{id:operation,type:'payment',transaction_successful:true,from,to:destination,asset_type:'native',amount:`${amount/10_000_000n}.${(amount%10_000_000n).toString().padStart(7,'0')}`,transaction_hash:hash});
     records.set(`/transactions/${hash}`,{hash,successful:true,ledger:50,created_at:time,memo_type:'hash',memo:Buffer.from(intent.memo_hash!,'hex').toString('base64')});
     records.set('/ledgers/50',{sequence:50,hash:'c'.repeat(64),closed_at:time});
   }
   async function deposit(units='1000',operation='101') {const intent=await createBackingIntent(a,units,'Verified capital',uuid());proof(intent,operation);await verifyBackingDeposit(intent.id,a,operation);return intent;}
   function reward(user=owner,units='200') {return createReward(user,{scopeType:'sponsor_cohort',scopeId:cohorts.get(user)!,rewardType:'custom',amountStroops:units,idempotencyKey:uuid()});}
   function grant(units='600') {const request=requestPlatformCredit(a,owner,units,'Learner incentives',uuid());const approved=approvePlatformCredit(request.id,b,uuid(),'Approved budget') as {id:string};return {request,grant:approved};}
-  return {a,b,owner,other,cohorts,deposit,reward,grant,proof,fetcher,destination};
+  return {a,b,owner,other,cohorts,deposit,reward,grant,proof,fetcher,destination,source};
 }
 const count=(table:string)=>(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get() as {n:number}).n;
 
@@ -150,6 +152,35 @@ describe('backed platform credit',()=>{
     expect(()=>requestPlatformCredit(f.a,f.owner,'1','No conversion','public')).toThrowError(expect.objectContaining({code:'INSUFFICIENT_CREDIT'}));
     expect(getFundingAvailability(f.reward().id,f.a).find(o=>o.sourceType==='platform_credit')?.available).toBe(false);
   });
+  it('binds new public backing to the configured company treasury sender without exposing the source', async () => {
+    const f = fixture('public');
+    for (const invalid of ['', f.destination]) {
+      vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', invalid);
+      await expect(createBackingIntent(f.a,'200','Pilot capital','source-bound')).rejects.toMatchObject({code:'TREASURY_PILOT_UNAVAILABLE'});
+    }
+    expect(f.fetcher).not.toHaveBeenCalled();
+
+    vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', f.source);
+    const intent = await createBackingIntent(f.a,'200','Pilot capital','source-bound');
+    expect(JSON.stringify(intent)).not.toContain(f.source);
+    f.proof(intent,'101',Keypair.random().publicKey());
+    await expect(verifyBackingDeposit(intent.id,f.a,'101')).rejects.toMatchObject({code:'FUNDING_UNVERIFIED'});
+    expect(count('platform_backing_deposits')).toBe(0);
+    f.proof(intent,'101');
+
+    vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', Keypair.random().publicKey());
+    const attemptsBefore = f.fetcher.mock.calls.length;
+    await expect(verifyBackingDeposit(intent.id,f.a,'101')).rejects.toMatchObject({statusCode:409});
+    await expect(createBackingIntent(f.a,'200','Pilot capital','source-bound')).rejects.toMatchObject({statusCode:409});
+    expect(f.fetcher).toHaveBeenCalledTimes(attemptsBefore);
+    vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', f.source);
+
+    const deposit = await verifyBackingDeposit(intent.id,f.a,'101');
+    expect(JSON.stringify(deposit)).not.toContain(f.source);
+    expect(await verifyBackingDeposit(intent.id,f.a,'101')).toEqual(deposit);
+    expect(platformPool('public').depositedStroops).toBe(200);
+  });
+
   it('requires a public budget and caps pending requests and approved grants independently of backing', async () => {
     const f = fixture('public');
     await f.deposit('2000000');
