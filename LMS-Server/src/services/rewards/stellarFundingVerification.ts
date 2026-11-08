@@ -4,6 +4,7 @@ import { RewardError } from './rewardErrors.js';
 export interface StellarFundingBinding {
   network: 'testnet' | 'public';
   destination: string;
+  source?: string;
   memoHash: string;
   amountStroops: number;
   createdAt: string;
@@ -66,6 +67,7 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   const provider = providers[binding.network];
   const created = Date.parse(binding.createdAt), expiry = Date.parse(binding.expiresAt);
   if (!StrKey.isValidEd25519PublicKey(binding.destination) || !hashPattern.test(binding.memoHash)
+    || (binding.source !== undefined && !StrKey.isValidEd25519PublicKey(binding.source))
     || !Number.isSafeInteger(binding.amountStroops) || binding.amountStroops <= 0
     || !Number.isFinite(created) || !Number.isFinite(expiry) || expiry <= Date.now()
     || expiry <= created || typeof operationId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(operationId)) throw deny();
@@ -75,6 +77,8 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   const operation = await read(`/operations/${operationId}`, false, true);
   if (operation.id !== operationId || operation.type !== 'payment' || operation.transaction_successful !== true
     || operation.asset_type !== 'native' || operation.asset_code !== undefined || operation.asset_issuer !== undefined
+    || (binding.source !== undefined && (operation.from !== binding.source
+      || operation.from_muxed !== undefined || operation.from_muxed_id !== undefined))
     || operation.to !== binding.destination || operation.to_muxed !== undefined || operation.to_muxed_id !== undefined
     || typeof operation.amount !== 'string' || !/^(0|[1-9][0-9]*)\.[0-9]{7}$/.test(operation.amount)
     || typeof operation.transaction_hash !== 'string' || !hashPattern.test(operation.transaction_hash)) throw deny();

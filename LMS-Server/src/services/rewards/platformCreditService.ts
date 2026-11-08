@@ -1,5 +1,6 @@
 import {v4 as uuid} from 'uuid';
 import {createHash} from 'node:crypto';
+import {StrKey} from '@stellar/stellar-sdk';
 import {db} from '../../config/database.js';
 import {hasPermission} from '../../middleware/rbac.js';
 import {RewardError} from './rewardErrors.js';
@@ -73,19 +74,54 @@ export function platformCreditSummary(actor:string) {
   };
 }
 
+function treasurySource(network: Network, destination: string): string | undefined {
+  if (network === 'testnet') return undefined;
+  const source = process.env.REWARD_TREASURY_SOURCE_ACCOUNT;
+  if (!source || !StrKey.isValidEd25519PublicKey(source) || source === destination) {
+    throw new RewardError('TREASURY_PILOT_UNAVAILABLE', 'The public treasury sending account is not configured.', 503);
+  }
+  return source;
+}
+
+function backingMemo(intent: Pick<BackingIntent, 'id'|'requester_user_id'|'network'|'destination'|'amount_stroops'>, source?: string) {
+  const fields = [intent.id, intent.requester_user_id, intent.network, intent.destination, intent.amount_stroops];
+  return createHash('sha256').update(JSON.stringify(source
+    ? ['platform-backing-v2', ...fields, source] : ['platform-backing-v1', ...fields])).digest('hex');
+}
+
+function verifyBackingSourceBinding(intent: BackingIntent) {
+  const source = treasurySource(intent.network, intent.destination);
+  if (source && backingMemo(intent, source) !== intent.memo_hash) {
+    throw new RewardError('FUNDING_UNVERIFIED', 'The public backing intent requires treasury reconciliation.', 409);
+  }
+  return source;
+}
+
 export async function createBackingIntent(actor:string, quantity:unknown, reason:unknown, key:unknown):Promise<BackingIntent> {
   manage(actor);const units=amount(quantity);text(reason,'reason',500);text(key,'idempotency key');
   const existing=db.prepare('SELECT * FROM platform_backing_intents WHERE requester_user_id=? AND idempotency_key=?').get(actor,key) as BackingIntent|undefined;
-  if (existing) {if(existing.amount_stroops!==units || existing.reason!==reason) conflict();return existing;}
+  if (existing) {
+    if (existing.amount_stroops !== units || existing.reason !== reason) conflict();
+    verifyBackingSourceBinding(existing);
+    return existing;
+  }
   const config=stellarFundingConfiguration();
   if (!config) throw new RewardError('FUNDING_UNVERIFIED','Stellar backing deposits are not configured.',402);
+  const source = treasurySource(config.network, config.destination);
   const ready=await stellarReceiverReadiness(config), current=stellarFundingConfiguration();
-  if (!ready.ready || current?.network!==config.network || current.destination!==config.destination) throw new RewardError('FUNDING_UNVERIFIED',ready.reason??'Funding configuration changed.',503);
+  if (!ready.ready || current?.network!==config.network || current.destination!==config.destination
+    || treasurySource(config.network, config.destination) !== source) throw new RewardError('FUNDING_UNVERIFIED',ready.reason??'Funding configuration changed.',503);
   return db.transaction(()=>{
     manage(actor);
     const prior=db.prepare('SELECT * FROM platform_backing_intents WHERE requester_user_id=? AND idempotency_key=?').get(actor,key) as BackingIntent|undefined;
-    if(prior){if(prior.amount_stroops!==units || prior.reason!==reason) conflict();return prior;}
-    const id=uuid(), memo=createHash('sha256').update(JSON.stringify(['platform-backing-v1',id,actor,config.network,config.destination,units])).digest('hex');
+    if (prior) {
+      if (prior.amount_stroops !== units || prior.reason !== reason) conflict();
+      verifyBackingSourceBinding(prior);
+      return prior;
+    }
+    const id = uuid();
+    const memo = backingMemo({id, requester_user_id: actor, network: config.network,
+      destination: config.destination, amount_stroops: units}, source);
     db.prepare(`INSERT INTO platform_backing_intents(id,requester_user_id,network,destination,memo_hash,amount_stroops,reason,idempotency_key,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`)
       .run(id,actor,config.network,config.destination,memo,units,reason,key,expires(),now());
     audit('deposit_intent',id,actor,config.network,units,reason);
@@ -99,11 +135,13 @@ export async function verifyBackingDeposit(id:string, actor:string, operationId:
   if(!intent) throw new RewardError('FUNDING_UNVERIFIED','Backing intent not found.',404);
   const prior=db.prepare('SELECT * FROM platform_backing_deposits WHERE intent_id=?').get(id) as {operation_id:string}|undefined;
   if(prior){if(prior.operation_id!==operationId) conflict();return prior;}
-  const proof=await verifyStellarFunding({network:intent.network,destination:intent.destination,memoHash:intent.memo_hash,amountStroops:intent.amount_stroops,createdAt:intent.created_at,expiresAt:intent.expires_at},operationId);
+  const source = verifyBackingSourceBinding(intent);
+  const proof=await verifyStellarFunding({network:intent.network,destination:intent.destination,source,memoHash:intent.memo_hash,amountStroops:intent.amount_stroops,createdAt:intent.created_at,expiresAt:intent.expires_at},operationId);
   return db.transaction(()=>{
     manage(actor);
     const replay=db.prepare('SELECT * FROM platform_backing_deposits WHERE intent_id=?').get(id) as {operation_id:string}|undefined;
     if(replay){if(replay.operation_id!==operationId) conflict();return replay;}
+    verifyBackingSourceBinding(intent);
     if(intent.expires_at<=now()) throw new RewardError('FUNDING_UNVERIFIED','Backing intent expired.',409);
     if(BigInt(platformPool(intent.network).depositedStroops)+BigInt(intent.amount_stroops)>MAX_SAFE_STROOPS) throw new RewardError('AMOUNT_EXCEEDS_MAXIMUM','Backing pool exceeds the safe integer limit.',400);
     const deposit=uuid();
