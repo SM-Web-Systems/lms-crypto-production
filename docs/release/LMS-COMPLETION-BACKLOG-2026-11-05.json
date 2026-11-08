@@ -202,7 +202,8 @@
       ],
       "evidence": [
         "SERVER-HANDOVER-RBAC-STEP-03-CLIENT-CONTRACTS-AND-UI.md",
-        "evidence/lms-013-staging-legacy-role-usage.json"
+        "evidence/lms-013-staging-legacy-role-usage.json",
+        "evidence/lms-040-mobile-artifact-discovery.json"
       ],
       "reason": "The private log counter summarizes legacy role requests and opt-in observations from successful native Wallet sign-ins. The native build floor is implemented. A preliminary 24-hour staging log sample found no legacy role PATCH requests. It spans an API start and the deployed build lacks native build observations. Continuous coverage, approved floors and installed builds, other legacy sessions and clients, distribution, and release recovery acceptance remain open."
     },
@@ -420,9 +421,10 @@
         "Android ARM device artifact and iOS signed build generated for authorized staging with correct callback scheme/endpoints; hashes/version IDs recorded; no embedded private secrets"
       ],
       "evidence": [
-        "mobile-device-acceptance-followup.md"
+        "mobile-device-acceptance-followup.md",
+        "evidence/lms-040-mobile-artifact-discovery.json"
       ],
-      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. The device report checker requires an independently pinned manifest of both artifacts and the API and Wallet revisions. Staging provider pairing, signing, artifact inspection and device distribution remain open."
+      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. The device report checker requires an independently pinned manifest of both artifacts and the API and Wallet revisions. Artifact discovery confirmed the retained APK is x86_64 emulator-only. Expo build history requires project access. Staging provider pairing, signing, approved artifact inspection and device distribution remain open."
     },
     {
       "id": "LMS-041",
