@@ -1,0 +1,21 @@
+{
+  "tasks": [
+    "LMS-020",
+    "LMS-022"
+  ],
+  "observedOn": "2026-11-08",
+  "testedRevision": "7162b725f3ee208f46b74fd15d02ee469abb8ee1",
+  "browser": "Chrome",
+  "playwrightCliVersion": "0.1.23",
+  "environment": "synthetic loopback LMS with built API and frontend and repository E2E fixtures",
+  "checks": {
+    "impactCsvDownloaded": true,
+    "impactCsvFixtureCohortsVerified": 4,
+    "authorizedReceiptDownloaded": true,
+    "receiptPdfHeaderVerified": true,
+    "delayedReceiptStatus": 200,
+    "sessionClearedBeforeDelayedResponseDelivery": true,
+    "downloadsAfterDelayedResponse": 0
+  },
+  "authenticatedStagingAcceptance": false
+}

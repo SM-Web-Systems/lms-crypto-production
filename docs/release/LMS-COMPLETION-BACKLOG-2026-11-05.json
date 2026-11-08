@@ -239,7 +239,8 @@
       ],
       "evidence": [
         "LMS-020-SPONSOR-REVOCATION.md",
-        "evidence/lms-020-validation.json"
+        "evidence/lms-020-validation.json",
+        "evidence/lms-020-browser-download-session-validation.json"
       ],
       "reason": "Local lifecycle coverage exercises membership and role revocation for receipts, badges, billing and CSV exports with private response caching disabled. Final LMS-011 acceptance remains open."
     },
