@@ -71,7 +71,7 @@ docker compose up --build
 
 ## Smoke tests (`scripts/smoke-test.sh`)
 
-Post-deploy read-only health checks. Called automatically by `deploy.sh` and by the GitHub Actions deploy workflow.
+Read-only health checks for operators. The guarded deployment and recovery workflow runs its own startup verification.
 
 **Environment variable:** `SMOKE_BASE_URL` — API base URL including the `/api/v1` prefix.
 
@@ -90,6 +90,8 @@ Default: `https://lms.smwebsystems.com/api/v1`
 3. `GET /api/v1/health` → `.checks.db.status` = `"ok"`
 4. `GET /api/v1/courses` → 401 (auth enforced, route alive)
 5. `GET /api/v1/health` → `.buildSha` present
+
+Set `SMOKE_EXPECTED_BUILD_SHA` to the approved full lowercase API revision to require an exact match. Set `SMOKE_REQUIRE_WALLET_CALLBACK=1` to require the parameter-free Wallet callback to return 302 with `Referrer-Policy: no-referrer` and `Cache-Control: no-store`. Run both checks before authenticated Wallet acceptance. [Wallet acceptance procedure](docs/release/LMS-023-COURSE-CHECKOUT.md)
 
 **Exit codes:** `0` = all pass, `1` = any failure.
 
