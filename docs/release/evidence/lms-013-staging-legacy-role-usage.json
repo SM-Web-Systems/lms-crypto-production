@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    "LMS-010",
+    "LMS-013"
+  ],
+  "observedOn": "2026-11-08",
+  "stagingApiRevision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+  "counterRevision": "ea9ac41beb3c914ab34a7e39a96d7f4a766c2058",
+  "source": "Retained json-file logs of the observed staging API container, summarized server-side.",
+  "requestedReadFromUtc": "2026-11-05T11:50:00Z",
+  "requestedReadUntilUtc": "2026-11-08T11:53:00Z",
+  "windowStartUtc": "2026-11-07T11:50:00Z",
+  "windowEndExclusiveUtc": "2026-11-08T11:50:00Z",
+  "oldestRecognizedRequestInReadUtc": "2026-11-05T11:50:01.916Z",
+  "newestRecognizedRequestInReadUtc": "2026-11-08T11:52:47.068Z",
+  "rowsExcludedAsMalformedInRead": 21,
+  "requestRowsInWindow": 6009,
+  "legacyRolePatchRequests": 0,
+  "unscopedLegacyShapeRequests": 0,
+  "latestContainerStartUtc": "2026-11-07T13:00:51.227250279Z",
+  "requestRowsBeforeLatestContainerStart": 292,
+  "requestRowsSinceLatestContainerStart": 5717,
+  "longestBetweenObservedRequestsSeconds": 48.536,
+  "longestGapFromUtc": "2026-11-07T13:00:14.688Z",
+  "longestGapToUtc": "2026-11-07T13:01:03.224Z",
+  "nativeBuildObservationAvailableAtDeployedRevision": false,
+  "continuousCoverageVerified": false,
+  "installedClientCompatibilityVerified": false
+}
