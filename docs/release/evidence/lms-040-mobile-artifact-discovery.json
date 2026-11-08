@@ -1,0 +1,31 @@
+{
+  "tasks": [
+    "LMS-013",
+    "LMS-040"
+  ],
+  "observedOn": "2026-11-08",
+  "github": {
+    "publishedReleaseAssetCount": 0,
+    "mobileNamedActionsArtifactsFound": 0
+  },
+  "localExpo": {
+    "authenticated": false,
+    "projectIdAvailableInProcessEnvironment": false,
+    "matchingGitHubProjectVariablesFound": false,
+    "remoteBuildHistoryVerified": false
+  },
+  "localAndroid": {
+    "artifact": "app-debug.apk",
+    "sizeBytes": 79439612,
+    "sha256": "a24f0c61fe1c635f9a85302381135dcb66011bf996c8e43a202fa10471cd379c",
+    "archiveIntegrityVerified": true,
+    "nativeAbis": [
+      "x86_64"
+    ],
+    "matchesHistoricalEmulatorReceipt": true,
+    "stagingAcceptanceArtifact": false
+  },
+  "signedStagingAndroidArtifactVerified": false,
+  "signedStagingIosArtifactVerified": false,
+  "installedClientInventoryVerified": false
+}
