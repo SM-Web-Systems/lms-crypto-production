@@ -13,6 +13,11 @@ function parseBuild(value: unknown, platform: 'android' | 'ios'): number[] | nul
   return parts[0] > 0 ? parts : null;
 }
 
+export function mobileBuildObservation(platform: unknown, build: unknown) {
+  if (platform !== 'android' && platform !== 'ios') return {platform: 'unknown', build: null};
+  return {platform, build: parseBuild(build, platform)?.join('.') ?? null};
+}
+
 export function mobileBuildStatus(platform: unknown, build: unknown): 'allowed' | 'update_required' | 'unavailable' {
   const android = process.env.LMS_MIN_ANDROID_WALLET_BUILD;
   const ios = process.env.LMS_MIN_IOS_WALLET_BUILD;

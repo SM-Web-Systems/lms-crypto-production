@@ -50,6 +50,28 @@ class LegacyUsageTest(unittest.TestCase):
         self.assertEqual(evidence['malformedRows'], 1)
         self.assertNotIn('private', result.stdout)
 
+    def test_counts_sanitized_native_build_observations_in_the_review_window(self):
+        def observed(platform, build, timestamp=START):
+            return json.dumps({'event': 'native_wallet_build_observed', 'time': timestamp,
+                               'platform': platform, 'build': build, 'userId': 'private-user'})
+
+        result = self.run_counter([
+            row(START, '/api/v1/users/:id/role'),
+            observed('android', '42'), observed('android', '42'),
+            observed('ios', '12.0.4'), observed('ios', None), observed('unknown', None),
+            observed('android', 'private-value'), observed('private-platform', None),
+            observed('ios', '12.0.4', END),
+        ])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        evidence = json.loads(result.stdout)
+        self.assertEqual(evidence['legacyRoleRequests'], 1)
+        self.assertEqual(evidence['nativeWalletSignInsByReportedBuild'], {
+            'android': {'42': 2}, 'ios': {'12.0.4': 1, 'unreported': 1}, 'unknown': {'unreported': 1},
+        })
+        self.assertEqual(evidence['malformedRows'], 2)
+        self.assertFalse(evidence['installedClientCompatibilityVerified'])
+        self.assertNotIn('private-', result.stdout)
+
     def test_rejects_reversed_or_non_utc_bounds(self):
         for args in (('--start', ARGS[3], '--end', ARGS[1]), ('--start', '2026-11-07', '--end', ARGS[3])):
             result = self.run_counter([], args)

@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import app from '../app.js';
 import { db, execute, queryOne } from '../config/database.js';
 import * as wallet from '../services/ammaWalletSSOService.js';
+import logger from '../utils/logger.js';
 
 const verifier = randomBytes(32).toString('hex');
 const challenge = createHash('sha256').update(verifier).digest('base64url');
@@ -80,6 +81,29 @@ describe('Amma Wallet native session handoff', () => {
     expect((await exchange(value,'x'.repeat(64))).status).toBe(401);
     expect((await exchange(value)).status).toBe(200);
     expect((await exchange(value)).status).toBe(401);
+  });
+  it('observes only sanitized build metadata after a successful opt-in native exchange', async () => {
+    const log = vi.spyOn(logger, 'info');
+    const observations = () => log.mock.calls.flatMap(([fields]) =>
+      typeof fields === 'object' && fields !== null && 'event' in fields &&
+      fields.event === 'native_wallet_build_observed' ? [fields] : []);
+
+    vi.stubEnv('LMS_NATIVE_WALLET_BUILD_OBSERVATION_ENABLED', 'false');
+    expect((await exchange(await code(), verifier, {app_platform: 'android', app_build: '42'})).status).toBe(200);
+    expect(observations()).toEqual([]);
+
+    vi.stubEnv('LMS_NATIVE_WALLET_BUILD_OBSERVATION_ENABLED', 'true');
+    const handoff = await code();
+    expect((await exchange(handoff, 'x'.repeat(64), {app_platform: 'ios', app_build: '001.002.3'})).status).toBe(401);
+    expect(observations()).toEqual([]);
+    expect((await exchange(handoff, verifier, {app_platform: 'ios', app_build: '001.002.3'})).status).toBe(200);
+    expect((await exchange(await code(), verifier, {app_platform: 'android', app_build: 'private-invalid-build'})).status).toBe(200);
+    expect((await exchange(await code())).status).toBe(200);
+    expect(observations()).toEqual([
+      {event: 'native_wallet_build_observed', platform: 'ios', build: '1.2.3'},
+      {event: 'native_wallet_build_observed', platform: 'android', build: null},
+      {event: 'native_wallet_build_observed', platform: 'unknown', build: null},
+    ]);
   });
   it('rejects missing and outdated app builds without consuming the Wallet handoff', async () => {
     vi.stubEnv('LMS_MIN_ANDROID_WALLET_BUILD', '42');
