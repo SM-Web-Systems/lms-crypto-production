@@ -85,6 +85,8 @@ Record the EAS project and build identifiers, Android version code and ARM suppo
 
 On 8 November 2026, the LMS GitHub releases and listed Actions artifacts exposed no signed Android or iOS build assets. The existing local APK matched the earlier emulator receipt by SHA-256 and contains only x86_64 native libraries. That artifact remains emulator evidence. The pinned Expo CLI reported no active login and this shell had no configured EAS project ID, so the project's remote build history remains unverified. [Artifact discovery evidence](evidence/lms-040-mobile-artifact-discovery.json)
 
+Docker Buildx provenance verified the staging Wallet API revision for the image observed on 8 November. Recheck the running image before pinning the device manifest. [Wallet API provenance](evidence/lms-023-staging-wallet-buildx-provenance.json)
+
 Once the owner supplies the project link and read access, list its existing builds before creating a new one. Use the returned build IDs and artifact hashes to identify candidates for the separate physical-device review. [EAS CLI reference](https://docs.expo.dev/eas/cli/)
 
 ## Separate dependency follow-up
