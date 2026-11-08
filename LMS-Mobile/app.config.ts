@@ -4,6 +4,15 @@ const APP_NAME = 'SM Web Systems LMS';
 const APP_SLUG = 'sm-web-systems-lms';
 const ANDROID_PACKAGE = 'com.smwebsystems.lms';
 
+function resolveEasProjectId(config: ConfigContext['config']): string | undefined {
+  const linked = config.extra?.eas?.projectId;
+  const environment = process.env.EAS_PROJECT_ID?.trim() || undefined;
+  if (linked && environment && linked !== environment) {
+    throw new Error('EAS project ID differs from the linked app configuration.');
+  }
+  return linked ?? environment;
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: APP_NAME,
@@ -88,10 +97,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   extra: {
+    ...config.extra,
     encryptedOfflineLearning: true,
     androidPushConfigured: !!(process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile),
     eas: {
-      projectId: process.env.EAS_PROJECT_ID,
+      ...config.extra?.eas,
+      projectId: resolveEasProjectId(config),
     },
   },
 });
