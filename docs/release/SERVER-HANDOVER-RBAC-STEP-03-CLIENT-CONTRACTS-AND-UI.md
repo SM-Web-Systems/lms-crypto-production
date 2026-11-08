@@ -106,7 +106,9 @@ docker logs --since "$LOG_READ_FROM" --until "$LOG_READ_UNTIL" lms-api |
 
 Keep raw logs private. Review container replacements, rotation, log levels, and gaps before accepting any zero count. The timestamp span alone cannot establish continuous coverage.
 
-The local validation passed 19 API assertions across the logger and role endpoint suites and three counter tests. No server logs were collected.
+The local validation passed 19 API assertions across the logger and role endpoint suites and three counter tests.
+
+A separate read-only staging sample for 7–8 November 2026 counted 6,009 recognized request entries, with zero legacy role PATCH requests. Retained entries appeared on both sides of the review window, which included an API container start. That span does not establish continuous coverage. The deployed revision lacks native build observations. [Staging usage sample](evidence/lms-013-staging-legacy-role-usage.json)
 
 ## Native Wallet minimum build
 

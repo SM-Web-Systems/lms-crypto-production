@@ -145,9 +145,10 @@
         "LMS-010-SERVER-ACCESS.md",
         "LMS-010-PRIVATE-REVIEW.md",
         "evidence/lms-010-access-validation.json",
-        "evidence/lms-010-staging-inventory.json"
+        "evidence/lms-010-staging-inventory.json",
+        "evidence/lms-013-staging-legacy-role-usage.json"
       ],
-      "reason": "Read-only staging inventory obtained: 19 accounts, 3 learner-profile gaps and 1 students FK violation. The private worksheet generator and verifier bind the review to that snapshot and check that every finding has a decision. Owner decisions, installed build/legacy endpoint evidence and recovery approval remain outstanding."
+      "reason": "Read-only staging inventory obtained: 19 accounts, 3 learner-profile gaps and 1 students FK violation. The private worksheet generator and verifier bind the review to that snapshot and check that every finding has a decision. A preliminary 24-hour staging log sample found zero legacy role PATCH requests among 6,009 recognized requests. Owner decisions, continuous usage coverage, installed builds and recovery approval remain outstanding."
     },
     {
       "id": "LMS-011",
@@ -199,9 +200,10 @@
         "Old endpoint/build usage measured; minimum supported builds enforced; supported new builds distributed and verified; v1/v2-compatible recovery choices documented and rehearsed"
       ],
       "evidence": [
-        "SERVER-HANDOVER-RBAC-STEP-03-CLIENT-CONTRACTS-AND-UI.md"
+        "SERVER-HANDOVER-RBAC-STEP-03-CLIENT-CONTRACTS-AND-UI.md",
+        "evidence/lms-013-staging-legacy-role-usage.json"
       ],
-      "reason": "The private log counter summarizes legacy role requests and opt-in observations from successful native Wallet sign-ins. The native build floor is implemented. Staging log coverage, approved floors and installed builds, other legacy sessions and clients, distribution, and release recovery acceptance remain open."
+      "reason": "The private log counter summarizes legacy role requests and opt-in observations from successful native Wallet sign-ins. The native build floor is implemented. A preliminary 24-hour staging log sample found no legacy role PATCH requests. It spans an API start and the deployed build lacks native build observations. Continuous coverage, approved floors and installed builds, other legacy sessions and clients, distribution, and release recovery acceptance remain open."
     },
     {
       "id": "LMS-014",

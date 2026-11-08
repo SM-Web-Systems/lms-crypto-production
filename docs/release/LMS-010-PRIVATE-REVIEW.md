@@ -15,7 +15,9 @@ Public binding evidence:
 - Snapshot SHA-256: `19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79`.
 - Schema fingerprint: `31506217ed4e9f1cf7bc446a91954fd1b9cb54f88be76560043de490d9d7b53c`.
 - 19 accounts, 22 role assignments, two multi-role accounts, two explicit administrators, three missing learner profiles and one `students` foreign-key violation.
-- No custom roles, catalog issues, dangling assignments or orphan course codes were reported. Installed builds and legacy endpoint usage were not collected.
+- No custom roles, catalog issues, dangling assignments or orphan course codes were reported. The original inventory did not collect installed builds or legacy endpoint usage.
+
+A later 24-hour staging log sample found zero legacy role PATCH requests among 6,009 recognized requests. It crossed an API container start. Continuous coverage and installed builds still need separate evidence. [Staging usage sample](evidence/lms-013-staging-legacy-role-usage.json)
 
 ## Private review coverage update
 
