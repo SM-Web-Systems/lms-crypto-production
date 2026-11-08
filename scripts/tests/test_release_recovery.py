@@ -8,6 +8,7 @@ import subprocess
 import sys
 import unittest
 from contextlib import closing
+from email.message import Message
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -798,6 +799,42 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(self.runner.hold_held)
         call = next(c for c in self.runner.calls if c[1] == 'exec')
         self.assertIn(self.containers['fixture-api']['Id'], call)
+
+    def test_wallet_callback_policy_keeps_writers_held_until_the_public_probe_passes(self):
+        self.policy['require_wallet_callback'] = True
+        deployed = self.deploy()
+        manifest_id = deployed['manifest_id']
+        released = self.state / ('released-' + manifest_id + '.json')
+        for status, referrer_values, cache, code in (
+            (503, ['no-referrer'], 'no-store', 'WALLET_CALLBACK_STATUS_MISMATCH'),
+            (302, ['strict-origin-when-cross-origin'], 'no-store', 'WALLET_CALLBACK_REFERRER_POLICY_MISMATCH'),
+            (302, ['no-referrer', 'strict-origin-when-cross-origin'], 'no-store', 'WALLET_CALLBACK_REFERRER_POLICY_MISMATCH'),
+            (302, ['no-referrer'], 'public', 'WALLET_CALLBACK_CACHE_POLICY_MISMATCH'),
+        ):
+            with self.subTest(code=code, status=status):
+                headers = Message()
+                for value in referrer_values:
+                    headers['Referrer-Policy'] = value
+                headers['Cache-Control'] = cache
+                with patch.object(self.rec, 'get_http', return_value=(status, headers)) as probe:
+                    with self.assertRaisesRegex(pre.ReleaseError, code):
+                        self.release()
+                    probe.assert_called_once_with(self.config['base_url'] + '/api/v1/auth/amma-callback', headers_only=True)
+                self.assertTrue(self.runner.hold_held)
+                self.assertFalse(released.exists())
+                self.assertFalse(any(c[1] == 'exec' for c in self.runner.calls))
+        headers = Message()
+        headers['Referrer-Policy'] = 'no-referrer'
+        headers['Cache-Control'] = 'no-store'
+        with patch.object(self.rec, 'get_http', return_value=(302, headers)):
+            self.assertEqual(self.release()['status'], 'WRITERS_RELEASED')
+        self.assertFalse(self.runner.hold_held)
+        self.assertTrue(released.exists())
+
+    def test_wallet_callback_policy_rejects_non_boolean_values(self):
+        self.policy['require_wallet_callback'] = 'true'
+        with self.assertRaisesRegex(pre.ReleaseError, 'WALLET_CALLBACK_POLICY_INVALID'):
+            self.rec.verify_policy(self.target, self.backup, self.policy)
 
     def test_release_hold_publishes_approved_release_for_the_monitor(self):
         approved = self.state / 'approved-release.json'

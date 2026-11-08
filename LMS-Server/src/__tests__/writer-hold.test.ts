@@ -123,7 +123,7 @@ describe('AUTH-14 writer hold', () => {
     expect((await request(app).get('/verify/anything')).status).toBe(503);
   });
 
-  it('keeps only health and the credential-free authorization probe available', async () => {
+  it('keeps health and the credential-free authorization probe available', async () => {
     hold();
     for (const route of ['/health', '/api/v1/health']) {
       expect((await request(app).get(route)).status).toBe(200);
@@ -132,6 +132,26 @@ describe('AUTH-14 writer hold', () => {
     expect((await request(app).get('/healthz')).status).toBe(503);
     expect((await request(app).get('/api/v1/courses')).status).toBe(401);
     expect((await request(app).post('/api/v1/courses').send({})).status).toBe(503);
+  });
+
+  it('permits only the parameter-free Wallet callback probe during the hold', async () => {
+    hold();
+    const callback = '/api/v1/auth/amma-callback';
+    const probe = await request(app).get(callback);
+    expect(probe.status).toBe(302);
+    expect(probe.headers['referrer-policy']).toBe('no-referrer');
+    expect(probe.headers['cache-control']).toBe('no-store');
+    expect(new URL(probe.headers.location).searchParams.get('sso_error')).toBe('missing_params');
+
+    for (const req of [
+      request(app).get(callback).query({state: 'fixture', assertion: 'fixture'}),
+      request(app).get(callback).set('Authorization', 'Bearer fixture'),
+      request(app).get(callback).set('Cookie', 'session=fixture'),
+      request(app).head(callback),
+      request(app).post(callback).send({assertion: 'fixture'}),
+    ]) {
+      expect((await req).status).toBe(503);
+    }
   });
 
   it('reports hold state on health for release verification', async () => {
