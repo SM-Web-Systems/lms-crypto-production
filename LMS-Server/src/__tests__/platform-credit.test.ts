@@ -8,7 +8,7 @@ import {db} from '../config/database.js';
 import {activateReward,createReward,fundReward,fundRewardAsync,releaseAllocation} from '../services/rewards/rewardService.js';
 import {createFundingIntent,getFundingAvailability} from '../services/rewards/rewardFundingIntentService.js';
 import {createBackingIntent,verifyBackingDeposit,platformPool,requestPlatformCredit,approvePlatformCredit,cancelPlatformCreditRequest,
-  creditGrant,releasePlatformCreditReservation,availablePlatformCredits} from '../services/rewards/platformCreditService.js';
+  creditGrant,releasePlatformCreditReservation,availablePlatformCredits,reconcilePlatformCredit} from '../services/rewards/platformCreditService.js';
 
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 function fixture(network: 'testnet' | 'public' = 'testnet') {
@@ -179,6 +179,33 @@ describe('backed platform credit',()=>{
     expect(JSON.stringify(deposit)).not.toContain(f.source);
     expect(await verifyBackingDeposit(intent.id,f.a,'101')).toEqual(deposit);
     expect(platformPool('public').depositedStroops).toBe(200);
+  });
+
+  it('reports public receipts outside the current treasury sender separately from internal ledger balance', async () => {
+    const f = fixture('public');
+    await f.deposit('200','101');
+    const currentSource = Keypair.random().publicKey();
+    vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', currentSource);
+    const next = await createBackingIntent(f.a,'300','New source capital','new-source');
+    f.proof(next,'102',currentSource);
+    await verifyBackingDeposit(next.id,f.a,'102');
+
+    const report = reconcilePlatformCredit(f.a,'public');
+    expect(report).toMatchObject({
+      internalLedgerBalanced: true, depositedStroops: 500,
+      treasurySourceBinding: {sourceConfigured: true, receipts: 2,
+        receiptsOutsideCurrentSource: 1, stroopsOutsideCurrentSource: 200},
+    });
+    expect(JSON.stringify(report)).not.toContain(f.source);
+    expect(JSON.stringify(report)).not.toContain(currentSource);
+    expect(JSON.stringify(report)).not.toContain(next.memo_hash);
+
+    vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', '');
+    expect(reconcilePlatformCredit(f.a,'public')).toMatchObject({
+      treasurySourceBinding: {sourceConfigured: false, receipts: 2,
+        receiptsOutsideCurrentSource: null, stroopsOutsideCurrentSource: null},
+    });
+    expect(reconcilePlatformCredit(f.a,'testnet')).not.toHaveProperty('treasurySourceBinding');
   });
 
   it('requires a public budget and caps pending requests and approved grants independently of backing', async () => {
