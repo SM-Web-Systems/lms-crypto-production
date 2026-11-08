@@ -56,6 +56,57 @@ On 8 November 2026 the public staging API matched the observed f5a64e8 revision 
 
 The approved origin probe then observed HTTP 302, no-referrer and no-store inside the running API container at the exact same full revision. A fresh public GET returned HTTP 302 and no-store with strict-origin-when-cross-origin. The header changes after the API. The shared host proxy and Cloudflare response path still need to be checked separately. Preserve the API's no-referrer header on this callback route and recheck the public response before authenticated Wallet acceptance. [Approved origin probe](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42452140347/job/128643469809)
 
+### Read-only shared proxy check
+
+The GitHub SSH workflow now uses the restricted forced-command gate from [PR #173](https://github.com/SM-Web-Systems/lms-crypto-production/pull/173). Its allowlist does not accept the diagnostic mode proposed in [PR #172](https://github.com/SM-Web-Systems/lms-crypto-production/pull/172). Use an existing interactive operator session on the staging host. The following command reads Docker metadata and makes one parameter-free GET using the LMS hostname for TLS and HTTP routing. It requires normal certificate validation, follows no redirects and prints only status and booleans.
+
+```bash
+(
+  set -eu
+  api=$(docker container inspect --format '{{if and .State.Running (index .NetworkSettings.Networks "web-stack_default")}}{{.Id}}{{end}}' lms-api)
+  proxy=$(docker container inspect --format '{{if and .State.Running (index .NetworkSettings.Networks "web-stack_default")}}{{(index .NetworkSettings.Networks "web-stack_default").IPAddress}}{{end}}' nginx_server)
+  test -n "$api" && test -n "$proxy" || { echo 'Expected staging containers are unavailable.' >&2; exit 2; }
+  image=$(docker container inspect --format '{{.Image}}' "$api")
+  revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")
+  test "$revision" = f5a64e8ac92aca6b33ae54bda70617d475893e3e || { echo 'Staging API revision changed.' >&2; exit 2; }
+  docker exec -i --workdir / --env NODE_OPTIONS= "$api" node - "$proxy" <<'LMS_WALLET_PROXY'
+const { get } = require('node:https');
+const { isIPv4 } = require('node:net');
+const proxy = process.argv[2];
+if (!isIPv4(proxy)) process.exit(2);
+const site = 'lms.smwebsystems.com';
+const request = get({
+  hostname: proxy,
+  port: 443,
+  servername: site,
+  headers: { Host: site },
+  path: '/api/v1/auth/amma-callback',
+  rejectUnauthorized: true,
+  agent: false,
+  timeout: 5000,
+}, response => {
+  const values = response.headersDistinct;
+  const referrer = values['referrer-policy'] ?? [];
+  const cache = values['cache-control'] ?? [];
+  const location = values.location ?? [];
+  console.log(JSON.stringify({
+    httpStatus: response.statusCode,
+    missingParamsRedirect: response.statusCode === 302 && location.length === 1 &&
+      location[0] === 'https://lms.smwebsystems.com/login?sso_error=missing_params',
+    noReferrer: referrer.length === 1 && referrer[0].toLowerCase() === 'no-referrer',
+    strictOriginWhenCrossOrigin: referrer.length === 1 && referrer[0].toLowerCase() === 'strict-origin-when-cross-origin',
+    noStore: cache.length === 1 && cache[0].toLowerCase() === 'no-store',
+  }));
+  response.destroy();
+});
+request.on('timeout', () => request.destroy(new Error('callback probe timed out')));
+request.on('error', () => { process.exitCode = 1; });
+LMS_WALLET_PROXY
+)
+```
+
+Compare the result with a fresh public callback check on the same deployed API revision. An expected redirect with `noReferrer: true` at Nginx and a different public header places the change after that Nginx path. An expected redirect with a different policy at Nginx places a change at or before that proxy. A TLS or connection failure, a changed revision, or `missingParamsRedirect: false` is inconclusive. Keep the check parameter-free and share only the result object.
+
 For the selected Wallet-enabled release, the independent compatibility policy should include `"require_wallet_callback": true` before recovery capture. The release tool checks the public parameter-free callback while writes are held. A failed check leaves the hold active. [Guarded release procedure](AUTH-14-held-release.md)
 
 Use the approved staging course, authorized synthetic learner, and a confirmed Paystack test-mode merchant. Record the deployed LMS and Wallet revisions and the test-mode evidence. Verify paid checkout for the configured merchant currency, duplicate/concurrent initiation, mismatched and reordered signed webhooks, receipt ownership, and a sandbox refund. Record the provider outcome and local payment ledger for each reference without including payment credentials. Test Wallet SSO, verified-email recovery and the enabled challenge and second-factor flows using the approved capture mechanism. A separate decision governs any live enablement.
