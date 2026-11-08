@@ -242,8 +242,8 @@ export function UserRoleManager() {
                                 selectedUser?.id === u.id ? 'bg-accent-teal/5' : '',
                               ].join(' ')}
                             >
-                              <td className="block font-medium sm:table-cell sm:py-2 sm:pr-3">{u.name}</td>
-                              <td className="block break-all text-neutral-500 sm:table-cell sm:break-normal sm:py-2 sm:pr-3">{u.email}</td>
+                              <td className="block font-medium [overflow-wrap:anywhere] sm:table-cell sm:py-2 sm:pr-3">{u.name}</td>
+                              <td className="block text-neutral-500 [overflow-wrap:anywhere] sm:table-cell sm:py-2 sm:pr-3">{u.email}</td>
                               <td className="block sm:table-cell sm:py-2 sm:pr-3">
                                 <RoleBadges subject={u} />
                               </td>

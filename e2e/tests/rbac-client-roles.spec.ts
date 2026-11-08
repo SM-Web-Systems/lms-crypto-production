@@ -7,7 +7,7 @@ for (const width of [320, 390, 768]) {
   test(`LMS-012: current multiple/custom/zero grants remain usable at ${width}px`, async ({ superAdminPage: page, request }) => {
     const suffix = randomUUID();
     const name = `Role learner ${width}`;
-    const email = `roles-${suffix}@example.invalid`;
+    const email = `roles-${suffix}-wide-table-fixture@example.invalid`;
     const registered = await request.post(`${apiURL}/api/v1/auth/register`, {
       data: { name, email, password: 'password123' },
     });
@@ -28,6 +28,10 @@ for (const width of [320, 390, 768]) {
     await expect(row.getByText('Student', { exact: true })).toBeVisible();
     await expect(row.getByText('Admin', { exact: true })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await row.evaluate(element => {
+      const scrollContainer = element.closest('table')!.parentElement!;
+      return scrollContainer.scrollWidth <= scrollContainer.clientWidth;
+    })).toBe(true);
     await search.focus();
     await page.keyboard.press('Tab');
     await expect(manage).toBeFocused();
