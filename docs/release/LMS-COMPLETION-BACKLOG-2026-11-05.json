@@ -296,9 +296,10 @@
         "LMS-023-COURSE-CHECKOUT.md",
         "evidence/lms-023-staging-sso-entry.json",
         "evidence/lms-023-staging-proxy-validation.json",
-        "evidence/lms-023-proxy-correction-rehearsal.json"
+        "evidence/lms-023-proxy-correction-rehearsal.json",
+        "evidence/lms-023-staging-proxy-correction.json"
       ],
-      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. The Nginx directives were identified and a path-specific correction passed a loopback rehearsal. Staging correction, exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
+      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. The approved path-specific staging Nginx correction passed direct and public callback checks plus all six independent smoke checks. Exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
     },
     {
       "id": "LMS-030",
@@ -564,7 +565,7 @@
         "AUTH-14-held-release.md",
         "LMS-023-COURSE-CHECKOUT.md"
       ],
-      "reason": "The reviewed release policy can require the public Wallet callback check before releasing writers. The staging callback still fails that check. The offline verifier accepts digest-pinned 24-hour evidence at its recorded end. Approved maintenance, exact-image recovery, integrated checks and live observation remain open."
+      "reason": "The reviewed release policy can require the public Wallet callback check before releasing writers. The corrected staging callback now passes the independent public smoke check on the deployed staging revision. The offline verifier accepts digest-pinned 24-hour evidence at its recorded end. Approved maintenance, exact-image recovery, integrated checks and live observation remain open."
     },
     {
       "id": "LMS-063",
