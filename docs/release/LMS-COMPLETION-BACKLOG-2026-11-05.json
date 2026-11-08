@@ -561,7 +561,7 @@
         "AUTH-14-held-release.md",
         "LMS-023-COURSE-CHECKOUT.md"
       ],
-      "reason": "The reviewed release policy can require the public Wallet callback check before releasing writers. The staging callback still fails that check. Approved maintenance, exact-image recovery, integrated checks and 24-hour observation remain open."
+      "reason": "The reviewed release policy can require the public Wallet callback check before releasing writers. The staging callback still fails that check. The offline verifier accepts digest-pinned 24-hour evidence at its recorded end. Approved maintenance, exact-image recovery, integrated checks and live observation remain open."
     },
     {
       "id": "LMS-063",
