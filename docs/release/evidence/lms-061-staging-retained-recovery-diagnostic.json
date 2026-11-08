@@ -1,0 +1,19 @@
+{
+  "task": "LMS-061",
+  "observedOn": "2026-11-08",
+  "stagingCaptureSourceRevision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+  "reviewToolRevision": "3befaff99e46ef94e967bad97a0a8902c7298c30",
+  "retainedBackupSha256": "19768caf93be07a7dd9681b4bfb96dd12215cade3b0f2d53783fda64f5f98a79",
+  "retainedBackupContract": "VERIFIED_ON_RETAINED_COPY",
+  "policyComparison": "COMPATIBILITY_POLICY_MISMATCH",
+  "mismatchedFields": [
+    "source_sha",
+    "target_sha",
+    "images"
+  ],
+  "comparisonStopsBeforeSchemaChecksWhenInitialBindingsDiffer": true,
+  "privateInputsUnchanged": true,
+  "offHostRetrievalVerified": false,
+  "protectedRestorationVerified": false,
+  "recoveryEligibilityVerified": false
+}

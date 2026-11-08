@@ -28,6 +28,10 @@ python3 -I -S scripts/check_recovery_policy.py \
 
 The diagnostic reports mismatched field names and omits paths and values. Check the source and target revisions first. The retained capture used the observed deployed checkout as its target, so a policy for a later candidate can legitimately differ. Review the fields against the intended transition and fresh recovery evidence before approving a policy. A match checks the recorded capture and policy fields only. Backup integrity, current database state, candidate image availability and recovery eligibility require their separate checks.
 
+### Staging diagnostic result
+
+On 8 November 2026 the retained staging backup passed its checksum, companion-receipt and database contract checks. Comparing the configured policy with that capture returned three mismatched fields: `source_sha`, `target_sha` and `images`. The policy verifier reports those bindings before it checks schema compatibility. Use the independently selected release and recovery revisions and image IDs to review a policy against fresh evidence. The check ran on the retained server copy. Off-host retrieval and runtime restoration remain separate steps. [Staging recovery diagnostic](evidence/lms-061-staging-retained-recovery-diagnostic.json)
+
 ## Finish the protected rehearsal
 
 Use a separate disposable volume for runtime restoration. Record the exact candidate and recovery API and web image IDs, the writer hold, the migration results, the final schema and foreign-key checks, and the reconciled data fingerprints. Exercise the supported image/schema combinations and recovery procedure on the protected copies. Keep the operator’s retrieval provenance and exact-image results together for review. The verifier checks the bytes and receipt presented to it. The separate operator record establishes the off-host retrieval and runtime restoration. [RBAC schema retirement handover](SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md)
