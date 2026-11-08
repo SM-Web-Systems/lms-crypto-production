@@ -54,7 +54,7 @@ SMOKE_BASE_URL=https://lms.smwebsystems.com/api/v1 \
 
 On 8 November 2026 the public staging API matched the observed f5a64e8 revision and passed the other four API checks. The callback header check failed.
 
-The approved origin probe then observed HTTP 302, no-referrer and no-store inside the running API container at the exact same full revision. A fresh public GET returned HTTP 302 and no-store with strict-origin-when-cross-origin. The header changes after the API. The shared host proxy and Cloudflare response path still need to be checked separately. Preserve the API's no-referrer header on this callback route and recheck the public response before authenticated Wallet acceptance. [Approved origin probe](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42452140347/job/128643469809)
+The approved origin probe then observed HTTP 302, no-referrer and no-store inside the running API container at the exact same full revision. A fresh public GET returned HTTP 302 and no-store with strict-origin-when-cross-origin. The header changes after the API. The approved operator probe subsequently found the differing policy on the shared Nginx response itself. The exact proxy configuration responsible remains unverified. Preserve the API's no-referrer header on this callback route and recheck the public response before authenticated Wallet acceptance. [Approved origin probe](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42452140347/job/128643469809)
 
 ### Read-only shared proxy check
 
@@ -106,6 +106,8 @@ LMS_WALLET_PROXY
 ```
 
 Compare the result with a fresh public callback check on the same deployed API revision. An expected redirect with `noReferrer: true` at Nginx and a different public header places the change after that Nginx path. An expected redirect with a different policy at Nginx places a change at or before that proxy. A TLS or connection failure, a changed revision, or `missingParamsRedirect: false` is inconclusive. Keep the check parameter-free and share only the result object.
+
+On 8 November 2026, the authorized operator SSH probe confirmed the expected HTTP 302 and `no-store` at shared Nginx, with `strict-origin-when-cross-origin`. The public callback still returned the same policy, and public health reported the same full API revision. The policy change is already present before Cloudflare. [Staging proxy evidence](evidence/lms-023-staging-proxy-validation.json)
 
 For the selected Wallet-enabled release, the independent compatibility policy should include `"require_wallet_callback": true` before recovery capture. The release tool checks the public parameter-free callback while writes are held. A failed check leaves the hold active. [Guarded release procedure](AUTH-14-held-release.md)
 
