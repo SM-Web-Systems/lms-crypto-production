@@ -137,7 +137,7 @@ For the selected Wallet-enabled release, the independent compatibility policy sh
 
 ### Staging provider readiness
 
-The designated AmmaWallet tester matches exactly one account with a verified email. The read-only check confirmed the Wallet host routes to the expected API and database. An authenticated session is still required to verify the Wallet-to-LMS callback. Wallet SMTP is configured, and a controlled capture inbox remains unverified.
+The designated AmmaWallet tester matches exactly one account with a verified email. The read-only check confirmed the Wallet host routes to the expected API and database. Mukhtar reported that the tester signed in and reached the staging LMS student dashboard after an API interruption. A separate read-only check found the tester account with an active LMS session and both public health endpoints responding. The Wallet API container had started at 18:28 UTC with a different image ID. Its source revision and the cause of the earlier interruption remain unverified. [Staging sign-in evidence](evidence/lms-023-staging-tester-sign-in.json) Wallet SMTP is configured, and a controlled capture inbox remains unverified.
 
 The running LMS API points to the approved AmmaWallet origin, and both public health checks passed. The Wallet image serving that origin has a known image ID. Its OCI label, runtime environment and health response did not expose a Git revision. The separate Wallet testnet image is labelled and serves a different target. A reviewed Wallet deployment receipt tying the observed image to a full commit, or a selected labelled Wallet image, is still needed for signed mobile acceptance. [Wallet build evidence](evidence/lms-023-staging-wallet-build-provenance.json)
 
