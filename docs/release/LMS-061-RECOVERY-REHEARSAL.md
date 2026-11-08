@@ -32,6 +32,12 @@ The diagnostic reports mismatched field names and omits paths and values. Check 
 
 On 8 November 2026 the retained staging backup passed its checksum, companion-receipt and database contract checks. Comparing the configured policy with that capture returned three mismatched fields: `source_sha`, `target_sha` and `images`. The policy verifier reports those bindings before it checks schema compatibility. Use the independently selected release and recovery revisions and image IDs to review a policy against fresh evidence. The check ran on the retained server copy. Off-host retrieval and runtime restoration remain separate steps. [Staging recovery diagnostic](evidence/lms-061-staging-retained-recovery-diagnostic.json)
 
+## Scheduled backups and R2
+
+The operator's cron schedules daily database jobs for LMS, Wallet, Wallet Testnet, the website and CRM, plus media and a separate off-site job. The LMS job uses SQLite online backup and the Wallet job uses a PostgreSQL dump. The separate encrypted Restic job references Cloudflare R2 and mail data and configuration. Its latest readable run on 8 November recorded one saved snapshot. [Backup schedule evidence](evidence/lms-061-server-backup-schedule-audit.json)
+
+The job log establishes a reported save. The R2 snapshot manifest, the inclusion of each database backup, and restoration of LMS and mail still need direct verification. Inspect the repository with the operator's approved access and use a separate approved restore host for any protected data retrieval.
+
 ## Finish the protected rehearsal
 
 Use a separate disposable volume for runtime restoration. Record the exact candidate and recovery API and web image IDs, the writer hold, the migration results, the final schema and foreign-key checks, and the reconciled data fingerprints. Exercise the supported image/schema combinations and recovery procedure on the protected copies. Keep the operator’s retrieval provenance and exact-image results together for review. The verifier checks the bytes and receipt presented to it. The separate operator record establishes the off-host retrieval and runtime restoration. [RBAC schema retirement handover](SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md)
