@@ -2,7 +2,7 @@
  * paystackService — Phase 12 C1: Paystack checkout + webhook verification + refund.
  *
  * Paystack amounts are integer subunits of the transaction currency.
- * Webhook signature: HMAC SHA-512 of raw body with PAYSTACK_SECRET_KEY.
+ * Webhook verification uses the configured Paystack signing secret or legacy API key.
  */
 
 import crypto from 'crypto';
@@ -120,26 +120,59 @@ export async function verifyTransaction(reference: string): Promise<PaystackVeri
   return json.data;
 }
 
-/**
- * Verify webhook signature (HMAC SHA-512).
- * Returns true if signature is valid.
- */
-export function verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
-  if (!isPaystackConfigured()) return false;
-  const hash = crypto
-    .createHmac('sha512', PAYSTACK_SECRET_KEY)
-    .update(rawBody)
-    .digest('hex');
-  // Timing-safe comparison to prevent side-channel attacks (FIND-SEC-004)
-  const hashBuf = Buffer.from(hash, 'hex');
-  let sigBuf: Buffer;
-  try {
-    sigBuf = Buffer.from(signature, 'hex');
-  } catch {
-    return false;
+const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+function verifyTimestampedSignature(
+  rawBody: string | Buffer,
+  header: string,
+  signingSecrets: string[],
+): boolean {
+  let timestamp: string | undefined;
+  const signatures: Buffer[] = [];
+  for (const field of header.split(',')) {
+    const separator = field.indexOf('=');
+    if (separator === -1) continue;
+    const name = field.slice(0, separator).trim();
+    const value = field.slice(separator + 1).trim();
+
+    if (name === 't') {
+      if (timestamp !== undefined || !/^\d+$/.test(value)) return false;
+      timestamp = value;
+    } else if (name === 'v1') {
+      const match = /^whk_[A-Za-z0-9_-]+:([a-f0-9]{128})$/.exec(value);
+      if (match) signatures.push(Buffer.from(match[1], 'hex'));
+    }
   }
-  if (hashBuf.length !== sigBuf.length) return false;
-  return crypto.timingSafeEqual(hashBuf, sigBuf);
+
+  if (timestamp === undefined || signatures.length === 0) return false;
+  const time = Number(timestamp);
+  if (!Number.isSafeInteger(time) ||
+      Math.abs(Math.floor(Date.now() / 1000) - time) > WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS) return false;
+
+  return signingSecrets.some(secret => {
+    const expected = crypto.createHmac('sha512', secret).update(timestamp + '.').update(rawBody).digest();
+    return signatures.some(signature => crypto.timingSafeEqual(expected, signature));
+  });
+}
+
+export function verifyWebhookSignature(
+  rawBody: string | Buffer,
+  legacySignature: string | undefined,
+  timestampedSignature?: string,
+): boolean {
+  if (!isPaystackConfigured()) return false;
+  const current = process.env.PAYSTACK_WEBHOOK_SECRET?.trim();
+  const previous = process.env.PAYSTACK_WEBHOOK_PREVIOUS_SECRET?.trim();
+  if (current || previous) {
+    // Configuring the new signer opts this endpoint out of legacy verification.
+    if (!current || !/^whsec_\S+$/.test(current) || (previous && !/^whsec_\S+$/.test(previous)) ||
+        !timestampedSignature) return false;
+    return verifyTimestampedSignature(rawBody, timestampedSignature, previous ? [current, previous] : [current]);
+  }
+
+  if (!legacySignature || !/^[a-f0-9]{128}$/i.test(legacySignature)) return false;
+  const expected = crypto.createHmac('sha512', PAYSTACK_SECRET_KEY).update(rawBody).digest();
+  return crypto.timingSafeEqual(expected, Buffer.from(legacySignature, 'hex'));
 }
 
 /**
