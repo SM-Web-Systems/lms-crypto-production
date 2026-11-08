@@ -42,7 +42,7 @@ function buildPins(value) {
   };
 }
 
-function check(value, expected=sha, pins, digest) {
+function check(value, expected=sha, pins, digest, extraArgs=[]) {
   const directory=mkdtempSync(join(tmpdir(),'mobile acceptance fixture '));
   try {
     const path=join(directory,'report.json');writeFileSync(path,JSON.stringify(value));
@@ -54,7 +54,7 @@ function check(value, expected=sha, pins, digest) {
       args.push('--expected-builds', pinsPath, '--expected-builds-sha256',
         digest ?? createHash('sha256').update(bytes).digest('hex'));
     }
-    return spawnSync(process.execPath, args, {encoding:'utf8'});
+    return spawnSync(process.execPath, [...args,...extraArgs], {encoding:'utf8'});
   } finally {rmSync(directory,{recursive:true,force:true});}
 }
 test('complete synthetic schema fixture is an attestation, never hardware verification',()=>{
@@ -63,6 +63,8 @@ test('complete synthetic schema fixture is an attestation, never hardware verifi
   assert.equal(output.hardware_verified,false);
   assert.equal(output.build_pins_verified,false);
   assert.equal(output.environment,'synthetic');
+  assert.equal(output.scope,'core');
+  assert.equal(output.cases_per_platform,8);
 });
 test('pending, failed, missing and duplicate platform evidence cannot pass',()=>{
   for (const mutate of [
@@ -118,6 +120,43 @@ test('matching independently pinned staging builds produce a complete attestatio
   assert.equal(output.environment, 'authorized_staging');
   assert.equal(output.build_pins_verified, true);
   assert.equal(output.hardware_verified, false);
+});
+
+test('integrated staging requires passing push and offline evidence for both pinned devices', () => {
+  const value = stagingEvidence();
+  const pins = buildPins(value);
+  const integrated = () => check(value, sha, pins, undefined, ['--integrated']);
+  const missing = integrated();
+  assert.equal(missing.status, 2);
+  assert.equal(JSON.parse(missing.stderr).code, 'ALL_ACCEPTANCE_CASES_REQUIRED');
+
+  for (const device of value.reports) {
+    device.cases.push_notifications = {status:'pass',evidence:'fixture push evidence'};
+    device.cases.offline_learning = {status:'not_run',evidence:''};
+  }
+  const core = check(value, sha, pins);
+  assert.equal(core.status, 0, core.stderr);
+  assert.equal(JSON.parse(core.stdout).scope, 'core');
+  const incomplete = integrated();
+  assert.equal(incomplete.status, 2);
+  assert.equal(JSON.parse(incomplete.stderr).code, 'DEVICE_ACCEPTANCE_INCOMPLETE');
+
+  for (const device of value.reports) {
+    device.cases.offline_learning = {status:'pass',evidence:'fixture offline evidence'};
+  }
+  const complete = integrated();
+  assert.equal(complete.status, 0, complete.stderr);
+  assert.equal(JSON.parse(complete.stdout).scope, 'integrated');
+  assert.equal(JSON.parse(complete.stdout).cases_per_platform, 10);
+
+  for (const device of value.reports) device.environment = 'synthetic';
+  const synthetic = check(value, sha, undefined, undefined, ['--integrated']);
+  assert.equal(synthetic.status, 2);
+  assert.equal(JSON.parse(synthetic.stderr).code, 'INTEGRATED_STAGING_REQUIRED');
+  for (const device of value.reports) device.environment = 'authorized_staging';
+
+  value.reports[1].cases.push_notifications.status = 'fail';
+  assert.equal(integrated().status, 2);
 });
 
 test('staging rejects an unapproved manifest or invalid platform and revision pins', () => {

@@ -33,6 +33,8 @@ Run every group on **both physical Android and physical iOS**. Emulator/simulato
 | `account_controls` | Independent section failures do not hide other controls; current/other-session revocation behaves correctly; export remains pending until ready; deletion requires exact confirmation and pending cancellation restores authoritative access, using disposable staging accounts only. |
 | `documents_accessibility` | Owned/denied/empty credential cases, download/share permission denial and retry, browser handoff and OS back navigation, keyboard/safe-area layouts, large text and TalkBack/VoiceOver announcements work without exposing sensitive URL data. |
 
+For the integrated release, also test `push_notifications` and `offline_learning` on each device. Use the device procedures for provider delivery and installed-app navigation, and for encrypted packages, durable sync and failure recovery. [Push acceptance](LMS-050-PUSH-NOTIFICATIONS.md) · [Offline learning acceptance](LMS-051-OFFLINE-LEARNING.md)
+
 ## Evidence completeness command
 
 Copy `LMS-Mobile/acceptance/device-report.template.json` to a private acceptance record outside source, retaining every `not_run` until actually observed. Fill build, target and device metadata and one redacted evidence reference per group.
@@ -42,6 +44,8 @@ An independent reviewer checks the signed artifacts and deployed revisions, then
 ```text
 npm run acceptance:device:verify -- --file <completed-report.json> --expected-sha <approved-full-app-SHA> --expected-builds <approved-builds.json> --expected-builds-sha256 <approved-manifest-SHA256>
 ```
+
+The command above checks the eight core groups for LMS-041 through LMS-043. For LMS-060, add `--integrated` at the end of the command. This requires authorized staging, pinned builds and all ten groups, including push and offline learning on both platforms, and reports `scope: "integrated"`. The core command accepts a report with the two additional slots pending and reports `scope: "core"`.
 
 The checker reads local JSON and matches both devices' build identifiers and artifact hashes and the deployed API and Wallet revisions against the pinned manifest. It requires both platforms, physical device records, complete metadata and passing cases with evidence references. Successful staging output includes `COMPLETE_ATTESTATION`, `build_pins_verified: true` and `hardware_verified: false`. The reviewer still inspects the physical device evidence and checks the installed builds against the signed artifacts. Synthetic fixtures report `environment: "synthetic"` and `build_pins_verified: false`. The committed template deliberately fails the gate.
 
