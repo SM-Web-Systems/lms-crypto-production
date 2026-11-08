@@ -7,11 +7,20 @@
 
 import crypto from 'crypto';
 
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || '';
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY?.trim() ?? '';
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
 export function isPaystackConfigured(): boolean {
-  return PAYSTACK_SECRET_KEY.trim().length > 0;
+  if (!PAYSTACK_SECRET_KEY) return false;
+  const mode = process.env.PAYSTACK_REQUIRED_MODE;
+  if (mode === undefined) return true;
+  if (mode !== 'test' && mode !== 'live') return false;
+  const prefix = `sk_${mode}_`;
+  return PAYSTACK_SECRET_KEY.startsWith(prefix) && PAYSTACK_SECRET_KEY.length > prefix.length;
+}
+
+function requirePaystackConfigured(): void {
+  if (!isPaystackConfigured()) throw new Error('Paystack is unavailable');
 }
 
 interface PaystackInitResponse {
@@ -63,6 +72,7 @@ export async function initializeTransaction(
   callbackUrl: string,
   metadata?: Record<string, unknown>,
 ): Promise<PaystackInitResponse['data']> {
+  requirePaystackConfigured();
   const res = await fetch(`${PAYSTACK_BASE_URL}/transaction/initialize`, {
     method: 'POST',
     redirect: 'error',
@@ -98,6 +108,7 @@ export async function initializeTransaction(
  * Verify a transaction by reference.
  */
 export async function verifyTransaction(reference: string): Promise<PaystackVerifyResponse['data']> {
+  requirePaystackConfigured();
   const res = await fetch(`${PAYSTACK_BASE_URL}/transaction/verify/${encodeURIComponent(reference)}`, {
     headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
   });
@@ -114,7 +125,7 @@ export async function verifyTransaction(reference: string): Promise<PaystackVeri
  * Returns true if signature is valid.
  */
 export function verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
-  if (!PAYSTACK_SECRET_KEY) return false;
+  if (!isPaystackConfigured()) return false;
   const hash = crypto
     .createHmac('sha512', PAYSTACK_SECRET_KEY)
     .update(rawBody)
@@ -141,6 +152,7 @@ export async function createRefund(
   currency: string,
   merchantNote?: string,
 ): Promise<void> {
+  requirePaystackConfigured();
   const res = await fetch(`${PAYSTACK_BASE_URL}/refund`, {
     method: 'POST',
     redirect: 'error',
