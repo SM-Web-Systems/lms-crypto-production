@@ -295,9 +295,10 @@
       "evidence": [
         "LMS-023-COURSE-CHECKOUT.md",
         "evidence/lms-023-staging-sso-entry.json",
-        "evidence/lms-023-staging-proxy-validation.json"
+        "evidence/lms-023-staging-proxy-validation.json",
+        "evidence/lms-023-proxy-correction-rehearsal.json"
       ],
-      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. Proxy correction, exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
+      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. The Nginx directives were identified and a path-specific correction passed a loopback rehearsal. Staging correction, exact candidate, authenticated Wallet and Paystack sandbox acceptance remain open."
     },
     {
       "id": "LMS-030",

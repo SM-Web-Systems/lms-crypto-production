@@ -54,7 +54,7 @@ SMOKE_BASE_URL=https://lms.smwebsystems.com/api/v1 \
 
 On 8 November 2026 the public staging API matched the observed f5a64e8 revision and passed the other four API checks. The callback header check failed.
 
-The approved origin probe then observed HTTP 302, no-referrer and no-store inside the running API container at the exact same full revision. A fresh public GET returned HTTP 302 and no-store with strict-origin-when-cross-origin. The header changes after the API. The approved operator probe subsequently found the differing policy on the shared Nginx response itself. The exact proxy configuration responsible remains unverified. Preserve the API's no-referrer header on this callback route and recheck the public response before authenticated Wallet acceptance. [Approved origin probe](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42452140347/job/128643469809)
+The approved origin probe then observed HTTP 302, no-referrer and no-store inside the running API container at the exact same full revision. A fresh public GET returned HTTP 302 and no-store with strict-origin-when-cross-origin. The header changes after the API. The approved operator probe subsequently found the differing policy on the shared Nginx response itself. A read-only configuration inspection identified the two responsible directives. See the proposed proxy correction below. Preserve the API's no-referrer header on this callback route and recheck the public response before authenticated Wallet acceptance. [Approved origin probe](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42452140347/job/128643469809)
 
 ### Read-only shared proxy check
 
@@ -108,6 +108,28 @@ LMS_WALLET_PROXY
 Compare the result with a fresh public callback check on the same deployed API revision. An expected redirect with `noReferrer: true` at Nginx and a different public header places the change after that Nginx path. An expected redirect with a different policy at Nginx places a change at or before that proxy. A TLS or connection failure, a changed revision, or `missingParamsRedirect: false` is inconclusive. Keep the check parameter-free and share only the result object.
 
 On 8 November 2026, the authorized operator SSH probe confirmed the expected HTTP 302 and `no-store` at shared Nginx, with `strict-origin-when-cross-origin`. The public callback still returned the same policy, and public health reported the same full API revision. The policy change is already present before Cloudflare. [Staging proxy evidence](evidence/lms-023-staging-proxy-validation.json)
+
+### Proposed shared proxy correction
+
+In the LMS HTTPS virtual host, the `/api/` location hides the upstream `Referrer-Policy`. The server then adds `strict-origin-when-cross-origin` with `always`. The inspected configuration is on a directory bind mount and the container and host copies matched.
+
+Add the map in the enclosing Nginx `http` context, such as alongside the server blocks in its included configuration. In the LMS HTTPS server block, replace only the existing `Referrer-Policy` header directive with the second block. The existing upstream-header filter gives the callback a single policy. Using `$uri` covers the normalized callback path with or without a query string. The map defaults to the existing policy for all other paths in this host. [Nginx map](https://nginx.org/en/docs/http/ngx_http_map_module.html) · [Nginx response headers](https://nginx.org/en/docs/http/ngx_http_headers_module.html) · [Nginx upstream header filtering](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_hide_header)
+
+```nginx
+map $uri $lms_referrer_policy {
+    default strict-origin-when-cross-origin;
+    /api/v1/auth/amma-callback no-referrer;
+    /api/v1/auth/amma-callback/ no-referrer;
+}
+```
+
+```nginx
+add_header Referrer-Policy $lms_referrer_policy always;
+```
+
+An isolated Ubuntu Nginx 1.24.0 fixture reproduced the original override and passed nine correction checks, including callback variants, an adjacent API denial, and a separate virtual host. Staging runs Nginx 1.29.4 and still needs its own configuration test and post-reload checks. [Rehearsal evidence](evidence/lms-023-proxy-correction-rehearsal.json)
+
+For the authorized staging change, verify the current host and container configuration still match the reviewed snapshot. Retain a private backup outside the active include glob and preserve file metadata on replacement. Run `nginx -t` in the existing proxy container before a graceful reload. Check the parameter-free callback directly through Nginx and through the public endpoint. Require the expected 302, exactly one `Referrer-Policy: no-referrer`, and exactly one `Cache-Control: no-store`. Check that the adjacent LMS health and login routes retain their baseline and that other virtual hosts pass their agreed smoke checks. Restore the saved configuration if syntax or smoke validation fails. If the candidate was loaded, validate and gracefully reload the restoration before repeating the baseline checks.
 
 For the selected Wallet-enabled release, the independent compatibility policy should include `"require_wallet_callback": true` before recovery capture. The release tool checks the public parameter-free callback while writes are held. A failed check leaves the hold active. [Guarded release procedure](AUTH-14-held-release.md)
 
