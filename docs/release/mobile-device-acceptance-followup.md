@@ -87,7 +87,7 @@ On 8 November 2026, the LMS GitHub releases and listed Actions artifacts exposed
 
 Docker Buildx provenance verified the staging Wallet API revision for the image observed on 8 November. Recheck the running image before pinning the device manifest. [Wallet API provenance](evidence/lms-023-staging-wallet-buildx-provenance.json)
 
-Once the owner supplies the project link and read access, list its existing builds before creating a new one. Use the returned build IDs and artifact hashes to identify candidates for the separate physical-device review. [EAS CLI reference](https://docs.expo.dev/eas/cli/)
+The app preserves the approved Expo owner and project ID from its static configuration. The project ID can still come from the environment in an unlinked checkout. If both sources supply an ID, Expo refuses a mismatch before resolving a build profile. Follow the Android release instructions to link the approved project, then list its existing builds before creating a new one. [Project linking instructions](../../LMS-Mobile/ANDROID_RELEASE.md#one-time-setup) Use the returned build IDs and artifact hashes to identify candidates for the separate physical-device review. [EAS CLI reference](https://docs.expo.dev/eas/cli/)
 
 ## Separate dependency follow-up
 
