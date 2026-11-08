@@ -10,6 +10,12 @@ Manually dispatch **Staging runtime and private RBAC inventory** on `main` with 
 
 Probe mode creates no server files or containers and runs no checkout update, application startup, migration, backup, role change, service restart, SSH/key/firewall/user configuration command. Git uses `--no-optional-locks`. This provides a narrow way to diagnose the preparation precondition without changing it.
 
+## Optional Wallet callback origin probe
+
+Dispatch the same workflow with `mode=wallet-callback` and an empty manifest ID after review. This mode pins the observed staging API revision and uses the inspected ID of the running API container. It performs one credential-free, parameter-free GET to the container loopback API and leaves the response redirect unfollowed. It returns the HTTP status and booleans for the expected referrer and cache headers. The response body, redirect location and raw headers stay private.
+
+Compare the result with a public request to the same callback. If the container preserves both headers and the public request differs, inspect the shared proxy and edge response rules. This probe observes the API origin. The platform operator still needs to determine which intervening hop changes the header. The mode uses the same main-only environment, host fingerprint and Tailscale access. Its only Docker operations are runtime inspection and the bounded loopback request within the existing API container.
+
 ## Optional private snapshot inventory
 
 `mode=inventory` additionally requires the explicit 32-character ID of a fresh, verified recovery manifest. It checks the repository/project, running image IDs, one-hour snapshot freshness, private file permissions and snapshot/tool hashes. It refuses unsupported or drifting inputs; it does not initialize or repair them.

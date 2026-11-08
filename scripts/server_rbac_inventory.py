@@ -1,5 +1,6 @@
 """Inspect staging, inventory a snapshot, or prepare one on a pinned revision.
 
+The Wallet callback mode reads a parameter-free response inside the running API.
 No SSH configuration, daemon, firewall, account, checkout or live DB changes.
 Inventory starts one bounded, network-disabled container; it never starts the API.
 Capture creates private backup/recovery files and retained image tags only.
@@ -20,9 +21,27 @@ SHA = re.compile(r'[a-f0-9]{40}\Z')
 IMAGE = re.compile(r'sha256:[a-f0-9]{64}\Z')
 SUMMARY_KEYS = {'generatedAt', 'snapshotSha256', 'deployedApplication', 'reportVersion', 'readOnly',
                 'productionInventoryVerified', 'purpose', 'schema', 'users', 'rbac', 'interpretation', 'gates'}
-CONTAINER_FORMAT = '{"image":{{json .Image}},"running":{{json .State.Running}},"project":{{json (index .Config.Labels "com.docker.compose.project")}}}'
+CONTAINER_ID = re.compile(r'[a-f0-9]{64}\Z')
+CONTAINER_FORMAT = '{"containerId":{{json .Id}},"image":{{json .Image}},"running":{{json .State.Running}},"project":{{json (index .Config.Labels "com.docker.compose.project")}}}'
 IMAGE_FORMAT = '{"id":{{json .Id}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"workdir":{{json .Config.WorkingDir}}}'
 OWNER_SCRIPT = "const f=require('node:fs'),s=f.statSync('/tmp/lms-snapshot.sqlite3'),r=f.statSync('/tmp/lms-private-report');console.log(JSON.stringify({sourceUid:s.uid,reportUid:r.uid,reportGid:r.gid}));"
+WALLET_CALLBACK_SCRIPT = """
+const { get } = require('node:http');
+const request = get('http://127.0.0.1:3001/api/v1/auth/amma-callback', { agent: false, timeout: 5000 }, response => {
+  const values = response.headersDistinct;
+  const referrer = values['referrer-policy'] ?? [];
+  const cache = values['cache-control'] ?? [];
+  console.log(JSON.stringify({
+    httpStatus: response.statusCode,
+    noReferrer: referrer.length === 1 && referrer[0].toLowerCase() === 'no-referrer',
+    strictOriginWhenCrossOrigin: referrer.length === 1 && referrer[0].toLowerCase() === 'strict-origin-when-cross-origin',
+    noStore: cache.length === 1 && cache[0].toLowerCase() === 'no-store',
+  }));
+  response.destroy();
+});
+request.on('timeout', () => request.destroy(new Error('callback probe timed out')));
+request.on('error', () => { process.exitCode = 1; });
+"""
 PREPARED_REVISION = 'f5a64e8ac92aca6b33ae54bda70617d475893e3e'
 TRUSTED_RELEASE_FILES = {
     'scripts/release_preflight.py': '4531d402a48f53fe1886304ab82c4e91dc2ff53379bde74b151a77c49e8f1737',
@@ -154,8 +173,10 @@ def execute(environment, runner=command):
     project = environment.get('DEPLOY_PROJECT', '')
     require(NAME.fullmatch(project), 'PROJECT_REQUIRED')
     mode = environment.get('LMS_INVENTORY_MODE', 'probe')
-    require(mode in ('probe', 'inventory', 'capture', 'inventory-capture'), 'INVALID_MODE')
+    require(mode in ('probe', 'wallet-callback', 'inventory', 'capture', 'inventory-capture'), 'INVALID_MODE')
+    require(mode != 'wallet-callback' or not environment.get('LMS_INVENTORY_MANIFEST'), 'UNEXPECTED_MANIFEST_ID')
     observed = {}
+    api_container_id = None
     for service in ('api', 'web'):
         name = environment.get('DEPLOY_' + service.upper() + '_CONTAINER', '')
         require(NAME.fullmatch(name), 'CONTAINER_REQUIRED')
@@ -165,6 +186,8 @@ def execute(environment, runner=command):
         image = json.loads(runner(['docker', 'image', 'inspect', '--format', IMAGE_FORMAT, container['image']]))
         require(image.get('id') == container['image'] and SHA.fullmatch(image.get('revision', '')), 'REVISION_REQUIRED')
         observed[service] = image
+        if service == 'api':
+            api_container_id = container.get('containerId')
     result = {'version': 1, 'mode': mode, 'observedImages': {
         service: {key: image[key] for key in ('id', 'revision')} for service, image in observed.items()},
               'mobileInstalledBuildInventory': 'not collected', 'legacyEndpointUsage': 'not collected'}
@@ -185,6 +208,16 @@ def execute(environment, runner=command):
             except Refused:
                 result['checkout']['inspection'] = 'unavailable'
         return dict(result, status='SSH_RUNTIME_READ_CONFIRMED')
+    if mode == 'wallet-callback':
+        require(observed['api']['revision'] == PREPARED_REVISION, 'PREPARED_REVISION_REQUIRED')
+        require(isinstance(api_container_id, str) and CONTAINER_ID.fullmatch(api_container_id), 'API_CONTAINER_ID_REQUIRED')
+        probe = json.loads(runner(['docker', 'exec', '--workdir', '/', '--env', 'NODE_OPTIONS=',
+                                  api_container_id, 'node', '-e', WALLET_CALLBACK_SCRIPT], timeout=12))
+        flags = ('noReferrer', 'strictOriginWhenCrossOrigin', 'noStore')
+        require(isinstance(probe, dict) and set(probe) == {'httpStatus', *flags}
+                and type(probe['httpStatus']) is int and 100 <= probe['httpStatus'] <= 599
+                and all(type(probe[flag]) is bool for flag in flags), 'WALLET_CALLBACK_PROBE_INVALID')
+        return dict(result, status='WALLET_CALLBACK_ORIGIN_OBSERVED', callback=probe)
     root = Path(environment.get('DEPLOY_BACKUP_DIR', ''))
     require(root.is_absolute() and root.is_dir() and not root.is_symlink(), 'BACKUP_ROOT_REQUIRED')
     require(not any(part in ('.ssh', 'etc', 'proc', 'sys', 'dev', 'bin', 'usr') for part in root.parts), 'BACKUP_LOCATION_REFUSED')
