@@ -1,0 +1,58 @@
+{
+  "task": "LMS-022",
+  "date": "2026-11-06",
+  "status": "in_progress",
+  "checks": {
+    "webPassed": 713,
+    "firefoxPassed": 20,
+    "webkitPassed": 20,
+    "chromiumFullPassed": 83,
+    "failed": 0,
+    "flaky": 0,
+    "retries": 0,
+    "productionWebBuild": "passed during browser startup",
+    "e2eTypecheck": "passed"
+  },
+  "originalReceiptHashes": {
+    "lms-022-browser.log": "98a9e43bb39a0dab0b9edbf13c57e2380df1188ce980a08a1e643e0352638099",
+    "lms-022-browser-final.json": "7c5892d3e4b7efff8dd6d9a13cb8e05c450ec3693b6f2059aefcdd4c8c176c0d",
+    "lms-022-browser-fixed.json": "4c48ef1ad42255e630cd29af48ad64b38efe16c6a6a2a20302fe9bccc8524cbc",
+    "lms-022-chromium-full.json": "835e25de1156ed4ed948ea2d3b40d4f6a4a95c95e07a0dc203e50f4045ef41c9",
+    "lms-022-web.json": "b7094f85f2d0f88c1a0912752298a0845f84a73734d28a267c4b5c12a3c2a08d",
+    "lms-022-browser-install.log": "c346eaa8aed713b9d7c8003640f6e12b1fe786d44d63c46693c9c44b104d075e",
+    "lms-022-e2e-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "sourceSha256": {
+    "LMS-Frontend/src/components/GlobalSearchBar.tsx": "7c933fe38dc0bea74d1de5d46339a21b66b86c85cd203c8aacc1af8e6142e516",
+    "LMS-Frontend/src/__tests__/components/GlobalSearchBar.test.tsx": "f96ea99c85d6230ddf6254829c2ed597bb99023afbcb2cf1e9ee4c8e7c735f4e",
+    "e2e/fixtures/auth.ts": "472d6609673a4fcc62133039a4c407625cbe173e7263ab99efacea0a87e9add8",
+    "e2e/playwright.config.ts": "f302dfc402566ea23de62a7266924e6a26f048dad8108f7919568a858f3a7e3f"
+  },
+  "initialAttempts": [
+    "Firefox HTML navigation received 404 because fixture forced JSON Accept; interrupted after repeated timeouts, raw log retained.",
+    "After header fix, 37 passed and 3 WebKit focus-restoration cases failed; complete JSON retained."
+  ],
+  "limitations": [
+    "Local loopback fixture evidence, not staging sign-off.",
+    "Desktop WebKit is not physical Safari/iOS or signed native acceptance.",
+    "Wallet/provider and private installed-client acceptance remain open."
+  ],
+  "browserRevisions": [
+    {
+      "name": "chromium",
+      "revision": "1248",
+      "browserVersion": "156.0.8078.4"
+    },
+    {
+      "name": "firefox",
+      "revision": "1555",
+      "browserVersion": "157.0"
+    },
+    {
+      "name": "webkit",
+      "revision": "2370",
+      "browserVersion": "27.2"
+    }
+  ],
+  "playwrightVersion": "1.64.1"
+}

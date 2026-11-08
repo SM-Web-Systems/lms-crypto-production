@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: synthetic text lessons supply the HTTP resource required by the native reader
+ok 1 - synthetic text lessons supply the HTTP resource required by the native reader
+  ---
+  duration_ms: 3.5425
+  type: 'test'
+  ...
+# Subtest: repair fills only missing synthetic reading URLs and preserves custom content
+ok 2 - repair fills only missing synthetic reading URLs and preserves custom content
+  ---
+  duration_ms: 0.9711
+  type: 'test'
+  ...
+# Subtest: real local HTTP and TCP work, wildcard listeners become loopback
+ok 3 - real local HTTP and TCP work, wildcard listeners become loopback
+  ---
+  duration_ms: 604.0708
+  type: 'test'
+  ...
+# Subtest: HTTP, TLS, TCP, fetch, DNS, HTTP2 and UDP refuse remote targets before connecting
+ok 4 - HTTP, TLS, TCP, fetch, DNS, HTTP2 and UDP refuse remote targets before connecting
+  ---
+  duration_ms: 523.6165
+  type: 'test'
+  ...
+# Subtest: a local HTTP redirect cannot escape to an external target
+ok 5 - a local HTTP redirect cannot escape to an external target
+  ---
+  duration_ms: 1391.9879
+  type: 'test'
+  ...
+# Subtest: all direct DNS and Resolver variants are blocked before native implementations run
+ok 6 - all direct DNS and Resolver variants are blocked before native implementations run
+  ---
+  duration_ms: 281.5946
+  type: 'test'
+  ...
+# Subtest: service environment excludes inherited credentials, remote endpoints and Node preloads
+ok 7 - service environment excludes inherited credentials, remote endpoints and Node preloads
+  ---
+  duration_ms: 6.0654
+  type: 'test'
+  ...
+# Subtest: local identities reject traversal, malformed credentials and secret reuse
+ok 8 - local identities reject traversal, malformed credentials and secret reuse
+  ---
+  duration_ms: 2.7743
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3176.1638

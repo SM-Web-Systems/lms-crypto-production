@@ -1,0 +1,30 @@
+{
+  "tasks": [
+    "LMS-023",
+    "LMS-040"
+  ],
+  "observedOn": "2026-11-08",
+  "walletOrigin": "https://ammawallet.com",
+  "walletApiContainer": "amma-api",
+  "imageId": "sha256:df7db6f97676d92de5f9df2f34c84143862024c2aba033886bae4b65df9b5d66",
+  "ociRevision": null,
+  "buildxRecord": {
+    "id": "mquyf59mp4c3tzz748bsedet0",
+    "status": "completed",
+    "completedAtUtc": "2026-11-08T15:31:19.309215926Z",
+    "attachmentDigestMatchesRunningImage": true,
+    "backendBuildContextMatched": true,
+    "vcsRepository": "SM-Web-Systems/amma-wallet-production",
+    "vcsRevision": "f218b3618b570c66adaca31ffe95632f3bd1a48b",
+    "githubCommitVerificationPassed": true
+  },
+  "embeddedBackendFiles": {
+    "sourceAndPackageFilesCompared": 66,
+    "matched": 66,
+    "missing": 0,
+    "extra": 0,
+    "testFilesExcludedByCommittedDockerignore": 93,
+    "relevantRuntimeMountOverlap": false,
+    "relevantWritableLayerChanges": 0
+  }
+}

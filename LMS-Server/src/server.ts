@@ -4,6 +4,7 @@ dotenv.config();
 import app from './app.js';
 import { db, close } from './config/database.js';
 import logger from './utils/logger.js';
+import { startPushWorker, stopPushWorker } from './services/pushDeliveryService.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
 import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
 import { processExpiredDeletions } from './services/deletionService.js';
@@ -63,6 +64,7 @@ function startServer() {
         startScheduler();
         // Start email retry worker for durable delivery (FIND-027-02)
         startEmailRetryWorker();
+        startPushWorker();
         // Start deletion finalization scheduler — runs daily (24h interval)
         startDeletionScheduler();
       });
@@ -85,20 +87,22 @@ process.on('uncaughtException', (error) => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
   stopEmailRetryWorker();
   stopDeletionScheduler();
+  await stopPushWorker();
   close();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
   stopEmailRetryWorker();
   stopDeletionScheduler();
+  await stopPushWorker();
   close();
   process.exit(0);
 });

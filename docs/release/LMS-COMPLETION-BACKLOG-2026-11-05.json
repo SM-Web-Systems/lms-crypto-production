@@ -1,0 +1,621 @@
+{
+  "version": 1,
+  "baselineSha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+  "audit": "../audits/2026-11-05-lms-completion/AUDIT.md",
+  "plan": "LMS-COMPLETION-PLAN-2026-11-05.md",
+  "status": "in_progress",
+  "ownerNote": "Accountable role proposals; named assignees must be recorded at kickoff.",
+  "tasks": [
+    {
+      "id": "LMS-001",
+      "title": "Preserve audit and establish current evidence index",
+      "priority": "P1",
+      "ownerRole": "Delivery lead",
+      "status": "done",
+      "dependencies": [],
+      "acceptance": [
+        "Audit, source SHA, honest retry/failure counts and evidence hashes committed; plan linked"
+      ],
+      "evidence": [
+        "../audits/2026-11-05-lms-completion/AUDIT.md",
+        "../audits/2026-11-05-lms-completion/evidence/manifest.json"
+      ]
+    },
+    {
+      "id": "LMS-002",
+      "title": "Make audit and migration fixtures reproducible across platforms",
+      "priority": "P1",
+      "ownerRole": "API + QA",
+      "status": "done",
+      "dependencies": [
+        "LMS-001"
+      ],
+      "acceptance": [
+        "Use raw Git bytes for exported fixtures; remove newline-sensitive fixture surgery; exercise LF and CRLF without relaxing schema validation; clean lockfile installs on Linux and Windows"
+      ],
+      "evidence": [
+        "LMS-002-FIXTURE-REPRODUCIBILITY.md",
+        "evidence/lms-002-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
+      ]
+    },
+    {
+      "id": "LMS-003",
+      "title": "Fix Windows writer-hold invalid-path handling",
+      "priority": "P1",
+      "ownerRole": "API + Platform",
+      "status": "done",
+      "dependencies": [
+        "LMS-002"
+      ],
+      "acceptance": [
+        "Existing regular hold file and invalid/unreadable parent states return held; only verified absent hold under an existing valid directory returns unheld; Linux/Windows regressions pass"
+      ],
+      "evidence": [
+        "LMS-003-WRITER-HOLD-PORTABILITY.md",
+        "evidence/lms-003-validation.json"
+      ]
+    },
+    {
+      "id": "LMS-004",
+      "title": "Resolve mobile high/critical dependency findings",
+      "priority": "P1",
+      "ownerRole": "Mobile",
+      "status": "done",
+      "dependencies": [
+        "LMS-001"
+      ],
+      "acceptance": [
+        "Fresh full dependency graph has zero high/critical findings; overrides and SDK/tooling compatibility reviewed; EAS profile validation, local tests and both bundles pass"
+      ],
+      "evidence": [
+        "LMS-004-MOBILE-DEPENDENCIES.md",
+        "evidence/lms-004-validation.json"
+      ]
+    },
+    {
+      "id": "LMS-005",
+      "title": "Resolve remaining API/mobile moderate and low advisories",
+      "priority": "P2",
+      "ownerRole": "API + Mobile",
+      "status": "done",
+      "dependencies": [
+        "LMS-004"
+      ],
+      "acceptance": [
+        "Fresh audits have no unresolved findings; each resolution traced to patched graph and runtime/tooling validation; unresolved external fixes remain open tasks"
+      ],
+      "evidence": [
+        "LMS-005-REMAINING-ADVISORIES.md",
+        "evidence/lms-005-mobile-validation.json",
+        "evidence/lms-005-api-validation.json",
+        "evidence/lms-005-deepmerge-validation.json"
+      ],
+      "reason": "The reviewed replacement removed the final low finding. Fresh API and mobile audits report zero findings, and both hosted workflows passed their low-threshold gates at 4010371."
+    },
+    {
+      "id": "LMS-006",
+      "title": "Fix mobile web accessible names and navigation usability",
+      "priority": "P2",
+      "ownerRole": "Web + QA",
+      "status": "done",
+      "dependencies": [
+        "LMS-001"
+      ],
+      "acceptance": [
+        "Search, Logout and modal controls have accessible names at 320/390/768px; keyboard focus and later sponsor tabs/actions remain reachable"
+      ],
+      "evidence": [
+        "LMS-006-ACCESSIBLE-MOBILE-WEB.md",
+        "evidence/lms-006-validation.json",
+        "LMS-022-CROSS-BROWSER-ACCEPTANCE.md"
+      ]
+    },
+    {
+      "id": "LMS-007",
+      "title": "Stabilize cold mobile session and admin E2E tests",
+      "priority": "P2",
+      "ownerRole": "QA + API + Mobile",
+      "status": "done",
+      "dependencies": [
+        "LMS-002"
+      ],
+      "acceptance": [
+        "Remove leaked mocks/promises and readiness races using deterministic condition-based waits; original auth assertions retained; 3 consecutive fresh-process runs pass with standard deadlines and retries disabled"
+      ],
+      "evidence": [
+        "LMS-007-COLD-TEST-STABILITY.md",
+        "evidence/lms-007-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
+      ]
+    },
+    {
+      "id": "LMS-010",
+      "title": "Complete private account/schema/installed-client inventory",
+      "priority": "P1",
+      "ownerRole": "Platform owner",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-001"
+      ],
+      "acceptance": [
+        "Finalized consistent snapshot inventoried offline; real zero/multi/custom/revoked grant and learner-profile exceptions reviewed; schema/endpoint usage and installed builds recorded privately"
+      ],
+      "evidence": [
+        "LMS-010-SERVER-ACCESS.md",
+        "LMS-010-PRIVATE-REVIEW.md",
+        "evidence/lms-010-access-validation.json",
+        "evidence/lms-010-staging-inventory.json",
+        "evidence/lms-010-private-review-preparation.json",
+        "evidence/lms-013-staging-legacy-role-usage.json"
+      ],
+      "reason": "Read-only staging inventory obtained: 19 accounts, 3 learner-profile gaps and 1 students FK violation. A pending owner-only worksheet was generated from the hash-verified retained snapshot, with four account, three learner-profile and one integrity decision rows. A preliminary 24-hour staging log sample found zero legacy role PATCH requests among 6,009 recognized requests. Owner decisions, continuous usage coverage, installed builds and recovery approval remain outstanding."
+    },
+    {
+      "id": "LMS-011",
+      "title": "Reconcile and implement RBAC backend cutover (#99)",
+      "priority": "P1",
+      "ownerRole": "API",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-010",
+        "LMS-003"
+      ],
+      "acceptance": [
+        "Resolve actual #99 conflicts against current main; preserve AUTH-14 and completion/FK fixes; all 13 targets become ordinary passing regressions; explicit provisioning, audit, scope and session invalidation rehearsed"
+      ],
+      "evidence": [
+        "LMS-011-RECONCILIATION-PREPARATION.md",
+        "evidence/lms-011-validation.json"
+      ]
+    },
+    {
+      "id": "LMS-012",
+      "title": "Reconcile and implement RBAC web/mobile contracts (#100)",
+      "priority": "P1",
+      "ownerRole": "Web + Mobile",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-011",
+        "LMS-004"
+      ],
+      "acceptance": [
+        "Use effective context and scoped role summaries; multi-role UI and learner IDs correct; no client inference from legacy labels; previous supported binary compatibility exercised"
+      ],
+      "evidence": [
+        "LMS-012-CLIENT-RECONCILIATION.md",
+        "evidence/lms-012-client-validation.json"
+      ]
+    },
+    {
+      "id": "LMS-013",
+      "title": "Prove client retirement and schema-recovery readiness",
+      "priority": "P1",
+      "ownerRole": "Platform + Mobile + QA",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-012",
+        "LMS-043"
+      ],
+      "acceptance": [
+        "Old endpoint/build usage measured; minimum supported builds enforced; supported new builds distributed and verified; v1/v2-compatible recovery choices documented and rehearsed"
+      ],
+      "evidence": [
+        "SERVER-HANDOVER-RBAC-STEP-03-CLIENT-CONTRACTS-AND-UI.md",
+        "evidence/lms-013-staging-legacy-role-usage.json",
+        "evidence/lms-040-mobile-artifact-discovery.json"
+      ],
+      "reason": "The private log counter summarizes legacy role requests and opt-in observations from successful native Wallet sign-ins. The native build floor is implemented. A preliminary 24-hour staging log sample found no legacy role PATCH requests. It spans an API start and the deployed build lacks native build observations. Continuous coverage, approved floors and installed builds, other legacy sessions and clients, distribution, and release recovery acceptance remain open."
+    },
+    {
+      "id": "LMS-014",
+      "title": "Reconcile and rehearse legacy schema retirement (#101)",
+      "priority": "P1",
+      "ownerRole": "API + Platform",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-013",
+        "LMS-061"
+      ],
+      "acceptance": [
+        "Explicit offline contraction on protected copy preserves retained cells/grants/history; old image/new DB refuses before writes; release-ready migration and compatible recovery evidence recorded; live contraction remains in the release procedure"
+      ],
+      "evidence": [
+        "LMS-014-SCHEMA-RETIREMENT-REHEARSAL.md",
+        "evidence/lms-014-synthetic-retirement-validation.json"
+      ],
+      "reason": "Synthetic current-schema contraction preserved retained data and grants, compiled v1 refused the contracted database before writes, and a restored v1 copy started. Reconciled v2 application, installed-client retirement and exact-image protected-copy acceptance remain open."
+    },
+    {
+      "id": "LMS-020",
+      "title": "Implement real sponsor access-revocation lifecycle coverage",
+      "priority": "P2",
+      "ownerRole": "API + QA",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-011"
+      ],
+      "acceptance": [
+        "Authenticate sponsor; prove own resources accessible; revoke role/ownership and invalidate session through actual supported operation; same session/new login deny affected resources without affecting another sponsor"
+      ],
+      "evidence": [
+        "LMS-020-SPONSOR-REVOCATION.md",
+        "evidence/lms-020-validation.json",
+        "evidence/lms-020-browser-download-session-validation.json"
+      ],
+      "reason": "Local lifecycle coverage exercises membership and role revocation for receipts, badges, billing and CSV exports with private response caching disabled. Final LMS-011 acceptance remains open."
+    },
+    {
+      "id": "LMS-021",
+      "title": "Build quantitative sponsor reporting and billing acceptance pack",
+      "priority": "P2",
+      "ownerRole": "API + Web + QA",
+      "status": "done",
+      "dependencies": [
+        "LMS-001"
+      ],
+      "acceptance": [
+        "Multiple cohorts/courses/currencies and 0/partial/full completion seeded; independent SQL expectations equal API/UI/CSV; date edges, receipts, empty/error/retry and cross-owner boundaries verified"
+      ],
+      "evidence": [
+        "LMS-021-QUANTITATIVE-SPONSOR-REPORTING.md",
+        "evidence/lms-021-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
+      ]
+    },
+    {
+      "id": "LMS-022",
+      "title": "Execute sponsor staging and cross-browser/accessibility acceptance",
+      "priority": "P2",
+      "ownerRole": "QA",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-006",
+        "LMS-020",
+        "LMS-021",
+        "LMS-012"
+      ],
+      "acceptance": [
+        "Chrome/Firefox/Safari and phone-width workflows pass against pinned staging; representative cohort owner/revocation and receipt/CSV evidence signed off"
+      ],
+      "evidence": [
+        "LMS-022-CROSS-BROWSER-ACCEPTANCE.md",
+        "evidence/lms-022-validation.json",
+        "LMS-CI-FOLLOWUP-2026-11-06.md"
+      ]
+    },
+    {
+      "id": "LMS-023",
+      "title": "Verify integrated Wallet/account and course-payment providers",
+      "priority": "P2",
+      "ownerRole": "API + QA + Platform",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-012",
+        "LMS-030"
+      ],
+      "acceptance": [
+        "Staging Wallet SSO/verified-email/recovery/CAPTCHA/2FA and email capture tested; course payment authorization, signed webhooks, duplicate/reorder, receipts and refunds verified in sandbox; live enablement has separate approved receipt"
+      ],
+      "evidence": [
+        "LMS-023-COURSE-CHECKOUT.md",
+        "evidence/lms-023-staging-sso-entry.json",
+        "evidence/lms-023-staging-proxy-validation.json",
+        "evidence/lms-023-proxy-correction-rehearsal.json",
+        "evidence/lms-023-staging-proxy-correction.json",
+        "evidence/lms-023-staging-provider-readiness.json",
+        "evidence/lms-023-staging-wallet-build-provenance.json",
+        "evidence/lms-023-staging-tester-sign-in.json",
+        "evidence/lms-023-staging-wallet-buildx-provenance.json"
+      ],
+      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. The approved path-specific staging Nginx correction passed direct and public callback checks plus all six independent smoke checks. The designated Wallet tester has a verified email. The running LMS Paystack key is live-mode and controlled email capture remains unverified. Docker Buildx records the approved Wallet API image ID and verified source revision. The owner successfully exercised one staging Wallet sign-in. The candidate supports timestamped Paystack webhook signing with signing-key rotation. The compiled loopback Paystack runner passed its synthetic preflight and refused a live-mode key. Its provider run requires a test merchant key and a dedicated HTTPS webhook. The exact candidate, Wallet recovery and challenge checks, approved Paystack test-mode target and complete provider acceptance remain open."
+    },
+    {
+      "id": "LMS-030",
+      "title": "Implement durable reward funding intents and availability contract",
+      "priority": "P2",
+      "ownerRole": "API",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-011"
+      ],
+      "acceptance": [
+        "Intent binds owner, reward, source, network/asset/currency and integer amount; verified evidence consumed uniquely in same ledger transaction; UI advertises only supported funding paths; restart/replay/concurrency cannot credit twice"
+      ],
+      "evidence": [
+        "LMS-030-DURABLE-FUNDING.md",
+        "evidence/lms-030-validation.json"
+      ],
+      "reason": "Durable intents plus Stellar and backed-credit adapters are implemented locally with shared atomic consumption. Staging acceptance and LMS-011 remain open; Company treasury acceptance is LMS-033. Paystack conversion is deferred beyond the MVP."
+    },
+    {
+      "id": "LMS-031",
+      "title": "Implement Stellar funding verification",
+      "priority": "P2",
+      "ownerRole": "API + Platform",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-030"
+      ],
+      "acceptance": [
+        "Verify successful finalized operation, exact network/destination/native asset/amount and intent binding; unique operation consumed once; testnet replay/wrong-network/underpayment and provider timeout cases pass"
+      ],
+      "evidence": [
+        "LMS-031-STELLAR-VERIFICATION.md",
+        "evidence/lms-031-verifier-validation.json",
+        "evidence/lms-031-integration-validation.json",
+        "evidence/lms-031-real-testnet-validation.json"
+      ],
+      "reason": "Hosted Stellar/backed-credit follow-up 38a3d3a passed all CI and mobile jobs. The approved real Stellar testnet run on compiled b812f6c passed exact payment, underpayment, replay, wrong-network rejection, injected provider failure and backing/credit checks. Owner-selected public receiver is active; purpose-bound public staging payment, RBAC and recovery gates remain open."
+    },
+    {
+      "id": "LMS-032",
+      "title": "Implement backed platform-credit provisioning",
+      "priority": "P2",
+      "ownerRole": "API + Platform",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-030"
+      ],
+      "acceptance": [
+        "Independent authorization and audit required; backed ledger credit provisioned/reserved/consumed atomically; insufficient/duplicate/concurrent attempts cannot create or overspend value"
+      ],
+      "evidence": [
+        "LMS-032-BACKED-PLATFORM-CREDIT.md",
+        "evidence/lms-032-validation.json",
+        "evidence/lms-032-hosted-validation.json",
+        "evidence/lms-031-real-testnet-validation.json"
+      ],
+      "reason": "Verified-backed pool, independent allocation approval, audited reservations and atomic reward consumption implemented. Hosted d575fd8 passed all CI/mobile jobs. Approved real Stellar testnet run verified actual backing, independent approval and replay-safe consumption. Actual treasury/staging acceptance and LMS-030 dependency remain open."
+    },
+    {
+      "id": "LMS-033",
+      "title": "Accept company-funded MVP treasury and rewards",
+      "priority": "P2",
+      "ownerRole": "API + Platform + Product owner",
+      "status": "awaiting_input",
+      "dependencies": [
+        "LMS-030",
+        "LMS-031",
+        "LMS-032"
+      ],
+      "acceptance": [
+        "Company-funded rewards and bounded smart-contract fee support use verified backing and independent allocation approval. Confirm wallet control, pilot limits and reserve reconciliation in acceptance. Course payments cannot create XLM backing or buy rewards.",
+        "Keep treasury registration, contact and wallet association out of public LMS surfaces and repository evidence. Treat Mainnet balances and transfers as public."
+      ],
+      "evidence": [
+        "LMS-COMPLETION-PLAN-2026-11-05.md",
+        "LMS-032-BACKED-PLATFORM-CREDIT.md",
+        "evidence/lms-033-hosted-treasury-validation.json"
+      ],
+      "reason": "The owner supplied treasury details privately and set a cumulative 0.1 XLM cap per learner. The treasury account was observed on the public network. New public backing verifies the configured company sender. The draft enforces the learner cap and requires a configured total budget. Hosted CI passed on both draft lines for sender binding and internal reconciliation. Wallet control and reserve reconciliation remain operator gates. Paystack-to-XLM conversion is deferred beyond the MVP.",
+      "inputRequired": "Confirm the total pilot allocation cap, wallet control, the independent initiator and approver, and reconciliation procedure. Obtain review of the real-XLM grant flow before enabling it."
+    },
+    {
+      "id": "LMS-034",
+      "title": "Accept complete reward funding lifecycle",
+      "priority": "P2",
+      "ownerRole": "QA + Platform",
+      "status": "open",
+      "dependencies": [
+        "LMS-031",
+        "LMS-032",
+        "LMS-033",
+        "LMS-023"
+      ],
+      "acceptance": [
+        "Each promised source funds and reconciles in staging; failure/retry/expiry/reversal tested; exact provider/environment contract reviewed before production enablement"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "LMS-040",
+      "title": "Prepare pinned signed mobile acceptance builds",
+      "priority": "P1",
+      "ownerRole": "Mobile + Platform",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-004",
+        "LMS-007",
+        "LMS-012",
+        "LMS-023"
+      ],
+      "acceptance": [
+        "Android ARM device artifact and iOS signed build generated for authorized staging with correct callback scheme/endpoints; hashes/version IDs recorded; no embedded private secrets"
+      ],
+      "evidence": [
+        "mobile-device-acceptance-followup.md",
+        "evidence/lms-040-mobile-artifact-discovery.json",
+        "evidence/lms-023-staging-wallet-buildx-provenance.json"
+      ],
+      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. The device report checker requires an independently pinned manifest of both artifacts and the API and Wallet revisions. Artifact discovery confirmed the retained APK is x86_64 emulator-only. The app preserves a linked Expo project ID and refuses an environment mismatch. Expo build history requires project access. The staging Wallet API source revision was verified via Docker Buildx for the observed image. Provider acceptance, signing, approved artifact inspection and device distribution remain open."
+    },
+    {
+      "id": "LMS-041",
+      "title": "Run physical Android acceptance",
+      "priority": "P1",
+      "ownerRole": "QA + Mobile",
+      "status": "open",
+      "dependencies": [
+        "LMS-040"
+      ],
+      "acceptance": [
+        "All 8 required groups pass on actual physical Android; binary/API/Wallet/device versions and redacted evidence recorded; failed scenarios fixed and affected groups rerun"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "LMS-042",
+      "title": "Run physical iOS acceptance",
+      "priority": "P1",
+      "ownerRole": "QA + Mobile",
+      "status": "open",
+      "dependencies": [
+        "LMS-040"
+      ],
+      "acceptance": [
+        "All 8 required groups pass on actual physical iOS; OS document/share/background/callback and VoiceOver evidence recorded; Windows bundle export not substituted"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "LMS-043",
+      "title": "Approve installed-client compatibility and distribution",
+      "priority": "P1",
+      "ownerRole": "Mobile + QA + Platform",
+      "status": "open",
+      "dependencies": [
+        "LMS-041",
+        "LMS-042"
+      ],
+      "acceptance": [
+        "Reviewer inspects underlying device evidence and verifies attestation checker; upgrade/rollback/minimum-build behavior tested; release signing/distribution receipts recorded"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "LMS-050",
+      "title": "Complete push notifications",
+      "priority": "P3",
+      "ownerRole": "Mobile + API",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-012",
+        "LMS-023"
+      ],
+      "acceptance": [
+        "Permission/registration, user-installation token ownership, durable event outbox, delivery retries, foreground/background/deep links and logout/revocation behavior pass on physical Android/iOS"
+      ],
+      "evidence": [
+        "LMS-050-PUSH-NOTIFICATIONS.md",
+        "evidence/lms-050-server-validation.json",
+        "evidence/lms-050-native-validation.json"
+      ],
+      "reason": "Server outbox and native installation lifecycle implemented. Device removal now requires a current delivery claim and commits with cancellation of sibling work. Prior hosted CI, native tests and platform exports passed. Expo/APNs/FCM setup, signed builds, physical Android/iOS delivery and navigation acceptance, and LMS-012/LMS-023 dependencies remain open."
+    },
+    {
+      "id": "LMS-051",
+      "title": "Complete durable offline learning and progress sync",
+      "priority": "P3",
+      "ownerRole": "Mobile + API",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-012",
+        "LMS-030"
+      ],
+      "acceptance": [
+        "Versioned per-account cached permitted content and durable idempotent progress queue survive process kill; acknowledged completion only; replay/conflict/revocation/expiry/account-switch and storage exhaustion cases pass"
+      ],
+      "evidence": [
+        "LMS-051-OFFLINE-LEARNING.md",
+        "evidence/lms-051-server-validation.json",
+        "evidence/lms-051-native-validation.json"
+      ],
+      "reason": "Server lease and replay-safe progress API, native SQLCipher cache and durable queue are implemented. Local checks include retrying a failed expired-package replacement without losing its prior queue during the failed write. Owner-approved course and lease policy, signed Android/iOS device acceptance, and LMS-012/LMS-030 remain open."
+    },
+    {
+      "id": "LMS-060",
+      "title": "Run complete reconciled release-candidate validation",
+      "priority": "P1",
+      "ownerRole": "QA + Delivery lead",
+      "status": "open",
+      "dependencies": [
+        "LMS-002",
+        "LMS-003",
+        "LMS-005",
+        "LMS-006",
+        "LMS-007",
+        "LMS-014",
+        "LMS-022",
+        "LMS-034",
+        "LMS-043",
+        "LMS-050",
+        "LMS-051"
+      ],
+      "acceptance": [
+        "One exact final candidate has fresh full Linux/Windows API, web, native, E2E and dependency receipts; affected device groups rerun after final changes and integrated attestation covers core, push and offline groups on both platforms; no expected-failure authorization targets or unexplained failures/skips"
+      ],
+      "evidence": [
+        "LMS-COMPLETION-STATUS.md"
+      ],
+      "reason": "Hosted draft CI passed full Linux and Windows API validation, browser tests and mobile checks. Each Windows suite skipped the existing protected-copy case. Final candidate selection, protected-copy evidence and physical device acceptance are outstanding."
+    },
+    {
+      "id": "LMS-061",
+      "title": "Rehearse exact images, migrations and recoverability",
+      "priority": "P1",
+      "ownerRole": "Platform owner",
+      "status": "in_progress",
+      "dependencies": [
+        "LMS-010",
+        "LMS-011"
+      ],
+      "acceptance": [
+        "Private WAL-safe backup with off-host recoverability proven; exact candidate/recovery image + schema combinations, writer hold, restoration and reconciliation rehearsed on protected copies"
+      ],
+      "evidence": [
+        "LMS-061-RECOVERY-REHEARSAL.md",
+        "evidence/lms-061-hosted-image-validation.json",
+        "evidence/lms-061-staging-retained-recovery-diagnostic.json",
+        "evidence/lms-061-r2-snapshot-verification.json"
+      ],
+      "reason": "The retrieved-backup verifier and hosted synthetic image jobs passed. A paired run confirmed the v1 API image refused the contracted v2 fixture without writes and started from its v1 restoration. The retained staging backup passed its receipt and database contract checks. The configured policy differs on source SHA, target SHA and recovery image IDs. The encrypted R2 manifest includes the scheduled application and mail backup scopes. A scheduled LMS SQLite sample retrieved from R2 matched the local copy. Verification of the selected release capture on a separate recovery host, restoration with release-selected images and LMS-010/LMS-011 remain open."
+    },
+    {
+      "id": "LMS-062",
+      "title": "Execute guarded release and observation",
+      "priority": "P1",
+      "ownerRole": "Platform owner",
+      "status": "open",
+      "dependencies": [
+        "LMS-060",
+        "LMS-061"
+      ],
+      "acceptance": [
+        "Authorized maintenance uses pinned image IDs and matching policy; final quiesced backup/migration/hold checks pass; build, role/scope/session/progress/provider checks and agreed 24h monitor pass; recovery verified"
+      ],
+      "evidence": [
+        "AUTH-14-held-release.md",
+        "LMS-023-COURSE-CHECKOUT.md"
+      ],
+      "reason": "The reviewed release policy can require the public Wallet callback check before releasing writers. The corrected staging callback now passes the independent public smoke check on the deployed staging revision. The offline verifier accepts digest-pinned 24-hour evidence at its recorded end. Approved maintenance, exact-image recovery, integrated checks and live observation remain open."
+    },
+    {
+      "id": "LMS-063",
+      "title": "Reconcile historical documentation and close completion ledger",
+      "priority": "P3",
+      "ownerRole": "Delivery lead + QA",
+      "status": "open",
+      "dependencies": [
+        "LMS-062"
+      ],
+      "acceptance": [
+        "Old documents marked historical with current links; #62/#102/#103 disposition reviewed separately; every task has linked implementation, tests and acceptance evidence; any residual gap remains open"
+      ],
+      "evidence": [
+        "LMS-COMPLETION-STATUS.md"
+      ],
+      "reason": "Historical PR dispositions are recorded separately. Final ledger closure requires LMS-062 and linked acceptance receipts for the released candidate."
+    }
+  ],
+  "executionContext": {
+    "staging": {
+      "lms": "https://lms.smwebsystems.com",
+      "wallet": "https://ammawallet.com",
+      "classification": "owner-confirmed staging",
+      "contact": "Mukhtar Meer"
+    },
+    "settlement": {
+      "status": "not_configured",
+      "provider": null,
+      "custody": null
+    },
+    "physicalDevicesAndSigning": "not yet supplied",
+    "stellarRewardFunding": {
+      "network": "public",
+      "receivingAccount": "owner supplied; kept in ignored local configuration",
+      "readOnlyAccountReadiness": "confirmed active after owner funded",
+      "serverConfigured": false
+    }
+  }
+}

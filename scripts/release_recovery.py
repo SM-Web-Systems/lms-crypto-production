@@ -38,6 +38,12 @@ require = pre.require
 ReleaseError = pre.ReleaseError
 
 
+class CompatibilityPolicyMismatch(ReleaseError):
+    def __init__(self, fields):
+        super().__init__('COMPATIBILITY_POLICY_MISMATCH')
+        self.fields = tuple(fields)
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode() + b'\n'
 
@@ -70,13 +76,18 @@ def immutable_json(path, value):
     sync_directory(path.parent)
 
 
-def read_private_json(path):
+def read_private_json(path, expected_sha256=None):
     path = pre._path(str(path))
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 1024 * 1024, 'METADATA_FILE_INVALID')
     if os.name != 'nt':
         require(stat.S_IMODE(path.stat().st_mode) & 0o077 == 0, 'METADATA_FILE_NOT_PRIVATE')
     try:
-        value = json.loads(path.read_bytes())
+        with path.open('rb') as handle:
+            data = handle.read(1024 * 1024 + 1)
+        require(len(data) <= 1024 * 1024, 'METADATA_FILE_INVALID')
+        if expected_sha256 is not None:
+            require(hashlib.sha256(data).hexdigest() == expected_sha256, 'METADATA_HASH_MISMATCH')
+        value = json.loads(data)
     except (OSError, ValueError, UnicodeError):
         raise ReleaseError('METADATA_JSON_INVALID') from None
     require(isinstance(value, dict), 'METADATA_JSON_INVALID')
@@ -135,6 +146,7 @@ def verify_backup(target, backup):
 
 def verify_policy(target, backup, policy):
     require(isinstance(policy, dict) and policy.get('version') == 1, 'REVIEWED_COMPATIBILITY_POLICY_REQUIRED')
+    require(type(policy.get('require_wallet_callback', False)) is bool, 'WALLET_CALLBACK_POLICY_INVALID')
     reference = policy.get('review_reference')
     require(isinstance(reference, str) and 1 <= len(reference) <= 200 and '\n' not in reference and '\r' not in reference,
             'INDEPENDENT_REVIEW_REFERENCE_REQUIRED')
@@ -144,21 +156,24 @@ def verify_policy(target, backup, policy):
     if not historical:
         require(isinstance(source, str) and bool(pre.SHA.fullmatch(source)) and
                 target['services']['web']['revision'] == source, 'HISTORICAL_IMAGE_REVISION_UNKNOWN_OR_MIXED')
-    for key, value in {'source_sha': source, 'target_sha': target['approved_sha'],
-                       'project': target['project'], 'repository': target['repository'],
-                       'database': target['database'], 'compose_sha256': target['compose_sha256'],
-                       'financial_state_sha256': backup['financial_state_sha256'],
-                       'foreign_key_violation_count': backup['foreign_key_violation_count'],
-                       'foreign_key_violations_sha256': backup['foreign_key_violations_sha256'],
-                       'images': {service: target['services'][service]['image_id'] for service in ('api', 'web')}}.items():
-        require(policy.get(key) == value, 'COMPATIBILITY_POLICY_MISMATCH')
+    expected = {'source_sha': source, 'target_sha': target['approved_sha'],
+                'project': target['project'], 'repository': target['repository'],
+                'database': target['database'], 'compose_sha256': target['compose_sha256'],
+                'financial_state_sha256': backup['financial_state_sha256'],
+                'foreign_key_violation_count': backup['foreign_key_violation_count'],
+                'foreign_key_violations_sha256': backup['foreign_key_violations_sha256'],
+                'images': {service: target['services'][service]['image_id'] for service in ('api', 'web')}}
+    mismatches = [key for key, value in expected.items() if policy.get(key) != value]
+    if mismatches:
+        raise CompatibilityPolicyMismatch(mismatches)
     # A migrating release has two reviewed schemas; the recovery contract
     # still compares the live database against this exact backup.
     migration = policy.get('migration')
     if migration is not None:
         require(isinstance(migration, dict) and set(migration) == {'pre_schema_sha256'} and
                 isinstance(migration['pre_schema_sha256'], str) and bool(HASH.fullmatch(migration['pre_schema_sha256'])), 'MIGRATION_POLICY_INVALID')
-    require(backup['schema_sha256'] in (policy.get('schema_sha256'), (migration or {}).get('pre_schema_sha256')), 'COMPATIBILITY_POLICY_MISMATCH')
+    if backup['schema_sha256'] not in (policy.get('schema_sha256'), (migration or {}).get('pre_schema_sha256')):
+        raise CompatibilityPolicyMismatch(('schema_sha256',))
     for key in ('schema_sha256', 'financial_state_sha256', 'compose_sha256', 'foreign_key_violations_sha256'):
         require(isinstance(policy[key], str) and bool(HASH.fullmatch(policy[key])), 'COMPATIBILITY_HASH_INVALID')
 
@@ -348,16 +363,31 @@ class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl): return None
 
 
-def get_http(url):
+def get_http(url, *, headers_only=False):
     opener = build_opener(ProxyHandler({}), NoRedirect())
+
+    def read(response):
+        return response.code, response.headers if headers_only else response.read(1024 * 1024 + 1)
+
     try:
         with opener.open(Request(url, method='GET'), timeout=5) as response:
-            return response.status, response.read(1024 * 1024 + 1)
+            return read(response)
     except HTTPError as error:
-        try: return error.code, error.read(1024 * 1024 + 1)
+        try: return read(error)
         finally: error.close()
     except (OSError, URLError):
         raise ReleaseError('RECOVERY_HTTP_UNAVAILABLE') from None
+
+
+def verify_wallet_callback(base_url):
+    status, headers = get_http(base_url + '/api/v1/auth/amma-callback', headers_only=True)
+    require(status == 302, 'WALLET_CALLBACK_STATUS_MISMATCH')
+    for name, expected, code in (
+        ('Referrer-Policy', 'no-referrer', 'WALLET_CALLBACK_REFERRER_POLICY_MISMATCH'),
+        ('Cache-Control', 'no-store', 'WALLET_CALLBACK_CACHE_POLICY_MISMATCH'),
+    ):
+        values = [value.strip().lower() for value in headers.get_all(name, ())]
+        require(values == [expected], code)
 
 
 def validate_base_url(value):
@@ -511,6 +541,8 @@ def _rollback_locked(config, state, policy, runner, http, timeout):
         image = inspect_image(runner, target, retained['tag'])
         require(image['Id'] == retained['image_id'] == target['services'][service]['image_id'] and
                 (image.get('Config', {}).get('Labels') or {}).get(REVISION_LABEL) == retained['revision'], 'RECOVERY_RETAINED_IMAGE_CHANGED')
+        if service == 'api':
+            pre.validate_image_authorization(image, Path(target['database']['host_path']))
         expected[service] = retained['image_id']
     base_url = validate_base_url(config.get('base_url'))
     # Stop the sole application writer and verify it is stopped BEFORE taking
@@ -674,6 +706,8 @@ def release_hold(config, runner=None, policy=None, execute=None, http=None, time
         current = pre._source_metadata(Path(target['database']['host_path']))
         verify_database_contract(current, manifest['backup'])
         verify_protected_content(current, held)
+        if policy.get('require_wallet_callback') is True:
+            verify_wallet_callback(base_url)
         # Before the release, so a lost exec can never leave rollback eligible.
         if not marker.exists(): immutable_json(marker, {'manifest_id': manifest['manifest_id']})
         try:
@@ -698,6 +732,10 @@ def deploy(config, runner=None, policy=None, execute=None, http=None, timeout=60
         # reviewed image IDs and baseline just before any replacement; ongoing
         # financial activity blocks this mode.
         built = reviewed_images(target, policy, runner)
+        # Keep the reviewed immutable images; do not restore the old inline
+        # build path. Validate the selected API's RBAC contract before stopping.
+        pre.validate_image_authorization(inspect_image(runner, target, built['api']),
+                                         Path(target['database']['host_path']))
         containers = verify_checkout_context(config, target, runner, source_configs(target))
         require(all(containers[service]['Image'] == target['services'][service]['image_id'] for service in ('api', 'web')), 'PRE_DEPLOY_CONTAINER_IMAGE_CHANGED')
         verify_database_contract(pre._source_metadata(Path(target['database']['host_path'])), manifest['backup'])

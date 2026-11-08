@@ -1,0 +1,22 @@
+{
+  "task": "LMS-023",
+  "observedOn": "2026-11-08",
+  "walletTester": {
+    "stagingRouteAndDatabaseMatched": true,
+    "matchingAccounts": 1,
+    "verifiedEmailMatches": 1,
+    "activePendingEmailClaims": 0,
+    "authenticatedSignInVerified": false
+  },
+  "paystack": {
+    "runningLmsKeyMode": "live",
+    "testModeMerchantVerified": false,
+    "providerRequestsMade": false
+  },
+  "walletMail": {
+    "smtpConfigured": true,
+    "controlledCaptureVerified": false,
+    "emailSent": false
+  },
+  "method": "Read-only matching counts for the designated tester and in-container classification of provider configuration. The evidence excludes email addresses and credential values."
+}

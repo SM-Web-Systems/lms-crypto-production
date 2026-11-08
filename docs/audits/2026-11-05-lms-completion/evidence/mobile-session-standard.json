@@ -1,0 +1,115 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "06536b32804653f78ff2a5cc5fd612a84ed59e6d251d055c9d3b86ee2c5d3000",
+  "numFailedTestSuites": 0,
+  "numFailedTests": 0,
+  "numPassedTestSuites": 1,
+  "numPassedTests": 18,
+  "numPendingTestSuites": 0,
+  "numPendingTests": 0,
+  "numRuntimeErrorTestSuites": 0,
+  "numTodoTests": 0,
+  "numTotalTestSuites": 1,
+  "numTotalTests": 18,
+  "startTime": 1793911223822,
+  "success": true,
+  "wasInterrupted": false,
+  "testResults": [
+    {
+      "name": "LMS-Mobile/src/__tests__/session-restoration.test.tsx",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "A14 resilient native sessions establishes the wallet session with the effective authorization returned by the API",
+          "status": "passed",
+          "duration": 4302
+        },
+        {
+          "fullName": "A14 resilient native sessions does not restore a wallet result after local logout",
+          "status": "passed",
+          "duration": 108
+        },
+        {
+          "fullName": "A14 resilient native sessions does not rehydrate the previous identity when the browser foregrounds during wallet sign-in",
+          "status": "passed",
+          "duration": 97
+        },
+        {
+          "fullName": "A14 resilient native sessions restores an authoritative session",
+          "status": "passed",
+          "duration": 70
+        },
+        {
+          "fullName": "A14 resilient native sessions keeps recoverable credentials and retries a startup failure: ApiRequestError: Server unavailable\n    at <audit-root>\\source\\LMS-Mobile\\src\\__tests__\\session-restoration.test.tsx:81:5\n    at _dispatchDescribe (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\index.js:91:26)\n    at describe (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\index.js:55:5)\n    at Object.describe (<audit-root>\\source\\LMS-Mobile\\src\\__tests__\\session-restoration.test.tsx:44:1)\n    at Runtime._execModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:1439:24)\n    at Runtime._loadModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:1022:12)\n    at Runtime.requireModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:882:12)\n    at jestAdapter (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\legacy-code-todo-rewrite\\jestAdapter.js:77:13)\n    at runTestInternal (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runner\\build\\runTest.js:367:16)\n    at runTest (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runner\\build\\runTest.js:444:34) {\n  status: 503,\n  code: undefined,\n  details: undefined\n}",
+          "status": "passed",
+          "duration": 126
+        },
+        {
+          "fullName": "A14 resilient native sessions keeps recoverable credentials and retries a startup failure: ApiRequestError: Request timed out\n    at <audit-root>\\source\\LMS-Mobile\\src\\__tests__\\session-restoration.test.tsx:82:5\n    at _dispatchDescribe (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\index.js:91:26)\n    at describe (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\index.js:55:5)\n    at Object.describe (<audit-root>\\source\\LMS-Mobile\\src\\__tests__\\session-restoration.test.tsx:44:1)\n    at Runtime._execModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:1439:24)\n    at Runtime._loadModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:1022:12)\n    at Runtime.requireModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:882:12)\n    at jestAdapter (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\legacy-code-todo-rewrite\\jestAdapter.js:77:13)\n    at runTestInternal (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runner\\build\\runTest.js:367:16)\n    at runTest (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runner\\build\\runTest.js:444:34) {\n  status: undefined,\n  code: undefined,\n  details: undefined\n}",
+          "status": "passed",
+          "duration": 133
+        },
+        {
+          "fullName": "A14 resilient native sessions keeps recoverable credentials and retries a startup failure: ApiRequestError: Airplane mode\n    at <audit-root>\\source\\LMS-Mobile\\src\\__tests__\\session-restoration.test.tsx:83:5\n    at _dispatchDescribe (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\index.js:91:26)\n    at describe (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\index.js:55:5)\n    at Object.describe (<audit-root>\\source\\LMS-Mobile\\src\\__tests__\\session-restoration.test.tsx:44:1)\n    at Runtime._execModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:1439:24)\n    at Runtime._loadModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:1022:12)\n    at Runtime.requireModule (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runtime\\build\\index.js:882:12)\n    at jestAdapter (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-circus\\build\\legacy-code-todo-rewrite\\jestAdapter.js:77:13)\n    at runTestInternal (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runner\\build\\runTest.js:367:16)\n    at runTest (<audit-root>\\source\\LMS-Mobile\\node_modules\\jest-runner\\build\\runTest.js:444:34) {\n  status: undefined,\n  code: undefined,\n  details: undefined\n}",
+          "status": "passed",
+          "duration": 131
+        },
+        {
+          "fullName": "A14 resilient native sessions clears an expired or revoked startup token",
+          "status": "passed",
+          "duration": 77
+        },
+        {
+          "fullName": "A14 resilient native sessions centrally clears a later unauthorized request",
+          "status": "passed",
+          "duration": 81
+        },
+        {
+          "fullName": "A14 resilient native sessions retains the active user on transient refresh failure and refreshes role context on foreground",
+          "status": "passed",
+          "duration": 89
+        },
+        {
+          "fullName": "A14 resilient native sessions a late old hydration or 401 cannot overwrite a newer login",
+          "status": "passed",
+          "duration": 168
+        },
+        {
+          "fullName": "A14 resilient native sessions a restore completing after sign-out cannot resurrect the user",
+          "status": "passed",
+          "duration": 163
+        },
+        {
+          "fullName": "A14 resilient native sessions keeps an in-memory login when secure persistence fails and explains it",
+          "status": "passed",
+          "duration": 73
+        },
+        {
+          "fullName": "A14 resilient native sessions does not interpret a secure-storage read error as an absent session",
+          "status": "passed",
+          "duration": 71
+        },
+        {
+          "fullName": "A14 resilient native sessions a late profile save cannot restore an identity after logout or replace newer permissions",
+          "status": "passed",
+          "duration": 119
+        },
+        {
+          "fullName": "A14 resilient native sessions offers a retry when clearing saved credentials fails",
+          "status": "passed",
+          "duration": 105
+        },
+        {
+          "fullName": "A14 resilient native sessions a delayed old logout cannot clear or revoke a newer login when storage returns saved-token",
+          "status": "passed",
+          "duration": 85
+        },
+        {
+          "fullName": "A14 resilient native sessions a delayed old logout cannot clear or revoke a newer login when storage returns new-token",
+          "status": "passed",
+          "duration": 85
+        }
+      ]
+    }
+  ]
+}

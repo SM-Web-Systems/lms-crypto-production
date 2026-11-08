@@ -1,0 +1,80 @@
+{
+  "status": "server_and_native_implemented_signed_device_acceptance_open",
+  "sourceBase": "8b8d5a198ebac447ae93751fb53a8f40c06cebb8",
+  "sourceFileSha256": {
+    "LMS-Mobile/src/__tests__/screens/offline-reader.test.tsx": "a0e4839c574c77866accaabbe6c2d2ecdff19ebe319422f48b00134f9aa98f93",
+    "LMS-Mobile/src/__tests__/services/offline-learning.test.ts": "d546bb2f9650f930f17baa989d265260ae245c49d5081515732b96aa716663c2",
+    "LMS-Mobile/src/__tests__/services/offline-vault.test.ts": "be6b1482b9fe501ef65cd17b218b4aa0070a6aaba010d75208ca7762843cf509",
+    "LMS-Mobile/src/components/OfflineLearningPanel.tsx": "b05dc4341497a7e524a33f860403b77d58e7484fc1b0d2f94072e34fd3fa1934",
+    "LMS-Mobile/src/services/offlineLearning.ts": "7aa92126f311d6b80a1b1096a49a1ab51053f2b78a75590bfe8e8e0f7bd1851d",
+    "LMS-Mobile/src/services/offlineLearningNative.ts": "c423d5cd73732ce00e1111c18ad43839cc2c131f3d97aedc779ce90f6449fafe",
+    "LMS-Mobile/src/services/offlineSQLite.ts": "b1ffecea5357f7a456590b6eedb260af90c371dd0211a9683023475777973e89",
+    "LMS-Mobile/src/services/offlineSQLite.web.ts": "f68dd347bb1ffd6cc7ac6c78bb5c9afa3c877317aa6473155dc4d37440252355",
+    "LMS-Mobile/app.config.ts": "cdacc740cfe4de4cafcfb105d5e1906ee9aa4caa30ec3e2141c334e6942937b1",
+    "LMS-Mobile/package-lock.json": "4189d461625cbf29360e5d42ee6d56788b11812a3aa4e417b81ce75b4b2f4c4a",
+    "LMS-Mobile/package.json": "5d6c2ed20ed1003fae035ed081d6c86601d64417870a143b752e70c56eacf483",
+    "LMS-Mobile/src/app/(student)/course.tsx": "4fbbce963d611b15428742de8b2e71dc555321c6f01ee15e078495fb2bd45956",
+    "LMS-Mobile/src/components/SessionBoundary.tsx": "498f1a4ce91c295fde0dc9d030bb3dee5f8e61e5def375e6283c374125b3fcdf",
+    "LMS-Mobile/src/context/AuthContext.tsx": "be7d6689971198abd9c820972b7ccd845d2c898beea30a4e223a9c10dc3043a4",
+    "LMS-Server/src/__tests__/offline-learning.test.ts": "4e5d8d6804a29a2bc0017de8611fa688ade14982c05767fd2782e747d19a7fe0",
+    "LMS-Server/src/routes/lessonCompletions.ts": "ed78b7b1d071ba39645ad84daea11ff9a83dca730f300195ef61549347f094ae",
+    "LMS-Server/src/services/offlineLearningService.ts": "3da9bfda28d39ae8a63a677815a73957f81a398bf2d505752d323100c3c07eab"
+  },
+  "localChecks": {
+    "fullMobileSuitePassed": 182,
+    "finalFocusedPassed": 9,
+    "mobileTypeScript": "passed",
+    "serverTypeScript": "passed",
+    "serverLeaseContractTestsPassed": 6,
+    "deviceEvidenceCheckerCasesPassed": 3,
+    "cleanLockfileInstall": "passed_npm_10_9_9",
+    "offlineHermesExports": {
+      "android": {
+        "status": "passed",
+        "bytes": 5161205,
+        "sha256": "98aa9e04465ed9258fe97681051f6c37ada591863b19fdf605739c2f0e28ac80"
+      },
+      "ios": {
+        "status": "passed",
+        "bytes": 5160056,
+        "sha256": "fe70155046e44d33703a7a6d2a2b2444789dd8212ba0967e8d1d7a2214f538f8"
+      }
+    },
+    "webStaticExport": "passed_native_sqlite_excluded",
+    "nativeConfig": {
+      "androidSqlCipher": true,
+      "iosSqlCipher": true
+    },
+    "npmAudit": {
+      "info": 0,
+      "low": 24,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 24
+    }
+  },
+  "priorHostedServerCandidate": {
+    "commit": "36a8b7dd49954ecdfea96ef6a865897f6bc79d86",
+    "ciRun": 42343573926,
+    "mobileRun": 42343573925,
+    "status": "passed"
+  },
+  "receiptSha256": {
+    "lms-051-native-first.log": "16cbe3d4dea99246af5172ad2f5d7528f88cfae8e94f5ff58399492969a0d697",
+    "lms-051-native-final-focused.log": "dab143ce2ad008de3e4f0a4604807d0e110e99eefbb4a813ebd2064ede761735",
+    "lms-051-android-final.log": "6fa445e3f3346c353cb1cb07936a5237e998756c897193f20a819ab66abf4df0",
+    "lms-051-ios-final.log": "3a3fda075c9c577c16174a52eb058ca0bbecc1bfadc82351123e5e53efcf88d2",
+    "lms-051-web.log": "817416fcbee72bd3b32350bb3d8e6702d88cdda9fed8a36d36e2864439f85ee3",
+    "lms-051-native-config.json": "c681d5c895c121ca9739821d718d4ccfb5114da9095ae6ffc0ed774c17fc3fa0",
+    "lms-051-native-audit.json": "b22e1a6fcace7844fdc5f42dd8b3e6fd44bb7127ead9a0f12c9fd5b7ab37179e",
+    "lms-051-lease-status.log": "8b4f85208040ac6aa83f006c3fbed35114343eb8bf833a9d0d6545c05b63811e",
+    "lms-051-sqlite-npm10/clean-ci.log": "4cf135c33fc0bdf7f066853b3b31a48d10b4a81ff47bcddf8ee0e4b862246301"
+  },
+  "acceptance": {
+    "ownerCourseAndLeasePolicy": "pending",
+    "signedNativeBuilds": "pending",
+    "physicalEncryptionAndOfflineAcceptance": "pending_android_and_ios",
+    "stagingDeployment": false
+  }
+}

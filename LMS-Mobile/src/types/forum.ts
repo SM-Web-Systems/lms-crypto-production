@@ -1,8 +1,12 @@
+import type { RoleSummary } from './api';
+
 export interface ForumAuthor {
   id: string;
   name: string;
-  email: string;
-  role: 'student' | 'admin';
+  email: string | null;
+  rbacRoles?: string[];
+  roleSummaries?: RoleSummary[];
+  isDeleted?: boolean;
 }
 
 export interface ForumTopic {

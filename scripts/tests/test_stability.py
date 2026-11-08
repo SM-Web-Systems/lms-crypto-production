@@ -1,6 +1,7 @@
 """Offline subprocess fixtures: no network, Docker, mail or production files."""
 import copy
 import datetime as dt
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -30,12 +31,18 @@ class StabilityTests(unittest.TestCase):
             'rollback': dict(api_image='synthetic-api@sha256:abc', web_image='synthetic-web@sha256:def'),
         }
 
-    def run_evidence(self, data=None, start=None):
+    def run_evidence(self, data=None, start=None, end=None, pin=True):
         with tempfile.TemporaryDirectory(prefix='auth13-stability-') as directory:
             file = Path(directory)/'evidence.json'
             file.write_text(json.dumps(self.evidence if data is None else data), encoding='utf8')
-            result = subprocess.run([sys.executable,str(SCRIPT),'--evidence',str(file),
-                '--expected-sha',SHA,'--started-at',self.iso(start or self.start)], capture_output=True,text=True,timeout=15)
+            args = [sys.executable, str(SCRIPT), '--evidence', str(file),
+                    '--expected-sha', SHA, '--started-at', self.iso(start or self.start)]
+            if end is not None:
+                args.extend(['--ended-at', self.iso(end)])
+                if pin:
+                    digest = hashlib.sha256(file.read_bytes()).hexdigest() if pin is True else pin
+                    args.extend(['--expected-evidence-sha256', digest])
+            result = subprocess.run(args, capture_output=True, text=True, timeout=15)
             try: report = json.loads(result.stdout)
             except json.JSONDecodeError: report = {'verdict':'NO_REPORT','reasons':[result.stderr]}
             return result.returncode,report
@@ -43,6 +50,43 @@ class StabilityTests(unittest.TestCase):
     def test_complete_window_passes(self):
         code, report = self.run_evidence()
         self.assertEqual((code,report['verdict']),(0,'PASS'), report)
+
+    def test_archived_window_is_checked_at_its_original_end_and_pinned_to_its_bytes(self):
+        age = dt.timedelta(days=2)
+        self.start -= age
+        end = self.now - age
+        shifted = lambda value: self.iso(dt.datetime.fromisoformat(value.replace('Z', '+00:00')) - age)
+        for row in self.evidence['samples'] + self.evidence['deadman']:
+            row['timestamp'] = shifted(row['timestamp'])
+        for section in ('backup', 'mail_probe'):
+            self.evidence[section]['timestamp'] = shifted(self.evidence[section]['timestamp'])
+        self.evidence['heartbeat_at'] = shifted(self.evidence['heartbeat_at'])
+        outside = dict(self.evidence['samples'][-1], timestamp=self.iso(end + dt.timedelta(hours=1)), api_health='down')
+        self.evidence['samples'].append(outside)
+
+        code, report = self.run_evidence(end=end)
+        self.assertEqual((code, report['verdict']), (0, 'PASS'), report)
+        self.assertEqual(report['windowEnd'], end.isoformat())
+        self.assertRegex(report['evidenceSha256'], r'^[a-f0-9]{64}$')
+        self.assertEqual(self.run_evidence()[1]['verdict'], 'FAIL')
+
+        for pin, message in ((False, 'a pinned evidence SHA-256 is required for archived verification'),
+                             ('0' * 64, 'evidence SHA-256 mismatch')):
+            code, report = self.run_evidence(end=end, pin=pin)
+            self.assertEqual((code, report['verdict']), (1, 'FAIL'), report)
+            self.assertEqual(report['reasons'], [message])
+
+        self.evidence['mail_probe']['timestamp'] = outside['timestamp']
+        code, report = self.run_evidence(end=end)
+        self.assertEqual((code, report['verdict']), (2, 'PENDING'), report)
+        self.assertIn('mail probe evidence is stale or outside the window', report['reasons'])
+
+    def test_archived_window_refuses_future_or_reversed_end_times(self):
+        for end, message in ((self.now + dt.timedelta(hours=1), 'observation ends in the future'),
+                             (self.start - dt.timedelta(minutes=1), 'observation ends before it starts')):
+            code, report = self.run_evidence(end=end)
+            self.assertEqual((code, report['verdict']), (1, 'FAIL'), report)
+            self.assertIn(message, report['reasons'])
 
     def test_under_24_hours_is_pending(self):
         code, report = self.run_evidence(start=self.now-dt.timedelta(hours=23))

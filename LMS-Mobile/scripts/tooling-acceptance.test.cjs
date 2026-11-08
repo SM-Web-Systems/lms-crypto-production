@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { join } = require('node:path');
+const { dirname, join } = require('node:path');
+const { copyFileSync, mkdtempSync, realpathSync, rmSync, writeFileSync } = require('node:fs');
+const { tmpdir } = require('node:os');
 const { spawnSync } = require('node:child_process');
 const { createRequire } = require('node:module');
 
@@ -70,4 +72,67 @@ test('the actual EAS metadata validator preserves draft-06 formats and readable 
   assert.equal(validator({ contact: 'synthetic@example.invalid' }), true);
   assert.equal(validator({ contact: 'invalid', unexpected: true }), false);
   assert.ok(getReadableErrors(validator.errors).length > 0);
+});
+
+test('staging preview requires pinned public targets, internal builds and the native callback identity', async () => {
+  const { validateStagingPreview } = require('./check-eas-tooling.cjs');
+  const { EasJsonAccessor } = createRequire(require.resolve('eas-cli/package.json'))('@expo/eas-json');
+  const eas = require('../eas.json');
+  const identity = {
+    scheme: 'lmsmobile',
+    android: { package: 'com.smwebsystems.lms' },
+    ios: { bundleIdentifier: 'com.smwebsystems.lms' },
+  };
+  const accessor = value => EasJsonAccessor.fromRawString(JSON.stringify(value));
+  await validateStagingPreview(accessor(eas), identity);
+
+  const drifted = structuredClone(eas);
+  drifted.build.preview.env.EXPO_PUBLIC_AMMA_WALLET_URL = 'https://other.example.invalid';
+  await assert.rejects(validateStagingPreview(accessor(drifted), identity), /INVALID_STAGING_PREVIEW_PUBLIC_ENV/);
+
+  const extraPublicField = structuredClone(eas);
+  extraPublicField.build.preview.env.EXPO_PUBLIC_UNKNOWN = 'synthetic';
+  await assert.rejects(validateStagingPreview(accessor(extraPublicField), identity), /INVALID_STAGING_PREVIEW_PUBLIC_ENV/);
+
+  const storeBuild = structuredClone(eas);
+  storeBuild.build.preview.distribution = 'store';
+  await assert.rejects(validateStagingPreview(accessor(storeBuild), identity), /INVALID_STAGING_PREVIEW_DISTRIBUTION/);
+  await assert.rejects(validateStagingPreview(accessor(eas), { ...identity, scheme: 'other' }), /INVALID_STAGING_PREVIEW_APP_IDENTITY/);
+});
+
+test('Expo resolves the linked project from static config and rejects an environment mismatch', () => {
+  const { getConfig } = createRequire(require.resolve('expo/package.json'))('@expo/config');
+  const root = realpathSync(tmpdir());
+  const fixture = mkdtempSync(join(root, 'lms-eas-link-test-'));
+  const priorProject = process.env.EAS_PROJECT_ID;
+  const linkedProject = 'b210ba61-836b-4735-af48-547331cf67bf';
+  const otherProject = '35cf9fee-a13e-4ef4-873e-fe153f730247';
+  const resolve = () => getConfig(fixture, {
+    isPublicConfig: true, skipPlugins: true, skipSDKVersionRequirement: true,
+  }).exp;
+
+  try {
+    copyFileSync(join(__dirname, '..', 'app.config.ts'), join(fixture, 'app.config.ts'));
+    writeFileSync(join(fixture, 'package.json'), JSON.stringify({ name: 'lms-eas-test', version: '1.0.0' }));
+    delete process.env.EAS_PROJECT_ID;
+    const staticConfig = { expo: { owner: 'fixture-team', extra: { eas: { projectId: linkedProject } } } };
+    writeFileSync(join(fixture, 'app.json'), JSON.stringify(staticConfig));
+    assert.equal(resolve().owner, 'fixture-team');
+    assert.equal(resolve().extra.eas.projectId, linkedProject);
+
+    process.env.EAS_PROJECT_ID = linkedProject;
+    assert.equal(resolve().extra.eas.projectId, linkedProject);
+    process.env.EAS_PROJECT_ID = otherProject;
+    assert.throws(resolve, /EAS project ID differs from the linked app configuration/);
+
+    writeFileSync(join(fixture, 'app.json'), JSON.stringify({ expo: {} }));
+    assert.equal(resolve().extra.eas.projectId, otherProject);
+  } finally {
+    if (priorProject === undefined) delete process.env.EAS_PROJECT_ID;
+    else process.env.EAS_PROJECT_ID = priorProject;
+    const target = realpathSync(fixture);
+    assert.equal(dirname(target), root);
+    assert.ok(target.startsWith(join(root, 'lms-eas-link-test-')));
+    rmSync(target, { recursive: true, force: true });
+  }
 });

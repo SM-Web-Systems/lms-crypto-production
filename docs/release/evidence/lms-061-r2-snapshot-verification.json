@@ -1,0 +1,26 @@
+{
+  "task": "LMS-061",
+  "snapshotTimeUtc": "2026-11-08T02:15:02.042172Z",
+  "method": "Read the encrypted Restic repository without repository locks or local cache. Counted nonempty files in the selected snapshot tree and retrieved one scheduled LMS SQLite backup into memory on the backup server.",
+  "nonemptyFilesByScope": {
+    "scheduledLmsBackupDirectory": 99,
+    "walletPostgresBackupDirectory": 83,
+    "walletTestnetPostgresBackupDirectory": 20,
+    "crmBackupDirectory": 60,
+    "websiteDatabaseBackupDirectory": 67,
+    "mediaBackupDirectory": 411,
+    "stalwartDataDirectory": 240,
+    "nginxConfigurationDirectory": 22,
+    "cronConfigurationDirectory": 2
+  },
+  "scheduledLmsSqliteSample": {
+    "fileModifiedUtc": "2026-11-08T01:00:02.190959Z",
+    "bytes": 20635648,
+    "r2ReadSucceeded": true,
+    "sha256MatchesScheduledLocalCopy": true,
+    "sqliteFileHeaderValid": true
+  },
+  "mailApplicationRestoreVerified": false,
+  "exactReleaseCaptureVerifiedInR2": false,
+  "separateRecoveryHostRestoreVerified": false
+}

@@ -1,0 +1,49 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "64c0f33c132105afb40f3c2781b6613cb93f84f13c28957b1f7446792f6048f0",
+  "stats": {
+    "startTime": "2026-11-05T20:38:00.950Z",
+    "duration": 99793.478,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "specs": [
+    {
+      "file": "admin-dashboard.spec.ts",
+      "title": "admin sees the dashboard after login",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 12971
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "admin-dashboard.spec.ts",
+      "title": "admin can navigate to students page",
+      "ok": true,
+      "tests": [
+        {
+          "project": "chromium",
+          "expectedStatus": "passed",
+          "results": [
+            {
+              "status": "passed",
+              "duration": 2164
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

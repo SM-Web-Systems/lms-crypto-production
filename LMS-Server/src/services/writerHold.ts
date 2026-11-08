@@ -18,12 +18,25 @@ export function writerHoldFilePath(): string {
 }
 
 export function isWriterHoldActive(): boolean {
+  const file = writerHoldFilePath();
   try {
-    fs.statSync(writerHoldFilePath());
+    // Any marker, including a dangling symlink, means held.
+    fs.lstatSync(file);
     return true;
   } catch (err) {
-    return (err as NodeJS.ErrnoException).code !== 'ENOENT';
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') return true;
   }
+
+  // Windows also reports ENOENT when a parent component is a regular file.
+  // Absence is safe only beneath the expected, existing database directory.
+  try {
+    if (!fs.statSync(path.dirname(file)).isDirectory()) return true;
+  } catch { return true; }
+
+  // Recheck after inspecting the directory, in case a marker appeared meanwhile.
+  // This is a point-in-time guard, not a lock/drain for in-flight requests.
+  try { fs.lstatSync(file); return true; }
+  catch (err) { return (err as NodeJS.ErrnoException).code !== 'ENOENT'; }
 }
 
 export function engageWriterHold(): void {

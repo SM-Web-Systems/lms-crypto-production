@@ -1,0 +1,64 @@
+
+> student-ms@1.0.0 build
+> tsc && vite build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 2104 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                    1.56 kB │ gzip:   0.59 kB
+dist/assets/index-CAOUCH_x.css                   107.95 kB │ gzip:  17.39 kB
+dist/assets/course-BFAuc2rD.js                     0.18 kB │ gzip:   0.16 kB
+dist/assets/userDirectoryService-CmLXkGXT.js       0.34 kB │ gzip:   0.22 kB
+dist/assets/StatusBadge-gzapd2Hs.js                0.79 kB │ gzip:   0.41 kB
+dist/assets/Modal-BKrBLgsv.js                      1.01 kB │ gzip:   0.50 kB
+dist/assets/quizService-CdsgqhKW.js                1.47 kB │ gzip:   0.61 kB
+dist/assets/analyticsService-CTnpWB_O.js           1.51 kB │ gzip:   0.61 kB
+dist/assets/Input-Ba3GIxpX.js                      1.52 kB │ gzip:   0.42 kB
+dist/assets/documentsService-LIIW_qpI.js           1.67 kB │ gzip:   0.78 kB
+dist/assets/ConfirmDialog-BjwarEwc.js              1.71 kB │ gzip:   0.84 kB
+dist/assets/adminCertificateService-CbsJb4-M.js    2.00 kB │ gzip:   0.63 kB
+dist/assets/courseService-DjHfkEoV.js              2.53 kB │ gzip:   0.95 kB
+dist/assets/courseCompletionService-DEN8pJkE.js    2.57 kB │ gzip:   0.79 kB
+dist/assets/TextInputModal-WMJneEXf.js             2.65 kB │ gzip:   1.21 kB
+dist/assets/NFTBadge-egp6b-rO.js                   2.89 kB │ gzip:   1.33 kB
+dist/assets/NotificationSettings-Csu6Up9T.js       3.12 kB │ gzip:   1.31 kB
+dist/assets/rewardService-BhAViqUd.js              3.28 kB │ gzip:   1.12 kB
+dist/assets/LecturerDashboard-C0TY2l4k.js          3.42 kB │ gzip:   1.39 kB
+dist/assets/StudentPayments-BXvzsUZ1.js            4.50 kB │ gzip:   1.56 kB
+dist/assets/BadgeGallery-B6W0ZRIV.js               4.75 kB │ gzip:   1.80 kB
+dist/assets/ParentDashboard-B2akQfMo.js            4.96 kB │ gzip:   1.66 kB
+dist/assets/TeacherDashboard-vzl2wZ17.js           5.41 kB │ gzip:   1.84 kB
+dist/assets/StudentDocuments-DncJ9qy8.js           5.72 kB │ gzip:   2.14 kB
+dist/assets/PageSkeletons-ClrPSGr7.js              5.88 kB │ gzip:   1.08 kB
+dist/assets/EmployerDashboard-DrqtO1f_.js          6.06 kB │ gzip:   2.02 kB
+dist/assets/LecturerCourseStudents-Z6jTq9bu.js     6.60 kB │ gzip:   2.36 kB
+dist/assets/StudentSubmissions-BpsjLgCE.js         6.65 kB │ gzip:   2.20 kB
+dist/assets/TADashboard-TvumMEZy.js                7.82 kB │ gzip:   2.28 kB
+dist/assets/LecturerSubmissions-DsHTmTXr.js        7.85 kB │ gzip:   2.43 kB
+dist/assets/StudentProgress-n4Tfs8Su.js            9.98 kB │ gzip:   3.11 kB
+dist/assets/AnnouncementsPanel-9lBUa7Yr.js        10.59 kB │ gzip:   3.15 kB
+dist/assets/AdminSubmissions-eVtQclr6.js          11.86 kB │ gzip:   3.29 kB
+dist/assets/RewardDashboard-D1qsP79U.js           12.42 kB │ gzip:   3.84 kB
+dist/assets/Messages-RgbHr1CY.js                  15.90 kB │ gzip:   4.82 kB
+dist/assets/Forum-VzkuBzDR.js                     16.38 kB │ gzip:   4.39 kB
+dist/assets/AdminDocuments-CtfnikQK.js            16.42 kB │ gzip:   4.48 kB
+dist/assets/Profile-CyDqaoOe.js                   17.38 kB │ gzip:   5.41 kB
+dist/assets/AdminStudents-DLMY3Jio.js             17.51 kB │ gzip:   4.86 kB
+dist/assets/StudentQuizzes-CsP3F3N6.js            19.44 kB │ gzip:   5.52 kB
+dist/assets/CourseMembers-BGaMlFZL.js             25.03 kB │ gzip:   7.50 kB
+dist/assets/vendor-ui-BqtBqtEN.js                 25.57 kB │ gzip:   8.58 kB
+dist/assets/StudentCourse-E0nLpS-8.js             29.22 kB │ gzip:   7.86 kB
+dist/assets/purify.es-BGCr_sdL.js                 30.11 kB │ gzip:  11.51 kB
+dist/assets/AdminQuizzes-8FsWhXzX.js              30.51 kB │ gzip:   8.89 kB
+dist/assets/AdminCertificates-BCcv20KY.js         32.73 kB │ gzip:   7.82 kB
+dist/assets/StudentDashboard-aDgeL1e-.js          40.05 kB │ gzip:  10.69 kB
+dist/assets/SponsorDashboard-BX7aH6Lq.js          48.53 kB │ gzip:  11.32 kB
+dist/assets/vendor-react-o7gp9xcL.js              50.68 kB │ gzip:  17.98 kB
+dist/assets/vendor-http-dRDNrHTx.js               51.45 kB │ gzip:  19.50 kB
+dist/assets/AdminCourse-dbBLd2u2.js               69.15 kB │ gzip:  18.59 kB
+dist/assets/AdminDashboard-BseuYygA.js            71.65 kB │ gzip:  14.41 kB
+dist/assets/EmbeddedMaterialViewer-CqF-w73p.js    96.29 kB │ gzip:  27.34 kB
+dist/assets/index-B3tCCCV3.js                    346.14 kB │ gzip: 104.71 kB
+✓ built in 1m 13s

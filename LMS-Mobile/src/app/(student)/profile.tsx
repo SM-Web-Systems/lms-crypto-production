@@ -1,3 +1,4 @@
+import { rolesText } from '../../../../LMS-Frontend/src/utils/rolePresentation';
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, RefreshControl, Linking } from 'react-native';
 import { Image } from 'expo-image';
@@ -154,7 +155,7 @@ export default function ProfileScreen() {
           </Pressable>
           <Text className="mt-3 text-xl font-bold text-neutral-900">{shownName}</Text>
           <Text className="text-sm text-neutral-500">{user.email}</Text>
-          <Text className="mt-1 text-xs capitalize text-neutral-400">{user.role}</Text>
+          <Text className="mt-1 text-xs text-neutral-400">{rolesText(user)}</Text>
           {avatarUploading ? <Text className="mt-2 text-xs text-neutral-500">Uploading photo…</Text> : null}
         </View>
       </Card>

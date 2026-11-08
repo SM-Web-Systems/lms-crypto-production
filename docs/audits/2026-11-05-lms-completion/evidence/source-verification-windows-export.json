@@ -1,0 +1,31 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "4669df78e9b1110599e543903f7e47d6635d143a50fcb1e4978c0c98d2a1868c",
+  "sha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+  "files": 2503,
+  "byteIdentical": 1032,
+  "crlfOnly": 1471,
+  "contentDifferences": [],
+  "locks": {
+    "LMS-Frontend/package-lock.json": {
+      "byteIdentical": false,
+      "newlineNormalizedIdentical": true,
+      "jsonIdentical": true
+    },
+    "LMS-Mobile/package-lock.json": {
+      "byteIdentical": false,
+      "newlineNormalizedIdentical": true,
+      "jsonIdentical": true
+    },
+    "LMS-Server/package-lock.json": {
+      "byteIdentical": false,
+      "newlineNormalizedIdentical": true,
+      "jsonIdentical": true
+    },
+    "e2e/package-lock.json": {
+      "byteIdentical": false,
+      "newlineNormalizedIdentical": true,
+      "jsonIdentical": true
+    }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "observedAt": "2026-11-06T21:52:40Z",
+  "backedCredit": {
+    "candidate": "d575fd8b0092eb77a92633bb8a3d35a6ee3f7067",
+    "ciRun": 42291032363,
+    "mobileRun": 42291032189,
+    "jobs": [
+      {
+        "id": 128144185394,
+        "name": "Migration Fixtures (ubuntu-latest, lf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144185412,
+        "name": "Frontend Tests & Build",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144185420,
+        "name": "Migration Fixtures (windows-latest, lf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144185519,
+        "name": "Migration Fixtures (windows-latest, crlf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144185580,
+        "name": "Migration Fixtures (ubuntu-latest, crlf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144185674,
+        "name": "Offline Monitoring and Restore",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144185695,
+        "name": "Backend Tests",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147235761,
+        "name": "E2E Tests",
+        "conclusion": "success"
+      },
+      {
+        "id": 128144184965,
+        "name": "mobile-local",
+        "conclusion": "success"
+      }
+    ],
+    "checks": {
+      "api": {
+        "passed": 2465,
+        "skipped": 1,
+        "failed": 0
+      },
+      "web": {
+        "passed": 722,
+        "failed": 0
+      },
+      "chromium": {
+        "passed": 92,
+        "failed": 0
+      }
+    }
+  },
+  "followUp": {
+    "candidate": "38a3d3a1e9361d97a3b8f0e1d07d289ce4566cc4",
+    "ciRun": 42292044215,
+    "mobileRun": 42292044270,
+    "jobs": [
+      {
+        "id": 128147664827,
+        "name": "Offline Monitoring and Restore",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147664927,
+        "name": "Migration Fixtures (ubuntu-latest, lf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147664943,
+        "name": "Migration Fixtures (windows-latest, crlf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147665012,
+        "name": "Backend Tests",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147665043,
+        "name": "Frontend Tests & Build",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147665189,
+        "name": "Migration Fixtures (windows-latest, lf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147665208,
+        "name": "Migration Fixtures (ubuntu-latest, crlf)",
+        "conclusion": "success"
+      },
+      {
+        "id": 128150023574,
+        "name": "E2E Tests",
+        "conclusion": "success"
+      },
+      {
+        "id": 128147665258,
+        "name": "mobile-local",
+        "conclusion": "success"
+      }
+    ],
+    "checks": {
+      "api": {
+        "passed": 2466,
+        "skipped": 1,
+        "failed": 0
+      }
+    }
+  },
+  "existingApiSkip": "Protected-copy test remains skipped; green CI is not staging/recovery acceptance.",
+  "manualTestnet": {
+    "status": "not_run_pending_explicit_approval",
+    "autoReviewRejected": true,
+    "reason": "Creating two Friendbot accounts and sending three testnet payments are irreversible external records requiring specific approval.",
+    "preparedPaymentStroops": [
+      199,
+      200,
+      1000
+    ],
+    "publicNetworkPayments": 0
+  },
+  "stagingDeployment": false,
+  "realCapitalAccepted": false,
+  "physicalDeviceAcceptance": false
+}

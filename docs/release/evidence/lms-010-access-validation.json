@@ -1,0 +1,40 @@
+{
+  "task": "LMS-010",
+  "date": "2026-11-06",
+  "status": "in_progress",
+  "diagnosticPr": 154,
+  "diagnosticHead": "2b919e744f6530c19dcb28219cb640db8b1c3d39",
+  "mergedMain": "782317b680376f6903ed15ca40f457fcc1aba706",
+  "probeRun": 42177426724,
+  "probeJob": 127759047675,
+  "githubCiJobsPassed": 4,
+  "syntheticControllerTestsPassed": 6,
+  "probeResult": {
+    "checkout": {
+      "dirty": false,
+      "exists": true,
+      "repositoryMatches": true,
+      "revision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e"
+    },
+    "legacyEndpointUsage": "not collected",
+    "mobileInstalledBuildInventory": "not collected",
+    "mode": "probe",
+    "observedImages": {
+      "api": {
+        "id": "sha256:393e4e6d2419987a931fb01a4e4b0fb910fc7d0c6148defa37ab4e4885f40d71",
+        "revision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e"
+      },
+      "web": {
+        "id": "sha256:cce2b4e7d80d2c510e55f487d7d98c5dfa346a7676e53c794f98d429a267ea2e",
+        "revision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e"
+      }
+    },
+    "status": "SSH_RUNTIME_READ_CONFIRMED",
+    "version": 1
+  },
+  "limitations": [
+    "SSH metadata probe only; no database snapshot read or created.",
+    "Private account exceptions, installed mobile builds and legacy endpoint usage remain outstanding.",
+    "Running containers and checkout remain at the observed older revision; no application deployment or SSH configuration changes."
+  ]
+}

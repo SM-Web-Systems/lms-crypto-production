@@ -1,0 +1,39 @@
+{
+  "task": "LMS-005",
+  "phase": "api",
+  "date": "2026-11-06",
+  "overallTaskStatus": "in_progress",
+  "audit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "checks": {
+    "cleanNpm10Install": "passed",
+    "actualSwaggerAndArchiveConsumersPassed": 2,
+    "relatedApiRegressionsPassed": 177,
+    "typeScriptBuild": "passed",
+    "sourceFreeBootstrap": "passed"
+  },
+  "sourceSha256": {
+    "LMS-Server/package.json": "7860aa58d61ae67d0f1cdc7a250c10c7d0cb6b2fcca3e930ed4380ede474d1b7",
+    "LMS-Server/package-lock.json": "5d350ca57469c08f03c31199ebf681f3dfbfe2604fede2dad73375296b5f7153",
+    "LMS-Server/scripts/dependency-acceptance.test.mjs": "72f1105cf90771541f7ed8becf3c3e7c0658e180ae6f783e99e8efbfe97d3f9c"
+  },
+  "originalReceiptHashes": {
+    "lms-005-api-install.log": "1f40219d18836ab467da857b8b4dc0a5ef2db4b6a06c3664769a45a6c916d610",
+    "lms-005-api-final-audit.json": "f45b918ae75d5cc9025b6c280ba4787fdfb64059f618156bbe1454497d767f61",
+    "lms-005-api-dependencies.log": "978ef83e6dd289aad638d79d6f6e420e77e50e821f4437198ec8497d1b7d953a",
+    "lms-005-api-build.log": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
+    "lms-005-api-bootstrap.log": "c5577584425c7d85c037583a45599e3248bf9f7c2fc405ee2bbadd5c6aae8ac2",
+    "lms-021-api-focused.json": "a7ff05bcb168c4743747461b23c1aafc0311dd6e4ef13f3e3e78e93a1c16ec15"
+  },
+  "limitations": [
+    "Mobile deepmerge low advisory keeps LMS-005 open.",
+    "Related API run includes the LMS-021 working-tree reporting changes.",
+    "Final reconciled-candidate full suites remain LMS-060; LMS-003 full runs preceded this dependency update."
+  ]
+}

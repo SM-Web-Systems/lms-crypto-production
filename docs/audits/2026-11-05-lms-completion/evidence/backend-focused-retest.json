@@ -1,0 +1,891 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "897c00560f8787161873cfc5161cbb5ea4e04300f6a230db609630be11417e1a",
+  "numTotalTestSuites": 53,
+  "numPassedTestSuites": 51,
+  "numFailedTestSuites": 2,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 171,
+  "numPassedTests": 170,
+  "numFailedTests": 1,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "startTime": 1793912338361,
+  "success": false,
+  "testResults": [
+    {
+      "name": "LMS-Server/src/__tests__/reward-atomic-reference.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T01: Sequential competing fund operations rejects second fund with same reference for different reward",
+          "status": "passed",
+          "duration": 35.9384
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T02: DB-level uniqueness with valid IDs (R3C-F3 fix) rejects direct INSERT with duplicate fund reference — specific UNIQUE error on funding_reference",
+          "status": "passed",
+          "duration": 36.92930000000001
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T03: Same-operation retry (idempotent) returns same reward on retry with same idempotency key",
+          "status": "passed",
+          "duration": 35.14650000000006
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T04: Rollback frees reference for legitimate retry (R3C-F3 fix) reference from a rolled-back fund is available for a new operation",
+          "status": "passed",
+          "duration": 27.988800000000083
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T05: Cancel does not release reference cancelled reward reference cannot be reused by another reward",
+          "status": "passed",
+          "duration": 27.9387999999999
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T06: TOCTOU — DB catches bypass with valid reward IDs (R3C-F3 fix) UNIQUE index prevents duplicate fund reference for valid existing rewards",
+          "status": "passed",
+          "duration": 25.05469999999991
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T07: NULL references are unconstrained multiple admin_grants without reference coexist",
+          "status": "passed",
+          "duration": 29.440200000000004
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T08: Empty string normalized to NULL; nonblank preserved exactly empty string reference is treated as NULL",
+          "status": "passed",
+          "duration": 22.135800000000017
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T08: Empty string normalized to NULL; nonblank preserved exactly whitespace-only reference is stored exactly (opaque identity)",
+          "status": "passed",
+          "duration": 22.11069999999995
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T08: Empty string normalized to NULL; nonblank preserved exactly two empty-reference grants coexist (both become NULL)",
+          "status": "passed",
+          "duration": 24.541500000000042
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T09: Error message does not leak reward ID (A2) DUPLICATE_REFERENCE error omits the conflicting reward ID",
+          "status": "passed",
+          "duration": 21.953899999999976
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T10: Migration — clean bootstrap fresh database has the funding reference unique index",
+          "status": "passed",
+          "duration": 18.403500000000122
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T11: Migration — real upgrade from pre-R3 schema (R3C-F3 fix) R3 migration adds index to a database lacking it",
+          "status": "passed",
+          "duration": 31.911400000000185
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T12: Migration — rejects actual duplicate legacy references (R3C-F3 fix) migration aborts with diagnostic when duplicate fund references exist",
+          "status": "passed",
+          "duration": 36.255300000000034
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T13: Different references fund independently distinct references do not cause false conflicts",
+          "status": "passed",
+          "duration": 23.232799999999997
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T14: Opaque reference identity — exact storage (R3C-F2) reference with leading/trailing spaces is stored exactly",
+          "status": "passed",
+          "duration": 21.884500000000116
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T14: Opaque reference identity — exact storage (R3C-F2) UNIQUE catches exact-match duplicate including spaces",
+          "status": "passed",
+          "duration": 21.680699999999888
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T14: Opaque reference identity — exact storage (R3C-F2) trimmed vs spaced are distinct references (opaque identity)",
+          "status": "passed",
+          "duration": 22.435000000000173
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T15: Pre-R3 database pre-migration validation (R3C-F1) validateDatabase accepts a pre-R3 database before migrations",
+          "status": "passed",
+          "duration": 42.88089999999988
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T15: Pre-R3 database pre-migration validation (R3C-F1) required-schema.json enforces R3 index post-migration",
+          "status": "passed",
+          "duration": 50.586900000000014
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T16: required-schema.json includes R3 index (R3C-F1) idx_reward_txn_fund_ref_unique is in required indexes",
+          "status": "passed",
+          "duration": 36.04949999999985
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T17: Post-migration validation rejects same-name non-UNIQUE index (R3D-F1) validateDatabase(db, true) refuses when idx_reward_txn_fund_ref_unique is not UNIQUE",
+          "status": "passed",
+          "duration": 51.2632000000001
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T18: Post-migration validation rejects wrong-definition same-name index (R3D-F1) validateDatabase(db, true) refuses when idx_reward_txn_fund_ref_unique has wrong columns",
+          "status": "passed",
+          "duration": 50.82590000000005
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T19: Async competing fundRewardAsync calls (R3D-F2) concurrent calls with same reference — one succeeds, one fails DUPLICATE_REFERENCE",
+          "status": "passed",
+          "duration": 26.810199999999895
+        },
+        {
+          "fullName": "W01-R3: Atomic payment-reference consumption T20: Post-fund rollback frees reference — injected failure (R3D-F2) transaction rollback after fund entry restores state, accounts, and frees reference",
+          "status": "passed",
+          "duration": 27.2337
+        }
+      ]
+    },
+    {
+      "name": "LMS-Server/src/__tests__/reward-txn-check-migration.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "fullName": "COMPAT-REPRO: old-schema CHECK failure is reproducible COMPAT-REPRO-1: reward_transactions on #117 schema does not accept release_unused",
+          "status": "passed",
+          "duration": 1845.5454
+        },
+        {
+          "fullName": "COMPAT-REPRO: old-schema CHECK failure is reproducible COMPAT-REPRO-2: detectSchemaVersion returns \"source\" for #117 schema",
+          "status": "passed",
+          "duration": 1724.7035999999998
+        },
+        {
+          "fullName": "COMPAT-REPRO: old-schema CHECK failure is reproducible COMPAT-REPRO-3: old-schema does not have source_user_id compound CHECK for release_unused",
+          "status": "passed",
+          "duration": 1808.3891000000003
+        },
+        {
+          "fullName": "COMPAT-PLAN: plan/dry-run is strictly read-only COMPAT-PLAN-1: plan mode returns a plan report without modifying the DB",
+          "status": "passed",
+          "duration": 1830.7070000000003
+        },
+        {
+          "fullName": "COMPAT-PLAN: plan/dry-run is strictly read-only COMPAT-PLAN-2: plan on target-schema DB reports already-at-target",
+          "status": "passed",
+          "duration": 1848.6268
+        },
+        {
+          "fullName": "COMPAT-PLAN: plan/dry-run is strictly read-only COMPAT-PLAN-3: plan on missing DB throws with clear error",
+          "status": "passed",
+          "duration": 1615.7885999999999
+        },
+        {
+          "fullName": "COMPAT-PLAN: plan/dry-run is strictly read-only COMPAT-PLAN-4: plan on unknown schema throws without touching the DB",
+          "status": "passed",
+          "duration": 1823.4298
+        },
+        {
+          "fullName": "COMPAT-APPLY-PRESERVE: apply preserves ledger rows and unrelated data COMPAT-APPLY-PRESERVE-1: all reward_transactions rows preserved with identical values",
+          "status": "passed",
+          "duration": 1866.4959
+        },
+        {
+          "fullName": "COMPAT-APPLY-PRESERVE: apply preserves ledger rows and unrelated data COMPAT-APPLY-PRESERVE-2: migration metadata written to system_config",
+          "status": "passed",
+          "duration": 1852.1670000000013
+        },
+        {
+          "fullName": "COMPAT-APPLY-PRESERVE: apply preserves ledger rows and unrelated data COMPAT-APPLY-PRESERVE-3: empty reward_transactions table migrates cleanly",
+          "status": "passed",
+          "duration": 1989.2559999999976
+        },
+        {
+          "fullName": "COMPAT-CONSTRAINTS: target schema constraints enforced correctly COMPAT-CONSTRAINTS-1: release_unused accepted with valid source_user_id",
+          "status": "passed",
+          "duration": 1971.0267999999996
+        },
+        {
+          "fullName": "COMPAT-CONSTRAINTS: target schema constraints enforced correctly COMPAT-CONSTRAINTS-2: release_unused rejected when source_user_id is NULL",
+          "status": "passed",
+          "duration": 1877.0118000000002
+        },
+        {
+          "fullName": "COMPAT-CONSTRAINTS: target schema constraints enforced correctly COMPAT-CONSTRAINTS-3: unknown transaction_type rejected",
+          "status": "passed",
+          "duration": 1890.870600000002
+        },
+        {
+          "fullName": "COMPAT-CONSTRAINTS: target schema constraints enforced correctly COMPAT-CONSTRAINTS-4: original types (fund, reserve, release, cancel, refund, expire) still accepted",
+          "status": "passed",
+          "duration": 1844.3211999999985
+        },
+        {
+          "fullName": "COMPAT-CONSTRAINTS: target schema constraints enforced correctly COMPAT-CONSTRAINTS-5: idempotency_key UNIQUE still enforced",
+          "status": "passed",
+          "duration": 1860.9822999999997
+        },
+        {
+          "fullName": "COMPAT-CONSTRAINTS: target schema constraints enforced correctly COMPAT-CONSTRAINTS-6: idx_reward_txn_fund_ref_unique still enforced",
+          "status": "passed",
+          "duration": 2010.5159999999996
+        },
+        {
+          "fullName": "COMPAT-IDEMPOTENT: migration repeat and already-at-target behaviors COMPAT-IDEMPOTENT-1: applying twice returns already-at-target on second call",
+          "status": "passed",
+          "duration": 2127.6213000000025
+        },
+        {
+          "fullName": "COMPAT-IDEMPOTENT: migration repeat and already-at-target behaviors COMPAT-IDEMPOTENT-2: fresh-schema DB (no migration needed) recognized",
+          "status": "passed",
+          "duration": 1749.0989999999983
+        },
+        {
+          "fullName": "COMPAT-IDEMPOTENT: migration repeat and already-at-target behaviors COMPAT-IDEMPOTENT-3: planUpgrade on already-migrated DB reports no-op",
+          "status": "passed",
+          "duration": 1729.6483999999982
+        },
+        {
+          "fullName": "COMPAT-UNKNOWN-SCHEMA: unknown schema refused before any mutation COMPAT-UNKNOWN-1: reward_transactions with neither source nor target fingerprint throws",
+          "status": "passed",
+          "duration": 46.21680000000197
+        },
+        {
+          "fullName": "COMPAT-UNKNOWN-SCHEMA: unknown schema refused before any mutation COMPAT-UNKNOWN-2: DB without reward_transactions table returns source-absent",
+          "status": "passed",
+          "duration": 34.29179999999906
+        },
+        {
+          "fullName": "COMPAT-ROLLBACK: failure injection and recovery COMPAT-ROLLBACK-1: applyUpgrade with injected post-rename failure leaves DB unchanged",
+          "status": "passed",
+          "duration": 1822.0439000000042
+        },
+        {
+          "fullName": "COMPAT-ROLLBACK: failure injection and recovery COMPAT-ROLLBACK-2: after failed apply, re-running apply succeeds",
+          "status": "passed",
+          "duration": 1903.8064000000013
+        },
+        {
+          "fullName": "COMPAT-BACKUP-RESTORE: WAL backup/restore and integrity checks COMPAT-BACKUP-1: backup + migrate + restore produces original schema",
+          "status": "passed",
+          "duration": 2123.3064000000013
+        },
+        {
+          "fullName": "COMPAT-BACKUP-RESTORE: WAL backup/restore and integrity checks COMPAT-BACKUP-2: migrated DB passes integrity_check and foreign_key_check",
+          "status": "passed",
+          "duration": 1945.9654999999984
+        },
+        {
+          "fullName": "COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via setup.js) COMPAT-E2E-1: cap=5/audience=3 → 500 reserved, 300 distributed, 200 returned exactly once",
+          "status": "passed",
+          "duration": 31.416400000001886
+        },
+        {
+          "fullName": "COMPAT-E2E-LIFECYCLE: post-upgrade monetary lifecycle (in-memory via setup.js) COMPAT-E2E-2: exact-cap completion (cap=3, audience=3) → no release_unused entry",
+          "status": "passed",
+          "duration": 24.978799999997136
+        },
+        {
+          "fullName": "COMPAT-REGRESSION: in-memory suite sentinel COMPAT-REGRESSION-1: current schema.sql already has target CHECK",
+          "status": "passed",
+          "duration": 18.697500000002037
+        },
+        {
+          "fullName": "COMPAT-REGRESSION: in-memory suite sentinel COMPAT-REGRESSION-2: in-memory _resetForTests uses target schema (no migration needed)",
+          "status": "passed",
+          "duration": 17.042199999996228
+        },
+        {
+          "fullName": "COMPAT-REGRESSION: in-memory suite sentinel COMPAT-REGRESSION-3: cancel with source_user_id still works on in-memory DB",
+          "status": "passed",
+          "duration": 21.16809999999532
+        },
+        {
+          "fullName": "COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement COMPAT-PREFLIGHT-1: validateDatabase throws on old-schema with migration-required message",
+          "status": "passed",
+          "duration": 1845.640800000001
+        },
+        {
+          "fullName": "COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement COMPAT-PREFLIGHT-2: validateDatabase passes on target-schema DB",
+          "status": "passed",
+          "duration": 1718.6817999999985
+        },
+        {
+          "fullName": "COMPAT-PREFLIGHT: databaseBootstrap.validateDatabase enforcement COMPAT-PREFLIGHT-3: false migration receipt does not bypass validation",
+          "status": "passed",
+          "duration": 1703.2837999999974
+        },
+        {
+          "fullName": "COMPAT-RESTORE-PATH: rollback path constraints COMPAT-RESTORE-1: applying migration then downgrading image has no release_unused rows → restore is compatible",
+          "status": "passed",
+          "duration": 1874.969799999999
+        },
+        {
+          "fullName": "COMPAT-RESTORE-PATH: rollback path constraints COMPAT-RESTORE-2: applyUpgrade never deletes or modifies existing financial rows",
+          "status": "passed",
+          "duration": 2007.3148
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-1: comment containing release_unused → detectSchemaVersion returns source (not target)",
+          "status": "passed",
+          "duration": 1619.8400000000038
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-2: comment bypass → planUpgrade reports wouldApply:true (does not skip upgrade)",
+          "status": "passed",
+          "duration": 1829.1635000000024
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-3: comment bypass → applyUpgrade actually migrates (not a no-op)",
+          "status": "passed",
+          "duration": 1728.958000000006
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-4: target txn_type CHECK but old compound check → unknown (not target or source)",
+          "status": "passed",
+          "duration": 1600.7787000000026
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-5: permissive OR branch in compound check → unknown (not certified as target)",
+          "status": "passed",
+          "duration": 2055.6431999999986
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-6: fake system_config migration receipt → planUpgrade still reports wouldApply:true",
+          "status": "passed",
+          "duration": 1791.4310000000041
+        },
+        {
+          "fullName": "COMPAT-F1: comment-bypass classification correction COMPAT-F1-7: comment bypass → validateDatabase throws (preflight not fooled by comment)",
+          "status": "passed",
+          "duration": 1622.025999999998
+        },
+        {
+          "fullName": "COMPAT-F2: dependency inventory and refusal for unsupported objects COMPAT-F2-1: extra index on reward_transactions → planUpgrade throws with actionable message",
+          "status": "passed",
+          "duration": 1636.7404999999999
+        },
+        {
+          "fullName": "COMPAT-F2: dependency inventory and refusal for unsupported objects COMPAT-F2-2: extra index → applyUpgrade throws; schema, extra index and data unchanged",
+          "status": "passed",
+          "duration": 1623.6061000000045
+        },
+        {
+          "fullName": "COMPAT-F2: dependency inventory and refusal for unsupported objects COMPAT-F2-3: extra trigger → applyUpgrade throws; trigger and source schema unchanged",
+          "status": "passed",
+          "duration": 1628.7946000000084
+        },
+        {
+          "fullName": "COMPAT-F2: dependency inventory and refusal for unsupported objects COMPAT-F2-4: dependent view on reward_transactions → applyUpgrade throws before mutation",
+          "status": "passed",
+          "duration": 1731.790100000013
+        },
+        {
+          "fullName": "COMPAT-F2: dependency inventory and refusal for unsupported objects COMPAT-F2-5: known-only objects (4 standard indexes, no triggers/views) → applyUpgrade succeeds",
+          "status": "passed",
+          "duration": 1685.8102999999974
+        },
+        {
+          "fullName": "COMPAT-F2: dependency inventory and refusal for unsupported objects COMPAT-F2-6: after successful apply, all 4 known indexes present and fund_ref UNIQUE enforced",
+          "status": "passed",
+          "duration": 1709.9974999999977
+        },
+        {
+          "fullName": "COMPAT-F3: pre-migration validation and commit boundary COMPAT-F3-1: pre-existing FK violation → applyUpgrade refuses before reconstruction; source schema and no receipt",
+          "status": "passed",
+          "duration": 1736.5635000000038
+        },
+        {
+          "fullName": "COMPAT-F3: pre-migration validation and commit boundary COMPAT-F3-2: clean source DB → pre-checks pass; applyUpgrade succeeds with clean post-migration",
+          "status": "passed",
+          "duration": 1694.0843999999925
+        },
+        {
+          "fullName": "COMPAT-F3: pre-migration validation and commit boundary COMPAT-F3-3: after FK refusal, all original transaction rows preserved with exact values, no receipt",
+          "status": "passed",
+          "duration": 1833.7681000000011
+        },
+        {
+          "fullName": "COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection COMPAT-PARTIAL-SWAP-EXT-0: only _new exists (original missing) → refuses with partial-swap message",
+          "status": "passed",
+          "duration": 42.80359999999928
+        },
+        {
+          "fullName": "COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection COMPAT-PARTIAL-SWAP-EXT-1: both reward_transactions and _new exist → refuses; original unchanged",
+          "status": "passed",
+          "duration": 2112.307400000005
+        },
+        {
+          "fullName": "COMPAT-PARTIAL-SWAP-EXT: extended partial-swap artifact detection COMPAT-PARTIAL-SWAP-EXT-2: after stale _new manual cleanup, safe rerun succeeds",
+          "status": "passed",
+          "duration": 1673.2235999999975
+        },
+        {
+          "fullName": "COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused COMPAT-F4-0: SQLite itself accepts NOT_A_REAL_KIND on permissive fixture (proves bypass)",
+          "status": "passed",
+          "duration": 3091.942900000009
+        },
+        {
+          "fullName": "COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused COMPAT-F4-1: detectSchemaVersion returns unknown for permissive target DDL (not target)",
+          "status": "passed",
+          "duration": 1483.7514000000083
+        },
+        {
+          "fullName": "COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused COMPAT-F4-2: planUpgrade throws for permissive target DDL (not alreadyAtTarget)",
+          "status": "passed",
+          "duration": 1446.4946000000054
+        },
+        {
+          "fullName": "COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused COMPAT-F4-3: applyUpgrade throws for permissive target DDL; original DDL and no receipt",
+          "status": "passed",
+          "duration": 1664.7226999999984
+        },
+        {
+          "fullName": "COMPAT-F4: F1 — permissive target CHECK (OR 1=1) detected and refused COMPAT-F4-4: validateDatabase (bootstrap preflight) refuses permissive target DDL",
+          "status": "passed",
+          "duration": 1532.3203999999969
+        },
+        {
+          "fullName": "COMPAT-F4F2: F2 — additional source CHECK refuses before mutation COMPAT-F4F2-1: detectSchemaVersion returns unknown for source DDL with extra CHECK (not source)",
+          "status": "passed",
+          "duration": 1705.690100000007
+        },
+        {
+          "fullName": "COMPAT-F4F2: F2 — additional source CHECK refuses before mutation COMPAT-F4F2-2: planUpgrade throws for source DDL with extra CHECK",
+          "status": "passed",
+          "duration": 1411.7354999999952
+        },
+        {
+          "fullName": "COMPAT-F4F2: F2 — additional source CHECK refuses before mutation COMPAT-F4F2-3: applyUpgrade throws for extra CHECK; original DDL and data preserved, no receipt",
+          "status": "passed",
+          "duration": 1465.643200000006
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source missing actor check' returns unknown",
+          "status": "passed",
+          "duration": 1649.4710999999952
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source missing source-user compound check' returns unknown",
+          "status": "passed",
+          "duration": 1713.2482000000018
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source extra OR alternative in fund check' returns unknown",
+          "status": "passed",
+          "duration": 1724.5492999999988
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source changed actor_type NOT NULL to nullable' returns unknown",
+          "status": "passed",
+          "duration": 1682.4014999999927
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source changed amount_stroops DEFAULT added' returns unknown",
+          "status": "passed",
+          "duration": 1653.0193
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source changed FK ON DELETE for reward_id' returns unknown",
+          "status": "passed",
+          "duration": 1638.3877000000066
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source added extra column' returns unknown",
+          "status": "passed",
+          "duration": 1782.7641000000003
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'source column order changed (amount_stroops before transaction_type)' returns unknown",
+          "status": "passed",
+          "duration": 1717.3120000000054
+        },
+        {
+          "fullName": "COMPAT-F4-MUTATIONS: structural schema mutations classified unknown COMPAT-F4-MUTATIONS: 'target transaction_type wrong IN list (missing release_unused from one check only)' returns unknown",
+          "status": "passed",
+          "duration": 1733.8678999999975
+        },
+        {
+          "fullName": "COMPAT-F4-TOKENS: comment and string literal tokenization COMPAT-F4-TOKENS-1: block comment containing realistic text does not affect classification",
+          "status": "passed",
+          "duration": 1739.3732000000018
+        },
+        {
+          "fullName": "COMPAT-F4-TOKENS: comment and string literal tokenization COMPAT-F4-TOKENS-2: string literal containing comment chars does not strip literal content",
+          "status": "passed",
+          "duration": 1603.673299999995
+        },
+        {
+          "fullName": "COMPAT-F4-INDEX: index drift under supported names refused COMPAT-F4-INDEX-1: idx_reward_txn_reward on wrong column refused before mutation",
+          "status": "passed",
+          "duration": 1590.6517000000022
+        },
+        {
+          "fullName": "COMPAT-F4-INDEX: index drift under supported names refused COMPAT-F4-INDEX-2: idx_reward_txn_fund_ref_unique replaced with non-unique index refused",
+          "status": "passed",
+          "duration": 1696.97619999999
+        },
+        {
+          "fullName": "COMPAT-F4-INDEX: index drift under supported names refused COMPAT-F4-INDEX-3: idx_reward_txn_fund_ref_unique with altered predicate refused",
+          "status": "passed",
+          "duration": 1648.0690000000031
+        },
+        {
+          "fullName": "COMPAT-F4-REPO: actual repository schema files classified correctly COMPAT-F4-REPO-1: database from schema-v117-fixture.sql is classified source",
+          "status": "passed",
+          "duration": 1827.6515000000072
+        },
+        {
+          "fullName": "COMPAT-F4-REPO: actual repository schema files classified correctly COMPAT-F4-REPO-2: database from current schema.sql is classified target",
+          "status": "passed",
+          "duration": 1610.7373999999982
+        },
+        {
+          "fullName": "COMPAT-F4-REPO: actual repository schema files classified correctly COMPAT-F4-REPO-3: after successful migration from v117 fixture, detectSchemaVersion returns target",
+          "status": "passed",
+          "duration": 1602.6146000000008
+        },
+        {
+          "fullName": "COMPAT-F4-REPO: actual repository schema files classified correctly COMPAT-F4-REPO-4: planUpgrade on current schema.sql fixture reports alreadyAtTarget",
+          "status": "passed",
+          "duration": 1642.1690999999992
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-0: PRAGMA table_list strict=1 precondition — SQLite confirms STRICT table",
+          "status": "passed",
+          "duration": 32.43989999999758
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-1: detectSchemaVersion returns unknown for STRICT source variant",
+          "status": "passed",
+          "duration": 31.356599999999162
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-2: planUpgrade throws Unsupported schema for STRICT source DB",
+          "status": "passed",
+          "duration": 33.89629999999306
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-3: applyUpgrade refuses STRICT source; STRICT preserved in sqlite_master",
+          "status": "passed",
+          "duration": 44.66339999999036
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-4: validateDatabase refuses STRICT source DB with actionable diagnostic",
+          "status": "passed",
+          "duration": 45.78659999999218
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-5: detectSchemaVersion returns unknown for STRICT target variant",
+          "status": "passed",
+          "duration": 36.94890000000305
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-6: detectSchemaVersion returns unknown for WITHOUT ROWID source variant",
+          "status": "passed",
+          "duration": 38.86059999999998
+        },
+        {
+          "fullName": "COMPAT-F5-STRICT: F1 — STRICT/WITHOUT ROWID suffix classified unknown and refused COMPAT-F5-STRICT-7: detectSchemaVersion returns unknown for combined STRICT, WITHOUT ROWID suffix",
+          "status": "passed",
+          "duration": 37.4091999999946
+        },
+        {
+          "fullName": "COMPAT-F5-LITERAL: F2 — changed currency literal classified unknown and refused COMPAT-F5-LITERAL-0: SQLite proof — INSERT XLM rejected; INSERT IF NOT EXISTS XLM accepted",
+          "status": "passed",
+          "duration": 51.29110000000219
+        },
+        {
+          "fullName": "COMPAT-F5-LITERAL: F2 — changed currency literal classified unknown and refused COMPAT-F5-LITERAL-1: detectSchemaVersion returns unknown for changed-literal source schema",
+          "status": "passed",
+          "duration": 1683.7747999999992
+        },
+        {
+          "fullName": "COMPAT-F5-LITERAL: F2 — changed currency literal classified unknown and refused COMPAT-F5-LITERAL-2: planUpgrade throws Unsupported schema for changed-literal source DB",
+          "status": "passed",
+          "duration": 1583.142599999992
+        },
+        {
+          "fullName": "COMPAT-F5-LITERAL: F2 — changed currency literal classified unknown and refused COMPAT-F5-LITERAL-3: applyUpgrade refuses changed-literal source; DDL in sqlite_master unchanged",
+          "status": "passed",
+          "duration": 1552.161300000007
+        },
+        {
+          "fullName": "COMPAT-F5-LITERAL: F2 — changed currency literal classified unknown and refused COMPAT-F5-LITERAL-4: validateDatabase refuses changed-literal source DB",
+          "status": "passed",
+          "duration": 1638.569599999988
+        },
+        {
+          "fullName": "COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside literals COMPAT-F5-IFLITERAL-0: IF NOT EXISTS inside single-quoted DEFAULT literal is preserved verbatim",
+          "status": "passed",
+          "duration": 27.024399999994785
+        },
+        {
+          "fullName": "COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside literals COMPAT-F5-IFLITERAL-1: IF NOT EXISTS inside CHECK expression string literal is preserved verbatim",
+          "status": "passed",
+          "duration": 21.71150000000489
+        },
+        {
+          "fullName": "COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside literals COMPAT-F5-IFLITERAL-2: IF NOT EXISTS in CREATE TABLE header is stripped; body literals intact",
+          "status": "passed",
+          "duration": 21.880300000018906
+        },
+        {
+          "fullName": "COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside literals COMPAT-F5-IFLITERAL-3: parentheses inside quoted string do not confuse body extraction",
+          "status": "passed",
+          "duration": 20.922099999996135
+        },
+        {
+          "fullName": "COMPAT-F5-IFLITERAL: canonicalizeDdl preserves IF NOT EXISTS inside literals COMPAT-F5-IFLITERAL-4: double-quoted table name in header is not stripped",
+          "status": "passed",
+          "duration": 16.816200000001118
+        },
+        {
+          "fullName": "reviewed FK baseline matches Python ensure_ascii compact fingerprint for Unicode evidence",
+          "status": "passed",
+          "duration": 1799.648199999996
+        },
+        {
+          "fullName": "reviewed FK baseline matches Python ordering, nulls, control characters and astral Unicode",
+          "status": "passed",
+          "duration": 22.819499999983236
+        },
+        {
+          "fullName": "reviewed FK baseline preserves the orphan with the reviewed baseline and refuses by default",
+          "status": "passed",
+          "duration": 1759.8736999999965
+        },
+        {
+          "fullName": "reviewed FK baseline rolls back when a receipt trigger introduces a new violation",
+          "status": "passed",
+          "duration": 1912.1716000000015
+        },
+        {
+          "fullName": "reviewed FK baseline refuses added evidence between checks",
+          "status": "passed",
+          "duration": 1852.4424
+        },
+        {
+          "fullName": "reviewed FK baseline refuses removed evidence between checks",
+          "status": "passed",
+          "duration": 1818.8847999999998
+        },
+        {
+          "fullName": "reviewed FK baseline refuses changed evidence between checks",
+          "status": "passed",
+          "duration": 1661.838299999974
+        },
+        {
+          "fullName": "reviewed FK baseline throws a format error for a malformed FK baseline, not a state-mismatch error",
+          "status": "passed",
+          "duration": 1523.1449000000139
+        },
+        {
+          "fullName": "reviewed FK baseline target schema + no baseline → alreadyAtTarget without error (unchanged behavior)",
+          "status": "passed",
+          "duration": 1589.429300000018
+        },
+        {
+          "fullName": "reviewed FK baseline target schema + correct FK baseline → alreadyAtTarget without error",
+          "status": "passed",
+          "duration": 2577.8251000000164
+        },
+        {
+          "fullName": "reviewed FK baseline target schema + malformed FK baseline → throws format error, not silent success",
+          "status": "passed",
+          "duration": 1749.1705000000075
+        },
+        {
+          "fullName": "reviewed FK baseline target schema + mismatched FK baseline → throws mismatch error, not silent success",
+          "status": "passed",
+          "duration": 1714.6016999999993
+        },
+        {
+          "fullName": "reviewed FK baseline absent schema + no baseline → alreadyAtTarget without error (unchanged behavior)",
+          "status": "passed",
+          "duration": 48.66569999998319
+        },
+        {
+          "fullName": "reviewed FK baseline absent schema + correct FK baseline (zero violations) → alreadyAtTarget without error",
+          "status": "passed",
+          "duration": 37.296899999986636
+        },
+        {
+          "fullName": "reviewed FK baseline absent schema + malformed FK baseline → throws format error, not silent success",
+          "status": "passed",
+          "duration": 40.470000000001164
+        },
+        {
+          "fullName": "reviewed FK baseline absent schema + mismatched FK baseline → throws mismatch error, not silent success",
+          "status": "passed",
+          "duration": 39.638000000006286
+        },
+        {
+          "fullName": "reviewed FK baseline idempotent retry on target schema does not modify records or receipts",
+          "status": "passed",
+          "duration": 1967.8759999999893
+        },
+        {
+          "fullName": "reviewed FK baseline detects when a receipt trigger silently mutates an orphan row",
+          "status": "passed",
+          "duration": 1649.2292999999772
+        },
+        {
+          "fullName": "reviewed FK baseline detects when a receipt trigger deletes an orphan row",
+          "status": "passed",
+          "duration": 1739.7903000000224
+        },
+        {
+          "fullName": "reviewed FK baseline handles a table name with embedded double-quote in FK snapshot queries",
+          "status": "passed",
+          "duration": 1875.2756999999983
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-1 [REGRESSION]: receipt trigger mutating a WITHOUT ROWID orphan is detected and rejected",
+          "status": "passed",
+          "duration": 1727.9814000000188
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-2: refuses before receipt write when a FK violation is in a WITHOUT ROWID table",
+          "status": "passed",
+          "duration": 1914.267600000021
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-3: source schema and orphan data intact after WITHOUT ROWID refusal",
+          "status": "passed",
+          "duration": 2040.8636000000115
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-4 [REGRESSION]: receipt trigger mutating rowid-alias-shadowed orphan is detected",
+          "status": "passed",
+          "duration": 1710.5913
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-5: refuses when FK-violating row cannot be located via rowid lookup (alias shadowed)",
+          "status": "passed",
+          "duration": 1653.1577000000107
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-6: trigger mutation detected in _rowid_-alias-shadowed table (rowid alias still reaches physical rowid)",
+          "status": "passed",
+          "duration": 1908.1116000000038
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-7: trigger mutation detected in oid-alias-shadowed table (rowid alias still reaches physical rowid)",
+          "status": "passed",
+          "duration": 1752.5628000000142
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-8: fails closed when ordinary and WITHOUT ROWID violations coexist",
+          "status": "passed",
+          "duration": 1986.4465999999957
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-9: ordinary rowid orphan with reviewed baseline still migrates successfully",
+          "status": "passed",
+          "duration": 1700.7264999999898
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-10: receipt trigger mutating a BLOB column in an ordinary rowid orphan is detected",
+          "status": "passed",
+          "duration": 1531.648600000015
+        },
+        {
+          "fullName": "AUTH-14-WR: WITHOUT ROWID and rowid-alias orphan preservation AUTH-14-WR-11: fails closed with multiple FK violations in the same WITHOUT ROWID table",
+          "status": "passed",
+          "duration": 1685.5020000000077
+        },
+        {
+          "fullName": "AUTH-14 physical row identity and lossless snapshots refuses a shadowed rowid that selects a different existing row",
+          "status": "passed",
+          "duration": 2725.3447999999917
+        },
+        {
+          "fullName": "AUTH-14 physical row identity and lossless snapshots refuses a hidden generated column that shadows rowid",
+          "status": "passed",
+          "duration": 2059.7216999999946
+        },
+        {
+          "fullName": "AUTH-14 physical row identity and lossless snapshots refuses receipt triggers that can mutate unrelated valid rows",
+          "status": "passed",
+          "duration": 1892.902299999987
+        },
+        {
+          "fullName": "AUTH-14 physical row identity and lossless snapshots refuses a receipt trigger created between inspection and the write transaction",
+          "status": "passed",
+          "duration": 1885.898600000015
+        },
+        {
+          "fullName": "AUTH-14 physical row identity and lossless snapshots preserves exact 64-bit integers and blobs in an ordinary orphan without triggers",
+          "status": "passed",
+          "duration": 1863.6515000000072
+        },
+        {
+          "fullName": "AUTH-14 physical row identity and lossless snapshots proactively refuses a system_config trigger; 64-bit orphan preserved without relying on bigint comparison",
+          "status": "passed",
+          "duration": 1849.522100000002
+        }
+      ]
+    },
+    {
+      "name": "LMS-Server/src/__tests__/writer-hold.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "fullName": "AUTH-14 writer hold defaults to the database directory so the hold follows the mounted volume",
+          "status": "passed",
+          "duration": 23.235599999999977
+        },
+        {
+          "fullName": "AUTH-14 writer hold ignores a hold file override outside tests",
+          "status": "passed",
+          "duration": 18.347499999999854
+        },
+        {
+          "fullName": "AUTH-14 writer hold is inactive without the file and active with it",
+          "status": "passed",
+          "duration": 19.572299999999814
+        },
+        {
+          "fullName": "AUTH-14 writer hold fails closed when the hold state cannot be read",
+          "status": "failed",
+          "duration": 26.24030000000039,
+          "failureSummary": "AssertionError: expected false to be true // Object.is equality"
+        },
+        {
+          "fullName": "AUTH-14 writer hold refuses mutations and provider webhooks with a retryable 503",
+          "status": "passed",
+          "duration": 62.474600000000464
+        },
+        {
+          "fullName": "AUTH-14 writer hold refuses authenticated and public reads, which may also write",
+          "status": "passed",
+          "duration": 28.021700000000237
+        },
+        {
+          "fullName": "AUTH-14 writer hold keeps only health and the credential-free authorization probe available",
+          "status": "passed",
+          "duration": 48.668399999999565
+        },
+        {
+          "fullName": "AUTH-14 writer hold reports hold state on health for release verification",
+          "status": "passed",
+          "duration": 29.021699999999328
+        },
+        {
+          "fullName": "AUTH-14 writer hold resumes requests after release without a restart",
+          "status": "passed",
+          "duration": 56.619800000000396
+        },
+        {
+          "fullName": "AUTH-14 writer hold starts workers immediately when no hold is active",
+          "status": "passed",
+          "duration": 20.64850000000024
+        },
+        {
+          "fullName": "AUTH-14 writer hold holds worker startup until release, then starts exactly once",
+          "status": "passed",
+          "duration": 22.80490000000009
+        }
+      ]
+    }
+  ]
+}

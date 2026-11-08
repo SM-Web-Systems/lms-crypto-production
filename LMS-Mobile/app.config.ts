@@ -4,6 +4,15 @@ const APP_NAME = 'SM Web Systems LMS';
 const APP_SLUG = 'sm-web-systems-lms';
 const ANDROID_PACKAGE = 'com.smwebsystems.lms';
 
+function resolveEasProjectId(config: ConfigContext['config']): string | undefined {
+  const linked = config.extra?.eas?.projectId;
+  const environment = process.env.EAS_PROJECT_ID?.trim() || undefined;
+  if (linked && environment && linked !== environment) {
+    throw new Error('EAS project ID differs from the linked app configuration.');
+  }
+  return linked ?? environment;
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: APP_NAME,
@@ -38,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: false,
     permissions: ['INTERNET'],
     blockedPermissions: ['android.permission.RECORD_AUDIO'],
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile,
   },
   web: {
     output: 'static',
@@ -55,6 +65,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
+    ['expo-sqlite', { useSQLCipher: true }],
+    ['expo-notifications', { defaultChannel: 'lms-updates' }],
     'expo-video',
     ['expo-audio', { microphonePermission: false, recordAudioAndroid: false }],
     [
@@ -85,8 +97,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   extra: {
+    ...config.extra,
+    encryptedOfflineLearning: true,
+    androidPushConfigured: !!(process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile),
     eas: {
-      projectId: process.env.EAS_PROJECT_ID,
+      ...config.extra?.eas,
+      projectId: resolveEasProjectId(config),
     },
   },
 });

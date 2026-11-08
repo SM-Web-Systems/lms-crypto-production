@@ -1,0 +1,85 @@
+{
+  "evidenceFormat": "lms-audit-extract-v1",
+  "originalSha256": "b98d526b37e4b3c01b0406b14d2a5c1c2e29770e7f483a3b0cbc23a41627269b",
+  "date": "2026-11-05",
+  "target": "isolated local fixture API and web",
+  "mainSha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "checks": [
+    {
+      "scenario": "Production login at phone width",
+      "result": "pass",
+      "evidence": "production-login-mobile-390.png"
+    },
+    {
+      "scenario": "Sponsor login routes to /sponsor",
+      "result": "pass"
+    },
+    {
+      "scenario": "Owned-cohort overview and impact",
+      "result": "pass",
+      "cohort": "E2E Cohort Alpha",
+      "members": 1
+    },
+    {
+      "scenario": "Impact invalid date range",
+      "result": "pass",
+      "observation": "Both fields marked invalid with alert"
+    },
+    {
+      "scenario": "Impact CSV download",
+      "result": "pass",
+      "evidence": "downloads/impact-report-2026-11-05.csv"
+    },
+    {
+      "scenario": "Own vs cohort-member billing",
+      "result": "pass",
+      "ownPayments": 0,
+      "memberPayments": 1,
+      "syntheticAmount": "USD 50"
+    },
+    {
+      "scenario": "Owned receipt download",
+      "result": "pass",
+      "evidence": "downloads/receipt-e2e-payment-cohort-a.pdf"
+    },
+    {
+      "scenario": "Sponsor phone layout",
+      "result": "pass",
+      "evidence": "sponsor-billing-mobile-390.png",
+      "observation": "No document expansion beyond viewport; tabs and wide tables scroll"
+    },
+    {
+      "scenario": "Sponsor visits /admin/users",
+      "result": "pass",
+      "observation": "Access unavailable; return-to-workspace action"
+    },
+    {
+      "scenario": "Admin grants then removes Teacher on disposable student",
+      "result": "pass",
+      "observation": "Student + Teacher shown, then Student only after removal",
+      "evidence": "rbac-role-manager-desktop.png"
+    },
+    {
+      "scenario": "Phone Search and Logout accessible names",
+      "result": "fail",
+      "observation": "Snapshot exposes unnamed buttons; text spans hidden at phone widths"
+    },
+    {
+      "scenario": "Actual sponsor revocation lifecycle",
+      "result": "not_run",
+      "observation": "Existing SPNS-E2E-10 does not revoke access"
+    },
+    {
+      "scenario": "Physical Android and physical iOS acceptance",
+      "result": "not_run"
+    }
+  ],
+  "productionMutation": false,
+  "temporaryRoleRestored": true,
+  "browserClosed": true,
+  "temporaryServicesStopped": true
+}

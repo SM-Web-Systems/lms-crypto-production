@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Count legacy role-route requests and native build observations from private API logs."""
+import argparse
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+import json
+import re
+import sys
+
+UTC = timezone.utc
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+LEGACY = re.compile(r'/api/v1/users/[^/]+/role/?', re.I)
+UNSCOPED = re.compile(r'/[^/]+/role/?', re.I)
+ANDROID_BUILD = re.compile(r'[1-9][0-9]{0,9}')
+IOS_BUILD = re.compile(r'[1-9][0-9]{0,9}(?:\.(?:0|[1-9][0-9]{0,9})){0,2}')
+
+
+def log_timestamp(milliseconds):
+    if type(milliseconds) is int and 0 <= milliseconds <= 253402300799999:
+        return EPOCH + timedelta(milliseconds=milliseconds)
+    return None
+
+
+def utc_bound(value):
+    if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z', value):
+        raise argparse.ArgumentTypeError('use YYYY-MM-DDTHH:MM:SSZ')
+    try:
+        return datetime.fromisoformat(value[:-1] + '+00:00')
+    except ValueError:
+        raise argparse.ArgumentTypeError('invalid UTC timestamp') from None
+
+
+def summarize(lines, start, end):
+    first = last = None
+    in_window = unscoped = malformed = 0
+    statuses = Counter()
+    builds = {platform: Counter() for platform in ('android', 'ios', 'unknown')}
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except (ValueError, RecursionError):
+            if line.strip():
+                malformed += 1
+            continue
+        if not isinstance(row, dict):
+            continue
+        if row.get('event') == 'native_wallet_build_observed':
+            observed = log_timestamp(row.get('time'))
+            platform, build = row.get('platform'), row.get('build')
+            pattern = ANDROID_BUILD if platform == 'android' else IOS_BUILD
+            if (observed is None or platform not in ('android', 'ios', 'unknown')
+                    or (build is not None and (platform == 'unknown' or not isinstance(build, str)
+                                               or not pattern.fullmatch(build)))):
+                malformed += 1
+            elif start <= observed < end:
+                builds[platform][build or 'unreported'] += 1
+            continue
+        if not all(key in row for key in ('method', 'path', 'statusCode', 'time')):
+            continue
+        method, path, code, milliseconds = (row[key] for key in ('method', 'path', 'statusCode', 'time'))
+        observed = log_timestamp(milliseconds)
+        if (not isinstance(method, str) or not isinstance(path, str)
+                or type(code) is not int or not 100 <= code <= 599
+                or observed is None):
+            malformed += 1
+            continue
+        first = observed if first is None else min(first, observed)
+        last = observed if last is None else max(last, observed)
+        if not start <= observed < end:
+            continue
+        in_window += 1
+        if method != 'PATCH':
+            continue
+        if LEGACY.fullmatch(path):
+            statuses[str(code)] += 1
+        elif UNSCOPED.fullmatch(path):
+            unscoped += 1
+
+    return {
+        'windowStart': start.isoformat(), 'windowEndExclusive': end.isoformat(),
+        'oldestRequestLog': first.isoformat() if first else None,
+        'newestRequestLog': last.isoformat() if last else None,
+        'logTimestampsSpanWindow': first is not None and first <= start and last >= end,
+        'requestRowsInWindow': in_window, 'malformedRows': malformed,
+        'legacyRoleRequestsByStatus': dict(sorted(statuses.items())),
+        'legacyRoleRequests': sum(statuses.values()),
+        'unscopedLegacyShapeRequests': unscoped,
+        'nativeWalletSignInsByReportedBuild': {platform: dict(sorted(counts.items())) for platform, counts in builds.items()},
+        'continuousCoverageVerified': False,
+        'installedClientCompatibilityVerified': False,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--start', required=True, type=utc_bound)
+    parser.add_argument('--end', required=True, type=utc_bound)
+    args = parser.parse_args()
+    if args.start >= args.end:
+        parser.error('--end must be after --start')
+    print(json.dumps(summarize(sys.stdin, args.start, args.end), indent=2))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,6 +1,7 @@
 import { getCurrentAdminTier } from './administratorPolicy.js';
 import { query, queryOne } from '../config/database.js';
 import { getUserPermissions, getUserRoles } from '../middleware/rbac.js';
+import { roleSummariesForUser } from './roleSummaryService.js';
 
 export type Workspace = 'admin' | 'lecturer' | 'teaching-assistant' | 'sponsor' | 'employer' | 'parent' | 'teacher' | 'student';
 
@@ -28,5 +29,5 @@ export function getAuthorizationContext(userId: string) {
   if (!workspaces.length && can('course.view')) workspaces.push('student');
   const adminTier = getCurrentAdminTier(userId);
   const deletionStatus = queryOne<{deletion_status:string|null}>('SELECT deletion_status FROM users WHERE id = ?', [userId])?.deletion_status ?? null;
-  return { rbacRoles, permissions, workspaces, defaultWorkspace: workspaces[0] ?? null, adminTier, assignedCourses, deletionStatus };
+  return { rbacRoles, roleSummaries: roleSummariesForUser(userId), permissions, workspaces, defaultWorkspace: workspaces[0] ?? null, adminTier, assignedCourses, deletionStatus };
 }

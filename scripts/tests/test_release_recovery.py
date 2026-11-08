@@ -4,9 +4,11 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 import unittest
 from contextlib import closing
+from email.message import Message
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -243,6 +245,47 @@ class RecoveryTests(unittest.TestCase):
         with self.assertRaises(pre.ReleaseError): self.rec.preserve_recovery(self.target, self.backup, self.state, self.runner, None)
         self.assert_no_up()
 
+    def test_read_only_capture_policy_diagnostic_reports_field_names_without_private_values(self):
+        capture = self.capture()
+        capture_path = self.state / ('capture-' + capture['manifest_id'] + '.json')
+        capture_sha = pre.file_sha256(capture_path)
+        policy_path = self.state / 'reviewed-policy.json'
+        pointer_path = self.state / 'current-recovery.json'
+        capture_before = capture_path.read_bytes()
+        pointer_before = pointer_path.read_bytes()
+
+        def check(policy, pin=capture_sha):
+            policy_path.unlink(missing_ok=True)
+            self.rec.immutable_json(policy_path, policy)
+            policy_before = policy_path.read_bytes()
+            result = subprocess.run([
+                sys.executable, '-I', '-S', str(ROOT / 'scripts' / 'check_recovery_policy.py'),
+                '--capture', str(capture_path), '--expected-capture-sha256', pin,
+                '--policy', str(policy_path),
+            ], capture_output=True, text=True, check=False)
+            self.assertEqual(capture_path.read_bytes(), capture_before)
+            self.assertEqual(pointer_path.read_bytes(), pointer_before)
+            self.assertEqual(policy_path.read_bytes(), policy_before)
+            self.assertNotIn('fixture-private-policy-value', result.stdout + result.stderr)
+            self.assertNotIn(str(capture_path), result.stdout + result.stderr)
+            return result
+
+        matched = check(self.policy)
+        self.assertEqual(matched.returncode, 0, matched.stderr)
+        self.assertEqual(json.loads(matched.stdout), {
+            'status': 'POLICY_MATCHES_RECORDED_CAPTURE', 'recovery_eligibility_verified': False,
+        })
+        mismatched = check({**self.policy, 'target_sha': 'e' * 40, 'database': 'fixture-private-policy-value'})
+        self.assertEqual(mismatched.returncode, 2)
+        self.assertEqual(json.loads(mismatched.stderr), {
+            'status': 'REFUSED', 'code': 'COMPATIBILITY_POLICY_MISMATCH',
+            'mismatched_fields': ['target_sha', 'database'], 'recovery_eligibility_verified': False,
+        })
+        schema = check({**self.policy, 'schema_sha256': '0' * 64})
+        self.assertEqual(json.loads(schema.stderr)['mismatched_fields'], ['schema_sha256'])
+        tampered = check(self.policy, '0' * 64)
+        self.assertEqual(json.loads(tampered.stderr)['code'], 'METADATA_HASH_MISMATCH')
+
     def test_reviewed_foreign_key_baseline_must_match_capture(self):
         for key, value in (('foreign_key_violation_count', 1), ('foreign_key_violations_sha256', '0' * 64)):
             with self.subTest(key=key):
@@ -409,6 +452,25 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(result[key], self.config['approved_sha'])
         self.assertEqual(self.containers['fixture-api']['Image'], NEW_API)
         self.assertEqual(self.containers['fixture-web']['Image'], NEW_WEB)
+
+    def test_rbac_candidate_schema_mismatch_refuses_before_any_writer_stop(self):
+        original = self.rec.inspect_image
+
+        def inspected(runner, target, reference):
+            image = original(runner, target, reference)
+            if image['Id'] == NEW_API:
+                image['Config']['Labels'][pre.AUTHORIZATION_SCHEMA_LABEL] = 'rbac-only-v1'
+            return image
+
+        # This fixture is a legacy database. The candidate must not start on it
+        # merely because its revision and immutable image ID were reviewed.
+        with patch.object(self.rec, 'inspect_image', side_effect=inspected):
+            with self.assertRaisesRegex(pre.ReleaseError, 'RBAC_IMAGE_SCHEMA_MISMATCH'):
+                self.rec.deploy(self.config, self.runner, self.policy, execute='1',
+                                http=self.deployed_http, timeout=0)
+        self.assert_no_up()
+        self.assertFalse(any(call[1:3] == ['container', 'stop'] for call in self.runner.calls))
+        self.assertTrue(all(container['State']['Running'] for container in self.containers.values()))
 
     def test_runtime_database_configuration_drift_refuses_before_stop(self):
         self.capture()
@@ -737,6 +799,42 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(self.runner.hold_held)
         call = next(c for c in self.runner.calls if c[1] == 'exec')
         self.assertIn(self.containers['fixture-api']['Id'], call)
+
+    def test_wallet_callback_policy_keeps_writers_held_until_the_public_probe_passes(self):
+        self.policy['require_wallet_callback'] = True
+        deployed = self.deploy()
+        manifest_id = deployed['manifest_id']
+        released = self.state / ('released-' + manifest_id + '.json')
+        for status, referrer_values, cache, code in (
+            (503, ['no-referrer'], 'no-store', 'WALLET_CALLBACK_STATUS_MISMATCH'),
+            (302, ['strict-origin-when-cross-origin'], 'no-store', 'WALLET_CALLBACK_REFERRER_POLICY_MISMATCH'),
+            (302, ['no-referrer', 'strict-origin-when-cross-origin'], 'no-store', 'WALLET_CALLBACK_REFERRER_POLICY_MISMATCH'),
+            (302, ['no-referrer'], 'public', 'WALLET_CALLBACK_CACHE_POLICY_MISMATCH'),
+        ):
+            with self.subTest(code=code, status=status):
+                headers = Message()
+                for value in referrer_values:
+                    headers['Referrer-Policy'] = value
+                headers['Cache-Control'] = cache
+                with patch.object(self.rec, 'get_http', return_value=(status, headers)) as probe:
+                    with self.assertRaisesRegex(pre.ReleaseError, code):
+                        self.release()
+                    probe.assert_called_once_with(self.config['base_url'] + '/api/v1/auth/amma-callback', headers_only=True)
+                self.assertTrue(self.runner.hold_held)
+                self.assertFalse(released.exists())
+                self.assertFalse(any(c[1] == 'exec' for c in self.runner.calls))
+        headers = Message()
+        headers['Referrer-Policy'] = 'no-referrer'
+        headers['Cache-Control'] = 'no-store'
+        with patch.object(self.rec, 'get_http', return_value=(302, headers)):
+            self.assertEqual(self.release()['status'], 'WRITERS_RELEASED')
+        self.assertFalse(self.runner.hold_held)
+        self.assertTrue(released.exists())
+
+    def test_wallet_callback_policy_rejects_non_boolean_values(self):
+        self.policy['require_wallet_callback'] = 'true'
+        with self.assertRaisesRegex(pre.ReleaseError, 'WALLET_CALLBACK_POLICY_INVALID'):
+            self.rec.verify_policy(self.target, self.backup, self.policy)
 
     def test_release_hold_publishes_approved_release_for_the_monitor(self):
         approved = self.state / 'approved-release.json'

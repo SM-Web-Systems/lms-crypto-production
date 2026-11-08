@@ -13,12 +13,12 @@ Prepare and build the SM Web Systems LMS Android app with [EAS Build](https://do
 
 ```bash
 cd LMS-Mobile
-npm install
+npm ci
 npm run eas -- login
-npm run eas -- init
+npm run eas -- project:init
 ```
 
-`eas init` links the app to Expo and writes `EAS_PROJECT_ID` into your Expo project config.
+Select the approved Expo owner when creating the project. For a project created in the dashboard, use `npm run eas -- project:init --id <project-id>`. If the CLI asks for a manual change because the app uses `app.config.ts`, add the confirmed owner and project ID to `LMS-Mobile/app.json` as `expo.owner` and `expo.extra.eas.projectId`. The project ID is public build metadata. Verify the linked account and slug with `npm run eas -- project:info` before building.
 
 Update the production API URL in `eas.json` (`preview` and `production` profiles) if your backend is not at `https://lms.smwebsystems.com/api/v1`.
 
@@ -83,7 +83,7 @@ npm run submit:android
 | Variable | Purpose |
 |----------|---------|
 | `EXPO_PUBLIC_API_BASE_URL` | LMS API base URL (no trailing slash) |
-| `EAS_PROJECT_ID` | Set automatically by `eas init` |
+| `EAS_PROJECT_ID` | Optional for an unlinked checkout. If the app is already linked, it must match the committed project ID. |
 
 Local dev: copy `.env.example` → `.env` and use your LAN IP for physical devices.
 

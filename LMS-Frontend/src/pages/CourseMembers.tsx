@@ -1,3 +1,4 @@
+import { RoleBadges } from '../components/RoleBadges';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -169,7 +170,8 @@ const CourseMembers: React.FC = () => {
                   id: u.id,
                   name: u.name,
                   email: u.email,
-                  role: u.role,
+                  rbacRoles: u.rbacRoles,
+                  roleSummaries: u.roleSummaries,
                   courseCodes: u.courseCodes,
                 })
               );
@@ -274,7 +276,8 @@ const CourseMembers: React.FC = () => {
           id: u.id,
           name: u.name,
           email: u.email,
-          role: u.role,
+          rbacRoles: u.rbacRoles,
+                  roleSummaries: u.roleSummaries,
           courseCodes: u.courseCodes,
         })
       );
@@ -689,7 +692,7 @@ const CourseMembers: React.FC = () => {
                               <Plus className="h-3.5 w-3.5 mr-1 text-accent-teal" aria-hidden />
                               <span className="font-medium">{u.name}</span>
                               <span className="ml-1.5 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-800">
-                                {u.role}
+                                <RoleBadges subject={u} />
                               </span>
                             </Button>
                           ))}

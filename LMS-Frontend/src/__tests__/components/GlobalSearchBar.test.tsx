@@ -85,3 +85,46 @@ describe('SRCH-FE-2: GlobalSearchBar opens on Ctrl+K', () => {
     expect(screen.getByTestId('search-input')).toBeDefined();
   });
 });
+
+describe('LMS-006: keyboard and accessible search controls', () => {
+  it('returns to Search when pointer activation leaves focus on the page body', async () => {
+    renderBar();
+    const trigger = screen.getByRole('button', { name: 'Search' });
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.click(trigger); // WebKit pointer activation need not focus a button.
+    const input = screen.getByRole('textbox', { name: 'Search courses, certificates, and more' });
+    await waitFor(() => expect(input).toHaveFocus());
+    fireEvent.keyDown(input, { key: 'Escape' });
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('returns to the previous input when opened with the keyboard shortcut', async () => {
+    render(<MemoryRouter><input aria-label="Previous control" /><GlobalSearchBar /></MemoryRouter>);
+    const previous = screen.getByRole('textbox', { name: 'Previous control' });
+    previous.focus();
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    const input = screen.getByRole('textbox', { name: 'Search courses, certificates, and more' });
+    await waitFor(() => expect(input).toHaveFocus());
+    fireEvent.keyDown(input, { key: 'Escape' });
+    await waitFor(() => expect(previous).toHaveFocus());
+  });
+
+  it('names the trigger and dialog, traps focus, and restores it after Escape', async () => {
+    const user = userEvent.setup();
+    renderBar();
+    const trigger = screen.getByRole('button', { name: 'Search' });
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Search' });
+    const input = screen.getByRole('textbox', { name: 'Search courses, certificates, and more' });
+    const close = screen.getByRole('button', { name: 'Close search' });
+    expect(dialog).toBeVisible();
+    await waitFor(() => expect(input).toHaveFocus());
+    await user.tab({ shift: true });
+    expect(close).toHaveFocus();
+    await user.tab();
+    expect(input).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+});

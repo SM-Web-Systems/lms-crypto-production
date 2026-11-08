@@ -1,0 +1,34 @@
+{
+  "task": "LMS-020",
+  "date": "2026-11-06",
+  "status": "in_progress",
+  "pendingGate": "Private inventory decisions and final LMS-011 acceptance; local reconciliation rerun passed.",
+  "checks": {
+    "chromiumPassed": 14,
+    "failed": 0,
+    "flaky": 0,
+    "retries": 0,
+    "typecheck": "passed"
+  },
+  "sourceSha256": {
+    "e2e/fixtures/auth.ts": "106f274e5855490ae1b6a4d20c4a17623eba1ae3d87e8e7629e70a82358f2266",
+    "e2e/tests/sponsor-authorization.spec.ts": "058cd59e8b1a0f8a6eccd6754a96995ed186641fbc2ec886849f75dc4ced1218"
+  },
+  "originalReceiptHashes": {
+    "lms-020-browser.json": "1c904b80d398c20a70157a536e05b5bdee0244431433618205c323b5c8badf87",
+    "lms-020-browser-final.json": "1ca2c6bd2171786f972620a528e5e1e9ddaa3937708cb8e99fea76cf4196df45",
+    "lms-020-e2e-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lms-012-browser-full.json": "7db19525bbb334687aea77fc8b22ad8cea6a71ceb4fc3dd3546d195d9d11f259"
+  },
+  "limitations": [
+    "Local synthetic API lifecycle acceptance before backend cutover.",
+    "Initial ordinary-admin grant failed correctly; final run uses the authorized super-admin fixture.",
+    "No staging mutations, arbitrary ownership-transfer API or device acceptance."
+  ],
+  "reconciledBackendChecks": {
+    "sponsorAuthorizationAndReportingPassed": 17,
+    "combinedFullBrowserPassed": 83,
+    "retries": 0,
+    "combinedCandidate": "af363d6fee96249ea4337febeded8ff32698d2cd"
+  }
+}

@@ -24,15 +24,25 @@ case "$url" in
   https://lms.smwebsystems.com/api/v1/*) ;;
   *) echo 'Unexpected fixture URL; no network call allowed' >&2; exit 99 ;;
 esac
-if [[ "$*" == *http_code* ]]; then
+if [[ "$url" == */auth/amma-callback ]]; then
+  [[ "$*" == *--dump-header* && "$*" != *--location* && "$*" != *' -L '* ]] || exit 99
+  printf 'HTTP/1.1 200 Connection established\r\n\r\nHTTP/2 302\r\n'
+  printf 'Cache-Control: no-store\r\n'
+  case "${FIXTURE_CALLBACK_POLICY:-valid}" in
+    valid) printf 'Referrer-Policy: no-referrer\r\n' ;;
+    weak) printf 'Referrer-Policy: strict-origin-when-cross-origin\r\n' ;;
+    duplicate) printf 'Referrer-Policy: no-referrer\r\nReferrer-Policy: strict-origin-when-cross-origin\r\n' ;;
+  esac
+  printf '\r\n'
+elif [[ "$*" == *http_code* ]]; then
   case "$url" in */courses) printf 401 ;; *) printf 200 ;; esac
 else
-  printf '{"status":"ok","checks":{"db":{"status":"ok"}},"buildSha":"synthetic-fixture"}'
+  printf '{"status":"ok","checks":{"db":{"status":"ok"}},"buildSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
 fi
 STUB
 chmod +x "$fixture_bin/curl"
 export PATH="$fixture_bin:$PATH"
-unset SMOKE_BASE_URL
+unset SMOKE_BASE_URL SMOKE_EXPECTED_BUILD_SHA SMOKE_REQUIRE_WALLET_CALLBACK FIXTURE_CALLBACK_POLICY
 
 pass=0
 fail=0
@@ -111,6 +121,21 @@ assert "Unreachable URL exits nonzero" "1" "$exit_code"
 # Synthetic success response should exit zero (curl is intercepted)
 bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
 assert "Synthetic success response exits zero" "0" "$exit_code"
+
+# The optional public-edge checks pin the API and reject weaker or duplicate policies.
+SMOKE_EXPECTED_BUILD_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa SMOKE_REQUIRE_WALLET_CALLBACK=1 \
+  bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
+assert "Pinned build and callback headers pass" "0" "$exit_code"
+SMOKE_EXPECTED_BUILD_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
+assert "Wrong pinned build fails" "1" "$exit_code"
+SMOKE_EXPECTED_BUILD_SHA=main bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
+assert "Malformed expected revision fails" "1" "$exit_code"
+for policy in weak duplicate; do
+  FIXTURE_CALLBACK_POLICY="$policy" SMOKE_REQUIRE_WALLET_CALLBACK=1 \
+    bash "$SCRIPT" >/dev/null 2>&1 && exit_code=0 || exit_code=$?
+  assert "Callback with $policy referrer policy fails" "1" "$exit_code"
+done
 
 # ── 5. Output includes base URL ──────────────────────────────────────────────
 echo ""

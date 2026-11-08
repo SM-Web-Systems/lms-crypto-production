@@ -5,11 +5,13 @@ const RETRY_AFTER_SECONDS = '120';
 // Not /healthz: its readiness probe writes to the database.
 const HEALTH_PATHS = new Set(['/health', '/api/v1/health']);
 
-/** The release checks these while held. Without a token this probe only returns 401. */
+/** The release probes unauthenticated routes that cannot write while held. */
 function isAllowedDuringHold(req: Request): boolean {
   if (req.method !== 'GET' && req.method !== 'HEAD') return false;
   if (HEALTH_PATHS.has(req.path)) return true;
-  return req.path === '/api/v1/courses' && !req.headers.authorization && !req.headers.cookie;
+  if (req.headers.authorization || req.headers.cookie) return false;
+  return req.path === '/api/v1/courses'
+    || (req.method === 'GET' && req.originalUrl === '/api/v1/auth/amma-callback');
 }
 
 export function writerHoldGuard(req: Request, res: Response, next: NextFunction): void {

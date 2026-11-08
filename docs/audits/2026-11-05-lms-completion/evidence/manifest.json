@@ -1,0 +1,509 @@
+{
+  "auditSha": "e1929c2c401511a793d03526391a3bb9e8d96ac1",
+  "files": [
+    {
+      "originalFile": "audit-summary.json",
+      "originalSha256": "eda58949496d6321324d65c0f83a459e191f31db64b7a8d157af4551e9b587d4",
+      "originalBytes": 1408,
+      "committedFile": "audit-summary.json",
+      "committedSha256": "aa4cd0fb11b2dd7629f638bf17e8a9e0e4ff76bbb5072dd7459edb3a1700f167",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "backend-focused-retest.json",
+      "originalSha256": "897c00560f8787161873cfc5161cbb5ea4e04300f6a230db609630be11417e1a",
+      "originalBytes": 74234,
+      "committedFile": "backend-focused-retest.json",
+      "committedSha256": "62270b915ea34befffa5a3e95cf8ab0b734c73bc20267b75658a35c490989b53",
+      "method": "test-result-extract"
+    },
+    {
+      "originalFile": "backend-focused-retest.log",
+      "originalSha256": "4e029c96a281b3f4ea76d8040ae82422187d410827c1bb5a099fce990800a132",
+      "originalBytes": 176,
+      "committedFile": "backend-focused-retest.txt",
+      "committedSha256": "98db0380499cc780065eb849783f639af6e4ab252a54b09f56941f7182e6be88",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "browser-install.log",
+      "originalSha256": "f60615243caefcb2c22fc9c17b9ac6430412cea6391c9c936e39c6b78422722c",
+      "originalBytes": 6890,
+      "committedFile": "browser-install.txt",
+      "committedSha256": "b064949b8d92dba8135fcb416af4cd7fb817aa09e0ed30728e7cb6bca03b312b",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "bvc-typecheck.log",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalBytes": 0,
+      "committedFile": "bvc-typecheck.txt",
+      "committedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "compiled-bootstrap-rerun.log",
+      "originalSha256": "c5577584425c7d85c037583a45599e3248bf9f7c2fc405ee2bbadd5c6aae8ac2",
+      "originalBytes": 208,
+      "committedFile": "compiled-bootstrap-rerun.txt",
+      "committedSha256": "972af183987b511c04b70111caa6a71c624f2464a308071d8259e6f8e911c5d1",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "compiled-bootstrap.log",
+      "originalSha256": "751f8d745828ff103aa19ad3bf44936975b8bc706deb2dcec9e743e81636b8cf",
+      "originalBytes": 1395,
+      "committedFile": "compiled-bootstrap.txt",
+      "committedSha256": "84d450a2b7aca3359606080c0d205a154585e939184c5acd5dbe1f878b9ed7de",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "e2e-results.json",
+      "originalSha256": "91c4ec60520eb3e812e7033ef06dd7b8680916049b062a3ba1581876b4d5e39e",
+      "originalBytes": 102460,
+      "committedFile": "e2e-results.json",
+      "committedSha256": "d54585f4910c9be1bb3e8caee6378af1517095794a774997dda656e7e54d1c0c",
+      "method": "browser-result-extract"
+    },
+    {
+      "originalFile": "e2e-retry-results.json",
+      "originalSha256": "64c0f33c132105afb40f3c2781b6613cb93f84f13c28957b1f7446792f6048f0",
+      "originalBytes": 6822,
+      "committedFile": "e2e-retry-results.json",
+      "committedSha256": "597a1b15c308e8277dd1f02b68804dae6828026238d586fb4ce31aba57372b4a",
+      "method": "browser-result-extract"
+    },
+    {
+      "originalFile": "e2e-retry.log",
+      "originalSha256": "860bebf99685ba4fbffebcf6e2f40c36140efce64c00cc5401bb0eec48b3653f",
+      "originalBytes": 1804,
+      "committedFile": "e2e-retry.txt",
+      "committedSha256": "2c0f5b13b8c0806899f485db16128ca65e53ea6e0c96af00560c8a586fdcc556",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "e2e-tests.log",
+      "originalSha256": "c21426846a055cd1ee36e0ed8bb2a5bed021ce3bf7da1c1ed48ad75a0495fd67",
+      "originalBytes": 16119,
+      "committedFile": "e2e-tests.txt",
+      "committedSha256": "dfaed1a997f479ec661337c4c21af2d7b5165b0b94533cfbc732c71532dbf67e",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "e2e-typecheck.log",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalBytes": 0,
+      "committedFile": "e2e-typecheck.txt",
+      "committedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "frontend-audit.json",
+      "originalSha256": "3d56d86c09d5bd17cda9a5771b3b7b5464490297b8420b40703b56ac4f8f3359",
+      "originalBytes": 364,
+      "committedFile": "frontend-audit.json",
+      "committedSha256": "466abdc6fbc6eb08ac8fffc71094e0be779bfb6b9817240c67dd441267cbf925",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "frontend-build.log",
+      "originalSha256": "980dc4cd038ad8328f0c09173e3797cb6b9afae386c7dec9db4ba9266db6ed53",
+      "originalBytes": 4544,
+      "committedFile": "frontend-build.txt",
+      "committedSha256": "7daf85743e502af7b7e3fb629296bca5951a5a538074a22289cbe15de1ff0f31",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "frontend-size.log",
+      "originalSha256": "904e98305cb2381129276371dfed46f8bf49d13ce4fef693eb80be2290b2dc12",
+      "originalBytes": 274,
+      "committedFile": "frontend-size.txt",
+      "committedSha256": "ab65ccaded221fd07cae2d78512ad951e9cd8050d474799cca800fd563de5a7d",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "frontend-tests.json",
+      "originalSha256": "72c75666e1b622d96beea2a767cc19b4e16c4679c2a0b13abd68e4c92ee85918",
+      "originalBytes": 253521,
+      "committedFile": "frontend-tests.json",
+      "committedSha256": "7fbd3aa441c17fc83e4b1eb4eacb25ef8a0d2be546e0a34b529d179bb27a8638",
+      "method": "test-result-extract"
+    },
+    {
+      "originalFile": "frontend-tests.log",
+      "originalSha256": "7d354b29f6fc13e008f0a2dcf17dc0494cbd650e72dba83c39310a463c64ef48",
+      "originalBytes": 14839,
+      "committedFile": "frontend-tests.txt",
+      "committedSha256": "1a89d7384323c8e1c748692a910ce819eb5f69b8a3cc51d0d55a056e129c3a76",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "install-e2e.log",
+      "originalSha256": "b4ea60d59719ec40f9bb1ded2db146eb5484f49177ecf479a55caccf1cb17330",
+      "originalBytes": 27,
+      "committedFile": "install-e2e.txt",
+      "committedSha256": "3f12e60050762e16c1e93872d48656578410040ad406a9d52676f090d780d1d4",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "install-LMS-Frontend.log",
+      "originalSha256": "5ad1406cb4c8d961e8a30e8201634e579f4e6d97514d88f8fd05d36712622b2c",
+      "originalBytes": 1101,
+      "committedFile": "install-LMS-Frontend.txt",
+      "committedSha256": "5a3f8490dbfdc93bc5430523f3b72055855e82fe65a4789dfc49bd2d0c7d2fc4",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "install-LMS-Mobile.log",
+      "originalSha256": "175f7fc9b6c90588632f4db2a3bf682d10ccefa2cb679507c847c40c43cdc4cb",
+      "originalBytes": 4326,
+      "committedFile": "install-LMS-Mobile.txt",
+      "committedSha256": "7623edbf6e0f4ed69c2e3b1f14047b6d997b635dede14ab22571b4fffea65941",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "install-LMS-Server.log",
+      "originalSha256": "8dbe287fe2bf3aaca625ef91dc4115672080c7a5362cfcbc5a94ba74dccc81c4",
+      "originalBytes": 437,
+      "committedFile": "install-LMS-Server.txt",
+      "committedSha256": "1d1aeeaa8be5e5905fd66c09832366e31cf12760c1f2aae091a8e9a24e351fea",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "local-services-tests-rerun.log",
+      "originalSha256": "7a6074832c66cff4a4dc5327007e57393da3523faaf682ebdba79e185a6b2e6a",
+      "originalBytes": 1931,
+      "committedFile": "local-services-tests-rerun.txt",
+      "committedSha256": "aa5e8a7261efbcdda73ed86b879241dc1814da46d8736d970b53825db9e74fbc",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "local-services-tests.log",
+      "originalSha256": "fb99295929c0fad2a28b6c210b664f4aef044e6cdbac9e829755cb330a1d42bd",
+      "originalBytes": 4111,
+      "committedFile": "local-services-tests.txt",
+      "committedSha256": "7fb677fd0cc45d531bb36780116517b9fdd0ca21258222c73aef3ee1172d1222",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "manual-api.log",
+      "originalSha256": "caae39108204b0bdcd7ac8a6bf007c32df34b263be06685edce93e8bb2efe91a",
+      "originalBytes": 428,
+      "committedFile": "manual-api.txt",
+      "committedSha256": "45257db0942c69d694233e32545ee661cd5aca3e87bbb7ed56fab9be161bd781",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "manual-checks.json",
+      "originalSha256": "b98d526b37e4b3c01b0406b14d2a5c1c2e29770e7f483a3b0cbc23a41627269b",
+      "originalBytes": 2403,
+      "committedFile": "manual-checks.json",
+      "committedSha256": "5e20b34db3608c2f010af0c3c3a416be780b30b320d83668b172530ca9c8b487",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "manual-web.log",
+      "originalSha256": "ec67d3137fb1d61711619e4c2dc87b796394936d161cc1f1cccc4f5ef2575288",
+      "originalBytes": 114,
+      "committedFile": "manual-web.txt",
+      "committedSha256": "4b5492aa23baf1ffdd9de1abed4e983ad0dc48fd56d17aeec6f39e23b9c987c7",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-acceptance-final.log",
+      "originalSha256": "c46977856bbd8dd608cee4549e61a45399fa74240c1e3ec5a2ec9a63b17ceec5",
+      "originalBytes": 1962,
+      "committedFile": "mobile-acceptance-final.txt",
+      "committedSha256": "e3cde8269f42a84ecfc2e046bc516db8c2e0a6be89d85498ef8fdce35ca328d0",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-acceptance-rerun.log",
+      "originalSha256": "951e684f03ccf0c5021ec2c1e8a3c4747eeb1333ca036d9077c834d82f90099b",
+      "originalBytes": 5669,
+      "committedFile": "mobile-acceptance-rerun.txt",
+      "committedSha256": "4e9fa414e11bfbcd06451f4464860c86f9601361232a8099515b9d0aa2c51cd0",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-acceptance.log",
+      "originalSha256": "1186dc2e421b806dbe2deaecf8b5c09823638db69e355263f2325e7b8293d12c",
+      "originalBytes": 5677,
+      "committedFile": "mobile-acceptance.txt",
+      "committedSha256": "b1394fe076c257b3343e3c6d446b7cab55247164783c533e8992aa6a6b31daa2",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-audit.json",
+      "originalSha256": "748bad25bb3046e279a8290e136067b10becd2704a3212a14ec1a01bf9b67dea",
+      "originalBytes": 35606,
+      "committedFile": "mobile-audit.json",
+      "committedSha256": "7d5c5ea121ca2d7818ff8374616a555baf63f074bc03387a618733bf78c8eb2c",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "mobile-bundle.log",
+      "originalSha256": "e9a6e974ad7d0df729b3e8c3a345a35eab878dba38183bbfb014952018ece944",
+      "originalBytes": 12462,
+      "committedFile": "mobile-bundle.txt",
+      "committedSha256": "6612f6daa1dfefa925cd0f2b101dcee1a9022e9e5f84e3037b565d463fa3f858",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-local-setup.log",
+      "originalSha256": "918493164fc09c6c02149046edce177fb13b175fa9198837cc68246dc42f425e",
+      "originalBytes": 1335,
+      "committedFile": "mobile-local-setup.txt",
+      "committedSha256": "9cde1223e904d2fe9c030d3050252f26d2f341e0389493f6a9779325b729b353",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-session-diagnostic.json",
+      "originalSha256": "fa2881d7f774ef76f2ef482be5c6088b8a7f14e6a3164576abcf89b26020c6e2",
+      "originalBytes": 22391,
+      "committedFile": "mobile-session-diagnostic.json",
+      "committedSha256": "f6250b615dc225cc3c301725e93786ed7bf9ac9df6797d17b4636b4f8757b207",
+      "method": "test-result-extract"
+    },
+    {
+      "originalFile": "mobile-session-diagnostic.log",
+      "originalSha256": "7e77f5cb99fdc508a254ea62c3d5eb5f253774c1acf07c1a2a7e88d96e13a2bb",
+      "originalBytes": 8695,
+      "committedFile": "mobile-session-diagnostic.txt",
+      "committedSha256": "3449dcc921beee40a4f3a95c618758cfcc609224a1a8856c7a5491fc7d43f0b5",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-session-standard.json",
+      "originalSha256": "06536b32804653f78ff2a5cc5fd612a84ed59e6d251d055c9d3b86ee2c5d3000",
+      "originalBytes": 22390,
+      "committedFile": "mobile-session-standard.json",
+      "committedSha256": "61c68afc37274cb61fb820083eeae684e79fcc17320e13a8d6e53fcdfc36c01f",
+      "method": "test-result-extract"
+    },
+    {
+      "originalFile": "mobile-session-standard.log",
+      "originalSha256": "a83a7e39339e9291a7251697df74c05d45eecdc8c97c9da16dc0903be54c6db3",
+      "originalBytes": 8692,
+      "committedFile": "mobile-session-standard.txt",
+      "committedSha256": "486738ab9d6378753b6862b668198da6f32f185915c31cd16a482ac1d629c0dc",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-tooling.log",
+      "originalSha256": "57af9f755facbd5d65e98a362a2b40c102b0906afd514db9d71184e7d5082a56",
+      "originalBytes": 1548,
+      "committedFile": "mobile-tooling.txt",
+      "committedSha256": "ecf5e32e9ae91496f23cee88ed7766eca86d4dcfecbc050b8e01cc74da12fdaf",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "mobile-typecheck.log",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalBytes": 0,
+      "committedFile": "mobile-typecheck.txt",
+      "committedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "monitoring-shell.log",
+      "originalSha256": "3b07ef31873d856eac3613a3393a4bb4af4207ef02315bb830e86bacd9fec4f1",
+      "originalBytes": 879,
+      "committedFile": "monitoring-shell.txt",
+      "committedSha256": "00011072b13102a593441095d2ffc4874d6c73a5485e32a356595c093e2fc791",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "monitoring-tests-rerun.log",
+      "originalSha256": "affe0f7caaf072a5de49d3836fe3fb4002d464a0898729ab2c0b781a0fa2a1d6",
+      "originalBytes": 370,
+      "committedFile": "monitoring-tests-rerun.txt",
+      "committedSha256": "b45eb9a1ac5b29af1e70360f971ec73fe2098d77e218b8b5d02adae77e2df2a0",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "monitoring-tests.log",
+      "originalSha256": "523d776d6d8d31d5e706e83ae65a2ade948dfa1cc5745f3af240251c7d15596f",
+      "originalBytes": 74,
+      "committedFile": "monitoring-tests.txt",
+      "committedSha256": "a6d50aed2d8c5daddfeef2b7b76ba9e387e5e18cc6dab07fa7ba37d5b538f115",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "network-guard-tests.log",
+      "originalSha256": "439d33b5795c7c041e39a40111ac587bc3fa0b38b3237c2ab2c2682e9a5fe063",
+      "originalBytes": 650,
+      "committedFile": "network-guard-tests.txt",
+      "committedSha256": "f0d9c7e8fce592ff98db08a190db107be6f7998b84dcb3995827308fac01364e",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "production-login-mobile-390.png",
+      "originalSha256": "1129d3e2d3216df4d5577d345a7a0cfe59f52c36be5b44e9882f41e1551bdc0b",
+      "originalBytes": 73236,
+      "committedFile": "production-login-mobile-390.png",
+      "committedSha256": "1129d3e2d3216df4d5577d345a7a0cfe59f52c36be5b44e9882f41e1551bdc0b",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "rbac-inventory.log",
+      "originalSha256": "fe0fb070266a8ef4eb88b091dd3004e7bab84569ccde39bc0c0384355eac91e8",
+      "originalBytes": 2520,
+      "committedFile": "rbac-inventory.txt",
+      "committedSha256": "d2415327625d26d2019e170cd1a9fca32604416927b889e7ec060e0d8f6dc2d6",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "rbac-role-manager-desktop.png",
+      "originalSha256": "7800297f75bde2efc7abe3b759e8146d9184e9dd2e15c8f8172cad0e848a39a5",
+      "originalBytes": 124050,
+      "committedFile": "rbac-role-manager-desktop.png",
+      "committedSha256": "7800297f75bde2efc7abe3b759e8146d9184e9dd2e15c8f8172cad0e848a39a5",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "rbac-target-contracts.json",
+      "originalSha256": "19d85404958779594f0ee1802623d86086c8c87713cfbb75c75b0d22fb25a83e",
+      "originalBytes": 39779,
+      "committedFile": "rbac-target-contracts.json",
+      "committedSha256": "0ef39c3d0772018773993282978f12391a4a665e2f747267df9210799422dfaa",
+      "method": "test-result-extract"
+    },
+    {
+      "originalFile": "rbac-target-contracts.log",
+      "originalSha256": "f5cfd5980484839dd730c0f1836f79ff46c722b5c26086ed954f7dbfc20f099e",
+      "originalBytes": 175,
+      "committedFile": "rbac-target-contracts.txt",
+      "committedSha256": "9f47d1658341e4c6e240150c6ed8681b46a83c1c1deefc16740c58a1604703c7",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "remote-evidence.json",
+      "originalSha256": "781efb424b81c72e7f2db6bf4a2564a962698d0f0fe206e7b50e60644ef05d84",
+      "originalBytes": 197125,
+      "committedFile": "remote-evidence.json",
+      "committedSha256": "f12a08d357abc3d8983d0a550ae6c7770f27b4feb5771dcd928c075f5bf75bcd",
+      "method": "remote-status-extract"
+    },
+    {
+      "originalFile": "restore-drill.log",
+      "originalSha256": "ab8eca9b59173833f8af0f88b201cc9a37eab558b74d65586e02eaa96dc10a3d",
+      "originalBytes": 356,
+      "committedFile": "restore-drill.txt",
+      "committedSha256": "f7937c2121abd1d6bb697f7bc8040d22fa979799bd96399d482cb487fd5207c1",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "server-audit.json",
+      "originalSha256": "54ca1dd8d85adaca95799b2170cebab728d8f3ee42c3ae9e2ff1de35f95ac271",
+      "originalBytes": 3345,
+      "committedFile": "server-audit.json",
+      "committedSha256": "58ec4b114dd2b59735b53deb5488b441606373be6aae65e0d96cc95120ee644b",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "server-build.log",
+      "originalSha256": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
+      "originalBytes": 37,
+      "committedFile": "server-build.txt",
+      "committedSha256": "b10afcef62e7bf5b29c0c6d5d48459fb101829287667a74dad6545f0d2475a9c",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "server-tests-rerun.json",
+      "originalSha256": "d63e54bd4a6716c7495015133781bce51d2a423de669bac3d895070fcbe1e128",
+      "originalBytes": 830038,
+      "committedFile": "server-tests-rerun.json",
+      "committedSha256": "f5d2fbbb9f86a34a802f6cd628df4ddfb580cf4cf039c04b48999886f6b2e3f2",
+      "method": "test-result-extract"
+    },
+    {
+      "originalFile": "server-tests-rerun.log",
+      "originalSha256": "8b15214d834eb44c8c240d924d2d60167ab745ca720827498dfa2b5976de49bc",
+      "originalBytes": 274,
+      "committedFile": "server-tests-rerun.txt",
+      "committedSha256": "7b875dc1aed4de4f71da4573e6c4417818210067e4bcff9161f3bbd4f103c9f8",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "server-tests.log",
+      "originalSha256": "3e77645c1ead7193ec8b9797bac03c361670db62a7fd77900d81dfc892e855e5",
+      "originalBytes": 96,
+      "committedFile": "server-tests.txt",
+      "committedSha256": "9e0ab9b36dc2f2b0af2e2c59437229a8f6252fb4545b05ccfe29d6e449f5ff2c",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "shell-tests-rerun.log",
+      "originalSha256": "a0f95da8329761d8549406c512d82f37bf81360e80f8c99d99a0fd235eec32ed",
+      "originalBytes": 88,
+      "committedFile": "shell-tests-rerun.txt",
+      "committedSha256": "bcc7ac4c0151ce9143c0fd50f27336e4bc1055dd98dbb65a5fc71c077d2e5ca9",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "shell-tests.log",
+      "originalSha256": "c7c1110c4fd210653a13c34528e499522b6ac093a2d1c2bb37e68c4beee223e5",
+      "originalBytes": 40,
+      "committedFile": "shell-tests.txt",
+      "committedSha256": "2e332f7a94016b0192e530007c3573bb6db4370f256598c10a4063d28e9d1248",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "smoke-verify.log",
+      "originalSha256": "901f5c6eb34e1252c09856ee9159d51947ba9f676cf2e55c0f582ecd1b1e6202",
+      "originalBytes": 636,
+      "committedFile": "smoke-verify.txt",
+      "committedSha256": "21304377f343b0521a14bc590290f5649dffc45ecd9e5529800f6f734a554b72",
+      "method": "path-and-terminal-normalized-text"
+    },
+    {
+      "originalFile": "source-verification-windows-export.json",
+      "originalSha256": "4669df78e9b1110599e543903f7e47d6635d143a50fcb1e4978c0c98d2a1868c",
+      "originalBytes": 765,
+      "committedFile": "source-verification-windows-export.json",
+      "committedSha256": "671269e01f1f5b8c3801de1f157cb1110aa245759fa0734e9e35f163b6465378",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "source-verification.json",
+      "originalSha256": "431c1d630ed72f77dc16ca56e196e0f54999ee5b66105ab6bd5dcff1cd6780a5",
+      "originalBytes": 758,
+      "committedFile": "source-verification.json",
+      "committedSha256": "b6e1bf0dad110c286168c9d7cbb570cd1a0e7ba8762247bcf7db7efb03eeaff6",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "sponsor-billing-mobile-390.png",
+      "originalSha256": "eed3a7f7dd97d0a9528b74f76d8a9c1569e3ebdd3d8fd1c6c054b197646c11d7",
+      "originalBytes": 42812,
+      "committedFile": "sponsor-billing-mobile-390.png",
+      "committedSha256": "eed3a7f7dd97d0a9528b74f76d8a9c1569e3ebdd3d8fd1c6c054b197646c11d7",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": "writer-hold-windows-probe.json",
+      "originalSha256": "4db0ba12a64cdaf293972eb06cc81c3bf5b262f1bd254b03d459bc00314b7b47",
+      "originalBytes": 110,
+      "committedFile": "writer-hold-windows-probe.json",
+      "committedSha256": "8c8746420f76a725d0576938a5ffcfddbb6b9897334392b2d6e4face471106a3",
+      "method": "byte-copy"
+    },
+    {
+      "originalFile": ".playwright-cli/impact-report-2026-11-05.csv",
+      "originalSha256": "4da489834c53f08356ff7e54465079b05a9d57c560b8a2034356544193610065",
+      "originalBytes": 79,
+      "committedFile": "downloads/impact-report-2026-11-05.csv",
+      "committedSha256": "4da489834c53f08356ff7e54465079b05a9d57c560b8a2034356544193610065",
+      "method": "byte-copy-synthetic-download"
+    },
+    {
+      "originalFile": ".playwright-cli/receipt-e2e-payment-cohort-a.pdf",
+      "originalSha256": "bd140c92fbce0039a6ce394993f8146eda13748f14428f4ec5792b389049d7d3",
+      "originalBytes": 2035,
+      "committedFile": "downloads/receipt-e2e-payment-cohort-a.pdf",
+      "committedSha256": "bd140c92fbce0039a6ce394993f8146eda13748f14428f4ec5792b389049d7d3",
+      "method": "byte-copy-synthetic-download"
+    }
+  ]
+}

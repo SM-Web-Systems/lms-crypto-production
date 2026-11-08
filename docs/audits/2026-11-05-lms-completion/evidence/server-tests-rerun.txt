@@ -1,0 +1,5 @@
+
+> lms-server@1.0.0 test
+> vitest run --reporter=json --outputFile=../../server-tests-rerun.json
+
+JSON report written to <audit-root>/server-tests-rerun.json

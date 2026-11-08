@@ -1,0 +1,63 @@
+{
+  "task": "LMS-021",
+  "closedDate": "2026-11-06",
+  "expectedMetrics": {
+    "memberships": 7,
+    "completed": 3,
+    "certificates": 3,
+    "completionPercent": 43,
+    "singleDay": {
+      "memberships": 5,
+      "completed": 1,
+      "certificates": 1,
+      "completionPercent": 20
+    },
+    "confirmedCentsByCurrency": {
+      "USD": 10000,
+      "ZAR": 25000
+    }
+  },
+  "checks": {
+    "relatedApiPassed": 178,
+    "relatedApiFailed": 0,
+    "frontendPassed": 704,
+    "frontendFailed": 0,
+    "targetedChromiumPassed": 3,
+    "fullChromiumPassed": 79,
+    "browserRetries": 0,
+    "e2eTypecheck": "passed",
+    "apiBuild": "passed",
+    "frontendBuild": "passed via browser startup"
+  },
+  "sourceSha256": {
+    "LMS-Frontend/src/__tests__/audit-step3-sponsor-ui.test.tsx": "b337ad75ba12cabd2b8bd44335b47fa905e7fb9209e07a1696740bef5c226f0c",
+    "LMS-Frontend/src/pages/SponsorDashboard.tsx": "28c09f9303072f1be4bc1b1571c433680593d21b25ddd2c11a1882c78278c421",
+    "LMS-Frontend/src/services/cohortService.ts": "8db95d049951d2ca04b32106532a6c5960509223ca369b269765d052d8ff2633",
+    "LMS-Server/src/routes/sponsor.ts": "e0357d75f8be7497c95c665595b3f628a62fda9b4f4dc3bab6b499b40692130d",
+    "LMS-Server/src/services/cohortService.ts": "3cec71a3e116ecbc005491aceee7c6dcf2c58702671808f4823f8cfef8f0eea7",
+    "LMS-Server/src/__tests__/helpers/sponsorReportingFixture.ts": "9c9bbb156d90067f9f360839e6c1ddd8a1f02fc52f045aaec61afd3746beedce",
+    "LMS-Server/src/__tests__/sponsor-reporting-quantitative.test.ts": "abdbb0ce070ff73d15b24827d0065e0a3c3b06aa5c3cc8d6e15dd17d4cf3d9b2",
+    "e2e/fixtures/auth.ts": "e46a435eede5c9840311bf85c62cb059952e1b387efc619f2aa3bc8565590225",
+    "e2e/global-setup.ts": "f29d5599f4d9462f275eb40d5f3e23cf53944d474ea81d9928e3ffada12ecb49",
+    "e2e/tests/sponsor-reporting.spec.ts": "7d6d7e65af3135679a083c2c224ae3c8c318425fedb9967bf3637f510fe8b74f"
+  },
+  "originalReceiptHashes": {
+    "lms-021-red.json": "facebf79dc8f710712247cb0aa2faca3ca0542cf8f4178b0d1384b7ca7f9c9d1",
+    "lms-021-ui-red.json": "474bff6bf3bdacc82534bcbb8f09ec7dc1e25657b6f72fb28df16af425dd1abf",
+    "lms-021-currency-red.json": "912d2b79ea09404566cd3adbb02355a54017069924656f0b28968eeee42acbaf",
+    "lms-021-api-final.json": "75cc362bc0a50aec97599c8bf6ab6bdb086d3ab19423d0352d3f983bf33e6315",
+    "lms-021-api-build-final.log": "f76c6b2bac10f78ca0493a23096b6805e0225eb998b94e6084de5082c227cf0c",
+    "lms-021-frontend-full.json": "75d42f89f07a29b57b96922ac0845c96118adf8cc816023b0525541e2d2a3c0b",
+    "lms-021-browser.json": "85615f7cd3c0e7dcde08ab8883e146f590f5fae8a65c9ae9f4898bdc8b4d1d56",
+    "lms-021-browser-final.json": "8fd7e42d8365a1ade2e9fa1ad1f8eb67ad82aad568ed59798b900da4faa43902",
+    "lms-021-browser-full.json": "75af3962213196e88668342d5d9040c8502046468d2e32e18f917f6b48a1899f",
+    "lms-021-e2e-typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limitations": [
+    "Local synthetic fixture acceptance; staging/cross-browser and real provider acceptance remain separate.",
+    "First browser run passed currency/receipt behavior but two new tests used incorrect accessible names; corrected final targeted and full runs pass.",
+    "The final API run also covers the subsequent configured-currency invoice correction; browser fixtures never initiate real provider payment.",
+    "The frontend full run precedes final descriptive copy; the final browser run builds and checks that copy.",
+    "Role revocation remains LMS-020; RBAC cutover remains LMS-011."
+  ]
+}

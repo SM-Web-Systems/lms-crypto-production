@@ -1,0 +1,35 @@
+# LMS-031 — Stellar funding verification
+
+Status: **in progress**. Stored intent binding, provider verification, atomic consumption and the portal flow are implemented. The owner-approved real Stellar testnet acceptance passed. Staging/public-network acceptance and the LMS-030/LMS-011 closure dependencies remain open.
+
+## Implemented path
+
+Dedicated `REWARD_STELLAR_NETWORK` (`testnet` or `public`) and `REWARD_STELLAR_DESTINATION` settings select the receiving public account. Blank/invalid settings keep funding unavailable. NFT and course-tuition defaults cannot select the receiver. HTTP availability and new-intent creation verify the provider network and active account before offering deposit instructions. Provider failure, absent account or configuration changes during that check fail closed. Provider requests occur outside SQLite write transactions.
+
+The existing immutable intent binds actor, owner, reward, network, native asset and integer exposure. An additional immutable row pins destination and a server-generated SHA-256 memo binding the intent and its obligation. Replaying a creation key returns its original instructions. Issued obligations keep their original network/destination until expiry after configuration changes; reconcile outstanding deposits before retiring a receiver.
+
+The verifier reads fixed HTTPS Horizon endpoints. It checks operation identity/type/success, native asset, exact destination and integer stroops; transaction success, ledger inclusion, intent hash memo and time window; and the matching closed ledger. It rejects issued XLM lookalikes, wrong-network evidence, under/overpayment and failed or mismatched transactions. Requests share a five-second deadline, reject redirects and cap responses at 128 KiB. Caller URLs and provider links are never followed. Verification trusts the pinned HTTPS provider's ledger view; it is not an independent consensus implementation.
+
+Sources: the official [operation](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/operations/object), [payment](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/payments/object) and [transaction](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/transactions/object) contracts.
+
+Current permission, scope, immutable obligation and expiry are rechecked inside the existing ledger transaction. Fund, reserve, provider evidence and intent consumption commit together. Unique evidence consumes `(source, network, operation ID)`; ledger references use `stellar:<network>:<operation ID>`. Immutable supplementary evidence records transaction/ledger hashes and sequence. Evidence-storage failure rolls back credit, reservation, evidence and consumption. Concurrent verified callbacks credit once. The original source-mismatch idempotency error ordering is retained.
+
+The portal labels public/real XLM or testnet/test XLM and shows exact amount, account, hash memo and expiry. The user sends through their wallet and provides the payment operation ID. Verification submits no transfer. Ambiguous failures retain key, intent and operation reference; a conclusive invalid-evidence rejection permits correcting the operation ID. Invalid instructions are not offered. Focus stays inside the scrollable phone-width dialog and returns to its opening control.
+
+## Owner configuration and readiness
+
+The owner selected **public network** and supplied the receiver privately. Checksum validation passed. The first public account lookup returned 404. After the owner reported funding it, lookup returned 200 and the compiled network/account readiness check returned `ready:true`. The exact address and observations are retained in an ignored local configuration record; the integration receipt records its hash. No server environment variable was changed and no reward deposit was credited by these checks.
+
+## Evidence and remaining acceptance
+
+See the [integration receipt](evidence/lms-031-integration-validation.json) and [preparatory receipt](evidence/lms-031-verifier-validation.json). Local checks: 28 provider/binding/schema tests; 100 existing funding authorization/reference/idempotency/HTTP regressions; 49 focused web assertions; 169 Windows CRLF migration cases; compiled funding concurrency/restart, source-free startup and RBAC restart checks. All 18 Chromium/Firefox/WebKit funding cases pass at 320/390/768px with retries disabled. Stellar UI cases simulate provider timeouts; they do not establish a real-chain credit.
+
+The first preparatory commit failed [CI 42257144416](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257144416) at TypeScript narrowing. Corrected candidate `7ae766d` passed all eight [CI jobs](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42257646293). Integrated candidate `c74f352` subsequently passed [all eight CI jobs](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42261183099) and mobile CI: 2,448 API tests passed with one existing protected-copy skip, 721 web tests and all 89 Chromium cases without retries. See the [hosted receipt](evidence/lms-031-hosted-validation.json).
+
+## Approved Stellar testnet run
+
+The owner explicitly approved the unchanged manual runner after automatic approval review initially refused the external testnet writes. It ran once against compiled candidate `b812f6c`: two fresh Friendbot-funded accounts, three submitted testnet payments and a disposable LMS database. The [testnet receipt](evidence/lms-031-real-testnet-validation.json) pins the script, compiled services, lockfile and recorded transaction/operation identifiers. There were no verifier retries, no persisted signing keys and no public-network submissions.
+
+The 199-stroop payment was rejected without credit; the 200-stroop direct reward produced one credit and one reservation despite replay. Public-network verification rejected the testnet operation. An injected provider failure created no extra credit. A 1,000-stroop testnet payment backed one independently approved allocation; a replayed 200-stroop use consumed credit once, leaving 800 stroops. Database and foreign-key integrity checks passed.
+
+Candidate `38a3d3a` passed all hosted CI and mobile jobs; see the [hosted receipt](evidence/lms-032-hosted-validation.json). Before closure, accept the staging RBAC/recovery gates, configure the intended receiver and reconcile a purpose-bound staging payment under separate explicit authorization for public-network funds. Testnet acceptance does not establish live custody, public-network backing or Paystack settlement.

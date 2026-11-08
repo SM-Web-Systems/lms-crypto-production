@@ -1,0 +1,37 @@
+{
+  "task": "LMS-006",
+  "closedDate": "2026-11-06",
+  "tests": {
+    "frontend": {
+      "passed": 703,
+      "failed": 0
+    },
+    "chromium": {
+      "passed": 3,
+      "failed": 0,
+      "retries": 0,
+      "viewportWidths": [
+        320,
+        390,
+        768
+      ]
+    }
+  },
+  "build": "passed",
+  "sourceSha256": {
+    "LMS-Frontend/src/components/GlobalSearchBar.tsx": "dc7a83f0aab10168c206e9c7d44c97c3908955a72540087cd4e39141fc860350",
+    "LMS-Frontend/src/components/Layout.tsx": "b75b868fa9ba4f4b28039e4625316d1233667e6bdcc7dfce41179d055fab9ac3",
+    "LMS-Frontend/src/__tests__/components/GlobalSearchBar.test.tsx": "122b0e42b87fd3c8835baa6f67a879faeeae3a07cef03b88c28a6f868f82f77f",
+    "e2e/tests/sponsor-authorization.spec.ts": "13dda6dd020c5a781e05c905eb33671fd958145aaeb00ff31c0acd6f1dcfc65f"
+  },
+  "originalReceiptHashes": {
+    "lms-006-frontend-full.json": "ae3393265fe040af50fc8827f16c42fcb471beda8021e1d148bce825cf4a18c8",
+    "lms-006-frontend-build.log": "35e93eb12754d9c4231e9e83fb798193195ab35e6e379f931f81d86ecd09c86b",
+    "lms-006-browser.json": "e025ccf5ab125fcf27ab52816638ca5b5146acc770bd6b6d5145bb840ca3e91e",
+    "lms-006-browser.log": "ef968eca71127901dc895892a6259ffc3804e047b41c070362af44d5eef5d972"
+  },
+  "limitations": [
+    "Local synthetic fixtures, not staging or physical-device acceptance.",
+    "Browser validation also uses the LMS-007 authentication fixture changes."
+  ]
+}

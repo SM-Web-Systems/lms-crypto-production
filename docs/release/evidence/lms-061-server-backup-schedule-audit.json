@@ -1,0 +1,23 @@
+{
+  "task": "LMS-061",
+  "observedOn": "2026-11-08",
+  "operatorCronDailyJobs": [
+    "lms-sqlite",
+    "wallet-postgresql",
+    "wallet-testnet-postgresql",
+    "website-database",
+    "crm-database",
+    "media",
+    "offsite-restic"
+  ],
+  "mailReferencedInOffsiteBackupScript": true,
+  "cloudflareR2ReferencedInOffsiteBackupScript": true,
+  "latestReadableOffsiteRun": {
+    "logLastModifiedUtc": "2026-11-08T02:15:11.227875Z",
+    "snapshotSaveMarkers": 1,
+    "fatalOrFailedMarker": false
+  },
+  "lmsAndWalletDatabaseJobsInvokeResticDirectly": false,
+  "remoteSnapshotManifestVerified": false,
+  "offHostRestoreVerified": false
+}

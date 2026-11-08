@@ -1,0 +1,156 @@
+[WebServer] (node:33992) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:8020) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:35596) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:31624) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:14960) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:37264) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:26148) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 73 tests using 2 workers
+
+(node:14400) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23548) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  2 [chromium] › tests\account-deletion-forum.spec.ts:53:7 › Account Deletion → Forum Integration › E2E-ADF-01: pending-deletion user cannot create forum topics (1.4s)
+  ok  1 [chromium] › tests\account-deletion-forum.spec.ts:83:7 › Account Deletion → Forum Integration › E2E-ADF-02: pending-deletion user cannot reply to forum topics (2.2s)
+  ok  3 [chromium] › tests\account-deletion-forum.spec.ts:114:7 › Account Deletion → Forum Integration › E2E-ADF-03: cancelling deletion restores forum access (1.4s)
+  ok  4 [chromium] › tests\account-deletion-forum.spec.ts:145:7 › Account Deletion → Forum Integration › E2E-ADF-04: forum content by pending-deletion user is still visible to others (2.1s)
+  ok  5 [chromium] › tests\account-deletion.spec.ts:49:7 › Account Deletion Lifecycle › E2E-DEL-01: request, check status, cancel, verify access restored (1.1s)
+  ok  6 [chromium] › tests\account-deletion.spec.ts:92:7 › Account Deletion Lifecycle › E2E-DEL-03: reject duplicate deletion request (1.3s)
+  ok  7 [chromium] › tests\account-deletion.spec.ts:82:7 › Account Deletion Lifecycle › E2E-DEL-02: reject deletion without confirmation string (1.2s)
+  ok  8 [chromium] › tests\account-deletion.spec.ts:116:7 › Auth Gate for Pending Deletion › E2E-GATE-01: pending-deletion user is blocked from normal endpoints (1.8s)
+  ok  9 [chromium] › tests\account-deletion.spec.ts:150:7 › Forum Anonymization › E2E-FORUM-01: deleted user shows as "Deleted User" with isDeleted in forum (2.4s)
+  ok 10 [chromium] › tests\account-deletion.spec.ts:190:7 › Compliance Identity Access › E2E-COMP-01: non-admin cannot access deleted-identities endpoint (987ms)
+  ok 11 [chromium] › tests\account-deletion.spec.ts:199:7 › Compliance Identity Access › E2E-COMP-02: super-admin can access deleted-identities endpoint (436ms)
+  x  13 [chromium] › tests\admin-dashboard.spec.ts:11:7 › Admin dashboard › admin can navigate to students page (31.5s)
+  x  12 [chromium] › tests\admin-dashboard.spec.ts:4:7 › Admin dashboard › admin sees the dashboard after login (31.5s)
+(node:34364) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:34880) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 15 [chromium] › tests\auth.spec.ts:4:7 › Admin login flow › admin can log in via the admin form (7.8s)
+  ok 14 [chromium] › tests\auth.spec.ts:21:7 › Admin login flow › login rejects invalid credentials (8.5s)
+  ok 16 [chromium] › tests\forum-soft-delete.spec.ts:45:7 › Forum Soft-Delete › E2E-F01: author can delete own topic, re-fetch shows tombstone (1.8s)
+  ok 17 [chromium] › tests\forum-soft-delete.spec.ts:84:7 › Forum Soft-Delete › E2E-F02: cannot delete another user's topic (3.1s)
+  ok 18 [chromium] › tests\forum-soft-delete.spec.ts:111:7 › Forum Soft-Delete › E2E-F03: author can delete own reply, re-fetch shows tombstone (1.9s)
+  ok 20 [chromium] › tests\health.spec.ts:5:7 › Health smoke test › GET /health returns 200 with status ok (209ms)
+  ok 21 [chromium] › tests\health.spec.ts:12:7 › Health smoke test › GET /api/v1/health returns enhanced status (113ms)
+  ok 22 [chromium] › tests\health.spec.ts:23:7 › Readiness smoke test › SMOKE-001: GET /healthz returns 200 (159ms)
+  ok 23 [chromium] › tests\health.spec.ts:28:7 › Readiness smoke test › SMOKE-002: GET /healthz returns ready: true with all checks (117ms)
+  ok 19 [chromium] › tests\forum-soft-delete.spec.ts:148:7 › Forum Soft-Delete › E2E-F04: reply to deleted topic fails with 403 (1.6s)
+  ok 25 [chromium] › tests\message-admin-audit.spec.ts:138:7 › Admin Message Audit › E2E-ADMIN-02: non-admin cannot access audit endpoints (1.2s)
+  ok 24 [chromium] › tests\message-admin-audit.spec.ts:73:7 › Admin Message Audit › E2E-ADMIN-01: admin views deleted message content and metadata (2.4s)
+  ok 26 [chromium] › tests\message-soft-delete.spec.ts:43:7 › DM Soft-Delete › E2E-01: sender can delete own message, re-fetch shows tombstone (1.9s)
+  ok 27 [chromium] › tests\message-soft-delete.spec.ts:84:7 › DM Soft-Delete › E2E-02: cannot delete another user's message (1.9s)
+  ok 28 [chromium] › tests\navigation.spec.ts:4:7 › Role-based navigation › admin is routed to /admin (5.5s)
+  ok 29 [chromium] › tests\navigation.spec.ts:9:7 › Role-based navigation › student is routed to /student (4.7s)
+  ok 30 [chromium] › tests\navigation.spec.ts:14:7 › Role-based navigation › unauthenticated user is redirected to login (2.3s)
+  ok 31 [chromium] › tests\payment-flow.spec.ts:26:7 › Payment Flow › student can view course pricing (3.8s)
+  ok 32 [chromium] › tests\payment-flow.spec.ts:53:7 › Payment Flow › checkout requires valid applicationId (4.0s)
+  ok 33 [chromium] › tests\payment-flow.spec.ts:61:7 › Payment Flow › checkout with non-existent application returns 404 (3.9s)
+  ok 34 [chromium] › tests\payment-flow.spec.ts:69:7 › Payment Flow › Stellar checkout requires valid applicationId (3.5s)
+  ok 35 [chromium] › tests\payment-flow.spec.ts:77:7 › Payment Flow › payment status for non-existent payment returns 404 (2.8s)
+  ok 37 [chromium] › tests\payment-flow.spec.ts:93:7 › Webhook Security › webhook without signature is rejected (49ms)
+  ok 38 [chromium] › tests\payment-flow.spec.ts:107:7 › Webhook Security › webhook with invalid signature is rejected (52ms)
+  ok 39 [chromium] › tests\payment-flow.spec.ts:124:7 › Webhook Security › webhook with valid signature but unknown reference returns 200 (80ms)
+  ok 40 [chromium] › tests\payment-flow.spec.ts:132:7 › Webhook Security › duplicate webhook with same reference is handled idempotently (69ms)
+  ok 41 [chromium] › tests\payment-flow.spec.ts:152:7 › Webhook Event Types › charge.success webhook is accepted (50ms)
+  ok 42 [chromium] › tests\payment-flow.spec.ts:160:7 › Webhook Event Types › charge.failed webhook is accepted (149ms)
+  ok 43 [chromium] › tests\payment-flow.spec.ts:168:7 › Webhook Event Types › refund.processed webhook is accepted (73ms)
+  ok 44 [chromium] › tests\payment-flow.spec.ts:176:7 › Webhook Event Types › unknown event type is acknowledged (58ms)
+  ok 45 [chromium] › tests\payment-flow.spec.ts:190:7 › Webhook Event Types › webhook with empty reference in payload is handled (31ms)
+  ok 46 [chromium] › tests\payment-flow.spec.ts:204:7 › Webhook Event Types › webhook signature verification uses raw body (43ms)
+  ok 47 [chromium] › tests\payment-flow.spec.ts:222:7 › Webhook Idempotency › three identical webhooks are all accepted (idempotent) (659ms)
+  ok 36 [chromium] › tests\payment-flow.spec.ts:84:7 › Payment Flow › receipt for non-existent payment returns 404 (2.8s)
+  ok 48 [chromium] › tests\payment-flow.spec.ts:233:7 › Webhook Idempotency › different event types for same reference are processed independently (259ms)
+  ok 49 [chromium] › tests\payment-flow.spec.ts:245:7 › Payment API › payment history endpoint returns student payments (3.6s)
+  ok 50 [chromium] › tests\payment-flow.spec.ts:265:7 › Payment API › admin payment analytics endpoint returns summary (4.9s)
+  ok 51 [chromium] › tests\payment-flow.spec.ts:281:7 › Payment API › unauthenticated request to payments is rejected (1.4s)
+  ok 53 [chromium] › tests\payment-flow.spec.ts:293:7 › Payment API › student cannot confirm payments (admin-only) (3.9s)
+  ok 52 [chromium] › tests\payment-flow.spec.ts:287:7 › Payment API › student cannot access admin payment list (4.2s)
+  ok 55 [chromium] › tests\payment-flow.spec.ts:309:7 › Payment API › student cannot trigger refunds (admin-only) (3.6s)
+  ok 54 [chromium] › tests\payment-flow.spec.ts:301:7 › Payment API › student cannot waive payments (admin-only) (3.7s)
+  ok 57 [chromium] › tests\quiz-flow.spec.ts:5:7 › Quiz submission flow › student can view quizzes page (2.8s)
+  ok 56 [chromium] › tests\quiz-flow.spec.ts:12:7 › Quiz submission flow › quiz API returns quiz list for authenticated student (2.8s)
+  ok 58 [chromium] › tests\sponsor-authorization.spec.ts:33:7 › Sponsor Authorization — Cohort Access › SPNS-E2E-02: Sponsor A cannot access Sponsor B cohort (2.8s)
+  ok 59 [chromium] › tests\sponsor-authorization.spec.ts:26:7 › Sponsor Authorization — Cohort Access › SPNS-E2E-01: Sponsor A can access own cohort (2.8s)
+  ok 60 [chromium] › tests\sponsor-authorization.spec.ts:40:7 › Sponsor Authorization — Billing Data › SPNS-E2E-03: Sponsor A sees only authorized payments (2.5s)
+  ok 61 [chromium] › tests\sponsor-authorization.spec.ts:49:7 › Sponsor Authorization — Billing Data › SPNS-E2E-04: Sponsor A cannot view unrelated payment status (2.5s)
+  ok 62 [chromium] › tests\sponsor-authorization.spec.ts:56:7 › Sponsor Authorization — Receipt and Badge Access › SPNS-E2E-05: Sponsor A cannot download unauthorized badge (2.5s)
+  ok 63 [chromium] › tests\sponsor-authorization.spec.ts:61:7 › Sponsor Authorization — Receipt and Badge Access › SPNS-E2E-06: Sponsor A cannot initiate unauthorized cohort payment (2.5s)
+  ok 65 [chromium] › tests\sponsor-authorization.spec.ts:75:7 › Sponsor Authorization — Admin and Edge Cases › SPNS-E2E-08: Unauthenticated request returns 401 (243ms)
+  ok 64 [chromium] › tests\sponsor-authorization.spec.ts:68:7 › Sponsor Authorization — Admin and Edge Cases › SPNS-E2E-07: Admin retains full access to all cohorts (2.5s)
+  ok 66 [chromium] › tests\sponsor-authorization.spec.ts:82:7 › Sponsor Authorization — Admin and Edge Cases › SPNS-E2E-09: Unauthorized student returns 403 (2.4s)
+  ok 67 [chromium] › tests\sponsor-authorization.spec.ts:87:7 › Sponsor Authorization — Admin and Edge Cases › SPNS-E2E-10: Revoked sponsor membership removes cohort access (3.1s)
+  ok 69 [chromium] › tests\webhook-integrity.spec.ts:23:5 › real confirmation, duplicate and refund preserve exactly-once financial state (444ms)
+  ok 70 [chromium] › tests\webhook-integrity.spec.ts:33:5 › failure and later success for one reference are separate events (132ms)
+  ok 71 [chromium] › tests\webhook-integrity.spec.ts:39:7 › missing signature leaves real payment and event rows unchanged (70ms)
+  ok 72 [chromium] › tests\webhook-integrity.spec.ts:39:7 › invalid signature leaves real payment and event rows unchanged (72ms)
+  ok 73 [chromium] › tests\webhook-integrity.spec.ts:39:7 › tampered signature leaves real payment and event rows unchanged (89ms)
+  ok 68 [chromium] › tests\student-dashboard.spec.ts:4:7 › Student dashboard › student sees the dashboard after login (4.1s)
+
+
+  1) [chromium] › tests\admin-dashboard.spec.ts:4:7 › Admin dashboard › admin sees the dashboard after login
+
+    Test timeout of 30000ms exceeded while setting up "adminPage".
+
+    Error: page.goto: Test ended.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       at ..\fixtures\auth.ts:37
+
+      35 |     });
+      36 |     const page = await context.newPage();
+    > 37 |     await page.goto(baseURL!);
+         |                ^
+      38 |     await page.evaluate((t: string) => {
+      39 |       localStorage.setItem('lms_token', t);
+      40 |     }, token);
+        at Object.adminPage (<audit-root>\source\e2e\fixtures\auth.ts:37:16)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\admin-dashboard-Admin-dash-c9001-s-the-dashboard-after-login-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\admin-dashboard-Admin-dash-c9001-s-the-dashboard-after-login-chromium\error-context.md
+
+  2) [chromium] › tests\admin-dashboard.spec.ts:11:7 › Admin dashboard › admin can navigate to students page
+
+    Test timeout of 30000ms exceeded while setting up "adminPage".
+
+    Error: page.goto: Test ended.
+    Call log:
+      - navigating to "http://localhost:5173/", waiting until "load"
+
+
+       at ..\fixtures\auth.ts:37
+
+      35 |     });
+      36 |     const page = await context.newPage();
+    > 37 |     await page.goto(baseURL!);
+         |                ^
+      38 |     await page.evaluate((t: string) => {
+      39 |       localStorage.setItem('lms_token', t);
+      40 |     }, token);
+        at Object.adminPage (<audit-root>\source\e2e\fixtures\auth.ts:37:16)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\admin-dashboard-Admin-dash-19e83-n-navigate-to-students-page-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\admin-dashboard-Admin-dash-19e83-n-navigate-to-students-page-chromium\error-context.md
+
+  2 failed
+    [chromium] › tests\admin-dashboard.spec.ts:4:7 › Admin dashboard › admin sees the dashboard after login
+    [chromium] › tests\admin-dashboard.spec.ts:11:7 › Admin dashboard › admin can navigate to students page
+  71 passed (3.8m)

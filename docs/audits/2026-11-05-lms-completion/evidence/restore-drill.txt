@@ -1,0 +1,14 @@
+
+> lms-server@1.0.0 test:restore-drill
+> node scripts/synthetic-restore-drill.mjs
+
+{
+  "syntheticOnly": true,
+  "verdict": "PASS",
+  "sourceWalPresent": true,
+  "integrity": "ok",
+  "foreignKeys": "ok",
+  "restoredRows": 2,
+  "sourceRowsUnchanged": true,
+  "backupSha256": "4016ef61e4d5915d78980c376f05f27bec6e8d6f3574a96b6cd2b939d1308054"
+}

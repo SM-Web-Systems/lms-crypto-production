@@ -1,0 +1,45 @@
+
+> lms-mobile@1.0.0 acceptance:tooling
+> node --test scripts/tooling-acceptance.test.cjs && node --require ./scripts/deny-tooling-network.cjs ./scripts/check-eas-tooling.cjs
+
+TAP version 13
+# Subtest: the offline guard blocks HTTP, socket and TLS APIs before their implementations run
+ok 1 - the offline guard blocks HTTP, socket and TLS APIs before their implementations run
+  ---
+  duration_ms: 2294.7403
+  type: 'test'
+  ...
+# Subtest: the offline guard also blocks DNS variants and resolver instances
+ok 2 - the offline guard also blocks DNS variants and resolver instances
+  ---
+  duration_ms: 1191.8816
+  type: 'test'
+  ...
+# Subtest: the offline guard blocks HTTP/2, datagrams and fetch
+ok 3 - the offline guard blocks HTTP/2, datagrams and fetch
+  ---
+  duration_ms: 959.8728
+  type: 'test'
+  ...
+# Subtest: the CLI schema validator rejects malformed profiles and an incorrect CLI pin
+ok 4 - the CLI schema validator rejects malformed profiles and an incorrect CLI pin
+  ---
+  duration_ms: 6956.509
+  type: 'test'
+  ...
+# Subtest: the actual EAS metadata validator preserves draft-06 formats and readable errors
+ok 5 - the actual EAS metadata validator preserves draft-06 formats and readable errors
+  ---
+  duration_ms: 1742.9
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13552.7113
+{"status":"OFFLINE_TOOLING_VALID","cli":"25.3.0","build_profiles":4,"platform_profiles":8,"android_submit_profiles":1,"config_changed":false}

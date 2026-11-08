@@ -18,8 +18,8 @@ if (!email || !email.includes('@')) {
   process.exit(1);
 }
 
-const row = queryOne<{ id: string; name: string; role: string }>(
-  'SELECT id, name, role FROM users WHERE email = ?',
+const row = queryOne<{ id: string; name: string }>(
+  'SELECT id, name FROM users WHERE email = ?',
   [email]
 );
 if (!row) {

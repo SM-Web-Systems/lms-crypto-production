@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-06",
+  "status": "local_backed_credit_validated_staging_acceptance_open",
+  "sourceBase": "c74f35256ddaf0bb4ab05da842c14fa83b342819",
+  "sourceFileSha256": {
+    ".github/workflows/ci.yml": "7c5f9a157f241eef015071c0c14b8c98fab5337952594e4aa5b1a013e7d1bdc1",
+    "LMS-Frontend/src/__tests__/components/RewardFundingDialog.test.tsx": "7c06b0f413ac19c95157c09e6b2e209721cf627ad3a067402cc5c7c80eab0ba7",
+    "LMS-Frontend/src/components/RewardFundingDialog.tsx": "34f031583c958bb03cf3404d7c05eaca1958ed80f12e8266b8e977268a7ec00b",
+    "LMS-Frontend/src/services/rewardService.ts": "0f5012afc4232724674b8e75cbb0edea654f029082c9e1df87163a7ca5cec3f1",
+    "LMS-Server/database/required-schema.json": "3809f923974d0fab332a730979364645ac24ff371c83e895c4d8e284f50ed3c3",
+    "LMS-Server/database/schema.sql": "9d94e9788e8f16f0b4ed6349e40a1c2db303979d7637c76327bfb9e444fb50e4",
+    "LMS-Server/package.json": "77be3522b13b5418bfc5f1d5250601a8b48810ebc022eaffed7dd9a1d9d40e34",
+    "LMS-Server/scripts/test-reward-funding-runtime.mjs": "981a3205964ee276070e6f7c936c9e07b3daec19c57f8eec11438e9cb3c732a9",
+    "LMS-Server/src/__tests__/reward-funding-intents.test.ts": "851274f5d8d85e67ddd9ac239e67a9ca6d9d8ae1f0b8fda6f2e19ca38cb3c960",
+    "LMS-Server/src/__tests__/reward-funding-schema.test.ts": "f0659b2bdb3e0cb3ec2c10c44439d09487e09e25156f31fd958f48e8444c50a1",
+    "LMS-Server/src/config/database.ts": "705352832900d5d359f57f927c22339b5a514a1c2889e8780e8e99d35be4bbd7",
+    "LMS-Server/src/config/rewardFundingSchema.ts": "02bf57384719f4c6120fdd61e8a814b59cccab223fe0e44297706dd31a9702b8",
+    "LMS-Server/src/routes/adminRewards.ts": "814b4abe51c84b312941a1ccf802cd28ede6fad9596a943560bee1854d07f1b2",
+    "LMS-Server/src/services/rewards/rewardFundingIntentService.ts": "6000908c64c22d884391be5c775f3791b3580fea15079f4a27191c05e5e117c8",
+    "LMS-Server/src/services/rewards/rewardFundingVerifier.ts": "aa4af93e48e10d02d6808f29492e99513b637e080855890c3fd6d80c1841f60c",
+    "LMS-Server/src/services/rewards/rewardService.ts": "c1b29aa1877692a738d9aeaf6fdc9ab53c86d6af2abe1ab0a4a00704be71f38f",
+    "LMS-Server/scripts/test-platform-credit-runtime.mjs": "24fba9d15f312e581dcfeb6455bae308a526a5f4a7ef0aea6108e718c9c7bcd9",
+    "LMS-Server/src/__tests__/platform-credit-routes.test.ts": "43d4f766758d10e94a04d9b800b3a1dda943e8b599f3d4bafeea05af544826fe",
+    "LMS-Server/src/__tests__/platform-credit.test.ts": "b73b1b60e4cb5bbbb82b2a42593d0bc9d3f302cb53fdf10dffa9b2cb947c7301",
+    "LMS-Server/src/config/platformCreditSchema.ts": "6a004de03d846a0bc98eebfc00d196f4401b5885bb77731e82def69845dcda3a",
+    "LMS-Server/src/routes/platformCredit.ts": "9de43041e64889fd74c9ff777c4643af871cd23d5d203b207306dd49c06de9a4",
+    "LMS-Server/src/services/rewards/platformCreditService.ts": "5a13191e1253143b1075490f22e77187a1776f204a3b84fe22dfb06fb6a61726",
+    "e2e/tests/platform-credit-ui.spec.ts": "04cf1e22a3880b983e1775ba5cdaf12a14322c1fa93e79d864dd2f4c09a5dc20"
+  },
+  "checks": {
+    "creditAndExistingRegressionsPassed": 77,
+    "administrativeHttpPassed": 2,
+    "focusedWebPassed": 50,
+    "windowsCrlfMigrationPassed": 169,
+    "browserPassed": 27,
+    "browserEngines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "browserWidths": [
+      320,
+      390,
+      768
+    ],
+    "browserRetries": 0,
+    "browserFlaky": 0,
+    "compiledBootstrap": "passed_source_free",
+    "originalFundingRuntime": "passed_three_writers_and_restart",
+    "backedCreditRuntime": {
+      "backingAndApprovalRestart": "ONE_DEPOSIT_ONE_GRANT",
+      "threeCompetingReservations": {
+        "accepted": 1,
+        "insufficientCredit": 2
+      },
+      "concurrentFunding": "ONE_CREDIT_ONE_RESERVATION",
+      "freshProcessReplay": "NO_NEW_VALUE",
+      "remainingCreditStroops": 400,
+      "integrity": "PASS"
+    },
+    "serverAndWebBuilds": "passed",
+    "hostedCreditCandidate": "passed_d575fd8_all_ci_and_mobile_jobs",
+    "combinedRegressionAndHttpPassed": 79
+  },
+  "initialAttempts": {
+    "existingUnfundedSourceAssertion": "Updated the platform-credit case to require INSUFFICIENT_CREDIT now that the source is implemented but unprovisioned.",
+    "sandboxRegressions": {
+      "passed": 71,
+      "localhostDenied": 4,
+      "resolution": "Same cases passed outside sandbox; no assertions or deadlines changed."
+    }
+  },
+  "receiptSha256": {
+    "lms-032-credit-first.json": "9cb1364d6d24afed6b255bc434e5cf8bcd802f6e7af8b4d8760450b6fae06fe5",
+    "lms-032-credit-regressions.json": "ea165a4d4c42546c835b01dad0d67d31c63bd04ec96b822d54d5b5d9b4a0c136",
+    "lms-032-credit-regressions-fixed.json": "256b87ca958cbb59268799a8606fa59fe53ab4094b9e0fd52cde6d3d67b3ef1a",
+    "lms-032-http-final.json": "6948b82e4976551139cd40ea2d331c12fc65d05097f2a9aa9c227bb02beee283",
+    "lms-032-web-credit.json": "f8529d03d36ad40b14c4a8c955f1b485d5b51b4de2af0dabe8b47fef05a2cf5a",
+    "lms-032-browser.json": "335a6ce9fb0f143b8b0b3bd88acf04c8c00cde739dde780ac49f4b7686cb70f4",
+    "lms-032-migration-crlf.json": "29cc63e6d751c6100fcaa98f614b0c21beeb7ac45108517bf026303a701ce1c8",
+    "lms-032-runtime-final.log": "748f5879c379832059d897d3c9f83d76b54f5d5dfc0d437e5556aa9a535814f6",
+    "lms-032-acceptance-final.json": "d400b53b159656b982ff452193417ad01dbd079f70b4a72e8e44b1b291635139"
+  },
+  "acceptance": {
+    "lms030Dependency": "open_staging_rbac_acceptance",
+    "actualBackingDeposit": "not_run",
+    "treasuryCustodyAndReconciliation": "not_accepted",
+    "stagingDeployment": "not_run",
+    "serverConfigurationChanged": false,
+    "agentSubmittedTransfers": 0
+  },
+  "hostedEvidence": "lms-032-hosted-validation.json"
+}

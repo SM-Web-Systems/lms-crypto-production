@@ -412,6 +412,17 @@ CREATE INDEX IF NOT EXISTS idx_payments_course_id ON payments(course_id);
 CREATE INDEX IF NOT EXISTS idx_payments_application_id ON payments(application_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 
+CREATE TABLE IF NOT EXISTS paystack_checkout_links (
+  payment_id TEXT PRIMARY KEY NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  authorization_url TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS paystack_refund_requests (
+  payment_id TEXT PRIMARY KEY NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  refund_reference TEXT NOT NULL UNIQUE,
+  submitted INTEGER NOT NULL DEFAULT 0 CHECK (submitted IN (0, 1))
+);
+
 -- Phase F4: disputes — payment dispute / refund workflow
 CREATE TABLE IF NOT EXISTS disputes (
   id              TEXT PRIMARY KEY,
@@ -521,21 +532,23 @@ CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role_id
 CREATE INDEX IF NOT EXISTS idx_permissions_category ON permissions(category);
 CREATE INDEX IF NOT EXISTS idx_permissions_name ON permissions(name);
 
--- Auto-map users.role → user_roles on INSERT (bridges legacy role column to RBAC)
+-- RBAC-only schema marker and backwards-startup fence; no legacy mapping.
+CREATE TABLE IF NOT EXISTS authorization_migrations (
+  id TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+  source_snapshot_sha256 TEXT,
+  source_grants_sha256 TEXT,
+  review_reference TEXT NOT NULL
+);
+INSERT OR IGNORE INTO authorization_migrations(id,review_reference) VALUES('rbac-only-v1','new-database');
+
+-- Non-grant rollback fence: older AUTH-13 backends reject the changed canonical
+-- trigger and roll their startup transaction back. Initial grants are explicit.
 CREATE TRIGGER IF NOT EXISTS trg_auto_assign_user_role
 AFTER INSERT ON users
 FOR EACH ROW
-WHEN NEW.role IN ('student', 'lecturer', 'admin')
 BEGIN
-  INSERT OR IGNORE INTO user_roles (user_id, role_id)
-  VALUES (
-    NEW.id,
-    CASE NEW.role
-      WHEN 'student' THEN 'role_student'
-      WHEN 'lecturer' THEN 'role_instructor'
-      WHEN 'admin' THEN 'role_admin'
-    END
-  );
+  SELECT 1;
 END;
 
 -- Phase 12 C1: Paystack webhook audit trail
@@ -996,3 +1009,313 @@ CREATE TABLE IF NOT EXISTS identity_access_log (
 );
 CREATE INDEX IF NOT EXISTS idx_identity_access_log_target ON identity_access_log(target_user_id);
 CREATE INDEX IF NOT EXISTS idx_identity_access_log_actor ON identity_access_log(actor_id);
+
+-- LMS-030: durable funding requests and consumed verification evidence.
+
+CREATE TABLE IF NOT EXISTS reward_funding_intents (
+  id TEXT PRIMARY KEY,
+  reward_id TEXT NOT NULL REFERENCES rewards(id) ON DELETE RESTRICT,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  source_type TEXT NOT NULL CHECK (source_type IN ('admin_grant','platform_credit','stellar','paystack')),
+  network TEXT NOT NULL,
+  asset TEXT NOT NULL,
+  currency_code TEXT NOT NULL CHECK (currency_code = 'XLM'),
+  amount_stroops INTEGER NOT NULL CHECK (typeof(amount_stroops) = 'integer' AND amount_stroops > 0 AND amount_stroops <= 9007199254740991),
+  reference TEXT,
+  idempotency_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','consumed')),
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(actor_user_id, idempotency_key),
+  CHECK ((status = 'pending' AND consumed_at IS NULL) OR (status = 'consumed' AND consumed_at IS NOT NULL))
+);
+CREATE TABLE IF NOT EXISTS reward_funding_evidence (
+  id TEXT PRIMARY KEY,
+  intent_id TEXT NOT NULL UNIQUE REFERENCES reward_funding_intents(id) ON DELETE RESTRICT,
+  ledger_transaction_id TEXT NOT NULL UNIQUE REFERENCES reward_transactions(id) ON DELETE RESTRICT,
+  source_type TEXT NOT NULL,
+  network TEXT NOT NULL,
+  reference TEXT NOT NULL,
+  verification_method TEXT NOT NULL,
+  verified_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(source_type, network, reference)
+);
+CREATE TRIGGER IF NOT EXISTS reward_funding_intent_immutable
+BEFORE UPDATE ON reward_funding_intents
+WHEN NEW.id IS NOT OLD.id OR NEW.reward_id IS NOT OLD.reward_id
+  OR NEW.owner_user_id IS NOT OLD.owner_user_id OR NEW.actor_user_id IS NOT OLD.actor_user_id
+  OR NEW.source_type IS NOT OLD.source_type OR NEW.network IS NOT OLD.network
+  OR NEW.asset IS NOT OLD.asset OR NEW.currency_code IS NOT OLD.currency_code
+  OR NEW.amount_stroops IS NOT OLD.amount_stroops OR NEW.reference IS NOT OLD.reference
+  OR NEW.idempotency_key IS NOT OLD.idempotency_key OR NEW.expires_at IS NOT OLD.expires_at
+  OR NEW.created_at IS NOT OLD.created_at OR OLD.status = 'consumed'
+BEGIN SELECT RAISE(ABORT, 'funding intent is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_funding_intent_no_delete
+BEFORE DELETE ON reward_funding_intents
+BEGIN SELECT RAISE(ABORT, 'funding history is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_funding_evidence_no_update
+BEFORE UPDATE ON reward_funding_evidence
+BEGIN SELECT RAISE(ABORT, 'funding evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_funding_evidence_no_delete
+BEFORE DELETE ON reward_funding_evidence
+BEGIN SELECT RAISE(ABORT, 'funding evidence is immutable'); END;
+CREATE TABLE IF NOT EXISTS reward_stellar_funding_bindings (
+  intent_id TEXT PRIMARY KEY REFERENCES reward_funding_intents(id) ON DELETE RESTRICT,
+  destination TEXT NOT NULL,
+  memo_hash TEXT NOT NULL UNIQUE CHECK (length(memo_hash) = 64 AND memo_hash NOT GLOB '*[^a-f0-9]*')
+);
+CREATE TABLE IF NOT EXISTS reward_stellar_funding_evidence (
+  evidence_id TEXT PRIMARY KEY REFERENCES reward_funding_evidence(id) ON DELETE RESTRICT,
+  transaction_hash TEXT NOT NULL CHECK (length(transaction_hash) = 64),
+  ledger_sequence INTEGER NOT NULL CHECK (typeof(ledger_sequence) = 'integer' AND ledger_sequence > 0),
+  ledger_hash TEXT NOT NULL CHECK (length(ledger_hash) = 64)
+);
+CREATE TRIGGER IF NOT EXISTS reward_stellar_binding_no_update
+BEFORE UPDATE ON reward_stellar_funding_bindings
+BEGIN SELECT RAISE(ABORT, 'Stellar binding is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_stellar_binding_no_delete
+BEFORE DELETE ON reward_stellar_funding_bindings
+BEGIN SELECT RAISE(ABORT, 'Stellar binding is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_stellar_evidence_no_update
+BEFORE UPDATE ON reward_stellar_funding_evidence
+BEGIN SELECT RAISE(ABORT, 'Stellar evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_stellar_evidence_no_delete
+BEFORE DELETE ON reward_stellar_funding_evidence
+BEGIN SELECT RAISE(ABORT, 'Stellar evidence is immutable'); END;
+
+-- LMS-032: verified platform backing and credit reservations.
+
+CREATE TABLE IF NOT EXISTS platform_backing_intents (
+  id TEXT PRIMARY KEY,
+  requester_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  network TEXT NOT NULL CHECK (network IN ('testnet','public')),
+  destination TEXT NOT NULL,
+  memo_hash TEXT NOT NULL UNIQUE CHECK (length(memo_hash) = 64),
+  amount_stroops INTEGER NOT NULL CHECK (typeof(amount_stroops) = 'integer' AND amount_stroops > 0 AND amount_stroops <= 9007199254740991),
+  reason TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(requester_user_id,idempotency_key)
+);
+CREATE TABLE IF NOT EXISTS platform_backing_deposits (
+  id TEXT PRIMARY KEY,
+  intent_id TEXT NOT NULL UNIQUE REFERENCES platform_backing_intents(id) ON DELETE RESTRICT,
+  verified_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  network TEXT NOT NULL CHECK (network IN ('testnet','public')),
+  operation_id TEXT NOT NULL,
+  amount_stroops INTEGER NOT NULL CHECK (typeof(amount_stroops) = 'integer' AND amount_stroops > 0 AND amount_stroops <= 9007199254740991),
+  transaction_hash TEXT NOT NULL CHECK (length(transaction_hash) = 64),
+  ledger_sequence INTEGER NOT NULL CHECK (typeof(ledger_sequence) = 'integer' AND ledger_sequence > 0),
+  ledger_hash TEXT NOT NULL CHECK (length(ledger_hash) = 64),
+  created_at TEXT NOT NULL,
+  UNIQUE(network,operation_id)
+);
+CREATE TABLE IF NOT EXISTS platform_credit_requests (
+  id TEXT PRIMARY KEY,
+  requester_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  beneficiary_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  network TEXT NOT NULL CHECK (network IN ('testnet','public')),
+  amount_stroops INTEGER NOT NULL CHECK (typeof(amount_stroops) = 'integer' AND amount_stroops > 0 AND amount_stroops <= 9007199254740991),
+  reason TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','cancelled')),
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(requester_user_id,idempotency_key)
+);
+CREATE TABLE IF NOT EXISTS platform_credit_grants (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL UNIQUE REFERENCES platform_credit_requests(id) ON DELETE RESTRICT,
+  approved_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  approval_key TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(approved_by_user_id,approval_key)
+);
+CREATE TABLE IF NOT EXISTS platform_credit_reservations (
+  intent_id TEXT PRIMARY KEY REFERENCES reward_funding_intents(id) ON DELETE RESTRICT,
+  grant_id TEXT NOT NULL REFERENCES platform_credit_grants(id) ON DELETE RESTRICT,
+  amount_stroops INTEGER NOT NULL CHECK (typeof(amount_stroops) = 'integer' AND amount_stroops > 0 AND amount_stroops <= 9007199254740991),
+  expires_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'held' CHECK (status IN ('held','consumed','released')),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS platform_credit_consumptions (
+  intent_id TEXT PRIMARY KEY REFERENCES platform_credit_reservations(intent_id) ON DELETE RESTRICT,
+  evidence_id TEXT NOT NULL UNIQUE REFERENCES reward_funding_evidence(id) ON DELETE RESTRICT,
+  fund_transaction_id TEXT NOT NULL UNIQUE REFERENCES reward_transactions(id) ON DELETE RESTRICT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS platform_credit_audit (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL CHECK (event_type IN ('deposit_intent','deposit_verified','credit_requested','credit_approved','request_cancelled','credit_reserved','credit_consumed','reservation_released')),
+  object_id TEXT NOT NULL,
+  actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  network TEXT NOT NULL CHECK (network IN ('testnet','public')),
+  amount_stroops INTEGER NOT NULL CHECK (typeof(amount_stroops) = 'integer' AND amount_stroops > 0 AND amount_stroops <= 9007199254740991),
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS platform_credit_request_immutable
+BEFORE UPDATE ON platform_credit_requests
+WHEN OLD.status != 'pending' OR NEW.id IS NOT OLD.id OR NEW.requester_user_id IS NOT OLD.requester_user_id
+  OR NEW.beneficiary_user_id IS NOT OLD.beneficiary_user_id OR NEW.network IS NOT OLD.network
+  OR NEW.amount_stroops IS NOT OLD.amount_stroops OR NEW.reason IS NOT OLD.reason
+  OR NEW.idempotency_key IS NOT OLD.idempotency_key OR NEW.expires_at IS NOT OLD.expires_at OR NEW.created_at IS NOT OLD.created_at
+BEGIN SELECT RAISE(ABORT,'platform credit request is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS platform_credit_reservation_immutable
+BEFORE UPDATE ON platform_credit_reservations
+WHEN OLD.status != 'held' OR NEW.intent_id IS NOT OLD.intent_id OR NEW.grant_id IS NOT OLD.grant_id
+  OR NEW.amount_stroops IS NOT OLD.amount_stroops OR NEW.expires_at IS NOT OLD.expires_at OR NEW.created_at IS NOT OLD.created_at
+BEGIN SELECT RAISE(ABORT,'platform credit reservation is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS reward_operation_not_platform_backing
+BEFORE INSERT ON reward_funding_evidence
+WHEN NEW.source_type = 'stellar' AND EXISTS (SELECT 1 FROM platform_backing_deposits WHERE network=NEW.network AND operation_id=NEW.reference)
+BEGIN SELECT RAISE(ABORT,'funding_operation_already_consumed'); END;
+CREATE TRIGGER IF NOT EXISTS platform_operation_not_reward_funding
+BEFORE INSERT ON platform_backing_deposits
+WHEN EXISTS (SELECT 1 FROM reward_funding_evidence WHERE source_type='stellar' AND network=NEW.network AND reference=NEW.operation_id)
+BEGIN SELECT RAISE(ABORT,'funding_operation_already_consumed'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_backing_intents_no_delete BEFORE DELETE ON platform_backing_intents
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_backing_intents_no_update BEFORE UPDATE ON platform_backing_intents
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_backing_deposits_no_delete BEFORE DELETE ON platform_backing_deposits
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_backing_deposits_no_update BEFORE UPDATE ON platform_backing_deposits
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_requests_no_delete BEFORE DELETE ON platform_credit_requests
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_grants_no_delete BEFORE DELETE ON platform_credit_grants
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_grants_no_update BEFORE UPDATE ON platform_credit_grants
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_reservations_no_delete BEFORE DELETE ON platform_credit_reservations
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_consumptions_no_delete BEFORE DELETE ON platform_credit_consumptions
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_consumptions_no_update BEFORE UPDATE ON platform_credit_consumptions
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_audit_no_delete BEFORE DELETE ON platform_credit_audit
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_credit_audit_no_update BEFORE UPDATE ON platform_credit_audit
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+-- LMS-050: durable installation-bound push delivery.
+
+CREATE TABLE IF NOT EXISTS push_installations (
+  id TEXT PRIMARY KEY,
+  credential_hash TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK (generation > 0 AND generation <= 9007199254740991),
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  session_hash TEXT,
+  authorization_version INTEGER,
+  token_issued_at INTEGER,
+  expo_token TEXT UNIQUE,
+  project_id TEXT,
+  platform TEXT CHECK (platform IN ('android','ios')),
+  enabled INTEGER NOT NULL CHECK (enabled IN (0,1)),
+  lease_expires_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  CHECK (enabled = 0 OR (user_id IS NOT NULL AND session_hash IS NOT NULL
+    AND authorization_version IS NOT NULL AND token_issued_at IS NOT NULL
+    AND expo_token IS NOT NULL AND project_id IS NOT NULL AND platform IS NOT NULL))
+);
+CREATE TABLE IF NOT EXISTS push_outbox (
+  id TEXT PRIMARY KEY,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  installation_id TEXT NOT NULL REFERENCES push_installations(id) ON DELETE CASCADE,
+  generation INTEGER NOT NULL,
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','sending','awaiting_receipt','delivered','failed','cancelled')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  receipt_attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  lease_until INTEGER NOT NULL DEFAULT 0,
+  claim_id TEXT,
+  ticket_id TEXT,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  UNIQUE(notification_id, installation_id, generation)
+);
+CREATE INDEX IF NOT EXISTS idx_push_outbox_due ON push_outbox(state,next_attempt_at,lease_until);
+CREATE INDEX IF NOT EXISTS idx_push_installations_user ON push_installations(user_id,enabled);
+CREATE TRIGGER IF NOT EXISTS push_notification_outbox
+AFTER INSERT ON notifications
+BEGIN
+  INSERT INTO push_outbox (id,notification_id,installation_id,generation,next_attempt_at,expires_at,created_at)
+  SELECT lower(hex(randomblob(16))), NEW.id, i.id, i.generation,
+    unixepoch()*1000, unixepoch()*1000+86400000, unixepoch()*1000
+  FROM push_installations i WHERE i.user_id=NEW.user_id AND i.enabled=1
+    AND i.lease_expires_at>unixepoch()*1000
+    AND NOT EXISTS (SELECT 1 FROM notification_preferences p
+      WHERE p.user_id=NEW.user_id AND p.type=NEW.type AND p.enabled=0);
+END;
+
+-- LMS-051 offline learning leases and mutation receipts
+CREATE TABLE IF NOT EXISTS offline_learning_leases (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  course_code TEXT NOT NULL,
+  session_hash TEXT NOT NULL,
+  content_version TEXT NOT NULL,
+  issued_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL CHECK (expires_at > issued_at),
+  UNIQUE (user_id, course_id, session_hash, content_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_offline_learning_leases_expiry ON offline_learning_leases(expires_at);
+CREATE INDEX IF NOT EXISTS idx_offline_learning_leases_course ON offline_learning_leases(course_id);
+
+CREATE TABLE IF NOT EXISTS offline_progress_receipts (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  retain_until INTEGER NOT NULL,
+  PRIMARY KEY (user_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_offline_progress_receipts_expiry ON offline_progress_receipts(retain_until);
+
+CREATE TRIGGER IF NOT EXISTS offline_learning_revoke_course_code_delete
+AFTER DELETE ON user_course_codes
+BEGIN
+  DELETE FROM offline_learning_leases WHERE user_id = OLD.user_id AND course_code = OLD.course_code;
+END;
+
+CREATE TRIGGER IF NOT EXISTS offline_learning_revoke_course_code_update
+AFTER UPDATE OF user_id, course_code ON user_course_codes
+WHEN NEW.user_id != OLD.user_id OR NEW.course_code != OLD.course_code
+BEGIN
+  DELETE FROM offline_learning_leases WHERE user_id = OLD.user_id AND course_code = OLD.course_code;
+END;
+
+CREATE TRIGGER IF NOT EXISTS offline_learning_revoke_content_change
+AFTER UPDATE OF title, sections ON courses
+WHEN NEW.title IS NOT OLD.title OR NEW.sections IS NOT OLD.sections
+BEGIN
+  DELETE FROM offline_learning_leases WHERE course_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS offline_learning_revoke_course
+AFTER UPDATE OF approval_status, course_code ON courses
+WHEN NEW.course_code IS NOT OLD.course_code OR COALESCE(NEW.approval_status, '') NOT IN ('approved', 'published')
+BEGIN
+  DELETE FROM offline_learning_leases WHERE course_id = OLD.id;
+END;
