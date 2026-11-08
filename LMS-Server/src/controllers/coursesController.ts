@@ -1,4 +1,4 @@
-import { compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
+import { userRoleSummaries } from '../services/roleSummaryService.js';
 import { isAdminTier } from '../services/administratorPolicy.js';
 import { Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -842,7 +842,7 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
        ORDER BY u.name`,
       [course.course_code]
     );
-    const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
+    const summaries=userRoleSummaries(rows.map(row=>row.id));
     const members: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -932,7 +932,7 @@ export async function addCourseMember(req: AuthRequest, res: Response, next: Nex
        ORDER BY u.name`,
       [course.course_code]
     );
-    const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
+    const summaries=userRoleSummaries(rows.map(row=>row.id));
     const members: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,

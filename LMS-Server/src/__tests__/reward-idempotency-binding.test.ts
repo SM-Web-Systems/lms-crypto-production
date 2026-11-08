@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W02-R1: Idempotency replay binding tests.
  *
@@ -36,9 +37,7 @@ import { makeToken } from './helpers/auth.js';
 
 function seedUser(legacyRole: 'student' | 'lecturer' | 'admin', rbacRole?: string): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', ?)"
-  ).run(id, `R1-${id.slice(0, 8)}`, `r1-${id}@test.com`, legacyRole);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, 'hash')", [id, `R1-${id.slice(0, 8)}`, `r1-${id}@test.com`], [fixtureRoleId(legacyRole)]);
   if (rbacRole) {
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(id, rbacRole);
   }

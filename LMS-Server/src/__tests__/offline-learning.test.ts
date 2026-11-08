@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -28,7 +29,7 @@ function fixture(textOnly = false) {
   function learner(enrolled = true, session = true) {
     const id = randomUUID();
     const email = id + '@test.invalid';
-    db.prepare("INSERT INTO users(id, name, email, password_hash, role) VALUES (?, 'Learner', ?, 'hash', 'student')").run(id, email);
+    seedTestAccount(db, "INSERT INTO users(id, name, email, password_hash) VALUES (?, 'Learner', ?, 'hash')", [id, email], ["role_student"]);
     if (enrolled) db.prepare('INSERT INTO user_course_codes(user_id, course_code) VALUES (?,?)').run(id, courseCode);
     const token = makeToken({userId: id, email, role: 'student'});
     const sessionExpiry = Math.floor(Date.now() / 1000) * 1000 + 600_000;

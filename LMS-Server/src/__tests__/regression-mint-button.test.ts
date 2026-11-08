@@ -39,10 +39,13 @@ function seedAll() {
   const code = `MB-${uuidv4().slice(0, 8)}`;
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
+    INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
     VALUES
-      ('${adminId}',   'MB Admin',   'mb-admin-${adminId}@test.com',   '${HASH}', 'admin',   NULL,       'none'),
-      ('${studentId}', 'MB Student', 'mb-student-${studentId}@test.com', '${HASH}', 'student', '${WALLET}', 'linked');
+      ('${adminId}','MB Admin','mb-admin-${adminId}@test.com','${HASH}',NULL,'none'),
+      ('${studentId}','MB Student','mb-student-${studentId}@test.com','${HASH}','${WALLET}','linked');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'MB Course Title', 'desc', '${code}', '[]');

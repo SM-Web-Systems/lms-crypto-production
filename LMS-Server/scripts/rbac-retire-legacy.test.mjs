@@ -5,10 +5,10 @@ import { mkdtempSync, readFileSync, copyFileSync, linkSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { retireLegacy, retainedDataFingerprint } from './rbac-retire-legacy.mjs';
+import { retireLegacy, parseRetirementArguments, retainedDataFingerprint } from './rbac-retire-legacy.mjs';
 import { fingerprintFile } from './rbac-inventory.mjs';
 
-const schema = readFileSync(new URL('../database/schema.sql',import.meta.url),'utf8');
+import { syntheticV1Schema as schema } from './rbac-retirement-fixture.mjs';
 const catalog = {role_student:'student',role_supporter_student:'super-student',role_instructor:'instructor',
   role_ta:'teaching-assistant',role_parent:'parent',role_teacher:'teacher',role_employer:'employer',
   role_sponsor:'sponsor',role_admin:'admin',role_admin2:'admin-2',role_super_admin:'super-admin',role_custom:'custom-user'};
@@ -141,3 +141,7 @@ test('retained fingerprint distinguishes exact SQLite TEXT bytes, storage classe
   mutate("UPDATE sqliteApplicationEncodings SET value=-1e999");
   assert.notEqual(fingerprint(),positive);
 }));
+test('argument parser rejects ambiguous/duplicate/missing values',()=>{
+  for (const args of [['--plan','--apply'],['--unknown'],['--database'],['--snapshot','--snapshot']]) assert.throws(()=>parseRetirementArguments(args));
+  assert.equal(parseRetirementArguments(['--plan','--snapshot']).mode,'plan');
+});

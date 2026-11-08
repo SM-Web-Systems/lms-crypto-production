@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * Phase A — Foundation Tests (TDD: Write Failing Tests First)
  *
@@ -31,10 +32,7 @@ describe('A1: Supporter-Student → Super-Student Rename', () => {
 
   it('A1-RENAME-2: user_roles with role_supporter_student still works', () => {
     const userId = uuidv4();
-    execute(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, '$2a$10$test', 'student')",
-      [userId, `${userId}@test.com`]
-    );
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test',?,'$2a$10$test')`, [userId,`${userId}@test.com`], ["role_student"]).changes;
     execute(
       'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
       [userId, 'role_supporter_student']
@@ -186,10 +184,7 @@ describe('A8: Tenant Settings', () => {
 // Helper: create a test user
 function createTestUser(role: 'student' | 'lecturer' | 'admin' = 'student'): string {
   const id = uuidv4();
-  execute(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, '$2a$10$test', ?)",
-    [id, `${id}@test.com`, role]
-  );
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Test',?,'$2a$10$test')`, [id,`${id}@test.com`], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]).changes;
   return id;
 }
 

@@ -60,8 +60,6 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  /** @deprecated Transitional server field. Never use for presentation or access. */
-  role?: string;
   walletAddress: string | null;
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
   authProvider?: 'local' | 'ammawallet';

@@ -222,9 +222,10 @@
       ],
       "evidence": [
         "LMS-014-SCHEMA-RETIREMENT-REHEARSAL.md",
-        "evidence/lms-014-synthetic-retirement-validation.json"
+        "evidence/lms-014-synthetic-retirement-validation.json",
+        "evidence/lms-014-v2-local-validation.json"
       ],
-      "reason": "Synthetic current-schema contraction preserved retained data and grants, compiled v1 refused the contracted database before writes, and a restored v1 copy started. Reconciled v2 application, installed-client retirement and exact-image protected-copy acceptance remain open."
+      "reason": "The separate role-free v2 candidate passed compiled startup and synthetic contraction. Compiled v1 refused the v2 copy and started from a restored v1 backup. Both v2 hosted workflows passed at 2abca23. Installed-client retirement and exact-image protected-copy acceptance remain open."
     },
     {
       "id": "LMS-020",

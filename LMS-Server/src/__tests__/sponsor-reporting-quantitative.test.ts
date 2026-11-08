@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
@@ -9,7 +10,7 @@ const owner = 'report-owner', other = 'report-other';
 let token: string;
 beforeEach(() => {
   for (const id of [owner, other]) {
-    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,?,?,'synthetic','student')").run(id, id, `${id}@example.invalid`);
+    seedTestAccount(db, "INSERT INTO users(id,name,email,password_hash) VALUES (?,?,?,'synthetic')", [id, id, `${id}@example.invalid`], ["role_student"]);
     db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_sponsor')").run(id);
   }
   token = makeToken({ userId: owner, email: `${owner}@example.invalid`, role: 'student' });

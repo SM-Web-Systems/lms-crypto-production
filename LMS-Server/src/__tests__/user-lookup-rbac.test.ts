@@ -18,11 +18,15 @@ function seedData() {
   const adminId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${studentId}', 'Student RBAC', 'student-rbac-${studentId}@test.com', '${HASH}', 'student'),
-      ('${otherId}', 'Other User', 'other-rbac-${otherId}@test.com', '${HASH}', 'student'),
-      ('${adminId}', 'Admin RBAC', 'admin-rbac-${adminId}@test.com', '${HASH}', 'admin');
+      ('${studentId}','Student RBAC','student-rbac-${studentId}@test.com','${HASH}'),
+      ('${otherId}','Other User','other-rbac-${otherId}@test.com','${HASH}'),
+      ('${adminId}','Admin RBAC','admin-rbac-${adminId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${otherId}','role_student');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+
   `);
 
   return { studentId, otherId, adminId };

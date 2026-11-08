@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /** RBAC role-set replacement and legacy endpoint retirement. */
 import { describe, it, expect } from 'vitest';
 import './setup.js';
@@ -20,10 +21,7 @@ function createUser(
   const userId = uuidv4();
   const email = `wi02-${userId.slice(0, 8)}@test.com`;
 
-  execute(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, '$2a$10$test', ?)",
-    [userId, `WI02 ${legacyRole}`, email, legacyRole],
-  );
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,'$2a$10$test')`, [userId,`WI02 ${legacyRole}`,email], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(legacyRole) as "student"|"lecturer"|"admin"])]).changes;
 
   // Add extra RBAC roles if specified (trigger already assigned the base role)
   if (rbacRoleIds) {
@@ -73,20 +71,20 @@ describe('RBAC user-role replacement',()=>{
     const actor=createUser('admin',['role_admin2']);
     expect((await replace(actor,actor.userId,[])).status).toBe(403);
   });
-  it('supports intentional zero grants and preserves inert legacy storage',async()=>{
+  it('supports intentional zero grants without an independent role projection',async()=>{
     const actor=createUser('admin',['role_admin2']),target=createUser('admin');
     expect((await replace(actor,target.userId,[])).status).toBe(200);
     expect(getUserRoles(target.userId)).toEqual([]);
-    expect(db.prepare('SELECT role FROM users WHERE id=?').get(target.userId)).toEqual({role:'admin'});
+    expect(db.pragma('table_info(users)').some((column:any)=>column.name==='role')).toBe(false);
   });
   it('requires authentication and reports a missing target',async()=>{
     expect((await request(app).put('/api/v1/admin/users/absent/roles').send({roleIds:[]})).status).toBe(401);
     const actor=createUser('admin',['role_admin2']); expect((await replace(actor,'absent',[])).status).toBe(404);
   });
-  it('returns 410 on the retired endpoint without changing grants',async()=>{
+  it('returns 404 on the removed endpoint without changing grants',async()=>{
     const actor=createUser('admin',['role_admin2']),target=createUser('student');
     const response=await request(app).patch('/api/v1/users/'+target.userId+'/role').auth(actor.token,{type:'bearer'}).send({role:'admin'});
-    expect(response.status).toBe(410); expect(response.body.error.code).toBe('LEGACY_ROLE_ENDPOINT_RETIRED');
+    expect(response.status).toBe(404);
     expect(getUserRoles(target.userId)).toEqual(['student']);
   });
 });

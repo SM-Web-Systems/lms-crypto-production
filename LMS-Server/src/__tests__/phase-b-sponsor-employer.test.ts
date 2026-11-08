@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * Phase B — Sponsor + Employer Route Tests (TDD)
  *
@@ -15,7 +16,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import './setup.js';
 import request from 'supertest';
 import app from '../app.js';
-import { execute, query, queryOne } from '../config/database.js';
+import { db, execute, query, queryOne } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -23,10 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 function createUserWithRole(roleId: string, roleName: string) {
   const userId = uuidv4();
   const email = `${roleName}-${userId.slice(0, 8)}@test.com`;
-  execute(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, '$2a$10$test', 'student')",
-    [userId, `Test ${roleName}`, email],
-  );
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,'$2a$10$test')`, [userId,`Test ${roleName}`,email], ["role_student"]).changes;
   execute('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, roleId]);
   const token = generateToken({ userId, email, role: 'student' as any });
   return { userId, email, token };

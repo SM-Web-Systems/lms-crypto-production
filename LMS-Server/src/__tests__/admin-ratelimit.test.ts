@@ -15,8 +15,10 @@ const HASH = bcrypt.hashSync('password123', 4);
 function seedAdmin() {
   const adminId = uuidv4();
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${adminId}', 'Rate Admin', 'rate-admin-${adminId}@test.com', '${HASH}', 'admin');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${adminId}','Rate Admin','rate-admin-${adminId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+
   `);
   return { adminId };
 }

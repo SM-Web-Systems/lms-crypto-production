@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * nft-badges.test.ts — Phase 23 C4 + Phase 24 C3
  *
@@ -41,10 +42,8 @@ function seedData() {
   supersededCredId = uuidv4();
   pendingCredId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role, walletAddress, wallet_linking_status)
-     VALUES (?, 'Alice Badge', ?, 'hash', 'student', ?, 'linked')`,
-  ).run(userId, `badge-test-${userId}@test.com`, WALLET);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash,walletAddress,wallet_linking_status)
+     VALUES (?,'Alice Badge',?,'hash',?,'linked')`, [userId,`badge-test-${userId}@test.com`,WALLET], ["role_student"]);
 
   db.prepare(
     `INSERT INTO courses (id, title, description, course_code, sections)
@@ -186,9 +185,7 @@ describe('GET /credentials/mine', () => {
 
   it('GALLERY-BE-3: returns empty array for user with no credentials', async () => {
     const noCredUserId = uuidv4();
-    db.prepare(
-      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'No Creds', ?, 'hash', 'student')`,
-    ).run(noCredUserId, `nocreds-${noCredUserId}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'No Creds',?,'hash')`, [noCredUserId,`nocreds-${noCredUserId}@test.com`], ["role_student"]);
     const noCredToken = jwt.sign({ userId: noCredUserId, role: 'student' }, JWT_SECRET, { expiresIn: '1h' });
 
     const res = await request(app)

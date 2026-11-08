@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-reservation-reconciliation.test.ts
  *
@@ -35,26 +36,20 @@ import { reconcileAccount } from '../services/rewards/rewardLedger.js';
 
 function makeSponsor(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Sponsor', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
 /** Independent funder — must differ from reward creator (W01-R1). */
 function makeAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
 function makeStudent(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Student', ?, 'hash')", [id, `${id}@test.com`], ["role_student"]);
   return id;
 }
 

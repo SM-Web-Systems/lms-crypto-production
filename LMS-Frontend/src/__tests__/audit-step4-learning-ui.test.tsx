@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import StudentCourse from '../pages/StudentCourse';
 import InlineAssignmentForm from '../components/InlineAssignmentForm';
 
-const mocks = vi.hoisted(() => ({ courses:vi.fn(),completions:vi.fn(),complete:vi.fn(),submit:vi.fn(),user:{id:'learning-user',role:'student'} }));
+const mocks = vi.hoisted(() => ({ courses:vi.fn(),completions:vi.fn(),complete:vi.fn(),submit:vi.fn(),user:{id:'learning-user'} }));
 vi.mock('../context/useAuth',()=>({useAuth:()=>({user:mocks.user})}));
 vi.mock('../services/courseService',()=>({courseService:{fetchCourses:mocks.courses}}));
 vi.mock('../services/courseCompletionService',()=>({courseCompletionService:{getLessonCompletions:mocks.completions,markLessonComplete:mocks.complete}}));

@@ -1,8 +1,9 @@
-// Offline contraction engine. The current v1 release has no operator entry point for v2.
+// Explicit offline contraction only. Never imports the app, dotenv or providers.
 import Database from 'better-sqlite3';
 import { createHash } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { inspectSnapshot, fingerprintFile } from './rbac-inventory.mjs';
 
 const V1 = 'rbac-only-v1', V2 = 'rbac-only-v2';
@@ -151,4 +152,32 @@ export function retireLegacy(options) {
     return {...result, changed: true, legacyColumnRemoved: true, backupVerified: true,
       retainedDataSha256After: retainedDataFingerprint(db).sha256, reviewReference: options.reviewReference};
   } finally { db.close(); }
+}
+
+export function parseRetirementArguments(args) {
+  const options = {};
+  const values = {'--database':'database','--deployed-sha':'deployedSha','--expected-snapshot-sha256':'expectedHash',
+    '--review-reference':'reviewReference','--backup-database':'backupDatabase'};
+  const flags = {'--snapshot':'snapshot','--accept-client-retirement':'acceptClients','--accept-coordinated-recovery':'acceptRecovery'};
+  for (let i = 0; i < args.length; i++) {
+    const argument = args[i];
+    if (['--plan','--apply'].includes(argument)) {
+      requireCondition(!options.mode, 'Choose one mode.'); options.mode = argument.slice(2);
+    } else if (Object.hasOwn(flags, argument)) {
+      requireCondition(!options[flags[argument]], 'Duplicate argument.'); options[flags[argument]] = true;
+    } else if (Object.hasOwn(values, argument)) {
+      const value = args[++i], key = values[argument];
+      requireCondition(!options[key] && value && !value.startsWith('--'), 'Missing or duplicate argument.'); options[key] = value;
+    } else throw new Error('Unknown retirement argument.');
+  }
+  return options;
+}
+
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  if (process.argv.length === 3 && process.argv[2] === '--help') {
+    console.log('Offline only: --plan|--apply --snapshot --database <finalized-copy> --deployed-sha <40 hex>. Apply also requires --expected-snapshot-sha256 <64 hex> --backup-database <separate-identical-copy> --review-reference <accepted-Step-01-to-03-and-recovery-record> --accept-client-retirement --accept-coordinated-recovery. No production approval is inferred. See SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md.');
+  } else {
+    try { console.log(JSON.stringify(retireLegacy(parseRetirementArguments(process.argv.slice(2))), null, 2)); }
+    catch { console.error('RBAC retirement refused. Verify the finalized source/backup, expected hash, Step 2 schema/fence, dependency/integrity checks and accepted client/recovery assessment. No automatic repair was attempted.'); process.exitCode = 2; }
+  }
 }

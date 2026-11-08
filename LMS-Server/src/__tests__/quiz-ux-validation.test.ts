@@ -29,8 +29,10 @@ function seedQuizUxData() {
   ]);
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
-    VALUES ('${studentId}', 'QZ Student', 'qz-${studentId}@test.com', '${HASH}', 'student');
+    INSERT INTO users (id,name,email,password_hash)
+    VALUES ('${studentId}','QZ Student','qz-${studentId}@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${studentId}','role_student');
+
 
     INSERT INTO quizzes (id, title, passing_score, questions)
     VALUES ('${quizId}', 'UX Quiz', 50, '${questions}');

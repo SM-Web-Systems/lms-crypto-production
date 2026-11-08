@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-course-completion.test.ts — W04 behavioral tests
  *
@@ -69,9 +70,7 @@ function courseSections(items: Record<string, unknown>[]): string {
 
 function seedUser(role = 'student'): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'U', ?, 'h', ?)"
-  ).run(id, `${id}@t.com`, role);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'U', ?, 'h')", [id, `${id}@t.com`], [fixtureRoleId(role)]);
   return id;
 }
 
@@ -133,9 +132,7 @@ function seedTeacherClass(courseId: string): { teacherId: string; studentId: str
 
 function seedIndependentAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
-  ).run(id, `${id}@t.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'h')", [id, `${id}@t.com`], ["role_admin"]);
   return id;
 }
 
@@ -853,9 +850,7 @@ describe('F1: Staff-mark route course_completion producer', () => {
   /** Seed an admin user with role_admin in user_roles (grants course.grade + course.delete). */
   function seedAdminUser(): string {
     const id = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
-    ).run(id, `${id}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'h')", [id, `${id}@t.com`], ["role_admin"]);
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
     return id;
   }
@@ -863,9 +858,7 @@ describe('F1: Staff-mark route course_completion producer', () => {
   /** Seed a user with course.grade but NOT course.delete — requireCourseScope will deny unless in course_lecturers. */
   function seedInstructorWithoutScope(): string {
     const id = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Lect', ?, 'h', 'lecturer')"
-    ).run(id, `${id}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Lect', ?, 'h')", [id, `${id}@t.com`], ["role_instructor"]);
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_instructor')").run(id);
     return id;
   }
@@ -1123,9 +1116,7 @@ describe('F2: Submission-approval course_completion producer', () => {
   /** Seed an admin user with role_admin in user_roles (grants course.grade + course.delete). */
   function seedAdminUser(): string {
     const id = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
-    ).run(id, `${id}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'h')", [id, `${id}@t.com`], ["role_admin"]);
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
     return id;
   }
@@ -1359,9 +1350,7 @@ describe('ARFL: Auto-release financial tests', () => {
   /** Seed an admin user with role_admin in user_roles. */
   function seedAdminUser(): string {
     const id = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
-    ).run(id, `${id}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'h')", [id, `${id}@t.com`], ["role_admin"]);
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
     return id;
   }
@@ -1525,9 +1514,7 @@ describe('F2-ext: Additional submission-approval producer tests', () => {
   /** Seed an admin user with role_admin in user_roles. */
   function seedAdminUser(): string {
     const id = uuidv4();
-    db.prepare(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'h', 'admin')"
-    ).run(id, `${id}@t.com`);
+    seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'h')", [id, `${id}@t.com`], ["role_admin"]);
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, 'role_admin')").run(id);
     return id;
   }

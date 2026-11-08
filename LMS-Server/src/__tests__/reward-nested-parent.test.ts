@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W02-R2: Nested allocation parent binding tests.
  *
@@ -40,9 +41,7 @@ import { RewardError } from '../services/rewards/rewardErrors.js';
 /** Use legacy role 'student' to prevent trg_auto_assign_user_role granting role_admin. */
 function seedUser(rbacRole: string): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', 'student')"
-  ).run(id, `NP-${rbacRole.slice(5)}-${id.slice(0, 6)}`, `np-${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, 'hash')", [id, `NP-${rbacRole.slice(5)}-${id.slice(0, 6)}`, `np-${id}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(id, rbacRole);
   return id;
 }
@@ -50,9 +49,7 @@ function seedUser(rbacRole: string): string {
 /** Admin uses legacy role 'admin'; trigger auto-assigns role_admin (reward.manage). */
 function seedAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', 'admin')"
-  ).run(id, `NP-admin-${id.slice(0, 6)}`, `np-admin-${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, 'hash')", [id, `NP-admin-${id.slice(0, 6)}`, `np-admin-${id}@test.com`], ["role_admin"]);
   return id;
 }
 
@@ -72,9 +69,7 @@ function seedCohort(sponsorId: string): { cohortId: string; studentId: string } 
   db.prepare(
     `INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'NP Cohort')`
   ).run(cohortId, sponsorId, courseId);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'NP Student', ?, 'hash', 'student')"
-  ).run(studentId, `np-st-${studentId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'NP Student', ?, 'hash')", [studentId, `np-st-${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
   return { cohortId, studentId };
 }
@@ -86,9 +81,7 @@ function seedGroup(ownerId: string, groupType: 'class' | 'family' | 'team'): { g
   db.prepare(
     `INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, ?, ?)`
   ).run(groupId, `NP ${groupType}`, groupType, ownerId);
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'NP Member', ?, 'hash', 'student')"
-  ).run(studentId, `np-m-${studentId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'NP Member', ?, 'hash')", [studentId, `np-m-${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)').run(groupId, studentId);
   return { groupId, studentId };
 }

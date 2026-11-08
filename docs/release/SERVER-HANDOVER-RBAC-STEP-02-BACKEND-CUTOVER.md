@@ -13,6 +13,8 @@
 
 Use this exact section label when returning the assessment. See the [handover index](SERVER-HANDOVER-RBAC-RETIREMENT.md).
 
+This packet describes the Step 2 release and its exact PR #99 code. When reviewing the later v2 contraction, use the [Step 4 packet](SERVER-HANDOVER-RBAC-STEP-04-SCHEMA-AND-COMPATIBILITY-REMOVAL.md). The current v2 code does not include the old v1 cutover command; reaching v1 first requires the accepted Step 2 image/tool.
+
 ## Sections to assess
 
 | Section | Delivered behavior | Assessment focus |

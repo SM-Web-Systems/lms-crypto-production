@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /** RBAC-only production contracts; every target is an ordinary regression. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
@@ -12,20 +13,19 @@ import { getAuthorizationContext } from '../services/authorizationService.js';
 import { resolveAmmaAccount } from '../services/ammaAccountService.js';
 import { createBroadcast } from '../services/notificationService.js';
 import * as wallet from '../services/walletService.js';
-import type { LegacyRole } from '../types/index.js';
+type UntrustedRoleHint = 'student' | 'lecturer' | 'admin';
 
 const PASSWORD = 'synthetic-rbac-only-password';
 const HASH = bcrypt.hashSync(PASSWORD,4);
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 beforeEach(()=>{
-  db.exec('DROP TRIGGER IF EXISTS trg_fixture_legacy_roles');
   // The shared reset loads base schema; SSO columns are runtime additions.
   db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'; ALTER TABLE users ADD COLUMN ammawallet_user_id TEXT");
 });
 
-function account(legacy: LegacyRole, grants: string[]) {
+function account(legacy: UntrustedRoleHint, grants: string[]) {
   const id = randomUUID(), email = id+'@rbac-retirement.invalid';
-  db.prepare('INSERT INTO users(id,name,email,password_hash,role) VALUES(?,?,?,?,?)').run(id,'Synthetic user',email,HASH,legacy);
+  seedTestAccount(db, `INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)`, [id,'Synthetic user',email,HASH], []);
   db.prepare('DELETE FROM user_roles WHERE user_id=?').run(id);
   for (const grant of grants) db.prepare('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)').run(id,grant);
   return {id,email,token:generateToken({userId:id,email,role:legacy})};
@@ -115,7 +115,6 @@ targetContract('supply learner profile in password-login tokens for a multi-role
 
 for(const [initial,expected] of [['role_student','student'],['role_instructor','instructor']] as const) {
   targetContract('explicitly grant '+expected+' on verified Wallet creation without the legacy trigger',()=>{
-    db.exec('DROP TRIGGER trg_auto_assign_user_role');
     const created=resolveAmmaAccount(identity(),initial);
     expect(db.prepare('SELECT COUNT(*) AS total FROM users WHERE id=?').get(created.user.id)).toEqual({total:1});
     return getUserRoles(created.user.id);
@@ -123,7 +122,6 @@ for(const [initial,expected] of [['role_student','student'],['role_instructor','
 }
 
 targetContract('explicitly grant student during public registration without the legacy trigger',async()=>{
-  db.exec('DROP TRIGGER trg_auto_assign_user_role');
   vi.spyOn(wallet,'createUserWallet').mockRejectedValue(new Error('Synthetic unavailable Wallet'));
   const response=await request(app).post('/api/v1/auth/register').send({
     name:'Synthetic learner',email:randomUUID()+'@rbac-retirement.invalid',password:PASSWORD,role:'admin',
@@ -178,7 +176,6 @@ describe('RBAC-only retirement safeguards already supported',()=>{
   });
   it('parent child creation already assigns a student grant and profile without the legacy trigger',async()=>{
     const parent=account('student',['role_parent']);
-    db.exec('DROP TRIGGER trg_auto_assign_user_role');
     const response=await request(app).post('/api/v1/parent/children').auth(parent.token,{type:'bearer'}).send({
       name:'Synthetic child',email:randomUUID()+'@rbac-retirement.invalid',password:PASSWORD,
     });

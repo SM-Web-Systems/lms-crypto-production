@@ -15,7 +15,7 @@ describe('RBAC Step 3 client presentation', () => {
     expect(screen.getByText('Adviser')).toBeInTheDocument();
   });
   it('does not invent student/admin membership from a stale compatibility label', () => {
-    const stale: User = {id:'u',name:'User',email:'u@test.invalid',role:'admin',walletAddress:null,walletLinkingStatus:'none',roleSummaries:[],permissions:[],workspaces:[]};
+    const stale: User & {role: string} = {id:'u',name:'User',email:'u@test.invalid',role:'admin',walletAddress:null,walletLinkingStatus:'none',roleSummaries:[],permissions:[],workspaces:[]};
     expect(rolesText(stale)).toBe('No roles assigned');
     expect(currentSessionUser(stale)).not.toHaveProperty('role');
     expect(homeForUser(stale)).toBe('/access-denied');

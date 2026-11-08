@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * reward-outbox-worker.test.ts — N2: Outbox retry worker tests
  *
@@ -20,10 +21,8 @@ function insertOutboxEvent(overrides: Partial<{
 }> = {}) {
   // Ensure a test user exists
   const userId = overrides.student_user_id ?? 'test-student-outbox';
-  db.prepare(
-    `INSERT OR IGNORE INTO users (id, email, password_hash, role, name)
-     VALUES (?, ?, 'hash', 'student', 'Test Student')`
-  ).run(userId, `${userId}@test.com`);
+  seedTestAccount(db, `INSERT OR IGNORE INTO users (id,email,password_hash,name)
+     VALUES (?,?,'hash','Test Student')`, [userId,`${userId}@test.com`], ["role_student"]);
 
   const id = overrides.id ?? uuidv4();
   db.prepare(

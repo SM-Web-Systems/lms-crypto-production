@@ -6,6 +6,8 @@ import { db } from '../config/database.js';
 
 beforeEach(() => db.exec(`
   INSERT INTO users(id,name,email,password_hash) VALUES('webhook-user','Synthetic','webhook@example.invalid','synthetic');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('webhook-user','role_student');
+
   INSERT INTO courses(id,title,course_code) VALUES('webhook-course','Synthetic','A13-WH');
   INSERT INTO payments(id,user_id,course_id,amount_cents,currency,payment_method,paystack_reference)
     VALUES('payment','webhook-user','webhook-course',100,'USD','paystack','reference');

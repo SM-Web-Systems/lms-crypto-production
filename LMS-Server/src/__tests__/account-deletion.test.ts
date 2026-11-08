@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * Account Deletion & Forum Anonymization — comprehensive TDD test suite.
  *
@@ -34,10 +35,8 @@ function createUser(overrides: Partial<{
   const name = overrides.name ?? 'Test User';
   const email = overrides.email ?? `user-${id}@test.com`;
   const role = overrides.role ?? 'student';
-  db.prepare(
-    `INSERT INTO users (id, name, email, password_hash, role)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(id, name, email, HASH, role);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash)
+     VALUES (?,?,?,?)`, [id,name,email,HASH], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(role) as "student"|"lecturer"|"admin"])]);
   if (overrides.deletion_status) {
     db.prepare('UPDATE users SET deletion_status = ? WHERE id = ?')
       .run(overrides.deletion_status, id);

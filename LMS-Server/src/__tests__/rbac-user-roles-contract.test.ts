@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * GET /admin/users/:id/roles — API Contract Tests
  *
@@ -19,7 +20,7 @@ import './setup.js';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import app from '../app.js';
-import { execute } from '../config/database.js';
+import { db, execute } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 
 function createUser(
@@ -29,10 +30,7 @@ function createUser(
   const userId = uuidv4();
   const email = `urc-${userId.slice(0, 8)}@test.com`;
 
-  execute(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, '$2a$10$test', ?)",
-    [userId, `URC ${legacyRole}`, email, legacyRole],
-  );
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,?,?,'$2a$10$test')`, [userId,`URC ${legacyRole}`,email], [({student:"role_student",lecturer:"role_instructor",admin:"role_admin"}[(legacyRole) as "student"|"lecturer"|"admin"])]).changes;
 
   // Add extra RBAC roles if specified (trigger already assigned the base role)
   if (rbacRoleIds) {

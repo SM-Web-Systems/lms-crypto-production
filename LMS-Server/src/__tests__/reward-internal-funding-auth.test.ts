@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W01-R1: Internal funding authorization and credit backing tests.
  *
@@ -36,9 +37,7 @@ import { hasPermission } from '../middleware/rbac.js';
  */
 function createUserWithRole(legacyRole: 'student' | 'lecturer' | 'admin', rbacRoleId?: string): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, 'hash', ?)"
-  ).run(id, `User-${legacyRole}`, `${id}@test.com`, legacyRole);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, 'hash')", [id, `User-${legacyRole}`, `${id}@test.com`], [fixtureRoleId(legacyRole)]);
 
   if (rbacRoleId) {
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(id, rbacRoleId);

@@ -1,0 +1,46 @@
+{
+  "task": "LMS-014",
+  "date": "2026-11-07",
+  "candidateCommit": "2abca230ae13910f6b8c0e8a5ebd2556bc9c6c48",
+  "compiledPreviousCommit": "68d364f9027c8c97f9c70391543aed3e1c67d8f7",
+  "draft": "https://github.com/SM-Web-Systems/lms-crypto-production/pull/169",
+  "local": {
+    "apiBuild": "passed",
+    "webBuild": "passed",
+    "rbacInventoryAndContractionPassed": 23,
+    "compiledV2Startup": "FRESH_ROLE_FREE_AND_REPEATED_RESTART_AFTER_CONTRACTION",
+    "compiledV2OnV1": "REFUSED_WITHOUT_WRITES",
+    "compiledV1OnV2": "REFUSED_WITHOUT_WRITES",
+    "compiledV1RestoredCopy": "PASSED",
+    "compiledBootstrapFundingCreditAndPush": "passed",
+    "rewardMigrationCasesPassedAfterFixtureFix": 135,
+    "imageCompatibilityCasesPassed": 9,
+    "chromiumPassedWithoutRetries": 92,
+    "nativePassed": 182,
+    "webPassedWithTwoWorkers": 722
+  },
+  "attemptsAndLimitations": [
+    "The first full web attempt reported 5 failures. The 28 tests in the affected files passed with one worker and the full 722 passed with two workers.",
+    "The first full Windows API attempt began before the final fixture correction and completed with 2,505 passes, one reward migration failure and one existing skip. All 135 cases in that file passed after the correction, and the hosted exact-candidate API job passed. The first attempt does not certify a full exact-candidate Windows run.",
+    "The full Windows Python run reported 5 shell timeouts and 3 skips across 290 cases. The 9 image-compatibility cases passed separately. Hosted offline monitoring and recovery passed.",
+    "The checks use synthetic local data. Installed-client retirement, exact Docker images, protected-copy acceptance and guarded release remain open."
+  ],
+  "hostedObserved": {
+    "ci": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42355479570",
+    "mobile": "https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42355479577",
+    "frontend": "passed",
+    "monitoringAndRestore": "passed",
+    "fixtureMatrix": "four passed",
+    "mobileConclusion": "success",
+    "ciConclusion": "success",
+    "backend": "passed",
+    "backendFilesPassed": 214,
+    "chromiumPassed": 92
+  },
+  "rawLogSha256": {
+    "chromium": "bb2e1b49a642ccbf789a4d20ca87a8ad5afa20ecfb94a6b53d814d6f20c05829",
+    "native": "150b79fa04f87964d86a73dd81a0dc6c9593b6b20925a1d78d92a07d08f47490",
+    "webBounded": "598bfe531b52c0219e213f268c22d6b6367b774172ef44169478c60292f47db3",
+    "compiledRuntime": "21d3a82f19724672a4e7bf3391cfaa4f531b3886dd3fe93e617b3d11a92a0080"
+  }
+}

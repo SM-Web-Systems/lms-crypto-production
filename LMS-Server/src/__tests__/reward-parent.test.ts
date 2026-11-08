@@ -1,3 +1,4 @@
+import { seedTestAccount } from './helpers/rbacFixtures.js';
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,15 +11,14 @@ function seedParent(): { parentId: string; token: string; adminToken: string; ch
   const childId = uuidv4();
   const familyId = uuidv4();
 
-  // W01-R1: Use legacy role 'lecturer' to avoid trigger auto-assigning role_admin
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Parent', ?, 'hash', 'lecturer')").run(parentId, `${parentId}@test.com`);
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Child', ?, 'hash', 'student')").run(childId, `${childId}@test.com`);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Parent',?,'hash')`, [parentId,`${parentId}@test.com`], ["role_instructor"]);
+  seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Child',?,'hash')`, [childId,`${childId}@test.com`], ["role_student"]);
   db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(parentId, 'role_parent');
   db.prepare("INSERT INTO user_links (id, parent_user_id, child_user_id, link_type) VALUES (?, ?, ?, 'parent')").run(uuidv4(), parentId, childId);
 
   // W01-R1: Independent admin for funding authorization
   const adminId = uuidv4();
-  db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'FundAdmin', ?, 'hash', 'admin')").run(adminId, `${adminId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'FundAdmin', ?, 'hash')", [adminId, `${adminId}@test.com`], ["role_admin"]);
 
   // Create family group
   db.prepare('INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, ?, ?)').run(familyId, 'Test Family', 'family', parentId);
@@ -66,7 +66,7 @@ describe('Parent Reward Routes', () => {
   it('CR-P-3: POST /parent/rewards rejects unlinked child', async () => {
     const { token } = seedParent();
     const unlinkedChild = uuidv4();
-    db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Other', ?, 'hash', 'student')").run(unlinkedChild, `${unlinkedChild}@test.com`);
+    seedTestAccount(db, `INSERT INTO users (id,name,email,password_hash) VALUES (?,'Other',?,'hash')`, [unlinkedChild,`${unlinkedChild}@test.com`], ["role_student"]);
 
     const res = await request(app)
       .post('/api/v1/parent/rewards')

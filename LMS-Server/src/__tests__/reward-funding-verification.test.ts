@@ -1,3 +1,4 @@
+import { fixtureRoleId, seedTestAccount } from './helpers/rbacFixtures.js';
 /**
  * W01: Reward funding verification gate tests.
  *
@@ -16,18 +17,14 @@ import { RewardError } from '../services/rewards/rewardErrors.js';
 
 function createUser(role = 'admin'): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Test', ?, 'hash', ?)"
-  ).run(id, `${id}@test.com`, role);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Test', ?, 'hash')", [id, `${id}@test.com`], [fixtureRoleId(role)]);
   return id;
 }
 
 /** Create an independent admin with reward.manage (via trg_auto_assign_user_role trigger). */
 function createIndependentAdmin(): string {
   const id = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Admin', ?, 'hash', 'admin')"
-  ).run(id, `${id}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Admin', ?, 'hash')", [id, `${id}@test.com`], ["role_admin"]);
   return id;
 }
 
@@ -41,9 +38,7 @@ function createCohort(sponsorId: string): string {
     `INSERT INTO sponsor_cohorts (id, sponsor_user_id, course_id, name) VALUES (?, ?, ?, 'Test Cohort')`
   ).run(cohortId, sponsorId, courseId);
   const studentId = uuidv4();
-  db.prepare(
-    "INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Student', ?, 'hash', 'student')"
-  ).run(studentId, `${studentId}@test.com`);
+  seedTestAccount(db, "INSERT INTO users (id, name, email, password_hash) VALUES (?, 'Student', ?, 'hash')", [studentId, `${studentId}@test.com`], ["role_student"]);
   db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, studentId);
   return cohortId;
 }

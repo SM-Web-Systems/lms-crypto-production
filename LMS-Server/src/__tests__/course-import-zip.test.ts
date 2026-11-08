@@ -32,11 +32,15 @@ function seedZipData(): ZipSeedResult {
   const unassignedLecturerId = uuidv4();
 
   db.exec(`
-    INSERT INTO users (id, name, email, password_hash, role)
+    INSERT INTO users (id,name,email,password_hash)
     VALUES
-      ('${adminId}', 'Zip Admin', 'zip-admin@test.com', '${HASH}', 'admin'),
-      ('${lecturerId}', 'Zip Lecturer', 'zip-lec@test.com', '${HASH}', 'lecturer'),
-      ('${unassignedLecturerId}', 'Zip Unassigned', 'zip-unassigned@test.com', '${HASH}', 'lecturer');
+      ('${adminId}','Zip Admin','zip-admin@test.com','${HASH}'),
+      ('${lecturerId}','Zip Lecturer','zip-lec@test.com','${HASH}'),
+      ('${unassignedLecturerId}','Zip Unassigned','zip-unassigned@test.com','${HASH}');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${adminId}','role_admin');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${lecturerId}','role_instructor');
+INSERT OR IGNORE INTO user_roles(user_id,role_id) VALUES('${unassignedLecturerId}','role_instructor');
+
 
     INSERT INTO courses (id, title, description, course_code, sections)
     VALUES ('${courseId}', 'ZIP Test Course', 'Test', 'ZIP-001', '[]');
