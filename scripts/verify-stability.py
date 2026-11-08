@@ -6,6 +6,7 @@ Historical/owner-supplied evidence is not an independent production attestation.
 """
 import argparse
 import datetime as dt
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -19,12 +20,15 @@ def timestamp(value):
     return result.astimezone(dt.timezone.utc)
 
 
-def verify(data, expected_sha, started_at, now):
+def verify(data, expected_sha, started_at, now, ended_at=None):
     failures, pending = [], []
     start = timestamp(started_at)
+    end = timestamp(ended_at) if ended_at is not None else now
     if not re.fullmatch(r'[a-fA-F0-9]{40}', expected_sha): raise ValueError('expected SHA must be a full commit SHA')
     if start > now: failures.append('observation starts in the future')
-    if (now-start).total_seconds() < 86400: pending.append('24-hour window is incomplete')
+    if end > now: failures.append('observation ends in the future')
+    if end < start: failures.append('observation ends before it starts')
+    if (end-start).total_seconds() < 86400: pending.append('24-hour window is incomplete')
 
     def coverage(rows, label, max_gap):
         if not isinstance(rows, list): raise ValueError(f'{label} must be an array')
@@ -32,13 +36,13 @@ def verify(data, expected_sha, started_at, now):
         for row in rows:
             time = timestamp(row.get('timestamp'))
             if time > now + dt.timedelta(seconds=60): failures.append(f'{label} contains future evidence')
-            if start <= time <= now: within.append((time,row))
+            if start <= time <= end: within.append((time,row))
         within.sort(key=lambda pair: pair[0])
         if not within:
             pending.append(f'{label} missing in observation window'); return []
         times = [time for time,_ in within]
         if len(set(times)) != len(times): failures.append(f'{label} contains duplicate timestamps')
-        gaps = [(times[0]-start).total_seconds(), (now-times[-1]).total_seconds()]
+        gaps = [(times[0]-start).total_seconds(), (end-times[-1]).total_seconds()]
         gaps += [(b-a).total_seconds() for a,b in zip(times,times[1:])]
         if max(gaps) > max_gap: pending.append(f'{label} has missing intervals or stale coverage')
         return [row for _,row in within]
@@ -60,7 +64,7 @@ def verify(data, expected_sha, started_at, now):
     heartbeat = data.get('heartbeat_at')
     if heartbeat is None: pending.append('heartbeat evidence missing')
     else:
-        age = (now-timestamp(heartbeat)).total_seconds()
+        age = (end-timestamp(heartbeat)).total_seconds()
         if age < 0 or age >= 600: failures.append('heartbeat stale or in the future')
 
     def recent(item, label, max_age):
@@ -68,7 +72,8 @@ def verify(data, expected_sha, started_at, now):
             pending.append(f'{label} evidence missing'); return False
         time = timestamp(item.get('timestamp'))
         if time > now: failures.append(f'{label} evidence is in the future')
-        elif time < start or (now-time).total_seconds() > max_age: pending.append(f'{label} evidence is stale or outside the window')
+        elif time < start or time > end or (end-time).total_seconds() > max_age:
+            pending.append(f'{label} evidence is stale or outside the window')
         return True
 
     backup = data.get('backup')
@@ -84,7 +89,7 @@ def verify(data, expected_sha, started_at, now):
     if not isinstance(rollback, dict) or not all(isinstance(rollback.get(k),str) and rollback[k].strip() for k in ['api_image','web_image']): pending.append('rollback image evidence missing')
     verdict = 'FAIL' if failures else 'PENDING' if pending else 'PASS'
     return {'verdict':verdict, 'reasons':sorted(set(failures+pending)), 'expectedSha':expected_sha,
-        'windowStart':start.isoformat(), 'verifiedAt':now.isoformat(),
+        'windowStart':start.isoformat(), 'windowEnd':end.isoformat(), 'verifiedAt':now.isoformat(),
         'scope':'Supplied offline evidence only; no deployment or AUTH-12 closure performed.'}
 
 
@@ -93,13 +98,26 @@ def main():
     parser.add_argument('--evidence', required=True)
     parser.add_argument('--expected-sha', required=True)
     parser.add_argument('--started-at', required=True)
+    parser.add_argument('--ended-at', help='fixed observation end; omit for live verification through now')
+    parser.add_argument('--expected-evidence-sha256', help='digest from the independent observation record')
     args = parser.parse_args()
     try:
-        data = json.loads(Path(args.evidence).read_text(encoding='utf8'))
-        if not isinstance(data,dict): raise ValueError('evidence must be an object')
-        result = verify(data,args.expected_sha,args.started_at,dt.datetime.now(dt.timezone.utc))
-    except (ValueError, OSError, TypeError, KeyError, AttributeError, OverflowError) as error:
-        result = {'verdict':'FAIL','reasons':[f'Invalid or unreadable evidence: {error}']}
+        expected = args.expected_evidence_sha256
+        if (args.ended_at is not None or expected is not None) and not re.fullmatch(r'[a-f0-9]{64}', expected or ''):
+            result = {'verdict': 'FAIL', 'reasons': ['a pinned evidence SHA-256 is required for archived verification']}
+        else:
+            evidence = Path(args.evidence).read_bytes()
+            evidence_sha = hashlib.sha256(evidence).hexdigest()
+            if expected is not None and expected != evidence_sha:
+                result = {'verdict': 'FAIL', 'reasons': ['evidence SHA-256 mismatch']}
+            else:
+                data = json.loads(evidence)
+                if not isinstance(data,dict): raise ValueError('evidence must be an object')
+                result = verify(data, args.expected_sha, args.started_at, dt.datetime.now(dt.timezone.utc), args.ended_at)
+                if expected is not None:
+                    result['evidenceSha256'] = evidence_sha
+    except (ValueError, OSError, TypeError, KeyError, AttributeError, OverflowError):
+        result = {'verdict': 'FAIL', 'reasons': ['invalid or unreadable observation evidence']}
     print(json.dumps(result,indent=2))
     return {'PASS':0,'FAIL':1,'PENDING':2}[result['verdict']]
 

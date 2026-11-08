@@ -89,10 +89,25 @@ No release gate or flag controls reward funding, which is a permission-checked u
 2. Run `scripts/build-candidate.sh` and record the image IDs.
 3. Review and rehearse those exact IDs on a fresh copy, then write the private policy.
 4. Run `scripts/deploy.sh` with `DEPLOY_EXECUTE=1` and `DEPLOY_RECOVERY_POLICY` set.
-5. Run smoke checks and move monitoring to the new SHA.
+5. Run smoke checks on the held candidate.
+6. Run `scripts/release-hold.sh` with `DEPLOY_EXECUTE=1`.
 
 For a Wallet-enabled release, include the boolean `"require_wallet_callback": true` in the independently reviewed policy before capture. The writer release checks the public parameter-free callback for HTTP 302, exactly one `Referrer-Policy: no-referrer` and exactly one `Cache-Control: no-store`. It performs a credential-free GET and leaves the redirect unfollowed. The held API permits only this exact callback GET. Requests carrying parameters, cookies or authorization remain subject to the hold. A failed probe leaves writers held and returns the failed check. Resolve the public route or proxy policy before repeating the approved writer-release command. [Staging Wallet acceptance](LMS-023-COURSE-CHECKOUT.md)
-6. Run `scripts/release-hold.sh` with `DEPLOY_EXECUTE=1`.
+
+## Record the 24-hour observation
+
+Begin observation after writer release and after the monitor confirms the approved API revision. Record that revision and the UTC observation start. At the agreed end, retain private copies of the monitor log, dead-man log and contemporaneous heartbeat. Collect the backup, mail receipt and rollback attestations for the same window. Build the private evidence JSON with the existing stability evidence builder and record its SHA-256 alongside the observation start and end in the independent review record.
+
+```bash
+python3 scripts/verify-stability.py \
+  --evidence "$PRIVATE_OBSERVATION_JSON" \
+  --expected-sha "$APPROVED_LMS_API_SHA" \
+  --started-at "$OBSERVATION_START_UTC" \
+  --ended-at "$OBSERVATION_END_UTC" \
+  --expected-evidence-sha256 "$RECORDED_OBSERVATION_SHA256"
+```
+
+The verifier checks coverage and freshness as of the recorded end. Evidence from later probes cannot fill a gap in the window. Keep the exported evidence, digest and reviewer record together. The offline result covers the supplied monitoring and attestations. The release still requires the integrated acceptance and exact-image recovery receipts in the backlog.
 
 ## Known limits
 
