@@ -147,4 +147,23 @@ Paystack can sign webhooks using the timestamped `Paystack-Signature` header and
 
 Use the approved staging course, authorized synthetic learner, and a confirmed Paystack test-mode merchant. Record the deployed LMS and Wallet revisions and the test-mode evidence. Verify paid checkout for the configured merchant currency, duplicate/concurrent initiation, mismatched and reordered signed webhooks, receipt ownership, and a sandbox refund. Record the provider outcome and local payment ledger for each reference without including payment credentials. Test Wallet SSO, verified-email recovery and the enabled challenge and second-factor flows using the approved capture mechanism. A separate decision governs any live enablement.
 
+### Isolated Paystack acceptance runner
+
+Build the pinned LMS revision and start the runner from `LMS-Server`.
+
+```text
+npm run build
+node scripts/accept-paystack-sandbox.mjs --preflight
+```
+
+The preflight exercises the compiled API on a loopback port with a fresh SQLite database. It simulates Paystack responses and signed events. It verifies a single checkout across concurrent calls, rejection of the wrong charge amount, idempotent settlement, receipt access by the owner, denial to a second learner, and a full refund followed by receipt denial and ledger checks.
+
+For provider acceptance, use a private interactive terminal on the approved isolated target. Set `LMS_PAYSTACK_TEST_KEY` through the operator's private secret entry mechanism. If the test merchant sends the timestamped signature, also set `LMS_PAYSTACK_TEST_WEBHOOK_SECRET`. Forward only `POST /api/v1/webhooks/paystack` from a dedicated HTTPS test endpoint to the runner's loopback port 43123. Verify the URL in the merchant's test dashboard before confirming the prompt. The runner opens a separate database, creates synthetic LMS identities, and allows only the exact Paystack checkout, verification, refund, and refund lookup requests for this test.
+
+```text
+node scripts/accept-paystack-sandbox.mjs --execute-test-mode
+```
+
+Open the hosted checkout in a private browser using an official Paystack test card. The checkout return page is a local marker. Signed webhooks drive the LMS payment state, and separate Paystack reads confirm the exact test-domain charge and refund. Save the redacted terminal receipt and match the reference digests to the private merchant records before signing off. If an event misses the wait window, reconcile the printed test references in the dashboard before retrying. The runner removes its disposable database at exit. Wallet sign-in and the deployed web callback have separate acceptance checks. [Paystack test cards](https://paystack.com/docs/payments/test-payments/) · [Paystack refund lookup](https://paystack.com/docs/payments/refunds/#fetch-a-refund-by-reference)
+
 Local regressions use mocked responses at the HTTP boundary and synthetic signatures. They cover the checkout race, replay, price currency, provider mismatch, late webhook settlement, release hold and additive schema startup. No real transaction or provider call was made.
