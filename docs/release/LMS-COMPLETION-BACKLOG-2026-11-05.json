@@ -558,7 +558,11 @@
       "acceptance": [
         "Authorized maintenance uses pinned image IDs and matching policy; final quiesced backup/migration/hold checks pass; build, role/scope/session/progress/provider checks and agreed 24h monitor pass; recovery verified"
       ],
-      "evidence": []
+      "evidence": [
+        "AUTH-14-held-release.md",
+        "LMS-023-COURSE-CHECKOUT.md"
+      ],
+      "reason": "The reviewed release policy can require the public Wallet callback check before releasing writers. The staging callback still fails that check. Approved maintenance, exact-image recovery, integrated checks and 24-hour observation remain open."
     },
     {
       "id": "LMS-063",

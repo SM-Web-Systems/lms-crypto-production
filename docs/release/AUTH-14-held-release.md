@@ -90,6 +90,8 @@ No release gate or flag controls reward funding, which is a permission-checked u
 3. Review and rehearse those exact IDs on a fresh copy, then write the private policy.
 4. Run `scripts/deploy.sh` with `DEPLOY_EXECUTE=1` and `DEPLOY_RECOVERY_POLICY` set.
 5. Run smoke checks and move monitoring to the new SHA.
+
+For a Wallet-enabled release, include the boolean `"require_wallet_callback": true` in the independently reviewed policy before capture. The writer release checks the public parameter-free callback for HTTP 302, exactly one `Referrer-Policy: no-referrer` and exactly one `Cache-Control: no-store`. It performs a credential-free GET and leaves the redirect unfollowed. The held API permits only this exact callback GET. Requests carrying parameters, cookies or authorization remain subject to the hold. A failed probe leaves writers held and returns the failed check. Resolve the public route or proxy policy before repeating the approved writer-release command. [Staging Wallet acceptance](LMS-023-COURSE-CHECKOUT.md)
 6. Run `scripts/release-hold.sh` with `DEPLOY_EXECUTE=1`.
 
 ## Known limits

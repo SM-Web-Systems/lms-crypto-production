@@ -146,6 +146,7 @@ def verify_backup(target, backup):
 
 def verify_policy(target, backup, policy):
     require(isinstance(policy, dict) and policy.get('version') == 1, 'REVIEWED_COMPATIBILITY_POLICY_REQUIRED')
+    require(type(policy.get('require_wallet_callback', False)) is bool, 'WALLET_CALLBACK_POLICY_INVALID')
     reference = policy.get('review_reference')
     require(isinstance(reference, str) and 1 <= len(reference) <= 200 and '\n' not in reference and '\r' not in reference,
             'INDEPENDENT_REVIEW_REFERENCE_REQUIRED')
@@ -362,16 +363,31 @@ class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl): return None
 
 
-def get_http(url):
+def get_http(url, *, headers_only=False):
     opener = build_opener(ProxyHandler({}), NoRedirect())
+
+    def read(response):
+        return response.code, response.headers if headers_only else response.read(1024 * 1024 + 1)
+
     try:
         with opener.open(Request(url, method='GET'), timeout=5) as response:
-            return response.status, response.read(1024 * 1024 + 1)
+            return read(response)
     except HTTPError as error:
-        try: return error.code, error.read(1024 * 1024 + 1)
+        try: return read(error)
         finally: error.close()
     except (OSError, URLError):
         raise ReleaseError('RECOVERY_HTTP_UNAVAILABLE') from None
+
+
+def verify_wallet_callback(base_url):
+    status, headers = get_http(base_url + '/api/v1/auth/amma-callback', headers_only=True)
+    require(status == 302, 'WALLET_CALLBACK_STATUS_MISMATCH')
+    for name, expected, code in (
+        ('Referrer-Policy', 'no-referrer', 'WALLET_CALLBACK_REFERRER_POLICY_MISMATCH'),
+        ('Cache-Control', 'no-store', 'WALLET_CALLBACK_CACHE_POLICY_MISMATCH'),
+    ):
+        values = [value.strip().lower() for value in headers.get_all(name, ())]
+        require(values == [expected], code)
 
 
 def validate_base_url(value):
@@ -690,6 +706,8 @@ def release_hold(config, runner=None, policy=None, execute=None, http=None, time
         current = pre._source_metadata(Path(target['database']['host_path']))
         verify_database_contract(current, manifest['backup'])
         verify_protected_content(current, held)
+        if policy.get('require_wallet_callback') is True:
+            verify_wallet_callback(base_url)
         # Before the release, so a lost exec can never leave rollback eligible.
         if not marker.exists(): immutable_json(marker, {'manifest_id': manifest['manifest_id']})
         try:
