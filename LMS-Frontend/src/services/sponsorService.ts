@@ -3,6 +3,7 @@
  */
 
 import api from './api';
+import { getStoredToken } from '../context/AuthContext';
 import type { CourseAnalytics, SponsorStudent } from './analyticsService';
 import { assertApiSuccess } from '../utils/apiError';
 
@@ -126,12 +127,10 @@ export const sponsorService = {
     return assertApiSuccess(response, 'Could not load cohort spending.');
   },
   async exportCoursesCsv(): Promise<void> {
-    const response = await api.get('/sponsor/courses/export', { responseType: 'blob' });
-    download(response.data, 'sponsor-analytics.csv');
+    await downloadForSession('/sponsor/courses/export', 'sponsor-analytics.csv');
   },
   async downloadReceipt(id: string): Promise<void> {
-    const response = await api.get(`/payments/${encodeURIComponent(id)}/receipt`, { responseType: 'blob' });
-    download(response.data, `receipt-${id}.pdf`);
+    await downloadForSession(`/payments/${encodeURIComponent(id)}/receipt`, `receipt-${id}.pdf`);
   },
   async getDashboard(): Promise<SponsorDashboardData> {
     const res = await api.get<{ success: boolean; data: SponsorDashboardData }>('/sponsor/dashboard');
@@ -166,17 +165,8 @@ export const sponsorService = {
     const params: Record<string, string> = { format: 'csv' };
     if (dateRange?.from) params.from = dateRange.from;
     if (dateRange?.to) params.to = dateRange.to;
-    const response = await api.get('/sponsor/impact-report', { params, responseType: 'blob' });
-    const blob = new Blob([response.data as BlobPart], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
     const today = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `impact-report-${today}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
+    await downloadForSession('/sponsor/impact-report', `impact-report-${today}.csv`, params);
   },
 
   async getBilling(dateRange?: DateRange, scope?: 'cohort'): Promise<SponsorBilling> {
@@ -203,8 +193,18 @@ export const sponsorService = {
   },
 };
 
-function download(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
+async function downloadForSession(path: string, filename: string, params?: Record<string, string>) {
+  const token = getStoredToken();
+  if (!token) throw new Error('Please sign in to download this file.');
+
+  const { data } = await api.get<Blob>(path, {
+    params,
+    responseType: 'blob',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (getStoredToken() !== token) throw new Error('Your session changed. Try the download again.');
+
+  const url = URL.createObjectURL(data);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;

@@ -22,6 +22,8 @@ The suite was repeated after local LMS-011 reconciliation: sponsor authorization
 
 Sponsor API responses, cohort administration, scoped payments and badges now carry `Cache-Control: no-store`. The lifecycle test checks that delegated receipts and badges are denied after membership removal and that the member disappears from both billing and the roster CSV for existing and new sessions. Restoring membership restores access. Role revocation then denies the old token and a fresh login on the scoped routes, including both CSV exports. The unrelated sponsor retains access. The cache directive governs HTTP responses and cannot recall a file already downloaded. [HTTP caching standard](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5)
 
+The Sponsor Portal browser binds receipt, roster CSV and impact CSV downloads to the initiating session. It discards a delayed response if the browser has signed out or switched accounts before the file is saved. A synthetic regression verifies that no browser download starts in those cases.
+
 In staging acceptance, verify that the deployed proxy passes this directive through for authenticated cohort data, payment receipts and CSVs, and that denied requests do not return previously authorized content.
 
 The v2 candidate passed 59 sponsor HTTP tests and 51 Playwright cases across Chromium, Firefox and WebKit with retries disabled. The browser suite used the compiled local app and disposable fixtures.
