@@ -112,8 +112,8 @@ describe('offline learning API', () => {
     const a = f.learner();
     const lease = (await f.lease(a.token)).body.data;
     db.prepare('UPDATE courses SET title = ? WHERE id = ?').run('Revised', f.courseId);
-    expect((await f.inspect(a.token, lease.leaseId)).body.error.code).toBe('OFFLINE_CONTENT_CHANGED');
-    expect((await f.sync(a.token, complete(lease))).body.error.code).toBe('OFFLINE_CONTENT_CHANGED');
+    expect((await f.inspect(a.token, lease.leaseId)).body.error.code).toBe('OFFLINE_LEASE_INVALID');
+    expect((await f.sync(a.token, complete(lease))).body.error.code).toBe('OFFLINE_LEASE_INVALID');
     const newer = (await f.lease(a.token)).body.data;
     expect(newer.leaseId).not.toBe(lease.leaseId);
     db.prepare('UPDATE offline_learning_leases SET issued_at = ?, expires_at = ? WHERE id = ?')
@@ -133,6 +133,33 @@ describe('offline learning API', () => {
     db.prepare("UPDATE active_sessions SET revoked_at = datetime('now') WHERE token_hash = ?").run(hashToken(a.token));
     expect((await f.sync(a.token, complete(active))).status).toBe(401);
     expect(db.prepare('SELECT count(*) AS count FROM lesson_completions').get()).toEqual({count: 0});
+  });
+
+  it('requires a fresh lease after edited content is restored to its original version', async () => {
+    const f = fixture();
+    const a = f.learner();
+    const lease = (await f.lease(a.token)).body.data;
+    const {sections} = db.prepare('SELECT sections FROM courses WHERE id = ?').get(f.courseId) as {sections: string};
+    const update = db.prepare('UPDATE courses SET sections = ? WHERE id = ?');
+    const revised = sections.replace('Read this offline.', 'New offline reading.');
+    update.run(sections, f.courseId);
+    expect((await f.inspect(a.token, lease.leaseId)).status).toBe(200);
+
+    expect(() => db.transaction(() => {
+      update.run(revised, f.courseId);
+      throw new Error('rollback edit');
+    })()).toThrow('rollback edit');
+    expect((await f.inspect(a.token, lease.leaseId)).status).toBe(200);
+
+    update.run(revised, f.courseId);
+    update.run(sections, f.courseId);
+    expect((await f.inspect(a.token, lease.leaseId)).body.error.code).toBe('OFFLINE_LEASE_INVALID');
+    expect((await f.sync(a.token, complete(lease))).body.error.code).toBe('OFFLINE_LEASE_INVALID');
+    expect(db.prepare('SELECT count(*) AS count FROM lesson_completions WHERE user_id = ?').get(a.id)).toEqual({count: 0});
+    const fresh = (await f.lease(a.token)).body.data;
+    expect(fresh.contentVersion).toBe(lease.contentVersion);
+    expect(fresh.leaseId).not.toBe(lease.leaseId);
+    expect((await f.sync(a.token, complete(fresh))).status).toBe(200);
   });
 
   it('merges delayed progress monotonically and denies key reuse with a different operation', async () => {
