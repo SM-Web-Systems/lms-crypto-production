@@ -304,9 +304,10 @@
         "evidence/lms-023-staging-proxy-validation.json",
         "evidence/lms-023-proxy-correction-rehearsal.json",
         "evidence/lms-023-staging-proxy-correction.json",
-        "evidence/lms-023-staging-provider-readiness.json"
+        "evidence/lms-023-staging-provider-readiness.json",
+        "evidence/lms-023-staging-wallet-build-provenance.json"
       ],
-      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. The approved path-specific staging Nginx correction passed direct and public callback checks plus all six independent smoke checks. The designated Wallet tester has a verified email. The running LMS Paystack key is live-mode and controlled email capture remains unverified. The exact candidate, authenticated Wallet session, approved test-mode target and provider acceptance remain open."
+      "reason": "Local checkout and refund requests reserve a currency-bound provider reference; signed settlement finalizes refunds. Wallet assertion verification refuses redirects and excludes provider error bodies. The staging SSO entry points target AmmaWallet.com. An approved origin probe verified no-referrer at the running API while the public response differed. An authorized SSH probe found the differing header already present at shared Nginx. The approved path-specific staging Nginx correction passed direct and public callback checks plus all six independent smoke checks. The designated Wallet tester has a verified email. The running LMS Paystack key is live-mode and controlled email capture remains unverified. The approved Wallet origin is healthy, with an observed image ID and no verified source revision. The exact candidate, authenticated Wallet session, approved test-mode target and provider acceptance remain open."
     },
     {
       "id": "LMS-030",
@@ -425,7 +426,7 @@
         "mobile-device-acceptance-followup.md",
         "evidence/lms-040-mobile-artifact-discovery.json"
       ],
-      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. The device report checker requires an independently pinned manifest of both artifacts and the API and Wallet revisions. Artifact discovery confirmed the retained APK is x86_64 emulator-only. Expo build history requires project access. Staging provider pairing, signing, approved artifact inspection and device distribution remain open."
+      "reason": "Pinned preview targets, native callback identity and internal distribution passed offline checks. The device report checker requires an independently pinned manifest of both artifacts and the API and Wallet revisions. Artifact discovery confirmed the retained APK is x86_64 emulator-only. Expo build history requires project access. Staging Wallet source revision, provider acceptance, signing, approved artifact inspection and device distribution remain open."
     },
     {
       "id": "LMS-041",

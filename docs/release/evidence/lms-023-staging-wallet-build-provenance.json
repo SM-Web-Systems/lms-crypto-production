@@ -1,0 +1,26 @@
+{
+  "tasks": [
+    "LMS-023",
+    "LMS-040"
+  ],
+  "observedOn": "2026-11-08",
+  "lms": {
+    "health": "ok",
+    "sourceRevision": "f5a64e8ac92aca6b33ae54bda70617d475893e3e",
+    "walletOriginMatchesApprovedStaging": true
+  },
+  "walletServingStaging": {
+    "health": "ok",
+    "imageId": "sha256:949c7b38cec37ce86d734c32eb7ba9f1d41b83c124265e873485bf93bbd39606",
+    "ociRevision": null,
+    "runtimeRevisionMarker": null,
+    "publicHealthRevision": null,
+    "sourceRevisionVerified": false
+  },
+  "separateWalletTestnet": {
+    "health": "ok",
+    "ociRevision": "43a0303f4eeb03a43f322695e652fafbe8157bd2",
+    "isLmsWalletTarget": false
+  },
+  "authenticatedStagingAcceptance": false
+}
