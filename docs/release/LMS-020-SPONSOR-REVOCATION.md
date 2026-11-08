@@ -26,4 +26,4 @@ The Sponsor Portal browser binds receipt, roster CSV and impact CSV downloads to
 
 In staging acceptance, verify that the deployed proxy passes this directive through for authenticated cohort data, payment receipts and CSVs, and that denied requests do not return previously authorized content.
 
-The v2 candidate passed 59 sponsor HTTP tests and 51 Playwright cases across Chromium, Firefox and WebKit with retries disabled. The browser suite used the compiled local app and disposable fixtures.
+The v2 candidate passed 59 sponsor HTTP tests and 51 Playwright cases across Chromium, Firefox and WebKit with retries disabled. The later session-bound download fix also passed hosted CI, including the sponsor browser matrix, on both exact fix revisions. [v1 CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42479157854) · [v2 CI](https://github.com/SM-Web-Systems/lms-crypto-production/actions/runs/42479177237) The browser suite used the compiled local app and disposable fixtures.
