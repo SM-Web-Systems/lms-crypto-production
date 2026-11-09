@@ -350,8 +350,9 @@ class NoRedirect(HTTPRedirectHandler):
 
 def get_http(url):
     opener = build_opener(ProxyHandler({}), NoRedirect())
+    request = Request(url, headers={'User-Agent': 'LMS-Release-Verification/1.0'}, method='GET')
     try:
-        with opener.open(Request(url, method='GET'), timeout=5) as response:
+        with opener.open(request, timeout=5) as response:
             return response.status, response.read(1024 * 1024 + 1)
     except HTTPError as error:
         try: return error.code, error.read(1024 * 1024 + 1)
