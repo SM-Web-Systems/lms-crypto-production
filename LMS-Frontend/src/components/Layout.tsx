@@ -246,9 +246,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <button
               type="button"
               onClick={handleLogout}
+              aria-label="Logout"
               className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-white bg-accent-teal hover:bg-accent-teal-hover transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-teal shrink-0"
             >
-              <LogOut className="h-4 w-4 sm:mr-2" />
+              <LogOut className="h-4 w-4 sm:mr-2" aria-hidden />
               <span className="hidden sm:inline">Logout</span>
             </button>
           </div>

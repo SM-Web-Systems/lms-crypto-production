@@ -429,14 +429,15 @@ export function bulkPay(cohortId: string, adminUserId: string): BulkPayResult {
 
   const pricing = getCoursePricing(cohort.course_id);
   const priceCents = pricing?.price_cents ?? 0;
+  const currency = pricing?.currency ?? 'USD';
   const totalCents = priceCents * appliedCount;
 
   // Create single bulk payment (application_id = NULL for bulk)
   const paymentId = uuidv4();
   execute(
     `INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency, payment_method, status, created_at, updated_at)
-     VALUES (?, ?, ?, NULL, ?, 'USD', 'manual', 'pending', datetime('now'), datetime('now'))`,
-    [paymentId, cohort.sponsor_user_id, cohort.course_id, totalCents],
+     VALUES (?, ?, ?, NULL, ?, ?, 'manual', 'pending', datetime('now'), datetime('now'))`,
+    [paymentId, cohort.sponsor_user_id, cohort.course_id, totalCents, currency],
   );
 
   // Link payment to cohort
@@ -445,7 +446,7 @@ export function bulkPay(cohortId: string, adminUserId: string): BulkPayResult {
   return {
     paymentId,
     amountCents: totalCents,
-    currency: 'USD',
+    currency,
     memberCount: appliedCount,
     status: 'pending',
   };
@@ -555,13 +556,16 @@ export function bulkInviteToCohort(
 // ─── Spending Report (Phase 22 C4) ─────────────────────────────────────────
 
 export function getSpendingReport(sponsorUserId?: string): {
-  totalSpentCents: number;
+  totalSpentCents: number | null;
+  currency: string | null;
+  totalsByCurrency: Array<{ currency: string; amountCents: number }>;
   cohorts: Array<{
     cohortId: string;
     cohortName: string;
     courseName: string;
     memberCount: number;
     amountCents: number;
+    currency: string | null;
     paymentStatus: string | null;
     createdAt: string;
   }>;
@@ -570,11 +574,12 @@ export function getSpendingReport(sponsorUserId?: string): {
     SELECT sc.id as cohort_id, sc.name as cohort_name, c.title as course_name,
            (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) as member_count,
            COALESCE(p.amount_cents, 0) as amount_cents,
-           p.status as payment_status,
+           p.id as payment_id, p.currency, p.status as payment_status,
            sc.created_at
     FROM sponsor_cohorts sc
     JOIN courses c ON c.id = sc.course_id
     LEFT JOIN payments p ON p.id = sc.payment_id
+      AND p.user_id = sc.sponsor_user_id AND p.course_id = sc.course_id
   `;
   const params: string[] = [];
   if (sponsorUserId) {
@@ -586,21 +591,31 @@ export function getSpendingReport(sponsorUserId?: string): {
   const rows = query<{
     cohort_id: string; cohort_name: string; course_name: string;
     member_count: number; amount_cents: number;
+    payment_id: string | null; currency: string | null;
     payment_status: string | null; created_at: string;
   }>(sql, params);
 
-  const totalSpentCents = rows
-    .filter((r) => r.payment_status === 'confirmed')
-    .reduce((sum, r) => sum + r.amount_cents, 0);
+  // A payment referenced by multiple cohorts is still one payment. Currency
+  // totals are independent amounts; summing USD and ZAR is not meaningful.
+  const payments = new Map(rows.filter(r => r.payment_status === 'confirmed' && r.payment_id && r.currency)
+    .map(r => [r.payment_id!, r]));
+  const amounts = new Map<string, number>();
+  for (const row of payments.values()) amounts.set(row.currency!, (amounts.get(row.currency!) ?? 0) + row.amount_cents);
+  const totalsByCurrency = [...amounts].sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, amountCents]) => ({ currency, amountCents }));
+  const totalSpentCents = totalsByCurrency.length > 1 ? null : totalsByCurrency[0]?.amountCents ?? 0;
 
   return {
     totalSpentCents,
+    currency: totalsByCurrency.length === 1 ? totalsByCurrency[0].currency : null,
+    totalsByCurrency,
     cohorts: rows.map((r) => ({
       cohortId: r.cohort_id,
       cohortName: r.cohort_name,
       courseName: r.course_name,
       memberCount: r.member_count,
       amountCents: r.amount_cents,
+      currency: r.currency,
       paymentStatus: r.payment_status,
       createdAt: r.created_at,
     })),

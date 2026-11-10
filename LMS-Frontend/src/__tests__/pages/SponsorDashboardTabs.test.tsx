@@ -128,7 +128,7 @@ describe('SponsorDashboard — Batch 1 Tabs', () => {
   it('D3B1-03: /sponsor/impact routes to Impact Report tab', async () => {
     renderWithRoute('/sponsor/impact');
     await waitFor(() => {
-      expect(screen.getByText(/total students/i)).toBeInTheDocument();
+      expect(screen.getByText(/sponsored memberships/i)).toBeInTheDocument();
     });
   });
 

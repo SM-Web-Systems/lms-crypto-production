@@ -11,6 +11,7 @@ import {Input} from '@/components/ui/Input';
 import {Card,CardTitle} from '@/components/ui/Card';
 import {ErrorBanner} from '@/components/ErrorBanner';
 import {LoadingView} from '@/components/LoadingView';
+import {PushNotificationSettings} from '@/components/PushNotifications';
 
 export default function AccountScreen(){
   const {user,isLoading,logout,refresh}=useAuth();
@@ -49,6 +50,7 @@ export default function AccountScreen(){
     {pending ? <Text accessibilityRole="alert" className="rounded-lg bg-amber-50 p-3 text-amber-900">Your account is pending deletion. You can cancel during the grace period or export your data. Learning is unavailable until you cancel.</Text> : null}
     {message ? <Text accessibilityLiveRegion="polite" className="text-emerald-800">{message}</Text> : null}
     {errors.action ? <ErrorBanner message={errors.action}/> : null}
+    {!pending ? <PushNotificationSettings /> : null}
     <Card><CardTitle>Active sessions</CardTitle>
       <Text className="my-2">Revoke a session to sign that device out. Revoking this device returns you to sign in.</Text>
       {errors.sessions ? <ErrorBanner message={errors.sessions} onRetry={()=>{void load('sessions');}}/> : sessions===null ? <Text>Loading sessions…</Text> : sessions.length===0 ? <Text>No active sessions found.</Text> : sessions.map(session=><View key={session.id} className="mt-3 gap-2 rounded-lg border border-neutral-200 p-3">

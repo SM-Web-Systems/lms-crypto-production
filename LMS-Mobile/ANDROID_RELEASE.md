@@ -5,7 +5,7 @@ Prepare and build the SM Web Systems LMS Android app with [EAS Build](https://do
 ## Prerequisites
 
 1. [Expo account](https://expo.dev/signup) (free tier works for builds)
-2. [EAS CLI](https://docs.expo.dev/build/setup/) — included as `npm run eas`
+2. [EAS CLI](https://docs.expo.dev/build/setup/) — included as `npm run eas:cli`
 3. A **public HTTPS** LMS API URL (production builds embed `EXPO_PUBLIC_API_BASE_URL` at build time)
 4. For Play Store upload: [Google Play Console](https://play.google.com/console) developer account ($25 one-time)
 
@@ -13,14 +13,17 @@ Prepare and build the SM Web Systems LMS Android app with [EAS Build](https://do
 
 ```bash
 cd LMS-Mobile
-npm install
-npm run eas -- login
-npm run eas -- init
+# Match the pinned EAS Node 22.18.0 / npm 10.9.3 environment.
+npx --yes npm@10.9.3 ci
+npm run eas:cli -- login
+npm run eas:cli -- project:init
 ```
 
-`eas init` links the app to Expo and writes `EAS_PROJECT_ID` into your Expo project config.
+Select the approved Expo owner when creating the project. For a project created in the dashboard, use `npm run eas:cli -- project:init --id <project-id>`. If the CLI asks for a manual change because the app uses `app.config.ts`, add the confirmed owner and project ID to `LMS-Mobile/app.json` as `expo.owner` and `expo.extra.eas.projectId`. The project ID is public build metadata. Verify the linked account and slug with `npm run eas:cli -- project:info` before building.
 
 Update the production API URL in `eas.json` (`preview` and `production` profiles) if your backend is not at `https://lms.smwebsystems.com/api/v1`.
+
+Regenerate the lockfile with npm 10.9.3 and verify a clean `npx --yes npm@10.9.3 ci --include=dev` before submitting a build. npm 11 can accept a lockfile that npm 10 rejects when nested overrides are resolved differently; a successful install under another npm version is insufficient. Keep the reviewed dependency overrides and strict clean-install behavior.
 
 ## Build profiles
 
@@ -83,7 +86,7 @@ npm run submit:android
 | Variable | Purpose |
 |----------|---------|
 | `EXPO_PUBLIC_API_BASE_URL` | LMS API base URL (no trailing slash) |
-| `EAS_PROJECT_ID` | Set automatically by `eas init` |
+| `EAS_PROJECT_ID` | Optional for an unlinked checkout. If the app is already linked, it must match the committed project ID. |
 
 Local dev: copy `.env.example` → `.env` and use your LAN IP for physical devices.
 

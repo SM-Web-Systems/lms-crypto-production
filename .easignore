@@ -1,0 +1,64 @@
+# EAS builds the native app and its explicit shared contracts.
+/*
+!/LMS-Mobile
+!/LMS-Mobile/**
+
+# The native client imports these dependency-free shared web contracts.
+!/LMS-Frontend
+/LMS-Frontend/**
+!/LMS-Frontend/src
+!/LMS-Frontend/src/utils
+!/LMS-Frontend/src/utils/rolePresentation.ts
+!/LMS-Frontend/src/types
+!/LMS-Frontend/src/types/api.ts
+!/LMS-Frontend/src/types/course.ts
+!/LMS-Frontend/src/types/directory.ts
+
+# Apply explicit exclusions because EAS replaces all .gitignore rules.
+.git
+node_modules
+.expo
+dist
+web-build
+coverage
+.output
+.next
+.turbo
+.kotlin
+.local-development
+__pycache__
+*.tsbuildinfo
+expo-env.d.ts
+.metro-health-check*
+*.log
+*.orig.*
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local credentials, signing material, provider files and private runtime data.
+.env*
+app.env*
+.npmrc
+credentials.json
+google-services.json
+GoogleService-Info.plist
+google-play-service-account.json
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.dump
+*.sql.gz
+
+# Native projects are regenerated from the reviewed Expo configuration.
+/LMS-Mobile/android/
+/LMS-Mobile/ios/

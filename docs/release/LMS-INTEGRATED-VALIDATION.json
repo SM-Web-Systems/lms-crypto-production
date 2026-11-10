@@ -1,0 +1,79 @@
+{
+  "status": "LOCAL_AUTOMATED_VALIDATION_PASSED_HOSTED_AND_RELEASE_GATES_PENDING",
+  "sourceTrees": {
+    "api": "ca529a79c643bcc694a6528ff559d07f8b6f24d3",
+    "web": "138c92b69479313f969d30b3c991dc08f778522d"
+  },
+  "api": {
+    "build": "PASS",
+    "testFiles": 216,
+    "passed": 2550,
+    "skipped": 1,
+    "failed": 0,
+    "skip": "Existing protected-copy acceptance is a separate release gate.",
+    "dependencyAuditFindings": 0
+  },
+  "web": {
+    "build": "PASS",
+    "testFiles": 71,
+    "passed": 727,
+    "failed": 0,
+    "dependencyAuditFindings": 0,
+    "outputNote": "Nonfatal jsdom XHR errors were emitted; these tests do not prove provider delivery."
+  },
+  "releaseToolsWindows": {
+    "run": 347,
+    "passed": 335,
+    "skipped": 12,
+    "failed": 0,
+    "skipScope": "POSIX/GNU-tar platform conditions; applicable Linux cases run in hosted monitoring."
+  },
+  "compiledSyntheticRuntime": {
+    "sourceFreeBootstrap": "PASS",
+    "rbacCutoverRefusalRestartAndRestoredV1": "PASS",
+    "actualPreviousBackend": "NOT_RUN",
+    "durableFundingRestart": "PASS",
+    "creditConcurrencyAndRestart": "PASS",
+    "pushWorkerDeathAndRestart": "PASS_WITH_SYNTHETIC_PROVIDER"
+  },
+  "browserIsolation": {
+    "initialCombinedRun": {
+      "total": 132,
+      "passed": 131,
+      "failed": 1,
+      "retries": 0,
+      "failure": "Final WebKit sponsor role revocation reached the existing shared test API IP write budget (1000 requests per 900 seconds)."
+    },
+    "correctedRuns": [
+      {
+        "project": "chromium",
+        "passed": 92,
+        "failed": 0,
+        "retries": 0,
+        "logSha256": "57f89f0ebee7311101cd9fee2c508cd101df22b63637c1044cb363805c5d0656"
+      },
+      {
+        "project": "firefox",
+        "passed": 20,
+        "failed": 0,
+        "retries": 0,
+        "logSha256": "f1d0cca8ceaf49e8e8af46c9f7f7c1908b1f720b2cf342afb8aa9021a494495c"
+      },
+      {
+        "project": "webkit",
+        "passed": 20,
+        "failed": 0,
+        "retries": 0,
+        "logSha256": "e75e4229f9b7851d158adc62f784e3f6e7de0c6e408b3aea5b52b61d4fffc6d8"
+      }
+    ],
+    "totalPassed": 132,
+    "productionRateLimitsChanged": false,
+    "testAssertionsChanged": false,
+    "ciChange": "Separate browser jobs, API processes and synthetic databases."
+  },
+  "privateAuditHistoryOrRecordsPublished": false,
+  "providerHardwareOrStagingReleaseAccepted": false,
+  "hostedChecks": "PENDING",
+  "deployment": "NOT_PERFORMED"
+}

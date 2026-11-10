@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { createHmac } from 'node:crypto';
 import app from '../app.js';
@@ -22,6 +22,71 @@ function send(event='charge.success', change: Record<string,unknown> = {}, signa
   if (signatureMode!=='missing') call.set('x-paystack-signature',signatureMode==='bad'?'0'.repeat(128):signature);
   return call.send(signatureMode==='tampered'?raw+' ':raw);
 }
+
+describe('Paystack timestamped webhook signing', () => {
+  const current = 'whsec_currentFixture';
+  const previous = 'whsec_previousFixture';
+  const now = 1_760_270_400;
+  const raw = '{ "event": "charge.success", "data": {"reference":"reference","amount":100,"currency":"USD"} }';
+
+  beforeEach(() => {
+    vi.stubEnv('PAYSTACK_WEBHOOK_SECRET', current);
+    vi.stubEnv('PAYSTACK_WEBHOOK_PREVIOUS_SECRET', previous);
+    vi.spyOn(Date, 'now').mockReturnValue(now * 1000);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  function sign(secret: string, time: number = now) {
+    return createHmac('sha512', secret).update(time + '.').update(raw).digest('hex');
+  }
+
+  function sendSigned(header: string, body: string = raw) {
+    const legacy = createHmac('sha512', process.env.PAYSTACK_SECRET_KEY!).update(body).digest('hex');
+    return request(app).post('/api/v1/webhooks/paystack')
+      .set('Content-Type', 'application/json')
+      .set('Paystack-Signature', header)
+      .set('X-Paystack-Signature', legacy)
+      .send(body);
+  }
+
+  it('accepts the current and previous keys with multiple signatures and records one event', async () => {
+    const oldOnlyMatches = 't=' + now + ',v1=whk_current:' + '0'.repeat(128) + ',v1=whk_previous:' + sign(previous);
+    expect((await sendSigned(oldOnlyMatches)).status).toBe(200);
+    expect(payment()).toMatchObject({ status: 'confirmed' });
+    expect((await sendSigned('t=' + now + ',v1=whk_current:' + sign(current))).status).toBe(200);
+    expect(events()).toBe(1);
+  });
+
+  it('accepts a valid event with only the new signature header', async () => {
+    const res = await request(app).post('/api/v1/webhooks/paystack')
+      .set('Content-Type', 'application/json')
+      .set('Paystack-Signature', 't=' + now + ',v1=whk_current:' + sign(current))
+      .send(raw);
+    expect(res.status).toBe(200);
+    expect(payment()).toMatchObject({ status: 'confirmed' });
+  });
+
+  it('rejects stale, future, ambiguous and modified events without falling back to legacy signing', async () => {
+    for (const time of [now - 301, now + 301]) {
+      expect((await sendSigned('t=' + time + ',v1=whk_current:' + sign(current, time))).status).toBe(401);
+    }
+    const valid = 't=' + now + ',v1=whk_current:' + sign(current);
+    expect((await sendSigned(valid + ',t=' + now)).status).toBe(401);
+    expect((await sendSigned(valid, raw + ' ')).status).toBe(401);
+    expect((await send()).status).toBe(401);
+    expect(payment()).toMatchObject({ status: 'pending' });
+    expect(events()).toBe(0);
+  });
+
+  it('still enforces the required Paystack mode for new signatures', async () => {
+    vi.stubEnv('PAYSTACK_REQUIRED_MODE', 'test');
+    expect((await sendSigned('t=' + now + ',v1=whk_current:' + sign(current))).status).toBe(401);
+    expect(events()).toBe(0);
+  });
+});
 
 describe('AUTH-13 webhook financial state and atomic idempotency', () => {
   it('processes confirmation and refund for the same reference independently', async () => {

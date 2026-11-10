@@ -4,7 +4,7 @@
 
 import { Router, type Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { requireAdministrator, requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
 import { isAdminTier } from '../services/administratorPolicy.js';
@@ -71,7 +71,7 @@ function getCohortOwner(cohortId: string): string | null {
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Optional initial member user IDs
+ *                 description: Optional initial member user IDs. Requires administrator access.
  *               startDate:
  *                 type: string
  *                 format: date
@@ -98,6 +98,16 @@ router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), 
 
   if (selectedTier && selectedTier !== 'free' && selectedTier !== 'paid') {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: "selectedTier must be 'free' or 'paid'" } });
+    return;
+  }
+
+  if (memberUserIds != null && (!Array.isArray(memberUserIds) || memberUserIds.some(id => typeof id !== 'string'))) {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'memberUserIds must be an array of user IDs' } });
+    return;
+  }
+  // Membership delegates access to learner records. Only an administrator can grant it.
+  if (memberUserIds?.length && !isAdminTier(req)) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'An administrator must add cohort members' } });
     return;
   }
 
@@ -248,21 +258,14 @@ router.get('/admin/cohorts/:cohortId', authenticate, requirePermission('cohort.m
  *     responses:
  *       '200':
  *         description: Members added successfully
+ *       '403':
+ *         description: Administrator role required
  *       '400':
  *         description: userIds array is required
  *       '404':
  *         description: Cohort not found
  */
-router.post('/admin/cohorts/:cohortId/members', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
-  const owner = getCohortOwner(req.params.cohortId);
-  if (owner === null) {
-    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
-    return;
-  }
-  if (!isAdminTier(req) && owner !== req.user!.userId) {
-    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
-    return;
-  }
+router.post('/admin/cohorts/:cohortId/members', authenticate, requirePermission('cohort.manage'), requireAdministrator, (req: AuthRequest, res: Response): void => {
   const { userIds } = req.body;
   if (!Array.isArray(userIds) || userIds.length === 0) {
     res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'userIds array is required' } });
@@ -563,19 +566,16 @@ router.get('/admin/cohorts/:cohortId/status-log', authenticate, requirePermissio
  *     responses:
  *       '200':
  *         description: Invitations sent to all provided email addresses
+ *       '403':
+ *         description: Administrator role required
  *       '400':
  *         description: emails array is required
  *       '404':
  *         description: Cohort not found
  */
-router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
-  const owner = getCohortOwner(req.params.cohortId);
-  if (owner === null) {
+router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('cohort.manage'), requireAdministrator, (req: AuthRequest, res: Response): void => {
+  if (getCohortOwner(req.params.cohortId) === null) {
     res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
-    return;
-  }
-  if (!isAdminTier(req) && owner !== req.user!.userId) {
-    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
     return;
   }
   const { emails } = req.body;

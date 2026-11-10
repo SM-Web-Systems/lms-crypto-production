@@ -28,6 +28,7 @@ import progressRoutes from './routes/progress.js';
 import walletStatusRoutes from './routes/walletStatus.js';
 import publicCredentialsRoutes from './routes/publicCredentials.js';
 import notificationRoutes from './routes/notifications.js';
+import pushRoutes from './routes/push.js';
 import studentProgressRoutes from './routes/studentProgress.js';
 import studentRewardsRoutes from './routes/studentRewards.js';
 import adminRewardsRoutes from './routes/adminRewards.js';
@@ -246,6 +247,17 @@ app.get('/healthz', (_req, res) => {
 app.use('/verify', readLimiter, ogPagesRoutes);
 
 // API routes
+// Sponsor access can change between requests, including access to saved reports and receipts.
+app.use([
+  '/api/v1/sponsor',
+  '/api/v1/admin/cohorts',
+  '/api/v1/admin/payments',
+  '/api/v1/payments',
+  '/api/v1/badges',
+], (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use('/api/v1/auth', authLimiter, authRoutes);
 // studentProgressRoutes MUST be mounted before studentsRoutes — the students router applies
 // requirePermission('user.manage') to all /students/* paths, so /students/me/progress would be
@@ -272,6 +284,7 @@ app.use('/api/v1', apiLimiter, lessonCompletionsRoutes);
 app.use('/api/v1', apiLimiter, progressRoutes);
 app.use('/api/v1', apiLimiter, walletStatusRoutes);
 app.use('/api/v1', apiLimiter, notificationRoutes);
+app.use('/api/v1', apiLimiter, pushRoutes);
 app.use('/api/v1', readLimiter, publicCredentialsRoutes);
 app.use('/api/v1', readLimiter, nftMetadataRoutes);
 app.use('/api/v1', apiLimiter, paymentRoutes);

@@ -57,8 +57,9 @@ interface PaystackWebhookPayload {
 router.post(
   '/paystack',
   (req: Request, res: Response): void => {
-    const signature = req.headers['x-paystack-signature'] as string;
-    if (!signature) {
+    const legacySignature = req.get('x-paystack-signature');
+    const timestampedSignature = req.get('paystack-signature');
+    if (!legacySignature && !timestampedSignature) {
       res.status(401).json({ success: false, message: 'Missing signature' });
       return;
     }
@@ -68,7 +69,7 @@ router.post(
     if (!Buffer.isBuffer(rawBody)) {
       res.status(400).json({success:false,message:'JSON raw body required'}); return;
     }
-    if (!verifyWebhookSignature(rawBody, signature)) {
+    if (!verifyWebhookSignature(rawBody, legacySignature, timestampedSignature)) {
       res.status(401).json({ success: false, message: 'Invalid signature' });
       return;
     }

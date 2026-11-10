@@ -1,0 +1,10 @@
+{
+  "name": "@smwebsystems/query-string-compat",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.cjs",
+  "license": "MIT",
+  "dependencies": {
+    "query-string-modern": "npm:query-string@9.5.1"
+  }
+}

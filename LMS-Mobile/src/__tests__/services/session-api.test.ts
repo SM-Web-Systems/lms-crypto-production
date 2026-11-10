@@ -14,4 +14,11 @@ describe('central API unauthorized handling',()=>{
     await api.post('/auth/logout',undefined,{headers:{Authorization:'Bearer old-token'},adapter});
     expect(AxiosHeaders.from(adapter.mock.calls[0][0].headers).get('Authorization')).toBe('Bearer old-token');
   });
+  it('sends credential-only notification cleanup without the current account JWT', async () => {
+    const adapter = jest.fn(async (config: InternalAxiosRequestConfig) => ({
+      status: 200, statusText: 'OK', headers: {}, config, data: {success: true},
+    }));
+    await api.post('/notifications/push/unregister', {}, {headers: {Authorization: false}, adapter});
+    expect(AxiosHeaders.from(adapter.mock.calls[0][0].headers).toJSON()).not.toHaveProperty('Authorization');
+  });
 });

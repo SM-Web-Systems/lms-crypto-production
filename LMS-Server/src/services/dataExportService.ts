@@ -1,3 +1,4 @@
+import { compatibleRoleSummary } from './roleCompatibilityService.js';
 import { query, queryOne, execute } from '../config/database.js';
 import { ZipArchive } from 'archiver';
 import fs from 'fs';
@@ -33,10 +34,10 @@ export function assembleExport(exportId: string, userId: string): void {
 
       // Profile
       const user = queryOne<Record<string, unknown>>(
-        'SELECT id, name, email, role, created_at FROM users WHERE id = ?',
+        'SELECT id, name, email, created_at FROM users WHERE id = ?',
         [userId],
       );
-      archive.append(JSON.stringify(user, null, 2), { name: 'profile.json' });
+      archive.append(JSON.stringify(user ? {...user,...compatibleRoleSummary(userId)} : null, null, 2), { name: 'profile.json' });
 
       // Submissions — submissions.student_id references students.id; students.user_id references users.id
       const submissions = query<Record<string, unknown>>(

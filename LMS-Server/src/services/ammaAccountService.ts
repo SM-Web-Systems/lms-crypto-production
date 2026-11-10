@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db, execute, query, queryOne } from '../config/database.js';
-import type { LegacyRole, User } from '../types/index.js';
+import type { User } from '../types/index.js';
 import type { AmmaWalletSSOUser, WalletLinkContext } from './ammaWalletSSOService.js';
+import { createRbacAccount, type InitialRoleId } from './rbacAccountService.js';
 import { invalidateAuthorization } from './roleSecurityService.js';
 
 export class SsoPolicyError extends Error {
@@ -9,7 +10,7 @@ export class SsoPolicyError extends Error {
 }
 
 /** One immediate transaction makes conflict checking and binding indivisible across callbacks. */
-export function resolveAmmaAccount(identity: AmmaWalletSSOUser, initialRole: LegacyRole, link?: WalletLinkContext) {
+export function resolveAmmaAccount(identity: AmmaWalletSSOUser, initialRole: InitialRoleId, link?: WalletLinkContext) {
   const email = identity.email?.trim().toLowerCase();
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new SsoPolicyError('email_required');
   if (!identity.isEmailVerified) throw new SsoPolicyError('email_unverified');
@@ -49,14 +50,9 @@ export function resolveAmmaAccount(identity: AmmaWalletSSOUser, initialRole: Leg
     } else {
       const id = uuidv4();
       const name = [identity.firstName, identity.lastName].filter(Boolean).join(' ') || email.split('@')[0];
-      execute(`INSERT INTO users(id, name, email, password_hash, role, auth_provider, ammawallet_user_id, walletAddress, wallet_linking_status)
-        VALUES (?, ?, ?, '$sso$', ?, 'ammawallet', ?, ?, ?)`,
-      [id, name, email, initialRole, identity.userId, identity.mainnetWalletAddress, identity.mainnetWalletAddress ? 'linked' : 'none']);
-      if (initialRole === 'student') {
-        execute(`INSERT INTO students(id, user_id, name, email, enrollment_number, department, semester)
-          VALUES (?, ?, ?, ?, ?, 'General', 1)`,
-        [uuidv4(), id, name, email, `REG-${id.replace(/-/g, '').slice(0, 12).toUpperCase()}`]);
-      }
+      createRbacAccount({id,name,email,passwordHash:'$sso$',initialRoleId:initialRole,authProvider:'ammawallet',
+        ammaWalletUserId:identity.userId,walletAddress:identity.mainnetWalletAddress,
+        walletLinkingStatus:identity.mainnetWalletAddress ? 'linked' : 'none'});
       user = queryOne<User>('SELECT * FROM users WHERE id = ?', [id])!;
     }
     return {

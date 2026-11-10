@@ -100,9 +100,9 @@ export default function DashboardScreen() {
           </View>
         </View>
         <Text className="mt-3 text-xs font-semibold text-white/70">Tap to open your profile</Text>
-        <View className="mt-4 flex-row gap-2">
+        <View className="mt-4 gap-2">
           <Button label="Go to course" onPress={() => router.push('/(student)/course')} />
-          <Button label="Take a quiz" variant="outline" onPress={() => router.push('/(student)/quizzes')} />
+          <Button label="Take a quiz" variant="secondary" className="border border-white/40" onPress={() => router.push('/(student)/quizzes')} />
         </View>
       </Pressable>
 

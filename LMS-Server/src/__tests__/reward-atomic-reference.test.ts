@@ -23,18 +23,12 @@ import { createReward, fundReward, fundRewardAsync, getReward, cancelReward } fr
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { validateDatabase } from '../config/databaseBootstrap.js';
 import { isFundingReferenceConstraintViolation } from '../services/rewards/rewardFundingVerifier.js';
+import { loadPreR3Fixture, readSqlFixture } from './helpers/sqlFixture.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const schemaPath = path.resolve(__dirname, '../../database/schema.sql');
-const schemaSQL = fs.readFileSync(schemaPath, 'utf-8');
-
-// Pre-R3 schema: canonical schema with the R3 partial UNIQUE index removed.
-// This simulates a database created by the pre-R3 codebase.
-const preR3SchemaSQL = schemaSQL.replace(
-  /--\s*W01-R3:.*\nCREATE UNIQUE INDEX IF NOT EXISTS idx_reward_txn_fund_ref_unique[^;]*;/,
-  '-- R3 index intentionally removed for pre-R3 simulation'
-);
+const schemaSQL = readSqlFixture(schemaPath);
 
 /**
  * Create migration-only tables and columns required for validateDatabase(db, true).
@@ -500,7 +494,7 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
       const testDb = new Database(':memory:');
       try {
         testDb.pragma('foreign_keys = OFF');
-        testDb.exec(preR3SchemaSQL);
+        loadPreR3Fixture(testDb, schemaSQL);
 
         // Verify the R3 index does NOT exist yet
         const before = testDb.prepare(
@@ -554,7 +548,7 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
       const testDb = new Database(':memory:');
       try {
         testDb.pragma('foreign_keys = OFF');
-        testDb.exec(preR3SchemaSQL);
+        loadPreR3Fixture(testDb, schemaSQL);
 
         // Seed two fund transactions with the SAME funding_reference (legacy data)
         const userId = uuidv4();
@@ -682,7 +676,7 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
       const testDb = new Database(':memory:');
       try {
         testDb.pragma('foreign_keys = OFF');
-        testDb.exec(preR3SchemaSQL);
+        loadPreR3Fixture(testDb, schemaSQL);
 
         // Pre-migration validation must accept the database even without the R3 index
         expect(() => validateDatabase(testDb)).not.toThrow();
@@ -704,7 +698,7 @@ describe('W01-R3: Atomic payment-reference consumption', () => {
       const testDb = new Database(':memory:');
       try {
         testDb.pragma('foreign_keys = OFF');
-        testDb.exec(preR3SchemaSQL);
+        loadPreR3Fixture(testDb, schemaSQL);
         const idx = testDb.prepare(
           "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_reward_txn_fund_ref_unique'"
         ).get();

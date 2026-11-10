@@ -6,6 +6,38 @@ export interface MobileSsoContext {
   appState: string;
 }
 
+function parseBuild(value: unknown, platform: 'android' | 'ios'): number[] | null {
+  const format = platform === 'android' ? /^[0-9]{1,10}$/ : /^[0-9]{1,10}(?:\.[0-9]{1,10}){0,2}$/;
+  if (typeof value !== 'string' || value.trim() !== value || !format.test(value)) return null;
+  const parts = value.split('.').map(Number);
+  return parts[0] > 0 ? parts : null;
+}
+
+export function mobileBuildObservation(platform: unknown, build: unknown) {
+  if (platform !== 'android' && platform !== 'ios') return {platform: 'unknown', build: null};
+  return {platform, build: parseBuild(build, platform)?.join('.') ?? null};
+}
+
+export function mobileBuildStatus(platform: unknown, build: unknown): 'allowed' | 'update_required' | 'unavailable' {
+  const android = process.env.LMS_MIN_ANDROID_WALLET_BUILD;
+  const ios = process.env.LMS_MIN_IOS_WALLET_BUILD;
+  if (android === undefined && ios === undefined) return 'allowed';
+
+  const androidFloor = parseBuild(android, 'android');
+  const iosFloor = parseBuild(ios, 'ios');
+  if (!androidFloor || !iosFloor) return 'unavailable';
+  if (platform !== 'android' && platform !== 'ios') return 'update_required';
+
+  const candidate = parseBuild(build, platform);
+  if (!candidate) return 'update_required';
+  const floor = platform === 'android' ? androidFloor : iosFloor;
+  for (let index = 0; index < 3; index++) {
+    const delta = (candidate[index] ?? 0) - (floor[index] ?? 0);
+    if (delta !== 0) return delta > 0 ? 'allowed' : 'update_required';
+  }
+  return 'allowed';
+}
+
 export const MOBILE_SSO_CALLBACK = 'lmsmobile://sso-callback';
 const HANDOFF_TTL_MS = 60_000;
 const MAX_HANDOFFS = 1000;

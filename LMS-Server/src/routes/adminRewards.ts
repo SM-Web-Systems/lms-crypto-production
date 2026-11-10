@@ -16,8 +16,10 @@ import { refundAllocation } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { processOutboxRetries } from '../services/rewards/rewardOutboxWorker.js';
 import logger from '../utils/logger.js';
+import platformCreditRouter from './platformCredit.js';
 
 const router = Router();
+router.use('/platform-credit',platformCreditRouter);
 
 /** Map RewardError to its HTTP status; re-throw anything else to the Express error handler. */
 function handleRewardError(err: unknown, res: Response): void {

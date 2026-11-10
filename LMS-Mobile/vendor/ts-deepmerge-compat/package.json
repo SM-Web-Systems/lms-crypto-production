@@ -1,0 +1,8 @@
+{
+  "name": "@smwebsystems/ts-deepmerge-compat",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.cjs",
+  "license": "MIT",
+  "dependencies": { "ts-deepmerge-modern": "npm:ts-deepmerge@8.0.0" }
+}

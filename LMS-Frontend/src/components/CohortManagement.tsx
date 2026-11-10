@@ -117,10 +117,11 @@ interface CohortDetailProps {
   cohortId: string;
   selectedTier: CertificateTier;
   cohortStatus: string;
+  allowRosterInvites: boolean;
   onRefresh: () => void;
 }
 
-const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, cohortStatus, onRefresh }) => {
+const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, cohortStatus, allowRosterInvites, onRefresh }) => {
   const [members, setMembers] = useState<CohortMemberDetail[]>([]);
   const [completionStats, setCompletionStats] = useState<CohortCompletionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -276,7 +277,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
         </div>
       )}
 
-      {inviteResult && (
+      {allowRosterInvites && inviteResult && (
         <div className="mb-2 p-2 bg-green-50 text-green-800 rounded text-sm flex items-center gap-1" data-testid="invite-result">
           <Mail className="w-4 h-4" /> Added: {inviteResult.added}, Invited: {inviteResult.invited}, Already in cohort: {inviteResult.alreadyInCohort}
           {inviteResult.errors.length > 0 && <span className="text-red-600 ml-1">, Errors: {inviteResult.errors.length}</span>}
@@ -324,22 +325,26 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
         )}
       </div>
 
-      <div className="mb-3" data-testid="invite-form">
-        <label htmlFor={`invite-emails-${cohortId}`} className="block text-xs font-medium text-gray-600 mb-1">Invite by Email</label>
-        <textarea
-          id={`invite-emails-${cohortId}`}
-          className="w-full border rounded px-2 py-1.5 text-sm"
-          rows={2}
-          placeholder="Enter emails, one per line or comma-separated"
-          value={inviteEmails}
-          onChange={(e) => setInviteEmails(e.target.value)}
-          data-testid="invite-emails-input"
-        />
-        <Button size="sm" className="mt-1" onClick={handleInvite} disabled={actionLoading !== null || !inviteEmails.trim()} data-testid="btn-invite">
-          {actionLoading === 'invite' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mail className="w-3 h-3 mr-1" />}
-          Invite
-        </Button>
-      </div>
+      {allowRosterInvites ? (
+        <div className="mb-3" data-testid="invite-form">
+          <label htmlFor={`invite-emails-${cohortId}`} className="block text-xs font-medium text-gray-600 mb-1">Invite by Email</label>
+          <textarea
+            id={`invite-emails-${cohortId}`}
+            className="w-full border rounded px-2 py-1.5 text-sm"
+            rows={2}
+            placeholder="Enter emails, one per line or comma-separated"
+            value={inviteEmails}
+            onChange={(e) => setInviteEmails(e.target.value)}
+            data-testid="invite-emails-input"
+          />
+          <Button size="sm" className="mt-1" onClick={handleInvite} disabled={actionLoading !== null || !inviteEmails.trim()} data-testid="btn-invite">
+            {actionLoading === 'invite' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mail className="w-3 h-3 mr-1" />}
+            Invite
+          </Button>
+        </div>
+      ) : (
+        <p className="mb-3 text-sm text-gray-600">Ask an LMS administrator to add or invite learners to this cohort.</p>
+      )}
 
       {completionStats && completionStats.totalMembers > 0 && (
         <div className="mb-3 flex gap-4 text-xs text-gray-600" data-testid="completion-stats">
@@ -506,7 +511,7 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, own
                   </tr>
                   {expanded === c.cohortId && (
                     <tr><td colSpan={8}>
-                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} cohortStatus={c.status} onRefresh={() => { load(); onChanged?.(); }} />
+                      <CohortDetail cohortId={c.cohortId} selectedTier={c.selectedTier} cohortStatus={c.status} allowRosterInvites={!ownerOnly} onRefresh={() => { load(); onChanged?.(); }} />
                     </td></tr>
                   )}
                 </React.Fragment>

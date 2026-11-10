@@ -3,7 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import app from '../app.js';
 import * as database from '../config/database.js';
-import { db, migrateUsersToRbac } from '../config/database.js';
+import { db } from '../config/database.js';
 import { requirePermission, getRequestPermissions } from '../middleware/rbac.js';
 import { errorHandler } from '../middleware/errorHandler.js';
 import { makeToken } from './helpers/auth.js';
@@ -80,7 +80,7 @@ describe('AUTH-13 explicit administrator boundaries', () => {
   });
   it('never creates super-admin from a hardcoded email during migration', () => {
     db.prepare('INSERT INTO users(id,name,email,password_hash) VALUES(?,?,?,?)').run('email-claim','Claim','mukhtar.meer@smwebsystems.com','synthetic');
-    migrateUsersToRbac();
+    expect(db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get()).toEqual({total:1});
     expect(db.prepare("SELECT 1 FROM user_roles WHERE user_id='email-claim' AND role_id='role_super_admin'").get()).toBeUndefined();
   });
   it('public registration ignores role and unverified provisioning email claims', async () => {

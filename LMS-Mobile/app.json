@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "owner": "sm-web-systems",
+    "extra": {
+      "eas": {
+        "projectId": "3624f515-98e6-4ff3-9a4e-bdbeaa30fbef"
+      }
+    }
+  }
+}

@@ -5,6 +5,14 @@
 import api from './api';
 import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, BulkApplyResult, CertificateTier } from '../types/api';
 
+export interface CohortSpendingReport {
+  totalSpentCents: number | null;
+  currency: string | null;
+  totalsByCurrency: Array<{ currency: string; amountCents: number }>;
+  cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number;
+    amountCents: number; currency: string | null; paymentStatus: string | null; createdAt: string }>;
+}
+
 export const cohortService = {
   async createCohort(params: {
     name: string;
@@ -79,8 +87,8 @@ export const cohortService = {
     return res.data.data;
   },
 
-  async getSpendingReport(): Promise<{ totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> }> {
-    const res = await api.get<{ success: boolean; data: { totalSpentCents: number; cohorts: Array<{ cohortId: string; cohortName: string; courseName: string; memberCount: number; amountCents: number; paymentStatus: string | null; createdAt: string }> } }>(
+  async getSpendingReport(): Promise<CohortSpendingReport> {
+    const res = await api.get<{ success: boolean; data: CohortSpendingReport }>(
       '/admin/cohorts/spending-report',
     );
     return res.data.data;

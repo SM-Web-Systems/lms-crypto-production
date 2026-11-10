@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { AuthProvider } from '@/context/AuthContext';
 import { SessionBoundary } from '@/components/SessionBoundary';
+import { PushNotificationsBridge } from '@/components/PushNotifications';
 
 export default function RootLayout() {
   return (
@@ -16,6 +17,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <StatusBar style="dark" />
           <SessionBoundary><Slot /></SessionBoundary>
+          <PushNotificationsBridge />
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </AuthProvider>
