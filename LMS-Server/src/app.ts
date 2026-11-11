@@ -64,6 +64,7 @@ import { swaggerSpec } from './config/swagger.js';
 import { authenticate } from './middleware/auth.js';
 import { requirePermission } from './middleware/rbac.js';
 import { writerHoldGuard } from './middleware/writerHoldGuard.js';
+import { limitPaths } from './middleware/scopedLimiter.js';
 
 dotenv.config();
 
@@ -285,14 +286,14 @@ app.use('/api/v1', apiLimiter, progressRoutes);
 app.use('/api/v1', apiLimiter, walletStatusRoutes);
 app.use('/api/v1', apiLimiter, notificationRoutes);
 app.use('/api/v1', apiLimiter, pushRoutes);
-app.use('/api/v1', readLimiter, publicCredentialsRoutes);
-app.use('/api/v1', readLimiter, nftMetadataRoutes);
+app.use('/api/v1', limitPaths(readLimiter, ['/credentials']), publicCredentialsRoutes);
+app.use('/api/v1', limitPaths(readLimiter, ['/nft/metadata']), nftMetadataRoutes);
 app.use('/api/v1', apiLimiter, paymentRoutes);
 app.use('/api/v1', apiLimiter, cohortRoutes);
 app.use('/api/v1/admin', apiLimiter, rbacRoutes);
 app.use('/api/v1/admin/tenants', apiLimiter, tenantRoutes);
 app.use('/api/v1', apiLimiter, emailTemplateRoutes);
-app.use('/api/v1', readLimiter, searchRoutes);
+app.use('/api/v1', limitPaths(readLimiter, ['/search']), searchRoutes);
 app.use('/api/v1', apiLimiter, sponsorRoutes);
 app.use('/api/v1', apiLimiter, employerRoutes);
 app.use('/api/v1', apiLimiter, parentRoutes);
