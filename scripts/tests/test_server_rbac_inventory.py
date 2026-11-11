@@ -90,6 +90,9 @@ class InventoryTests(unittest.TestCase):
         self.snapshot = self.backup / 'snapshot.sqlite3'
         self.snapshot.write_bytes(b'synthetic immutable snapshot')
         self.snapshot.chmod(0o600)
+        # Leave room for filesystem timestamps to lead the test clock slightly.
+        fresh_time = time.time() - 5
+        os.utime(self.snapshot, (fresh_time, fresh_time))
         self.manifest_id = 'b' * 32
         manifest = {'version': 1, 'manifest_id': self.manifest_id, 'eligibility': 'EXACT_SCHEMA_AND_FINANCIAL_STATE',
                     'target': {'project': 'lms', 'repository': 'SM-Web-Systems/lms-crypto-production',
@@ -218,12 +221,18 @@ class InventoryTests(unittest.TestCase):
         self.assertFalse(any(args[:2] == ['docker', 'run'] for args in self.calls))
 
     def test_snapshot_or_tool_drift_refuses_before_creating_a_container(self):
-        for file in (self.snapshot, self.tool):
-            original = file.read_bytes()
-            file.write_bytes(b'changed')
-            with self.assertRaisesRegex(inventory.Refused, 'HASH_MISMATCH'):
-                inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory'), self.run_command)
-            file.write_bytes(original)
+        for file, expected in ((self.snapshot, 'SNAPSHOT_HASH_MISMATCH'), (self.tool, 'TOOL_HASH_MISMATCH')):
+            with self.subTest(expected=expected):
+                original = file.read_bytes()
+                metadata = file.stat()
+                try:
+                    file.write_bytes(b'changed')
+                    os.utime(file, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+                    with self.assertRaisesRegex(inventory.Refused, f'^{expected}$'):
+                        inventory.execute(dict(self.env, LMS_INVENTORY_MODE='inventory'), self.run_command)
+                finally:
+                    file.write_bytes(original)
+                    os.utime(file, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
         self.assertFalse(any(args[:2] == ['docker', 'run'] for args in self.calls))
 
     def test_private_details_are_not_allowed_in_public_summary(self):
