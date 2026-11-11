@@ -79,12 +79,15 @@ describe('MaterialViewer content dispatch and errors',()=>{
 describe('lesson-linked assessments',()=>{
   it('takes the exact lesson quiz and refreshes server completion after submitting',async()=>{
     mockQuiz.getById.mockResolvedValue({id:'quiz',courseId:'course',title:'Exact lesson quiz',createdAt:'now',passingScore:70,questions:[{id:'question',type:'multiple_choice',question:'Pick A',options:['A','B'],order:1}]});
-    mockQuiz.submitQuiz.mockResolvedValue({id:'result',quizId:'quiz',userId:'u',score:100,total:100,passed:true,answers:{question:'A'},completedAt:'now'});
+    // The API returns score as a percentage and total as the number of questions.
+    mockQuiz.submitQuiz.mockResolvedValue({id:'result',quizId:'quiz',userId:'u',score:100,total:1,passed:true,answers:{question:'A'},completedAt:'now'});
     render(<LessonQuiz quizId="quiz" courseId="course" onSubmitted={onSubmitted}/>);
     await waitFor(()=>expect(screen.getByText('Exact lesson quiz')).toBeTruthy());
     fireEvent.press(screen.getByText('A'));
     fireEvent.press(screen.getByText('Submit quiz'));
     await waitFor(()=>expect(screen.getByText(/You passed/)).toBeTruthy());
+    expect(screen.getByText(/Score: 100%/)).toBeTruthy();
+    expect(screen.queryByText(/100\/1/)).toBeNull();
     expect(mockQuiz.submitQuiz).toHaveBeenCalledWith('quiz',{question:'A'});
     expect(onSubmitted).toHaveBeenCalledTimes(1);
     expect(onComplete).not.toHaveBeenCalled();

@@ -43,7 +43,8 @@ export function LessonQuiz({ quizId, courseId, onSubmitted }: { quizId: string; 
     <Text className="font-bold text-neutral-900">{quiz.title}</Text>
     <Text>Pass score: {quiz.passingScore ?? 70}%</Text>
     {result ? <>
-      <Text accessibilityRole="alert">{result.passed ? 'You passed!' : 'Not passed yet'} Score: {result.score}/{result.total}</Text>
+      {/* The API returns score as a percentage; total is the number of questions. */}
+      <Text accessibilityRole="alert">{result.passed ? 'You passed!' : 'Not passed yet'} Score: {result.score}%</Text>
       {!result.passed ? <Button label="Try quiz again" onPress={() => setResult(null)} /> : null}
     </> : <>
       {[...quiz.questions].sort((a, b) => a.order - b.order).map((question) => <View key={question.id} className="gap-2">
