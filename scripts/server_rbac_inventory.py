@@ -1,12 +1,13 @@
 """Inspect staging, inventory a snapshot, or prepare one on a pinned revision.
 
-The Wallet callback mode reads a parameter-free response inside the running API.
+The Wallet callback modes read a parameter-free response from the API or shared TLS proxy.
 No SSH configuration, daemon, firewall, account, checkout or live DB changes.
 Inventory starts one bounded, network-disabled container; it never starts the API.
 Capture creates private backup/recovery files and retained image tags only.
 """
 from datetime import datetime, timezone
 import hashlib
+from ipaddress import IPv4Interface
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -33,6 +34,36 @@ const request = get('http://127.0.0.1:3001/api/v1/auth/amma-callback', { agent: 
   const cache = values['cache-control'] ?? [];
   console.log(JSON.stringify({
     httpStatus: response.statusCode,
+    noReferrer: referrer.length === 1 && referrer[0].toLowerCase() === 'no-referrer',
+    strictOriginWhenCrossOrigin: referrer.length === 1 && referrer[0].toLowerCase() === 'strict-origin-when-cross-origin',
+    noStore: cache.length === 1 && cache[0].toLowerCase() === 'no-store',
+  }));
+  response.destroy();
+});
+request.on('timeout', () => request.destroy(new Error('callback probe timed out')));
+request.on('error', () => { process.exitCode = 1; });
+"""
+WALLET_PROXY_SCRIPT = """
+const { get } = require('node:https');
+const site = 'lms.smwebsystems.com';
+const request = get({
+  hostname: process.argv[1],
+  port: 443,
+  servername: site,
+  headers: { Host: site },
+  path: '/api/v1/auth/amma-callback',
+  rejectUnauthorized: true,
+  agent: false,
+  timeout: 5000,
+}, response => {
+  const values = response.headersDistinct;
+  const referrer = values['referrer-policy'] ?? [];
+  const cache = values['cache-control'] ?? [];
+  const location = values.location ?? [];
+  console.log(JSON.stringify({
+    httpStatus: response.statusCode,
+    missingParamsRedirect: response.statusCode === 302 && location.length === 1 &&
+      location[0] === 'https://lms.smwebsystems.com/login?sso_error=missing_params',
     noReferrer: referrer.length === 1 && referrer[0].toLowerCase() === 'no-referrer',
     strictOriginWhenCrossOrigin: referrer.length === 1 && referrer[0].toLowerCase() === 'strict-origin-when-cross-origin',
     noStore: cache.length === 1 && cache[0].toLowerCase() === 'no-store',
@@ -168,13 +199,27 @@ def prepare_snapshot(environment, observed, runner):
     return prepared['manifest_id']
 
 
+def shared_proxy_address(api_container_id, runner):
+    endpoints = json.loads(runner(['docker', 'network', 'inspect', '--format', '{{json .Containers}}', 'web-stack_default']))
+    require(isinstance(endpoints, dict) and api_container_id in endpoints, 'API_SHARED_NETWORK_REQUIRED')
+    proxies = [entry for container_id, entry in endpoints.items()
+               if container_id != api_container_id and CONTAINER_ID.fullmatch(container_id)
+               and isinstance(entry, dict) and entry.get('Name') == 'nginx_server']
+    require(len(proxies) == 1, 'SHARED_PROXY_ENDPOINT_REQUIRED')
+    try:
+        return str(IPv4Interface(proxies[0].get('IPv4Address', '')).ip)
+    except ValueError:
+        raise Refused('SHARED_PROXY_IPV4_REQUIRED') from None
+
+
 def execute(environment, runner=command):
     require(environment.get('DEPLOY_BASE_URL', '').rstrip('/') == 'https://lms.smwebsystems.com', 'STAGING_TARGET_REQUIRED')
     project = environment.get('DEPLOY_PROJECT', '')
     require(NAME.fullmatch(project), 'PROJECT_REQUIRED')
     mode = environment.get('LMS_INVENTORY_MODE', 'probe')
-    require(mode in ('probe', 'wallet-callback', 'inventory', 'capture', 'inventory-capture'), 'INVALID_MODE')
-    require(mode != 'wallet-callback' or not environment.get('LMS_INVENTORY_MANIFEST'), 'UNEXPECTED_MANIFEST_ID')
+    wallet_modes = ('wallet-callback', 'wallet-proxy')
+    require(mode in ('probe', *wallet_modes, 'inventory', 'capture', 'inventory-capture'), 'INVALID_MODE')
+    require(mode not in wallet_modes or not environment.get('LMS_INVENTORY_MANIFEST'), 'UNEXPECTED_MANIFEST_ID')
     observed = {}
     api_container_id = None
     for service in ('api', 'web'):
@@ -208,16 +253,25 @@ def execute(environment, runner=command):
             except Refused:
                 result['checkout']['inspection'] = 'unavailable'
         return dict(result, status='SSH_RUNTIME_READ_CONFIRMED')
-    if mode == 'wallet-callback':
+    if mode in wallet_modes:
         require(observed['api']['revision'] == PREPARED_REVISION, 'PREPARED_REVISION_REQUIRED')
         require(isinstance(api_container_id, str) and CONTAINER_ID.fullmatch(api_container_id), 'API_CONTAINER_ID_REQUIRED')
-        probe = json.loads(runner(['docker', 'exec', '--workdir', '/', '--env', 'NODE_OPTIONS=',
-                                  api_container_id, 'node', '-e', WALLET_CALLBACK_SCRIPT], timeout=12))
+        arguments = ['docker', 'exec', '--workdir', '/', '--env', 'NODE_OPTIONS=', api_container_id, 'node', '-e']
         flags = ('noReferrer', 'strictOriginWhenCrossOrigin', 'noStore')
+        status = 'WALLET_CALLBACK_ORIGIN_OBSERVED'
+        if mode == 'wallet-proxy':
+            arguments.extend([WALLET_PROXY_SCRIPT, shared_proxy_address(api_container_id, runner)])
+            flags += ('missingParamsRedirect',)
+            status = 'WALLET_CALLBACK_PROXY_OBSERVED'
+        else:
+            arguments.append(WALLET_CALLBACK_SCRIPT)
+        probe = json.loads(runner(arguments, timeout=12))
         require(isinstance(probe, dict) and set(probe) == {'httpStatus', *flags}
                 and type(probe['httpStatus']) is int and 100 <= probe['httpStatus'] <= 599
                 and all(type(probe[flag]) is bool for flag in flags), 'WALLET_CALLBACK_PROBE_INVALID')
-        return dict(result, status='WALLET_CALLBACK_ORIGIN_OBSERVED', callback=probe)
+        if mode == 'wallet-proxy' and not probe['missingParamsRedirect']:
+            status = 'WALLET_CALLBACK_PROXY_ROUTE_UNCONFIRMED'
+        return dict(result, status=status, callback=probe)
     root = Path(environment.get('DEPLOY_BACKUP_DIR', ''))
     require(root.is_absolute() and root.is_dir() and not root.is_symlink(), 'BACKUP_ROOT_REQUIRED')
     require(not any(part in ('.ssh', 'etc', 'proc', 'sys', 'dev', 'bin', 'usr') for part in root.parts), 'BACKUP_LOCATION_REFUSED')

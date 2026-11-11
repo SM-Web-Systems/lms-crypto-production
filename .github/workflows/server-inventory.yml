@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Probe metadata, Wallet callback headers, or a private snapshot'
+        description: 'Probe metadata, Wallet API or proxy callback headers, or a private snapshot'
         type: choice
-        options: [probe, wallet-callback, inventory, capture, inventory-capture]
+        options: [probe, wallet-callback, wallet-proxy, inventory, capture, inventory-capture]
         default: probe
         required: true
       manifest_id:
@@ -45,9 +45,9 @@ jobs:
           import base64, hashlib, os, re
           from pathlib import Path
           mode = os.environ['INVENTORY_MODE']
-          assert mode in ('probe', 'wallet-callback', 'inventory', 'capture', 'inventory-capture')
+          assert mode in ('probe', 'wallet-callback', 'wallet-proxy', 'inventory', 'capture', 'inventory-capture')
           assert mode != 'inventory' or re.fullmatch(r'[a-f0-9]{32}', os.environ['INVENTORY_MANIFEST'])
-          assert mode != 'wallet-callback' or not os.environ['INVENTORY_MANIFEST']
+          assert mode not in ('wallet-callback', 'wallet-proxy') or not os.environ['INVENTORY_MANIFEST']
           assert not os.environ['INVENTORY_MANIFEST'] or re.fullmatch(r'[a-f0-9]{32}', os.environ['INVENTORY_MANIFEST'])
           tool_hash = hashlib.sha256(Path('LMS-Server/scripts/rbac-inventory.mjs').read_bytes()).hexdigest()
           with open(os.environ['GITHUB_ENV'], 'a') as output:

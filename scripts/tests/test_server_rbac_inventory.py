@@ -180,6 +180,46 @@ class InventoryTests(unittest.TestCase):
             inventory.execute(dict(self.env, LMS_INVENTORY_MODE='wallet-callback', LMS_INVENTORY_MANIFEST=''), self.run_command)
         self.assertFalse(any(args[:2] == ['docker', 'exec'] for args in self.calls))
 
+    def test_wallet_proxy_reads_only_the_expected_tls_route_and_hides_network_metadata(self):
+        settings = dict(self.env, LMS_INVENTORY_MODE='wallet-proxy', LMS_INVENTORY_MANIFEST='')
+        endpoints = {'a' * 64: {'Name': 'lms-api'}, 'b' * 64: {'Name': 'nginx_server', 'IPv4Address': '172.20.0.3/16'}}
+        reply = {'httpStatus': 302, 'missingParamsRedirect': True,
+                 'noReferrer': True, 'strictOriginWhenCrossOrigin': False, 'noStore': True}
+
+        def run(args, timeout=45):
+            if args[:2] == ['docker', 'network']:
+                self.assertEqual(args, ['docker', 'network', 'inspect', '--format', '{{json .Containers}}',
+                                        'web-stack_default'])
+                return json.dumps(endpoints)
+            if args[:2] == ['docker', 'exec']:
+                self.assertEqual(args, ['docker', 'exec', '--workdir', '/', '--env', 'NODE_OPTIONS=',
+                                        'a' * 64, 'node', '-e', inventory.WALLET_PROXY_SCRIPT, '172.20.0.3'])
+                self.assertEqual(timeout, 12)
+                return json.dumps(reply)
+            return self.run_command(args, timeout)
+
+        with patch.object(inventory, 'PREPARED_REVISION', SHA):
+            result = inventory.execute(settings, run)
+            self.assertEqual(result['status'], 'WALLET_CALLBACK_PROXY_OBSERVED')
+            self.assertEqual(result['callback'], reply)
+            self.assertNotIn('172.20.0.3', json.dumps(result))
+            reply.update(httpStatus=301, missingParamsRedirect=False)
+            self.assertEqual(inventory.execute(settings, run)['status'], 'WALLET_CALLBACK_PROXY_ROUTE_UNCONFIRMED')
+            endpoints['b' * 64]['IPv4Address'] = 'nginx.example.invalid'
+            with self.assertRaisesRegex(inventory.Refused, '^SHARED_PROXY_IPV4_REQUIRED$'):
+                inventory.execute(settings, run)
+            del endpoints['b' * 64]
+            with self.assertRaisesRegex(inventory.Refused, '^SHARED_PROXY_ENDPOINT_REQUIRED$'):
+                inventory.execute(settings, run)
+            del endpoints['a' * 64]
+            with self.assertRaisesRegex(inventory.Refused, '^API_SHARED_NETWORK_REQUIRED$'):
+                inventory.execute(settings, run)
+
+    def test_wallet_proxy_refuses_a_manifest_before_any_command(self):
+        with self.assertRaisesRegex(inventory.Refused, '^UNEXPECTED_MANIFEST_ID$'):
+            inventory.execute(dict(self.env, LMS_INVENTORY_MODE='wallet-proxy'), self.run_command)
+        self.assertEqual(self.calls, [])
+
     def test_wrong_target_or_command_injection_is_refused_before_execution(self):
         for key, value in [('DEPLOY_BASE_URL', 'https://other.invalid'), ('DEPLOY_PROJECT', 'lms;reboot'),
                            ('DEPLOY_API_CONTAINER', 'lms-api;systemctl stop ssh'), ('LMS_INVENTORY_MODE', 'deploy')]:
