@@ -117,3 +117,19 @@ describe('native internal-account password recovery',()=>{
     await waitFor(()=>expect(screen.getByText('Reset link expired')).toBeTruthy());expect(mockLogout).not.toHaveBeenCalled();
   });
 });
+
+describe('LMS-041-F4 account action feedback placement',()=>{
+  it('shows a refused export request next to the export controls, not only at the top of the screen',async()=>{
+    service.exports.mockResolvedValue([{id:'e1',status:'ready',created_at:'2026-11-11 21:58:38'} as never]);
+    service.requestExport.mockRejectedValueOnce(new Error('Too many attempts. Please wait a moment and try again.'));
+    const view=render(<AccountScreen/>);
+    await waitFor(()=>expect(screen.getByText(/ready/)).toBeTruthy());
+    fireEvent.press(screen.getByText('Request data export'));
+    const banner=await screen.findByText(/Too many attempts/);
+    // The banner must render after the export request button and before the deletion section.
+    const order=JSON.stringify(view.toJSON());
+    expect(order.indexOf('Request data export')).toBeLessThan(order.indexOf('Too many attempts'));
+    expect(order.indexOf('Too many attempts')).toBeLessThan(order.indexOf('Account deletion'));
+    expect(banner).toBeTruthy();
+  });
+});
