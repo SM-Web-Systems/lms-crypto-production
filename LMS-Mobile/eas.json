@@ -9,18 +9,21 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "node": "22.18.0"
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1",
-        "EXPO_PUBLIC_WEB_BASE_URL": "https://lms.smwebsystems.com"
-      }
+        "EXPO_PUBLIC_WEB_BASE_URL": "https://lms.smwebsystems.com",
+        "EXPO_PUBLIC_AMMA_WALLET_URL": "https://ammawallet.com"
+      },
+      "node": "22.18.0",
+      "autoIncrement": true
     },
     "preview-local-api": {
       "extends": "preview",
@@ -29,7 +32,6 @@
       }
     },
     "production": {
-      "channel": "production",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
@@ -37,7 +39,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1",
         "EXPO_PUBLIC_WEB_BASE_URL": "https://lms.smwebsystems.com"
-      }
+      },
+      "node": "22.18.0"
     }
   },
   "submit": {

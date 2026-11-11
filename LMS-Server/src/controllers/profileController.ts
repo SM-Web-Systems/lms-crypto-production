@@ -6,6 +6,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { roleSummariesForUser } from '../services/roleSummaryService.js';
 
 const ALLOWED_PROFILE_COLUMNS = new Set([
   'whatsapp', 'telegram', 'linkedin_url', 'github_url',
@@ -61,6 +62,7 @@ function buildProfileResponse(user: UserRow, profile: ProfileRow | null, baseUrl
   return {
     id: user.id,
     displayName: user.name,
+    roleSummaries: roleSummariesForUser(user.id),
     description: user.description ?? '',
     avatarUrl: profile?.avatar_path
       ? `${baseUrl}/uploads/avatars/${path.basename(profile.avatar_path)}`

@@ -9,13 +9,16 @@ export type LegacyRole = 'student' | 'lecturer' | 'admin';
  * All RBAC role names from the `roles` table.
  * Matches the 12 system roles seeded by seedRbacData().
  */
-export type UserRole =
+export type BuiltInRole =
   | 'student' | 'super-student'
   | 'instructor' | 'teaching-assistant'
   | 'admin' | 'admin-2' | 'super-admin'
   | 'sponsor' | 'employer'
   | 'parent' | 'teacher'
   | 'custom-user';
+
+/** Custom RBAC names are valid; workspace and compatibility labels are separate. */
+export type UserRole = BuiltInRole | (string & {});
 
 export interface User {
   id: string;
@@ -211,6 +214,8 @@ export interface ForumAuthor {
   name: string;
   email: string | null;
   role: LegacyRole;
+  rbacRoles?: string[];
+  roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
   isDeleted?: boolean;
 }
 
@@ -389,6 +394,10 @@ export interface UserDirectoryItem {
   name: string;
   email?: string;
   role: LegacyRole;
+  rbacRoles?: string[];
+  roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
+  /** Roster profile membership; does not confer current learning access. */
+  studentId?: string | null;
   courseCodes?: string[];
 }
 

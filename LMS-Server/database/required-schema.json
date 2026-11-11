@@ -741,6 +741,166 @@
       "provider",
       "processed_at",
       "payload"
+    ],
+    "authorization_migrations": [
+      "id",
+      "applied_at",
+      "source_snapshot_sha256",
+      "source_grants_sha256",
+      "review_reference"
+    ],
+    "reward_funding_intents": [
+      "id",
+      "reward_id",
+      "owner_user_id",
+      "actor_user_id",
+      "source_type",
+      "network",
+      "asset",
+      "currency_code",
+      "amount_stroops",
+      "reference",
+      "idempotency_key",
+      "status",
+      "expires_at",
+      "consumed_at",
+      "created_at"
+    ],
+    "reward_funding_evidence": [
+      "id",
+      "intent_id",
+      "ledger_transaction_id",
+      "source_type",
+      "network",
+      "reference",
+      "verification_method",
+      "verified_at"
+    ],
+    "reward_stellar_funding_bindings": [
+      "intent_id",
+      "destination",
+      "memo_hash"
+    ],
+    "reward_stellar_funding_evidence": [
+      "evidence_id",
+      "transaction_hash",
+      "ledger_sequence",
+      "ledger_hash"
+    ],
+    "platform_backing_intents": [
+      "id",
+      "requester_user_id",
+      "network",
+      "destination",
+      "memo_hash",
+      "amount_stroops",
+      "reason",
+      "idempotency_key",
+      "expires_at",
+      "created_at"
+    ],
+    "platform_backing_deposits": [
+      "id",
+      "intent_id",
+      "verified_by_user_id",
+      "network",
+      "operation_id",
+      "amount_stroops",
+      "transaction_hash",
+      "ledger_sequence",
+      "ledger_hash",
+      "created_at"
+    ],
+    "platform_credit_requests": [
+      "id",
+      "requester_user_id",
+      "beneficiary_user_id",
+      "network",
+      "amount_stroops",
+      "reason",
+      "idempotency_key",
+      "status",
+      "expires_at",
+      "created_at"
+    ],
+    "platform_credit_grants": [
+      "id",
+      "request_id",
+      "approved_by_user_id",
+      "approval_key",
+      "reason",
+      "created_at"
+    ],
+    "platform_credit_reservations": [
+      "intent_id",
+      "grant_id",
+      "amount_stroops",
+      "expires_at",
+      "status",
+      "created_at"
+    ],
+    "platform_credit_consumptions": [
+      "intent_id",
+      "evidence_id",
+      "fund_transaction_id",
+      "created_at"
+    ],
+    "platform_credit_audit": [
+      "id",
+      "event_type",
+      "object_id",
+      "actor_user_id",
+      "network",
+      "amount_stroops",
+      "reason",
+      "created_at"
+    ],
+    "push_installations": [
+      "id",
+      "credential_hash",
+      "generation",
+      "user_id",
+      "session_hash",
+      "authorization_version",
+      "token_issued_at",
+      "expo_token",
+      "project_id",
+      "platform",
+      "enabled",
+      "lease_expires_at",
+      "updated_at"
+    ],
+    "push_outbox": [
+      "id",
+      "notification_id",
+      "installation_id",
+      "generation",
+      "state",
+      "attempts",
+      "receipt_attempts",
+      "next_attempt_at",
+      "expires_at",
+      "lease_until",
+      "claim_id",
+      "ticket_id",
+      "last_error",
+      "created_at"
+    ],
+    "offline_learning_leases": [
+      "id",
+      "user_id",
+      "course_id",
+      "course_code",
+      "session_hash",
+      "content_version",
+      "issued_at",
+      "expires_at"
+    ],
+    "offline_progress_receipts": [
+      "user_id",
+      "idempotency_key",
+      "request_hash",
+      "retain_until"
     ]
   },
   "indexes": [
@@ -849,7 +1009,12 @@
     "idx_user_roles_user",
     "idx_users_clerk_user_id",
     "idx_users_reset_token",
-    "idx_webhook_events_event_id"
+    "idx_webhook_events_event_id",
+    "idx_push_outbox_due",
+    "idx_push_installations_user",
+    "idx_offline_learning_leases_expiry",
+    "idx_offline_progress_receipts_expiry",
+    "idx_offline_learning_leases_course"
   ],
   "keys": {
     "active_sessions": {
@@ -2609,6 +2774,432 @@
         ]
       ],
       "foreign": []
+    },
+    "authorization_migrations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [],
+      "foreign": []
+    },
+    "reward_funding_intents": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "actor_user_id",
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "actor_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "owner_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "reward_id",
+          "rewards",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_funding_evidence": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "source_type",
+          "network",
+          "reference"
+        ],
+        [
+          "ledger_transaction_id"
+        ],
+        [
+          "intent_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "ledger_transaction_id",
+          "reward_transactions",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_stellar_funding_bindings": {
+      "primary": [
+        "intent_id"
+      ],
+      "unique": [
+        [
+          "memo_hash"
+        ],
+        [
+          "intent_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "intent_id",
+          "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "reward_stellar_funding_evidence": {
+      "primary": [
+        "evidence_id"
+      ],
+      "unique": [
+        [
+          "evidence_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "evidence_id",
+          "reward_funding_evidence",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_backing_intents": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "requester_user_id",
+          "idempotency_key"
+        ],
+        [
+          "memo_hash"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "requester_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_backing_deposits": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "network",
+          "operation_id"
+        ],
+        [
+          "intent_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "verified_by_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "platform_backing_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_requests": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "requester_user_id",
+          "idempotency_key"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "beneficiary_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "requester_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_grants": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "approved_by_user_id",
+          "approval_key"
+        ],
+        [
+          "request_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "approved_by_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "request_id",
+          "platform_credit_requests",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_reservations": {
+      "primary": [
+        "intent_id"
+      ],
+      "unique": [
+        [
+          "intent_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "grant_id",
+          "platform_credit_grants",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "reward_funding_intents",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_consumptions": {
+      "primary": [
+        "intent_id"
+      ],
+      "unique": [
+        [
+          "fund_transaction_id"
+        ],
+        [
+          "evidence_id"
+        ],
+        [
+          "intent_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "fund_transaction_id",
+          "reward_transactions",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "evidence_id",
+          "reward_funding_evidence",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ],
+        [
+          "intent_id",
+          "platform_credit_reservations",
+          "intent_id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "platform_credit_audit": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "actor_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "RESTRICT"
+        ]
+      ]
+    },
+    "push_installations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "expo_token"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "push_outbox": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "notification_id",
+          "installation_id",
+          "generation"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "installation_id",
+          "push_installations",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "notification_id",
+          "notifications",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "offline_learning_leases": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "user_id",
+          "course_id",
+          "session_hash",
+          "content_version"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "offline_progress_receipts": {
+      "primary": [
+        "user_id",
+        "idempotency_key"
+      ],
+      "unique": [],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
     }
   }
 }

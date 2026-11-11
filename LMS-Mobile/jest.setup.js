@@ -48,3 +48,10 @@ jest.mock('nativewind', () => ({}));
 jest.mock('react-native-css-interop', () => ({
   cssInterop: jest.fn(),
 }));
+
+// RN exposes lazy getters, including the primitives RNTL loads to discover host
+// names on its first render. Transform them during setup rather than charging
+// cold Babel work to whichever timed interaction happens to run first.
+const nativeComponents = require('react-native');
+for (const name of ['Text', 'Pressable', 'View', 'ActivityIndicator', 'TextInput',
+  'Image', 'Switch', 'ScrollView', 'Modal']) void nativeComponents[name];

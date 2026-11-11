@@ -13,6 +13,10 @@ process.env.PAYSTACK_SECRET_KEY = process.env.E2E_SYNTHETIC_HMAC_KEY;
 
 const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
 const apiURL = process.env.E2E_API_URL || 'http://localhost:3001';
+const crossBrowser = process.env.E2E_CROSS_BROWSER;
+const crossBrowserScope = crossBrowser === 'sponsor-rbac'
+  ? { testMatch: /(?:sponsor-authorization|sponsor-reporting|rbac-client-roles)\.spec\.ts$/ }
+  : {};
 assertFixtureConfiguration();
 
 export default defineConfig({
@@ -31,19 +35,21 @@ export default defineConfig({
   use: {
     baseURL,
     headless: true,
+    serviceWorkers: 'block',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
-    extraHTTPHeaders: {
-      'Accept': 'application/json',
-    },
   },
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    ...(crossBrowser === '1' || crossBrowser === 'sponsor-rbac' ? [
+      { name: 'firefox', ...crossBrowserScope, use: { ...devices['Desktop Firefox'] } },
+      { name: 'webkit', ...crossBrowserScope, use: { ...devices['Desktop Safari'] } },
+    ] : []),
   ],
-  // When running locally, start the Vite dev server automatically
+  // Local acceptance serves the built app, matching the CI browser target.
   webServer: process.env.CI ? undefined : [
     {
       command: 'cd ../LMS-Server && npm run build && npm run db:init -- --initialize-new && node --require ../e2e/helpers/no-external-network.cjs dist/server.js',
@@ -62,11 +68,12 @@ export default defineConfig({
       },
     },
     {
-      command: 'cd ../LMS-Frontend && npx vite --port 5173',
+      command: 'cd ../LMS-Frontend && npm run build && npx vite preview --host 127.0.0.1 --port 5173 --strictPort',
       url: baseURL,
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
+        NODE_ENV: 'production',
         VITE_API_BASE_URL: `${apiURL}/api/v1`,
       },
     },

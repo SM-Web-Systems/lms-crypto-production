@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import api, { setTokenGetter, onUnauthorized } from '../services/api';
+import { currentSessionUser } from '../utils/rolePresentation';
 import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { User, LoginResponse, ApiResponse } from '../types/api';
 
@@ -44,7 +45,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     try{
       const response=await api.get<ApiResponse<User>>('/auth/me');
       if(!response.data.success || !response.data.data)throw new Error('Could not verify your saved session. Please retry.');
-      if(current()){setUser(response.data.data);setSessionError(null);}
+      if(current()){setUser(currentSessionUser(response.data.data));setSessionError(null);}
     }catch(error){
       if(!current())return;
       if(error instanceof ApiRequestError && error.status===401)invalidate(token);
@@ -66,8 +67,8 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     const data=response.data.data;
     if(!response.data.success || !data)throw new Error(response.data.error?.message || 'Sign-in failed');
     if(!mounted.current || started!==generation.current)throw new Error('Sign-in was cancelled. Please try again.');
-    setStoredToken(data.token);setUser(data.user);setSessionError(null);setIsLoading(false);
-    return data.user;
+    setStoredToken(data.token);setUser(currentSessionUser(data.user));setSessionError(null);setIsLoading(false);
+    return currentSessionUser(data.user);
   },[]);
   const login=useCallback((email:string,password:string)=>establish('/auth/login',{email:email.trim().toLowerCase(),password}),[establish]);
   const register=useCallback((name:string,email:string,password:string)=>establish('/auth/register',{name:name.trim(),email:email.trim().toLowerCase(),password}),[establish]);
@@ -79,8 +80,8 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
       const response=await api.get<ApiResponse<User>>('/auth/me',{headers:{Authorization:`Bearer ${token}`}});
       if(!current())throw new Error('The active session changed. Please sign in again.');
       if(!response.data.success || !response.data.data)throw new Error('Could not verify your wallet session. Please retry.');
-      setUser(response.data.data);setSessionError(null);
-      return response.data.data;
+      setUser(currentSessionUser(response.data.data));setSessionError(null);
+      return currentSessionUser(response.data.data);
     }catch(error){
       if(current()){
         if(error instanceof ApiRequestError && error.status===401)invalidate(token);
@@ -98,7 +99,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     if(!mounted.current || generation.current!==renderedGeneration)return;
     if(verifiedToken){
       if(verifiedToken!==getStoredToken())return;
-      generation.current++;request.current++;setUser(updated);setSessionError(null);setIsLoading(false);
+      generation.current++;request.current++;setUser(currentSessionUser(updated));setSessionError(null);setIsLoading(false);
     }else setUser(current=>current?.id===updated.id?{...current,name:updated.name}:current);
   },[renderedGeneration]);
   const recovery=sessionError && !user && !isLoading;

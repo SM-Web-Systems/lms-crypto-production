@@ -20,6 +20,33 @@ async function validateProfiles(accessor,version) {
   return {build_profiles:names.length,platform_profiles:names.length*2,android_submit_profiles:submitNames.length};
 }
 
+const previewTargets = {
+  EXPO_PUBLIC_API_BASE_URL: 'https://lms.smwebsystems.com/api/v1',
+  EXPO_PUBLIC_WEB_BASE_URL: 'https://lms.smwebsystems.com',
+  EXPO_PUBLIC_AMMA_WALLET_URL: 'https://ammawallet.com',
+};
+
+async function validateStagingPreview(accessor, exp) {
+  const { EasJsonUtils } = createRequire(require.resolve('eas-cli/package.json'))('@expo/eas-json');
+  for (const platform of ['android', 'ios']) {
+    const profile = await EasJsonUtils.getBuildProfileAsync(accessor, platform, 'preview');
+    if (profile.autoIncrement !== true) throw new Error('STAGING_PREVIEW_BUILD_NUMBER_MUST_INCREMENT');
+    if (profile.distribution !== 'internal' || profile.developmentClient ||
+        (platform === 'android' && profile.buildType !== 'apk')) {
+      throw new Error('INVALID_STAGING_PREVIEW_DISTRIBUTION');
+    }
+    const publicEnv = Object.entries(profile.env ?? {}).filter(([key]) => key.startsWith('EXPO_PUBLIC_'));
+    if (publicEnv.length !== Object.keys(previewTargets).length ||
+        publicEnv.some(([key, value]) => previewTargets[key] !== value)) {
+      throw new Error('INVALID_STAGING_PREVIEW_PUBLIC_ENV');
+    }
+  }
+  if (exp.scheme !== 'lmsmobile' || exp.android?.package !== 'com.smwebsystems.lms' ||
+      exp.ios?.bundleIdentifier !== 'com.smwebsystems.lms') {
+    throw new Error('INVALID_STAGING_PREVIEW_APP_IDENTITY');
+  }
+}
+
 async function checkProject() {
   const project=join(__dirname,'..');
   const files=['package.json','eas.json','app.config.ts'];
@@ -34,9 +61,12 @@ async function checkProject() {
   const {EasJsonAccessor}=createRequire(packageFile)('@expo/eas-json');
   const accessor=EasJsonAccessor.fromProjectPath(project);
   const profiles=await validateProfiles(accessor,version);
+  const { getConfig } = createRequire(require.resolve('expo/package.json'))('@expo/config');
+  const { exp } = getConfig(project, { isPublicConfig: true, skipPlugins: true });
+  await validateStagingPreview(accessor, exp);
   if (before!==digest()) throw new Error('PROJECT_CONFIGURATION_CHANGED');
-  console.log(JSON.stringify({status:'OFFLINE_TOOLING_VALID',cli:version,...profiles,config_changed:false}));
+  console.log(JSON.stringify({status:'OFFLINE_TOOLING_VALID',cli:version,...profiles,staging_preview:'TARGETS_AND_APP_IDENTITY_VERIFIED',config_changed:false}));
 }
 
-module.exports={validateProfiles};
+module.exports={validateProfiles,validateStagingPreview};
 if (require.main===module) checkProject().catch(()=>{console.error('Offline EAS startup/schema validation failed.');process.exitCode=1;});

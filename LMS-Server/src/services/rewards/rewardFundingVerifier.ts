@@ -9,7 +9,7 @@
  *
  * W01-R1: Internal sources now enforce authorization policy from
  * reward foundation spec section 5: reward.manage + independent authorizer.
- * platform_credit fails closed (no credit provisioning mechanism).
+ * Platform credit requires verified deposit backing and independent allocation approval.
  *
  * W01-R2: Paystack binding verifies status, currency, amount, and ownership.
  * Rewards are XLM (stroops); Paystack is fiat (USD/ZAR). No settlement
@@ -22,11 +22,11 @@
  *   cross-reference idempotency, stellar deny-by-default, internal auth).
  *   Used by the synchronous fundReward() for internal source types.
  * - verifyFundingSourceAsync: full verification including async external
- *   provider calls (paystack verifyTransaction). Used by fundRewardAsync()
+ *   provider calls (Stellar operations and Paystack transactions). Used by fundRewardAsync()
  *   for external source types in route handlers.
  *
- * W01-R3: Atomic reference consumption. normalizeReference() eliminates
- * empty/whitespace-only references. checkReferenceInTransaction() enforces
+ * W01-R3: Atomic reference consumption. normalizeReference() maps absent/empty
+ * references to NULL and preserves nonempty opaque values. checkReferenceInTransaction() enforces
  * uniqueness inside the write transaction. The partial UNIQUE index on
  * funding_reference (fund transactions, non-NULL) is the authoritative
  * database-level enforcement.
@@ -40,6 +40,8 @@ import { RewardError } from './rewardErrors.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { verifyTransaction } from '../paystackService.js';
 import type { FundingSourceType } from './rewardTypes.js';
+import { verifyStellarFunding, type StellarFundingBinding, type VerifiedStellarFunding } from './stellarFundingVerification.js';
+import {assertPlatformCredit} from './platformCreditService.js';
 
 export interface FundingSource {
   type: FundingSourceType;
@@ -72,7 +74,7 @@ export interface PaystackBindingContext {
 /**
  * Synchronous funding verification. Checks reference requirements,
  * cross-reference idempotency, and internal source authorization.
- * Rejects stellar (no Horizon client).
+ * Rejects Stellar on the synchronous path; its stored intent needs async verification.
  * Does NOT contact external providers.
  */
 export function verifyFundingSourceSync(
@@ -82,7 +84,7 @@ export function verifyFundingSourceSync(
 ): void {
   // 1. Cross-reference idempotency (all types with a normalized reference)
   const normalizedRef = normalizeReference(source.reference);
-  if (normalizedRef) {
+  if (normalizedRef && source.type !== 'platform_credit') {
     checkReferenceNotReused(normalizedRef, rewardId);
   }
 
@@ -109,12 +111,8 @@ export function verifyFundingSourceSync(
 
     case 'platform_credit':
       verifyInternalAuthorization(context, 'platform_credit');
-      // W01-R1: platform_credit fails closed — no credit provisioning exists.
-      throw new RewardError(
-        'INSUFFICIENT_CREDIT',
-        'Platform credit funding is not available: no credit provisioning mechanism is configured',
-        402,
-      );
+      assertPlatformCredit(context!.actorId,context!.rewardCreatorId,source.reference);
+      break;
 
     case 'admin_grant':
       verifyInternalAuthorization(context, 'admin_grant');
@@ -145,10 +143,11 @@ export async function verifyFundingSourceAsync(
   rewardId: string,
   context?: FundingAuthorizationContext,
   paystackContext?: PaystackBindingContext,
-): Promise<void> {
+  stellarContext?: StellarFundingBinding,
+): Promise<VerifiedStellarFunding | undefined> {
   // 1. Cross-reference idempotency (all types with a normalized reference)
   const normalizedRef = normalizeReference(source.reference);
-  if (normalizedRef) {
+  if (normalizedRef && source.type !== 'stellar' && source.type !== 'platform_credit') {
     checkReferenceNotReused(normalizedRef, rewardId);
   }
 
@@ -156,12 +155,8 @@ export async function verifyFundingSourceAsync(
   switch (source.type) {
     case 'stellar':
       requireReference(source, 'Stellar');
-      // No Stellar Horizon client configured — deny by default
-      throw new RewardError(
-        'FUNDING_UNVERIFIED',
-        'Stellar transaction verification is not configured',
-        402,
-      );
+      if (!stellarContext) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding requires a stored intent binding.', 402);
+      return verifyStellarFunding(stellarContext, source.reference!);
 
     case 'paystack':
       requireReference(source, 'Paystack');
@@ -177,12 +172,8 @@ export async function verifyFundingSourceAsync(
 
     case 'platform_credit':
       verifyInternalAuthorization(context, 'platform_credit');
-      // W01-R1: platform_credit fails closed — no credit provisioning exists.
-      throw new RewardError(
-        'INSUFFICIENT_CREDIT',
-        'Platform credit funding is not available: no credit provisioning mechanism is configured',
-        402,
-      );
+      assertPlatformCredit(context!.actorId,context!.rewardCreatorId,source.reference);
+      break;
 
     case 'admin_grant':
       verifyInternalAuthorization(context, 'admin_grant');

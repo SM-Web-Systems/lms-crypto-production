@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, fstatSync, lstatSync, openSync, readSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 const BUILT_INS = {
   role_student: 'student', role_supporter_student: 'super-student',
@@ -15,7 +16,7 @@ const BUILT_INS = {
 const LEGACY_MAP = { student: 'role_student', lecturer: 'role_instructor', admin: 'role_admin' };
 const ADMIN_IDS = ['role_admin', 'role_admin2', 'role_super_admin'];
 const REQUIRED = {
-  users: ['id', 'role', 'authorization_version', 'deletion_status'],
+  users: ['id', 'authorization_version', 'deletion_status'],
   roles: ['id', 'name', 'is_system'], user_roles: ['user_id', 'role_id'],
   permissions: ['id', 'name'], role_permissions: ['role_id', 'permission_id'],
   students: ['id', 'user_id'], courses: ['id', 'course_code'],
@@ -29,7 +30,7 @@ const REQUIRED = {
   user_group_members: ['group_id', 'user_id'],
 };
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-function fingerprintFile(file) {
+export function fingerprintFile(file) {
   const fd=openSync(file,'r'), hash=createHash('sha256'), buffer=Buffer.alloc(1024*1024);
   let header;
   try {
@@ -66,7 +67,14 @@ function validateSchema(db) {
 function inventory(db, metadata) {
   validateSchema(db);
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('Snapshot integrity check failed.');
-  const users = db.prepare('SELECT id,role,authorization_version,deletion_status FROM users ORDER BY id').all();
+  const hasLegacyRole = db.pragma('table_info(users)').some(column => column.name === 'role');
+  if (!hasLegacyRole) {
+    const ledger = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").get();
+    const marker = ledger && db.prepare("SELECT 1 FROM authorization_migrations WHERE id='rbac-only-v2'").get();
+    if (!marker) refuse('Unsupported snapshot schema: users.role is absent without a retirement marker.');
+  }
+  const legacyRole = hasLegacyRole ? 'role' : 'NULL AS role';
+  const users = db.prepare(`SELECT id,${legacyRole},authorization_version,deletion_status FROM users ORDER BY id`).all();
   const roles = db.prepare('SELECT id,name,is_system FROM roles ORDER BY id').all();
   const assignments = db.prepare('SELECT user_id,role_id FROM user_roles ORDER BY user_id,role_id').all();
   const capabilities = db.prepare(`SELECT DISTINCT ur.user_id,p.name FROM user_roles ur
@@ -97,6 +105,8 @@ function inventory(db, metadata) {
   const groups = countByUser('SELECT owner_user_id AS user_id,COUNT(*) AS total FROM user_groups GROUP BY owner_user_id');
   const groupMembers = countByUser('SELECT user_id,COUNT(*) AS total FROM user_group_members GROUP BY user_id');
   const counters = {};
+  const bridge = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get();
+  const legacyBridgeActive = /NEW\s*\.\s*role/i.test(bridge?.sql ?? '') && /user_roles/i.test(bridge?.sql ?? '');
   const accountDetails = [];
   const increment = code => { counters[code] = (counters[code] ?? 0) + 1; };
   const legacyCounts = { student: 0, lecturer: 0, admin: 0, unknown: 0 };
@@ -106,11 +116,12 @@ function inventory(db, metadata) {
     const flags = [];
     const note = code => { flags.push(code); increment(code); };
     const mapped = Object.hasOwn(LEGACY_MAP, user.role) ? LEGACY_MAP[user.role] : null;
-    legacyCounts[mapped ? user.role : 'unknown']++;
-    if (!mapped) note('unknown_legacy_value');
+    if (hasLegacyRole) legacyCounts[mapped ? user.role : 'unknown']++;
+    if (hasLegacyRole && !mapped) note('unknown_legacy_value');
     if (!grants.length) note(user.authorization_version > 0 ? 'managed_account_without_grants' : 'unmanaged_account_without_grants');
     if (mapped && !grants.includes(mapped)) {
       note('legacy_mapping_absent_from_rbac');
+      // Old images can also regrant during startup without an insert trigger.
       if (user.authorization_version === 0) note('startup_legacy_regrant_risk');
     }
     if (can.has('course.submit') && !profiles.get(user.id)) note('learner_profile_missing');
@@ -121,7 +132,8 @@ function inventory(db, metadata) {
     const explicitAdmin = ADMIN_IDS.filter(id => grants.includes(id) &&
       roleById.get(id)?.name === BUILT_INS[id] && roleById.get(id)?.is_system === 1);
     if (explicitAdmin.length) note('explicit_administrator');
-    if (grants.length > 1) increment('multi_role_accounts');
+    if (grants.length > 1) note('multi_role_accounts');
+    if (grants.some(id => !Object.hasOwn(BUILT_INS, id))) note('custom_role_assignment');
     // Absence of assignments can be legitimate for a newly provisioned role.
     const scopeObservations = [];
     if (can.has('course.manage') && !instructors.has(user.id) && !explicitAdmin.length) scopeObservations.push('no_instructor_course_assignment');
@@ -148,7 +160,15 @@ function inventory(db, metadata) {
     const role = roleById.get(id);
     if (!role || role.name !== name || role.is_system !== 1) catalogIssues.push({roleId:id, issue:'missing_or_changed_canonical_role'});
   }
-  const foreignKeys = db.pragma('foreign_key_check');
+  const foreignKeys = db.prepare('PRAGMA foreign_key_check').safeIntegers().all().map(violation => {
+    // Keep the exact row locator for private review, including 64-bit row IDs.
+    let rowid = violation.rowid;
+    if (rowid !== null) {
+      const numericRowId = Number(rowid);
+      rowid = Number.isSafeInteger(numericRowId) ? numericRowId : String(rowid);
+    }
+    return { ...violation, rowid, fkid: Number(violation.fkid) };
+  });
   const foreignKeyCounts = {};
   for (const violation of foreignKeys) foreignKeyCounts[violation.table] = (foreignKeyCounts[violation.table] ?? 0) + 1;
   const orphanCourseCodes = db.prepare(`SELECT uc.user_id AS userId,uc.course_code AS courseCode FROM user_course_codes uc
@@ -164,7 +184,7 @@ function inventory(db, metadata) {
       versionNote: 'SQLite user_version and schema fingerprint do not establish the deployed application migration level.' },
     users: { total: users.length, withoutDeletionStatus: users.filter(user => user.deletion_status === null).length,
       withDeletionStatus: users.filter(user => user.deletion_status !== null).length, legacyCounts },
-    rbac: { assignments: assignments.length, roles: roles.length,
+    rbac: { assignments: assignments.length, roles: roles.length, legacyBridgeActive,
       builtInAssignmentCounts: Object.fromEntries(Object.keys(BUILT_INS).map(id => [id, assignments.filter(row => row.role_id === id).length])),
       customRoleCount: roles.filter(role => !Object.hasOwn(BUILT_INS,role.id)).length,
       accountFindingCounts: counters, catalogIssueCount: catalogIssues.length,
@@ -188,7 +208,7 @@ function inventory(db, metadata) {
   }};
 }
 
-export function inspectSnapshot({ database, snapshot, deployedSha }) {
+export function inspectSnapshot({ database, snapshot, deployedSha, expectedSnapshotSha }) {
   if (snapshot !== true) refuse('Explicit --snapshot confirmation is required. Inspect a separate finalized snapshot, never the live database.');
   if (!database || !/^[a-f0-9]{40}$/i.test(deployedSha ?? '')) refuse('A database path and full 40-character --deployed-sha are required.');
   const requested = path.resolve(database);
@@ -202,6 +222,9 @@ export function inspectSnapshot({ database, snapshot, deployedSha }) {
   // rather than immutable=1 (which can silently ignore committed WAL content).
   if (original.header[18] !== 1 || original.header[19] !== 1) refuse('Snapshot is still in WAL mode. Finalize journal_mode=DELETE on the separate snapshot only, never on the live database.');
   const hash = original.sha256;
+  if (expectedSnapshotSha !== undefined && expectedSnapshotSha !== hash) {
+    refuse('Snapshot SHA-256 does not match the expected review snapshot.');
+  }
   const db = new Database(file, { readonly: true, fileMustExist: true });
   let result;
   try {
@@ -218,19 +241,141 @@ export function inspectSnapshot({ database, snapshot, deployedSha }) {
 
 export function parseArguments(args) {
   const options = {};
+  const valueFlags = {
+    '--database': 'database',
+    '--deployed-sha': 'deployedSha',
+    '--details-output': 'detailsOutput',
+    '--review-output': 'reviewOutput',
+    '--verify-review': 'verifyReview',
+    '--expected-snapshot-sha': 'expectedSnapshotSha',
+  };
   for (let i=0;i<args.length;i++) {
     const flag = args[i];
     if (flag === '--snapshot') {
       if (options.snapshot) refuse('Duplicate --snapshot argument.');
       options.snapshot = true;
-    } else if (['--database','--deployed-sha','--details-output'].includes(flag)) {
-      const key = {'--database':'database','--deployed-sha':'deployedSha','--details-output':'detailsOutput'}[flag];
+    } else if (Object.hasOwn(valueFlags, flag)) {
+      const key = valueFlags[flag];
       const value = args[++i];
       if (options[key] || !value || value.startsWith('--')) refuse('Missing or duplicate inventory argument.');
       options[key] = value;
     } else refuse('Unknown inventory argument. Use --help.');
   }
+  if (options.reviewOutput && !options.expectedSnapshotSha) {
+    refuse('Review output requires the previously recorded --expected-snapshot-sha.');
+  }
+  if (options.verifyReview && (!options.expectedSnapshotSha || options.detailsOutput || options.reviewOutput)) {
+    refuse('Review verification requires --expected-snapshot-sha and cannot be combined with output files.');
+  }
+  if (options.expectedSnapshotSha && !/^[a-f0-9]{64}$/.test(options.expectedSnapshotSha)) {
+    refuse('Review snapshot SHA-256 must contain 64 lowercase hexadecimal characters.');
+  }
   return options;
+}
+
+function reviewWorksheet(summary, details) {
+  const pending = { decision: null, rationale: null };
+  const integrity = [
+    ['catalog_issue', details.catalogIssues],
+    ['dangling_assignment', details.danglingAssignments],
+    ['foreign_key_violation', details.foreignKeyViolations],
+    ['orphan_course_code', details.orphanCourseCodes],
+  ];
+  return {
+    version: 1,
+    status: 'pending',
+    snapshotSha256: summary.snapshotSha256,
+    schemaFingerprintSha256: summary.schema.fingerprintSha256,
+    deployedSha: summary.deployedApplication.sha,
+    reviewReference: null,
+    reviewer: null,
+    reviewedAt: null,
+    acceptCurrentRbacAsAuthoritative: false,
+    accountDecisions: details.accounts.map(account => ({
+      userId: account.userId,
+      currentRoleIds: account.roleIds,
+      flags: account.flags,
+      scopeObservations: account.scopeObservations,
+      ...pending,
+    })),
+    learnerProfileDecisions: details.accounts.flatMap(account => {
+      const flags = account.flags.filter(flag => flag === 'learner_profile_missing' || flag === 'multiple_learner_profiles');
+      return flags.length ? [{ userId: account.userId, flags, ...pending }] : [];
+    }),
+    integrityDecisions: integrity.flatMap(([kind, rows]) => rows.map(row => ({ kind, reference: row, ...pending }))),
+    installedClientEvidence: null,
+    legacyEndpointUsageEvidence: null,
+  };
+}
+
+function readReview(filename) {
+  const file = path.resolve(filename);
+  const limit = 8 * 1024 * 1024;
+  const stat = lstatSync(file);
+  if (!stat.isFile() || stat.size > limit || (process.platform !== 'win32' && (stat.mode & 0o077) !== 0)) {
+    refuse('Review file must be a private regular file of at most 8 MiB.');
+  }
+  const fd = openSync(file, 'r');
+  try {
+    const opened = fstatSync(fd);
+    if (opened.dev !== stat.dev || opened.ino !== stat.ino || opened.size !== stat.size || opened.mode !== stat.mode) {
+      refuse('Review file changed while being opened.');
+    }
+    const buffer = Buffer.alloc(stat.size + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const read = readSync(fd, buffer, length, buffer.length - length, null);
+      if (read === 0) break;
+      length += read;
+    }
+    if (length !== stat.size || fstatSync(fd).mtimeMs !== stat.mtimeMs) {
+      refuse('Review file changed while being read.');
+    }
+    return buffer.subarray(0, length);
+  } finally { closeSync(fd); }
+}
+
+function verifyReview(filename, expected) {
+  const bytes = readReview(filename);
+  let review;
+  try { review = JSON.parse(bytes.toString('utf8')); }
+  catch { refuse('Review file is not valid JSON.'); }
+  if (review?.version !== expected.version || review.snapshotSha256 !== expected.snapshotSha256 ||
+      review.schemaFingerprintSha256 !== expected.schemaFingerprintSha256 || review.deployedSha !== expected.deployedSha) {
+    refuse('Review binding does not match the inspected snapshot and deployment revision.');
+  }
+
+  const filled = value => typeof value === 'string' && value.trim().length > 0;
+  const reviewedAt = filled(review.reviewedAt) ? Date.parse(review.reviewedAt) : NaN;
+  if (review.status !== 'reviewed' || review.acceptCurrentRbacAsAuthoritative !== true ||
+      ![review.reviewer, review.reviewReference, review.installedClientEvidence, review.legacyEndpointUsageEvidence].every(filled) ||
+      !Number.isFinite(reviewedAt) || reviewedAt > Date.now() || new Date(reviewedAt).toISOString() !== review.reviewedAt) {
+    refuse('Review is incomplete. Record reviewer, UTC date, RBAC decision and both client evidence references.');
+  }
+
+  const groups = ['accountDecisions', 'learnerProfileDecisions', 'integrityDecisions'];
+  for (const group of groups) {
+    const rows = review[group];
+    if (!Array.isArray(rows) || rows.length !== expected[group].length) {
+      refuse('Review finding rows do not match the inspected snapshot.');
+    }
+    if (!rows.every(row => filled(row?.decision) && filled(row.rationale))) {
+      refuse('Review is incomplete. Record a decision and rationale for every finding.');
+    }
+    const originalRows = rows.map(row => ({ ...row, decision: null, rationale: null }));
+    if (!isDeepStrictEqual(originalRows, expected[group])) {
+      refuse('Review finding rows do not match the inspected snapshot.');
+    }
+  }
+
+  return {
+    status: 'REVIEW_RECORD_VERIFIED',
+    reviewSha256: sha256(bytes),
+    snapshotSha256: expected.snapshotSha256,
+    deployedSha: expected.deployedSha,
+    findingCounts: Object.fromEntries(groups.map(group => [group, expected[group].length])),
+    migrationReady: false,
+  };
 }
 
 export function writePrivateDetails(filename, details) {
@@ -245,16 +390,18 @@ export function writePrivateDetails(filename, details) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   if (process.argv.length === 3 && process.argv[2] === '--help') {
-    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Details contain identifiers; use a private output directory. See docs/release/RBAC_ROLE_INVENTORY.md.');
+    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json] [--review-output /private/new-review.json --expected-snapshot-sha <64 lowercase hex characters>] [--verify-review /private/completed-review.json --expected-snapshot-sha <64 lowercase hex characters>]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Private outputs contain identifiers. See docs/release/LMS-010-PRIVATE-REVIEW.md.');
   } else {
     try {
       const options = parseArguments(process.argv.slice(2));
       const {summary,details} = inspectSnapshot(options);
       if (options.detailsOutput) writePrivateDetails(options.detailsOutput,details);
-      console.log(JSON.stringify(summary,null,2));
+      if (options.reviewOutput) writePrivateDetails(options.reviewOutput,reviewWorksheet(summary,details));
+      const result = options.verifyReview ? verifyReview(options.verifyReview, reviewWorksheet(summary,details)) : summary;
+      console.log(JSON.stringify(result,null,2));
     } catch (error) {
       // Do not echo raw SQLite/path errors, which can include account data or SQL.
-      const known = /^(Snapshot |Unsupported snapshot |Explicit --snapshot|A database path|Missing or duplicate|Unknown inventory|Duplicate --snapshot)/;
+      const known = /^(Snapshot |Unsupported snapshot |Explicit --snapshot|A database path|Missing or duplicate|Unknown inventory|Duplicate --snapshot|Review (output requires|snapshot SHA-256|verification requires|file |binding |is incomplete|finding rows))/;
       console.error('RBAC inventory refused: '+(known.test(error.message) ? error.message : 'Unable to inspect the snapshot or exclusively create the private report. Check the input schema, file existence and directory permissions.'));
       process.exitCode = 2;
     }

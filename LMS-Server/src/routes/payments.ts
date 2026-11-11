@@ -14,6 +14,7 @@ import { requirePermission, requireAdministrator, getRequestPermissions, hasPerm
 import { queryOne, execute } from '../config/database.js';
 import { ErrorCodes, type AuthRequest } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
+import { isWriterHoldActive } from '../services/writerHold.js';
 import {
   getCoursePricing,
   setCoursePricing,
@@ -23,10 +24,11 @@ import {
   listPayments,
   getPaymentForApplication,
   getPaymentByReference,
-  createPaystackPayment,
+  reservePaystackCheckout,
+  savePaystackCheckout,
   createStellarPayment,
   failPayment,
-  refundPayment,
+  reservePaystackRefund,
   getStudentPayments,
   recordWebhookEvent,
   isSponsorScopedPayment,
@@ -36,6 +38,7 @@ import {
 import { getTiersEnabled, getBadge } from '../services/badgeService.js';
 import {
   initializeTransaction,
+  isPaystackConfigured,
   verifyWebhookSignature,
   createRefund as paystackCreateRefund,
 } from '../services/paystackService.js';
@@ -87,7 +90,7 @@ router.get(
     const paymentMethods: string[] = [];
     if (!isFree) {
       paymentMethods.push('manual');
-      if (process.env.PAYSTACK_SECRET_KEY) paymentMethods.push('paystack');
+      if (isPaystackConfigured()) paymentMethods.push('paystack');
       if (pricing?.stellar_price_xlm) paymentMethods.push('stellar_xlm');
       if (pricing?.stellar_price_usdc) paymentMethods.push('stellar_usdc');
     }
@@ -511,67 +514,61 @@ router.post(
       return;
     }
 
-    // Check existing payment
-    const existingPayment = getPaymentForApplication(applicationId);
-    if (existingPayment) {
-      if (existingPayment.status === 'confirmed' || existingPayment.status === 'waived') {
-        res.status(409).json({
-          success: false,
-          error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment already completed' },
+    if (!Number.isSafeInteger(pricing.price_cents) || pricing.price_cents < 0 || !/^[A-Z]{3}$/.test(pricing.currency)) {
+      res.status(409).json({ success: false, error: { code: 'INVALID_CARD_PRICE', message: 'This course price needs review before card payment.' } });
+      return;
+    }
+    if (!isPaystackConfigured()) {
+      res.status(503).json({ success: false, error: { code: 'PAYSTACK_UNAVAILABLE', message: 'Card payments are temporarily unavailable.' } });
+      return;
+    }
+    const checkout = reservePaystackCheckout(req.user!.userId, application.course_id, applicationId, pricing);
+    if (checkout.kind === 'settled') {
+      res.status(409).json({ success: false, error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment already completed' } });
+      return;
+    }
+    if (!('payment' in checkout)) {
+      res.status(409).json({ success: false, error: { code: 'PAYSTACK_RECONCILIATION_REQUIRED', message: 'An earlier card payment needs review. Contact support before paying again.' } });
+      return;
+    }
+    const payment = checkout.payment;
+    if (checkout.kind === 'existing') {
+      if (!payment.paystack_checkout_url || !payment.paystack_access_code || payment.user_id !== req.user!.userId ||
+          payment.amount_cents !== pricing.price_cents || payment.currency !== pricing.currency) {
+        res.status(409).json({ success: false, error: { code: 'PAYSTACK_RECONCILIATION_REQUIRED', message: 'A card payment is already being prepared or needs review. Check its status before paying again.' } });
+        return;
+      }
+      res.json({ success: true, data: {
+        paymentId: payment.id, checkoutUrl: payment.paystack_checkout_url,
+        reference: payment.paystack_reference, accessCode: payment.paystack_access_code,
+      } });
+      return;
+    }
+
+    const reference = payment.paystack_reference!;
+    const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/callback`;
+    const user = queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
+    try {
+      const paystackData = await initializeTransaction(
+        user?.email || req.user!.email, payment.amount_cents, payment.currency, reference, callbackUrl,
+        { applicationId, courseId: application.course_id, userId: req.user!.userId },
+      );
+      if (isWriterHoldActive()) {
+        res.set('Retry-After', '120').status(503).json({
+          success: false, error: { code: 'WRITER_HOLD', message: 'Maintenance in progress. Check the card payment status after maintenance.' },
         });
         return;
       }
-      // If pending paystack payment exists, return same checkout info
-      if (existingPayment.payment_method === 'paystack' && existingPayment.status === 'pending' && existingPayment.paystack_reference) {
-        res.json({
-          success: true,
-          data: {
-            paymentId: existingPayment.id,
-            checkoutUrl: null, // Re-init needed — Paystack URLs expire
-            reference: existingPayment.paystack_reference,
-            message: 'Existing pending payment found. Re-initializing checkout.',
-          },
-        });
-        // Fall through to re-initialize with same reference... actually let's just create new
+      if (!savePaystackCheckout(payment.id, paystackData.authorization_url, paystackData.access_code)) {
+        res.status(409).json({ success: false, error: { code: ErrorCodes.DUPLICATE_ENTRY, message: 'Payment status changed. Refresh before paying again.' } });
+        return;
       }
-    }
-
-    // Create Paystack transaction
-    const reference = `lms-pay-${uuidv4().replace(/-/g, '').slice(0, 16)}`;
-    const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/callback`;
-
-    const user = queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [req.user!.userId]);
-
-    try {
-      const paystackData = await initializeTransaction(
-        user?.email || req.user!.email,
-        pricing.price_cents,
-        reference,
-        callbackUrl,
-        { applicationId, courseId: application.course_id, userId: req.user!.userId },
-      );
-
-      // Create payment record
-      const payment = createPaystackPayment(
-        req.user!.userId,
-        application.course_id,
-        applicationId,
-        pricing.price_cents,
-        reference,
-        paystackData.access_code,
-      );
-
-      res.status(201).json({
-        success: true,
-        data: {
-          paymentId: payment.id,
-          checkoutUrl: paystackData.authorization_url,
-          reference: paystackData.reference,
-          accessCode: paystackData.access_code,
-        },
-      });
-    } catch (err) {
-      logger.error({ module: 'payments', action: 'paystackCheckout', err }, 'Paystack checkout error');
+      res.status(201).json({ success: true, data: {
+        paymentId: payment.id, checkoutUrl: paystackData.authorization_url,
+        reference, accessCode: paystackData.access_code,
+      } });
+    } catch {
+      logger.warn({ module: 'payments', action: 'paystackCheckout', paymentId: payment.id }, 'Paystack checkout outcome requires reconciliation');
       res.status(502).json({
         success: false,
         error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Payment gateway error' },
@@ -910,12 +907,14 @@ router.get(
  *                 type: string
  *                 description: Optional refund notes
  *     responses:
- *       '200':
- *         description: Refund initiated successfully
+ *       '202':
+ *         description: Refund request accepted by Paystack
  *       '400':
  *         description: Can only refund confirmed Paystack payments
  *       '404':
  *         description: Payment not found
+ *       '409':
+ *         description: Earlier refund requires provider reconciliation
  *       '502':
  *         description: Refund gateway error
  */
@@ -924,17 +923,24 @@ router.post(
   requirePermission('billing.confirm'),
   requireAdministrator,
   async (req: AuthRequest, res: Response): Promise<void> => {
-    const payment = queryOne<{ id: string; status: string; payment_method: string; paystack_reference: string | null }>(
-      'SELECT id, status, payment_method, paystack_reference FROM payments WHERE id = ?',
-      [req.params.paymentId],
-    );
+    const paymentId = req.params.paymentId;
+    const { notes } = req.body ?? {};
+    if (notes !== undefined && typeof notes !== 'string') {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refund notes must be text' } });
+      return;
+    }
+    if (!isPaystackConfigured()) {
+      res.status(503).json({ success: false, error: { code: 'PAYSTACK_UNAVAILABLE', message: 'Paystack refunds are unavailable' } });
+      return;
+    }
 
-    if (!payment) {
+    const refund = reservePaystackRefund(paymentId);
+    if (refund.kind === 'missing') {
       res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
       return;
     }
 
-    if (payment.status !== 'confirmed') {
+    if (refund.kind === 'unconfirmed') {
       res.status(400).json({
         success: false,
         error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Can only refund confirmed payments' },
@@ -942,25 +948,40 @@ router.post(
       return;
     }
 
-    if (payment.payment_method !== 'paystack') {
+    if (refund.kind === 'unsupported') {
       res.status(400).json({
         success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refunds only available for Paystack payments' },
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'Refunds require a Paystack payment with a transaction reference' },
       });
       return;
     }
 
-    const { notes } = req.body ?? {};
+    if (refund.kind === 'reconciliation') {
+      res.status(409).json({
+        success: false,
+        error: { code: 'PAYSTACK_REFUND_RECONCILIATION_REQUIRED', message: 'An earlier refund is in flight or needs review in Paystack' },
+      });
+      return;
+    }
 
     try {
-      await paystackCreateRefund(payment.paystack_reference!, notes);
-      refundPayment(payment.id, notes || 'Refunded via admin');
-      res.json({ success: true, message: 'Refund initiated' });
-    } catch (err) {
-      logger.error({ module: 'payments', action: 'paystackRefund', err }, 'Paystack refund error');
+      if (refund.kind === 'reserved') {
+        await paystackCreateRefund(refund.reference, refund.refundReference, refund.amount, refund.currency, notes);
+        if (isWriterHoldActive()) {
+          res.set('Retry-After', '120').status(503).json({
+            success: false, error: { code: 'WRITER_HOLD', message: 'Maintenance in progress. Check the refund status after maintenance.' },
+          });
+          return;
+        }
+        execute('UPDATE paystack_refund_requests SET submitted = 1 WHERE payment_id = ? AND refund_reference = ?',
+          [paymentId, refund.refundReference]);
+      }
+      res.status(202).json({ success: true, message: 'Refund request accepted by Paystack' });
+    } catch {
+      logger.warn({ module: 'payments', action: 'paystackRefund', paymentId }, 'Paystack refund outcome requires reconciliation');
       res.status(502).json({
         success: false,
-        error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Refund gateway error' },
+        error: { code: 'PAYSTACK_REFUND_RECONCILIATION_REQUIRED', message: 'Check the refund outcome in Paystack before retrying' },
       });
     }
   },

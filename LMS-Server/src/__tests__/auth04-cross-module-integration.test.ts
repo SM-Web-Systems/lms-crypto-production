@@ -215,11 +215,11 @@ describe('AUTH-04: Cross-Module Sponsor Authorization', () => {
   });
 
   // ─── AUTH04-02: Sponsor manages permitted cohort memberships ───────
-  it('AUTH04-02: Sponsor A manages own cohort members', async () => {
+  it('AUTH04-02: Administrator adds a member and the sponsor can remove them', async () => {
     const newStudent = seedUser('student', 'new-add');
     const addRes = await request(app)
       .post(`/api/v1/admin/cohorts/${cohortA}/members`)
-      .set('Authorization', `Bearer ${tokenA}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ userIds: [newStudent.userId] });
     expect(addRes.status).toBe(200);
     expect(addRes.body.data.added).toBe(1);

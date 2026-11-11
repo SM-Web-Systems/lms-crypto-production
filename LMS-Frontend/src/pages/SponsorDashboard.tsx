@@ -229,7 +229,7 @@ const ImpactReportTab: React.FC<{ refreshTick: number }> = ({ refreshTick }) => 
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-neutral-600">
-          Completion and certification metrics across your sponsored cohorts.
+          Current completion and issued certificates, counted per cohort membership.
         </p>
         <Button
           variant="outline"
@@ -249,13 +249,15 @@ const ImpactReportTab: React.FC<{ refreshTick: number }> = ({ refreshTick }) => 
 
       <DateRangeFilter onApply={handleDateApply} onClear={handleDateClear} />
 
+      <p className="text-xs text-neutral-500">Dates filter cohort creation in UTC. Progress reflects current status.</p>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <Users className="h-5 w-5 text-blue-500 shrink-0" aria-hidden />
             <div>
-              <p className="text-xs text-neutral-500">Total Students</p>
+              <p className="text-xs text-neutral-500">Sponsored memberships</p>
               <p className="text-lg font-bold text-neutral-900">{impact.totalMembers}</p>
             </div>
           </CardContent>
@@ -767,9 +769,13 @@ const SponsorDashboard: React.FC = () => {
                     <DollarSign className="h-5 w-5 text-green-600 shrink-0" aria-hidden />
                     <div>
                       <p className="text-xs text-neutral-500">Total Spent (Confirmed)</p>
-                      <p className="text-lg font-bold text-neutral-900" data-testid="total-spent">
-                        ${(spendingReport.totalSpentCents / 100).toFixed(2)}
-                      </p>
+                      <div className="text-lg font-bold text-neutral-900" data-testid="total-spent">
+                        {spendingReport.totalsByCurrency?.length ? spendingReport.totalsByCurrency.map(total => (
+                          <p key={total.currency}>{total.currency} {(total.amountCents / 100).toFixed(2)}</p>
+                        )) : <p>{spendingReport.totalSpentCents
+                          ? `${(spendingReport.totalSpentCents / 100).toFixed(2)} (currency unavailable)`
+                          : 'No confirmed spending'}</p>}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

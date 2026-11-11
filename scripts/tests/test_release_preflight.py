@@ -41,7 +41,7 @@ class EntrypointSafetyTests(unittest.TestCase):
     @unittest.skipUnless(BASH and Path(BASH).exists(), 'Git Bash unavailable')
     def test_stale_workflow_checkout_script_never_executes(self):
         with tempfile.TemporaryDirectory(prefix='workflow synthetic ') as directory:
-            root=Path(directory);checkout=root/'checkout';(checkout/'scripts').mkdir(parents=True)
+            root=Path(directory).resolve();checkout=root/'checkout';(checkout/'scripts').mkdir(parents=True)
             sentinel=root/'invoked'
             (checkout/'scripts/deploy.sh').write_text('printf invoked > "$SENTINEL"\n',encoding='utf8')
             (checkout/'scripts/release_preflight.py').write_text('synthetic',encoding='utf8')
@@ -91,7 +91,9 @@ class ReleasePreflightTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='release synthetic ')
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        # Hosted Windows runners can expose TEMP through a junction.
+        # Fixtures should supply the canonical paths expected of a real release.
+        self.root = Path(self.temp.name).resolve(strict=True)
         self.checkout = self.root / 'checkout'; self.checkout.mkdir()
         for relative in self.mod.REQUIRED_FILES:
             file=self.checkout/relative;file.parent.mkdir(parents=True,exist_ok=True);file.write_text('synthetic')
@@ -355,7 +357,7 @@ class OverlayValidationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='overlay synthetic ')
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve(strict=True)
         self.checkout = self.root / 'checkout'; self.checkout.mkdir()
         for relative in self.mod.REQUIRED_FILES:
             file = self.checkout / relative; file.parent.mkdir(parents=True, exist_ok=True); file.write_text('synthetic')

@@ -1,3 +1,4 @@
+import { rolesText, type RolePresentation } from '../utils/rolePresentation';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import { Card, CardContent } from '../components/Card';
@@ -729,11 +730,11 @@ function PostAuthor({
   author,
   createdAt,
 }: {
-  author: { name?: string; role?: string; isDeleted?: boolean };
+  author: { name?: string; isDeleted?: boolean } & RolePresentation;
   createdAt: string;
 }) {
   const name = author?.name ?? 'Unknown';
-  const role = author?.role ?? '';
+  const role = rolesText(author);
   const deleted = author?.isDeleted === true;
   return (
     <div className="flex items-center gap-2 text-sm text-neutral-500">

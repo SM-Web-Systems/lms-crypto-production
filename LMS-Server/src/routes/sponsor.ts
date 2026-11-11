@@ -1,3 +1,4 @@
+import { registerRewardFundingRoutes } from './rewardFunding.js';
 /**
  * sponsor.ts — Phase B: Sponsor-scoped endpoints.
  *
@@ -12,6 +13,7 @@ import type { AuthRequest } from '../types/index.js';
 import { query, queryOne } from '../config/database.js';
 import { sponsorCourseOptions, sponsorCourses, sponsorStudents, ownsSponsorCourse, csvCell } from '../services/sponsorPortalService.js';
 import { getSpendingReport } from '../services/cohortService.js';
+import { getCourseProgress } from '../services/courseCompletionService.js';
 import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 import {
@@ -30,6 +32,7 @@ import {
 import { RewardError } from '../services/rewards/rewardErrors.js';
 
 const router = Router();
+registerRewardFundingRoutes(router, '/sponsor');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function parseSponsorDateRange(req: AuthRequest, res: Response): {from:string|null;to:string|null} | 'error' {
@@ -138,15 +141,30 @@ router.get(
          sc.id AS cohort_id,
          sc.name AS cohort_name,
          (SELECT COUNT(*) FROM cohort_members cm WHERE cm.cohort_id = sc.id) AS member_count,
+         0 AS completed_count,
          (SELECT COUNT(*) FROM cohort_members cm
-          WHERE cm.cohort_id = sc.id AND cm.application_id IS NOT NULL) AS completed_count,
-         (SELECT COUNT(*) FROM cohort_members cm
-          JOIN course_nft_applications cna ON cna.id = cm.application_id
-          WHERE cm.cohort_id = sc.id AND cna.status = 'minted') AS certificate_count
+          WHERE cm.cohort_id = sc.id AND (
+            EXISTS (SELECT 1 FROM certificate_badges b WHERE b.user_id=cm.user_id AND b.course_id=sc.course_id)
+            OR EXISTS (SELECT 1 FROM nft_credentials n WHERE n.user_id=cm.user_id AND n.course_id=sc.course_id AND n.mint_status='minted')
+          )) AS certificate_count
        FROM sponsor_cohorts sc
        WHERE sc.sponsor_user_id = ?${dateClause}`,
       params,
     );
+
+    // Match cohort details' configured completion gate. Applications are a
+    // separate workflow and neither prove nor preclude learning completion.
+    const members = query<{ cohort_id: string; user_id: string; course_id: string }>(
+      `SELECT cm.cohort_id,cm.user_id,sc.course_id FROM cohort_members cm
+       JOIN sponsor_cohorts sc ON sc.id=cm.cohort_id WHERE sc.sponsor_user_id=?${dateClause}`, params);
+    const completion = new Map<string, boolean>();
+    const completedByCohort = new Map<string, number>();
+    for (const member of members) {
+      const key = JSON.stringify([member.user_id, member.course_id]);
+      if (!completion.has(key)) completion.set(key, getCourseProgress(member.user_id, member.course_id).meetsAllRequirements);
+      if (completion.get(key)) completedByCohort.set(member.cohort_id, (completedByCohort.get(member.cohort_id) ?? 0) + 1);
+    }
+    for (const row of stats) row.completed_count = completedByCohort.get(row.cohort_id) ?? 0;
 
     const totalMembers = stats.reduce((sum, s) => sum + s.member_count, 0);
     const totalCompleted = stats.reduce((sum, s) => sum + s.completed_count, 0);
@@ -278,7 +296,7 @@ router.post(
       const reward = await fundRewardAsync(
         req.params.id,
         req.user!.userId,
-        { type: req.body.sourceType, reference: req.body.reference },
+        { type: req.body.sourceType, reference: req.body.reference, intentId: req.body.intentId },
         req.body.idempotencyKey,
       );
       res.json({ success: true, data: reward });

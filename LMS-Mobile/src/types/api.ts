@@ -1,7 +1,7 @@
 // The API supplies effective workspaces and permissions independently of the legacy role.
 import type { User as WebUser } from '../../../LMS-Frontend/src/types/api';
 export type { Workspace } from '../../../LMS-Frontend/src/types/api';
-export type UserRole = WebUser['role'];
+export type { RbacRoleName, RoleSummary } from '../../../LMS-Frontend/src/types/api';
 export interface User extends Omit<WebUser, 'walletAddress' | 'walletLinkingStatus'> {
   walletAddress?: WebUser['walletAddress'];
   walletLinkingStatus?: WebUser['walletLinkingStatus'];

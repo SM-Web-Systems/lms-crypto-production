@@ -8,7 +8,7 @@
  * AUTH03-02  Sponsor A does NOT see Sponsor B's cohorts in list
  * AUTH03-03  Sponsor A can view own cohort detail
  * AUTH03-04  Sponsor A cannot view Sponsor B's cohort detail → 403
- * AUTH03-05  Sponsor A can add members to own cohort
+ * AUTH03-05  Sponsor A cannot grant themselves access by adding members
  * AUTH03-06  Sponsor A cannot add members to Sponsor B's cohort → 403
  * AUTH03-07  Sponsor A can remove member from own cohort
  * AUTH03-08  Sponsor A cannot remove member from Sponsor B's cohort → 403
@@ -28,7 +28,7 @@
  * AUTH03-22  Unauthenticated request returns 401
  * AUTH03-23  Student without cohort.manage gets 403
  * AUTH03-24  Sponsor A can view own cohort status-log
- * AUTH03-25  Sponsor A can send invites to own cohort
+ * AUTH03-25  Administrator can invite learners to a sponsor cohort
  * AUTH03-26  Sponsor A can send reminders for own cohort
  */
 
@@ -204,15 +204,30 @@ describe('AUTH-03: Sponsor Cohort Ownership', () => {
 
   // ─── Member Management ─────────────────────────────────────────────
 
-  it('AUTH03-05: Sponsor A can add members to own cohort', async () => {
-    const newStudent = seedUser('student', 'new-member');
-    const res = await request(app)
-      .post(`/api/v1/admin/cohorts/${cohortA}/members`)
-      .set('Authorization', `Bearer ${tokenA}`)
-      .send({ userIds: [newStudent.userId] });
+  it.each(['create', 'add', 'invite'])('blocks sponsor roster expansion via %s before delegated data becomes visible', async method => {
+    const paymentId = uuidv4();
+    db.prepare(`INSERT INTO payments(id,user_id,course_id,amount_cents,currency,payment_method,status)
+      VALUES (?,?,?,5000,'USD','manual','confirmed')`).run(paymentId, studentB1.userId, courseId);
+    const authorization = 'Bearer ' + tokenA;
+    const receipt = '/api/v1/payments/' + paymentId + '/receipt';
+    const before = await request(app).get(receipt).set('Authorization', authorization);
+    expect(before.status).toBe(403);
 
-    expect(res.status).toBe(200);
-    expect(res.body.data.added).toBe(1);
+    const paths = {
+      create: { path: '/api/v1/admin/cohorts', body: { name: 'Unauthorized roster', courseId, memberUserIds: [studentB1.userId] } },
+      add: { path: '/api/v1/admin/cohorts/' + cohortA + '/members', body: { userIds: [studentB1.userId] } },
+      invite: { path: '/api/v1/admin/cohorts/' + cohortA + '/invite', body: { emails: [studentB1.email] } },
+    };
+    const attempt = paths[method as keyof typeof paths];
+    const result = await request(app).post(attempt.path).set('Authorization', authorization).send(attempt.body);
+    const after = await request(app).get(receipt).set('Authorization', authorization);
+    expect({ mutation: result.status, receipt: after.status }).toEqual({ mutation: 403, receipt: 403 });
+    expect(db.prepare('SELECT 1 FROM cohort_members WHERE cohort_id = ? AND user_id = ?')
+      .get(cohortA, studentB1.userId)).toBeUndefined();
+    expect(db.prepare('SELECT 1 FROM sponsor_cohorts WHERE name = ?').get('Unauthorized roster')).toBeUndefined();
+    const roster = await request(app).get('/api/v1/sponsor/courses/export').set('Authorization', authorization);
+    expect(roster.status).toBe(200);
+    expect(roster.text).not.toContain(studentB1.email);
   });
 
   it('AUTH03-06: Sponsor A cannot add members to Sponsor B cohort → 403', async () => {
@@ -410,10 +425,10 @@ describe('AUTH-03: Sponsor Cohort Ownership', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('AUTH03-25: Sponsor A can send invites to own cohort', async () => {
+  it('AUTH03-25: Administrator can invite learners to a sponsor cohort', async () => {
     const res = await request(app)
       .post(`/api/v1/admin/cohorts/${cohortA}/invite`)
-      .set('Authorization', `Bearer ${tokenA}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ emails: ['newstudent@test.com'] });
 
     expect(res.status).toBe(200);

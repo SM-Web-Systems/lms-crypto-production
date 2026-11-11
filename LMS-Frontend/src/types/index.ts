@@ -1,12 +1,10 @@
-import type { UserRole } from './api';
-export type { UserRole };
+import type { RolePresentation } from '../utils/rolePresentation';
 
-export interface User {
+export interface User extends RolePresentation {
   id: string;
   name: string;
   email: string;
   walletAddress: string;
-  role: UserRole;
 }
 
 export interface Student {

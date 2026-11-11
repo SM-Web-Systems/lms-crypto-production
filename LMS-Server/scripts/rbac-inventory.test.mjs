@@ -17,6 +17,9 @@ function fixture(run) {
   const db = new Database(file);
   try {
     db.exec(schema);
+    // This suite inventories pre-cutover snapshots; runtime canonical schema has advanced.
+    db.exec('DROP TABLE authorization_migrations; DROP TRIGGER trg_auto_assign_user_role');
+    db.exec(readFileSync(new URL('../database/migrations/rbac-only-v1-legacy-trigger.sql',import.meta.url),'utf8'));
     db.prepare("INSERT INTO roles(id,name,label,is_system) VALUES('role_student','student','Student',1),('role_instructor','instructor','Instructor',1),('role_admin','admin','Admin',1),('role_sponsor','sponsor','Sponsor',1)").run();
     db.exec("INSERT INTO permissions(id,name,category,label) VALUES('submit','course.submit','course','Submit'),('manage','course.manage','course','Manage'); INSERT INTO role_permissions(role_id,permission_id) VALUES('role_student','submit'),('role_instructor','manage')");
     return run({db,file,directory, inspect:() => inspectSnapshot({database:file,snapshot:true,deployedSha:SHA})});
@@ -94,6 +97,23 @@ test('classifies canonical administrators, custom roles, learner profiles, multi
     assert.equal(summary.rbac.accountFindingCounts.explicit_administrator,1);
     assert.equal(summary.rbac.accountFindingCounts.multi_role_accounts,1);
     assert.equal(summary.rbac.customRoleCount,1);
+  });
+});
+
+test('lists otherwise unflagged multi-role and custom-grant accounts in the private review',()=>{
+  fixture(({db,file,inspect})=>{
+    db.exec("INSERT INTO roles(id,name,label) VALUES('delegated','delegated-reader','Delegated reader')");
+    user(db,'private-multi','student',['role_student','delegated'],1);
+    profile(db,'private-multi');
+    const before=readFileSync(file);
+    const {summary,details}=inspect();
+    assert.deepEqual(readFileSync(file),before);
+    assert.equal(summary.rbac.accountFindingCounts.multi_role_accounts,1);
+    assert.equal(summary.rbac.accountFindingCounts.custom_role_assignment,1);
+    assert.ok(!JSON.stringify(summary).includes('private-multi'));
+    assert.deepEqual(details.accounts.map(({userId,flags,scopeObservations})=>({userId,flags,scopeObservations})),[
+      {userId:'private-multi',flags:['multi_role_accounts','custom_role_assignment'],scopeObservations:[]},
+    ]);
   });
 });
 
@@ -192,5 +212,112 @@ test('CLI validates arguments, does not load .env, refuses output overwrite and 
     assert.throws(()=>parseArguments(['--database']),/Missing or duplicate/);
     assert.throws(()=>parseArguments(['--snapshot','--snapshot']),/Duplicate/);
     assert.throws(()=>parseArguments(['--database','x','--database','y']),/Missing or duplicate/);
+  });
+});
+
+test('CLI writes a pending private worksheet bound to the expected snapshot and covers all findings', () => {
+  fixture(({ db, file, directory, inspect }) => {
+    const userId = 'PRIVATE-REVIEW-USER';
+    user(db, userId, 'student', ['role_student', 'role_admin'], 1);
+    db.pragma('foreign_keys=OFF');
+    profile(db, 'PRIVATE-MISSING-PARENT');
+    db.prepare('UPDATE students SET rowid = ? WHERE user_id = ?').run(9007199254740993n, 'PRIVATE-MISSING-PARENT');
+    const { summary, details } = inspect();
+    const before = readFileSync(file);
+    const target = path.join(directory, 'review.json');
+    const invoke = extra => spawnSync(process.execPath, [
+      script, '--snapshot', '--database', file, '--deployed-sha', SHA, '--review-output', target, ...extra,
+    ], { encoding: 'utf8' });
+    const missing = invoke([]);
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /requires the previously recorded/);
+    const mismatch = invoke(['--expected-snapshot-sha', '0'.repeat(64)]);
+    assert.equal(mismatch.status, 2);
+    assert.match(mismatch.stderr, /does not match/);
+    assert.ok(!readdirSync(directory).includes('review.json'));
+
+    const expected = ['--expected-snapshot-sha', summary.snapshotSha256];
+    const generated = invoke(expected);
+    assert.equal(generated.status, 0, generated.stderr);
+    assert.ok(!generated.stdout.includes(userId));
+    assert.equal(JSON.parse(generated.stdout).gates.migrationReady, false);
+    const worksheetBytes = readFileSync(target);
+    const review = JSON.parse(worksheetBytes);
+    assert.equal(review.status, 'pending');
+    assert.equal(review.acceptCurrentRbacAsAuthoritative, false);
+    assert.equal(review.snapshotSha256, summary.snapshotSha256);
+    assert.equal(review.schemaFingerprintSha256, summary.schema.fingerprintSha256);
+    assert.equal(review.deployedSha, SHA);
+    const pending = { decision: null, rationale: null };
+    assert.deepEqual(review.accountDecisions, [{
+      userId, currentRoleIds: details.accounts[0].roleIds,
+      flags: details.accounts[0].flags, scopeObservations: [], ...pending,
+    }]);
+    assert.deepEqual(review.learnerProfileDecisions, [{ userId, flags: ['learner_profile_missing'], ...pending }]);
+    assert.equal(details.foreignKeyViolations[0].rowid, '9007199254740993');
+    assert.deepEqual(review.integrityDecisions, [
+      ...details.catalogIssues.map(reference => ({ kind: 'catalog_issue', reference, ...pending })),
+      { kind: 'foreign_key_violation', reference: details.foreignKeyViolations[0], ...pending },
+    ]);
+    for (const secret of ['PRIVATE-NAME', 'private.example.test', 'PRIVATE-PASSWORD-HASH']) {
+      assert.ok(!worksheetBytes.includes(secret));
+    }
+    if (process.platform !== 'win32') assert.equal(statSync(target).mode & 0o777, 0o600);
+    assert.equal(invoke(expected).status, 2);
+    assert.deepEqual(readFileSync(target), worksheetBytes);
+
+    const verify = (...extra) => spawnSync(process.execPath, [
+      script, '--snapshot', '--database', file, '--deployed-sha', SHA, '--verify-review', target, ...extra,
+    ], { encoding: 'utf8' });
+    assert.match(verify().stderr, /requires --expected-snapshot-sha/);
+    assert.match(verify(...expected, '--details-output', path.join(directory, 'not-written.json')).stderr, /cannot be combined/);
+    assert.ok(!readdirSync(directory).includes('not-written.json'));
+    assert.match(verify(...expected).stderr, /Review is incomplete/);
+
+    Object.assign(review, {
+      status: 'reviewed',
+      reviewReference: 'PRIVATE-REVIEW-REFERENCE',
+      reviewer: 'PRIVATE-REVIEWER',
+      reviewedAt: new Date().toISOString(),
+      acceptCurrentRbacAsAuthoritative: true,
+      installedClientEvidence: 'PRIVATE-DEVICE-EVIDENCE',
+      legacyEndpointUsageEvidence: 'PRIVATE-ENDPOINT-EVIDENCE',
+    });
+    for (const group of [review.accountDecisions, review.learnerProfileDecisions, review.integrityDecisions]) {
+      for (const row of group) Object.assign(row, { decision: 'reviewed', rationale: 'PRIVATE-DECISION' });
+    }
+    const completed = JSON.stringify(review);
+    writeFileSync(target, completed);
+    const verified = verify(...expected);
+    assert.equal(verified.status, 0, verified.stderr);
+    const receipt = JSON.parse(verified.stdout);
+    assert.equal(receipt.status, 'REVIEW_RECORD_VERIFIED');
+    assert.match(receipt.reviewSha256, /^[a-f0-9]{64}$/);
+    assert.equal(receipt.migrationReady, false);
+    assert.deepEqual(receipt.findingCounts, {
+      accountDecisions: 1,
+      learnerProfileDecisions: 1,
+      integrityDecisions: review.integrityDecisions.length,
+    });
+    assert.ok(!verified.stdout.includes('PRIVATE-'));
+    assert.equal(readFileSync(target, 'utf8'), completed);
+
+    for (const [mutate, error] of [
+      [value => { value.deployedSha = '0'.repeat(40); }, /Review binding does not match/],
+      [value => { value.legacyEndpointUsageEvidence = ''; }, /Review is incomplete/],
+      [value => { value.learnerProfileDecisions[0].rationale = null; }, /decision and rationale/],
+      [value => { value.accountDecisions[0].currentRoleIds.pop(); }, /Review finding rows do not match/],
+      [value => { value.integrityDecisions.pop(); }, /Review finding rows do not match/],
+    ]) {
+      const changed = JSON.parse(completed);
+      mutate(changed);
+      writeFileSync(target, JSON.stringify(changed));
+      const refused = verify(...expected);
+      assert.equal(refused.status, 2);
+      assert.equal(refused.stdout, '');
+      assert.match(refused.stderr, error);
+      assert.ok(!refused.stderr.includes('PRIVATE-'));
+    }
+    assert.deepEqual(readFileSync(file), before);
   });
 });

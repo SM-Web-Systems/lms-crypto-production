@@ -373,6 +373,16 @@ describe('CohortManagement', () => {
     });
   });
 
+  it('directs sponsors to an administrator for roster additions', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({ cohort: sampleCohort, members: [] });
+    render(<CohortManagement courses={sampleCourses} ownerOnly />);
+    await user.click(await screen.findByText('Acme Cohort'));
+
+    expect(await screen.findByText(/ask an lms administrator to add or invite learners/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('invite-form')).not.toBeInTheDocument();
+  });
+
   // SP-F2: Invite button calls bulkInviteToCohort
   it('SP-F2 — invite button calls bulkInviteToCohort with parsed emails', async () => {
     const user = userEvent.setup();

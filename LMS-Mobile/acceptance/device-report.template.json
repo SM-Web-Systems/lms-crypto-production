@@ -22,7 +22,9 @@
         "learning_content": {"status": "not_run", "evidence": ""},
         "learning_progress": {"status": "not_run", "evidence": ""},
         "account_controls": {"status": "not_run", "evidence": ""},
-        "documents_accessibility": {"status": "not_run", "evidence": ""}
+        "documents_accessibility": {"status": "not_run", "evidence": ""},
+        "push_notifications": {"status": "not_run", "evidence": ""},
+        "offline_learning": {"status": "not_run", "evidence": ""}
       }
     },
     {
@@ -45,7 +47,9 @@
         "learning_content": {"status": "not_run", "evidence": ""},
         "learning_progress": {"status": "not_run", "evidence": ""},
         "account_controls": {"status": "not_run", "evidence": ""},
-        "documents_accessibility": {"status": "not_run", "evidence": ""}
+        "documents_accessibility": {"status": "not_run", "evidence": ""},
+        "push_notifications": {"status": "not_run", "evidence": ""},
+        "offline_learning": {"status": "not_run", "evidence": ""}
       }
     }
   ]

@@ -1,10 +1,9 @@
-// Forum: questions and class discussions (open to students and admins)
+import type { RolePresentation } from '../utils/rolePresentation';
 
-export interface ForumAuthor {
+export interface ForumAuthor extends RolePresentation {
   id: string;
   name: string;
   email: string | null;
-  role: 'student' | 'admin';
   isDeleted?: boolean;
 }
 

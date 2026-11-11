@@ -1,3 +1,4 @@
+import { awardSuperStudentIfEligible } from '../services/earnedRoleService.js';
 /**
  * Lesson completion routes.
  * Mounted at /api/v1 (full paths include /courses/:courseId/lessons/...).
@@ -22,6 +23,7 @@ import { findSectionForItem, parseFlatSections } from '../utils/courseHelpers.js
 import { createNotification } from '../services/notificationService.js';
 import { produceOutboxEvent, processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
 import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
+import { OfflineLearningError, inspectOfflineLease, issueOfflineLease, syncOfflineProgress } from '../services/offlineLearningService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -29,57 +31,129 @@ import logger from '../utils/logger.js';
  * After each lesson completion, check if the user has completed enough courses
  * to earn the super-student role. Threshold is tenant-configurable (default 3).
  */
-function checkSuperStudentPromotion(userId: string): void {
-  try {
-    // Already promoted? Skip.
-    const alreadyPromoted = queryOne<{ user_id: string }>(
-      "SELECT user_id FROM user_roles WHERE user_id = ? AND role_id = 'role_supporter_student'",
-      [userId],
-    );
-    if (alreadyPromoted) return;
-
-    // Count distinct courses with at least one completed lesson
-    const result = queryOne<{ cnt: number }>(
-      `SELECT COUNT(DISTINCT course_id) as cnt
-       FROM lesson_completions
-       WHERE user_id = ? AND completed_at IS NOT NULL`,
-      [userId],
-    );
-    const completedCourses = result?.cnt ?? 0;
-
-    // Get threshold: check tenant_settings for the user's tenant, default 3
-    let threshold = 3;
-    const tenantRow = queryOne<{ super_student_threshold: number }>(
-      `SELECT ts.super_student_threshold
-       FROM tenant_settings ts
-       JOIN tenant_users tu ON ts.tenant_id = tu.tenant_id
-       WHERE tu.user_id = ?`,
-      [userId],
-    );
-    if (tenantRow) {
-      threshold = tenantRow.super_student_threshold;
-    }
-
-    if (completedCourses >= threshold) {
-      // Promote to super-student
-      execute(
-        'INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)',
-        [userId, 'role_supporter_student'],
-      );
-
-      // Create notification
-      execute(
-        `INSERT INTO notifications (id, user_id, type, title, body)
-         VALUES (?, ?, 'system', 'Super Student Promotion', 'Congratulations! You''ve been promoted to Super Student!')`,
-        [uuidv4(), userId],
-      );
-    }
-  } catch {
-    // Best-effort: don't fail the lesson completion if promotion check fails
-  }
+function checkSuperStudentPromotion(userId:string):void {
+  try { awardSuperStudentIfEligible(userId); }
+  catch { /* Award transaction rolled back; preserve the successful lesson write. */ }
 }
 
 const router = Router();
+
+function completeOwnLesson(userId: string, courseId: string, itemId: string, sectionId: string): boolean {
+  const changed = execute(
+    `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+     VALUES (?, ?, ?, ?, ?, ?, 100)
+     ON CONFLICT (user_id, course_id, item_id)
+     DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
+     WHERE completed_at IS NULL`,
+    [uuidv4(), userId, courseId, itemId, sectionId, userId],
+  );
+  // The caller commits completion and its reward event in the same transaction.
+  if (isCourseCompleteForReward(userId, courseId)) produceOutboxEvent('course_completion', courseId, userId);
+  return changed > 0;
+}
+
+function saveOwnLessonProgress(
+  userId: string, courseId: string, itemId: string, sectionId: string,
+  positionSeconds: number, progressPercent: number, offline = false,
+) {
+  execute(
+    `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, completed_at, progress_pct, last_position_s)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+     ON CONFLICT (user_id, course_id, item_id)
+     DO UPDATE SET progress_pct = CASE WHEN completed_at IS NOT NULL THEN 100
+       ELSE MAX(COALESCE(progress_pct, 0), excluded.progress_pct) END,
+       last_position_s = CASE WHEN ? THEN MAX(COALESCE(last_position_s, 0), excluded.last_position_s)
+         ELSE excluded.last_position_s END`,
+    [uuidv4(), userId, courseId, itemId, sectionId, userId, progressPercent, positionSeconds, Number(offline)],
+  );
+}
+
+function afterOwnLessonCompletion(courseId: string, callerId: string, sectionsJson: string) {
+  // Phase E4: check super-student auto-unlock (best-effort, outside transaction)
+  checkSuperStudentPromotion(callerId);
+
+  // Process pending outbox events (retryable, outside transaction)
+  try {
+    processPendingEvents();
+  } catch (err) {
+    logger.error({ module: 'reward-eligibility', err, courseId, callerId }, 'Reward event processing failed');
+  }
+
+  // F6: Notify teachers when a class member completes an entire course (best-effort)
+  try {
+    // Count total items in the course from sections JSON
+    let totalItems = 0;
+    try {
+      const sections = parseFlatSections(sectionsJson || '[]');
+      for (const section of sections) {
+        totalItems += section.items.length;
+      }
+    } catch { /* invalid JSON */ }
+
+    // Count completed items for this user+course
+    const completedRow = queryOne<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt FROM lesson_completions
+       WHERE user_id = ? AND course_id = ? AND completed_at IS NOT NULL`,
+      [callerId, courseId],
+    );
+    const completedItems = completedRow?.cnt ?? 0;
+
+    // Only fire the notification when the student has completed ALL items in the course
+    if (totalItems > 0 && completedItems >= totalItems) {
+      const memberships = query<{ group_id: string; owner_user_id: string }>(
+        `SELECT ug.id as group_id, ug.owner_user_id FROM user_groups ug
+         JOIN user_group_members ugm ON ug.id = ugm.group_id
+         WHERE ugm.user_id = ? AND ug.group_type = 'class'`,
+        [callerId],
+      );
+      const studentRow = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [callerId]);
+      for (const membership of memberships) {
+        createNotification({
+          userId: membership.owner_user_id,
+          type: 'class_completion',
+          title: 'Class Member Completed Course',
+          body: `${studentRow?.name ?? 'A student'} completed the course in your class.`,
+        });
+      }
+    }
+  } catch { /* best-effort */ }
+}
+
+function offlineResponse(res: Response, work: () => unknown) {
+  res.set('Cache-Control', 'no-store');
+  try {
+    res.json({success: true, data: work()});
+  } catch (error) {
+    if (!(error instanceof OfflineLearningError)) throw error;
+    res.status(error.status).json({success: false, error: {code: error.code, message: error.message}});
+  }
+}
+
+router.post('/courses/:courseId/offline-lease', authenticate, (req: AuthRequest, res: Response) => {
+  offlineResponse(res, () => issueOfflineLease(req.user!, req.headers.authorization!.slice(7), req.params.courseId));
+});
+
+router.get('/courses/:courseId/offline-lease/:leaseId', authenticate, (req: AuthRequest, res: Response) => {
+  offlineResponse(res, () => inspectOfflineLease(
+    req.user!, req.headers.authorization!.slice(7), req.params.courseId, req.params.leaseId,
+  ));
+});
+
+router.put('/courses/:courseId/offline-progress', authenticate, (req: AuthRequest, res: Response) => {
+  const actor = req.user!;
+  const courseId = req.params.courseId;
+  offlineResponse(res, () => {
+    const result = syncOfflineProgress(actor, req.headers.authorization!.slice(7), courseId, req.body,
+      (sectionId, operation) => {
+        if (operation.kind === 'complete') return completeOwnLesson(actor.userId, courseId, operation.itemId, sectionId);
+        saveOwnLessonProgress(actor.userId, courseId, operation.itemId, sectionId,
+          operation.positionSeconds, operation.progressPercent, true);
+        return false;
+      });
+    if (result.completed) afterOwnLessonCompletion(courseId, actor.userId, result.sections);
+    return result.progress;
+  });
+});
 
 // ─── POST /courses/:courseId/lessons/:itemId/complete (self-mark) ──────────────
 /**
@@ -144,25 +218,7 @@ router.post(
       return;
     }
 
-    // P1.3: Atomic transaction — primary write + outbox event commit together.
-    // W04: course_completion event is only produced when isCourseCompleteForReward
-    // returns true AFTER the lesson write, ensuring the outbox event reflects
-    // genuine completion and not a premature per-lesson trigger.
-    const atomicWrite = db.transaction(() => {
-      execute(
-        `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
-         VALUES (?, ?, ?, ?, ?, ?, 100)
-         ON CONFLICT (user_id, course_id, item_id)
-         DO UPDATE SET completed_at = datetime('now'), marked_by = excluded.marked_by, progress_pct = 100
-         WHERE completed_at IS NULL`,
-        [uuidv4(), callerId, courseId, itemId, sectionId, callerId]
-      );
-
-      // W04: Only emit course_completion when the course is genuinely complete.
-      if (isCourseCompleteForReward(callerId, courseId)) {
-        produceOutboxEvent('course_completion', courseId, callerId);
-      }
-    });
+    const atomicWrite = db.transaction(() => completeOwnLesson(callerId, courseId, itemId, sectionId));
 
     try {
       atomicWrite();
@@ -175,54 +231,7 @@ router.post(
       return;
     }
 
-    // Phase E4: check super-student auto-unlock (best-effort, outside transaction)
-    checkSuperStudentPromotion(callerId);
-
-    // Process pending outbox events (retryable, outside transaction)
-    try {
-      processPendingEvents();
-    } catch (err) {
-      logger.error({ module: 'reward-eligibility', err, courseId, callerId }, 'Reward event processing failed');
-    }
-
-    // F6: Notify teachers when a class member completes an entire course (best-effort)
-    try {
-      // Count total items in the course from sections JSON
-      let totalItems = 0;
-      try {
-        const sections = parseFlatSections(course.sections || '[]');
-        for (const section of sections) {
-          totalItems += section.items.length;
-        }
-      } catch { /* invalid JSON */ }
-
-      // Count completed items for this user+course
-      const completedRow = queryOne<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM lesson_completions
-         WHERE user_id = ? AND course_id = ? AND completed_at IS NOT NULL`,
-        [callerId, courseId],
-      );
-      const completedItems = completedRow?.cnt ?? 0;
-
-      // Only fire the notification when the student has completed ALL items in the course
-      if (totalItems > 0 && completedItems >= totalItems) {
-        const memberships = query<{ group_id: string; owner_user_id: string }>(
-          `SELECT ug.id as group_id, ug.owner_user_id FROM user_groups ug
-           JOIN user_group_members ugm ON ug.id = ugm.group_id
-           WHERE ugm.user_id = ? AND ug.group_type = 'class'`,
-          [callerId],
-        );
-        const studentRow = queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [callerId]);
-        for (const membership of memberships) {
-          createNotification({
-            userId: membership.owner_user_id,
-            type: 'class_completion',
-            title: 'Class Member Completed Course',
-            body: `${studentRow?.name ?? 'A student'} completed the course in your class.`,
-          });
-        }
-      }
-    } catch { /* best-effort */ }
+    afterOwnLessonCompletion(courseId, callerId, course.sections);
 
     res.json({ success: true, data: { userId: callerId, courseId, itemId, sectionId } });
   }
@@ -412,15 +421,7 @@ router.put(
       return;
     }
 
-    execute(
-      `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, completed_at, progress_pct, last_position_s)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
-       ON CONFLICT (user_id, course_id, item_id)
-       DO UPDATE SET progress_pct = CASE WHEN completed_at IS NOT NULL THEN 100
-         ELSE MAX(COALESCE(progress_pct, 0), excluded.progress_pct) END,
-         last_position_s = excluded.last_position_s`,
-      [uuidv4(), callerId, courseId, itemId, sectionId, callerId, progressPercent, positionSeconds]
-    );
+    saveOwnLessonProgress(callerId, courseId, itemId, sectionId, positionSeconds, progressPercent);
 
     res.json({ success: true, data: { userId: callerId, courseId, itemId, progressPercent, positionSeconds } });
   }

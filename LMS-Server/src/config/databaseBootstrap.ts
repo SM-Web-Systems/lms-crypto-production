@@ -1,3 +1,8 @@
+import { fundingSchemaTables } from './rewardFundingSchema.js';
+import { pushSchemaTables } from './pushSchema.js';
+import { offlineLearningSchemaTables } from './offlineLearningSchema.js';
+import { paystackPaymentTables } from './paystackCheckoutSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,7 +57,7 @@ function validateKeys(db: SqliteDatabase, table: string, contract: ReturnType<ty
   }
 }
 const baseline = (expected.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
-  .map(({ name }) => ({ name, keys: keys(expected, name), columns: (expected.pragma(`table_info("${name}")`) as { name: string }[]).map(c => c.name) }));
+  .map(({ name }) => ({ name, ddl: (expected.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name) as {sql:string}).sql, keys: keys(expected, name), columns: (expected.pragma(`table_info("${name}")`) as { name: string }[]).map(c => c.name) }));
 const baselineTriggers = expected.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'").all() as {name:string;sql:string}[];
 expected.close();
 
@@ -62,7 +67,32 @@ function refuse(reason: string): never {
 
 export function validateDatabase(db: SqliteDatabase, afterMigrations = false, foreignKeyBaseline: ForeignKeyEvidence = new Set()): ForeignKeyEvidence {
   if (db.pragma('quick_check', { simple: true }) !== 'ok') refuse('integrity check failed');
+  // Existing databases require an operator-reviewed offline cutover, never an
+  // implicit startup grant/backfill or trigger repair.
+  const ledger = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='authorization_migrations'").get();
+  if (!ledger || !db.prepare("SELECT 1 FROM authorization_migrations WHERE id='rbac-only-v1'").get()
+    || (db.prepare('SELECT COUNT(*) AS total FROM authorization_migrations').get() as {total:number}).total !== 1) {
+    refuse('RBAC-only schema requires the reviewed offline rbac-cutover migration');
+  }
+  const expectedGuard = baselineTriggers.find(trigger => trigger.name === 'trg_auto_assign_user_role');
+  const actualGuard = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='trg_auto_assign_user_role'").get() as {sql:string}|undefined;
+  const normalizeGuard = (sql:string) => sql.replace(/\s+/g,' ').trim();
+  if (!expectedGuard || !actualGuard || normalizeGuard(actualGuard.sql) !== normalizeGuard(expectedGuard.sql)) refuse('missing or changed RBAC-only rollback fence');
+
   for (const table of baseline) {
+    // Funding, push and offline learning add empty tables without synthesizing historical evidence.
+    // Only a wholly absent new table is allowed before the additive migration;
+    // an existing partial/altered table must still satisfy its full contract.
+    if (!afterMigrations && additiveSchemaTables.includes(table.name)
+      && !db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table.name)) continue;
+    if (additiveSchemaTables.includes(table.name)) {
+      const actual = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table.name) as {sql:string} | undefined;
+      const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+      const feature = fundingSchemaTables.includes(table.name) ? 'funding'
+        : pushSchemaTables.includes(table.name) ? 'push'
+        : paystackPaymentTables.includes(table.name) ? 'card payments' : 'offline learning';
+      if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${feature} schema (${table.name})`);
+    }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
     validateKeys(db, table.name, table.keys, afterMigrations);
     for (const column of table.columns) {
