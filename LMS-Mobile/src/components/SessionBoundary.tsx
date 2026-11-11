@@ -17,10 +17,14 @@ export function SessionBoundary({children}:{children:ReactNode}) {
     <OfflineLearningPanel />
     <Button label="Sign out" variant="outline" onPress={()=>{void logout();}}/>
   </ScrollView></SafeAreaView>;
+  const notices = sessionError || storageWarning;
   return <View className="flex-1">
-    {sessionError ? <ErrorBanner message={sessionError} onRetry={()=>{void refresh();}}/> : null}
-    {storageWarning ? <Text accessibilityRole="alert" className="bg-amber-50 p-3 text-amber-900">{storageWarning}</Text> : null}
-    {storageWarning && !user ? <Button label="Retry clearing saved session" variant="outline" onPress={()=>{void logout();}}/> : null}
+    {/* These notices sit above the screen header, so they must clear the status bar themselves. */}
+    {notices ? <SafeAreaView edges={['top']} testID="session-notices">
+      {sessionError ? <ErrorBanner message={sessionError} onRetry={()=>{void refresh();}}/> : null}
+      {storageWarning ? <Text accessibilityRole="alert" className="bg-amber-50 p-3 text-amber-900">{storageWarning}</Text> : null}
+      {storageWarning && !user ? <Button label="Retry clearing saved session" variant="outline" onPress={()=>{void logout();}}/> : null}
+    </SafeAreaView> : null}
     {children}
   </View>;
 }
