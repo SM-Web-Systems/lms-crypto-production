@@ -11,6 +11,7 @@ import { OfflineLearningPanel } from '@/components/OfflineLearningPanel';
 import { getCourseWeeks, type Course, type CourseItem, type CourseSection } from '@/types/course';
 import { getErrorMessage } from '@/utils/apiError';
 import { brand } from '@/theme/colors';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CourseScreen() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -22,6 +23,7 @@ export default function CourseScreen() {
   const learning = useLessonProgress(selectedCourse?.id);
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<{ section: CourseSection; item: CourseItem } | null>(null);
+  const { sessionError } = useAuth();
 
   const load = useCallback(async () => {
     setError(null);
@@ -39,6 +41,20 @@ export default function CourseScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // The session banner already says when the server is unreachable; don't repeat it on this screen,
+  // and reload once the session reconnects so the course list does not stay stale.
+  const courseError = error && error !== sessionError ? error : null;
+  const progressError = learning.error && learning.error !== sessionError ? learning.error : null;
+  const [hadSessionError, setHadSessionError] = useState(false);
+  useEffect(() => {
+    if (sessionError) setHadSessionError(true);
+    else if (hadSessionError) {
+      setHadSessionError(false);
+      if (error) void load();
+      if (learning.error) void learning.refresh();
+    }
+  }, [sessionError, hadSessionError, error, load, learning]);
 
   const weeks = useMemo(() => (selectedCourse ? getCourseWeeks(selectedCourse) : []), [selectedCourse]);
   const activeWeek = weeks.find((w) => w.id === selectedWeekId) ?? weeks[0] ?? null;
@@ -61,9 +77,9 @@ export default function CourseScreen() {
   if (selectedMaterial && selectedCourse) {
     return (
       <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4">
-        {learning.error ? <ErrorBanner message={learning.error} onRetry={learning.refresh} /> : null}
+        {progressError ? <ErrorBanner message={progressError} onRetry={learning.refresh} /> : null}
         {learning.loading ? <>
-          {!learning.error ? <LoadingView message="Loading lesson progress…" /> : null}
+          {!progressError && !learning.error ? <LoadingView message="Loading lesson progress…" /> : null}
           <Pressable onPress={() => setSelectedMaterial(null)}><Text>Back to materials</Text></Pressable>
         </> : <MaterialViewer
           key={`${selectedCourse.id}:${selectedMaterial.item.id}`}
@@ -86,8 +102,8 @@ export default function CourseScreen() {
       className="flex-1 bg-neutral-50"
       contentContainerClassName="p-4 gap-4 pb-8"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.accent.teal} />}>
-      {error ? <ErrorBanner message={error} onRetry={load} /> : null}
-      {learning.error ? <ErrorBanner message={learning.error} onRetry={learning.refresh} /> : null}
+      {courseError ? <ErrorBanner message={courseError} onRetry={load} /> : null}
+      {progressError ? <ErrorBanner message={progressError} onRetry={learning.refresh} /> : null}
       <OfflineLearningPanel courseId={selectedCourse?.id} />
 
       {!selectedCourse ? (
