@@ -55,7 +55,8 @@ function parseSections(sectionsJson: string): CourseSection[] {
 function ensurePdfFileUrls(sections: CourseSection[]): CourseSection[] {
   return sections.map((sec) => ({
     ...sec,
-    items: sec.items.map((item) => {
+    // A malformed stored entry must not make the whole course unreadable.
+    items: (Array.isArray(sec.items) ? sec.items : []).map((item) => {
       if (item.type === 'pdf' && item.documentId && !item.fileUrl) {
         return { ...item, fileUrl: getDocumentFileUrl(item.documentId) };
       }
@@ -137,6 +138,27 @@ function normalizeCourseCode(v: string): string {
 }
 
 /** Resolve sections/weeks from body and return the JSON string to store in the DB column. */
+/**
+ * Stored course content is either a list of weeks (each with `sections`) or a flat list of
+ * sections (each with `items`). Reading picks the format from the first entry, so a mixed or
+ * malformed list would be saved and then misread. Reject it before saving.
+ */
+function sectionsShapeErrors(sections: unknown, field: string): Array<{ field: string; message: string }> {
+  if (!Array.isArray(sections) || sections.length === 0) return [];
+  const kind = (entry: unknown) => {
+    const e = entry as Record<string, unknown> | null;
+    if (!e || typeof e !== 'object') return 'invalid';
+    if (Array.isArray(e.sections)) return 'week';
+    if (e.items === undefined || Array.isArray(e.items)) return 'section';
+    return 'invalid';
+  };
+  const kinds = new Set(sections.map(kind));
+  if (kinds.has('invalid')) return [{ field, message: `${field} entries must be objects with an items array or a sections array` }];
+  if (kinds.size > 1) return [{ field, message: `${field} must be all weeks (with sections) or all sections (with items), not a mix` }];
+  if (field === 'weeks' && kinds.has('section')) return [{ field, message: 'weeks entries must each have a sections array' }];
+  return [];
+}
+
 function resolveStoredSectionsJson(o: Record<string, unknown>): { storedJson: string; flatSections: CourseSection[] } {
   const weeks = o?.weeks;
   const sections = o?.sections;
@@ -285,6 +307,7 @@ export async function updateCourse(req: AuthRequest, res: Response, next: NextFu
     if (o.weeks !== undefined && !Array.isArray(o.weeks)) {
       errors.push({ field: 'weeks', message: 'weeks must be an array' });
     }
+    errors.push(...sectionsShapeErrors(o.sections, 'sections'), ...sectionsShapeErrors(o.weeks, 'weeks'));
     if (errors.length > 0) {
       throw new AppError('Validation failed', 400, ErrorCodes.VALIDATION_ERROR, errors);
     }
