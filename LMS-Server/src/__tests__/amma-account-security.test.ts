@@ -60,6 +60,41 @@ function expectError(response: request.Response, code: string, mobile = false) {
 }
 
 describe('Amma identity and explicit linking policy', () => {
+  it('does not match an existing mainnet identity with the same testnet user ID', async () => {
+    await localUser(identity.userId);
+    const before = row();
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
+    vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
+    vi.stubEnv('AMMA_SSO_ISSUER', 'https://wallet-test.example.invalid');
+    vi.mocked(sso.verifyAssertion).mockResolvedValue({...identity, mainnetWalletAddress: null, testnetWalletAddress: nextAddress});
+    expectError(await callback(), 'identity_conflict');
+    expect(row()).toEqual(before);
+  });
+  it('creates a testnet-scoped identity with a validated testnet address', async () => {
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
+    vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
+    vi.stubEnv('AMMA_SSO_ISSUER', 'https://wallet-test.example.invalid');
+    vi.mocked(sso.verifyAssertion).mockResolvedValue({...identity, mainnetWalletAddress: null, testnetWalletAddress: nextAddress});
+    expect((await callback()).headers.location).toContain('/sso-callback#token=');
+    expect(queryOne('SELECT ammawallet_issuer, wallet_network, walletAddress FROM users WHERE email = ?', [email])).toEqual({
+      ammawallet_issuer: 'https://wallet-test.example.invalid', wallet_network: 'testnet', walletAddress: nextAddress,
+    });
+  });
+  it('rejects testnet assertions without the explicit testnet address field', async () => {
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
+    vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
+    vi.stubEnv('AMMA_SSO_ISSUER', 'https://wallet-test.example.invalid');
+    vi.mocked(sso.verifyAssertion).mockResolvedValue({...identity, mainnetWalletAddress: null});
+    expectError(await callback(), 'verify_failed');
+  });
+  it('refuses testnet SSO without a matching HTTPS issuer', () => {
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
+    vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
+    for (const issuer of ['', 'http://wallet-test.example.invalid', 'https://other.example.invalid']) {
+      vi.stubEnv('AMMA_SSO_ISSUER', issuer);
+      expect(() => sso.parseSsoIdentity({...identity, mainnetWalletAddress: null, testnetWalletAddress: nextAddress})).toThrow();
+    }
+  });
   it.each([false, true])('rejects unverified takeover on web/native=%s without mutations', async mobile => {
     await localUser();
     const before = row();

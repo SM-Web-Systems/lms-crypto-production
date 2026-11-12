@@ -1,4 +1,4 @@
-export const AMMA_WALLET_URL = 'https://ammawallet.com';
+export const AMMA_WALLET_URL = (import.meta.env.VITE_AMMA_WALLET_URL || 'https://ammawallet.com').replace(/\/$/, '');
 
 export const SSO_ERROR_MESSAGES: Record<string, string> = {
   invalid_state: 'The sign-in session expired or was tampered with. Please try again.',

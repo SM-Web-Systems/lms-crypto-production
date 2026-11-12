@@ -32,6 +32,17 @@ afterEach(() => {
 });
 
 describe('AUTH-13 real-process database bootstrap', { timeout: 60000 }, () => {
+  it('adds Wallet issuer columns to an existing database without rewriting its binding', () => {
+    const file = location(); canonical(file);
+    const db = new Database(file);
+    db.exec("INSERT INTO users(id,name,email,password_hash,ammawallet_user_id,walletAddress,wallet_linking_status) VALUES('legacy','Test','test@example.invalid','hash','42','legacy-address','linked'); ALTER TABLE users DROP COLUMN wallet_network; ALTER TABLE users DROP COLUMN ammawallet_issuer");
+    db.close();
+    const result = run(file); expect(result.status, result.stderr).toBe(0);
+    const check = new Database(file, {readonly:true});
+    expect(check.prepare("SELECT ammawallet_user_id, walletAddress, ammawallet_issuer, wallet_network FROM users WHERE id='legacy'").get())
+      .toEqual({ammawallet_user_id:'42', walletAddress:'legacy-address', ammawallet_issuer:null, wallet_network:null});
+    check.close();
+  });
   it('normal startup refuses a missing file without creating it', () => {
     const file = location(); const result = run(file);
     expect(result.status).not.toBe(0); expect(existsSync(file)).toBe(false);

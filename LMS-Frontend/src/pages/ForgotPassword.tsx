@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2, Wallet, ArrowRight, KeyRound } from 'lucide-react';
 import { authService } from '../services/authService';
 import { getErrorMessage } from '../utils/apiError';
-
-const AMMA_WALLET_URL = 'https://ammawallet.com';
+import { AMMA_WALLET_URL } from '../utils/walletSignIn';
 
 /**
  * ForgotPassword — password resets are handled by AmmaWallet for standard users.

@@ -99,7 +99,7 @@ export interface Student {
 export interface WalletStatusResponse {
   walletAddress: string | null;
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
-  network: 'mainnet' | null;
+  network: 'mainnet' | 'testnet' | null;
   xlmBalance: number | null;
 }
 

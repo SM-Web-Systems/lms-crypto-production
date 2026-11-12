@@ -4,6 +4,7 @@ import { getWalletStatus } from '../services/walletService';
 import type { User, WalletStatusResponse } from '../types/api';
 import { Wallet, AlertCircle, Copy, ExternalLink, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { AMMA_WALLET_URL } from '../utils/walletSignIn';
 
 interface Props {
   user: User;
@@ -48,7 +49,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
           </span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-amber-900 text-sm">Wallet not linked</p>
-            <p className="text-xs text-amber-800/80 mt-0.5">Create an active mainnet wallet on AmmaWallet, then connect or refresh it from your LMS profile.</p>
+            <p className="text-xs text-amber-800/80 mt-0.5">Create an active wallet on AmmaWallet, then connect or refresh it from your LMS profile.</p>
           </div>
           <Link
             to="/profile"
@@ -117,7 +118,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
                   Wallet confirmed at sign-in
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-700/10 text-emerald-900 text-xs font-medium">
-                  Mainnet
+                  {status?.network === 'testnet' ? 'Testnet' : status?.network === 'mainnet' ? 'Mainnet' : 'Network unavailable'}
                 </span>
               </div>
               {walletAddr && (
@@ -148,7 +149,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
               )}
             </div>
             <a
-              href="https://ammawallet.com"
+              href={AMMA_WALLET_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors"
@@ -158,7 +159,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
             </a>
           </div>
         </div>
-        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active mainnet wallet at sign-in.
+        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active wallet for the configured network at sign-in.
           {' '}<Link to="/profile" className="font-semibold underline">Review or refresh wallet connection</Link></p>
       </CardContent>
     </Card>

@@ -111,6 +111,12 @@ export async function mintCredentialForQuiz(params: {
     return;
   }
 
+  if (nftConfig.network !== 'testnet' && queryOne<{wallet_network: string | null}>(
+    'SELECT wallet_network FROM users WHERE id = ?', [userId])?.wallet_network === 'testnet') {
+    logger.warn({module: 'mint', userId}, 'Testnet wallet cannot receive a mainnet mint');
+    return;
+  }
+
   // LMS-MINT-J2-003: validate Stellar address before RPC call
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(walletAddress)) {
     logger.error({ module: 'mint', walletAddress }, 'Invalid Stellar wallet address');
@@ -259,6 +265,10 @@ export async function mintCredential(params: {
   const { userId, courseId, walletAddress, applicationId } = params;
 
   const nftConfig = getNftNetworkConfig();
+  if (nftConfig.network !== 'testnet' && queryOne<{wallet_network: string | null}>(
+    'SELECT wallet_network FROM users WHERE id = ?', [userId])?.wallet_network === 'testnet') {
+    throw new Error('Testnet wallet cannot receive a mainnet mint');
+  }
 
   // LMS-MINT-J2-003: validate Stellar address before RPC call
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(walletAddress)) {

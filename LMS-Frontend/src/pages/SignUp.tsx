@@ -1,7 +1,7 @@
 import React from 'react';
 import { Wallet, ArrowRight } from 'lucide-react';
+import { AMMA_WALLET_URL } from '../utils/walletSignIn';
 
-const AMMA_WALLET_URL = 'https://ammawallet.com';
 const AMMA_REGISTER_URL = `${AMMA_WALLET_URL}/register?source=lms`;
 
 /**

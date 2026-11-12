@@ -224,6 +224,8 @@ function ensureSsoColumns(): void {
   if (!cols.some((c) => c.name === 'ammawallet_user_id')) {
     db.exec('ALTER TABLE users ADD COLUMN ammawallet_user_id TEXT');
   }
+  if (!cols.some(c => c.name === 'ammawallet_issuer')) db.exec('ALTER TABLE users ADD COLUMN ammawallet_issuer TEXT');
+  if (!cols.some(c => c.name === 'wallet_network')) db.exec("ALTER TABLE users ADD COLUMN wallet_network TEXT CHECK (wallet_network IN ('mainnet', 'testnet'))");
 }
 startupMigrations.push(ensureSsoColumns);
 

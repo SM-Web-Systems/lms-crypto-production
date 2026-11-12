@@ -98,6 +98,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
     for (const column of table.columns) {
       // This release's additive authorization migration is safe on existing databases.
       if (!afterMigrations && table.name === 'users' && column === 'authorization_version') continue;
+      if (!afterMigrations && table.name === 'users' && (column === 'ammawallet_issuer' || column === 'wallet_network')) continue;
       // Additive lesson-completion progress columns are added by ensureLessonCompletionsTable migration.
       if (!afterMigrations && table.name === 'lesson_completions' && (column === 'progress_pct' || column === 'last_position_s')) continue;
       if (!columns.some(c => c.name === column)) refuse(`unsupported schema (${table.name}.${column})`);
