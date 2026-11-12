@@ -6,6 +6,7 @@ import { Wallet, AlertCircle, Copy, ExternalLink, CheckCircle } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
 import { formatXlm } from '../utils/xlmAmount';
+import { AMMA_WALLET_URL } from '../utils/walletSignIn';
 
 interface Props {
   user: User;
@@ -153,7 +154,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
               )}
             </div>
             <a
-              href="https://ammawallet.com"
+              href={AMMA_WALLET_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="touch-target-link inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors"
@@ -163,7 +164,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
             </a>
           </div>
         </div>
-        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active wallet at sign-in.
+        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active wallet for the configured network at sign-in.
           {' '}<Link to="/profile" className="touch-target-link font-semibold underline">Review or refresh wallet connection</Link></p>
       </CardContent>
     </Card>

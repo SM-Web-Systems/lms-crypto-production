@@ -42,7 +42,7 @@ describe('Wallet connection and recovery journeys', () => {
     render(<AmmaWalletConnection user={{...user, authProvider: 'ammawallet', walletAddress: 'FULL_RECIPIENT_ADDRESS'}}/>);
     expect(screen.queryByLabelText('Current LMS password')).not.toBeInTheDocument();
     expect(screen.getByText('FULL_RECIPIENT_ADDRESS')).toBeInTheDocument();
-    expect(screen.getByText(/newest active wallet/)).toBeInTheDocument();
+    expect(screen.getByText(/newest active wallet for the configured network/)).toBeInTheDocument();
     window.history.pushState(null, '', '/admin/profile');
     await userEvent.click(screen.getByRole('button', {name: 'Refresh wallet address from AmmaWallet'}));
     await waitFor(() => expect(go).toHaveBeenCalled());
@@ -94,5 +94,11 @@ describe('Wallet connection and recovery journeys', () => {
     render(<MemoryRouter><StudentWalletStatusCard user={{...user, walletAddress: 'OLD_ADDRESS', walletLinkingStatus: 'linked'}}/></MemoryRouter>);
     expect(await screen.findByText(/^2 XLM/)).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'Copy wallet address'})).toHaveAttribute('title', 'NEW_ADDRESS');
+  });
+  it('labels the verified testnet wallet correctly', async () => {
+    mocks.status.mockResolvedValue({walletAddress: 'TEST_ADDRESS', walletLinkingStatus: 'linked', xlmBalance: 2, network: 'testnet'});
+    render(<MemoryRouter><StudentWalletStatusCard user={{...user, walletLinkingStatus: 'linked'}}/></MemoryRouter>);
+    expect(await screen.findByText('Stellar testnet')).toBeInTheDocument();
+    expect(screen.queryByText('Stellar public network')).not.toBeInTheDocument();
   });
 });

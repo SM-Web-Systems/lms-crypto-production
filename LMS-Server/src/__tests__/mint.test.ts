@@ -6,10 +6,10 @@
  * when NFT_MINTER_SECRET or NFT_CONTRACT_ID are absent.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { db } from '../config/database.js';
 import { queryOne } from '../config/database.js';
-import { isTriggerQuiz, mintCredentialForQuiz } from '../services/mintService.js';
+import { isTriggerQuiz, mintCredentialForQuiz, mintCredential } from '../services/mintService.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -27,6 +27,20 @@ function seedUserAndQuiz() {
   ).run(quizId);
   return { userId, quizId };
 }
+
+it('prevents a testnet wallet from being used for a mainnet mint', async () => {
+  const {userId, quizId} = seedUserAndQuiz();
+  db.prepare("UPDATE users SET wallet_network = 'testnet' WHERE id = ?").run(userId);
+  vi.stubEnv('NFT_STELLAR_NETWORK', 'public');
+  vi.stubEnv('NFT_MINTER_SECRET', 'not-a-real-secret');
+  vi.stubEnv('NFT_CONTRACT_ID', 'test-contract');
+  try {
+    await expect(mintCredential({userId, courseId: 'course', applicationId: 'app', walletAddress: 'GWALLET123'}))
+      .rejects.toThrow('Testnet wallet cannot receive a mainnet mint');
+    await mintCredentialForQuiz({userId, quizId, walletAddress: 'GWALLET123'});
+    expect(queryOne('SELECT id FROM nft_credentials WHERE user_id = ?', [userId])).toBeNull();
+  } finally { vi.unstubAllEnvs(); }
+});
 
 // ── isTriggerQuiz ────────────────────────────────────────────────────────────
 
