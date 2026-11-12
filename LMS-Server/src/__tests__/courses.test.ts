@@ -170,6 +170,35 @@ describe('PUT /api/v1/courses/:id', () => {
     expect(res.body.data.sections).toHaveLength(2);
   });
 
+  it('rejects a mix of weeks and flat sections without changing the course', async () => {
+    const before = await request(app).get(`/api/v1/courses/${ids.courseId}`).set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ sections: [
+        { id: 'flat', title: 'Flat section', items: [] },
+        { id: 'week-3', title: 'Week 3', sections: [{ id: 'inner', title: 'Inner', items: [] }] },
+      ] });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    const after = await request(app).get(`/api/v1/courses/${ids.courseId}`).set('Authorization', `Bearer ${adminToken}`);
+    expect(after.status).toBe(200);
+    expect(after.body.data.sections).toEqual(before.body.data.sections);
+  });
+
+  it('accepts a list of weeks and returns them with their sections', async () => {
+    const res = await request(app)
+      .put(`/api/v1/courses/${ids.courseId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ sections: [
+        { id: 'w1', title: 'Week 1', sections: [{ id: 's1', title: 'One', items: [] }] },
+        { id: 'w2', title: 'Week 2', sections: [{ id: 's2', title: 'Two', items: [] }] },
+      ] });
+    expect(res.status).toBe(200);
+    expect(res.body.data.weeks).toHaveLength(2);
+    expect(res.body.data.sections.map((s: { id: string }) => s.id)).toEqual(['s1', 's2']);
+  });
+
   it('rejects update with duplicate courseCode', async () => {
     const res = await request(app)
       .put(`/api/v1/courses/${ids.courseId}`)
