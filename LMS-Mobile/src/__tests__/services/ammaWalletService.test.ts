@@ -71,8 +71,15 @@ describe('proof-bound Amma Wallet mobile sign-in',()=>{
   });
   it.each(['cancel','dismiss'])('handles browser %s without creating a local account',async(type)=>{
     browser.mockResolvedValueOnce({type});
-    await expect(ammaWalletService.signIn()).rejects.toBeInstanceOf(WalletSignInCancelled);
+    const failure = ammaWalletService.signIn();
+    await expect(failure).rejects.toBeInstanceOf(WalletSignInCancelled);
+    await expect(failure).rejects.toMatchObject({reason:'closed'});
     expect(post).not.toHaveBeenCalled();
+  });
+  it('keeps the Wallet page in the app task so switching apps does not end the sign-in',async()=>{
+    browser.mockResolvedValueOnce({type:'dismiss'});
+    await expect(ammaWalletService.signIn()).rejects.toBeInstanceOf(WalletSignInCancelled);
+    expect(browser.mock.calls[0][2]).toEqual({createTask:false});
   });
   it('blocks parallel attempts and ignores a callback after local sign-out',async()=>{
     let finish!:(value:unknown)=>void;
