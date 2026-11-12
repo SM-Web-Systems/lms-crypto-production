@@ -5,6 +5,8 @@ import { courseService } from '@/services/courseService';
 import { courseCompletionService } from '@/services/courseCompletionService';
 import { getCourseWeeks } from '@/types/course';
 
+let mockSessionError: string | null = null;
+jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ sessionError: mockSessionError }) }));
 jest.mock('@/services/courseService');
 jest.spyOn(courseCompletionService,'getLessonCompletions');
 jest.spyOn(courseCompletionService,'markLessonComplete');
@@ -21,7 +23,7 @@ const course={id:'c',title:'Learning',weeks:[
   {id:'w2',title:'Practice week',order:2,sections:[{id:'s2',title:'Practice section',items:[{id:'assignment',title:'Practice work',type:'assignment' as const}]}]},
   {id:'w1',title:'Foundations week',order:1,sections:[{id:'s1',title:'Learn',items:[{id:'audio',title:'Listen',type:'audio' as const,url:'https://example.com/a.mp3'}]}]},
 ]};
-beforeEach(()=>{jest.clearAllMocks();mockCourse.fetchCourses.mockResolvedValue([{...course,weeks:getCourseWeeks(course)}]);mockProgress.markLessonComplete.mockResolvedValue(undefined);mockProgress.getLessonCompletions.mockResolvedValue([{itemId:'audio',completedAt:null,progressPct:30,lastPositionS:45}]);});
+beforeEach(()=>{jest.clearAllMocks();mockSessionError=null;mockCourse.fetchCourses.mockResolvedValue([{...course,weeks:getCourseWeeks(course)}]);mockProgress.markLessonComplete.mockResolvedValue(undefined);mockProgress.getLessonCompletions.mockResolvedValue([{itemId:'audio',completedAt:null,progressPct:30,lastPositionS:45}]);});
 
 describe('course weeks and restored progress',()=>{
   it('opens the first ordered week, switches to the next, and does not refetch on selection',async()=>{
@@ -68,4 +70,24 @@ describe('course weeks and restored progress',()=>{
     expect(mockProgress.markLessonComplete).toHaveBeenCalledTimes(2);
   });
 
+});
+
+describe('course screen while offline',()=>{
+  const offline='Unable to reach the server. Check your internet connection and try again.';
+  it('leaves the offline message to the session banner and reloads after reconnecting',async()=>{
+    mockSessionError=offline;
+    mockCourse.fetchCourses.mockRejectedValueOnce(new Error(offline));
+    const view=render(<CourseScreen/>);
+    await waitFor(()=>expect(mockCourse.fetchCourses).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(offline)).toBeNull();
+    mockSessionError=null;
+    view.rerender(<CourseScreen/>);
+    await waitFor(()=>expect(mockCourse.fetchCourses).toHaveBeenCalledTimes(2));
+    await waitFor(()=>expect(screen.getByText('Listen')).toBeTruthy());
+  });
+  it('still shows a course error that is not the session problem',async()=>{
+    mockCourse.fetchCourses.mockRejectedValueOnce(new Error('Could not load courses.'));
+    render(<CourseScreen/>);
+    await waitFor(()=>expect(screen.getByText('Could not load courses.')).toBeTruthy());
+  });
 });
