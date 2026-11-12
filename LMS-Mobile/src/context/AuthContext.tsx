@@ -95,6 +95,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => { mounted.current = false; request.current++; ammaWalletService.cancelSignIn(); unsubscribe(); app.remove(); clearInterval(timer); };
   }, [expire, refresh]);
 
+  // While a reconnect notice is showing, check more often so it clears soon after the connection
+  // returns instead of waiting for the next one-minute refresh.
+  useEffect(() => {
+    if (!sessionError) return;
+    const retry = setInterval(() => { if (AppState.currentState === 'active') void refresh(); }, 10_000);
+    return () => clearInterval(retry);
+  }, [sessionError, refresh]);
+
   const establish = useCallback(async (work: () => Promise<{token: string; user: User}>): Promise<User> => {
     const started = ++generation.current; request.current++;
     const result = await work();
