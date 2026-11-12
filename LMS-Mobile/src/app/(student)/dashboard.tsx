@@ -29,7 +29,7 @@ const QUICK_ACTIONS = [
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user, logout, refresh } = useAuth();
+  const { user, logout, refresh, sessionError } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +55,15 @@ export default function DashboardScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // When the session banner already says the server is unreachable, don't repeat it here.
+  // Reload once the session reconnects so the dashboard does not stay empty.
+  const duplicateOfSessionNotice = !!error && error === sessionError;
+  const [hadSessionError, setHadSessionError] = useState(false);
+  useEffect(() => {
+    if (sessionError) setHadSessionError(true);
+    else if (hadSessionError) { setHadSessionError(false); if (error) void loadData(); }
+  }, [sessionError, hadSessionError, error, loadData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -106,7 +115,7 @@ export default function DashboardScreen() {
         </View>
       </Pressable>
 
-      {error ? <ErrorBanner message={error} onRetry={loadData} /> : null}
+      {error && !duplicateOfSessionNotice ? <ErrorBanner message={error} onRetry={loadData} /> : null}
 
       <View>
         <Text className="mb-3 text-lg font-bold text-neutral-900">Jump in</Text>
