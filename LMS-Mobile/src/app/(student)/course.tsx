@@ -93,7 +93,7 @@ export default function CourseScreen() {
       {!selectedCourse ? (
         <>
           <Text className="text-lg font-bold text-neutral-900">Your courses</Text>
-          {courses.length === 0 ? (
+          {courses.length === 0 && error ? null : courses.length === 0 ? (
             <EmptyState icon="book-outline" title="No courses yet" message="Courses will appear here once you're enrolled." />
           ) : (
             courses.map((course) => (

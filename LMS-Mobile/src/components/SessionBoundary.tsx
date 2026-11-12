@@ -26,7 +26,9 @@ export function SessionBoundary({children}:{children:ReactNode}) {
       {storageWarning ? <Text accessibilityRole="alert" className="bg-amber-50 p-3 text-amber-900">{storageWarning}</Text> : null}
       {storageWarning && !user ? <Button label="Retry clearing saved session" variant="outline" onPress={()=>{void logout();}}/> : null}
     </SafeAreaView> : null}
-    {/* The notices already cleared the status bar; stop screen headers adding the same inset again. */}
-    {notices && insets ? <SafeAreaInsetsContext.Provider value={{...insets, top: 0}}>{children}</SafeAreaInsetsContext.Provider> : children}
+    {/* The notices already cleared the status bar; stop screen headers adding the same inset again.
+        The provider is always rendered so a notice appearing or clearing never remounts the screen
+        below it (which would discard forms, chosen files and navigation state). */}
+    <SafeAreaInsetsContext.Provider value={notices && insets ? {...insets, top: 0} : insets}>{children}</SafeAreaInsetsContext.Provider>
   </View>;
 }

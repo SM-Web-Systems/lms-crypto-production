@@ -1,6 +1,6 @@
-import React from 'react';
-import { Text } from 'react-native';
-import { render, screen, within } from '@testing-library/react-native';
+import React, { useState } from 'react';
+import { Text, TextInput } from 'react-native';
+import { render, screen, within, fireEvent } from '@testing-library/react-native';
 import { SessionBoundary } from '@/components/SessionBoundary';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,7 +13,21 @@ jest.mock('@/components/OfflineLearningPanel', () => ({ OfflineLearningPanel: ()
 
 const base = { isLoading: false, refresh: jest.fn(), logout: jest.fn(), storageWarning: null };
 
+function Draft() { const [value, setValue] = useState(''); return <TextInput accessibilityLabel="draft" value={value} onChangeText={setValue} />; }
+
 describe('SessionBoundary notices and the status bar', () => {
+  it('keeps the screen below mounted when a notice appears and clears', () => {
+    mockAuth = { ...base, user: { id: 'u' }, sessionError: null };
+    const view = render(<SafeAreaProvider initialMetrics={metrics}><SessionBoundary><Draft /></SessionBoundary></SafeAreaProvider>);
+    fireEvent.changeText(screen.getByLabelText('draft'), 'unsaved work');
+    mockAuth = { ...base, user: { id: 'u' }, sessionError: 'Unable to reach the server.' };
+    view.rerender(<SafeAreaProvider initialMetrics={metrics}><SessionBoundary><Draft /></SessionBoundary></SafeAreaProvider>);
+    expect(screen.getByLabelText('draft').props.value).toBe('unsaved work');
+    mockAuth = { ...base, user: { id: 'u' }, sessionError: null };
+    view.rerender(<SafeAreaProvider initialMetrics={metrics}><SessionBoundary><Draft /></SessionBoundary></SafeAreaProvider>);
+    expect(screen.getByLabelText('draft').props.value).toBe('unsaved work');
+  });
+
   it('keeps the signed-in reconnect banner inside a top safe area', () => {
     mockAuth = { ...base, user: { id: 'u' }, sessionError: 'Unable to reach the server. Check your internet connection and try again.' };
     render(<SessionBoundary><Text>Screen</Text></SessionBoundary>);
