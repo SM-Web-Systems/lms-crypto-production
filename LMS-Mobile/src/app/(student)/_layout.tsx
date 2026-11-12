@@ -39,6 +39,9 @@ export default function StudentTabsLayout() {
         tabBarActiveTintColor: brand.accent.teal,
         tabBarInactiveTintColor: brand.neutral[400],
         tabBarStyle: { backgroundColor: brand.white, borderTopColor: brand.neutral[200] },
+        // Six tabs share a phone's width: cap label scaling so large system text
+        // does not clip the labels. Icons stay, and TalkBack still reads the full title.
+        tabBarLabel: ({ color, children }) => <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.2} style={{ color, fontSize: 10, textAlign: 'center' }}>{children}</Text>,
         headerStyle: { backgroundColor: brand.white },
         headerTitleStyle: { color: brand.primary.dark, fontWeight: '700' },
         headerShadowVisible: false,

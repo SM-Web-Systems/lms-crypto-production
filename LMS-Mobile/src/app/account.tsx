@@ -33,9 +33,15 @@ export default function AccountScreen(){
     }catch(error){setErrors(old=>({...old,[section]:getErrorMessage(error,`Could not load ${section}.`)}));}
   },[]);
   useEffect(()=>{if(user?.id){void load('sessions');void load('exports');void load('deletion');}},[user?.id,load]);
+  // Each action's result is shown inside its own section, next to the control that triggered it.
+  const [actionKey,setActionKey]=useState<string|null>(null);
+  const feedback=(keys:string[])=>actionKey&&keys.includes(actionKey)?<>
+    {message ? <Text accessibilityLiveRegion="polite" className="text-emerald-800">{message}</Text> : null}
+    {errors.action ? <ErrorBanner message={errors.action}/> : null}
+  </>:null;
   const act=async(key:string,work:()=>Promise<void>)=>{
     if(busy)return;
-    setBusy(key);setMessage(null);setErrors(old=>({...old,action:''}));
+    setActionKey(key);setBusy(key);setMessage(null);setErrors(old=>({...old,action:''}));
     try{await work();}catch(error){setErrors(old=>({...old,action:getErrorMessage(error,'That action could not be completed. Please try again.')}));}
     finally{setBusy(null);}
   };
@@ -48,8 +54,6 @@ export default function AccountScreen(){
     <Text>{user.email}</Text>
     {!pending ? <Button label="Back to your workspace" variant="outline" onPress={()=>router.replace(mobileHome(user))}/> : null}
     {pending ? <Text accessibilityRole="alert" className="rounded-lg bg-amber-50 p-3 text-amber-900">Your account is pending deletion. You can cancel during the grace period or export your data. Learning is unavailable until you cancel.</Text> : null}
-    {message ? <Text accessibilityLiveRegion="polite" className="text-emerald-800">{message}</Text> : null}
-    {errors.action ? <ErrorBanner message={errors.action}/> : null}
     {!pending ? <PushNotificationSettings /> : null}
     <Card><CardTitle>Active sessions</CardTitle>
       <Text className="my-2">Revoke a session to sign that device out. Revoking this device returns you to sign in.</Text>
@@ -66,11 +70,13 @@ export default function AccountScreen(){
           <Button label="Keep session" variant="outline" onPress={()=>setRevokeId(null)}/>
         </> : <Button label={session.current?'Sign out this device':'Revoke session'} variant="outline" onPress={()=>setRevokeId(session.id)} disabled={!!busy}/>}
       </View>)}
+      {feedback(['revoke'])}
       <Button label="Refresh sessions" variant="outline" onPress={()=>{void load('sessions');}}/>
     </Card>
     <Card><CardTitle>Download your data</CardTitle>
       <Text className="my-2">Request an archive of your account data. One export is available per 24 hours. Refresh below while it is being prepared.</Text>
       <Button label="Request data export" disabled={!!busy} onPress={()=>act('export',async()=>{await accountService.requestExport();await load('exports');setMessage('Export requested. Refresh its status when ready.');})}/>
+      {feedback(['export','download'])}
       {errors.exports ? <ErrorBanner message={errors.exports} onRetry={()=>{void load('exports');}}/> : exports===null ? <Text>Loading exports…</Text> : exports.length===0 ? <Text>No recent data exports.</Text> : exports.map(file=><View key={file.id} className="my-2 gap-2 rounded-lg border border-neutral-200 p-3">
         <Text>{file.created_at} · {file.status}</Text>
         {file.status==='failed' ? <Text>Preparation failed. Please try again later or contact support.</Text> : null}
@@ -93,6 +99,7 @@ export default function AccountScreen(){
           })}/>
         </>}
       </>}
+      {feedback(['cancel','delete'])}
     </Card>
     <Button label="Sign out" variant="outline" onPress={()=>{void logout();}}/>
   </ScrollView></SafeAreaView>;

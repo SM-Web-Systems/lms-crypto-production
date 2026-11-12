@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { ScrollView,View,Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { LoadingView } from './LoadingView';
 import { ErrorBanner } from './ErrorBanner';
@@ -9,6 +9,7 @@ import { OfflineLearningPanel } from './OfflineLearningPanel';
 
 export function SessionBoundary({children}:{children:ReactNode}) {
   const {user,isLoading,sessionError,storageWarning,refresh,logout}=useAuth();
+  const insets=useContext(SafeAreaInsetsContext);
   if(isLoading) return <LoadingView message="Restoring your session…"/>;
   if(sessionError && !user) return <SafeAreaView style={{flex:1}}><ScrollView className="bg-neutral-50" contentContainerClassName="p-6 gap-4">
     <Text className="text-xl font-bold text-neutral-900">Reconnect to your account</Text>
@@ -25,6 +26,7 @@ export function SessionBoundary({children}:{children:ReactNode}) {
       {storageWarning ? <Text accessibilityRole="alert" className="bg-amber-50 p-3 text-amber-900">{storageWarning}</Text> : null}
       {storageWarning && !user ? <Button label="Retry clearing saved session" variant="outline" onPress={()=>{void logout();}}/> : null}
     </SafeAreaView> : null}
-    {children}
+    {/* The notices already cleared the status bar; stop screen headers adding the same inset again. */}
+    {notices && insets ? <SafeAreaInsetsContext.Provider value={{...insets, top: 0}}>{children}</SafeAreaInsetsContext.Provider> : children}
   </View>;
 }

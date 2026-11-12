@@ -2,6 +2,10 @@ import React from 'react';
 import { Text } from 'react-native';
 import { render, screen, within } from '@testing-library/react-native';
 import { SessionBoundary } from '@/components/SessionBoundary';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+function TopInset() { return <Text>{`top:${useSafeAreaInsets().top}`}</Text>; }
+const metrics = { frame: { x: 0, y: 0, width: 360, height: 800 }, insets: { top: 24, left: 0, right: 0, bottom: 0 } };
 
 let mockAuth: Record<string, unknown> = {};
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockAuth }));
@@ -30,5 +34,17 @@ describe('SessionBoundary notices and the status bar', () => {
     mockAuth = { ...base, user: { id: 'u' }, sessionError: null };
     render(<SessionBoundary><Text>Screen</Text></SessionBoundary>);
     expect(screen.queryByTestId('session-notices')).toBeNull();
+  });
+
+  it('stops screens under a notice from applying the top inset a second time', () => {
+    mockAuth = { ...base, user: { id: 'u' }, sessionError: 'Unable to reach the server.' };
+    render(<SafeAreaProvider initialMetrics={metrics}><SessionBoundary><TopInset /></SessionBoundary></SafeAreaProvider>);
+    expect(screen.getByText('top:0')).toBeTruthy();
+  });
+
+  it('leaves the top inset alone when no notice is shown', () => {
+    mockAuth = { ...base, user: { id: 'u' }, sessionError: null };
+    render(<SafeAreaProvider initialMetrics={metrics}><SessionBoundary><TopInset /></SessionBoundary></SafeAreaProvider>);
+    expect(screen.getByText('top:24')).toBeTruthy();
   });
 });
