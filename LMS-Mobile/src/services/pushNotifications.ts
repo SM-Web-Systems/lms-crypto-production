@@ -25,15 +25,13 @@ export function loadNativeNotifications(): typeof import('expo-notifications') {
   return require('expo-notifications');
 }
 
-async function dismissStaleNotifications(revision: number) {
+// The app only ever shows LMS push notifications, so a fence clears all of them. Notifications the
+// system presented while the app was in the background may not carry their data payload here, so
+// filtering on that payload left them in the tray after sign-out.
+export async function dismissStaleNotifications(revision: number) {
   const notifications = loadNativeNotifications();
-  const presented = await notifications.getPresentedNotificationsAsync();
   if (revision !== pushNotifications.getSnapshot().revision) return;
-  const stale = presented.filter(item => typeof item.request.content.data?.installationId === 'string');
-  for (const item of stale) {
-    if (revision !== pushNotifications.getSnapshot().revision) return;
-    await notifications.dismissNotificationAsync(item.request.identifier);
-  }
+  await notifications.dismissAllNotificationsAsync();
   if (revision === pushNotifications.getSnapshot().revision) {
     notifications.clearLastNotificationResponse();
   }
