@@ -50,3 +50,15 @@ it('refuses to create a plaintext cache when SQLCipher is unavailable', async ()
   expect(mockDatabase.closeAsync).toHaveBeenCalledTimes(1);
   await setOfflineSession(null);
 });
+
+it('says the device is out of storage when the encrypted store cannot be written', async () => {
+  const {STORAGE_FULL_MESSAGE} = jest.requireActual('@/utils/storageErrors');
+  mockDatabase.getFirstAsync.mockResolvedValueOnce({cipher_version: '4.6.0'});
+  mockDatabase.execAsync.mockRejectedValueOnce(new Error('database or disk is full (code 13 SQLITE_FULL)'));
+  mockPost.mockResolvedValueOnce({data: {success: true, data: {
+    leaseId: 'lease', contentVersion: 'version', serverTime: 100_000, expiresAt: 160_000,
+    course: {id: 'course', title: 'Course', sections: [{id: 's', items: [{id: 't', type: 'text', information: 'Text'}]}]},
+  }}});
+  await setOfflineSession('test-token', true);
+  await expect(offlineLearning.download('course')).rejects.toThrow(STORAGE_FULL_MESSAGE);
+});

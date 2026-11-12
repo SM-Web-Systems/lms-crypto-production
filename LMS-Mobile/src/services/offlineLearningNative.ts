@@ -6,6 +6,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import api, { API_BASE_URL } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import { ApiRequestError, assertApiSuccess } from '../utils/apiError';
+import { isStorageFull, STORAGE_FULL_MESSAGE } from '../utils/storageErrors';
 import type { LessonProgress } from './courseCompletionService';
 import { OfflineLearning, type LeaseStatus, type OfflinePackage, type OfflineStore, type SavedCourse } from './offlineLearning';
 import { offlineSQLite as sqlite } from './offlineSQLite';
@@ -117,10 +118,11 @@ async function open(scope: string, create: boolean, verified: boolean) {
     if (fresh) await SecureStore.setItemAsync(await storageKey(), JSON.stringify(config), options);
     active = {scope, db};
     return repository(db);
-  } catch {
+  } catch (error) {
     await db?.closeAsync().catch(() => undefined);
     if (fresh && db) await sqlite().deleteDatabaseAsync(config.file).catch(() => undefined);
-    throw new Error(vaultError);
+    // Name a full device plainly so the learner knows what to fix; other failures stay generic.
+    throw new Error(isStorageFull(error) ? STORAGE_FULL_MESSAGE : vaultError);
   }
 }
 

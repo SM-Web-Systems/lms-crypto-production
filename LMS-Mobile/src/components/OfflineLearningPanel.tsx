@@ -2,6 +2,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import {AppState, ScrollView, Text, View} from 'react-native';
 import {offlineLearning, supportsOfflineLearning} from '@/services/offlineLearningNative';
 import {getErrorMessage} from '@/utils/apiError';
+import {isStorageFull, STORAGE_FULL_MESSAGE} from '@/utils/storageErrors';
 import {Button} from './ui/Button';
 import {Card, CardTitle} from './ui/Card';
 
@@ -39,7 +40,7 @@ function SavedLessons({courseId}: {courseId?: string}) {
       }).catch(error => {
         if (!current()) return;
         setView(null);
-        setLoadingError(getErrorMessage(error, 'Could not read saved lessons.'));
+        setLoadingError(isStorageFull(error) ? STORAGE_FULL_MESSAGE : getErrorMessage(error, 'Could not read saved lessons.'));
       });
     };
     load();
@@ -53,7 +54,7 @@ function SavedLessons({courseId}: {courseId?: string}) {
     setBusy(true);
     setActionError(null);
     try { await work(); }
-    catch (error) { setActionError(getErrorMessage(error, 'Could not update offline learning.')); }
+    catch (error) { setActionError(isStorageFull(error) ? STORAGE_FULL_MESSAGE : getErrorMessage(error, 'Could not update offline learning.')); }
     finally { setBusy(false); }
   }
 
