@@ -131,19 +131,44 @@ export interface AmmaWalletSSOUser {
   lastName:             string | null;
   isEmailVerified:      boolean;
   mainnetWalletAddress: string | null; // Stellar public key if user has an active mainnet wallet
+  testnetWalletAddress?: string | null;
+}
+
+export function ssoWalletConfig(): { network: 'mainnet' | 'testnet'; issuer: string | null } {
+  const network = process.env.AMMA_SSO_WALLET_NETWORK || 'mainnet';
+  if (network !== 'mainnet' && network !== 'testnet') throw new Error('Invalid SSO wallet network');
+  const issuer = process.env.AMMA_SSO_ISSUER || null;
+  const base = (process.env.AMMA_WALLET_URL || 'http://localhost:3001').replace(/\/$/, '');
+  let validIssuer = !issuer;
+  if (issuer) {
+    try {
+      const parsed = new URL(issuer);
+      validIssuer = parsed.protocol === 'https:' && parsed.origin === issuer && !parsed.username && !parsed.password && issuer === base;
+    } catch { validIssuer = false; }
+  }
+  if (!validIssuer
+    || (network === 'testnet' && !issuer)
+    || (process.env.NODE_ENV === 'production' && !issuer && base !== 'https://ammawallet.com')) {
+    throw new Error('SSO requires the configured HTTPS Wallet issuer');
+  }
+  return {network, issuer};
 }
 
 /** Validate the provider response at the trust boundary, before any database write. */
 export function parseSsoIdentity(value: unknown): AmmaWalletSSOUser {
   if (!value || typeof value !== 'object') throw new Error('Invalid Wallet identity');
   const user = value as AmmaWalletSSOUser;
+  const {network} = ssoWalletConfig();
   if (typeof user.userId !== 'string' || !user.userId.trim() || user.userId.length > 128
     || user.userId !== user.userId.trim()
     || !(user.email === null || typeof user.email === 'string')
     || typeof user.isEmailVerified !== 'boolean'
     || ![user.firstName, user.lastName].every(name => name === null || (typeof name === 'string' && name.length <= 200))
     || !(user.mainnetWalletAddress === null || (typeof user.mainnetWalletAddress === 'string'
-      && StrKey.isValidEd25519PublicKey(user.mainnetWalletAddress)))) {
+      && StrKey.isValidEd25519PublicKey(user.mainnetWalletAddress)))
+    || (network === 'testnet' && (user.mainnetWalletAddress !== null
+      || !(user.testnetWalletAddress === null || (typeof user.testnetWalletAddress === 'string'
+        && StrKey.isValidEd25519PublicKey(user.testnetWalletAddress)))))) {
     throw new Error('Invalid Wallet identity');
   }
   return user;

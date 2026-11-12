@@ -108,6 +108,14 @@ describe('EnhancedStellarProvider', () => {
     expect(typeof provider.getProviderInfo).toBe('function');
   });
 
+  it('rejects mainnet minting for a testnet wallet', async () => {
+    const {userId, courseId, appId} = seedUserAndCredential();
+    db.prepare("UPDATE users SET wallet_network = 'testnet' WHERE id = ?").run(userId);
+    process.env.NFT_STELLAR_NETWORK = 'public';
+    await expect(provider.mint({userId, courseId, applicationId: appId, walletAddress: 'GBTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXY'}))
+      .rejects.toThrow('Testnet wallet cannot receive a mainnet mint');
+  });
+
   it('EP-2: getProviderInfo returns correct metadata', () => {
     const info = provider.getProviderInfo();
     expect(info.name).toBe('enhanced-stellar');

@@ -14,16 +14,17 @@ const router = Router();
 export interface WalletStatusData {
   walletAddress: string | null;
   walletLinkingStatus: 'none' | 'linked' | 'existing_account';
-  network: 'mainnet' | null;
+  network: 'mainnet' | 'testnet' | null;
   xlmBalance: number | null;
   selectionPolicy: 'last_confirmed_address';
 }
 
-async function fetchXlmBalance(address: string): Promise<number | null> {
+async function fetchXlmBalance(address: string, network: 'mainnet' | 'testnet'): Promise<number | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`https://horizon.stellar.org/accounts/${address}`, {
+    const host = network === 'testnet' ? 'horizon-testnet.stellar.org' : 'horizon.stellar.org';
+    const res = await fetch(`https://${host}/accounts/${address}`, {
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -51,20 +52,20 @@ router.get('/wallet/status', authenticate, async (req: AuthRequest, res: Respons
   res.setHeader('Cache-Control', 'no-store');
   const userId = req.user!.userId;
 
-  const row = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
-    'SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?',
+  const row = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null; wallet_network: 'mainnet' | 'testnet' | null }>(
+    'SELECT walletAddress, wallet_linking_status, wallet_network FROM users WHERE id = ?',
     [userId]
   );
 
   const walletAddress = row?.walletAddress ?? null;
   const walletLinkingStatus = (row?.wallet_linking_status as WalletStatusData['walletLinkingStatus']) || 'none';
 
-  let network: 'mainnet' | null = null;
+  let network: 'mainnet' | 'testnet' | null = null;
   let xlmBalance: number | null = null;
 
   if (walletLinkingStatus === 'linked' && walletAddress) {
-    network = 'mainnet';
-    xlmBalance = await fetchXlmBalance(walletAddress);
+    network = row?.wallet_network ?? 'mainnet';
+    if ((process.env.AMMA_SSO_WALLET_NETWORK || 'mainnet') === network) xlmBalance = await fetchXlmBalance(walletAddress, network);
   }
 
   res.json({

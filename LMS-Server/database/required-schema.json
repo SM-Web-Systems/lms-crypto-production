@@ -732,6 +732,8 @@
       "updated_at",
       "auth_provider",
       "ammawallet_user_id",
+      "ammawallet_issuer",
+      "wallet_network",
       "reward_balance"
     ],
     "webhook_events": [

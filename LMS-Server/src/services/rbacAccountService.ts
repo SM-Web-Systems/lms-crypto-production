@@ -25,6 +25,7 @@ export function createRbacAccount(input: {
   id?: string; name: string; email: string; passwordHash: string;
   initialRoleId: InitialRoleId; authProvider?: 'local' | 'ammawallet';
   ammaWalletUserId?: string; walletAddress?: string | null;
+  ammaWalletIssuer?: string | null; walletNetwork?: 'mainnet' | 'testnet';
   walletLinkingStatus?: 'none' | 'linked' | 'existing_account';
 }) {
   return db.transaction(() => {
@@ -35,9 +36,9 @@ export function createRbacAccount(input: {
     // users.role is inert compatibility storage. New identities start versioned.
     if(input.authProvider==='ammawallet') {
       execute(`INSERT INTO users(id,name,email,password_hash,authorization_version,auth_provider,
-        ammawallet_user_id,walletAddress,wallet_linking_status) VALUES(?,?,?,?,1,'ammawallet',?,?,?)`,
+        ammawallet_user_id,walletAddress,wallet_linking_status,ammawallet_issuer,wallet_network) VALUES(?,?,?,?,1,'ammawallet',?,?,?,?,?)`,
       [id,input.name,input.email,input.passwordHash,input.ammaWalletUserId ?? null,
-        input.walletAddress ?? null,input.walletLinkingStatus ?? 'none']);
+        input.walletAddress ?? null,input.walletLinkingStatus ?? 'none',input.ammaWalletIssuer ?? null,input.walletNetwork ?? 'mainnet']);
     } else {
       execute(`INSERT INTO users(id,name,email,password_hash,authorization_version,walletAddress,wallet_linking_status)
         VALUES(?,?,?,?,1,?,?)`,[id,input.name,input.email,input.passwordHash,input.walletAddress ?? null,input.walletLinkingStatus ?? 'none']);

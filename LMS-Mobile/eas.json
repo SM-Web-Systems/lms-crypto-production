@@ -20,7 +20,7 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://lms.smwebsystems.com/api/v1",
         "EXPO_PUBLIC_WEB_BASE_URL": "https://lms.smwebsystems.com",
-        "EXPO_PUBLIC_AMMA_WALLET_URL": "https://ammawallet.com"
+        "EXPO_PUBLIC_AMMA_WALLET_URL": "https://testnet.ammawallet.com"
       },
       "node": "22.18.0",
       "autoIncrement": true

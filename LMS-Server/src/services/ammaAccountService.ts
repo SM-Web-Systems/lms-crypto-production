@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, execute, query, queryOne } from '../config/database.js';
 import type { User } from '../types/index.js';
 import type { AmmaWalletSSOUser, WalletLinkContext } from './ammaWalletSSOService.js';
+import { ssoWalletConfig } from './ammaWalletSSOService.js';
 import { createRbacAccount, type InitialRoleId } from './rbacAccountService.js';
 import { invalidateAuthorization } from './roleSecurityService.js';
 
@@ -14,13 +15,15 @@ export function resolveAmmaAccount(identity: AmmaWalletSSOUser, initialRole: Ini
   const email = identity.email?.trim().toLowerCase();
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new SsoPolicyError('email_required');
   if (!identity.isEmailVerified) throw new SsoPolicyError('email_unverified');
+  const {network, issuer} = ssoWalletConfig();
+  const address = network === 'testnet' ? identity.testnetWalletAddress : identity.mainnetWalletAddress;
 
   return db.transaction(() => {
-    const matches = query<User>('SELECT * FROM users WHERE ammawallet_user_id = ?', [identity.userId]);
+    const matches = query<User>('SELECT * FROM users WHERE ammawallet_user_id = ? AND ammawallet_issuer IS ?', [identity.userId, issuer]);
     if (matches.length > 1) throw new SsoPolicyError('identity_conflict');
     let user = matches[0];
     if (link) {
-      const target = queryOne<User & {authorization_version: number; deletion_status: string}>(
+      const target = queryOne<User & {authorization_version: number; deletion_status: string; ammawallet_issuer: string | null}>(
         'SELECT * FROM users WHERE id = ?', [link.userId]);
       const session = queryOne<{revoked_at: string | null; expired: number}>(
         "SELECT revoked_at, datetime(expires_at) <= datetime('now') AS expired FROM active_sessions WHERE token_hash = ? AND user_id = ?",
@@ -28,7 +31,7 @@ export function resolveAmmaAccount(identity: AmmaWalletSSOUser, initialRole: Ini
       if (!target || target.authorization_version !== link.authorizationVersion
         || link.sessionExpires <= Date.now() / 1000 || session?.revoked_at || session?.expired
         || (target.deletion_status && target.deletion_status !== 'active')) throw new SsoPolicyError('link_expired');
-      if ((user && user.id !== target.id) || (target.ammawallet_user_id && target.ammawallet_user_id !== identity.userId)) {
+      if ((user && user.id !== target.id) || (target.ammawallet_user_id && (target.ammawallet_user_id !== identity.userId || target.ammawallet_issuer !== issuer))) {
         throw new SsoPolicyError('identity_conflict');
       }
       // Password confirmation authorizes only this existing account and the same verified email.
@@ -45,14 +48,14 @@ export function resolveAmmaAccount(identity: AmmaWalletSSOUser, initialRole: Ini
       if ((user as User & {deletion_status?: string}).deletion_status === 'finalized') throw new SsoPolicyError('account_unavailable');
       // Null is authoritative: current linkage is a sign-in snapshot, never credential history.
       execute(`UPDATE users SET auth_provider = 'ammawallet', ammawallet_user_id = ?,
-        walletAddress = ?, wallet_linking_status = ?, updated_at = datetime('now') WHERE id = ?`,
-      [identity.userId, identity.mainnetWalletAddress, identity.mainnetWalletAddress ? 'linked' : 'none', user.id]);
+        walletAddress = ?, wallet_linking_status = ?, ammawallet_issuer = ?, wallet_network = ?, updated_at = datetime('now') WHERE id = ?`,
+      [identity.userId, address ?? null, address ? 'linked' : 'none', issuer, network, user.id]);
     } else {
       const id = uuidv4();
       const name = [identity.firstName, identity.lastName].filter(Boolean).join(' ') || email.split('@')[0];
       createRbacAccount({id,name,email,passwordHash:'$sso$',initialRoleId:initialRole,authProvider:'ammawallet',
-        ammaWalletUserId:identity.userId,walletAddress:identity.mainnetWalletAddress,
-        walletLinkingStatus:identity.mainnetWalletAddress ? 'linked' : 'none'});
+        ammaWalletUserId:identity.userId,walletAddress:address, ammaWalletIssuer:issuer, walletNetwork:network,
+        walletLinkingStatus:address ? 'linked' : 'none'});
       user = queryOne<User>('SELECT * FROM users WHERE id = ?', [id])!;
     }
     return {

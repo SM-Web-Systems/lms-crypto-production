@@ -21,6 +21,31 @@ afterEach(() => {
 });
 
 describe('GET /api/v1/wallet/status', () => {
+  it('uses testnet Horizon for a testnet wallet', async () => {
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
+    vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
+    vi.stubEnv('AMMA_SSO_ISSUER', 'https://wallet-test.example.invalid');
+    const { execute } = await import('../config/database.js');
+    execute("UPDATE users SET wallet_network = 'testnet' WHERE id = ?", [ids.linkedStudentUserId]);
+    const mockFetch = vi.fn().mockResolvedValue({ok: true, json: async () => ({balances: [{asset_type: 'native', balance: '2'}]})});
+    vi.stubGlobal('fetch', mockFetch);
+    try {
+      const res = await request(app).get('/api/v1/wallet/status').set('Authorization', `Bearer ${linkedStudentToken}`);
+      expect(res.body.data.network).toBe('testnet');
+      expect(mockFetch.mock.calls[0][0]).toBe(`https://horizon-testnet.stellar.org/accounts/${LINKED_WALLET_ADDRESS}`);
+    } finally {vi.unstubAllEnvs(); vi.unstubAllGlobals();}
+  });
+  it('does not query mainnet for a legacy binding while staging is on testnet', async () => {
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
+    vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
+    vi.stubEnv('AMMA_SSO_ISSUER', 'https://wallet-test.example.invalid');
+    const mockFetch = vi.fn(); vi.stubGlobal('fetch', mockFetch);
+    try {
+      const res = await request(app).get('/api/v1/wallet/status').set('Authorization', `Bearer ${linkedStudentToken}`);
+      expect(res.body.data).toMatchObject({network: 'mainnet', xlmBalance: null});
+      expect(mockFetch).not.toHaveBeenCalled();
+    } finally {vi.unstubAllEnvs(); vi.unstubAllGlobals();}
+  });
   it('returns 401 without auth', async () => {
     const res = await request(app).get('/api/v1/wallet/status');
     expect(res.status).toBe(401);

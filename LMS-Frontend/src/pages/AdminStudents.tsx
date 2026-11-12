@@ -368,7 +368,7 @@ const AdminStudents: React.FC = () => {
                       <td className="px-6 py-4">
                         {student.walletLinkingStatus === 'linked' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-medium">
-                            <Wallet className="h-3 w-3" />Mainnet
+                            <Wallet className="h-3 w-3" />Linked
                           </span>
                         ) : student.walletLinkingStatus === 'existing_account' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-medium">
