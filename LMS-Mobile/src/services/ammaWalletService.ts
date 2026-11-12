@@ -10,8 +10,11 @@ import type { AuthResult } from './authService';
 const RETURN_URL = 'lmsmobile://sso-callback';
 let activeAttempt: object | null = null;
 
+/** 'closed': the sign-in page went away before Wallet answered (for example after switching apps).
+ *  'declined': Wallet reported that the person cancelled. 'local': this app cancelled the attempt. */
+export type WalletCancelReason = 'closed' | 'declined' | 'local';
 export class WalletSignInCancelled extends Error {
-  constructor() { super('Sign-in was cancelled.'); this.name = 'WalletSignInCancelled'; }
+  constructor(public readonly reason: WalletCancelReason = 'local') { super('Sign-in was cancelled.'); this.name = 'WalletSignInCancelled'; }
 }
 
 function applicationUrl(base: string, path: string): URL {
@@ -59,9 +62,11 @@ export const ammaWalletService = {
       start.searchParams.set('code_challenge',challenge);
       start.searchParams.set('code_challenge_method','S256');
       start.searchParams.set('app_state',state);
-      const result = await WebBrowser.openAuthSessionAsync(start.toString(),RETURN_URL);
+      // createTask:false keeps the Wallet page inside the LMS task on Android, so returning from an
+      // authenticator app through Recent apps shows the page again instead of ending the sign-in.
+      const result = await WebBrowser.openAuthSessionAsync(start.toString(),RETURN_URL,{createTask:false});
       assertActive();
-      if (result.type !== 'success') throw new WalletSignInCancelled();
+      if (result.type !== 'success') throw new WalletSignInCancelled('closed');
       const callback = new URL(result.url);
       if (callback.protocol !== 'lmsmobile:' || callback.host !== 'sso-callback' || !['','/'].includes(callback.pathname)
         || callback.username || callback.password || callback.hash || callback.searchParams.getAll('state').length !== 1
@@ -71,7 +76,7 @@ export const ammaWalletService = {
           throw new Error('The sign-in response could not be verified. Please start again.');
         }
         const error = callback.searchParams.get('error')!;
-        if (error === 'cancelled') throw new WalletSignInCancelled();
+        if (error === 'cancelled') throw new WalletSignInCancelled('declined');
         const messages: Record<string, string> = {
           email_required: 'LMS needs an email address. Open AmmaWallet settings, add and verify an email, then sign in again.',
           email_unverified: 'Verify your email in AmmaWallet settings, then sign in again.',

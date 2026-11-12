@@ -2,6 +2,7 @@ import React from 'react';
 import { Linking } from 'react-native';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import SignInScreen from '@/app/(auth)/sign-in';
+import { WalletSignInCancelled } from '@/services/ammaWalletService';
 import SignUpScreen from '@/app/(auth)/sign-up';
 import ForgotPasswordScreen from '@/app/(auth)/forgot-password';
 
@@ -38,6 +39,18 @@ describe('Amma Wallet is the mobile account authority', () => {
     render(<SignInScreen/>);fireEvent.press(screen.getByText('Sign in with AmmaWallet'));
     await waitFor(() => expect(screen.getByText('Wallet unavailable. Please try again.')).toBeTruthy());
     expect(mockLogin).not.toHaveBeenCalled();expect(mockReplace).not.toHaveBeenCalled();
+  });
+  it('explains a sign-in page that closed early, for example while fetching a 2FA code', async () => {
+    mockWalletLogin.mockRejectedValueOnce(new WalletSignInCancelled('closed'));
+    render(<SignInScreen/>);fireEvent.press(screen.getByText('Sign in with AmmaWallet'));
+    await waitFor(() => expect(screen.getByText(/Sign-in closed before it finished/)).toBeTruthy());
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+  it('stays quiet when the person cancels in AmmaWallet', async () => {
+    mockWalletLogin.mockRejectedValueOnce(new WalletSignInCancelled('declined'));
+    render(<SignInScreen/>);fireEvent.press(screen.getByText('Sign in with AmmaWallet'));
+    await waitFor(() => expect(mockWalletLogin).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByText(/Sign-in closed before it finished/)).toBeNull());
   });
   it('creates accounts on Amma Wallet without collecting another password', async () => {
     render(<SignUpScreen/>);

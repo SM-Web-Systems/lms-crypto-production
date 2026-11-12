@@ -18,15 +18,17 @@ export default function SignInScreen() {
   const [error, setError] = useState('');
   const [showInternal,setShowInternal] = useState(false);
   const [walletBusy,setWalletBusy] = useState(false);
+  const [interrupted,setInterrupted] = useState(false);
 
   const signInWithWallet = async () => {
     if (walletBusy || submitting) return;
-    setWalletBusy(true); setError('');
+    setWalletBusy(true); setError(''); setInterrupted(false);
     try {
       if (Platform.OS === 'web') await openWebDashboard('/login');
       else { await loginWithAmma(); router.replace('/'); }
     } catch (error) {
-      if (!(error instanceof WalletSignInCancelled)) setError(getErrorMessage(error,'Could not sign in with AmmaWallet. Please try again.'));
+      if (error instanceof WalletSignInCancelled) setInterrupted(error.reason === 'closed');
+      else setError(getErrorMessage(error,'Could not sign in with AmmaWallet. Please try again.'));
     } finally { setWalletBusy(false); }
   };
 
@@ -69,6 +71,8 @@ export default function SignInScreen() {
             <Text className="text-neutral-600">Sign in with your AmmaWallet account to continue.</Text>
             <Button label="Sign in with AmmaWallet" onPress={signInWithWallet} loading={walletBusy} disabled={submitting} size="lg"/>
             {Platform.OS === 'web' ? <Text className="text-sm text-neutral-500">Opens the LMS web dashboard in your browser.</Text> : null}
+            {Platform.OS === 'android' ? <Text className="text-sm text-neutral-500">Need a code from your authenticator app? Come back using the Recent apps button so the AmmaWallet page stays open.</Text> : null}
+            {interrupted ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="text-sm text-amber-800">Sign-in closed before it finished. If you left to get a 2FA code, tap Sign in with AmmaWallet to start again.</Text> : null}
             <Link href="/(auth)/forgot-password" className="text-sm font-semibold text-accent-teal">Recover your AmmaWallet account</Link>
             {error ? <Text accessibilityRole="alert" className="text-sm text-red-500">{error}</Text> : null}
             {error ? <>
