@@ -116,6 +116,20 @@ describe('A14 resilient native sessions',()=>{
     await act(async()=>listener('active'));
     await waitFor(()=>expect(screen.getByText('/workspace')).toBeTruthy());
   });
+  it('clears the reconnect notice by itself soon after the connection returns',async()=>{
+    renderSession();await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
+    jest.useFakeTimers();
+    try{
+      Object.defineProperty(AppState,'currentState',{configurable:true,get:()=> 'active'});
+      service.getMe.mockRejectedValueOnce(new ApiRequestError({status:0,message:'Unable to reach the server.'}));
+      await act(async()=>fireEvent.press(screen.getByText('Refresh')));
+      expect(screen.getByTestId('session-notices')).toBeTruthy();
+      service.getMe.mockResolvedValue(student);
+      await act(async()=>{ jest.advanceTimersByTime(10_000); });
+      await act(async()=>{ await Promise.resolve(); });
+      expect(screen.queryByTestId('session-notices')).toBeNull();
+    } finally { jest.useRealTimers(); }
+  });
   it('a late old hydration or 401 cannot overwrite a newer login',async()=>{
     let resolve!:(value:User)=>void;
     renderSession();await waitFor(()=>expect(screen.getByText(student.email)).toBeTruthy());
