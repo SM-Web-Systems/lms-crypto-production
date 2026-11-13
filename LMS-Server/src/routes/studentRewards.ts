@@ -10,6 +10,8 @@ import { Router, Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthRequest } from '../types/index.js';
 import { query } from '../config/database.js';
+import { RewardError } from '../services/rewards/rewardErrors.js';
+import { claimableStroops, createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
 
 const router = Router();
 
@@ -63,5 +65,22 @@ router.get('/students/me/rewards', authenticate, (req: AuthRequest, res: Respons
 
   res.json({ success: true, data });
 });
+
+const claimHandler = (work: (req: AuthRequest) => unknown) => (req: AuthRequest, res: Response): void => {
+  res.setHeader('Cache-Control', 'no-store');
+  try { res.json({ success: true, data: work(req) }); }
+  catch (err) {
+    if (err instanceof RewardError) { res.status(err.statusCode).json({ success: false, error: { code: err.code, message: err.message } }); return; }
+    throw err;
+  }
+};
+
+/** Claimable released balance (not yet committed to a verified claim). */
+router.get('/students/me/reward-claims/balance', authenticate, claimHandler(req => ({ claimableStroops: String(claimableStroops(req.user!.userId)) })));
+/** Start a claim: returns a one-time challenge for the learner's wallet to sign. Nothing is paid. */
+router.post('/students/me/reward-claims', authenticate, claimHandler(req => createRewardClaim(req.user!.userId, req.body?.amountStroops)));
+/** Verify the wallet's ed25519 signature over the exact challenge text. */
+router.post('/students/me/reward-claims/:id/verify', authenticate,
+  claimHandler(req => verifyRewardClaim(req.user!.userId, req.params.id, req.body?.message, req.body?.signature)));
 
 export default router;
