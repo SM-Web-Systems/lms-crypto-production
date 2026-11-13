@@ -301,7 +301,14 @@ export function getPaymentByStellarMemo(memo: string): Payment | null {
 
 export function getStudentPayments(userId: string): (Payment & { course_name: string | null })[] {
   return query<Payment & { course_name: string | null }>(
-    'SELECT p.*, c.title AS course_name FROM payments p LEFT JOIN courses c ON c.id = p.course_id WHERE p.user_id = ? ORDER BY p.created_at DESC',
+    // Applying for a paid certificate records a pending manual payment; paying by card or Stellar adds
+    // a separate record. Once another payment for the same application is confirmed or waived, the
+    // learner no longer needs to see that pending manual placeholder in their history.
+    `SELECT p.*, c.title AS course_name FROM payments p LEFT JOIN courses c ON c.id = p.course_id
+     WHERE p.user_id = ?
+       AND NOT (p.payment_method = 'manual' AND p.status = 'pending' AND p.application_id IS NOT NULL AND EXISTS (
+         SELECT 1 FROM payments o WHERE o.application_id = p.application_id AND o.id <> p.id AND o.status IN ('confirmed','waived')))
+     ORDER BY p.created_at DESC`,
     [userId],
   );
 }

@@ -29,3 +29,25 @@ describe('certificate payment currency', () => {
     expect(createPayment(b.userId, b.courseId, b.appId, 500, 'rand').currency).toBe('USD');
   });
 });
+
+describe('learner payment history', () => {
+  it('hides the pending manual placeholder once a card payment for the same application is confirmed', async () => {
+    const { getStudentPayments } = await import('../services/paymentService.js');
+    const { userId, courseId, appId } = seed('history');
+    const manual = createPayment(userId, courseId, appId, 1000, 'ZAR');
+    expect(getStudentPayments(userId).map(p => p.id)).toEqual([manual.id]);
+    const cardId = uuidv4();
+    db.prepare(`INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency, payment_method, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1000, 'ZAR', 'paystack', 'confirmed', datetime('now', '+1 second'), datetime('now'))`).run(cardId, userId, courseId, appId);
+    expect(getStudentPayments(userId).map(p => p.id)).toEqual([cardId]);
+  });
+
+  it('keeps a pending manual payment visible while nothing else is confirmed', async () => {
+    const { getStudentPayments } = await import('../services/paymentService.js');
+    const { userId, courseId, appId } = seed('history-pending');
+    const manual = createPayment(userId, courseId, appId, 1000, 'ZAR');
+    db.prepare(`INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency, payment_method, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1000, 'ZAR', 'paystack', 'pending', datetime('now'), datetime('now'))`).run(uuidv4(), userId, courseId, appId);
+    expect(getStudentPayments(userId).map(p => p.id)).toContain(manual.id);
+  });
+});
