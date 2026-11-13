@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { Input } from '@/components/ui/Input';
@@ -60,7 +60,7 @@ export default function SignInScreen() {
           keyboardShouldPersistTaps="handled">
           <View className="mb-8 items-center">
             <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-primary-dark">
-              <Text className="text-2xl font-extrabold text-white">SM</Text>
+              <Image source={require('../../../assets/images/sm-logo-mark-white.png')} accessibilityLabel="SM Web Systems logo" style={{ width: 40, height: 27 }} resizeMode="contain" />
             </View>
             <Text className="text-2xl font-extrabold text-primary-dark">SM Web Systems</Text>
             <Text className="mt-1 text-sm text-neutral-500">Learning Management</Text>
