@@ -616,9 +616,13 @@ describe('Phase 12 C1 — Paystack + Stellar Automation', () => {
   it('PAY-B24 — student payment history returns own payments', async () => {
     const studentId = seedUser('student', 'b24-student');
     const courseId = seedCourse('Course B24', 'PAY-B24');
+    // Separate applications: a pending manual placeholder for an application that already has a
+    // confirmed payment is intentionally hidden (see payment-currency.test.ts).
     const appId = seedApplication(studentId, courseId);
+    const secondCourseId = seedCourse('Course B24b', 'PAY-B24B');
+    const secondAppId = seedApplication(studentId, secondCourseId);
     seedPayment(studentId, courseId, appId, 1000, 'pending');
-    seedPayment(studentId, courseId, appId, 2000, 'confirmed');
+    seedPayment(studentId, secondCourseId, secondAppId, 2000, 'confirmed');
 
     const studentToken = makeToken({ userId: studentId, role: 'student' });
 
