@@ -16,14 +16,17 @@ export function getCoursePricing(courseId: string): CoursePricing | null {
   );
 }
 
-export function setCoursePricing(courseId: string, priceCents: number): CoursePricing {
+/** Currencies a course price may use. Paystack settles in the merchant's own currency. */
+export const PRICING_CURRENCIES = ['USD', 'ZAR', 'NGN', 'GHS', 'KES'] as const;
+
+export function setCoursePricing(courseId: string, priceCents: number, currency?: string): CoursePricing {
   const existing = queryOne<{ id: string }>('SELECT id FROM course_pricing WHERE course_id = ?', [courseId]);
   const now = new Date().toISOString();
 
   if (existing) {
     execute(
-      'UPDATE course_pricing SET price_cents = ?, updated_at = ? WHERE id = ?',
-      [priceCents, now, existing.id],
+      'UPDATE course_pricing SET price_cents = ?, currency = COALESCE(?, currency), updated_at = ? WHERE id = ?',
+      [priceCents, currency ?? null, now, existing.id],
     );
     return queryOne<CoursePricing>('SELECT * FROM course_pricing WHERE id = ?', [existing.id])!;
   }
@@ -31,8 +34,8 @@ export function setCoursePricing(courseId: string, priceCents: number): CoursePr
   const id = uuidv4();
   execute(
     `INSERT INTO course_pricing (id, course_id, price_cents, currency, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, 'USD', 1, ?, ?)`,
-    [id, courseId, priceCents, now, now],
+     VALUES (?, ?, ?, ?, 1, ?, ?)`,
+    [id, courseId, priceCents, currency ?? 'USD', now, now],
   );
   return queryOne<CoursePricing>('SELECT * FROM course_pricing WHERE id = ?', [id])!;
 }

@@ -18,6 +18,7 @@ import { isWriterHoldActive } from '../services/writerHold.js';
 import {
   getCoursePricing,
   setCoursePricing,
+  PRICING_CURRENCIES,
   setCourseStellarPricing,
   confirmPayment,
   waivePayment,
@@ -165,12 +166,20 @@ router.put(
   requireAdministrator,
   (req: AuthRequest, res: Response): void => {
     const { courseId } = req.params;
-    const { priceCents, tiersEnabled, stellarPriceXlm, stellarPriceUsdc } = req.body;
+    const { priceCents, tiersEnabled, stellarPriceXlm, stellarPriceUsdc, currency } = req.body;
 
     if (typeof priceCents !== 'number' || priceCents < 0 || !Number.isInteger(priceCents)) {
       res.status(400).json({
         success: false,
         error: { code: ErrorCodes.VALIDATION_ERROR, message: 'priceCents must be a non-negative integer' },
+      });
+      return;
+    }
+
+    if (currency !== undefined && !(PRICING_CURRENCIES as readonly string[]).includes(currency)) {
+      res.status(400).json({
+        success: false,
+        error: { code: ErrorCodes.VALIDATION_ERROR, message: `currency must be one of ${PRICING_CURRENCIES.join(', ')}` },
       });
       return;
     }
@@ -189,7 +198,7 @@ router.put(
       return;
     }
 
-    const pricing = setCoursePricing(courseId, priceCents);
+    const pricing = setCoursePricing(courseId, priceCents, currency);
 
     // Phase 11 C2: Update tiers_enabled if provided
     if (tiersEnabled) {

@@ -140,6 +140,22 @@ describe('Phase 11 C1a — Payment Endpoints', () => {
     expect(res2.body.data.priceCents).toBe(3000);
   });
 
+  it('PUT pricing — admin sets the currency and keeps it on later price changes', async () => {
+    const adminId = seedUser('admin', 'cur-admin');
+    const courseId = seedCourse('Course currency', 'PAY-CUR');
+    const token = makeToken({ userId: adminId, role: 'admin' });
+    const set = await request(app).put(`/api/v1/admin/courses/${courseId}/pricing`)
+      .set('Authorization', `Bearer ${token}`).send({ priceCents: 1000, currency: 'ZAR' });
+    expect(set.status).toBe(200);
+    expect(set.body.data.currency).toBe('ZAR');
+    const again = await request(app).put(`/api/v1/admin/courses/${courseId}/pricing`)
+      .set('Authorization', `Bearer ${token}`).send({ priceCents: 2000 });
+    expect(again.body.data).toMatchObject({ priceCents: 2000, currency: 'ZAR' });
+    const bad = await request(app).put(`/api/v1/admin/courses/${courseId}/pricing`)
+      .set('Authorization', `Bearer ${token}`).send({ priceCents: 2000, currency: 'zar' });
+    expect(bad.status).toBe(400);
+  });
+
   // PAY-B4: PUT pricing — non-admin rejected
   it('PAY-B4 — 401 unauthenticated, 403 student', async () => {
     const courseId = seedCourse('Course B4', 'PAY-B4');

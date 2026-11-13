@@ -119,7 +119,7 @@ describe('PricingManagement', () => {
     render(<PricingManagement />);
 
     await waitFor(() => {
-      expect(screen.getByText('$15.00')).toBeInTheDocument();
+      expect(screen.getByText('15.00 USD')).toBeInTheDocument();
     });
   });
 
@@ -151,11 +151,27 @@ describe('PricingManagement', () => {
     await user.click(screen.getByText('Save Price'));
 
     await waitFor(() => {
-      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 2000, 'both', null, null);
+      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 2000, 'both', null, null, 'USD');
     });
   });
 
   // PAY-F5: Error state with retry
+  it('PAY-F10 — lets the admin price a certificate in rand', async () => {
+    const user = userEvent.setup();
+    mockGetCourseAnalytics.mockResolvedValue([
+      { courseId: 'c1', courseName: 'Course X', courseCode: 'CX', totalStudents: 5, completionRate: 80 },
+    ]);
+    mockGetPricing.mockResolvedValue({ courseId: 'c1', priceCents: 1000, currency: 'USD', isFree: false });
+    mockSetCoursePricing.mockResolvedValue({ courseId: 'c1', priceCents: 1000, currency: 'ZAR', isFree: false });
+    render(<PricingManagement />);
+    await waitFor(() => expect(screen.getByText('Course X')).toBeInTheDocument());
+    await user.click(screen.getByText('Edit'));
+    await user.selectOptions(screen.getByLabelText('Currency'), 'ZAR');
+    expect(screen.getByText('Price (ZAR)')).toBeInTheDocument();
+    await user.click(screen.getByText('Save Price'));
+    await waitFor(() => expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 1000, 'both', null, null, 'ZAR'));
+  });
+
   it('PAY-F5 — shows error state with retry button', async () => {
     const user = userEvent.setup();
     mockGetCourseAnalytics.mockRejectedValueOnce(new Error('Network error'));
@@ -260,7 +276,7 @@ describe('PricingManagement', () => {
     await user.click(screen.getByText('Save Price'));
 
     await waitFor(() => {
-      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 1000, 'both', 25.5, null);
+      expect(mockSetCoursePricing).toHaveBeenCalledWith('c1', 1000, 'both', 25.5, null, 'USD');
     });
   });
 });
