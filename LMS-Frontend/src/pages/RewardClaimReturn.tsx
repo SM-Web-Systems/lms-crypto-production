@@ -5,7 +5,7 @@ import { rewardService } from '../services/rewardService';
 import { takeClaim } from '../utils/rewardClaim';
 import { getErrorMessage } from '../utils/apiError';
 
-type View = { kind: 'working' } | { kind: 'verified' } | { kind: 'declined' } | { kind: 'error'; message: string };
+type View = { kind: 'working' } | { kind: 'verified'; paid: boolean } | { kind: 'declined' } | { kind: 'error'; message: string };
 
 /** AmmaWallet returns here with #claim=<id>&signature=<base64> (or &declined=1). */
 export default function RewardClaimReturn() {
@@ -25,7 +25,7 @@ export default function RewardClaimReturn() {
       return;
     }
     rewardService.verifyClaim(claimId, message, signature)
-      .then(() => setView({ kind: 'verified' }))
+      .then(v => setView({ kind: 'verified', paid: v.payout?.status === 'paid' }))
       .catch(err => setView({ kind: 'error', message: getErrorMessage(err, 'Could not verify the claim. Start it again from your rewards.') }));
   }, []);
 
@@ -38,7 +38,9 @@ export default function RewardClaimReturn() {
       {view.kind === 'verified' && (
         <div role="status" className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
           <CheckCircle className="h-5 w-5 shrink-0" aria-hidden />
-          <p>Your wallet is confirmed. The claimed amount is reserved for payment to that wallet.</p>
+          <p>{view.paid
+            ? 'Your wallet is confirmed and the reward has been sent to it.'
+            : 'Your wallet is confirmed. The claimed amount is reserved for payment to that wallet.'}</p>
         </div>
       )}
       {view.kind === 'declined' && (

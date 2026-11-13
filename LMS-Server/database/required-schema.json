@@ -912,6 +912,22 @@
       "status",
       "verified_at",
       "created_at"
+    ],
+    "reward_claim_payouts": [
+      "claim_id",
+      "network",
+      "source",
+      "destination",
+      "amount_stroops",
+      "tx_hash",
+      "envelope_xdr",
+      "max_time",
+      "status",
+      "ledger",
+      "error",
+      "attempts",
+      "created_at",
+      "updated_at"
     ]
   },
   "indexes": [
@@ -1026,7 +1042,8 @@
     "idx_offline_learning_leases_expiry",
     "idx_offline_progress_receipts_expiry",
     "idx_offline_learning_leases_course",
-    "idx_reward_claims_user"
+    "idx_reward_claims_user",
+    "idx_reward_claim_payouts_network"
   ],
   "keys": {
     "active_sessions": {
@@ -3229,6 +3246,28 @@
         [
           "user_id",
           "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "reward_claim_payouts": {
+      "primary": [
+        "claim_id"
+      ],
+      "unique": [
+        [
+          "tx_hash"
+        ],
+        [
+          "claim_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "claim_id",
+          "reward_claims",
           "id",
           "NO ACTION",
           "CASCADE"

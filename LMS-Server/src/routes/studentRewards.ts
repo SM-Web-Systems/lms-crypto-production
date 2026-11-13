@@ -6,12 +6,14 @@
  * Only shows allocations with status 'released' or 'refunded'.
  */
 
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthRequest } from '../types/index.js';
 import { query } from '../config/database.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { claimableStroops, createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
+import { payoutConfiguration, payoutStatus, payRewardClaim } from '../services/rewards/rewardPayoutService.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
@@ -79,8 +81,45 @@ const claimHandler = (work: (req: AuthRequest) => unknown) => (req: AuthRequest,
 router.get('/students/me/reward-claims/balance', authenticate, claimHandler(req => ({ claimableStroops: String(claimableStroops(req.user!.userId)) })));
 /** Start a claim: returns a one-time challenge for the learner's wallet to sign. Nothing is paid. */
 router.post('/students/me/reward-claims', authenticate, claimHandler(req => createRewardClaim(req.user!.userId, req.body?.amountStroops)));
-/** Verify the wallet's ed25519 signature over the exact challenge text. */
-router.post('/students/me/reward-claims/:id/verify', authenticate,
-  claimHandler(req => verifyRewardClaim(req.user!.userId, req.params.id, req.body?.message, req.body?.signature)));
+const errorBody = (err: RewardError) => ({ success: false, error: { code: err.code, message: err.message } });
+
+/**
+ * Verify the wallet's ed25519 signature over the exact challenge text. When payouts are enabled
+ * (testnet only), the verified claim is paid straight away; a payout problem never undoes the
+ * verification, and the learner can retry it.
+ */
+router.post('/students/me/reward-claims/:id/verify', authenticate, async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  const userId = req.user!.userId;
+  try {
+    const verified = verifyRewardClaim(userId, req.params.id, req.body?.message, req.body?.signature);
+    let payout: unknown = null;
+    try {
+      if (payoutConfiguration()) payout = await payRewardClaim(userId, verified.claimId);
+    } catch (err) {
+      if (!(err instanceof RewardError)) logger.error({ err, claimId: verified.claimId }, 'reward claim payout failed');
+      payout = { status: 'pending', code: err instanceof RewardError ? err.code : 'PAYOUT_UNAVAILABLE' };
+    }
+    res.json({ success: true, data: { ...verified, payout } });
+  } catch (err) {
+    if (err instanceof RewardError) { res.status(err.statusCode).json(errorBody(err)); return; }
+    next(err);
+  }
+});
+
+/** Pay a verified claim (or retry its payout). Returns the payout's state; never pays twice. */
+router.post('/students/me/reward-claims/:id/payout', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  try { res.json({ success: true, data: await payRewardClaim(req.user!.userId, req.params.id) }); }
+  catch (err) {
+    if (err instanceof RewardError) { res.status(err.statusCode).json(errorBody(err)); return; }
+    logger.error({ err, claimId: req.params.id }, 'reward claim payout failed');
+    res.status(502).json({ success: false, error: { code: 'PAYOUT_UNAVAILABLE', message: 'The payout could not be sent. Your claim is saved; try again shortly.' } });
+  }
+});
+
+/** Payout state for one of my claims. */
+router.get('/students/me/reward-claims/:id/payout', authenticate,
+  claimHandler(req => payoutStatus(req.user!.userId, req.params.id) ?? { claimId: req.params.id, status: 'none' }));
 
 export default router;
