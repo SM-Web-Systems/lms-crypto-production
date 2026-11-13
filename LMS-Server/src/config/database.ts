@@ -6,6 +6,7 @@ import { openApplicationDatabase, loadCanonicalSchema, validateDatabase } from '
 import { rewardFundingSchema } from './rewardFundingSchema.js';
 import { platformCreditSchema } from './platformCreditSchema.js';
 import { paystackCheckoutSchema } from './paystackCheckoutSchema.js';
+import { rewardClaimSchema } from './rewardClaimSchema.js';
 import { pushSchema } from './pushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
@@ -1715,6 +1716,7 @@ startupMigrations.push(ensureRewardTables);
 startupMigrations.push(() => db.exec(rewardFundingSchema));
 startupMigrations.push(() => db.exec(platformCreditSchema));
 startupMigrations.push(() => db.exec(pushSchema));
+startupMigrations.push(() => db.exec(rewardClaimSchema));
 // The in-memory test database gets its course tables and triggers from the canonical fixture on reset.
 if (DB_PATH !== ':memory:') startupMigrations.push(() => db.exec(offlineLearningSchema));
 

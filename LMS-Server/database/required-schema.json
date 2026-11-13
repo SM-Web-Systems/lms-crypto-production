@@ -901,6 +901,17 @@
       "idempotency_key",
       "request_hash",
       "retain_until"
+    ],
+    "reward_claims": [
+      "id",
+      "user_id",
+      "destination",
+      "amount_stroops",
+      "nonce_hash",
+      "challenge_expires_at",
+      "status",
+      "verified_at",
+      "created_at"
     ]
   },
   "indexes": [
@@ -1014,7 +1025,8 @@
     "idx_push_installations_user",
     "idx_offline_learning_leases_expiry",
     "idx_offline_progress_receipts_expiry",
-    "idx_offline_learning_leases_course"
+    "idx_offline_learning_leases_course",
+    "idx_reward_claims_user"
   ],
   "keys": {
     "active_sessions": {
@@ -3191,6 +3203,28 @@
         "idempotency_key"
       ],
       "unique": [],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "reward_claims": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "nonce_hash"
+        ],
+        [
+          "id"
+        ]
+      ],
       "foreign": [
         [
           "user_id",
