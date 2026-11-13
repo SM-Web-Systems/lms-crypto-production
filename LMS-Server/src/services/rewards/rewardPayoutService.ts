@@ -7,6 +7,8 @@ import { treasuryBudgetStroops } from './treasuryPilot.js';
 /**
  * Pays a verified reward claim from the reward pool to the wallet the learner proved they control.
  * Testnet only: a mainnet payout moves real funds and needs a treasury decision first.
+ * When the wallet does not exist on the network yet, the payout creates it: the pool pays the
+ * 1 XLM minimum reserve on top of the reward, and both count against the budget.
  *
  * Each attempt is recorded (with its transaction hash and time bound) BEFORE it is submitted, so a
  * crash or a Horizon timeout never leads to a second payment: an unresolved attempt is looked up by
@@ -14,6 +16,8 @@ import { treasuryBudgetStroops } from './treasuryPilot.js';
  */
 
 export const PAYOUT_TIMEOUT_S = 60;
+/** Minimum balance (2 base reserves) the pool provides when it creates a learner's wallet account. */
+export const ACTIVATION_RESERVE_STROOPS = 10_000_000;
 const SETTLE_GRACE_MS = 30_000;
 
 export interface PayoutHorizon {
@@ -130,10 +134,7 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
     if (previous.status === 'paid') return result(previous);
   }
 
-  const destinationSequence = await cfg.horizon.sequence(claim.destination);
-  if (destinationSequence === null) {
-    throw new RewardError('DESTINATION_NOT_ACTIVATED', 'Your wallet is not active on this network yet. Your claim is saved.', 409);
-  }
+  const activation = (await cfg.horizon.sequence(claim.destination)) === null ? ACTIVATION_RESERVE_STROOPS : 0;
   const sourceSequence = await cfg.horizon.sequence(cfg.signer.publicKey());
   if (sourceSequence === null) throw new RewardError('PAYOUT_UNAVAILABLE', 'The reward pool account was not found.', 503);
 
@@ -141,7 +142,9 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
   const tx = new TransactionBuilder(new Account(cfg.signer.publicKey(), sourceSequence), {
     fee: '1000', networkPassphrase: cfg.passphrase, timebounds: { minTime: 0, maxTime },
   })
-    .addOperation(Operation.payment({ destination: claim.destination, asset: Asset.native(), amount: stroopsToXlm(claim.amount_stroops) }))
+    .addOperation(activation
+      ? Operation.createAccount({ destination: claim.destination, startingBalance: stroopsToXlm(claim.amount_stroops + activation) })
+      : Operation.payment({ destination: claim.destination, asset: Asset.native(), amount: stroopsToXlm(claim.amount_stroops) }))
     .addMemo(Memo.hash(payoutMemo(claimId)))
     .build();
   tx.sign(cfg.signer);
@@ -152,18 +155,18 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
   const recorded = db.transaction(() => {
     const current = row(claimId);
     if (current && (current.status !== 'failed' || current.tx_hash !== previous?.tx_hash)) return false;
-    const committed = db.prepare(`SELECT COALESCE(SUM(amount_stroops), 0) AS total FROM reward_claim_payouts
+    const committed = db.prepare(`SELECT COALESCE(SUM(amount_stroops + activation_stroops), 0) AS total FROM reward_claim_payouts
       WHERE network = ? AND status IN ('submitted', 'paid') AND claim_id <> ?`).get(cfg.network, claimId) as { total: number };
-    if (BigInt(committed.total) + BigInt(claim.amount_stroops) > treasuryBudgetStroops()) {
+    if (BigInt(committed.total) + BigInt(claim.amount_stroops + activation) > treasuryBudgetStroops()) {
       throw new RewardError('TREASURY_PILOT_LIMIT_EXCEEDED', 'This payout exceeds the reward pool budget.', 409);
     }
     if (current) {
-      db.prepare(`UPDATE reward_claim_payouts SET tx_hash = ?, envelope_xdr = ?, max_time = ?, status = 'submitted', ledger = NULL,
-        error = NULL, attempts = attempts + 1, updated_at = ? WHERE claim_id = ?`).run(hash, envelope, maxTime, now, claimId);
+      db.prepare(`UPDATE reward_claim_payouts SET tx_hash = ?, envelope_xdr = ?, max_time = ?, activation_stroops = ?, status = 'submitted',
+        ledger = NULL, error = NULL, attempts = attempts + 1, updated_at = ? WHERE claim_id = ?`).run(hash, envelope, maxTime, activation, now, claimId);
     } else {
-      db.prepare(`INSERT INTO reward_claim_payouts (claim_id, network, source, destination, amount_stroops, tx_hash, envelope_xdr,
-        max_time, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 1, ?, ?)`)
-        .run(claimId, cfg.network, cfg.signer.publicKey(), claim.destination, claim.amount_stroops, hash, envelope, maxTime, now, now);
+      db.prepare(`INSERT INTO reward_claim_payouts (claim_id, network, source, destination, amount_stroops, activation_stroops, tx_hash,
+        envelope_xdr, max_time, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 1, ?, ?)`)
+        .run(claimId, cfg.network, cfg.signer.publicKey(), claim.destination, claim.amount_stroops, activation, hash, envelope, maxTime, now, now);
     }
     return true;
   }).immediate();

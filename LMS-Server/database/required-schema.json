@@ -919,6 +919,7 @@
       "source",
       "destination",
       "amount_stroops",
+      "activation_stroops",
       "tx_hash",
       "envelope_xdr",
       "max_time",

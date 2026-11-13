@@ -1338,6 +1338,7 @@ CREATE TABLE IF NOT EXISTS reward_claim_payouts (
   source TEXT NOT NULL,
   destination TEXT NOT NULL,
   amount_stroops INTEGER NOT NULL CHECK (amount_stroops > 0),
+  activation_stroops INTEGER NOT NULL DEFAULT 0 CHECK (activation_stroops >= 0),
   tx_hash TEXT NOT NULL UNIQUE,
   envelope_xdr TEXT NOT NULL,
   max_time INTEGER NOT NULL,
