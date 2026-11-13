@@ -64,6 +64,14 @@ describe('A03 — workspace routes and navigation', () => {
     expect(screen.queryByText('Course Editor')).not.toBeInTheDocument();
     expect(mocks.user.id).toBe('audit-user');
   });
+  it('keeps the header (and its notification panel) layered above page content', () => {
+    mocks.user=user({workspaces:['student'],defaultWorkspace:'student',rbacRoles:['student'],permissions:['course.view']});
+    const { container } = render(<MemoryRouter initialEntries={['/student']}><Layout><p>Content</p></Layout></MemoryRouter>);
+    const header = container.querySelector('header')!;
+    // backdrop-blur creates a stacking context; without a z-index its dropdowns paint under positioned page content.
+    expect(header.className.split(' ')).toContain('relative');
+    expect(header.className.split(' ')).toContain('z-30');
+  });
   it('legacy admin alone cannot open an administrator route', () => {
     mocks.user=user({role:'admin',permissions:[],workspaces:[],rbacRoles:[],defaultWorkspace:null});
     render(<MemoryRouter initialEntries={['/admin/users']}><ProtectedRoute allowedWorkspace="admin"><p>Secret role tools</p></ProtectedRoute></MemoryRouter>);

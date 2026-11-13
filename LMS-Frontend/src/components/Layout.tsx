@@ -223,7 +223,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main column */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        <header className="h-14 shrink-0 bg-white/90 backdrop-blur-md border-b border-neutral-200/90 flex items-center justify-between gap-3 px-4 lg:px-6">
+        {/* backdrop-blur makes the header its own stacking layer; lift it so its dropdowns (notifications) open above page content. */}
+        <header className="relative z-30 h-14 shrink-0 bg-white/90 backdrop-blur-md border-b border-neutral-200/90 flex items-center justify-between gap-3 px-4 lg:px-6">
           <button
             type="button"
             className="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-700 hover:bg-neutral-100"
