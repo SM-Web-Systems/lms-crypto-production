@@ -6,6 +6,7 @@ import type { CourseProgress, NftApplication } from '../../types/api';
 import type { Course } from '../../types/course';
 import { CertEligibilitySkeleton } from '../PageSkeletons';
 import { CertificatePaymentPanel } from './CertificatePaymentPanel';
+import { NoStellarWalletPrompt } from '../NoStellarWalletPrompt';
 import {
   CheckCircle,
   XCircle,
@@ -332,6 +333,9 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                         {prog.lessonPercentage}% lessons complete
                       </p>
                     </div>
+                  )}
+                  {!userWalletAddress && (displayState === 'eligible' || displayState === 'pending') && (
+                    <div className="mt-3"><NoStellarWalletPrompt context="certificate" /></div>
                   )}
                   {displayState === 'pending' && appStatus?.applicationId && (
                     <CertificatePaymentPanel courseId={course.id} applicationId={appStatus.applicationId} />

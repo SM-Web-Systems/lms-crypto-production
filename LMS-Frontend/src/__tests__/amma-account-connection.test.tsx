@@ -49,6 +49,16 @@ describe('Wallet connection and recovery journeys', () => {
     // The callback returns the learner to the profile they started from.
     expect(JSON.parse(sessionStorage.getItem('lms.sso.returnTo')!).path).toBe('/admin/profile');
   });
+  it('asks a connected learner without a Stellar wallet to create one in AmmaWallet', () => {
+    render(<AmmaWalletConnection user={{...user, authProvider: 'ammawallet', walletAddress: null}}/>);
+    expect(screen.getByText("You don't have a Stellar wallet yet")).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: /Create a Stellar wallet in AmmaWallet/})).toHaveAttribute('href', 'https://ammawallet.com/onboarding');
+  });
+  it('shows the address instead of the prompt once a wallet exists', () => {
+    render(<AmmaWalletConnection user={{...user, authProvider: 'ammawallet', walletAddress: 'GADDRESS'}}/>);
+    expect(screen.getByText('GADDRESS')).toBeInTheDocument();
+    expect(screen.queryByText("You don't have a Stellar wallet yet")).not.toBeInTheDocument();
+  });
   it.each(['email_required', 'email_unverified'])('offers Wallet settings for %s', code => {
     render(<MemoryRouter initialEntries={['/login?sso_error='+code]}><Login/></MemoryRouter>);
     expect(screen.getByRole('link', {name: 'Open AmmaWallet settings'})).toHaveAttribute('href', 'https://ammawallet.com/settings');
