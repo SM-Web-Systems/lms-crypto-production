@@ -42,9 +42,12 @@ describe('Wallet connection and recovery journeys', () => {
     expect(screen.queryByLabelText('Current LMS password')).not.toBeInTheDocument();
     expect(screen.getByText('FULL_RECIPIENT_ADDRESS')).toBeInTheDocument();
     expect(screen.getByText(/newest active mainnet wallet/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', {name: 'Refresh from AmmaWallet'}));
+    window.history.pushState(null, '', '/admin/profile');
+    await userEvent.click(screen.getByRole('button', {name: 'Refresh wallet address from AmmaWallet'}));
     await waitFor(() => expect(go).toHaveBeenCalled());
     expect(mocks.post).toHaveBeenCalledWith('/auth/amma-link', {});
+    // The callback returns the learner to the profile they started from.
+    expect(JSON.parse(sessionStorage.getItem('lms.sso.returnTo')!).path).toBe('/admin/profile');
   });
   it.each(['email_required', 'email_unverified'])('offers Wallet settings for %s', code => {
     render(<MemoryRouter initialEntries={['/login?sso_error='+code]}><Login/></MemoryRouter>);

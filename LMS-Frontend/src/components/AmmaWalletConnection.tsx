@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import type { User } from '../types/api';
 import api from '../services/api';
 import type { ApiResponse } from '../types/api';
 import { assertApiSuccess, getErrorMessage } from '../utils/apiError';
 import { AMMA_WALLET_URL, SSO_ERROR_MESSAGES } from '../utils/walletSignIn';
+import { rememberSsoReturn } from '../utils/ssoReturn';
 
 export const walletNavigation = {go: (url: string) => window.location.assign(url)};
 
@@ -23,6 +25,7 @@ export default function AmmaWalletConnection({user, errorCode}: {user: User; err
       const destination = new URL(url);
       if (!['https:', 'http:'].includes(destination.protocol)) throw new Error('Invalid Wallet sign-in address.');
       setPassword('');
+      rememberSsoReturn(window.location.pathname);
       walletNavigation.go(destination.toString());
     } catch (err) {
       setError(getErrorMessage(err, 'Could not connect to AmmaWallet. Please try again.'));
@@ -47,9 +50,14 @@ export default function AmmaWalletConnection({user, errorCode}: {user: User; err
           value={password} onChange={event => setPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 p-2" />
       </div>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <button type="submit" disabled={busy} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
-        {busy ? 'Connecting…' : connected ? 'Refresh from AmmaWallet' : 'Connect AmmaWallet'}
-      </button>
+      {connected ? <button type="submit" disabled={busy} title="Refresh the confirmed address from AmmaWallet"
+        className="inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+        <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} aria-hidden />
+        {busy ? 'Refreshing…' : 'Refresh'}
+        <span className="sr-only"> wallet address from AmmaWallet</span>
+      </button> : <button type="submit" disabled={busy} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {busy ? 'Connecting…' : 'Connect AmmaWallet'}
+      </button>}
     </form>
   </section>;
 }
