@@ -44,12 +44,14 @@ export function createPayment(
   courseId: string,
   applicationId: string,
   amountCents: number,
+  currency = 'USD',
 ): Payment {
   const id = uuidv4();
+  // Record the course's configured currency; the payment must match the price the learner sees.
   execute(
     `INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency, payment_method, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'USD', 'manual', 'pending', datetime('now'), datetime('now'))`,
-    [id, userId, courseId, applicationId, amountCents],
+     VALUES (?, ?, ?, ?, ?, ?, 'manual', 'pending', datetime('now'), datetime('now'))`,
+    [id, userId, courseId, applicationId, amountCents, /^[A-Z]{3}$/.test(currency) ? currency : 'USD'],
   );
   return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [id])!;
 }
