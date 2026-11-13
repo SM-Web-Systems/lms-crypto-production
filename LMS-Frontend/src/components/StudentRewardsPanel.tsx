@@ -9,19 +9,23 @@ import { Button } from './Button';
 import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
 import { rewardService, type StudentReward } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
-import { Gift, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { Gift, RefreshCw, AlertCircle, Loader2, Send } from 'lucide-react';
+import { rememberClaim, walletClaimNavigation, walletClaimUrl } from '../utils/rewardClaim';
 
 export const StudentRewardsPanel: React.FC = () => {
   const [rewards, setRewards] = useState<StudentReward[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [claimable, setClaimable] = useState<string>('0');
+  const [claiming, setClaiming] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await rewardService.getMyRewards();
+      const [data, balance] = await Promise.all([rewardService.getMyRewards(), Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0')]);
       setRewards(data);
+      setClaimable(balance);
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load rewards'));
     } finally {
@@ -30,6 +34,19 @@ export const StudentRewardsPanel: React.FC = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Rewards stay in the LMS until the learner proves, in AmmaWallet, that they control their wallet.
+  const claim = async () => {
+    setClaiming(true); setError('');
+    try {
+      const started = await rewardService.startClaim(claimable);
+      rememberClaim(started.claimId, started.message);
+      walletClaimNavigation.go(walletClaimUrl(started.message, `${window.location.origin}/student/rewards/claim`));
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not start the claim'));
+      setClaiming(false);
+    }
+  };
 
   return (
     <div data-testid="student-rewards-panel">
@@ -46,6 +63,15 @@ export const StudentRewardsPanel: React.FC = () => {
       </div>
 
       <CardContent className="p-5">
+        {claimable !== '0' && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <p className="text-sm text-emerald-900">Ready to claim: <strong className="tabular-nums">{formatStroopsShort(Number(claimable))}</strong></p>
+            <Button size="sm" type="button" onClick={claim} disabled={claiming}>
+              <Send className="h-3.5 w-3.5 mr-1" aria-hidden />
+              {claiming ? 'Opening AmmaWallet…' : 'Claim to my wallet'}
+            </Button>
+          </div>
+        )}
         {error && (
           <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 mb-4">
             <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />

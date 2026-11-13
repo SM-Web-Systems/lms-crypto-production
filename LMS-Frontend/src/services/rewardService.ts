@@ -259,6 +259,26 @@ export const rewardService = {
     }
   },
 
+  /** Student: released reward balance not yet committed to a verified claim (stroops, as a string). */
+  async getClaimableBalance(): Promise<string> {
+    const res = await api.get<ApiRes<{ claimableStroops: string }>>('/students/me/reward-claims/balance');
+    return res.data.data.claimableStroops;
+  },
+
+  /** Student: start a claim; returns the one-time challenge their wallet must sign. */
+  async startClaim(amountStroops: string): Promise<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }> {
+    const res = await api.post<ApiRes<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }>>(
+      '/students/me/reward-claims', { amountStroops });
+    return res.data.data;
+  },
+
+  /** Student: send the wallet's signature over the exact challenge text. */
+  async verifyClaim(claimId: string, message: string, signature: string): Promise<{ claimId: string; status: 'verified' }> {
+    const res = await api.post<ApiRes<{ claimId: string; status: 'verified' }>>(
+      `/students/me/reward-claims/${encodeURIComponent(claimId)}/verify`, { message, signature });
+    return res.data.data;
+  },
+
   /** Student: get my received rewards (privacy-safe — no funder data) */
   async getMyRewards(): Promise<StudentReward[]> {
     const res = await api.get<ApiRes<StudentReward[]>>('/students/me/rewards');
