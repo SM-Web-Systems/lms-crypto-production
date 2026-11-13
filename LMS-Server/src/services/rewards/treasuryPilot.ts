@@ -18,6 +18,9 @@ function budget(): bigint {
   throw new RewardError('TREASURY_PILOT_UNAVAILABLE', 'The public treasury pilot budget is not configured.', 503);
 }
 
+/** The configured treasury pilot budget in stroops; throws when it is not configured. */
+export const treasuryBudgetStroops = budget;
+
 /** Call inside the immediate transaction that records the request or approval. */
 export function enforceTreasuryBudget(network: string, alreadyCommitted: number, amount: number) {
   if (network !== 'public') return;

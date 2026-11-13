@@ -44,10 +44,18 @@ describe('claiming rewards to the wallet', () => {
   it('sends the returned signature with the remembered challenge and confirms', async () => {
     rememberClaim('c-1', 'challenge text');
     window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&signature=abc%3D%3D');
-    svc.verifyClaim.mockResolvedValue({ claimId: 'c-1', status: 'verified' });
+    svc.verifyClaim.mockResolvedValue({ claimId: 'c-1', status: 'verified', payout: null });
     render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
-    expect(await screen.findByText(/Your wallet is confirmed/)).toBeTruthy();
+    expect(await screen.findByText(/reserved for payment/)).toBeTruthy();
     expect(svc.verifyClaim).toHaveBeenCalledWith('c-1', 'challenge text', 'abc==');
+  });
+
+  it('says the reward was sent when the payout completed', async () => {
+    rememberClaim('c-1', 'challenge text');
+    window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&signature=abc%3D%3D');
+    svc.verifyClaim.mockResolvedValue({ claimId: 'c-1', status: 'verified', payout: { status: 'paid', txHash: 'ab', ledger: 5 } });
+    render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
+    expect(await screen.findByText(/reward has been sent to it/)).toBeTruthy();
   });
 
   it('keeps rewards in the LMS when the learner declines in AmmaWallet', async () => {

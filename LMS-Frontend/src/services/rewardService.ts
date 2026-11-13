@@ -137,6 +137,13 @@ function prefix(role: string): string {
 
 // ──── Service ────
 
+/** payout is null while payouts are not enabled; 'pending' when it could not be sent yet. */
+export interface VerifiedClaim {
+  claimId: string;
+  status: 'verified';
+  payout: null | { status: 'paid' | 'submitted' | 'failed'; txHash: string; ledger: number | null } | { status: 'pending'; code: string };
+}
+
 export const rewardService = {
   /** List rewards for a scope. targetType is parent-role only: 'child' or 'family'. */
   async listRewards(role: string, scopeId: string, targetType?: ParentTargetType): Promise<Reward[]> {
@@ -273,8 +280,8 @@ export const rewardService = {
   },
 
   /** Student: send the wallet's signature over the exact challenge text. */
-  async verifyClaim(claimId: string, message: string, signature: string): Promise<{ claimId: string; status: 'verified' }> {
-    const res = await api.post<ApiRes<{ claimId: string; status: 'verified' }>>(
+  async verifyClaim(claimId: string, message: string, signature: string): Promise<VerifiedClaim> {
+    const res = await api.post<ApiRes<VerifiedClaim>>(
       `/students/me/reward-claims/${encodeURIComponent(claimId)}/verify`, { message, signature });
     return res.data.data;
   },
