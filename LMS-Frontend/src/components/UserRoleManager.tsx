@@ -27,6 +27,8 @@ export function UserRoleManager() {
   const [allRoles, setAllRoles] = useState<RbacRole[]>([]);
   const [roleOptions, setRoleOptions] = useState<RoleManagementOptions | null>(null);
   const selectedId = useRef<string | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const panelHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const [listState, setListState] = useState<LoadState>('idle');
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
@@ -106,6 +108,14 @@ export function UserRoleManager() {
       setMutationError('');
       setMutationSuccess('');
       loadUserRoles(user.id);
+      // On one-column layouts the panel sits below the list, so bring it into view. On wide
+      // screens it is sticky beside the list. Either way move focus to it for keyboard and
+      // screen-reader users.
+      requestAnimationFrame(() => {
+        const narrow = typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1023px)').matches;
+        if (narrow) panelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        panelHeadingRef.current?.focus({ preventScroll: !narrow });
+      });
     },
     [loadUserRoles],
   );
@@ -271,7 +281,7 @@ export function UserRoleManager() {
         </div>
 
         {/* ── Right panel: Role management ──────────────────────────────── */}
-        <div className="lg:col-span-1">
+        <div ref={panelRef} className="lg:col-span-1 lg:sticky lg:top-4 lg:self-start scroll-mt-4" aria-label="Role management">
           <Card>
             <CardContent>
               {!selectedUser ? (
@@ -284,7 +294,7 @@ export function UserRoleManager() {
                   {/* User header */}
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold text-neutral-800">{selectedUser.name}</h3>
+                      <h3 ref={panelHeadingRef} tabIndex={-1} className="font-semibold text-neutral-800 outline-none">{selectedUser.name}</h3>
                       <p className="text-sm text-neutral-500">{selectedUser.email}</p>
                     </div>
                     <button
