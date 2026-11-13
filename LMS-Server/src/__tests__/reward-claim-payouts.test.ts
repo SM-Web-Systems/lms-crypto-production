@@ -8,7 +8,7 @@ import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 import { createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
 import {
-  payRewardClaim, payoutMemo, PayoutSubmitError, setPayoutHorizonForTests, stroopsToXlm, PAYOUT_TIMEOUT_S, type PayoutHorizon,
+  ACTIVATION_RESERVE_STROOPS, payRewardClaim, payoutMemo, PayoutSubmitError, setPayoutHorizonForTests, stroopsToXlm, PAYOUT_TIMEOUT_S, type PayoutHorizon,
 } from '../services/rewards/rewardPayoutService.js';
 
 const HASH = bcrypt.hashSync('password123', 4);
@@ -129,11 +129,20 @@ describe('reward claim payouts (testnet)', () => {
     expect(horizon.submitted).toHaveLength(0);
   });
 
-  it('keeps the claim when the wallet is not active on the network', async () => {
-    const c = verifiedClaim();
+  it('creates a wallet that is not on the network yet, paying the reserve from the pool budget', async () => {
+    const c = verifiedClaim('1000000');
     horizon.accounts.delete(c.kp.publicKey());
-    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/not active on this network/);
-    expect(db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(c.claimId)).toEqual({ status: 'verified' });
+    expect((await payRewardClaim(c.userId, c.claimId)).status).toBe('paid');
+    expect(horizon.submitted[0].operations).toEqual([expect.objectContaining({ type: 'createAccount', destination: c.kp.publicKey(), startingBalance: '1.1000000' })]);
+    expect(db.prepare('SELECT activation_stroops FROM reward_claim_payouts WHERE claim_id = ?').get(c.claimId)).toEqual({ activation_stroops: ACTIVATION_RESERVE_STROOPS });
+  });
+
+  it('counts activation reserves against the budget', async () => {
+    const committed = db.prepare("SELECT COALESCE(SUM(amount_stroops + activation_stroops),0) AS t FROM reward_claim_payouts WHERE network='testnet' AND status IN ('submitted','paid')").get() as { t: number };
+    process.env.REWARD_TREASURY_PILOT_TOTAL_STROOPS = String(committed.t + ACTIVATION_RESERVE_STROOPS);
+    const c = verifiedClaim('1000000');
+    horizon.accounts.delete(c.kp.publicKey());
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/exceeds the reward pool budget/);
     expect(horizon.submitted).toHaveLength(0);
   });
 
@@ -145,7 +154,7 @@ describe('reward claim payouts (testnet)', () => {
   });
 
   it('stops at the reward pool budget', async () => {
-    const committed = db.prepare("SELECT COALESCE(SUM(amount_stroops),0) AS t FROM reward_claim_payouts WHERE network='testnet' AND status IN ('submitted','paid')").get() as { t: number };
+    const committed = db.prepare("SELECT COALESCE(SUM(amount_stroops + activation_stroops),0) AS t FROM reward_claim_payouts WHERE network='testnet' AND status IN ('submitted','paid')").get() as { t: number };
     process.env.REWARD_TREASURY_PILOT_TOTAL_STROOPS = String(committed.t + 1_500_000);
     const first = verifiedClaim('1000000'); const second = verifiedClaim('1000000');
     expect((await payRewardClaim(first.userId, first.claimId)).status).toBe('paid');
