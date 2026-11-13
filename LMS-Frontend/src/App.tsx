@@ -10,6 +10,7 @@ import SignUp from './pages/SignUp';
 import Landing from './pages/Landing';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import RewardClaimReturn from './pages/RewardClaimReturn';
 import SsoCallback from './pages/SsoCallback';
 import CertificateVerification from './pages/CertificateVerification';
 import { UserRoleManager } from './components/UserRoleManager';
@@ -201,6 +202,16 @@ function App() {
                 <ProtectedRoute allowedWorkspace="student">
                   <Layout>
                     <StudentDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/rewards/claim"
+              element={
+                <ProtectedRoute allowedWorkspace="student">
+                  <Layout>
+                    <RewardClaimReturn />
                   </Layout>
                 </ProtectedRoute>
               }
