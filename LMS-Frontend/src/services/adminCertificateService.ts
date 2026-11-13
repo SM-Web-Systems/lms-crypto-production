@@ -134,8 +134,10 @@ export const adminCertificateService = {
     tiersEnabled?: TiersEnabled,
     stellarPriceXlm?: number | null,
     stellarPriceUsdc?: number | null,
+    currency?: string,
   ): Promise<CoursePricing> {
     const body: Record<string, unknown> = { priceCents };
+    if (currency) body.currency = currency;
     if (tiersEnabled) body.tiersEnabled = tiersEnabled;
     if (stellarPriceXlm !== undefined) body.stellarPriceXlm = stellarPriceXlm;
     if (stellarPriceUsdc !== undefined) body.stellarPriceUsdc = stellarPriceUsdc;

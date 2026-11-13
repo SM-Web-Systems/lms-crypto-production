@@ -13,6 +13,7 @@ interface CourseWithPricing {
   courseId: string;
   courseName: string;
   priceCents: number;
+  currency: string;
   isFree: boolean;
   tiersEnabled: TiersEnabled;
   stellarPriceXlm: number | null;
@@ -26,6 +27,7 @@ export function PricingManagement() {
   const [state, setState] = useState<PanelState>('loading');
   const [editingCourse, setEditingCourse] = useState<CourseWithPricing | null>(null);
   const [priceInput, setPriceInput] = useState('');
+  const [currencyInput, setCurrencyInput] = useState('USD');
   const [tierMode, setTierMode] = useState<TiersEnabled>('both');
   const [xlmInput, setXlmInput] = useState('');
   const [usdcInput, setUsdcInput] = useState('');
@@ -49,6 +51,7 @@ export function PricingManagement() {
             courseId: c.courseId,
             courseName: c.courseName,
             priceCents: pricing?.priceCents ?? 0,
+            currency: pricing?.currency ?? 'USD',
             isFree: pricing?.isFree ?? true,
             tiersEnabled,
             stellarPriceXlm: pricing?.stellarPriceXlm ?? null,
@@ -59,6 +62,7 @@ export function PricingManagement() {
             courseId: c.courseId,
             courseName: c.courseName,
             priceCents: 0,
+            currency: 'USD',
             isFree: true,
             tiersEnabled: 'both',
             stellarPriceXlm: null,
@@ -80,6 +84,7 @@ export function PricingManagement() {
   const openEdit = (course: CourseWithPricing) => {
     setEditingCourse(course);
     setPriceInput((course.priceCents / 100).toFixed(2));
+    setCurrencyInput(course.currency);
     setTierMode(course.tiersEnabled);
     setXlmInput(course.stellarPriceXlm != null ? String(course.stellarPriceXlm) : '');
     setUsdcInput(course.stellarPriceUsdc != null ? String(course.stellarPriceUsdc) : '');
@@ -94,7 +99,7 @@ export function PricingManagement() {
     try {
       const xlm = xlmInput ? parseFloat(xlmInput) : null;
       const usdc = usdcInput ? parseFloat(usdcInput) : null;
-      await adminCertificateService.setCoursePricing(editingCourse.courseId, cents, tierMode, xlm, usdc);
+      await adminCertificateService.setCoursePricing(editingCourse.courseId, cents, tierMode, xlm, usdc, currencyInput);
       setEditingCourse(null);
       load();
     } catch (err) {
@@ -151,7 +156,7 @@ export function PricingManagement() {
                       {c.isFree ? (
                         <span className="text-green-600 font-medium">Free</span>
                       ) : (
-                        <span className="font-medium">${(c.priceCents / 100).toFixed(2)}</span>
+                        <span className="font-medium">{(c.priceCents / 100).toFixed(2)} {c.currency}</span>
                       )}
                     </td>
                     <td className="py-2">
@@ -180,7 +185,17 @@ export function PricingManagement() {
               <p className="text-sm text-neutral-600 mb-3">
                 Course: {editingCourse.courseName}
               </p>
-              <label htmlFor="pricing-price" className="block text-sm font-medium mb-1">Price (USD)</label>
+              <label htmlFor="pricing-currency" className="block text-sm font-medium mb-1">Currency</label>
+              <select
+                id="pricing-currency"
+                value={currencyInput}
+                onChange={(e) => setCurrencyInput(e.target.value)}
+                className="w-full border rounded px-3 py-2 mb-2"
+              >
+                {['USD', 'ZAR', 'NGN', 'GHS', 'KES'].map((code) => <option key={code} value={code}>{code}</option>)}
+              </select>
+              <p className="text-xs text-neutral-500 mb-3">Card payments go through Paystack in this currency, so use your Paystack account's currency.</p>
+              <label htmlFor="pricing-price" className="block text-sm font-medium mb-1">Price ({currencyInput})</label>
               <input
                 id="pricing-price"
                 type="number"
@@ -191,7 +206,7 @@ export function PricingManagement() {
                 className="w-full border rounded px-3 py-2 mb-2"
                 placeholder="0.00"
               />
-              <p className="text-xs text-neutral-500 mb-3">Set to $0 for free certificates</p>
+              <p className="text-xs text-neutral-500 mb-3">Set to 0 for free certificates</p>
               <label htmlFor="pricing-tier" className="block text-sm font-medium mb-1">Tier Mode</label>
               <select
                 id="pricing-tier"
