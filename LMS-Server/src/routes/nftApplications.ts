@@ -222,7 +222,7 @@ router.post(
     if (selectedTier === 'paid') {
       const pricing = getCoursePricing(courseId);
       if (pricing && pricing.price_cents > 0) {
-        const payment = createPayment(userId, courseId, appId, pricing.price_cents);
+        const payment = createPayment(userId, courseId, appId, pricing.price_cents, pricing.currency);
         paymentData = {
           paymentId: payment.id,
           amountCents: payment.amount_cents,

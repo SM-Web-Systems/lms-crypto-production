@@ -5,6 +5,7 @@ import { courseCompletionService } from '../../services/courseCompletionService'
 import type { CourseProgress, NftApplication } from '../../types/api';
 import type { Course } from '../../types/course';
 import { CertEligibilitySkeleton } from '../PageSkeletons';
+import { CertificatePaymentPanel } from './CertificatePaymentPanel';
 import {
   CheckCircle,
   XCircle,
@@ -331,6 +332,9 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                         {prog.lessonPercentage}% lessons complete
                       </p>
                     </div>
+                  )}
+                  {displayState === 'pending' && appStatus?.applicationId && (
+                    <CertificatePaymentPanel courseId={course.id} applicationId={appStatus.applicationId} />
                   )}
                   {displayState === 'minted' && appStatus?.txHash && (
                     <a
