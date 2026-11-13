@@ -153,6 +153,25 @@ describe('UserRoleManager', () => {
   });
 
   // URM-04: Clicking "Manage Roles" loads and shows the user's RBAC roles
+  it('URM-04b: keeps the role panel in view and moves focus to it when a user is chosen', async () => {
+    const user = userEvent.setup();
+    const scroll = vi.fn();
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia;
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      renderComponent();
+      await waitFor(() => expect(screen.getByText('Bob Student')).toBeTruthy());
+      const panel = screen.getByLabelText('Role management');
+      expect(panel.className.split(' ')).toEqual(expect.arrayContaining(['lg:sticky', 'lg:top-4', 'lg:self-start']));
+      const bobRow = screen.getByText('Bob Student').closest('tr')!;
+      await user.click(within(bobRow).getByRole('button', { name: /manage roles/i }));
+      await waitFor(() => expect(scroll).toHaveBeenCalled());
+      await waitFor(() => expect(document.activeElement?.tagName).toBe('H3'));
+      expect(document.activeElement?.textContent).toBe('Bob Student');
+    } finally { window.matchMedia = original; }
+  });
+
   it('URM-04: selecting a user loads and displays their RBAC roles', async () => {
     const user = userEvent.setup();
     renderComponent();
