@@ -7,6 +7,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AnnouncementsPanel } from '@/components/AnnouncementsPanel';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { ClassInvitationsCard } from '@/components/ClassInvitationsCard';
 import { LoadingView } from '@/components/LoadingView';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -117,6 +118,8 @@ export default function DashboardScreen() {
       </Pressable>
 
       {error && !duplicateOfSessionNotice ? <ErrorBanner message={error} onRetry={loadData} /> : null}
+
+      <ClassInvitationsCard />
 
       <View>
         <Text className="mb-3 text-lg font-bold text-neutral-900">Jump in</Text>
