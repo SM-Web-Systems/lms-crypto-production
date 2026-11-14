@@ -3,7 +3,8 @@ import { pushSchemaTables } from './pushSchema.js';
 import { offlineLearningSchemaTables } from './offlineLearningSchema.js';
 import { paystackPaymentTables } from './paystackCheckoutSchema.js';
 import { rewardClaimTables } from './rewardClaimSchema.js';
-const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables];
+import { classInvitationTables } from './classInvitationSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...classInvitationTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -92,7 +93,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
       const feature = fundingSchemaTables.includes(table.name) ? 'funding'
         : pushSchemaTables.includes(table.name) ? 'push'
         : paystackPaymentTables.includes(table.name) ? 'card payments'
-        : rewardClaimTables.includes(table.name) ? 'reward claims' : 'offline learning';
+        : rewardClaimTables.includes(table.name) ? 'reward claims'
+        : classInvitationTables.includes(table.name) ? 'class invitations' : 'offline learning';
       if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${feature} schema (${table.name})`);
     }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];

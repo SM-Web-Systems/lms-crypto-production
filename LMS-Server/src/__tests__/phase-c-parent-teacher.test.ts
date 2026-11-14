@@ -286,13 +286,26 @@ describe('Phase C — Teacher Routes', () => {
 
     const classId = createRes.body.data.id;
 
-    // Invite student
+    // Invite student by email: they are not in the class until they accept
     const inviteRes = await request(app)
       .post(`/api/v1/teacher/classes/${classId}/invite`)
       .set('Authorization', `Bearer ${teacher.token}`)
-      .send({ userId: student.userId });
+      .send({ email: student.email });
 
-    expect(inviteRes.status).toBe(201);
+    expect(inviteRes.status).toBe(202);
+    const before = await request(app)
+      .get(`/api/v1/teacher/classes/${classId}/students`)
+      .set('Authorization', `Bearer ${teacher.token}`);
+    expect(before.body.data.students).toHaveLength(0);
+
+    const mine = await request(app)
+      .get('/api/v1/students/me/class-invitations')
+      .set('Authorization', `Bearer ${student.token}`);
+    const invitationId = mine.body.data.invitations[0].id;
+    const accepted = await request(app)
+      .post(`/api/v1/students/me/class-invitations/${invitationId}/accept`)
+      .set('Authorization', `Bearer ${student.token}`);
+    expect(accepted.status).toBe(200);
 
     // List class students
     const studentsRes = await request(app)

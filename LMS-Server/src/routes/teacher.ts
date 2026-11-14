@@ -19,6 +19,7 @@ import {
   getRewardTransactions,
 } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
+import { inviteLearner, listClassInvitations, cancelClassInvitation, ownsClassGroup } from '../services/classInvitationService.js';
 import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
@@ -126,34 +127,39 @@ router.get('/teacher/classes/:id/students', authenticate, requirePermission('stu
   res.json({ success: true, data: { students } });
 });
 
-// POST /teacher/classes/:id/invite — add existing student to class (by userId)
+// POST /teacher/classes/:id/invite — invite a learner by email. The learner joins only after accepting.
+// The answer never says whether the email belongs to an account, so the endpoint can't be used to find users.
 router.post('/teacher/classes/:id/invite', authenticate, requirePermission('student.view_assigned'), (req, res: Response) => {
   const { userId } = (req as AuthRequest).user!;
-  const { id } = req.params;
-  const { userId: studentId } = req.body;
-
-  if (!studentId) {
-    res.status(400).json({ success: false, error: 'userId is required' });
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  if (!email || email.length > 254 || !email.includes('@')) {
+    res.status(400).json({ success: false, error: 'A learner email is required' });
     return;
   }
-
-  const cls = queryOne<{ owner_user_id: string }>(
-    "SELECT owner_user_id FROM user_groups WHERE id = ? AND group_type = 'class'",
-    [id]
-  );
-  if (!cls || cls.owner_user_id !== userId) {
+  const outcome = inviteLearner(req.params.id, userId, email);
+  if (outcome === 'not_found' && !ownsClassGroup(req.params.id, userId)) {
     res.status(404).json({ success: false, error: 'Class not found' });
     return;
   }
+  res.status(202).json({ success: true, message: 'If a learner account exists for that email, an invitation has been sent. They join the class when they accept it.' });
+});
 
-  try {
-    execute('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)', [id, studentId]);
-  } catch {
-    res.status(409).json({ success: false, error: 'Already in class' });
+// GET /teacher/classes/:id/invitations — invitations sent for this class
+router.get('/teacher/classes/:id/invitations', authenticate, requirePermission('student.view_assigned'), (req, res: Response) => {
+  const { userId } = (req as AuthRequest).user!;
+  const invitations = listClassInvitations(req.params.id, userId);
+  if (!invitations) { res.status(404).json({ success: false, error: 'Class not found' }); return; }
+  res.json({ success: true, data: { invitations } });
+});
+
+// DELETE /teacher/classes/:id/invitations/:invitationId — withdraw a pending invitation
+router.delete('/teacher/classes/:id/invitations/:invitationId', authenticate, requirePermission('student.view_assigned'), (req, res: Response) => {
+  const { userId } = (req as AuthRequest).user!;
+  if (!cancelClassInvitation(req.params.id, userId, req.params.invitationId)) {
+    res.status(404).json({ success: false, error: 'Invitation not found' });
     return;
   }
-
-  res.status(201).json({ success: true });
+  res.json({ success: true });
 });
 
 // GET /teacher/classes/:classId/students/:userId/login-history — scoped via class membership
