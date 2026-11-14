@@ -89,6 +89,7 @@ const RewardCreateForm: React.FC<{
   const { user } = useAuth();
   const [rewardType, setRewardType] = useState<RewardType>('custom');
   const [amount, setAmount] = useState('');
+  const [recipients, setRecipients] = useState('');
   const [description, setDescription] = useState('');
   const [autoRelease, setAutoRelease] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -117,12 +118,19 @@ const RewardCreateForm: React.FC<{
       return;
     }
 
+    const count = recipients.trim() === '' ? undefined : Number(recipients);
+    if (count !== undefined && (!Number.isInteger(count) || count < 1 || count > 10_000)) {
+      setError('Number of learners must be a whole number from 1 to 10,000');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const params: CreateRewardParams = {
         scopeId,
         rewardType,
         amountStroops: String(stroops),
+        ...(count !== undefined && { maxRecipients: count }),
         autoRelease,
         description: description || undefined,
         idempotencyKey: `create-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -180,6 +188,22 @@ const RewardCreateForm: React.FC<{
               placeholder="1.0"
               required
             />
+          </div>
+
+          <div>
+            <label htmlFor="reward-recipients" className="block text-sm font-medium text-neutral-700 mb-1">Number of learners (optional)</label>
+            <input
+              id="reward-recipients"
+              type="number"
+              step="1"
+              min="1"
+              max="10000"
+              value={recipients}
+              onChange={(e) => setRecipients(e.target.value)}
+              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+              placeholder="1"
+            />
+            <p className="mt-1 text-xs text-neutral-500">The amount above is paid to each learner. Funding must cover this many learners. Leave empty for one learner.</p>
           </div>
 
           <div>
