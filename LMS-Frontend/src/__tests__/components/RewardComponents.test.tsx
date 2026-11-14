@@ -307,6 +307,20 @@ describe('W05-R1 Frontend select/payload coverage', () => {
     expect(params.rewardType).toBe('custom');
   });
 
+  it('sends the number of learners as maxRecipients, and nothing when it is left empty', async () => {
+    mockListRewards.mockResolvedValue([]);
+    mockCreateReward.mockResolvedValue({ id: 'r-n', status: 'draft', reward_type: 'custom' });
+    render(<RewardDashboard role="teacher" scopeId="class1" />);
+    await waitFor(() => expect(screen.getByText('New Reward')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('New Reward'));
+    await waitFor(() => expect(screen.getByLabelText('Type')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: '0.1' } });
+    fireEvent.change(screen.getByLabelText(/Number of learners/i), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+    await waitFor(() => expect(mockCreateReward).toHaveBeenCalledOnce());
+    expect((mockCreateReward.mock.calls[0] as [string, { maxRecipients?: number }])[1].maxRecipients).toBe(2);
+  });
+
   // W5R1-FE2b: selecting 'individual' submits exact string 'individual'
   it('W5R1-FE2b: selecting individual submits exact canonical string', async () => {
     mockListRewards.mockResolvedValue([]);
