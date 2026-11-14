@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type RequestHandler } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -173,8 +173,17 @@ const writeLimiter = rateLimit({
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
 });
 
-// Keep this name so any future code referencing apiLimiter still compiles.
-const apiLimiter = writeLimiter;
+/**
+ * Many routers are mounted on the shared '/api/v1' prefix, each behind apiLimiter. One request passes
+ * every apiLimiter in front of the router that finally answers it, so the shared limiter counted it
+ * once per mount (about ten times) and the real limit was a tenth of writeMax. Count each request once.
+ */
+const apiLimiter: RequestHandler = (req, res, next) => {
+  const counted = req as Request & { writeLimited?: boolean };
+  if (counted.writeLimited) { next(); return; }
+  counted.writeLimited = true;
+  writeLimiter(req, res, next);
+};
 
 /** Read rate limiter — all methods including GET. Prevents abuse of expensive queries. */
 const readLimiter = rateLimit({
