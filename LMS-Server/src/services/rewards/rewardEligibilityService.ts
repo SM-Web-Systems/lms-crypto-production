@@ -22,10 +22,10 @@ import { isCourseCompleteForReward } from '../courseCompletionService.js';
  * Dedup policy for (event_type, event_source_id, student_user_id):
  * - No existing row → INSERT new pending row.
  * - Existing row with status 'pending' or 'in_progress' → no-op (already queued).
- * - Existing row with status 'completed' AND an 'eligible' eligibility record exists
- *   → no-op (reward already paid; do not replay).
- * - Existing row with status 'completed' but NO 'eligible' eligibility record
- *   → reset to 'pending' so a genuine later completion can be re-evaluated.
+ * - Existing row with status 'completed': reset to 'pending' when no 'eligible' record exists yet, or when
+ *   an active reward including the learner has not yet fired for this event (it became active after an
+ *   earlier pass). Rewards that already fired are never replayed (eligibility is recorded per reward).
+ *   Otherwise no-op.
  *   This prevents a premature-ineligible outbox row from permanently blocking
  *   a student who subsequently satisfies all requirements.
  */
@@ -52,17 +52,29 @@ export function produceOutboxEvent(
   // Already pending or in_progress — nothing to do.
   if (existing.status === 'pending' || existing.status === 'in_progress') return;
 
-  // Completed row: only reset if no eligible record exists for this tuple.
-  // If an eligible record exists the reward has already been paid — do not re-trigger.
+  // Completed row. Eligibility is recorded per reward, so a reward that already fired for this event is
+  // never replayed (processEvent skips it). Reset when this event has not yet made the learner eligible
+  // for some active reward that includes them: either nothing paid yet (ineligible -> eligible upgrade
+  // path), or a reward became active after an earlier pass and this is a new genuine pass.
   if (existing.status === 'completed') {
-    const hasEligible = db.prepare(
+    const awaiting = !!db.prepare(
+      `SELECT 1 FROM rewards r
+       JOIN reward_audience_snapshots ras ON ras.reward_id = r.id AND ras.student_user_id = ?
+       WHERE r.status = 'active'
+         AND NOT EXISTS (
+           SELECT 1 FROM reward_eligibility_events e
+           WHERE e.reward_id = r.id AND e.event_type = ? AND e.event_source_id = ? AND e.student_user_id = ?
+             AND e.result = 'eligible')
+       LIMIT 1`
+    ).get(studentUserId, eventType, eventSourceId, studentUserId);
+    const anyEligible = !!db.prepare(
       `SELECT 1 FROM reward_eligibility_events
        WHERE event_type = ? AND event_source_id = ? AND student_user_id = ? AND result = 'eligible'
        LIMIT 1`
     ).get(eventType, eventSourceId, studentUserId);
 
-    if (!hasEligible) {
-      // Reset to pending for re-evaluation (ineligible→eligible upgrade path).
+    if (awaiting || !anyEligible) {
+      // Reset to pending for re-evaluation.
       db.prepare(
         `UPDATE reward_event_outbox
          SET status = 'pending', attempt_count = 0, error_message = NULL,
