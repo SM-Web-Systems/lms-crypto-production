@@ -34,7 +34,24 @@ export interface TeacherBilling {
   totalEarned: number;
 }
 
+export interface ClassInvitation { id: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; name: string; email: string; createdAt: string }
+
 export const teacherService = {
+  /** The learner joins only after accepting. The answer never says whether the email has an account. */
+  async inviteLearner(classId: string, email: string): Promise<string> {
+    const res = await api.post<{ success: boolean; message?: string }>(`/teacher/classes/${encodeURIComponent(classId)}/invite`, { email });
+    return res.data.message ?? 'Invitation sent.';
+  },
+
+  async getClassInvitations(classId: string): Promise<ClassInvitation[]> {
+    const res = await api.get<{ success: boolean; data: { invitations: ClassInvitation[] } }>(`/teacher/classes/${encodeURIComponent(classId)}/invitations`);
+    return res.data.data.invitations;
+  },
+
+  async cancelClassInvitation(classId: string, invitationId: string): Promise<void> {
+    await api.delete(`/teacher/classes/${encodeURIComponent(classId)}/invitations/${encodeURIComponent(invitationId)}`);
+  },
+
   async getDashboard(): Promise<TeacherDashboardData> {
     const res = await api.get<{ success: boolean; data: TeacherDashboardData }>('/teacher/dashboard');
     return res.data.data;
