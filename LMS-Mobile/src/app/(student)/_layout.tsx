@@ -94,6 +94,7 @@ export default function StudentTabsLayout() {
       <Tabs.Screen name="quizzes" options={{ href: null, title: 'Quizzes' }} />
       <Tabs.Screen name="forum" options={{ href: null, title: 'Forum' }} />
       <Tabs.Screen name="documents" options={{ href: null, title: 'Resources' }} />
+      <Tabs.Screen name="rewards" options={{ href: null, title: 'Rewards' }} />
     </Tabs>
   );
 }
