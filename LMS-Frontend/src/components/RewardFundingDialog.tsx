@@ -6,6 +6,9 @@ const labels: Record<string, string> = {
   stellar: 'Stellar transfer', paystack: 'Card payment', platform_credit: 'Platform credit', admin_grant: 'Administrator grant',
 };
 
+const RATE_LIMIT_MESSAGE = 'Too many requests right now. Your payment is safe. Wait a few minutes, then press the button again with the same details.';
+const isRateLimited = (err: unknown) => (err as {response?: {status?: number}})?.response?.status === 429;
+
 export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFocus}: {
   role: string; rewardId: string; onClose: () => void; onFunded: () => void; returnFocus?: HTMLElement | null;
 }) {
@@ -63,7 +66,7 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
       setPreparedSource(sourceType);
       setInstructions(result);
       setPrepared(true);
-    } catch { if (alive.current) setError(sourceType === 'stellar' ? 'Could not prepare Stellar payment instructions. Please retry.' : 'Could not prepare this grant. Please retry.'); }
+    } catch (err) { if (alive.current) setError(isRateLimited(err) ? RATE_LIMIT_MESSAGE : sourceType === 'stellar' ? 'Could not prepare Stellar payment instructions. Please retry.' : 'Could not prepare this grant. Please retry.'); }
     finally { if (alive.current) setBusy(false); }
   };
   const authorize = async () => {
@@ -81,7 +84,7 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
       if (alive.current) {
         const status = (err as {response?: {status?: number}})?.response?.status;
         if (preparedSource==='stellar' && (status === 400 || status === 402)) {submittedReference.current = null; setReferenceLocked(false);}
-        setError(preparedSource === 'stellar' ? 'Payment was not confirmed. Check the operation ID and retry the same request.' : 'Grant was not confirmed. Retry to check the same request.');
+        setError(status === 429 ? RATE_LIMIT_MESSAGE : preparedSource === 'stellar' ? 'Payment was not confirmed. Check the operation ID and retry the same request.' : 'Grant was not confirmed. Retry to check the same request.');
       }
     }
     finally { if (alive.current) setBusy(false); }

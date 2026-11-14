@@ -35,6 +35,27 @@ const counts = () => ({ledger: (db.prepare('SELECT COUNT(*) AS n FROM reward_tra
   evidence: (db.prepare('SELECT COUNT(*) AS n FROM reward_funding_evidence').get() as {n: number}).n,
   stellar: (db.prepare('SELECT COUNT(*) AS n FROM reward_stellar_funding_evidence').get() as {n: number}).n});
 
+describe('reopening the funding dialog keeps the live payment instructions', () => {
+  it('returns the same intent and memo for a new idempotency key while the offer is live', () => {
+    const f = fixture();
+    const again = createFundingIntent(f.reward.id, f.owner, {type: 'stellar'}, 'dialog-reopened');
+    expect(again.id).toBe(f.intent.id);
+    expect(again.memo_hash).toBe(f.intent.memo_hash);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM reward_funding_intents WHERE reward_id=?').get(f.reward.id) as {n: number}).n).toBe(1);
+  });
+
+  it('makes a fresh offer once the old one has expired, and never shares an offer with another actor', () => {
+    const f = fixture();
+    vi.useFakeTimers({toFake: ['Date']});
+    vi.setSystemTime(Date.now() + 31 * 60_000);
+    const fresh = createFundingIntent(f.reward.id, f.owner, {type: 'stellar'}, 'after-expiry');
+    vi.useRealTimers();
+    expect(fresh.id).not.toBe(f.intent.id);
+    expect(fresh.memo_hash).not.toBe(f.intent.memo_hash);
+    expect(() => createFundingIntent(f.reward.id, f.stranger, {type: 'stellar'}, 'someone-else')).toThrow();
+  });
+});
+
 describe('Stellar intent verification and atomic consumption', () => {
   it('derives immutable deposit instructions from dedicated configuration and keeps other funding unavailable', () => {
     const f = fixture();
