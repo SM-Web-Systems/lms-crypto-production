@@ -24,6 +24,7 @@ const QUICK_ACTIONS = [
   { href: '/(student)/documents', title: 'Resources', blurb: 'Files & readings', icon: 'library-outline' as const },
   { href: '/(student)/messages', title: 'Messages', blurb: 'Chat with classmates', icon: 'mail-outline' as const },
   { href: '/(student)/forum', title: 'Forum', blurb: 'Discuss & ask', icon: 'chatbubbles-outline' as const },
+  { href: '/(student)/rewards', title: 'Rewards', blurb: 'Earned & claim', icon: 'gift-outline' as const },
   { href: '/(student)/profile', title: 'Profile', blurb: 'Your account & bio', icon: 'person-outline' as const },
 ];
 

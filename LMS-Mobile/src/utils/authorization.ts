@@ -23,6 +23,6 @@ export function mobileHome(user: User | null): '/(auth)/sign-in' | '/(student)/d
 export function canOpenStudentPath(user: User | null, path: string): boolean {
   if (!canStudy(user)) return false;
   const screen = path.split('/').filter(Boolean).at(-1);
-  const required: Record<string,string> = {course:'course.view',submissions:'course.submit',documents:'document.view',quizzes:'quiz.view',forum:'forum.view',certificates:'certificate.view_own','certificate-detail':'certificate.view_own'};
+  const required: Record<string,string> = {course:'course.view',submissions:'course.submit',documents:'document.view',quizzes:'quiz.view',forum:'forum.view',certificates:'certificate.view_own','certificate-detail':'certificate.view_own',rewards:'reward.view_own'};
   return !screen || !required[screen] || !!user?.permissions?.includes(required[screen]);
 }
