@@ -10,6 +10,23 @@ vi.mock('../../services/rewardService', () => ({rewardService: {
 beforeEach(() => vi.resetAllMocks());
 const available = [{sourceType: 'admin_grant', available: true, reason: null}];
 
+describe('rate limiting', () => {
+  it('says the request was rate limited, not that the payment failed, and keeps the same request', async () => {
+    const user = userEvent.setup(), done = vi.fn();
+    mocks.options.mockResolvedValue(available);
+    mocks.prepare.mockResolvedValue({id: 'immutable-intent', amount_stroops: 1000000});
+    mocks.fund.mockRejectedValueOnce({response: {status: 429}}).mockResolvedValueOnce({status: 'funded'});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={done} />);
+    await user.click(await screen.findByRole('button', {name: 'Prepare grant'}));
+    await user.click(await screen.findByRole('button', {name: 'Authorize grant'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many requests right now');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('not confirmed');
+    await user.click(screen.getByRole('button', {name: 'Authorize grant'}));
+    await waitFor(() => expect(done).toHaveBeenCalledTimes(1));
+    expect(mocks.fund.mock.calls[0]).toEqual(mocks.fund.mock.calls[1]);
+  });
+});
+
 describe('reward funding availability and confirmation', () => {
   it('explains unavailable sources without offering a funding submission', async () => {
     mocks.options.mockResolvedValue([

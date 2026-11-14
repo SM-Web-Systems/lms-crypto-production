@@ -137,8 +137,23 @@ export function createFundingIntent(rewardId: string, actorId: string, source: F
       return existing;
     }
     if (reward.status !== 'draft') throw new RewardError('INVALID_STATE_TRANSITION', 'Reward is not awaiting funding.', 409);
-    const id = uuidv4();
     const stellar = source.type === 'stellar' ? stellarFundingConfiguration() : null;
+    // Reopening the funding dialog sends a new idempotency key. Hand back the live Stellar offer instead of
+    // making a new memo, so a payment already sent to the first one is not orphaned.
+    if (stellar) {
+      const live = db.prepare(`SELECT i.id FROM reward_funding_intents i
+          JOIN reward_stellar_funding_bindings b ON b.intent_id = i.id
+          WHERE i.reward_id = ? AND i.actor_user_id = ? AND i.source_type = 'stellar' AND i.status = 'pending'
+            AND i.expires_at > ? AND i.network = ? AND b.destination = ?
+          ORDER BY i.created_at DESC LIMIT 1`)
+        .get(rewardId, actorId, new Date().toISOString(), stellar.network, stellar.destination) as {id: string} | undefined;
+      if (live) {
+        const existing = readIntent(live.id)!;
+        assertBinding(existing, reward, actorId, source);
+        return existing;
+      }
+    }
+    const id = uuidv4();
     const credit=source.type==='platform_credit'?assertPlatformCredit(actorId,reward.creator_user_id,source.reference):null;
     if (source.type === 'stellar' && !stellar) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding is not configured.', 402);
     const amount = Number(calculateMaxExposure(BigInt(reward.amount_stroops), BigInt(reward.max_recipients ?? 1)));
