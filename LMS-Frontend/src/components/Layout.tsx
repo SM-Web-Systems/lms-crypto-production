@@ -227,7 +227,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <header className="relative z-30 h-14 shrink-0 bg-white/90 backdrop-blur-md border-b border-neutral-200/90 flex items-center justify-between gap-3 px-4 lg:px-6">
           <button
             type="button"
-            className="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-700 hover:bg-neutral-100"
+            className="touch-target lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-700 hover:bg-neutral-100"
             aria-label="Open navigation menu"
             onClick={() => setMobileNavOpen(true)}
           >
@@ -248,7 +248,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               type="button"
               onClick={handleLogout}
               aria-label="Logout"
-              className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-white bg-accent-teal hover:bg-accent-teal-hover transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-teal shrink-0"
+              className="touch-target inline-flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md text-white bg-accent-teal hover:bg-accent-teal-hover transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-teal shrink-0"
             >
               <LogOut className="h-4 w-4 sm:mr-2" aria-hidden />
               <span className="hidden sm:inline">Logout</span>
