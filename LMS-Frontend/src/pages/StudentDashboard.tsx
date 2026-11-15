@@ -296,6 +296,8 @@ const StudentDashboardContent: React.FC = () => {
 
   return (
     <div className="pb-10 space-y-8">
+      {/* A teacher's invitation is waiting for the learner's answer; shown where they will see it. */}
+      <ClassInvitationsPanel />
       {user && <StudentWalletStatusCard user={user} />}
 
       {user?.id && (
