@@ -88,6 +88,16 @@
 
 @layer components {
   /**
+   * Touch targets: on touch screens, controls need at least 44 x 44 px (Apple's guideline, also WCAG 2.5.5).
+   * .touch-target grows a button; .touch-target-link grows only the tappable area of an inline link
+   * (padding with a matching negative margin), so the text layout does not move.
+   */
+  @media (pointer: coarse) {
+    .touch-target { min-height: 44px; min-width: 44px; }
+    .touch-target-link { display: inline-block; padding-block: 14px; margin-block: -14px; }
+  }
+
+  /**
    * Embedded PDF / document viewport — inset surface so the iframe reads as part of the app chrome.
    */
   .lms-embed-viewport--pdf {

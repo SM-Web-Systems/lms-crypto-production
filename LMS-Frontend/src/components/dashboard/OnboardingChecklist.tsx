@@ -70,7 +70,7 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
         <button
           type="button"
           onClick={handleDismissChecklist}
-          className="shrink-0 p-1.5 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
+          className="touch-target inline-flex items-center justify-center shrink-0 p-1.5 rounded-md text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
           aria-label="Dismiss getting started checklist"
         >
           <X className="h-4 w-4" />

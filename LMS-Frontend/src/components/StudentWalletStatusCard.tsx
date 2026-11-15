@@ -123,7 +123,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
               {walletAddr && (
                 <button
                   onClick={() => copyAddress(walletAddr)}
-                  className="mt-1.5 flex items-center gap-1.5 text-xs font-mono text-neutral-500 hover:text-neutral-800 transition-colors"
+                  className="touch-target mt-1.5 flex items-center gap-1.5 text-xs font-mono text-neutral-500 hover:text-neutral-800 transition-colors"
                   title={walletAddr}
                   aria-label="Copy wallet address"
                 >
@@ -151,7 +151,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
               href="https://ammawallet.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors"
+              className="touch-target-link inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors"
             >
               Open in AmmaWallet
               <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -159,7 +159,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
           </div>
         </div>
         <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active mainnet wallet at sign-in.
-          {' '}<Link to="/profile" className="font-semibold underline">Review or refresh wallet connection</Link></p>
+          {' '}<Link to="/profile" className="touch-target-link font-semibold underline">Review or refresh wallet connection</Link></p>
       </CardContent>
     </Card>
   );

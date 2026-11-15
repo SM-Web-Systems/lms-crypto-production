@@ -121,7 +121,7 @@ const GlobalSearchBar: React.FC = () => {
         aria-expanded={open}
         aria-controls="global-search-dialog"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-500 hover:bg-white hover:border-neutral-300 transition-colors"
+        className="touch-target inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-500 hover:bg-white hover:border-neutral-300 transition-colors"
         data-testid="search-trigger"
       >
         <Search className="h-4 w-4" aria-hidden />

@@ -157,7 +157,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
         </div>
         <Link
           to="/student/progress"
-          className="shrink-0 text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors"
+          className="touch-target-link shrink-0 text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors"
         >
           View full progress →
         </Link>
