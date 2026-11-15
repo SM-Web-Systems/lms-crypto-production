@@ -1,6 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const teacher = vi.hoisted(() => ({ inviteLearner: vi.fn(), getClassInvitations: vi.fn(), cancelClassInvitation: vi.fn() }));
 const mine = vi.hoisted(() => ({ mine: vi.fn(), respond: vi.fn() }));
@@ -62,5 +64,14 @@ describe('learner answers an invitation', () => {
     render(<ClassInvitationsPanel />);
     await userEvent.click(await screen.findByRole('button', { name: 'Decline' }));
     await waitFor(() => expect(mine.respond).toHaveBeenCalledWith('i-9', false));
+  });
+});
+
+describe('where learners see their invitations', () => {
+  it('shows the invitations on the main student dashboard as well as on My Rewards', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../pages/StudentDashboard.tsx'), 'utf-8');
+    expect((source.match(/<ClassInvitationsPanel \/>/g) ?? []).length).toBe(2);
+    // the main dashboard's copy comes before its wallet status card, so it is near the top
+    expect(source.indexOf('<ClassInvitationsPanel />', source.indexOf('pb-10 space-y-8'))).toBeLessThan(source.indexOf('<StudentWalletStatusCard'));
   });
 });
