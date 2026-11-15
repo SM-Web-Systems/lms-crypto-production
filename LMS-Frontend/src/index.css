@@ -95,6 +95,8 @@
   @media (pointer: coarse) {
     .touch-target { min-height: 44px; min-width: 44px; }
     .touch-target-link { display: inline-block; padding-block: 14px; margin-block: -14px; }
+    /* A small round badge on an avatar: keep it small, grow only the tappable area to 44 x 44. */
+    .touch-target-badge::after { content: ''; position: absolute; inset: -8px; }
   }
 
   /**
