@@ -53,7 +53,7 @@ function SocialField({ label, icon, value, onChange, placeholder, prefix }: Soci
           {prefix && <span className="text-sm text-neutral-400 shrink-0">{prefix}</span>}
           <input
             type="text"
-            className="w-full text-sm rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30 focus:border-accent-teal/50"
+            className="touch-target w-full text-sm rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30 focus:border-accent-teal/50"
             placeholder={placeholder}
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -301,7 +301,7 @@ const Profile: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => avatarInputRef.current?.click()}
-                        className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-accent-teal text-white shadow-md hover:bg-accent-teal-hover transition-colors"
+                        className="touch-target-badge absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-accent-teal text-white shadow-md hover:bg-accent-teal-hover transition-colors"
                         title="Change photo"
                       >
                         <Camera className="h-3.5 w-3.5" />
@@ -489,14 +489,14 @@ const Profile: React.FC = () => {
                       <div className="flex-1 grid grid-cols-2 gap-2 min-w-0">
                         <input
                           type="text"
-                          className="text-sm rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30"
+                          className="touch-target text-sm rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30"
                           placeholder="Label (e.g. My Portfolio)"
                           value={link.title}
                           onChange={(e) => updateLink(i, 'title', e.target.value)}
                         />
                         <input
                           type="text"
-                          className="text-sm rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30"
+                          className="touch-target text-sm rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-accent-teal/30"
                           placeholder="https://..."
                           value={link.url}
                           onChange={(e) => updateLink(i, 'url', e.target.value)}

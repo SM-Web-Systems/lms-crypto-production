@@ -52,11 +52,11 @@ export default function AmmaWalletConnection({user, errorCode}: {user: User; err
       </div>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {connected ? <button type="submit" disabled={busy} title="Refresh the confirmed address from AmmaWallet"
-        className="inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
+        className="touch-target inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60">
         <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} aria-hidden />
         {busy ? 'Refreshing…' : 'Refresh'}
         <span className="sr-only"> wallet address from AmmaWallet</span>
-      </button> : <button type="submit" disabled={busy} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      </button> : <button type="submit" disabled={busy} className="touch-target rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {busy ? 'Connecting…' : 'Connect AmmaWallet'}
       </button>}
     </form>

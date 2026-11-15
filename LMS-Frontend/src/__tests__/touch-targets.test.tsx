@@ -14,6 +14,12 @@ describe('touch targets (44 px on touch screens)', () => {
     expect(rule).toMatch(/\.touch-target-link \{[^}]*padding-block: 14px;[^}]*margin-block: -14px;/);
   });
 
+  it('grows only the tappable area of the avatar badge', () => {
+    const css = read('index.css');
+    expect(css).toMatch(/\.touch-target-badge::after \{[^}]*inset: -8px;/);
+    expect(read('pages/Profile.tsx')).toContain('touch-target-badge absolute');
+  });
+
   it('every shared Button is a touch target', () => {
     render(<Button size="sm">Join</Button>);
     expect(screen.getByRole('button', { name: 'Join' }).className).toContain('touch-target');
@@ -26,6 +32,9 @@ describe('touch targets (44 px on touch screens)', () => {
     ['components/dashboard/OnboardingChecklist.tsx', 1],
     ['components/dashboard/CertEligibilitySection.tsx', 1],
     ['components/StudentWalletStatusCard.tsx', 3],
+    ['components/AmmaWalletConnection.tsx', 2],
+    ['components/Input.tsx', 1],
+    ['pages/Profile.tsx', 3],
   ])('%s marks its small controls as touch targets', (file, count) => {
     expect((read(file).match(/touch-target/g) ?? []).length).toBeGreaterThanOrEqual(count);
   });
