@@ -13,7 +13,8 @@ import {
 
 const HASH = bcrypt.hashSync('password123', 4);
 const pool = Keypair.random();
-const ENV = ['REWARD_STELLAR_NETWORK', 'REWARD_STELLAR_DESTINATION', 'REWARD_PAYOUT_SECRET', 'REWARD_TREASURY_PILOT_TOTAL_STROOPS'] as const;
+const ENV = ['REWARD_STELLAR_NETWORK', 'REWARD_STELLAR_DESTINATION', 'REWARD_PAYOUT_SECRET', 'REWARD_TREASURY_PILOT_TOTAL_STROOPS',
+  'REWARD_MAINNET_PAYOUTS', 'REWARD_PAYOUT_MAX_CLAIM_STROOPS', 'REWARD_PAYOUT_DAILY_CAP_STROOPS'] as const;
 let saved: Record<string, string | undefined>;
 
 class FakeHorizon implements PayoutHorizon {
@@ -23,7 +24,7 @@ class FakeHorizon implements PayoutHorizon {
   nextSubmit: 'ok' | 'rejected' | 'unknown' = 'ok';
   async sequence(id: string) { return this.accounts.has(id) ? '100' : null; }
   async submit(xdr: string) {
-    const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction;
+    const tx = TransactionBuilder.fromXDR(xdr, process.env.REWARD_STELLAR_NETWORK === 'public' ? Networks.PUBLIC : Networks.TESTNET) as Transaction;
     this.submitted.push(tx);
     const hash = tx.hash().toString('hex');
     if (this.nextSubmit === 'rejected') throw new PayoutSubmitError('rejected', '{"transaction":"tx_bad_seq"}');
@@ -120,7 +121,9 @@ describe('reward claim payouts (testnet)', () => {
   it('refuses mainnet, a key that is not the pool, and missing configuration', async () => {
     const c = verifiedClaim();
     process.env.REWARD_STELLAR_NETWORK = 'public';
-    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/only enabled on the Stellar testnet/);
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/Mainnet reward payouts are switched off/);
+    process.env.REWARD_STELLAR_NETWORK = 'futurenet';
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/only enabled on the Stellar testnet or/);
     process.env.REWARD_STELLAR_NETWORK = 'testnet';
     process.env.REWARD_PAYOUT_SECRET = Keypair.random().secret();
     await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/does not belong to the reward pool/);
@@ -181,5 +184,59 @@ describe('reward claim payouts (testnet)', () => {
   it('formats stroops as XLM exactly', () => {
     expect(stroopsToXlm(1)).toBe('0.0000001');
     expect(stroopsToXlm(100_000_000)).toBe('10.0000000');
+  });
+});
+
+describe('reward claim payouts (mainnet, guarded)', () => {
+  const mainnet = (perClaim = '1000000', daily = '3000000') => Object.assign(process.env, {
+    REWARD_STELLAR_NETWORK: 'public', REWARD_MAINNET_PAYOUTS: 'on',
+    REWARD_PAYOUT_MAX_CLAIM_STROOPS: perClaim, REWARD_PAYOUT_DAILY_CAP_STROOPS: daily,
+  });
+
+  it('stays off without the switch or without both caps, and sends nothing', async () => {
+    const c = verifiedClaim();
+    mainnet(); delete process.env.REWARD_MAINNET_PAYOUTS;
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/switched off/);
+    mainnet(); delete process.env.REWARD_PAYOUT_DAILY_CAP_STROOPS;
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/per-claim cap and a daily cap/);
+    mainnet('5000000', '1000000');
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/per-claim cap and a daily cap/);
+    expect(horizon.submitted).toHaveLength(0);
+  });
+
+  it('pays on the public network, signed for the public network', async () => {
+    mainnet();
+    const c = verifiedClaim('1000000');
+    const paid = await payRewardClaim(c.userId, c.claimId);
+    expect(paid.status).toBe('paid');
+    const tx = horizon.submitted[0];
+    expect(tx.networkPassphrase).toBe(Networks.PUBLIC);
+    expect(tx.operations).toEqual([expect.objectContaining({ type: 'payment', destination: c.kp.publicKey(), amount: '0.1000000' })]);
+    expect(db.prepare('SELECT network FROM reward_claim_payouts WHERE claim_id = ?').get(c.claimId)).toEqual({ network: 'public' });
+  });
+
+  it('refuses a payout above the per-claim cap and keeps the claim saved', async () => {
+    mainnet('500000');
+    const c = verifiedClaim('1000000');
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/per-claim limit/);
+    expect(horizon.submitted).toHaveLength(0);
+    expect(db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(c.claimId)).toEqual({ status: 'verified' });
+  });
+
+  it('refuses once the rolling 24-hour cap is used, and allows it again a day later', async () => {
+    mainnet('1000000', '2000000');
+    const t0 = Date.now();
+    const a = verifiedClaim('1000000'), b = verifiedClaim('1000000'), c = verifiedClaim('1000000');
+    expect((await payRewardClaim(a.userId, a.claimId, t0)).status).toBe('paid');
+    expect((await payRewardClaim(b.userId, b.claimId, t0 + 1000)).status).toBe('paid');
+    await expect(payRewardClaim(c.userId, c.claimId, t0 + 2000)).rejects.toThrow(/daily payout limit/);
+    expect((await payRewardClaim(c.userId, c.claimId, t0 + 25 * 3600 * 1000)).status).toBe('paid');
+  });
+
+  it('counts the wallet activation reserve against the caps', async () => {
+    mainnet('1000000', '100000000');
+    const c = verifiedClaim('1000000');
+    horizon.accounts.delete(c.kp.publicKey());
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/per-claim limit/);
   });
 });

@@ -6,7 +6,8 @@ import { treasuryBudgetStroops } from './treasuryPilot.js';
 
 /**
  * Pays a verified reward claim from the reward pool to the wallet the learner proved they control.
- * Testnet only: a mainnet payout moves real funds and needs a treasury decision first.
+ * Testnet by default. A mainnet payout moves real funds, so it is refused unless REWARD_MAINNET_PAYOUTS=on AND a
+ * per-claim cap and a rolling 24-hour cap are configured (REWARD_PAYOUT_MAX_CLAIM_STROOPS, REWARD_PAYOUT_DAILY_CAP_STROOPS).
  * When the wallet does not exist on the network yet, the payout creates it: the pool pays the
  * 1 XLM minimum reserve on top of the reward, and both count against the budget.
  *
@@ -19,6 +20,7 @@ export const PAYOUT_TIMEOUT_S = 60;
 /** Minimum balance (2 base reserves) the pool provides when it creates a learner's wallet account. */
 export const ACTIVATION_RESERVE_STROOPS = 10_000_000;
 const SETTLE_GRACE_MS = 30_000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface PayoutHorizon {
   /** Current sequence number, or null when the account does not exist on this network. */
@@ -71,14 +73,31 @@ let horizonOverride: PayoutHorizon | null = null;
 /** Tests only. */
 export function setPayoutHorizonForTests(h: PayoutHorizon | null) { horizonOverride = h; }
 
+function positiveStroops(name: string): bigint | null {
+  const v = process.env[name];
+  return v && /^[1-9][0-9]{0,15}$/.test(v) ? BigInt(v) : null;
+}
+
 /** null when payouts are not configured; throws when the configuration is unsafe. */
 export function payoutConfiguration() {
   const network = process.env.REWARD_STELLAR_NETWORK;
   const pool = process.env.REWARD_STELLAR_DESTINATION;
   const secret = process.env.REWARD_PAYOUT_SECRET;
   if (!secret) return null;
-  if (network !== 'testnet') {
-    throw new RewardError('PAYOUT_UNAVAILABLE', 'Reward payouts are only enabled on the Stellar testnet.', 503);
+  if (network !== 'testnet' && network !== 'public') {
+    throw new RewardError('PAYOUT_UNAVAILABLE', 'Reward payouts are only enabled on the Stellar testnet or, when switched on, the public network.', 503);
+  }
+  let caps: { perClaim: bigint; daily: bigint } | null = null;
+  if (network === 'public') {
+    if (process.env.REWARD_MAINNET_PAYOUTS !== 'on') {
+      throw new RewardError('PAYOUT_UNAVAILABLE', 'Mainnet reward payouts are switched off.', 503);
+    }
+    const perClaim = positiveStroops('REWARD_PAYOUT_MAX_CLAIM_STROOPS');
+    const daily = positiveStroops('REWARD_PAYOUT_DAILY_CAP_STROOPS');
+    if (!perClaim || !daily || perClaim > daily) {
+      throw new RewardError('PAYOUT_UNAVAILABLE', 'Mainnet payouts need a per-claim cap and a daily cap.', 503);
+    }
+    caps = { perClaim, daily };
   }
   let signer: Keypair;
   try { signer = Keypair.fromSecret(secret); } catch {
@@ -87,7 +106,8 @@ export function payoutConfiguration() {
   if (!pool || !StrKey.isValidEd25519PublicKey(pool) || signer.publicKey() !== pool) {
     throw new RewardError('PAYOUT_UNAVAILABLE', 'The payout key does not belong to the reward pool.', 503);
   }
-  return { network, passphrase: Networks.TESTNET, signer, horizon: horizonOverride ?? horizonClient(network, Networks.TESTNET) };
+  const passphrase = network === 'public' ? Networks.PUBLIC : Networks.TESTNET;
+  return { network, passphrase, signer, caps, horizon: horizonOverride ?? horizonClient(network, passphrase) };
 }
 
 export function stroopsToXlm(stroops: number): string {
@@ -159,6 +179,17 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
       WHERE network = ? AND status IN ('submitted', 'paid') AND claim_id <> ?`).get(cfg.network, claimId) as { total: number };
     if (BigInt(committed.total) + BigInt(claim.amount_stroops + activation) > treasuryBudgetStroops()) {
       throw new RewardError('TREASURY_PILOT_LIMIT_EXCEEDED', 'This payout exceeds the reward pool budget.', 409);
+    }
+    if (cfg.caps) {
+      const outgoing = BigInt(claim.amount_stroops + activation);
+      if (outgoing > cfg.caps.perClaim) {
+        throw new RewardError('PAYOUT_CAP_EXCEEDED', 'This payout is above the per-claim limit. Your claim is saved.', 409);
+      }
+      const day = db.prepare(`SELECT COALESCE(SUM(amount_stroops + activation_stroops), 0) AS total FROM reward_claim_payouts
+        WHERE network = ? AND status IN ('submitted', 'paid') AND claim_id <> ? AND created_at > ?`).get(cfg.network, claimId, now - DAY_MS) as { total: number };
+      if (BigInt(day.total) + outgoing > cfg.caps.daily) {
+        throw new RewardError('PAYOUT_CAP_EXCEEDED', 'The daily payout limit has been reached. Your claim is saved and can be paid later.', 409);
+      }
     }
     if (current) {
       db.prepare(`UPDATE reward_claim_payouts SET tx_hash = ?, envelope_xdr = ?, max_time = ?, activation_stroops = ?, status = 'submitted',
