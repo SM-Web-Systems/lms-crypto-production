@@ -27,6 +27,11 @@ describe('student rewards screen', () => {
     expect(await screen.findByText(/reward has been sent/)).toBeTruthy();
   });
 
+  it('explains how to restore the wallet on another device', async () => {
+    render(<RewardsScreen />);
+    expect(await screen.findByText(/device where your wallet was set up, or your recovery phrase/)).toBeTruthy();
+  });
+
   it('hides the claim button when nothing is claimable', async () => {
     svc.claimable.mockResolvedValue(0);
     render(<RewardsScreen />);

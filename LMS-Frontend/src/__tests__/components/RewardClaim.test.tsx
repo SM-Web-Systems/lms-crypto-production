@@ -34,6 +34,13 @@ describe('claiming rewards to the wallet', () => {
     expect(takeClaim('c-1')).toBe('SM Web Systems LMS reward claim\nclaim:c-1');
   });
 
+  it('tells the learner what is needed to restore their wallet on another device', async () => {
+    svc.getClaimableBalance.mockResolvedValue('1000000');
+    render(<StudentRewardsPanel />);
+    const note = await screen.findByTestId('restore-wallet-note');
+    expect(note.textContent).toMatch(/device where your wallet was set up, or your recovery phrase/);
+  });
+
   it('shows no claim button when nothing is claimable', async () => {
     svc.getClaimableBalance.mockResolvedValue('0');
     render(<StudentRewardsPanel />);

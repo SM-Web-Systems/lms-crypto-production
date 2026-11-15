@@ -70,6 +70,9 @@ export const StudentRewardsPanel: React.FC = () => {
               <Send className="h-3.5 w-3.5 mr-1" aria-hidden />
               {claiming ? 'Opening AmmaWallet…' : 'Claim to my wallet'}
             </Button>
+            <p className="basis-full text-xs text-emerald-800" data-testid="restore-wallet-note">
+              AmmaWallet will ask you to approve with your wallet passphrase. You need the device where your wallet was set up, or your recovery phrase to restore your wallet on this one.
+            </p>
           </div>
         )}
         {error && (
