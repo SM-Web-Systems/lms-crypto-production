@@ -17,7 +17,7 @@ export interface CreditRequest {
   status: string; effective_status: string; expires_at: string; created_at: string;
 }
 export interface BackingIntent {
-  id: string; network: string; destination: string; memo_hash: string; amount_stroops: number; reason: string;
+  id: string; network: string; destination: string; memo_hash: string; text_memo?: string | null; amount_stroops: number; reason: string;
   expires_at: string; created_at: string; effective_status: 'awaiting_deposit' | 'verified' | 'expired'; operation_id?: string | null;
 }
 export interface CreditReservation {

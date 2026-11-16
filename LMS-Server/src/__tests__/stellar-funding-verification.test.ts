@@ -63,3 +63,21 @@ describe('Stellar funding operation verification', () => {
     await expect(verifyStellarFunding(f.binding,'123')).rejects.toMatchObject({statusCode:402,message:expect.stringContaining('not found')});
   });
 });
+
+describe('one-time text memo for backing deposits', () => {
+  const code = 'LMS-ABCDEFGHJKLM';
+  it('accepts the exact text memo when the intent carries one, and the hash memo still works', async () => {
+    const f = fixture(); f.transaction.memo_type = 'text'; f.transaction.memo = code;
+    await expect(verifyStellarFunding({...f.binding, textMemo: code}, '123')).resolves.toMatchObject({operationId: '123'});
+    const g = fixture();
+    await expect(verifyStellarFunding({...g.binding, textMemo: code}, '123')).resolves.toMatchObject({operationId: '123'});
+  });
+  it('rejects a text memo that is not this intent code, an unissued code, or a malformed code', async () => {
+    const f = fixture(); f.transaction.memo_type = 'text'; f.transaction.memo = 'LMS-ZZZZZZZZZZZZ';
+    await expect(verifyStellarFunding({...f.binding, textMemo: code}, '123')).rejects.toMatchObject({statusCode: 402});
+    const g = fixture(); g.transaction.memo_type = 'text'; g.transaction.memo = code;
+    await expect(verifyStellarFunding(g.binding, '123')).rejects.toMatchObject({statusCode: 402});
+    const h = fixture();
+    await expect(verifyStellarFunding({...h.binding, textMemo: 'free text'}, '123')).rejects.toMatchObject({statusCode: 402});
+  });
+});

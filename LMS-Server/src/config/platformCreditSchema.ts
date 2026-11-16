@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS platform_backing_intents (
   idempotency_key TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL,
+  text_memo TEXT,
   UNIQUE(requester_user_id,idempotency_key)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_backing_intents_text_memo ON platform_backing_intents(text_memo) WHERE text_memo IS NOT NULL;
 CREATE TABLE IF NOT EXISTS platform_backing_deposits (
   id TEXT PRIMARY KEY,
   intent_id TEXT NOT NULL UNIQUE REFERENCES platform_backing_intents(id) ON DELETE RESTRICT,

@@ -1,5 +1,5 @@
 import {v4 as uuid} from 'uuid';
-import {createHash} from 'node:crypto';
+import {createHash, randomBytes} from 'node:crypto';
 import {StrKey} from '@stellar/stellar-sdk';
 import {db} from '../../config/database.js';
 import {hasPermission} from '../../middleware/rbac.js';
@@ -11,7 +11,7 @@ import {enforceTreasuryBudget} from './treasuryPilot.js';
 import {reconcileCreditLedger} from './platformCreditReconciliation.js';
 
 type Network = 'public' | 'testnet';
-type BackingIntent = {id:string;requester_user_id:string;network:Network;destination:string;memo_hash:string;amount_stroops:number;reason:string;idempotency_key:string;created_at:string;expires_at:string};
+type BackingIntent = {text_memo?:string|null;id:string;requester_user_id:string;network:Network;destination:string;memo_hash:string;amount_stroops:number;reason:string;idempotency_key:string;created_at:string;expires_at:string};
 type CreditRequest = {id:string;requester_user_id:string;beneficiary_user_id:string;network:Network;amount_stroops:number;reason:string;idempotency_key:string;status:string;expires_at:string};
 export type CreditGrant = {id:string;request_id:string;beneficiary_user_id:string;network:Network;amount_stroops:number;availableStroops:number;reservedStroops:number;consumedStroops:number};
 const now = () => new Date(Date.now()).toISOString();
@@ -90,6 +90,10 @@ function treasurySource(network: Network, destination: string): string | undefin
   return source;
 }
 
+const TEXT_ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+/** One-time code that fits the 28-byte text memo limit: LMS- plus 12 random base32 characters (60 bits). */
+export function newTextMemo(){const b=randomBytes(12);let out='LMS-';for(const x of b)out+=TEXT_ALPHABET[x%32];return out;}
+
 function backingMemo(intent: Pick<BackingIntent, 'id'|'requester_user_id'|'network'|'destination'|'amount_stroops'>, source?: string) {
   const fields = [intent.id, intent.requester_user_id, intent.network, intent.destination, intent.amount_stroops];
   return createHash('sha256').update(JSON.stringify(source
@@ -155,8 +159,8 @@ export async function createBackingIntent(actor:string, quantity:unknown, reason
     const id = uuid();
     const memo = backingMemo({id, requester_user_id: actor, network: config.network,
       destination: config.destination, amount_stroops: units}, source);
-    db.prepare(`INSERT INTO platform_backing_intents(id,requester_user_id,network,destination,memo_hash,amount_stroops,reason,idempotency_key,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-      .run(id,actor,config.network,config.destination,memo,units,reason,key,expires(),now());
+    db.prepare(`INSERT INTO platform_backing_intents(id,requester_user_id,network,destination,memo_hash,amount_stroops,reason,idempotency_key,expires_at,created_at,text_memo) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id,actor,config.network,config.destination,memo,units,reason,key,expires(),now(),newTextMemo());
     audit('deposit_intent',id,actor,config.network,units,reason);
     return db.prepare('SELECT * FROM platform_backing_intents WHERE id=?').get(id) as BackingIntent;
   }).immediate();
@@ -169,7 +173,7 @@ export async function verifyBackingDeposit(id:string, actor:string, operationId:
   const prior=db.prepare('SELECT * FROM platform_backing_deposits WHERE intent_id=?').get(id) as {operation_id:string}|undefined;
   if(prior){if(prior.operation_id!==operationId) conflict();return prior;}
   const source = verifyBackingSourceBinding(intent);
-  const proof=await verifyStellarFunding({network:intent.network,destination:intent.destination,source,memoHash:intent.memo_hash,amountStroops:intent.amount_stroops,createdAt:intent.created_at,expiresAt:intent.expires_at},operationId);
+  const proof=await verifyStellarFunding({network:intent.network,destination:intent.destination,source,memoHash:intent.memo_hash,textMemo:intent.text_memo??undefined,amountStroops:intent.amount_stroops,createdAt:intent.created_at,expiresAt:intent.expires_at},operationId);
   return db.transaction(()=>{
     manage(actor);
     const replay=db.prepare('SELECT * FROM platform_backing_deposits WHERE intent_id=?').get(id) as {operation_id:string}|undefined;
