@@ -105,17 +105,23 @@ export function waivePayment(paymentId: string, confirmedBy: string, notes: stri
   return queryOne<Payment>('SELECT * FROM payments WHERE id = ?', [paymentId]);
 }
 
+// An application can hold several payment records (the manual placeholder created on apply, card or
+// Stellar attempts, refunded duplicates). A confirmed or waived record settles the application even when
+// a newer record was later refunded or failed, so that record wins; otherwise the newest one is returned.
+const SETTLED_FIRST_ORDER = "CASE WHEN status IN ('confirmed','waived') THEN 0 ELSE 1 END, created_at DESC, rowid DESC";
+
 export function getPaymentForApplication(applicationId: string): Payment | null {
   return queryOne<Payment>(
-    'SELECT * FROM payments WHERE application_id = ? ORDER BY created_at DESC',
+    `SELECT * FROM payments WHERE application_id = ? ORDER BY ${SETTLED_FIRST_ORDER}`,
     [applicationId],
   );
 }
 
 export function isPaymentSatisfied(applicationId: string): boolean {
-  const payment = getPaymentForApplication(applicationId);
-  if (!payment) return false;
-  return payment.status === 'confirmed' || payment.status === 'waived';
+  return !!queryOne(
+    "SELECT 1 FROM payments WHERE application_id = ? AND status IN ('confirmed','waived')",
+    [applicationId],
+  );
 }
 
 export interface PaymentWithDetails extends Payment {

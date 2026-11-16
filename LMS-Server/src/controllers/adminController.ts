@@ -96,7 +96,7 @@ export async function listCertificates(
       lecturer_rec: string | null; tx_hash: string | null;
       user_name: string; user_email: string; course_title: string;
       payment_status: string | null; payment_id: string | null;
-      price_cents: number | null;
+      price_cents: number | null; selected_tier: string | null;
     }>(
       `SELECT a.*,
               u.name AS user_name, u.email AS user_email,
@@ -106,7 +106,10 @@ export async function listCertificates(
        FROM course_nft_applications a
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
-       LEFT JOIN payments p ON p.application_id = a.id
+       LEFT JOIN payments p ON p.id = (
+         SELECT p2.id FROM payments p2 WHERE p2.application_id = a.id
+         ORDER BY CASE WHEN p2.status IN ('confirmed','waived') THEN 0 ELSE 1 END, p2.created_at DESC, p2.rowid DESC
+         LIMIT 1)
        LEFT JOIN course_pricing cp ON cp.course_id = a.course_id AND cp.is_active = 1
        ${where}
        ORDER BY a.applied_at DESC
@@ -132,6 +135,7 @@ export async function listCertificates(
       paymentStatus: r.payment_status as 'pending' | 'confirmed' | 'waived' | null,
       paymentId: r.payment_id,
       priceCents: r.price_cents ?? 0,
+      selectedTier: r.selected_tier,
     }));
 
     res.json({ success: true, data: { certificates, total: certificates.length } });
