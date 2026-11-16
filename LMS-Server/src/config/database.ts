@@ -7,6 +7,7 @@ import { rewardFundingSchema } from './rewardFundingSchema.js';
 import { platformCreditSchema } from './platformCreditSchema.js';
 import { paystackCheckoutSchema } from './paystackCheckoutSchema.js';
 import { rewardClaimSchema } from './rewardClaimSchema.js';
+import { ammaActivationSchema } from './ammaActivationSchema.js';
 import { classInvitationSchema } from './classInvitationSchema.js';
 import { pushSchema } from './pushSchema.js';
 import { webPushSchema } from './webPushSchema.js';
@@ -1720,6 +1721,7 @@ startupMigrations.push(() => db.exec(platformCreditSchema));
 startupMigrations.push(() => db.exec(pushSchema));
 startupMigrations.push(() => db.exec(webPushSchema));
 startupMigrations.push(() => db.exec(rewardClaimSchema));
+startupMigrations.push(() => db.exec(ammaActivationSchema));
 startupMigrations.push(() => db.exec(classInvitationSchema));
 // The in-memory test database gets its course tables and triggers from the canonical fixture on reset.
 if (DB_PATH !== ':memory:') startupMigrations.push(() => db.exec(offlineLearningSchema));

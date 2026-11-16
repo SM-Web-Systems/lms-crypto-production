@@ -12,6 +12,7 @@ import { processExpiredDeletions } from './services/deletionService.js';
 import { runWhenWriterHoldReleased } from './services/writerHold.js';
 import { startRewardReconciliation } from './services/rewards/rewardReconciliationService.js';
 import { startBackingDepositWatcher } from './services/rewards/backingDepositWatcher.js';
+import { startAmmaActivationWorker } from './services/ammaActivationService.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -73,6 +74,7 @@ function startServer() {
         startDeletionScheduler();
         startRewardReconciliation();
         startBackingDepositWatcher();
+        startAmmaActivationWorker();
       });
     });
   } catch (error) {
