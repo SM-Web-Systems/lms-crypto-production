@@ -985,6 +985,17 @@
       "expires_at",
       "claimed_by",
       "claimed_at"
+    ],
+    "role_requests": [
+      "id",
+      "user_id",
+      "role_id",
+      "reason",
+      "status",
+      "reviewed_by",
+      "review_note",
+      "created_at",
+      "reviewed_at"
     ]
   },
   "indexes": [
@@ -1108,7 +1119,9 @@
     "idx_parent_invitations_user",
     "idx_parent_invitations_parent",
     "idx_email_invitations_email",
-    "idx_email_invitations_inviter"
+    "idx_email_invitations_inviter",
+    "idx_role_requests_user",
+    "idx_role_requests_status"
   ],
   "keys": {
     "active_sessions": {
@@ -3472,6 +3485,39 @@
         ],
         [
           "invited_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "role_requests": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "reviewed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "role_id",
+          "roles",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
           "users",
           "id",
           "NO ACTION",

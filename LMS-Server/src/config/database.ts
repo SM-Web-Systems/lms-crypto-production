@@ -11,6 +11,7 @@ import { ammaActivationSchema } from './ammaActivationSchema.js';
 import { classInvitationSchema } from './classInvitationSchema.js';
 import { parentInvitationSchema } from './parentInvitationSchema.js';
 import { emailInvitationSchema } from './emailInvitationSchema.js';
+import { roleRequestSchema } from './roleRequestSchema.js';
 import { pushSchema } from './pushSchema.js';
 import { webPushSchema } from './webPushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
@@ -1727,6 +1728,7 @@ startupMigrations.push(() => db.exec(ammaActivationSchema));
 startupMigrations.push(() => db.exec(classInvitationSchema));
 startupMigrations.push(() => db.exec(parentInvitationSchema));
 startupMigrations.push(() => db.exec(emailInvitationSchema));
+startupMigrations.push(() => db.exec(roleRequestSchema));
 // The in-memory test database gets its course tables and triggers from the canonical fixture on reset.
 if (DB_PATH !== ':memory:') startupMigrations.push(() => db.exec(offlineLearningSchema));
 

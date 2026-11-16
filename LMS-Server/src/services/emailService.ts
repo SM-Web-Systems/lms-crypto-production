@@ -242,6 +242,27 @@ export async function sendGroupInvitationEmail(opts: {
   }
 }
 
+/** The decision on a parent, teacher, employer or sponsor role request. */
+export async function sendRoleRequestDecisionEmail(opts: { to: string; name: string; roleLabel: string; approved: boolean; note: string | null }): Promise<void> {
+  const { to, name, roleLabel, approved, note } = opts;
+  const subject = approved ? `You are now a ${roleLabel} on ${LMS_NAME}` : `Your ${roleLabel} request on ${LMS_NAME}`;
+  const html = `
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>${approved
+      ? `Your request for the <strong>${escapeHtml(roleLabel)}</strong> role was approved. Sign in again to see your new dashboard.`
+      : `Your request for the <strong>${escapeHtml(roleLabel)}</strong> role was not approved.`}</p>
+    ${note ? `<p>${approved ? 'Note' : 'Reason'} from the administrator: ${escapeHtml(note)}</p>` : ''}
+    <p><a href="${FRONTEND_URL}/login" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in</a></p>
+  `.trim();
+  const outboxId = insertOutboxEntry('role-request-decision', to, subject, html);
+  if (!transporter) { markOutboxSent(outboxId); log(subject, to, 'Role request decision (stdout fallback)'); return; }
+  try { await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html }); markOutboxSent(outboxId); }
+  catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send role request email');
+  }
+}
+
 export async function sendPaymentReminderEmail(opts: {
   to: string;
   studentName: string;

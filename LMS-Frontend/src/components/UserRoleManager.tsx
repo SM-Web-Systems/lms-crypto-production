@@ -15,6 +15,7 @@ import { Users, Shield, Search, AlertCircle, Loader2, Info, X } from 'lucide-rea
 import { usersService, type UserDirectoryItem } from '../services/usersService';
 import { rbacService, type RbacRole, type UserRole, type RoleManagementOptions } from '../services/rbacService';
 import { RoleBadges } from './RoleBadges';
+import { RoleRequestQueue } from './RoleRequestQueue';
 import { getErrorMessage } from '../utils/apiError';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -182,6 +183,8 @@ export function UserRoleManager() {
         <Shield className="h-6 w-6 text-accent-teal" />
         <h1 className="text-2xl font-bold text-neutral-800">User Role Management</h1>
       </div>
+
+      <RoleRequestQueue />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── Left panel: User list ─────────────────────────────────────── */}
