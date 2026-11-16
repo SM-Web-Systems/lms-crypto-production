@@ -144,7 +144,18 @@ export interface VerifiedClaim {
   payout: null | { status: 'paid' | 'submitted' | 'failed'; txHash: string; ledger: number | null } | { status: 'pending'; code: string };
 }
 
+export interface AwaitingFundingReward {
+  id: string; description: string | null; rewardType: string; amountStroops: number; maxRecipients: number | null;
+  scopeType: string; scopeName: string | null; creatorName: string; createdAt: string;
+}
+
 export const rewardService = {
+  /** Administrators: draft rewards made by someone else that this administrator may authorize. */
+  async listAwaitingFunding(): Promise<AwaitingFundingReward[]> {
+    const res = await api.get<ApiRes<AwaitingFundingReward[]>>('/admin/rewards/awaiting-funding');
+    return res.data.data;
+  },
+
   /** List rewards for a scope. targetType is parent-role only: 'child' or 'family'. */
   async listRewards(role: string, scopeId: string, targetType?: ParentTargetType): Promise<Reward[]> {
     const res = await api.get<ApiRes<Reward[]>>(`${prefix(role)}/rewards`, {
