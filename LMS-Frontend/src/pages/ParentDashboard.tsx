@@ -11,6 +11,7 @@ import { parentService, type ParentDashboardData, type ParentGroup } from '../se
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { RewardDashboard } from '../components/RewardDashboard';
+import { ParentInvitePanel } from '../components/ParentInvitePanel';
 import {
   Users,
   RefreshCw,
@@ -163,6 +164,7 @@ const ParentDashboardContent: React.FC = () => {
                     )}
                   </div>
                 )}
+                <ParentInvitePanel />
               </>
             )
           )}

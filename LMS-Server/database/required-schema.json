@@ -964,6 +964,14 @@
       "claim_id",
       "last_error",
       "created_at"
+    ],
+    "parent_invitations": [
+      "id",
+      "parent_user_id",
+      "invited_user_id",
+      "status",
+      "created_at",
+      "responded_at"
     ]
   },
   "indexes": [
@@ -1083,7 +1091,9 @@
     "idx_class_invitations_user",
     "idx_class_invitations_group",
     "idx_web_push_outbox_due",
-    "idx_web_push_subscriptions_user"
+    "idx_web_push_subscriptions_user",
+    "idx_parent_invitations_user",
+    "idx_parent_invitations_parent"
   ],
   "keys": {
     "active_sessions": {
@@ -3393,6 +3403,32 @@
         [
           "notification_id",
           "notifications",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "parent_invitations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "invited_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "parent_user_id",
+          "users",
           "id",
           "NO ACTION",
           "CASCADE"

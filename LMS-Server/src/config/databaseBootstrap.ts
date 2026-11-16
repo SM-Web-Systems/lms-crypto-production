@@ -6,7 +6,8 @@ import { paystackPaymentTables } from './paystackCheckoutSchema.js';
 import { rewardClaimTables } from './rewardClaimSchema.js';
 import { ammaActivationTables } from './ammaActivationSchema.js';
 import { classInvitationTables } from './classInvitationSchema.js';
-const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...webPushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...ammaActivationTables, ...classInvitationTables];
+import { parentInvitationTables } from './parentInvitationSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...webPushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...ammaActivationTables, ...classInvitationTables, ...parentInvitationTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -98,7 +99,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
         : paystackPaymentTables.includes(table.name) ? 'card payments'
         : rewardClaimTables.includes(table.name) ? 'reward claims'
         : ammaActivationTables.includes(table.name) ? 'wallet activation'
-        : classInvitationTables.includes(table.name) ? 'class invitations' : 'offline learning';
+        : classInvitationTables.includes(table.name) ? 'class invitations'
+        : parentInvitationTables.includes(table.name) ? 'parent invitations' : 'offline learning';
       if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${feature} schema (${table.name})`);
     }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
