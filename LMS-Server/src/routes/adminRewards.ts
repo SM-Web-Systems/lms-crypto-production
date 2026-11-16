@@ -18,6 +18,7 @@ import { RewardError } from '../services/rewards/rewardErrors.js';
 import { processOutboxRetries } from '../services/rewards/rewardOutboxWorker.js';
 import logger from '../utils/logger.js';
 import platformCreditRouter from './platformCredit.js';
+import { reconcileRewardTreasury } from '../services/rewards/rewardReconciliationService.js';
 
 const router = Router();
 router.use('/platform-credit',platformCreditRouter);
@@ -302,6 +303,23 @@ router.post(
   (_req: AuthRequest, res: Response) => {
     const result = processOutboxRetries();
     res.json({ success: true, data: result });
+  }
+);
+
+// ──── GET /admin/rewards/reconciliation ────
+
+/** Runs the treasury reconciliation now: the pool balance on the network against what the LMS owes, and the paid payouts against the ledger. */
+router.get(
+  '/reconciliation',
+  authenticate,
+  requirePermission('reward.manage'),
+  async (_req: AuthRequest, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try { res.json({ success: true, data: await reconcileRewardTreasury() }); }
+    catch (err) {
+      logger.error({ err }, 'treasury reconciliation failed');
+      res.status(502).json({ success: false, error: { code: 'RECONCILIATION_UNAVAILABLE', message: 'The network could not be reached. Try again shortly.' } });
+    }
   }
 );
 
