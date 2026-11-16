@@ -6,7 +6,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
-import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS, newWalletCooldownMs } from '../services/rewards/rewardClaimService.js';
+import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS, newWalletCooldownMs, claimNetworkLine, challengeMessage } from '../services/rewards/rewardClaimService.js';
 
 const HASH = bcrypt.hashSync('password123', 4);
 
@@ -187,5 +187,72 @@ describe('reward claims: cooling-off for a wallet the learner has not claimed to
     db.prepare('UPDATE users SET walletAddress = ? WHERE id = ?').run(other.publicKey(), l.id);
     expect(() => createRewardClaim(l.id, '100000', t0 + 26 * 3_600_000)).toThrow(/after /);
     expect(() => createRewardClaim(l.id, '100000', t0 + 26 * 3_600_000 + 24 * 3_600_000 + 1)).not.toThrow();
+  });
+});
+
+describe('reward claims: optional network line in the claim text', () => {
+  const keys = ['REWARD_CLAIM_NETWORK_LINE', 'REWARD_STELLAR_NETWORK'] as const;
+  let saved: Record<string, string | undefined>;
+  beforeEach(() => { saved = Object.fromEntries(keys.map(k => [k, process.env[k]])); });
+  afterEach(() => { for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]!; } });
+
+  it('sends no network line unless it is switched on, and then names the configured network', () => {
+    process.env.REWARD_STELLAR_NETWORK = 'public';
+    delete process.env.REWARD_CLAIM_NETWORK_LINE;
+    const l = learner(1_000_000);
+    expect(createRewardClaim(l.id, '100000').message.split('\n')).toHaveLength(6);
+    process.env.REWARD_CLAIM_NETWORK_LINE = 'on';
+    const on = createRewardClaim(l.id, '100000').message.split('\n');
+    expect(on).toHaveLength(7);
+    expect(on[6]).toBe('network:mainnet');
+    process.env.REWARD_STELLAR_NETWORK = 'testnet';
+    expect(createRewardClaim(l.id, '100000').message.split('\n')[6]).toBe('network:testnet');
+    process.env.REWARD_STELLAR_NETWORK = 'futurenet';
+    expect(claimNetworkLine()).toBeNull();
+  });
+
+  it('verifies a seven-line claim for the right network and still verifies a six-line claim', () => {
+    process.env.REWARD_STELLAR_NETWORK = 'public';
+    const l = learner(2_000_000);
+    process.env.REWARD_CLAIM_NETWORK_LINE = 'on';
+    const seven = createRewardClaim(l.id, '100000');
+    expect(verifyRewardClaim(l.id, seven.claimId, seven.message, sign(l.keypair, seven.message)).status).toBe('verified');
+    delete process.env.REWARD_CLAIM_NETWORK_LINE;
+    const six = createRewardClaim(l.id, '100000');
+    expect(verifyRewardClaim(l.id, six.claimId, six.message, sign(l.keypair, six.message)).status).toBe('verified');
+  });
+
+  it('refuses a claim text that names the other network', () => {
+    process.env.REWARD_STELLAR_NETWORK = 'public';
+    process.env.REWARD_CLAIM_NETWORK_LINE = 'on';
+    const l = learner(1_000_000);
+    const c = createRewardClaim(l.id, '100000');
+    const wrong = c.message.replace('network:mainnet', 'network:testnet');
+    expect(() => verifyRewardClaim(l.id, c.claimId, wrong, sign(l.keypair, wrong))).toThrow(/different network/);
+  });
+
+  it('refuses a tampered, misspelt or extra line', () => {
+    process.env.REWARD_STELLAR_NETWORK = 'public';
+    process.env.REWARD_CLAIM_NETWORK_LINE = 'on';
+    const l = learner(1_000_000);
+    const c = createRewardClaim(l.id, '100000');
+    const bad = [
+      c.message + '\n',
+      c.message.replace('network:mainnet', 'network: mainnet'),
+      c.message.replace('network:mainnet', 'Network:mainnet'),
+      c.message + '\nnetwork:mainnet',
+      c.message + '\nextra:1',
+    ];
+    for (const text of bad) {
+      expect(() => verifyRewardClaim(l.id, c.claimId, text, sign(l.keypair, text))).toThrow();
+    }
+    expect(verifyRewardClaim(l.id, c.claimId, c.message, sign(l.keypair, c.message)).status).toBe('verified');
+  });
+
+  it('builds the same text the wallet will sign', () => {
+    const claim = { id: 'c1', destination: 'GDEST', amount_stroops: 1000000, challenge_expires_at: Date.UTC(2026, 10, 16, 9, 20, 59) };
+    const nonce = 'a'.repeat(64);
+    expect(challengeMessage(claim, nonce, 'mainnet')).toBe(['SM Web Systems LMS reward claim', 'claim:c1', 'destination:GDEST', 'amount_stroops:1000000',
+      'expires:2026-11-16T09:20:59.000Z', `nonce:${nonce}`, 'network:mainnet'].join('\n'));
   });
 });

@@ -52,9 +52,24 @@ interface ClaimRow {
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
-export function challengeMessage(claim: Pick<ClaimRow, 'id' | 'destination' | 'amount_stroops' | 'challenge_expires_at'>, nonce: string): string {
+export type ClaimNetwork = 'mainnet' | 'testnet';
+
+function configuredClaimNetwork(): ClaimNetwork | null {
+  const n = process.env.REWARD_STELLAR_NETWORK;
+  return n === 'public' ? 'mainnet' : n === 'testnet' ? 'testnet' : null;
+}
+
+/**
+ * The network line of the claim text (an optional 7th line after the nonce). It is sent only when REWARD_CLAIM_NETWORK_LINE=on,
+ * which stays off until the wallet that signs the claim understands it.
+ */
+export function claimNetworkLine(): ClaimNetwork | null {
+  return process.env.REWARD_CLAIM_NETWORK_LINE === 'on' ? configuredClaimNetwork() : null;
+}
+
+export function challengeMessage(claim: Pick<ClaimRow, 'id' | 'destination' | 'amount_stroops' | 'challenge_expires_at'>, nonce: string, network: ClaimNetwork | null = null): string {
   return [PREFIX, `claim:${claim.id}`, `destination:${claim.destination}`, `amount_stroops:${claim.amount_stroops}`,
-    `expires:${new Date(claim.challenge_expires_at).toISOString()}`, `nonce:${nonce}`].join('\n');
+    `expires:${new Date(claim.challenge_expires_at).toISOString()}`, `nonce:${nonce}`, ...(network ? [`network:${network}`] : [])].join('\n');
 }
 
 function currentAddress(userId: string): string {
@@ -106,7 +121,7 @@ export function createRewardClaim(userId: string, amount: unknown, now = Date.no
     const claim = { id: uuidv4(), destination, amount_stroops: amountStroops, challenge_expires_at: now + CLAIM_CHALLENGE_TTL_MS };
     db.prepare(`INSERT INTO reward_claims (id, user_id, destination, amount_stroops, nonce_hash, challenge_expires_at, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 'challenged', ?)`).run(claim.id, userId, destination, amountStroops, digest(nonce), claim.challenge_expires_at, now);
-    return { claimId: claim.id, destination, amountStroops, expiresAt: new Date(claim.challenge_expires_at).toISOString(), message: challengeMessage(claim, nonce) };
+    return { claimId: claim.id, destination, amountStroops, expiresAt: new Date(claim.challenge_expires_at).toISOString(), message: challengeMessage(claim, nonce, claimNetworkLine()) };
   }).immediate();
 }
 
@@ -123,8 +138,14 @@ export function verifyRewardClaim(userId: string, claimId: string, message: unkn
       db.prepare("UPDATE reward_claims SET status = 'expired' WHERE id = ?").run(claimId);
       throw new RewardError('CLAIM_EXPIRED', 'The challenge expired. Start a new claim.', 409);
     }
-    const nonce = /\nnonce:([a-f0-9]{64})$/.exec(message)?.[1];
-    const expected = nonce ? challengeMessage(claim, nonce) : '';
+    const parts = /\nnonce:([a-f0-9]{64})(?:\nnetwork:(mainnet|testnet))?$/.exec(message);
+    const nonce = parts?.[1];
+    const signedNetwork = (parts?.[2] as ClaimNetwork | undefined) ?? null;
+    // A claim text that names a network must name the one this server pays on; a six-line claim still verifies.
+    if (signedNetwork && signedNetwork !== configuredClaimNetwork()) {
+      throw new RewardError('INVALID_SIGNATURE', 'This claim was made for a different network. Start a new claim.', 400);
+    }
+    const expected = nonce ? challengeMessage(claim, nonce, signedNetwork) : '';
     const nonceMatches = nonce ? timingSafeEqual(Buffer.from(digest(nonce)), Buffer.from(claim.nonce_hash)) : false;
     if (!nonceMatches || expected !== message) throw new RewardError('INVALID_SIGNATURE', 'The challenge does not match this claim.', 400);
     if (currentAddress(userId) !== claim.destination) {
