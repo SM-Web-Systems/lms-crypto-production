@@ -9,6 +9,7 @@ import { startScheduler, stopScheduler } from './services/rewards/rewardSchedule
 import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
 import { processExpiredDeletions } from './services/deletionService.js';
 import { runWhenWriterHoldReleased } from './services/writerHold.js';
+import { startRewardReconciliation } from './services/rewards/rewardReconciliationService.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -67,6 +68,7 @@ function startServer() {
         startPushWorker();
         // Start deletion finalization scheduler — runs daily (24h interval)
         startDeletionScheduler();
+        startRewardReconciliation();
       });
     });
   } catch (error) {
