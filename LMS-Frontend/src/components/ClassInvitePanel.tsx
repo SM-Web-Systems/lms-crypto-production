@@ -5,9 +5,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from './Button';
 import { teacherService, type ClassInvitation } from '../services/teacherService';
+import { employerService } from '../services/employerService';
 import { getErrorMessage } from '../utils/apiError';
 
-export const ClassInvitePanel: React.FC<{ classId: string }> = ({ classId }) => {
+const adapters = {
+  class: { invite: teacherService.inviteLearner, list: teacherService.getClassInvitations, cancel: teacherService.cancelClassInvitation },
+  team: { invite: employerService.inviteLearner, list: employerService.getTeamInvitations, cancel: employerService.cancelTeamInvitation },
+};
+
+/** Used for teacher classes and employer teams. */
+export const ClassInvitePanel: React.FC<{ classId: string; kind?: 'class' | 'team' }> = ({ classId, kind = 'class' }) => {
+  const api = adapters[kind];
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,16 +24,16 @@ export const ClassInvitePanel: React.FC<{ classId: string }> = ({ classId }) => 
   const [pending, setPending] = useState<ClassInvitation[]>([]);
 
   const load = useCallback(async () => {
-    try { setPending((await teacherService.getClassInvitations(classId)).filter((i) => i.status === 'pending')); }
+    try { setPending((await api.list(classId)).filter((i) => i.status === 'pending')); }
     catch { setPending([]); }
-  }, [classId]);
+  }, [classId, api]);
   useEffect(() => { load(); }, [load]);
 
   const invite = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setError(''); setNotice('');
     try {
-      setNotice(await teacherService.inviteLearner(classId, email.trim()));
+      setNotice(await api.invite(classId, email.trim()));
       setEmail('');
       await load();
     } catch (err) {
@@ -34,7 +42,7 @@ export const ClassInvitePanel: React.FC<{ classId: string }> = ({ classId }) => 
   };
 
   const withdraw = async (id: string) => {
-    try { await teacherService.cancelClassInvitation(classId, id); await load(); }
+    try { await api.cancel(classId, id); await load(); }
     catch (err) { setError(getErrorMessage(err, 'Could not withdraw the invitation.')); }
   };
 
@@ -55,7 +63,7 @@ export const ClassInvitePanel: React.FC<{ classId: string }> = ({ classId }) => 
         <ul className="mt-2 space-y-1">
           {pending.map((i) => (
             <li key={i.id} className="flex items-center justify-between text-xs text-neutral-600">
-              <span>{i.email} · waiting for them to accept</span>
+              <span className="break-all">{i.email} · {i.emailed ? 'sign-up link sent' : 'waiting for them to accept'}</span>
               <button type="button" className="text-primary-600 hover:underline" onClick={() => withdraw(i.id)}>Withdraw</button>
             </li>
           ))}

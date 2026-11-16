@@ -50,7 +50,7 @@ export const ParentInvitePanel: React.FC = () => {
           <ul className="mt-3 space-y-1">
             {pending.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-600">
-                <span className="break-all">{i.email} · waiting for them to accept</span>
+                <span className="break-all">{i.email} · {i.emailed ? 'sign-up link sent' : 'waiting for them to accept'}</span>
                 <button type="button" className="text-primary-600 hover:underline" onClick={() => withdraw(i.id)}>Withdraw</button>
               </li>
             ))}

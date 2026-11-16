@@ -2,7 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const svc = vi.hoisted(() => ({ mine: vi.fn(), respond: vi.fn(), invite: vi.fn(), sent: vi.fn(), cancel: vi.fn() }));
+const svc = vi.hoisted(() => ({ mine: vi.fn(), respond: vi.fn(), invite: vi.fn(), sent: vi.fn(), cancel: vi.fn(), claim: vi.fn() }));
+vi.mock('../../services/classInvitationService', () => ({ classInvitationService: { mine: vi.fn().mockResolvedValue([]), respond: vi.fn() } }));
 vi.mock('../../services/parentInvitationService', () => ({ parentInvitationService: svc }));
 
 import { ParentInvitePanel } from '../../components/ParentInvitePanel';
@@ -60,5 +61,27 @@ describe('learner answers a parent request', () => {
     render(<ParentInvitationsPanel />);
     await userEvent.click(await screen.findByRole('button', { name: 'Decline' }));
     await waitFor(() => expect(svc.respond).toHaveBeenCalledWith('p-2', false));
+  });
+});
+
+describe('emailed sign-up link', () => {
+  it('remembers the join token and claims it once on the dashboard', async () => {
+    const { rememberJoinToken, takeJoinToken } = await import('../../utils/pendingJoin');
+    rememberJoinToken('?join=abcdefghijklmnopqrstuvwxyz012345');
+    expect(takeJoinToken()).toBe('abcdefghijklmnopqrstuvwxyz012345');
+    expect(takeJoinToken()).toBeNull();
+    rememberJoinToken('?join=bad');
+    expect(takeJoinToken()).toBeNull();
+  });
+
+  it('claims a remembered link before showing requests', async () => {
+    const { rememberJoinToken } = await import('../../utils/pendingJoin');
+    const { InvitationRequests } = await import('../../components/InvitationRequests');
+    rememberJoinToken('?join=abcdefghijklmnopqrstuvwxyz012345');
+    svc.claim.mockResolvedValue(undefined);
+    svc.mine.mockResolvedValue([{ id: 'p-9', parentName: 'Parent A', createdAt: 'x' }]);
+    render(<InvitationRequests />);
+    expect(await screen.findByText('Parent A')).toBeTruthy();
+    expect(svc.claim).toHaveBeenCalledWith('abcdefghijklmnopqrstuvwxyz012345');
   });
 });

@@ -15,15 +15,20 @@ const isLinked = (parentId: string, childId: string) =>
 
 /** Only active learners can be invited. The caller must not reveal which case happened. */
 export function inviteChild(parentId: string, email: string): ParentInviteResult {
+  const learner = db.prepare(`SELECT u.id FROM users u
+    JOIN user_roles ur ON ur.user_id = u.id AND ur.role_id = 'role_student'
+    WHERE lower(u.email) = lower(?) AND COALESCE(u.deletion_status, '') NOT IN ('pending_deletion', 'finalized') LIMIT 1`).get(email.trim()) as { id: string } | undefined;
+  if (!learner || learner.id === parentId) return 'not_found';
+  return inviteChildById(parentId, learner.id);
+}
+
+/** Records a pending invitation for a known learner. */
+export function inviteChildById(parentId: string, learnerId: string): ParentInviteResult {
   return db.transaction((): ParentInviteResult => {
-    const learner = db.prepare(`SELECT u.id FROM users u
-      JOIN user_roles ur ON ur.user_id = u.id AND ur.role_id = 'role_student'
-      WHERE lower(u.email) = lower(?) AND COALESCE(u.deletion_status, '') NOT IN ('pending_deletion', 'finalized') LIMIT 1`).get(email.trim()) as { id: string } | undefined;
-    if (!learner || learner.id === parentId) return 'not_found';
-    if (isLinked(parentId, learner.id)) return 'already_linked';
-    if (db.prepare("SELECT 1 FROM parent_invitations WHERE parent_user_id = ? AND invited_user_id = ? AND status = 'pending'").get(parentId, learner.id)) return 'already_invited';
+    if (isLinked(parentId, learnerId)) return 'already_linked';
+    if (db.prepare("SELECT 1 FROM parent_invitations WHERE parent_user_id = ? AND invited_user_id = ? AND status = 'pending'").get(parentId, learnerId)) return 'already_invited';
     db.prepare("INSERT INTO parent_invitations (id, parent_user_id, invited_user_id, status) VALUES (?, ?, ?, 'pending')")
-      .run(uuidv4(), parentId, learner.id);
+      .run(uuidv4(), parentId, learnerId);
     return 'invited';
   }).immediate();
 }

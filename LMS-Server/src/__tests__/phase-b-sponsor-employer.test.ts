@@ -177,13 +177,19 @@ describe('Phase B — Employer Routes', () => {
     // Create a student to add
     const student = createUserWithRole('role_student', 'student');
 
-    // Add member
-    const addRes = await request(app)
-      .post(`/api/v1/employer/teams/${teamId}/members`)
+    // Invite by email: the learner joins only after accepting
+    const inviteRes = await request(app)
+      .post(`/api/v1/employer/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${employer.token}`)
-      .send({ userId: student.userId });
-
-    expect(addRes.status).toBe(201);
+      .send({ email: student.email });
+    expect(inviteRes.status).toBe(202);
+    const mine = await request(app)
+      .get('/api/v1/students/me/class-invitations')
+      .set('Authorization', `Bearer ${student.token}`);
+    const accepted = await request(app)
+      .post(`/api/v1/students/me/class-invitations/${mine.body.data.invitations[0].id}/accept`)
+      .set('Authorization', `Bearer ${student.token}`);
+    expect(accepted.status).toBe(200);
 
     // Verify member was added
     const member = queryOne(

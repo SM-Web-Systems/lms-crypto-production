@@ -9,6 +9,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { employerService, type EmployerDashboardData, type EmployerTeam } from '../services/employerService';
 import { Card, CardContent } from '../components/Card';
+import { ClassInvitePanel } from '../components/ClassInvitePanel';
 import { Button } from '../components/Button';
 import { RewardDashboard } from '../components/RewardDashboard';
 import {
@@ -189,6 +190,7 @@ const EmployerDashboard: React.FC = () => {
                       <CardContent className="py-4">
                         <p className="font-semibold text-neutral-900">{team.name}</p>
                         <p className="text-xs text-neutral-500">{team.member_count} members</p>
+                        <ClassInvitePanel classId={team.id} kind="team" />
                       </CardContent>
                     </Card>
                   ))}

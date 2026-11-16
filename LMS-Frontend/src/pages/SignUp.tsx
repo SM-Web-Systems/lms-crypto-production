@@ -26,6 +26,11 @@ const SignUp: React.FC = () => {
               </div>
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
+            {new URLSearchParams(window.location.search).has('join') ? (
+              <p className="rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-800">
+                You have been invited. Use the email address the invitation was sent to, and the request will be waiting on your dashboard.
+              </p>
+            ) : null}
             <p className="text-gray-500 text-sm">
               LMS accounts are linked to AmmaWallet. Create your AmmaWallet account
               first, then sign in here using AmmaWallet.

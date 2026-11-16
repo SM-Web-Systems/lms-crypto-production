@@ -4,6 +4,7 @@
 
 import api from './api';
 import { assertApiSuccess } from '../utils/apiError';
+import { withEmailed, type ClassInvitation } from './teacherService';
 
 export interface EmployerDashboardData {
   totalTeams: number;
@@ -67,6 +68,21 @@ export const employerService = {
 
   async deleteTeam(id: string): Promise<void> {
     await api.delete(`/employer/teams/${id}`);
+  },
+
+  /** The learner joins only after accepting. The answer never says whether the email has an account. */
+  async inviteLearner(teamId: string, email: string): Promise<string> {
+    const res = await api.post<{ success: boolean; message?: string }>(`/employer/teams/${encodeURIComponent(teamId)}/invite`, { email });
+    return res.data.message ?? 'Invitation sent.';
+  },
+
+  async getTeamInvitations(teamId: string): Promise<ClassInvitation[]> {
+    const res = await api.get<{ success: boolean; data: Parameters<typeof withEmailed>[0] }>(`/employer/teams/${encodeURIComponent(teamId)}/invitations`);
+    return withEmailed(res.data.data);
+  },
+
+  async cancelTeamInvitation(teamId: string, invitationId: string): Promise<void> {
+    await api.delete(`/employer/teams/${encodeURIComponent(teamId)}/invitations/${encodeURIComponent(invitationId)}`);
   },
 
   async getBilling(): Promise<EmployerBilling> {

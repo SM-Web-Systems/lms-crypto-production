@@ -34,7 +34,11 @@ export interface TeacherBilling {
   totalEarned: number;
 }
 
-export interface ClassInvitation { id: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; name: string; email: string; createdAt: string }
+export interface ClassInvitation { id: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; name: string; email: string; createdAt: string; emailed?: boolean }
+interface EmailedInvitation { id: string; email: string; createdAt: string }
+/** Sign-up links sent to addresses without an account are shown as pending invitations. */
+export const withEmailed = (data: { invitations: ClassInvitation[]; emailed?: EmailedInvitation[] }): ClassInvitation[] =>
+  [...data.invitations, ...(data.emailed ?? []).map((e) => ({ id: e.id, status: 'pending' as const, name: '', email: e.email, createdAt: e.createdAt, emailed: true }))];
 
 export const teacherService = {
   /** The learner joins only after accepting. The answer never says whether the email has an account. */
@@ -44,8 +48,8 @@ export const teacherService = {
   },
 
   async getClassInvitations(classId: string): Promise<ClassInvitation[]> {
-    const res = await api.get<{ success: boolean; data: { invitations: ClassInvitation[] } }>(`/teacher/classes/${encodeURIComponent(classId)}/invitations`);
-    return res.data.data.invitations;
+    const res = await api.get<{ success: boolean; data: { invitations: ClassInvitation[]; emailed?: EmailedInvitation[] } }>(`/teacher/classes/${encodeURIComponent(classId)}/invitations`);
+    return withEmailed(res.data.data);
   },
 
   async cancelClassInvitation(classId: string, invitationId: string): Promise<void> {

@@ -28,6 +28,8 @@ import {
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
+import { inviteLearner, listClassInvitations, cancelClassInvitation, ownsClassGroup } from '../services/classInvitationService.js';
+import { deliverInvitationEmail, listEmailInvitations, cancelEmailInvitation } from '../services/emailInvitationService.js';
 
 const router = Router();
 registerRewardFundingRoutes(router, '/employer');
@@ -158,62 +160,74 @@ router.delete(
   },
 );
 
-// POST /employer/teams/:id/members — add member
+// POST /employer/teams/:id/invite — invite a learner by email. The learner joins the team only after accepting.
+// The answer never says whether the email belongs to an account, so the endpoint can't be used to find users.
 router.post(
+  '/employer/teams/:id/invite',
+  authenticate,
+  requirePermission('group.manage'),
+  (req: AuthRequest, res: Response): void => {
+    const userId = req.user!.userId;
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    if (!email || email.length > 254 || !email.includes('@')) {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'A learner email is required' } });
+      return;
+    }
+    if (!ownsClassGroup(req.params.id, userId, 'team')) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Team not found' } });
+      return;
+    }
+    const outcome = inviteLearner(req.params.id, userId, email, 'team');
+    deliverInvitationEmail({ kind: 'team', targetId: req.params.id, inviterId: userId, email }, outcome);
+    res.status(202).json({ success: true, message: 'If a learner account exists for that email, an invitation has been sent. They join the team when they accept it. A new address gets a sign-up link.' });
+  },
+);
+
+// GET /employer/teams/:id/invitations — invitations sent for this team
+router.get(
+  '/employer/teams/:id/invitations',
+  authenticate,
+  requirePermission('group.manage'),
+  (req: AuthRequest, res: Response): void => {
+    const userId = req.user!.userId;
+    const invitations = listClassInvitations(req.params.id, userId, 'team');
+    if (!invitations) { res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Team not found' } }); return; }
+    res.json({ success: true, data: { invitations, emailed: listEmailInvitations('team', req.params.id, userId) } });
+  },
+);
+
+// DELETE /employer/teams/:id/invitations/:invitationId — withdraw a pending invitation
+router.delete(
+  '/employer/teams/:id/invitations/:invitationId',
+  authenticate,
+  requirePermission('group.manage'),
+  (req: AuthRequest, res: Response): void => {
+    const userId = req.user!.userId;
+    const { id, invitationId } = req.params;
+    if (!cancelClassInvitation(id, userId, invitationId, 'team')
+      && !(ownsClassGroup(id, userId, 'team') && cancelEmailInvitation('team', id, userId, invitationId))) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Invitation not found' } });
+      return;
+    }
+    res.json({ success: true });
+  },
+);
+
+// GET /employer/teams/:id/members — team members
+router.get(
   '/employer/teams/:id/members',
   authenticate,
   requirePermission('group.manage'),
   (req: AuthRequest, res: Response): void => {
-    const { userId } = req.body;
-
-    if (!userId || typeof userId !== 'string') {
-      res.status(400).json({
-        success: false,
-        error: { code: ErrorCodes.VALIDATION_ERROR, message: 'userId is required' },
-      });
+    if (!ownsClassGroup(req.params.id, req.user!.userId, 'team')) {
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Team not found' } });
       return;
     }
-
-    const team = queryOne<{ id: string; owner_user_id: string }>(
-      `SELECT id, owner_user_id FROM user_groups WHERE id = ? AND group_type = 'team'`,
+    const members = query<{ id: string; name: string; email: string }>(
+      'SELECT u.id, u.name, u.email FROM users u JOIN user_group_members m ON m.user_id = u.id WHERE m.group_id = ? ORDER BY u.name',
       [req.params.id],
     );
-
-    if (!team) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'Team not found' },
-      });
-      return;
-    }
-
-    if (team.owner_user_id !== req.user!.userId) {
-      res.status(403).json({
-        success: false,
-        error: { code: ErrorCodes.FORBIDDEN, message: 'Not your team' },
-      });
-      return;
-    }
-
-    // Check user exists
-    const user = queryOne<{ id: string }>('SELECT id FROM users WHERE id = ?', [userId]);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: { code: ErrorCodes.NOT_FOUND, message: 'User not found' },
-      });
-      return;
-    }
-
-    execute(
-      'INSERT OR IGNORE INTO user_group_members (group_id, user_id) VALUES (?, ?)',
-      [req.params.id, userId],
-    );
-
-    res.status(201).json({
-      success: true,
-      data: { group_id: req.params.id, user_id: userId },
-    });
+    res.json({ success: true, data: { members } });
   },
 );
 

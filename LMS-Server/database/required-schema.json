@@ -972,6 +972,19 @@
       "status",
       "created_at",
       "responded_at"
+    ],
+    "email_invitations": [
+      "id",
+      "kind",
+      "target_id",
+      "invited_by",
+      "email",
+      "token_hash",
+      "status",
+      "created_at",
+      "expires_at",
+      "claimed_by",
+      "claimed_at"
     ]
   },
   "indexes": [
@@ -1093,7 +1106,9 @@
     "idx_web_push_outbox_due",
     "idx_web_push_subscriptions_user",
     "idx_parent_invitations_user",
-    "idx_parent_invitations_parent"
+    "idx_parent_invitations_parent",
+    "idx_email_invitations_email",
+    "idx_email_invitations_inviter"
   ],
   "keys": {
     "active_sessions": {
@@ -3428,6 +3443,35 @@
         ],
         [
           "parent_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "email_invitations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "token_hash"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "claimed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "invited_by",
           "users",
           "id",
           "NO ACTION",
