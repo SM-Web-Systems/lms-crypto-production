@@ -9,19 +9,22 @@ interface NftBadgesSectionProps {
 
 const NftBadgesSection: React.FC<NftBadgesSectionProps> = ({ walletAddress }) => {
   const [nftBadges, setNftBadges] = useState<NFTResponse | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const loadNfts = async () => {
       if (!walletAddress) {
         setNftBadges(null);
+        setUnavailable(false);
         return;
       }
       try {
-        const nfts = await getUserNfts(walletAddress);
-        if (!cancelled) setNftBadges(nfts);
+        const result = await getUserNfts();
+        if (!cancelled) { setNftBadges(result.nfts); setUnavailable(result.unavailable); }
       } catch (error) {
         console.error('Failed to load NFT badges:', error);
+        if (!cancelled) setUnavailable(true);
       }
     };
 
@@ -32,7 +35,7 @@ const NftBadgesSection: React.FC<NftBadgesSectionProps> = ({ walletAddress }) =>
     };
   }, [walletAddress]);
 
-  const nftTokens = nftBadges?.indexed.tokens.map((t) => t.token) ?? [];
+  const nftTokens = nftBadges?.indexed?.tokens?.map((t) => t.token) ?? [];
 
   return (
     <section>
@@ -42,7 +45,7 @@ const NftBadgesSection: React.FC<NftBadgesSectionProps> = ({ walletAddress }) =>
           nftTokens.map((token) => (<li key={token.id}><NftCard token={token} /></li>))
         ) : (
           <li className="col-span-full rounded-xl border border-neutral-200/90 bg-gradient-to-br p-4 shadow-card ring-1 ring-neutral-900/[0.03] text-sm text-neutral-500">
-            No NFT badges yet
+            {unavailable ? 'Your NFT badges could not be loaded right now. Try again later.' : 'No NFT badges yet'}
           </li>
         )}
       </ul>

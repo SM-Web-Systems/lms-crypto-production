@@ -74,4 +74,29 @@ router.get('/wallet/status', authenticate, async (req: AuthRequest, res: Respons
   });
 });
 
+/**
+ * GET /api/v1/wallet/nfts
+ * The signed-in learner's own NFT badges, fetched by the LMS server from AmmaWallet. The browser no longer calls the
+ * wallet directly (it needs wallet CORS headers and a preflight), and the address is never taken from the client.
+ * A wallet outage is not an error for the learner: it answers 200 with unavailable: true.
+ */
+router.get('/wallet/nfts', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  const row = queryOne<{ walletAddress: string | null; wallet_linking_status: string | null }>(
+    'SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?', [req.user!.userId]);
+  const base = process.env.AMMA_WALLET_URL;
+  if (!row?.walletAddress || row.wallet_linking_status !== 'linked') { res.json({ success: true, data: null, unavailable: false }); return; }
+  if (!base) { res.json({ success: true, data: null, unavailable: true }); return; }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const upstream = await fetch(new URL(`api/v1/nfts/owner/${encodeURIComponent(row.walletAddress)}`, base).toString(), { signal: controller.signal });
+    clearTimeout(timer);
+    if (!upstream.ok) { res.json({ success: true, data: null, unavailable: true }); return; }
+    res.json({ success: true, data: await upstream.json(), unavailable: false });
+  } catch {
+    res.json({ success: true, data: null, unavailable: true });
+  }
+});
+
 export default router;

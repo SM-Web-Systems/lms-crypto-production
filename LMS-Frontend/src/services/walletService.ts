@@ -1,7 +1,3 @@
-const AMMA_WALLET_BASE = import.meta.env.VITE_AMMA_WALLET_URL || "http://localhost:3001/";
-// Safe URL join — prevents template-literal concatenation bug when base lacks trailing slash
-const walletUrl = (path: string) => new URL(path, AMMA_WALLET_BASE).toString();
-
 import type { NFTResponse, WalletStatusResponse } from "../types/api.js";
 import api from "./api.js";
 
@@ -10,17 +6,11 @@ export async function getWalletStatus(): Promise<WalletStatusResponse> {
   return res.data.data;
 }
 
-export async function getUserNfts(walletAddress: string): Promise<NFTResponse> {
-  const res = await fetch(walletUrl(`api/v1/nfts/owner/${walletAddress}`), {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+export interface UserNfts { nfts: NFTResponse | null; unavailable: boolean }
 
-  if (!res.ok) {
-    throw new Error(`Amma get NFTs failed (${res.status})`);
-  }
-
-  const result = (await res.json()) as NFTResponse;
-  return result;
+/** The learner's own NFT badges, through the LMS server (no browser call to the wallet, so no CORS). */
+export async function getUserNfts(): Promise<UserNfts> {
+  const res = await api.get<{ success: boolean; data: NFTResponse | null; unavailable?: boolean }>('/wallet/nfts');
+  return { nfts: res.data.data, unavailable: !!res.data.unavailable };
 }
 

@@ -381,7 +381,25 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
         ) : item.type === 'audio' ? (
           (() => {
             const ytEmbed = youtubeEmbedUrl(item.youtubeUrl);
-            return ytEmbed ? (
+            const directAudio = item.url?.trim();
+            // Only when there is nothing else to offer: a YouTube player or a download button still take priority (legacy url is not the primary player).
+            return !ytEmbed && !item.downloadUrl && directAudio && isDirectAudioFileUrl(directAudio) ? (
+              <div className="flex flex-col items-center gap-5 py-8 px-4">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+                  <Music className="h-8 w-8" aria-hidden />
+                </span>
+                <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                <audio
+                  controls
+                  preload="metadata"
+                  className="w-full max-w-lg"
+                  src={directAudio}
+                  onEnded={() => onItemComplete?.(item.id)}
+                >
+                  Your browser does not support the audio element.
+                </audio>
+              </div>
+            ) : ytEmbed ? (
               <>
                 <div
                   className="lms-video-stage w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20"
