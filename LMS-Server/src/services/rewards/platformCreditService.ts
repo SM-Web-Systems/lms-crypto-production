@@ -6,7 +6,7 @@ import {hasPermission} from '../../middleware/rbac.js';
 import {RewardError} from './rewardErrors.js';
 import {MAX_SAFE_STROOPS} from './currencyConfig.js';
 import {stellarFundingConfiguration} from './stellarFundingConfig.js';
-import {stellarReceiverReadiness, verifyStellarFunding} from './stellarFundingVerification.js';
+import {stellarReceiverReadiness, verifyStellarFunding, recentPaymentsTo} from './stellarFundingVerification.js';
 import {enforceTreasuryBudget} from './treasuryPilot.js';
 import {reconcileCreditLedger} from './platformCreditReconciliation.js';
 
@@ -157,6 +157,10 @@ export async function createBackingIntent(actor:string, quantity:unknown, reason
       verifyBackingSourceBinding(prior);
       return prior;
     }
+    // One open request per administrator and network: a second one while a payment may be on its way invites paying twice.
+    const open=db.prepare(`SELECT i.id FROM platform_backing_intents i LEFT JOIN platform_backing_deposits d ON d.intent_id=i.id
+      WHERE i.requester_user_id=? AND i.network=? AND d.id IS NULL AND i.expires_at>?`).get(actor,config.network,now()) as {id:string}|undefined;
+    if (open) throw new RewardError('OPEN_REQUEST_EXISTS','You already have an open deposit request. Finish it (send the payment and verify it) or wait for it to expire before creating another.',409);
     const id = uuid();
     const memo = backingMemo({id, requester_user_id: actor, network: config.network,
       destination: config.destination, amount_stroops: units}, source);
@@ -167,6 +171,28 @@ export async function createBackingIntent(actor:string, quantity:unknown, reason
     audit('deposit_intent',id,actor,config.network,units,reason);
     return db.prepare(`${INTENT_SELECT} WHERE i.id=?`).get(id) as BackingIntent;
   }).immediate();
+}
+
+/**
+ * Finds payments to the pool that match an open backing request (same sender, exact amount, after the request was made) and
+ * verifies each with the normal verification, which re-reads the network and checks the memo, amount, destination and sender.
+ * Discovery only proposes operation IDs; it never marks anything verified on its own. Returns how many deposits were recorded.
+ */
+export async function detectBackingDeposits(): Promise<number> {
+  const open=db.prepare(`SELECT i.* FROM platform_backing_intents i LEFT JOIN platform_backing_deposits d ON d.intent_id=i.id
+    WHERE d.id IS NULL AND i.expires_at>? ORDER BY i.created_at`).all(now()) as BackingIntent[];
+  let recorded=0;
+  const byAccount=new Map<string,Awaited<ReturnType<typeof recentPaymentsTo>>>();
+  for (const intent of open) {
+    const key=`${intent.network}:${intent.destination}`;
+    if (!byAccount.has(key)) { try { byAccount.set(key, await recentPaymentsTo(intent.network, intent.destination)); } catch { byAccount.set(key, []); } }
+    const source = intent.network==='public' ? configuredTreasurySource() : undefined;
+    for (const payment of byAccount.get(key)!) {
+      if (payment.amountStroops!==intent.amount_stroops || (source && payment.from!==source) || Date.parse(payment.createdAt)<Date.parse(intent.created_at)-1000) continue;
+      try { await verifyBackingDeposit(intent.id, intent.requester_user_id, payment.id); recorded++; break; } catch { /* not this payment, not final, or already recorded: try the next */ }
+    }
+  }
+  return recorded;
 }
 
 export async function verifyBackingDeposit(id:string, actor:string, operationId:string) {
