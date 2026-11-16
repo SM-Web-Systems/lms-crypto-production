@@ -31,16 +31,12 @@ describe('activating a funded reward is judged on the person activating it', () 
     expect(activateReward(f.rewardId, f.owner, uuidv4()).status).toBe('active');
   });
 
-  it('lets an administrator with reward.manage activate it', () => {
-    const f = fundedRewardInMovedClass();
-    const admin = user('role_admin', 'admin');
-    expect(activateReward(f.rewardId, admin, uuidv4()).status).toBe('active');
-  });
-
-  it('still refuses a teacher who does not own the class, and the old creator who lost it', () => {
+  it('still refuses a teacher who does not own the class, an administrator who is not the scope owner, and the old creator who lost it', () => {
+    const adminWithoutScope = user('role_admin', 'admin');
     const f = fundedRewardInMovedClass();
     const stranger = user('role_teacher', 'lecturer');
     expect(() => activateReward(f.rewardId, stranger, uuidv4())).toThrow(/access/);
+    expect(() => activateReward(f.rewardId, adminWithoutScope, uuidv4())).toThrow(/access/);
     expect(() => activateReward(f.rewardId, f.creator, uuidv4())).toThrow(/access/);
     expect(db.prepare('SELECT status FROM rewards WHERE id = ?').get(f.rewardId)).toEqual({ status: 'funded' });
   });
