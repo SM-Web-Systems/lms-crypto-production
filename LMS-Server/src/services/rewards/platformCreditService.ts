@@ -255,6 +255,13 @@ export function availablePlatformCredits(owner:string):CreditGrant[] {
   const ids=db.prepare(`SELECT g.id FROM platform_credit_grants g JOIN platform_credit_requests r ON r.id=g.request_id WHERE r.beneficiary_user_id=? AND r.network=?`).all(owner,network) as {id:string}[];
   return ids.map(row=>creditGrant(row.id)!).filter(row=>row.availableStroops>0);
 }
+/** Active people who may receive platform credit (they hold reward funding access), other than the caller. */
+export function listCreditBeneficiaries(actor:string) {
+  manage(actor);
+  const users=db.prepare(`SELECT DISTINCT u.id,u.name,u.email FROM users u JOIN user_roles ur ON ur.user_id=u.id
+    WHERE u.id<>? AND COALESCE(u.deletion_status,'active') NOT IN ('pending_deletion','finalized') ORDER BY u.name LIMIT 300`).all(actor) as {id:string;name:string;email:string}[];
+  return users.filter(u=>hasPermission(u.id,'reward.fund')).slice(0,100);
+}
 export function listPlatformCredits(actor:string,owner:string) {
   manage(actor);text(owner,'beneficiary');
   const ids=db.prepare(`SELECT g.id FROM platform_credit_grants g JOIN platform_credit_requests r ON r.id=g.request_id WHERE r.beneficiary_user_id=?`).all(owner) as {id:string}[];

@@ -4,7 +4,7 @@ import {requirePermission} from '../middleware/rbac.js';
 import type {AuthRequest} from '../types/index.js';
 import {RewardError} from '../services/rewards/rewardErrors.js';
 import {platformCreditSummary,createBackingIntent,verifyBackingDeposit,requestPlatformCredit,approvePlatformCredit,
-  cancelPlatformCreditRequest,listPlatformCredits,releasePlatformCreditReservation,reconcilePlatformCredit} from '../services/rewards/platformCreditService.js';
+  cancelPlatformCreditRequest,listPlatformCredits,releasePlatformCreditReservation,reconcilePlatformCredit,listCreditBeneficiaries} from '../services/rewards/platformCreditService.js';
 
 const router=Router();
 router.use((_req, res, next) => {
@@ -18,6 +18,7 @@ const handle=(action:(req:AuthRequest)=>unknown|Promise<unknown>)=>async(req:Aut
 };
 router.get('/',handle(req=>platformCreditSummary(req.user!.userId)));
 router.get('/reconciliation/:network',handle(req=>reconcilePlatformCredit(req.user!.userId,req.params.network)));
+router.get('/beneficiaries',handle(req=>listCreditBeneficiaries(req.user!.userId)));
 router.get('/credits/:owner',handle(req=>listPlatformCredits(req.user!.userId,req.params.owner)));
 router.post('/deposit-intents',handle(req=>createBackingIntent(req.user!.userId,req.body.amountStroops,req.body.reason,req.body.idempotencyKey)));
 router.post('/deposit-intents/:id/verify',handle(req=>verifyBackingDeposit(req.params.id,req.user!.userId,req.body.operationId)));
