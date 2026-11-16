@@ -5,6 +5,7 @@ import app from './app.js';
 import { db, close } from './config/database.js';
 import logger from './utils/logger.js';
 import { startPushWorker, stopPushWorker } from './services/pushDeliveryService.js';
+import { startWebPushWorker, stopWebPushWorker } from './services/webPushService.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
 import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
 import { processExpiredDeletions } from './services/deletionService.js';
@@ -66,6 +67,7 @@ function startServer() {
         // Start email retry worker for durable delivery (FIND-027-02)
         startEmailRetryWorker();
         startPushWorker();
+        startWebPushWorker();
         // Start deletion finalization scheduler — runs daily (24h interval)
         startDeletionScheduler();
         startRewardReconciliation();
@@ -95,6 +97,7 @@ process.on('SIGINT', async () => {
   stopEmailRetryWorker();
   stopDeletionScheduler();
   await stopPushWorker();
+  await stopWebPushWorker();
   close();
   process.exit(0);
 });
@@ -105,6 +108,7 @@ process.on('SIGTERM', async () => {
   stopEmailRetryWorker();
   stopDeletionScheduler();
   await stopPushWorker();
+  await stopWebPushWorker();
   close();
   process.exit(0);
 });

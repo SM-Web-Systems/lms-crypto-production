@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Bell, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { notificationService, PreferenceItem } from '../services/notificationService';
+import WebPushCard from '../components/WebPushCard';
 
 const TYPE_LABELS: Record<string, string> = {
   submission_reviewed: 'Submission Reviewed',
@@ -66,6 +67,8 @@ const NotificationSettings: React.FC = () => {
           <h1 className="text-xl font-semibold text-neutral-800">Notification Settings</h1>
         </div>
       </div>
+
+      <WebPushCard />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm" role="alert">

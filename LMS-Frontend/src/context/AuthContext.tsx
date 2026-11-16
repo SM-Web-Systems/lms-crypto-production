@@ -3,6 +3,7 @@ import api, { setTokenGetter, onUnauthorized } from '../services/api';
 import { currentSessionUser } from '../utils/rolePresentation';
 import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { User, LoginResponse, ApiResponse } from '../types/api';
+import { resyncWebPush } from '../lib/webPush';
 
 const TOKEN_KEY = 'lms_token';
 let storageFallback: string | null | undefined;
@@ -102,6 +103,9 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
       generation.current++;request.current++;setUser(currentSessionUser(updated));setSessionError(null);setIsLoading(false);
     }else setUser(current=>current?.id===updated.id?{...current,name:updated.name}:current);
   },[renderedGeneration]);
+  // Each app open renews this device's push binding to the current sign-in (never prompts).
+  const userId=user?.id;
+  useEffect(()=>{if(userId)void resyncWebPush();},[userId]);
   const recovery=sessionError && !user && !isLoading;
   return <AuthContext.Provider value={{user,isAuthenticated:!!user,isLoading,login,register,completeSso,logout,updateUser}}>
     {recovery ? <main className="min-h-screen flex items-center justify-center bg-neutral-50 p-6">
