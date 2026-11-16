@@ -1717,12 +1717,6 @@ function ensureRewardTables(): void {
 startupMigrations.push(ensureRewardTables);
 startupMigrations.push(() => db.exec(rewardFundingSchema));
 startupMigrations.push(() => db.exec(platformCreditSchema));
-// One-time text memo for backing deposits (wallets that only offer a short text memo). Older intents keep a null code.
-startupMigrations.push(() => {
-  const cols = db.prepare('PRAGMA table_info(platform_backing_intents)').all() as { name: string }[];
-  if (!cols.some((c) => c.name === 'text_memo')) db.exec('ALTER TABLE platform_backing_intents ADD COLUMN text_memo TEXT');
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_backing_intents_text_memo ON platform_backing_intents(text_memo) WHERE text_memo IS NOT NULL');
-});
 startupMigrations.push(() => db.exec(pushSchema));
 startupMigrations.push(() => db.exec(webPushSchema));
 startupMigrations.push(() => db.exec(rewardClaimSchema));

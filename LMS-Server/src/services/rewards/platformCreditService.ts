@@ -66,9 +66,9 @@ export function platformCreditSummary(actor:string) {
     pools:[platformPool('testnet'),platformPool('public')],
     requests:db.prepare(`SELECT *,CASE WHEN status='pending' AND expires_at<=? THEN 'expired' ELSE status END effective_status
       FROM platform_credit_requests ORDER BY created_at DESC,id DESC LIMIT 100`).all(now()),
-    backingIntents:db.prepare(`SELECT i.*,d.id deposit_id,d.operation_id,
+    backingIntents:db.prepare(`SELECT i.*,m.text_memo,d.id deposit_id,d.operation_id,
       CASE WHEN d.id IS NOT NULL THEN 'verified' WHEN i.expires_at<=? THEN 'expired' ELSE 'awaiting_deposit' END effective_status
-      FROM platform_backing_intents i LEFT JOIN platform_backing_deposits d ON d.intent_id=i.id ORDER BY i.created_at DESC,i.id DESC LIMIT 100`).all(now()),
+      FROM platform_backing_intents i LEFT JOIN platform_backing_deposits d ON d.intent_id=i.id LEFT JOIN platform_backing_text_memos m ON m.intent_id=i.id ORDER BY i.created_at DESC,i.id DESC LIMIT 100`).all(now()),
     reservations:db.prepare(`SELECT c.*,i.reward_id,i.owner_user_id,i.actor_user_id,
       CASE WHEN c.status='held' AND c.expires_at<=? THEN 'expired' ELSE c.status END effective_status
       FROM platform_credit_reservations c JOIN reward_funding_intents i ON i.id=c.intent_id ORDER BY c.created_at DESC,c.intent_id DESC LIMIT 100`).all(now()),
@@ -90,6 +90,7 @@ function treasurySource(network: Network, destination: string): string | undefin
   return source;
 }
 
+const INTENT_SELECT='SELECT i.*,m.text_memo FROM platform_backing_intents i LEFT JOIN platform_backing_text_memos m ON m.intent_id=i.id';
 const TEXT_ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 /** One-time code that fits the 28-byte text memo limit: LMS- plus 12 random base32 characters (60 bits). */
 export function newTextMemo(){const b=randomBytes(12);let out='LMS-';for(const x of b)out+=TEXT_ALPHABET[x%32];return out;}
@@ -136,7 +137,7 @@ function verifyBackingSourceBinding(intent: BackingIntent) {
 
 export async function createBackingIntent(actor:string, quantity:unknown, reason:unknown, key:unknown):Promise<BackingIntent> {
   manage(actor);const units=amount(quantity);text(reason,'reason',500);text(key,'idempotency key');
-  const existing=db.prepare('SELECT * FROM platform_backing_intents WHERE requester_user_id=? AND idempotency_key=?').get(actor,key) as BackingIntent|undefined;
+  const existing=db.prepare(`${INTENT_SELECT} WHERE i.requester_user_id=? AND i.idempotency_key=?`).get(actor,key) as BackingIntent|undefined;
   if (existing) {
     if (existing.amount_stroops !== units || existing.reason !== reason) conflict();
     verifyBackingSourceBinding(existing);
@@ -150,7 +151,7 @@ export async function createBackingIntent(actor:string, quantity:unknown, reason
     || treasurySource(config.network, config.destination) !== source) throw new RewardError('FUNDING_UNVERIFIED',ready.reason??'Funding configuration changed.',503);
   return db.transaction(()=>{
     manage(actor);
-    const prior=db.prepare('SELECT * FROM platform_backing_intents WHERE requester_user_id=? AND idempotency_key=?').get(actor,key) as BackingIntent|undefined;
+    const prior=db.prepare(`${INTENT_SELECT} WHERE i.requester_user_id=? AND i.idempotency_key=?`).get(actor,key) as BackingIntent|undefined;
     if (prior) {
       if (prior.amount_stroops !== units || prior.reason !== reason) conflict();
       verifyBackingSourceBinding(prior);
@@ -159,16 +160,18 @@ export async function createBackingIntent(actor:string, quantity:unknown, reason
     const id = uuid();
     const memo = backingMemo({id, requester_user_id: actor, network: config.network,
       destination: config.destination, amount_stroops: units}, source);
-    db.prepare(`INSERT INTO platform_backing_intents(id,requester_user_id,network,destination,memo_hash,amount_stroops,reason,idempotency_key,expires_at,created_at,text_memo) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(id,actor,config.network,config.destination,memo,units,reason,key,expires(),now(),newTextMemo());
+    db.prepare(`INSERT INTO platform_backing_intents(id,requester_user_id,network,destination,memo_hash,amount_stroops,reason,idempotency_key,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .run(id,actor,config.network,config.destination,memo,units,reason,key,expires(),now());
+    // The one-time text memo lives in its own table: the funding tables' definitions are fixed on existing databases.
+    db.prepare('INSERT INTO platform_backing_text_memos(intent_id,text_memo,created_at) VALUES (?,?,?)').run(id,newTextMemo(),now());
     audit('deposit_intent',id,actor,config.network,units,reason);
-    return db.prepare('SELECT * FROM platform_backing_intents WHERE id=?').get(id) as BackingIntent;
+    return db.prepare(`${INTENT_SELECT} WHERE i.id=?`).get(id) as BackingIntent;
   }).immediate();
 }
 
 export async function verifyBackingDeposit(id:string, actor:string, operationId:string) {
   manage(actor);text(id,'backing intent');text(operationId,'operation ID');
-  const intent=db.prepare('SELECT * FROM platform_backing_intents WHERE id=?').get(id) as BackingIntent|undefined;
+  const intent=db.prepare(`${INTENT_SELECT} WHERE i.id=?`).get(id) as BackingIntent|undefined;
   if(!intent) throw new RewardError('FUNDING_UNVERIFIED','Backing intent not found.',404);
   const prior=db.prepare('SELECT * FROM platform_backing_deposits WHERE intent_id=?').get(id) as {operation_id:string}|undefined;
   if(prior){if(prior.operation_id!==operationId) conflict();return prior;}
