@@ -41,6 +41,7 @@ const AdminDocuments = React.lazy(() => import('./pages/AdminDocuments'));
 const AdminCourse = React.lazy(() => import('./pages/AdminCourse'));
 const AdminQuizzes = React.lazy(() => import('./pages/AdminQuizzes'));
 const AdminCertificates = React.lazy(() => import('./pages/AdminCertificates'));
+const AdminRewards = React.lazy(() => import('./pages/AdminRewards'));
 const SponsorDashboard = React.lazy(() => import('./pages/SponsorDashboard'));
 const LecturerDashboard = React.lazy(() => import('./pages/LecturerDashboard'));
 const LecturerCourseStudents = React.lazy(() => import('./pages/LecturerCourseStudents'));
@@ -424,6 +425,16 @@ function App() {
                 <ProtectedRoute allowedWorkspace="admin">
                   <Layout>
                     <CourseMembers />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/rewards"
+              element={
+                <ProtectedRoute allowedWorkspace="admin">
+                  <Layout>
+                    <AdminRewards />
                   </Layout>
                 </ProtectedRoute>
               }

@@ -84,6 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Quizzes', path: '/admin/quizzes', icon: ClipboardList },
       { name: 'Resources', path: '/admin/documents', icon: BookOpen },
       { name: 'Certificates', path: '/admin/certificates', icon: Award },
+      { name: 'Rewards to authorize', path: '/admin/rewards', icon: Gift },
       { name: 'Sponsor Portal', path: '/admin/sponsor', icon: Tag },
       { name: 'User Roles', path: '/admin/users', icon: Shield },
       { name: 'Forum', path: '/admin/forum', icon: MessageCircle },

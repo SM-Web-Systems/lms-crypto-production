@@ -5,6 +5,7 @@
  * POST /admin/rewards/refund-attempts/:id/retry   — Retry a blocked refund
  * POST /admin/rewards/refund-attempts/:id/resolve — Resolve (waive/escalate) a blocked refund
  * POST /admin/rewards/process-outbox              — Manually trigger outbox processing
+ * GET  /admin/rewards/awaiting-funding            — Draft rewards created by someone else, for independent funding authorization
  */
 import { Router, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +30,31 @@ function handleRewardError(err: unknown, res: Response): void {
     throw err;
   }
 }
+
+// ──── GET /admin/rewards/awaiting-funding ────
+
+/**
+ * Draft rewards that this administrator may authorize (administrator grant or platform credit). A reward cannot be
+ * authorized by its own creator, so those are left out. Funding itself uses the existing funding routes.
+ */
+router.get(
+  '/awaiting-funding',
+  authenticate,
+  requirePermission('reward.manage'),
+  (req: AuthRequest, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rows = db.prepare(`
+      SELECT r.id, r.description, r.reward_type AS rewardType, r.amount_stroops AS amountStroops, r.max_recipients AS maxRecipients,
+             r.scope_type AS scopeType, r.created_at AS createdAt, u.name AS creatorName,
+             CASE WHEN r.scope_type = 'teacher_class' THEN g.name END AS scopeName
+      FROM rewards r
+      JOIN users u ON u.id = r.creator_user_id
+      LEFT JOIN user_groups g ON g.id = r.scope_id AND r.scope_type = 'teacher_class'
+      WHERE r.status = 'draft' AND r.creator_user_id <> ?
+      ORDER BY r.created_at DESC LIMIT 100`).all(req.user!.userId);
+    res.json({ success: true, data: rows });
+  },
+);
 
 // ──── GET /admin/rewards/refund-attempts ────
 
