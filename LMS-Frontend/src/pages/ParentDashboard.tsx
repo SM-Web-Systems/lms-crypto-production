@@ -12,6 +12,8 @@ import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { RewardDashboard } from '../components/RewardDashboard';
 import { ParentInvitePanel } from '../components/ParentInvitePanel';
+import { ConfirmButton } from '../components/ConfirmButton';
+import { connectionService } from '../services/connectionService';
 import {
   Users,
   RefreshCw,
@@ -157,6 +159,12 @@ const ParentDashboardContent: React.FC = () => {
                             <CardContent className="py-4">
                               <p className="font-semibold text-neutral-900">{child.name}</p>
                               <p className="text-xs text-neutral-500">{child.email}</p>
+                              <div className="mt-2">
+                                <ConfirmButton label="Unlink" confirmLabel={`Unlink ${child.name}`} onConfirm={async () => {
+                                  try { await connectionService.unlinkChild(child.id); load(); }
+                                  catch (err) { setError(getErrorMessage(err, 'Could not unlink the child.')); }
+                                }} />
+                              </div>
                             </CardContent>
                           </Card>
                         ))}

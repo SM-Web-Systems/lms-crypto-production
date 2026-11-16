@@ -5,6 +5,7 @@ import type { AuthRequest } from '../types/index.js';
 import {
   inviteChild, listParentInvitations, cancelParentInvitation, myPendingParentInvitations, respondToParentInvitation,
 } from '../services/parentInvitationService.js';
+import { myConnections, unlinkParent, leaveGroup } from '../services/connectionService.js';
 import { deliverInvitationEmail, listEmailInvitations, cancelEmailInvitation, claimEmailInvitation } from '../services/emailInvitationService.js';
 
 const router = Router();
@@ -54,6 +55,39 @@ for (const action of ['accept', 'decline'] as const) {
     res.json({ success: true, data: { status: action === 'accept' ? 'accepted' : 'declined' } });
   });
 }
+
+// DELETE /parent/children/:childId — the parent ends the link to a child. The child account itself is kept.
+router.delete('/parent/children/:childId', authenticate, requirePermission('student.view_assigned'), (req: AuthRequest, res: Response): void => {
+  if (!unlinkParent(req.user!.userId, req.params.childId)) {
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Child not found' } });
+    return;
+  }
+  res.json({ success: true, data: { removed: true } });
+});
+
+// GET /students/me/connections — parents linked to me, and the classes and teams I belong to
+router.get('/students/me/connections', authenticate, (req: AuthRequest, res: Response): void => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, data: myConnections(req.user!.userId) });
+});
+
+// DELETE /students/me/parents/:parentId — I end a parent's link to my account
+router.delete('/students/me/parents/:parentId', authenticate, (req: AuthRequest, res: Response): void => {
+  if (!unlinkParent(req.params.parentId, req.user!.userId)) {
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Link not found' } });
+    return;
+  }
+  res.json({ success: true, data: { removed: true } });
+});
+
+// DELETE /students/me/groups/:groupId — I leave a class or team
+router.delete('/students/me/groups/:groupId', authenticate, (req: AuthRequest, res: Response): void => {
+  if (!leaveGroup(req.user!.userId, req.params.groupId)) {
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'You are not in that class or team' } });
+    return;
+  }
+  res.json({ success: true, data: { removed: true } });
+});
 
 // POST /invitations/claim — the signed-in learner opened an emailed sign-up link. The request becomes an ordinary
 // pending invitation, which they still accept or decline. Only the account with the invited email can claim it.

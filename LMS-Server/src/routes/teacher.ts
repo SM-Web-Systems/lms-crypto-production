@@ -20,6 +20,7 @@ import {
 } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { inviteLearner, listClassInvitations, cancelClassInvitation, ownsClassGroup } from '../services/classInvitationService.js';
+import { removeFromOwnClass } from '../services/connectionService.js';
 import { deliverInvitationEmail, listEmailInvitations, cancelEmailInvitation } from '../services/emailInvitationService.js';
 import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
@@ -126,6 +127,16 @@ router.get('/teacher/classes/:id/students', authenticate, requirePermission('stu
   );
 
   res.json({ success: true, data: { students } });
+});
+
+// DELETE /teacher/classes/:id/students/:userId — remove one learner from own class
+router.delete('/teacher/classes/:id/students/:userId', authenticate, requirePermission('group.manage'), (req, res: Response) => {
+  const outcome = removeFromOwnClass((req as AuthRequest).user!.userId, req.params.id, req.params.userId);
+  if (outcome !== 'removed') {
+    res.status(404).json({ success: false, error: outcome === 'no_class' ? 'Class not found' : 'Learner not in this class' });
+    return;
+  }
+  res.json({ success: true, data: { removed: true } });
 });
 
 // POST /teacher/classes/:id/invite — invite a learner by email. The learner joins only after accepting.

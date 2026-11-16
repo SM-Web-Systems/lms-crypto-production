@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { ParentInvitationsPanel } from './ParentInvitationsPanel';
 import { ClassInvitationsPanel } from './ClassInvitationsPanel';
+import { MyConnectionsPanel } from './MyConnectionsPanel';
 import { parentInvitationService } from '../services/parentInvitationService';
 import { takeJoinToken } from '../utils/pendingJoin';
 import { getErrorMessage } from '../utils/apiError';
@@ -29,6 +30,7 @@ export const InvitationRequests: React.FC = () => {
       {notice ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">{notice}</p> : null}
       <ParentInvitationsPanel />
       <ClassInvitationsPanel />
+      <MyConnectionsPanel />
     </>
   );
 };
