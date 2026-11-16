@@ -21,6 +21,8 @@ export const PAYOUT_TIMEOUT_S = 60;
 export const ACTIVATION_RESERVE_STROOPS = 10_000_000;
 const SETTLE_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Network fee of one payout; it leaves the pool too, so it counts against the caps. */
+export const PAYOUT_FEE_STROOPS = 1000;
 
 export interface PayoutHorizon {
   /** Current sequence number, or null when the account does not exist on this network. */
@@ -185,9 +187,9 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
       if (outgoing > cfg.caps.perClaim) {
         throw new RewardError('PAYOUT_CAP_EXCEEDED', 'This payout is above the per-claim limit. Your claim is saved.', 409);
       }
-      const day = db.prepare(`SELECT COALESCE(SUM(amount_stroops + activation_stroops), 0) AS total FROM reward_claim_payouts
+      const day = db.prepare(`SELECT COALESCE(SUM(amount_stroops + activation_stroops + ${PAYOUT_FEE_STROOPS}), 0) AS total FROM reward_claim_payouts
         WHERE network = ? AND status IN ('submitted', 'paid') AND claim_id <> ? AND created_at > ?`).get(cfg.network, claimId, now - DAY_MS) as { total: number };
-      if (BigInt(day.total) + outgoing > cfg.caps.daily) {
+      if (BigInt(day.total) + outgoing + BigInt(PAYOUT_FEE_STROOPS) > cfg.caps.daily) {
         throw new RewardError('PAYOUT_CAP_EXCEEDED', 'The daily payout limit has been reached. Your claim is saved and can be paid later.', 409);
       }
     }

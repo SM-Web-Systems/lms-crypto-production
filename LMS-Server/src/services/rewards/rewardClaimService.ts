@@ -3,6 +3,7 @@ import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
+import logger from '../../utils/logger.js';
 
 /**
  * A reward only leaves the LMS after the learner proves they still control the Stellar key of the
@@ -12,6 +13,8 @@ import { RewardError } from './rewardErrors.js';
  */
 
 export const CLAIM_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+/** A learner can have a few open challenges (phone and web at once); each is checked against the balance when it is verified. */
+export const MAX_OPEN_CLAIMS = 5;
 const PREFIX = 'SM Web Systems LMS reward claim';
 
 interface ClaimRow {
@@ -42,7 +45,17 @@ export function claimableStroops(userId: string): number {
     .get(userId) as { available_stroops: number } | undefined;
   const committed = db.prepare("SELECT COALESCE(SUM(amount_stroops), 0) AS total FROM reward_claims WHERE user_id = ? AND status = 'verified'")
     .get(userId) as { total: number };
-  return Math.max(0, (account?.available_stroops ?? 0) - committed.total);
+  const raw = (account?.available_stroops ?? 0) - committed.total;
+  // Never show a negative balance, but never hide it either: verified claims above the balance mean money drifted.
+  if (raw < 0) logger.error({ module: 'reward-claims', userId, shortfallStroops: -raw }, 'Verified reward claims exceed the learner balance');
+  return Math.max(0, raw);
+}
+
+/** Learners whose verified claims are above their balance (for a daily reconciliation check). */
+export function overCommittedLearners(): { userId: string; shortfallStroops: number }[] {
+  return db.prepare(`SELECT c.user_id AS userId, SUM(c.amount_stroops) - COALESCE(a.available_stroops, 0) AS shortfallStroops
+    FROM reward_claims c LEFT JOIN reward_accounts a ON a.user_id = c.user_id AND a.account_type = 'recipient' AND a.currency_code = 'XLM'
+    WHERE c.status = 'verified' GROUP BY c.user_id HAVING SUM(c.amount_stroops) > COALESCE(a.available_stroops, 0)`).all() as { userId: string; shortfallStroops: number }[];
 }
 
 export function createRewardClaim(userId: string, amount: unknown, now = Date.now()) {
@@ -53,7 +66,10 @@ export function createRewardClaim(userId: string, amount: unknown, now = Date.no
   return db.transaction(() => {
     const destination = currentAddress(userId);
     if (amountStroops > claimableStroops(userId)) throw new RewardError('INSUFFICIENT_BALANCE', 'This is more than your claimable reward balance.', 409);
-    db.prepare("UPDATE reward_claims SET status = 'cancelled' WHERE user_id = ? AND status = 'challenged'").run(userId);
+    // A second device or tab must not kill a claim that is still in progress on the first one.
+    db.prepare("UPDATE reward_claims SET status = 'expired' WHERE user_id = ? AND status = 'challenged' AND challenge_expires_at <= ?").run(userId, now);
+    const open = db.prepare("SELECT COUNT(*) AS n FROM reward_claims WHERE user_id = ? AND status = 'challenged'").get(userId) as { n: number };
+    if (open.n >= MAX_OPEN_CLAIMS) throw new RewardError('TOO_MANY_OPEN_CLAIMS', 'You have several claims waiting. Finish one in AmmaWallet or wait a few minutes.', 429);
     const nonce = randomBytes(32).toString('hex');
     const claim = { id: uuidv4(), destination, amount_stroops: amountStroops, challenge_expires_at: now + CLAIM_CHALLENGE_TTL_MS };
     db.prepare(`INSERT INTO reward_claims (id, user_id, destination, amount_stroops, nonce_hash, challenge_expires_at, status, created_at)
@@ -92,5 +108,22 @@ export function verifyRewardClaim(userId: string, claimId: string, message: unkn
     }
     db.prepare("UPDATE reward_claims SET status = 'verified', verified_at = ? WHERE id = ?").run(now, claimId);
     return { claimId, status: 'verified' as const };
+  }).immediate();
+}
+
+/**
+ * Frees a verified claim whose payout definitely failed (rejected by the network, never on the ledger), so the
+ * learner's balance is not locked for good. An unresolved or paid payout cannot be cancelled.
+ */
+export function cancelFailedClaim(userId: string, claimId: string) {
+  return db.transaction(() => {
+    const claim = db.prepare('SELECT status FROM reward_claims WHERE id = ? AND user_id = ?').get(claimId, userId) as { status: string } | undefined;
+    if (!claim) throw new RewardError('NOT_FOUND', 'Claim not found.', 404);
+    if (claim.status === 'cancelled') return { claimId, status: 'cancelled' as const };
+    if (claim.status !== 'verified') throw new RewardError('CLAIM_NOT_CANCELLABLE', 'Only a verified claim whose payout failed can be cancelled here.', 409);
+    const payout = db.prepare('SELECT status FROM reward_claim_payouts WHERE claim_id = ?').get(claimId) as { status: string } | undefined;
+    if (payout?.status !== 'failed') throw new RewardError('CLAIM_NOT_CANCELLABLE', 'This claim is paid, being paid, or not tried yet, so it cannot be cancelled.', 409);
+    db.prepare("UPDATE reward_claims SET status = 'cancelled' WHERE id = ?").run(claimId);
+    return { claimId, status: 'cancelled' as const };
   }).immediate();
 }

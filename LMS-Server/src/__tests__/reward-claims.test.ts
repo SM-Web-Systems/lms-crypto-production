@@ -6,7 +6,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
-import { createRewardClaim, verifyRewardClaim, CLAIM_CHALLENGE_TTL_MS } from '../services/rewards/rewardClaimService.js';
+import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS } from '../services/rewards/rewardClaimService.js';
 
 const HASH = bcrypt.hashSync('password123', 4);
 
@@ -82,10 +82,67 @@ describe('reward claims: prove the wallet key before any payout', () => {
     expect(() => createRewardClaim(l.id, '1000')).toThrow(/Connect a Stellar wallet/);
   });
 
-  it('starting a new claim closes the previous open challenge', () => {
+  it('starting a new claim no longer closes the previous open challenge', () => {
     const l = learner(1_000_000);
     const first = createRewardClaim(l.id, '100000');
     createRewardClaim(l.id, '100000');
-    expect(() => verifyRewardClaim(l.id, first.claimId, first.message, sign(l.keypair, first.message))).toThrow(/closed/);
+    expect(verifyRewardClaim(l.id, first.claimId, first.message, sign(l.keypair, first.message)).status).toBe('verified');
+  });
+});
+
+describe('reward claims: second device, failed payouts and reconciliation', () => {
+  it('keeps a claim open when another device starts one, and each can be verified in turn', () => {
+    const l = learner(2_000_000);
+    const first = createRewardClaim(l.id, '1000000');
+    const second = createRewardClaim(l.id, '1000000');
+    expect(first.claimId).not.toBe(second.claimId);
+    expect(verifyRewardClaim(l.id, first.claimId, first.message, sign(l.keypair, first.message)).status).toBe('verified');
+    expect(verifyRewardClaim(l.id, second.claimId, second.message, sign(l.keypair, second.message)).status).toBe('verified');
+  });
+
+  it('still never lets two open claims spend the same balance', () => {
+    const l = learner(1_000_000);
+    const a = createRewardClaim(l.id, '1000000');
+    const b = createRewardClaim(l.id, '1000000');
+    verifyRewardClaim(l.id, a.claimId, a.message, sign(l.keypair, a.message));
+    expect(() => verifyRewardClaim(l.id, b.claimId, b.message, sign(l.keypair, b.message))).toThrow(/claimable balance changed/);
+  });
+
+  it('expires stale challenges and limits how many can be open at once', () => {
+    const l = learner(10_000_000);
+    const t0 = Date.now();
+    for (let i = 0; i < MAX_OPEN_CLAIMS; i++) createRewardClaim(l.id, '1000', t0);
+    expect(() => createRewardClaim(l.id, '1000', t0 + 1000)).toThrow(/several claims waiting/);
+    expect(() => createRewardClaim(l.id, '1000', t0 + CLAIM_CHALLENGE_TTL_MS + 1)).not.toThrow();
+  });
+
+  it('cancels a claim whose payout failed for good, and only that', () => {
+    const l = learner(1_000_000);
+    const c = createRewardClaim(l.id, '1000000');
+    verifyRewardClaim(l.id, c.claimId, c.message, sign(l.keypair, c.message));
+    expect(claimableStroops(l.id)).toBe(0);
+    expect(() => cancelFailedClaim(l.id, c.claimId)).toThrow(/not tried yet/);
+    const put = (status: string) => db.prepare(`INSERT OR REPLACE INTO reward_claim_payouts (claim_id, network, source, destination, amount_stroops, activation_stroops, tx_hash,
+      envelope_xdr, max_time, status, attempts, created_at, updated_at) VALUES (?, 'testnet', 'S', ?, 1000000, 0, ?, 'x', 1, ?, 1, 1, 1)`)
+      .run(c.claimId, l.keypair.publicKey(), `hash-${c.claimId}`, status);
+    put('submitted');
+    expect(() => cancelFailedClaim(l.id, c.claimId)).toThrow(/cannot be cancelled/);
+    put('paid');
+    expect(() => cancelFailedClaim(l.id, c.claimId)).toThrow(/cannot be cancelled/);
+    put('failed');
+    expect(cancelFailedClaim(l.id, c.claimId)).toEqual({ claimId: c.claimId, status: 'cancelled' });
+    expect(claimableStroops(l.id)).toBe(1_000_000);
+    const other = learner(1_000_000);
+    expect(() => cancelFailedClaim(other.id, c.claimId)).toThrow(/Claim not found/);
+  });
+
+  it('reports learners whose verified claims are above their balance', () => {
+    const l = learner(1_000_000);
+    const c = createRewardClaim(l.id, '1000000');
+    verifyRewardClaim(l.id, c.claimId, c.message, sign(l.keypair, c.message));
+    expect(overCommittedLearners().find(x => x.userId === l.id)).toBeUndefined();
+    db.prepare("UPDATE reward_accounts SET available_stroops = 400000 WHERE user_id = ?").run(l.id);
+    expect(overCommittedLearners().find(x => x.userId === l.id)).toEqual({ userId: l.id, shortfallStroops: 600000 });
+    expect(claimableStroops(l.id)).toBe(0);
   });
 });
