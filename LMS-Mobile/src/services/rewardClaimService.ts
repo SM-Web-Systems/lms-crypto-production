@@ -33,11 +33,20 @@ export function walletClaimUrl(message: string): string {
 }
 
 /** Parse AmmaWallet's answer. Only the fragment of our own return address is trusted. */
+/** What AmmaWallet says when it cannot approve: #claim=<id>&error=expired|unavailable, or #error=invalid. Never with a signature. */
+const WALLET_ERRORS: Record<string, string> = {
+  expired: 'This claim expired. Start a new claim. Your rewards are still safe in your LMS balance.',
+  unavailable: 'AmmaWallet cannot approve this claim right now. Try again in a moment.',
+  invalid: 'AmmaWallet could not read this claim. Start a new claim.',
+};
+
 export function parseClaimReturn(url: string, claimId: string): { signature: string } | { declined: true } {
   const hashAt = url.indexOf('#');
   const base = hashAt === -1 ? url : url.slice(0, hashAt);
   if (base !== CLAIM_RETURN_URL || hashAt === -1) throw new Error('The wallet response could not be verified. Start the claim again.');
   const params = new URLSearchParams(url.slice(hashAt + 1));
+  const reason = WALLET_ERRORS[params.get('error') ?? ''];
+  if (reason) throw new Error(reason);
   if (params.get('claim') !== claimId) throw new Error('The wallet response was for a different claim. Start the claim again.');
   if (params.get('declined') === '1') return { declined: true };
   const signature = params.get('signature') ?? '';

@@ -60,3 +60,17 @@ describe('wallet claim hand-off', () => {
     expect(await rewardClaimService.claimable()).toBe(1234567);
   });
 });
+
+describe('AmmaWallet says why it could not approve', () => {
+  it('gives a specific message for each known reason, and ignores a signature sent with one', () => {
+    expect(() => parseClaimReturn(`${CLAIM_RETURN_URL}#claim=c-1&error=expired`, 'c-1')).toThrow(/claim expired/);
+    expect(() => parseClaimReturn(`${CLAIM_RETURN_URL}#claim=c-1&error=unavailable`, 'c-1')).toThrow(/cannot approve this claim right now/);
+    expect(() => parseClaimReturn(`${CLAIM_RETURN_URL}#error=invalid`, 'c-1')).toThrow(/could not read this claim/);
+    expect(() => parseClaimReturn(`${CLAIM_RETURN_URL}#claim=c-1&error=expired&signature=${encodeURIComponent('A'.repeat(86) + '==')}`, 'c-1')).toThrow(/claim expired/);
+  });
+
+  it('treats an unknown reason like a bare return, and only trusts the exact return address', () => {
+    expect(() => parseClaimReturn(`${CLAIM_RETURN_URL}#claim=c-1&error=teapot`, 'c-1')).toThrow(/incomplete/);
+    expect(() => parseClaimReturn(`lmsmobile://sso-callback#claim=c-1&error=expired`, 'c-1')).toThrow(/could not be verified/);
+  });
+});
