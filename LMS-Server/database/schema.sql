@@ -1098,10 +1098,13 @@ CREATE TABLE IF NOT EXISTS platform_backing_intents (
   idempotency_key TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  text_memo TEXT,
   UNIQUE(requester_user_id,idempotency_key)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_backing_intents_text_memo ON platform_backing_intents(text_memo) WHERE text_memo IS NOT NULL;
+CREATE TABLE IF NOT EXISTS platform_backing_text_memos (
+  intent_id TEXT PRIMARY KEY REFERENCES platform_backing_intents(id) ON DELETE RESTRICT,
+  text_memo TEXT NOT NULL UNIQUE CHECK (length(text_memo) = 16 AND text_memo GLOB 'LMS-*'),
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS platform_backing_deposits (
   id TEXT PRIMARY KEY,
   intent_id TEXT NOT NULL UNIQUE REFERENCES platform_backing_intents(id) ON DELETE RESTRICT,
@@ -1186,6 +1189,12 @@ CREATE TRIGGER IF NOT EXISTS platform_backing_intents_no_delete BEFORE DELETE ON
 BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
 
 CREATE TRIGGER IF NOT EXISTS platform_backing_intents_no_update BEFORE UPDATE ON platform_backing_intents
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_backing_text_memos_no_delete BEFORE DELETE ON platform_backing_text_memos
+BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS platform_backing_text_memos_no_update BEFORE UPDATE ON platform_backing_text_memos
 BEGIN SELECT RAISE(ABORT,'platform credit history is immutable'); END;
 
 CREATE TRIGGER IF NOT EXISTS platform_backing_deposits_no_delete BEFORE DELETE ON platform_backing_deposits
