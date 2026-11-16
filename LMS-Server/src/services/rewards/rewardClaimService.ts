@@ -15,6 +15,33 @@ import logger from '../../utils/logger.js';
 export const CLAIM_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 /** A learner can have a few open challenges (phone and web at once); each is checked against the balance when it is verified. */
 export const MAX_OPEN_CLAIMS = 5;
+
+/**
+ * A claim proves control of A wallet key, not that the person is the learner: someone who takes over an LMS login could
+ * link their own wallet and claim. So a destination the learner has never successfully claimed to must be seen for a
+ * cooling-off period first (default 24 h; REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS, 0 turns it off), giving the learner
+ * time to notice. The first attempt only records when the destination was first seen: a cancelled marker row.
+ */
+export function newWalletCooldownMs(): number {
+  const raw = process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS;
+  if (raw === undefined || raw === '') return 24 * 3_600_000;
+  const hours = Number(raw);
+  return Number.isFinite(hours) && hours >= 0 ? hours * 3_600_000 : 24 * 3_600_000;
+}
+
+function destinationReadyAt(userId: string, destination: string, amount: number, now: number): number {
+  const cooldown = newWalletCooldownMs();
+  if (cooldown === 0) return now;
+  return db.transaction(() => {
+    const trusted = db.prepare("SELECT 1 FROM reward_claims WHERE user_id = ? AND destination = ? AND status = 'verified' LIMIT 1").get(userId, destination);
+    if (trusted) return now;
+    const first = db.prepare('SELECT MIN(created_at) AS first FROM reward_claims WHERE user_id = ? AND destination = ?').get(userId, destination) as { first: number | null };
+    if (first.first !== null) return first.first + cooldown;
+    db.prepare(`INSERT INTO reward_claims (id, user_id, destination, amount_stroops, nonce_hash, challenge_expires_at, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'cancelled', ?)`).run(uuidv4(), userId, destination, amount, digest(randomBytes(32).toString('hex')), now, now);
+    return now + cooldown;
+  }).immediate();
+}
 const PREFIX = 'SM Web Systems LMS reward claim';
 
 interface ClaimRow {
@@ -63,6 +90,11 @@ export function createRewardClaim(userId: string, amount: unknown, now = Date.no
     throw new RewardError('INVALID_AMOUNT', 'Use a positive whole number of stroops.', 400);
   }
   const amountStroops = Number(amount);
+  const wallet = currentAddress(userId);
+  const readyAt = destinationReadyAt(userId, wallet, amountStroops, now);
+  if (readyAt > now) {
+    throw new RewardError('WALLET_COOLING_OFF', `For your security, a new wallet can claim rewards after ${new Date(readyAt).toISOString()}. Nothing is lost; your rewards stay in your LMS balance.`, 409);
+  }
   return db.transaction(() => {
     const destination = currentAddress(userId);
     if (amountStroops > claimableStroops(userId)) throw new RewardError('INSUFFICIENT_BALANCE', 'This is more than your claimable reward balance.', 409);
