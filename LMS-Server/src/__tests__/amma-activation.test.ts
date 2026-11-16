@@ -3,7 +3,7 @@ import './setup.js';
 import { generateKeyPairSync, verify, createHash } from 'node:crypto';
 import { v4 as uuid } from 'uuid';
 import { db } from '../config/database.js';
-import { canonicalString, signedHeaders, enqueueActivation, processActivations, activationStatusFor, ACTIVATION_PATH, type ActivationConfig } from '../services/ammaActivationService.js';
+import { activationConfig, canonicalString, signedHeaders, enqueueActivation, processActivations, activationStatusFor, ACTIVATION_PATH, type ActivationConfig } from '../services/ammaActivationService.js';
 
 afterEach(() => vi.unstubAllGlobals());
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -88,5 +88,16 @@ describe('activation queue', () => {
     vi.stubGlobal('fetch', off);
     await expect(processActivations(1000 + 7 * 3_600_000, null)).resolves.toBe(0);
     expect(off).not.toHaveBeenCalled();
+  });
+});
+
+describe('configuration', () => {
+  it('is off unless enabled and complete, and accepts the key as base64 PEM', () => {
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
+    const env = { AMMA_ACTIVATION_ENABLED: 'on', AMMA_ACTIVATION_BASE_URL: 'https://testnet.example/', AMMA_ACTIVATION_API_KEY: 'k'.repeat(24), AMMA_ACTIVATION_KEY_ID: 'lms-staging-2026-11', AMMA_ACTIVATION_PRIVATE_KEY_B64: Buffer.from(pem).toString('base64') };
+    expect(activationConfig(env)).toMatchObject({ baseUrl: 'https://testnet.example', keyId: 'lms-staging-2026-11', taskKey: 'lms:course-complete' });
+    expect(activationConfig({ ...env, AMMA_ACTIVATION_ENABLED: undefined })).toBeNull();
+    expect(activationConfig({ ...env, AMMA_ACTIVATION_BASE_URL: 'http://insecure.example' })).toBeNull();
+    expect(activationConfig({ ...env, AMMA_ACTIVATION_PRIVATE_KEY_B64: 'not a key' })).toBeNull();
   });
 });

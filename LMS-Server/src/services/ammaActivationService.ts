@@ -25,10 +25,10 @@ type Row = { id: string; completion_id: string; idempotency_key: string; user_id
 
 export function activationConfig(env: NodeJS.ProcessEnv = process.env): ActivationConfig | null {
   if (env.AMMA_ACTIVATION_ENABLED !== 'on') return null;
-  const { AMMA_ACTIVATION_BASE_URL: baseUrl, AMMA_ACTIVATION_API_KEY: apiKey, AMMA_ACTIVATION_KEY_ID: keyId, AMMA_ACTIVATION_PRIVATE_KEY_FILE: keyFile } = env;
-  if (!baseUrl || !apiKey || !keyId || !keyFile || !/^https:\/\//.test(baseUrl) || !/^[A-Za-z0-9_-]{4,64}$/.test(keyId)) return null;
+  const { AMMA_ACTIVATION_BASE_URL: baseUrl, AMMA_ACTIVATION_API_KEY: apiKey, AMMA_ACTIVATION_KEY_ID: keyId, AMMA_ACTIVATION_PRIVATE_KEY_FILE: keyFile, AMMA_ACTIVATION_PRIVATE_KEY_B64: keyB64 } = env;
+  if (!baseUrl || !apiKey || !keyId || !(keyFile || keyB64) || !/^https:\/\//.test(baseUrl) || !/^[A-Za-z0-9_-]{4,64}$/.test(keyId)) return null;
   try {
-    const privateKey = createPrivateKey(fs.readFileSync(keyFile));
+    const privateKey = createPrivateKey(keyB64 ? Buffer.from(keyB64, 'base64') : fs.readFileSync(keyFile!));
     if (privateKey.asymmetricKeyType !== 'ed25519') return null;
     return { baseUrl: baseUrl.replace(/\/$/, ''), apiKey, keyId, privateKey, taskKey: env.AMMA_ACTIVATION_TASK_KEY || 'lms:course-complete' };
   } catch { return null; }
