@@ -117,3 +117,19 @@ describe('AmmaWallet says why it could not approve', () => {
     expect(svc.verifyClaim).not.toHaveBeenCalled();
   });
 });
+
+describe('the rewards list on a narrow screen', () => {
+  it('keeps table roles and reflows into stacked rows below the sm breakpoint', async () => {
+    svc.getClaimableBalance.mockResolvedValue('0');
+    svc.getMyRewards.mockResolvedValue([{ allocationId: 'a1', rewardType: 'custom', amountStroops: 1000000, status: 'released', releasedAt: '2026-11-16T07:00:00Z', createdAt: '2026-11-16T07:00:00Z' }]);
+    render(<StudentRewardsPanel />);
+    const table = await screen.findByRole('table');
+    expect(table.className).toContain('block');
+    expect(table.className).toContain('sm:table');
+    expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Type', 'Amount', 'Status', 'Date']);
+    const row = screen.getAllByRole('row')[1];
+    expect(row.className).toMatch(/flex-wrap/);
+    expect(row.className).toMatch(/sm:table-row/);
+    expect(screen.getAllByRole('cell')).toHaveLength(4);
+  });
+});

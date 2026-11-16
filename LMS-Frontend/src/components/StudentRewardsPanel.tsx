@@ -93,27 +93,30 @@ export const StudentRewardsPanel: React.FC = () => {
             <p className="text-neutral-500 text-sm">No rewards received yet.</p>
           </div>
         ) : (
+          // Below the sm breakpoint the table reflows into stacked rows (type and amount, then status and date), so
+          // nothing is clipped or needs sideways scrolling on a phone or at high zoom. Roles keep the table semantics.
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-neutral-50 border-b border-neutral-100 text-left text-xs text-neutral-500 uppercase tracking-wide">
-                  <th className="px-3 py-2.5 font-medium">Type</th>
-                  <th className="px-3 py-2.5 font-medium">Amount</th>
-                  <th className="px-3 py-2.5 font-medium">Status</th>
-                  <th className="px-3 py-2.5 font-medium">Date</th>
+            <table className="block w-full text-sm sm:table" role="table">
+              <thead className="hidden sm:table-header-group" role="rowgroup">
+                <tr className="bg-neutral-50 border-b border-neutral-100 text-left text-xs text-neutral-500 uppercase tracking-wide" role="row">
+                  <th className="px-3 py-2.5 font-medium" role="columnheader">Type</th>
+                  <th className="px-3 py-2.5 font-medium" role="columnheader">Amount</th>
+                  <th className="px-3 py-2.5 font-medium" role="columnheader">Status</th>
+                  <th className="px-3 py-2.5 font-medium" role="columnheader">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100" data-testid="student-rewards-list">
+              <tbody className="block divide-y divide-neutral-100 sm:table-row-group" data-testid="student-rewards-list" role="rowgroup">
                 {rewards.map((r) => (
-                  <tr key={r.allocationId} className="hover:bg-neutral-50/60 transition-colors">
-                    <td className="px-3 py-3 capitalize text-neutral-900">{r.rewardType}</td>
-                    <td className="px-3 py-3 tabular-nums text-neutral-700">
+                  <tr key={r.allocationId} role="row"
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-3 hover:bg-neutral-50/60 transition-colors sm:table-row sm:px-0 sm:py-0">
+                    <td className="capitalize text-neutral-900 sm:table-cell sm:px-3 sm:py-3" role="cell">{r.rewardType}</td>
+                    <td className="tabular-nums text-neutral-700 sm:table-cell sm:px-3 sm:py-3" role="cell">
                       {formatStroopsShort(r.amountStroops)}
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="sm:table-cell sm:px-3 sm:py-3" role="cell">
                       <RewardStatusBadge status={r.status} />
                     </td>
-                    <td className="px-3 py-3 text-xs text-neutral-500">
+                    <td className="text-xs text-neutral-500 sm:table-cell sm:px-3 sm:py-3" role="cell">
                       {new Date(r.releasedAt ?? r.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
