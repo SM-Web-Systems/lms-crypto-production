@@ -27,6 +27,7 @@ vi.mock('../../services/rewardService', () => ({
     releaseAllocation: vi.fn(),
     refundAllocation: vi.fn(),
     getMyRewards: (...args: unknown[]) => mockGetMyRewards(...args),
+    getClaimableBalance: async () => '0',
   },
 }));
 
