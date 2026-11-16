@@ -43,6 +43,7 @@ export default function AmmaWalletConnection({user, errorCode}: {user: User; err
       <p className="text-sm text-neutral-600">The address below was confirmed at your last Wallet sign-in. Refresh after creating or deactivating a wallet.</p>
       {user.walletAddress ? <p className="text-sm font-mono break-all">{user.walletAddress}</p> : <NoStellarWalletPrompt context="profile" />}
       <p className="text-sm text-neutral-600">AmmaWallet supplies your newest active mainnet wallet, which may differ from the wallet selected in its dashboard. Check the full address before requesting a certificate. Issued certificates keep their original recipient.</p>
+      <a href={AMMA_WALLET_URL} target="_blank" rel="noopener noreferrer" className="inline-block text-sm font-semibold text-primary-600 underline">Open in AmmaWallet</a>
     </> : <p className="text-sm text-neutral-600">Confirm your current LMS password, then sign in to AmmaWallet with the same verified email ({user.email}). Connecting changes this account to AmmaWallet sign-in and ends its existing LMS sessions. Your courses and roles stay with this account.</p>}
     <form onSubmit={start} className="space-y-3">
       {!connected && <div>

@@ -22,8 +22,12 @@ export const StudentRewardsPanel: React.FC = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setClaimable('0');
     try {
-      const [data, balance] = await Promise.all([rewardService.getMyRewards(), Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0')]);
+      const [data, balance] = await Promise.all([rewardService.getMyRewards(), rewardService.getClaimableBalance().catch(() => {
+        setError('Could not load your claimable balance. Refresh to try again.');
+        return '0';
+      })]);
       setRewards(data);
       setClaimable(balance);
     } catch (err) {
@@ -76,7 +80,7 @@ export const StudentRewardsPanel: React.FC = () => {
           </div>
         )}
         {error && (
-          <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 mb-4">
+          <div role="alert" className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 mb-4">
             <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
             <p className="text-sm">{error}</p>
           </div>

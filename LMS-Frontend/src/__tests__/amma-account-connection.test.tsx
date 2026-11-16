@@ -41,6 +41,8 @@ describe('Wallet connection and recovery journeys', () => {
     render(<AmmaWalletConnection user={{...user, authProvider: 'ammawallet', walletAddress: 'FULL_RECIPIENT_ADDRESS'}}/>);
     expect(screen.queryByLabelText('Current LMS password')).not.toBeInTheDocument();
     expect(screen.getByText('FULL_RECIPIENT_ADDRESS')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Open in AmmaWallet'})).toHaveAttribute('href', 'https://ammawallet.com');
+    expect(screen.getByRole('link', {name: 'Open in AmmaWallet'})).toHaveAttribute('target', '_blank');
     expect(screen.getByText(/newest active mainnet wallet/)).toBeInTheDocument();
     window.history.pushState(null, '', '/admin/profile');
     await userEvent.click(screen.getByRole('button', {name: 'Refresh wallet address from AmmaWallet'}));
@@ -72,6 +74,12 @@ describe('Wallet connection and recovery journeys', () => {
     render(<MemoryRouter initialEntries={['/login?sso_error=link_required']}><Login/></MemoryRouter>);
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByText(/choose Connect AmmaWallet/)).toBeInTheDocument();
+  });
+  it('shows the frontend build on the sign-in page', () => {
+    vi.stubEnv('VITE_BUILD_SHA', 'abcdef0123456789');
+    render(<MemoryRouter><Login/></MemoryRouter>);
+    expect(screen.getByText('Frontend build: abcdef01')).toBeInTheDocument();
+    vi.unstubAllEnvs();
   });
   it('renders cleared server linkage rather than stale user context', async () => {
     mocks.status.mockResolvedValue({walletAddress: null, walletLinkingStatus: 'none', xlmBalance: null, network: null});

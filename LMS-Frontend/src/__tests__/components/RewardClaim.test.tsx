@@ -48,6 +48,16 @@ describe('claiming rewards to the wallet', () => {
     expect(screen.queryByRole('button', { name: /Claim to my wallet/ })).toBeNull();
   });
 
+  it('reports a failed balance lookup and recovers on refresh', async () => {
+    svc.getClaimableBalance.mockRejectedValueOnce(new Error('network error')).mockResolvedValueOnce('1000000');
+    render(<StudentRewardsPanel />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your claimable balance');
+    expect(screen.queryByRole('button', { name: /Claim to my wallet/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Refresh/ }));
+    expect(await screen.findByRole('button', { name: /Claim to my wallet/ })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('sends the returned signature with the remembered challenge and confirms', async () => {
     rememberClaim('c-1', 'challenge text');
     window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&signature=abc%3D%3D');

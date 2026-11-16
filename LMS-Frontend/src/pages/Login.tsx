@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Loader2, Mail, Lock, Eye, EyeOff, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage } from '../utils/apiError';
+import { validateBuildSha } from '../utils/buildInfo';
 
 // SSO initiate endpoint — browser is redirected here, not a fetch call
 const AMMA_LOGIN_URL = '/api/v1/auth/amma-login';
@@ -183,6 +184,7 @@ const Login: React.FC = () => {
             )}
           </div>
         </div>
+        <p className="mt-4 text-center text-xs text-white/80">Frontend build: {validateBuildSha(import.meta.env.VITE_BUILD_SHA).slice(0, 8)}</p>
       </div>
     </div>
   );
