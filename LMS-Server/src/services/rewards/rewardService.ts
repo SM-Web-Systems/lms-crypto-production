@@ -535,6 +535,8 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
       }
     }
 
+    // Whoever activates must hold the scope (administrators with reward.manage may fund but not activate: CAP-AUTH-3).
+    // The audience is resolved for THAT actor, not for the creator, who may no longer hold the scope (a class that changed teacher).
     if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
@@ -544,7 +546,7 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
     const members = resolveAudienceMembers(
       reward.scope_type as ScopeType,
       reward.scope_id,
-      reward.creator_user_id
+      actorId
     );
 
     if (members.length === 0) {
