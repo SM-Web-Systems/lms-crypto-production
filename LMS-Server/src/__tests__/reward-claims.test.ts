@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
@@ -6,7 +6,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
-import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS } from '../services/rewards/rewardClaimService.js';
+import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS, newWalletCooldownMs } from '../services/rewards/rewardClaimService.js';
 
 const HASH = bcrypt.hashSync('password123', 4);
 
@@ -144,5 +144,48 @@ describe('reward claims: second device, failed payouts and reconciliation', () =
     db.prepare("UPDATE reward_accounts SET available_stroops = 400000 WHERE user_id = ?").run(l.id);
     expect(overCommittedLearners().find(x => x.userId === l.id)).toEqual({ userId: l.id, shortfallStroops: 600000 });
     expect(claimableStroops(l.id)).toBe(0);
+  });
+});
+
+describe('reward claims: cooling-off for a wallet the learner has not claimed to yet', () => {
+  let saved: string | undefined;
+  beforeEach(() => { saved = process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS; process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS = '24'; });
+  afterEach(() => { if (saved === undefined) delete process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS; else process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS = saved; });
+
+  it('defaults to 24 hours and can be turned off with 0', () => {
+    expect(newWalletCooldownMs()).toBe(24 * 3_600_000);
+    process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS = '0';
+    expect(newWalletCooldownMs()).toBe(0);
+    delete process.env.REWARD_CLAIM_NEW_WALLET_COOLDOWN_HOURS;
+    expect(newWalletCooldownMs()).toBe(24 * 3_600_000);
+  });
+
+  it('refuses the first claim to a new wallet, then allows it after the period', () => {
+    const l = learner(1_000_000);
+    const t0 = Date.now();
+    expect(() => createRewardClaim(l.id, '100000', t0)).toThrow(/after /);
+    expect(() => createRewardClaim(l.id, '100000', t0 + 23 * 3_600_000)).toThrow(/after /);
+    const c = createRewardClaim(l.id, '100000', t0 + 24 * 3_600_000 + 1);
+    expect(c.destination).toBe(l.keypair.publicKey());
+  });
+
+  it('does not delay a wallet the learner has already claimed to', () => {
+    const l = learner(2_000_000);
+    const t0 = Date.now();
+    expect(() => createRewardClaim(l.id, '100000', t0)).toThrow();
+    const first = createRewardClaim(l.id, '100000', t0 + 25 * 3_600_000);
+    verifyRewardClaim(l.id, first.claimId, first.message, sign(l.keypair, first.message), t0 + 25 * 3_600_000 + 1000);
+    expect(() => createRewardClaim(l.id, '100000', t0 + 26 * 3_600_000)).not.toThrow();
+  });
+
+  it('restarts the clock when the wallet address changes', () => {
+    const l = learner(2_000_000);
+    const t0 = Date.now();
+    expect(() => createRewardClaim(l.id, '100000', t0)).toThrow();
+    createRewardClaim(l.id, '100000', t0 + 25 * 3_600_000);
+    const other = Keypair.random();
+    db.prepare('UPDATE users SET walletAddress = ? WHERE id = ?').run(other.publicKey(), l.id);
+    expect(() => createRewardClaim(l.id, '100000', t0 + 26 * 3_600_000)).toThrow(/after /);
+    expect(() => createRewardClaim(l.id, '100000', t0 + 26 * 3_600_000 + 24 * 3_600_000 + 1)).not.toThrow();
   });
 });
