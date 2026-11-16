@@ -70,8 +70,11 @@ describe('learner answers an invitation', () => {
 describe('where learners see their invitations', () => {
   it('shows the invitations on the main student dashboard as well as on My Rewards', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../../pages/StudentDashboard.tsx'), 'utf-8');
-    expect((source.match(/<ClassInvitationsPanel \/>/g) ?? []).length).toBe(2);
+    // InvitationRequests holds the class, team and parent request panels
+    expect((source.match(/<InvitationRequests \/>/g) ?? []).length).toBe(2);
     // the main dashboard's copy comes before its wallet status card, so it is near the top
-    expect(source.indexOf('<ClassInvitationsPanel />', source.indexOf('pb-10 space-y-8'))).toBeLessThan(source.indexOf('<StudentWalletStatusCard'));
+    expect(source.indexOf('<InvitationRequests />', source.indexOf('pb-10 space-y-8'))).toBeLessThan(source.indexOf('<StudentWalletStatusCard'));
+    const requests = fs.readFileSync(path.resolve(__dirname, '../../components/InvitationRequests.tsx'), 'utf-8');
+    expect(requests).toContain('<ClassInvitationsPanel />');
   });
 });

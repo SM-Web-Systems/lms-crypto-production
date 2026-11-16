@@ -12,6 +12,7 @@ import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import { RewardDashboard } from '../components/RewardDashboard';
 import { ClassInvitePanel } from '../components/ClassInvitePanel';
+import { GroupMembersPanel } from '../components/GroupMembersPanel';
 import {
   Users,
   RefreshCw,
@@ -183,7 +184,7 @@ const TeacherDashboard: React.FC = () => {
                       <CardContent className="py-4">
                         <p className="font-semibold text-neutral-900">{cls.name}</p>
                         <p className="text-xs text-neutral-500">{cls.studentCount} students</p>
-                        {section === 'classes' ? <ClassInvitePanel classId={cls.id} /> : null}
+                        {section === 'classes' ? <><GroupMembersPanel kind="class" groupId={cls.id} /><ClassInvitePanel classId={cls.id} /></> : null}
                       </CardContent>
                     </Card>
                   ))}

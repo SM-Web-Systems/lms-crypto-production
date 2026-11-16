@@ -20,6 +20,8 @@ import {
 } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { inviteLearner, listClassInvitations, cancelClassInvitation, ownsClassGroup } from '../services/classInvitationService.js';
+import { removeFromOwnClass } from '../services/connectionService.js';
+import { deliverInvitationEmail, listEmailInvitations, cancelEmailInvitation } from '../services/emailInvitationService.js';
 import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
@@ -127,6 +129,16 @@ router.get('/teacher/classes/:id/students', authenticate, requirePermission('stu
   res.json({ success: true, data: { students } });
 });
 
+// DELETE /teacher/classes/:id/students/:userId — remove one learner from own class
+router.delete('/teacher/classes/:id/students/:userId', authenticate, requirePermission('group.manage'), (req, res: Response) => {
+  const outcome = removeFromOwnClass((req as AuthRequest).user!.userId, req.params.id, req.params.userId);
+  if (outcome !== 'removed') {
+    res.status(404).json({ success: false, error: outcome === 'no_class' ? 'Class not found' : 'Learner not in this class' });
+    return;
+  }
+  res.json({ success: true, data: { removed: true } });
+});
+
 // POST /teacher/classes/:id/invite — invite a learner by email. The learner joins only after accepting.
 // The answer never says whether the email belongs to an account, so the endpoint can't be used to find users.
 router.post('/teacher/classes/:id/invite', authenticate, requirePermission('student.view_assigned'), (req, res: Response) => {
@@ -141,6 +153,7 @@ router.post('/teacher/classes/:id/invite', authenticate, requirePermission('stud
     res.status(404).json({ success: false, error: 'Class not found' });
     return;
   }
+  deliverInvitationEmail({ kind: 'class', targetId: req.params.id, inviterId: userId, email }, outcome);
   res.status(202).json({ success: true, message: 'If a learner account exists for that email, an invitation has been sent. They join the class when they accept it.' });
 });
 
@@ -149,13 +162,14 @@ router.get('/teacher/classes/:id/invitations', authenticate, requirePermission('
   const { userId } = (req as AuthRequest).user!;
   const invitations = listClassInvitations(req.params.id, userId);
   if (!invitations) { res.status(404).json({ success: false, error: 'Class not found' }); return; }
-  res.json({ success: true, data: { invitations } });
+  res.json({ success: true, data: { invitations, emailed: listEmailInvitations('class', req.params.id, userId) } });
 });
 
 // DELETE /teacher/classes/:id/invitations/:invitationId — withdraw a pending invitation
 router.delete('/teacher/classes/:id/invitations/:invitationId', authenticate, requirePermission('student.view_assigned'), (req, res: Response) => {
   const { userId } = (req as AuthRequest).user!;
-  if (!cancelClassInvitation(req.params.id, userId, req.params.invitationId)) {
+  if (!cancelClassInvitation(req.params.id, userId, req.params.invitationId)
+    && !(ownsClassGroup(req.params.id, userId) && cancelEmailInvitation('class', req.params.id, userId, req.params.invitationId))) {
     res.status(404).json({ success: false, error: 'Invitation not found' });
     return;
   }

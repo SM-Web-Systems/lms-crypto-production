@@ -46,6 +46,8 @@ import employerRoutes from './routes/employer.js';
 import parentRoutes from './routes/parent.js';
 import teacherRoutes from './routes/teacher.js';
 import classInvitationRoutes from './routes/classInvitations.js';
+import parentInvitationRoutes from './routes/parentInvitations.js';
+import roleRequestRoutes from './routes/roleRequests.js';
 import taRoutes from './routes/ta.js';
 import systemConfigRoutes from './routes/systemConfig.js';
 import perksRoutes from './routes/perks.js';
@@ -278,6 +280,8 @@ app.use('/api/v1', apiLimiter, studentProgressRoutes);
 app.use('/api/v1', apiLimiter, studentRewardsRoutes);
 // Must come before the '/api/v1/students' router, which would otherwise answer /students/me/* first.
 app.use('/api/v1', apiLimiter, classInvitationRoutes);
+app.use('/api/v1', apiLimiter, parentInvitationRoutes);
+app.use('/api/v1', apiLimiter, roleRequestRoutes);
 app.use('/api/v1/admin/rewards', apiLimiter, adminRewardsRoutes);
 app.use('/api/v1/students', apiLimiter, studentsRoutes);
 app.use('/api/v1/submissions', apiLimiter, submissionsRoutes);

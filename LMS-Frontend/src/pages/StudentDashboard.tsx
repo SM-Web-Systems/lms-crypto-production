@@ -22,7 +22,7 @@ import LmsCertificatesSection from '../components/dashboard/LmsCertificatesSecti
 import OnboardingChecklist from '../components/dashboard/OnboardingChecklist';
 import CertEligibilitySection from '../components/dashboard/CertEligibilitySection';
 import { StudentRewardsPanel } from '../components/StudentRewardsPanel';
-import { ClassInvitationsPanel } from '../components/ClassInvitationsPanel';
+import { InvitationRequests } from '../components/InvitationRequests';
 import { getErrorMessage } from '../utils/apiError';
 
 const StudentDashboardContent: React.FC = () => {
@@ -272,7 +272,7 @@ const StudentDashboardContent: React.FC = () => {
     return (
       <div className="pb-10 space-y-6">
         <h1 className="text-xl font-bold text-neutral-900">My Rewards</h1>
-        <ClassInvitationsPanel />
+        <InvitationRequests />
         <StudentRewardsPanel />
       </div>
     );
@@ -297,7 +297,7 @@ const StudentDashboardContent: React.FC = () => {
   return (
     <div className="pb-10 space-y-8">
       {/* A teacher's invitation is waiting for the learner's answer; shown where they will see it. */}
-      <ClassInvitationsPanel />
+      <InvitationRequests />
       {user && <StudentWalletStatusCard user={user} />}
 
       {user?.id && (

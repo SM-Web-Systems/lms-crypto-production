@@ -203,6 +203,66 @@ export async function sendCourseInviteEmail(opts: {
   }
 }
 
+/** Parent, class or team invitation. The url is a dashboard link, or a one-time sign-up link for a new address. */
+export async function sendGroupInvitationEmail(opts: {
+  to: string;
+  kind: 'parent' | 'class' | 'team';
+  inviterName: string;
+  groupName: string | null;
+  url: string;
+  newAccount: boolean;
+}): Promise<void> {
+  const { to, kind, inviterName, groupName, url, newAccount } = opts;
+  const what = kind === 'parent' ? 'link to your account as your parent'
+    : `add you to the ${kind} <strong>${escapeHtml(groupName ?? kind)}</strong>`;
+  const subject = kind === 'parent' ? `${inviterName} wants to link to your ${LMS_NAME} account`
+    : `${inviterName} invited you to join ${groupName ?? `a ${kind}`} on ${LMS_NAME}`;
+  const sees = kind === 'parent' ? 'your progress, sign-ins and wallet' : 'your course progress';
+  const html = `
+    <p>Hi,</p>
+    <p><strong>${escapeHtml(inviterName)}</strong> asked to ${what} on <strong>${escapeHtml(LMS_NAME)}</strong>.</p>
+    <p>${newAccount ? 'Create your account with this email address, and the request will be waiting for you.' : 'Sign in to see the request.'} Accepting lets them see ${sees}. You can also decline.</p>
+    <p><a href="${url}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">${newAccount ? 'Create account and see request' : 'See request'}</a></p>
+    <p>Or copy this link: <code style="word-break:break-all;">${url}</code></p>
+    ${newAccount ? `<p>This link works once and expires in 14 days. If you don't know ${escapeHtml(inviterName)}, you can ignore this email.</p>` : ''}
+  `.trim();
+
+  const outboxId = insertOutboxEntry(`${kind}-invitation`, to, subject, html);
+  if (!transporter) {
+    markOutboxSent(outboxId);
+    log(subject, to, `${kind} invitation (stdout fallback — set SMTP_HOST to send real emails)`);
+    return;
+  }
+  try {
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    markOutboxSent(outboxId);
+  } catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send invitation email');
+  }
+}
+
+/** The decision on a parent, teacher, employer or sponsor role request. */
+export async function sendRoleRequestDecisionEmail(opts: { to: string; name: string; roleLabel: string; approved: boolean; note: string | null }): Promise<void> {
+  const { to, name, roleLabel, approved, note } = opts;
+  const subject = approved ? `You are now a ${roleLabel} on ${LMS_NAME}` : `Your ${roleLabel} request on ${LMS_NAME}`;
+  const html = `
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>${approved
+      ? `Your request for the <strong>${escapeHtml(roleLabel)}</strong> role was approved. Sign in again to see your new dashboard.`
+      : `Your request for the <strong>${escapeHtml(roleLabel)}</strong> role was not approved.`}</p>
+    ${note ? `<p>${approved ? 'Note' : 'Reason'} from the administrator: ${escapeHtml(note)}</p>` : ''}
+    <p><a href="${FRONTEND_URL}/login" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in</a></p>
+  `.trim();
+  const outboxId = insertOutboxEntry('role-request-decision', to, subject, html);
+  if (!transporter) { markOutboxSent(outboxId); log(subject, to, 'Role request decision (stdout fallback)'); return; }
+  try { await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html }); markOutboxSent(outboxId); }
+  catch (err) {
+    markOutboxFailed(outboxId, err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ module: 'emailService', err, to, subject }, 'Failed to send role request email');
+  }
+}
+
 export async function sendPaymentReminderEmail(opts: {
   to: string;
   studentName: string;

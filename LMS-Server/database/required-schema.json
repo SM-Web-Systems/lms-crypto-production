@@ -964,6 +964,38 @@
       "claim_id",
       "last_error",
       "created_at"
+    ],
+    "parent_invitations": [
+      "id",
+      "parent_user_id",
+      "invited_user_id",
+      "status",
+      "created_at",
+      "responded_at"
+    ],
+    "email_invitations": [
+      "id",
+      "kind",
+      "target_id",
+      "invited_by",
+      "email",
+      "token_hash",
+      "status",
+      "created_at",
+      "expires_at",
+      "claimed_by",
+      "claimed_at"
+    ],
+    "role_requests": [
+      "id",
+      "user_id",
+      "role_id",
+      "reason",
+      "status",
+      "reviewed_by",
+      "review_note",
+      "created_at",
+      "reviewed_at"
     ]
   },
   "indexes": [
@@ -1083,7 +1115,13 @@
     "idx_class_invitations_user",
     "idx_class_invitations_group",
     "idx_web_push_outbox_due",
-    "idx_web_push_subscriptions_user"
+    "idx_web_push_subscriptions_user",
+    "idx_parent_invitations_user",
+    "idx_parent_invitations_parent",
+    "idx_email_invitations_email",
+    "idx_email_invitations_inviter",
+    "idx_role_requests_user",
+    "idx_role_requests_status"
   ],
   "keys": {
     "active_sessions": {
@@ -3393,6 +3431,94 @@
         [
           "notification_id",
           "notifications",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "parent_invitations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "invited_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "parent_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "email_invitations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "token_hash"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "claimed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "invited_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "role_requests": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "reviewed_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
+        ],
+        [
+          "role_id",
+          "roles",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
           "id",
           "NO ACTION",
           "CASCADE"

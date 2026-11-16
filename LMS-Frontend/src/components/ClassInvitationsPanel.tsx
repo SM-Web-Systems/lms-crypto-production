@@ -29,12 +29,12 @@ export const ClassInvitationsPanel: React.FC = () => {
   return (
     <Card>
       <CardContent className="p-5">
-        <CardTitle className="mb-3 text-base">Class invitations</CardTitle>
+        <CardTitle className="mb-3 text-base">Class and team invitations</CardTitle>
         {error ? <p role="alert" className="mb-2 text-sm text-red-700">{error}</p> : null}
         <ul className="space-y-3">
           {items.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-neutral-800"><strong>{i.invitedBy}</strong> invited you to the class <strong>{i.className}</strong>. Joining lets them see your progress.</p>
+              <p className="text-sm text-neutral-800"><strong>{i.invitedBy}</strong> invited you to the {i.groupType === 'team' ? 'team' : 'class'} <strong>{i.className}</strong>. Joining lets them see your progress.</p>
               <span className="flex gap-2">
                 <Button size="sm" disabled={busyId === i.id} onClick={() => answer(i.id, true)}>Join</Button>
                 <Button size="sm" variant="outline" disabled={busyId === i.id} onClick={() => answer(i.id, false)}>Decline</Button>

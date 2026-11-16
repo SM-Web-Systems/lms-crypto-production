@@ -1414,6 +1414,44 @@ CREATE TABLE IF NOT EXISTS class_invitations (
 );
 CREATE INDEX IF NOT EXISTS idx_class_invitations_user ON class_invitations(invited_user_id, status);
 CREATE INDEX IF NOT EXISTS idx_class_invitations_group ON class_invitations(group_id, status);
+CREATE TABLE IF NOT EXISTS parent_invitations (
+  id TEXT PRIMARY KEY NOT NULL,
+  parent_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  invited_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK (status IN ('pending','accepted','declined','cancelled')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  responded_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_parent_invitations_user ON parent_invitations(invited_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_parent_invitations_parent ON parent_invitations(parent_user_id, status);
+CREATE TABLE IF NOT EXISTS email_invitations (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('parent','class','team')),
+  target_id TEXT NOT NULL,
+  invited_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('pending','claimed','cancelled')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL,
+  claimed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  claimed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_email_invitations_email ON email_invitations(email, status);
+CREATE INDEX IF NOT EXISTS idx_email_invitations_inviter ON email_invitations(invited_by, created_at);
+CREATE TABLE IF NOT EXISTS role_requests (
+  id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role_id TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending','approved','declined','cancelled')),
+  reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  review_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_role_requests_user ON role_requests(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status, created_at);
 
 -- Wallet activation queue (additive).
 CREATE TABLE IF NOT EXISTS amma_activations (

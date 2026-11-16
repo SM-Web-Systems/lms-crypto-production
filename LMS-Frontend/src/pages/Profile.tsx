@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 import type { QuizCompletion } from '../types/quiz';
+import { RoleRequestPanel } from '../components/RoleRequestPanel';
 import AmmaWalletConnection from '../components/AmmaWalletConnection';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -271,6 +272,8 @@ const Profile: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {!isViewingOther ? <RoleRequestPanel /> : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* ── Left column ─────────────────────────────────────────────────── */}
