@@ -65,8 +65,11 @@ function CertificateCard({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={title}>
-      <Card className="active:opacity-90">
+      accessibilityLabel={title}
+      className="active:opacity-90">
+      {/* Keep press styling on the Pressable: an `active:` class on the inner View makes
+          NativeWind attach touch handlers to it, which swallows the tap on Android. */}
+      <Card>
         <View className="flex-row items-start gap-3">
           <View className="h-11 w-11 items-center justify-center rounded-xl bg-primary-50">
             <Ionicons name="ribbon-outline" size={24} color={brand.accent.teal} />
