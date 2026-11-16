@@ -6,6 +6,8 @@ export interface StellarFundingBinding {
   destination: string;
   source?: string;
   memoHash: string;
+  /** Optional one-time text memo (for wallets that cannot send a hash memo). Hash memo stays accepted. */
+  textMemo?: string;
   amountStroops: number;
   createdAt: string;
   expiresAt: string;
@@ -27,6 +29,7 @@ const providers = {
   public: {url: 'https://horizon.stellar.org', passphrase: Networks.PUBLIC},
 } as const;
 const hashPattern = /^[a-f0-9]{64}$/;
+export const TEXT_MEMO_PATTERN = /^LMS-[A-Z2-7]{12}$/;
 const deny = () => new RewardError('FUNDING_UNVERIFIED', 'Stellar operation does not match the funding intent.', 402);
 
 function horizonReader(provider: {url: string}) {
@@ -68,6 +71,7 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   const created = Date.parse(binding.createdAt), expiry = Date.parse(binding.expiresAt);
   if (!StrKey.isValidEd25519PublicKey(binding.destination) || !hashPattern.test(binding.memoHash)
     || (binding.source !== undefined && !StrKey.isValidEd25519PublicKey(binding.source))
+    || (binding.textMemo !== undefined && !TEXT_MEMO_PATTERN.test(binding.textMemo))
     || !Number.isSafeInteger(binding.amountStroops) || binding.amountStroops <= 0
     || !Number.isFinite(created) || !Number.isFinite(expiry) || expiry <= Date.now()
     || expiry <= created || typeof operationId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(operationId)) throw deny();
@@ -90,7 +94,8 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   const expectedMemo = Buffer.from(binding.memoHash, 'hex').toString('base64');
   const transactionTime = typeof transaction.created_at === 'string' ? Date.parse(transaction.created_at) : NaN;
   if (transaction.hash !== operation.transaction_hash || transaction.successful !== true
-    || transaction.memo_type !== 'hash' || transaction.memo !== expectedMemo
+    || !((transaction.memo_type === 'hash' && transaction.memo === expectedMemo)
+      || (binding.textMemo !== undefined && transaction.memo_type === 'text' && transaction.memo === binding.textMemo))
     || !Number.isSafeInteger(transaction.ledger) || (transaction.ledger as number) <= 0
     || !Number.isSafeInteger(root.history_latest_ledger) || (root.history_latest_ledger as number) < (transaction.ledger as number)
     || !Number.isFinite(transactionTime) || transactionTime < Math.floor(created / 1000) * 1000 || transactionTime > expiry) throw deny();

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import AdminPlatformCredit from '../../pages/AdminPlatformCredit';
+import AdminPlatformCredit, { stellarPayLink } from '../../pages/AdminPlatformCredit';
 import { xlmToStroops, stroopsToXlm } from '../../services/platformCreditService';
 
 const m = vi.hoisted(() => ({ summary: vi.fn(), beneficiaries: vi.fn(), createBackingIntent: vi.fn(), verifyBackingDeposit: vi.fn(), requestCredit: vi.fn(), approve: vi.fn(), cancel: vi.fn(), releaseReservation: vi.fn(), reconcile: vi.fn() }));
@@ -53,15 +53,32 @@ describe('admin: platform credit', () => {
 
   it('shows the transfer instructions after creating a deposit request, and shows load errors', async () => {
     m.summary.mockResolvedValue(summary); m.beneficiaries.mockResolvedValue([]);
-    m.createBackingIntent.mockResolvedValue({ ...summary.backingIntents[0], id: 'i2', amount_stroops: 10000000, memo_hash: 'cafe' });
+    m.createBackingIntent.mockResolvedValue({ ...summary.backingIntents[0], id: 'i2', amount_stroops: 10000000, memo_hash: 'ca'.repeat(32), text_memo: 'LMS-ABCDEFGHJKLM' });
     render(<AdminPlatformCredit />);
     await userEvent.type(await screen.findByLabelText('Amount (XLM)', { selector: 'input[placeholder="1.0"]' }), '1');
     await userEvent.type(screen.getByPlaceholderText('Back platform credit for reward funding'), 'backing');
     await userEvent.click(screen.getByRole('button', { name: 'Create deposit request' }));
-    expect(await screen.findByTestId('deposit-instructions')).toHaveTextContent('cafe');
+    const box = within((await screen.findAllByTestId('deposit-instructions'))[0]);
+    expect(box.getByLabelText('Memo (text)')).toHaveValue('LMS-ABCDEFGHJKLM');
+    expect(box.getByLabelText('Memo (hash, hex)')).toHaveValue('ca'.repeat(32));
+    expect(box.getByLabelText('Amount (XLM)')).toHaveValue('1');
+    expect(box.getByLabelText('Send to')).toHaveValue('GPOOL');
     expect(m.createBackingIntent).toHaveBeenCalledWith('10000000', 'backing');
     m.summary.mockRejectedValue(new Error('boom'));
     await userEvent.click(screen.getByRole('button', { name: /Refresh/ }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+});
+
+describe('stellarPayLink', () => {
+  it('builds a SEP-7 pay link with the text memo, or the hash memo as base64 when there is no code', () => {
+    const base = { destination: 'GPOOL', amount_stroops: 5000000, memo_hash: 'ab'.repeat(32), network: 'public' };
+    const text = new URL(stellarPayLink({ ...base, text_memo: 'LMS-ABCDEFGHJKLM' }).replace('web+stellar:', 'https://x/'));
+    expect(text.searchParams.get('amount')).toBe('0.5');
+    expect(text.searchParams.get('memo')).toBe('LMS-ABCDEFGHJKLM');
+    expect(text.searchParams.get('memo_type')).toBe('MEMO_TEXT');
+    const hash = new URL(stellarPayLink({ ...base, text_memo: null }).replace('web+stellar:', 'https://x/'));
+    expect(hash.searchParams.get('memo_type')).toBe('MEMO_HASH');
+    expect(atob(hash.searchParams.get('memo')!).length).toBe(32);
   });
 });

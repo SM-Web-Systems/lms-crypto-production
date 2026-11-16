@@ -11,6 +11,43 @@ import {
 const when = (iso: string) => new Date(iso).toLocaleString();
 const field = 'w-full rounded-md border border-neutral-300 px-3 py-2 text-sm';
 
+/** web+stellar:pay link (SEP-7): wallets that support it pre-fill destination, amount and memo. */
+export function stellarPayLink(i: Pick<BackingIntent, 'destination' | 'amount_stroops' | 'memo_hash' | 'text_memo' | 'network'>): string {
+  const q = new URLSearchParams({ destination: i.destination, amount: stroopsToXlm(i.amount_stroops) });
+  if (i.text_memo) { q.set('memo', i.text_memo); q.set('memo_type', 'MEMO_TEXT'); }
+  else { q.set('memo', btoa(String.fromCharCode(...(i.memo_hash.match(/../g) ?? []).map(h => parseInt(h, 16))))); q.set('memo_type', 'MEMO_HASH'); }
+  if (i.network === 'public') q.set('network_passphrase', 'Public Global Stellar Network ; September 2015');
+  return `web+stellar:pay?${q.toString()}`;
+}
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* user can still select the text */ }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-28 shrink-0 text-xs font-medium text-amber-900">{label}</span>
+      <input readOnly aria-label={label} value={value} onFocus={e => e.currentTarget.select()} className="min-w-0 flex-1 rounded-md border border-amber-300 bg-white px-2 py-1 font-mono text-xs" />
+      <Button type="button" size="sm" variant="outline" onClick={copy} aria-label={`Copy ${label}`}>{copied ? 'Copied' : 'Copy'}</Button>
+    </div>
+  );
+}
+
+function DepositInstructions({ intent }: { intent: BackingIntent }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm space-y-2" data-testid="deposit-instructions">
+      <p className="font-medium text-amber-900">Send exactly this from the configured treasury wallet ({intent.network === 'public' ? 'real XLM' : 'test XLM'}). Expires {when(intent.expires_at)}.</p>
+      <CopyField label="Send to" value={intent.destination} />
+      <CopyField label="Amount (XLM)" value={stroopsToXlm(intent.amount_stroops)} />
+      {intent.text_memo && <CopyField label="Memo (text)" value={intent.text_memo} />}
+      <CopyField label="Memo (hash, hex)" value={intent.memo_hash} />
+      <p className="text-xs text-amber-900">Use <strong>either</strong> memo, not both: the text memo for ordinary wallets, or the hash memo (memo type "hash") where the wallet supports it. Then paste the payment's operation ID below.</p>
+      <a href={stellarPayLink(intent)} className="inline-block text-xs underline text-amber-900" data-testid="pay-link">Open in a wallet that supports payment links</a>
+    </div>
+  );
+}
+
 /**
  * Backed platform credit, in four steps:
  *  1. Deposit: a backing request names an amount; the treasury wallet sends exactly that to the pool with the memo shown; an operation ID verifies it.
@@ -97,19 +134,13 @@ export default function AdminPlatformCredit() {
             <label className="text-sm">Reason<input className={field} value={depositReason} onChange={e => setDepositReason(e.target.value)} placeholder="Back platform credit for reward funding" /></label>
             <Button type="submit" size="sm" disabled={busy || !depositStroops || !depositReason.trim()}>Create deposit request</Button>
           </form>
-          {created && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm space-y-1" data-testid="deposit-instructions">
-              <p className="font-medium text-amber-900">Send exactly {stroopsToXlm(created.amount_stroops)} XLM ({created.network === 'public' ? 'real XLM' : 'test XLM'}) from the configured treasury wallet:</p>
-              <p>To: <code className="break-all">{created.destination}</code></p>
-              <p>Memo type: hash. Memo value (hex): <code className="break-all">{created.memo_hash}</code></p>
-              <p>Expires {when(created.expires_at)}. Then paste the payment's operation ID below.</p>
-            </div>
-          )}
+          {created && <DepositInstructions intent={created} />}
           {summary && summary.backingIntents.length > 0 && (
             <ul className="divide-y divide-neutral-100">
               {summary.backingIntents.slice(0, 10).map(i => (
                 <li key={i.id} className="py-3 space-y-2">
                   <p className="text-sm"><span className="font-medium">{stroopsToXlm(i.amount_stroops)} XLM</span> on {i.network} · {i.reason} · <span data-testid={`intent-${i.id}`}>{i.effective_status.replace('_', ' ')}</span> · {when(i.created_at)}</p>
+                  {i.effective_status === 'awaiting_deposit' && created?.id !== i.id && <DepositInstructions intent={i} />}
                   {i.effective_status === 'awaiting_deposit' && (
                     <div className="flex flex-wrap gap-2 items-end">
                       <label className="text-sm flex-1 min-w-[12rem]">Operation ID<input className={field} value={operationIds[i.id] ?? ''} onChange={e => setOperationIds(o => ({ ...o, [i.id]: e.target.value }))} /></label>
