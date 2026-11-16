@@ -39,8 +39,9 @@ export function validateScope(actorId: string, scopeType: ScopeType, scopeId: st
 /**
  * Resolve all student member IDs for a scope.
  */
-export function resolveAudienceMembers(scopeType: ScopeType, scopeId: string, actorId: string): string[] {
-  if (!validateScope(actorId, scopeType, scopeId)) {
+export function resolveAudienceMembers(scopeType: ScopeType, scopeId: string, actorId: string, options: { authorized?: boolean } = {}): string[] {
+  // `authorized` = the caller already established the actor may act on this scope (for example by the reward-manage permission).
+  if (!options.authorized && !validateScope(actorId, scopeType, scopeId)) {
     throw new RewardError('SCOPE_DENIED', `Actor ${actorId} does not have access to scope ${scopeType}:${scopeId}`, 403);
   }
 

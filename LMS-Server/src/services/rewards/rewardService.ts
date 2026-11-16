@@ -535,7 +535,10 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
       }
     }
 
-    if (!validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id)) {
+    // Whoever activates must be allowed to act on the scope: a scope holder, or an administrator with reward.manage.
+    // The audience is resolved for THAT actor, not for the creator, who may no longer hold the scope (a class that changed teacher).
+    const authorized = hasPermission(actorId, 'reward.manage') || validateScope(actorId, reward.scope_type as ScopeType, reward.scope_id);
+    if (!authorized) {
       throw new RewardError('SCOPE_DENIED', 'Actor does not have access to this reward', 403);
     }
 
@@ -544,7 +547,8 @@ export function activateReward(rewardId: string, actorId: string, _idempotencyKe
     const members = resolveAudienceMembers(
       reward.scope_type as ScopeType,
       reward.scope_id,
-      reward.creator_user_id
+      actorId,
+      { authorized: true }
     );
 
     if (members.length === 0) {
