@@ -7,7 +7,14 @@ import { getErrorMessage } from '../utils/apiError';
 
 type View = { kind: 'working' } | { kind: 'verified'; paid: boolean } | { kind: 'declined' } | { kind: 'error'; message: string };
 
-/** AmmaWallet returns here with #claim=<id>&signature=<base64> (or &declined=1). */
+/** What AmmaWallet says when it cannot approve: #claim=<id>&error=expired|unavailable, or #error=invalid (no claim id). Never with a signature. */
+const WALLET_ERRORS: Record<string, string> = {
+  expired: 'This claim expired. Start a new claim from your rewards. Your rewards are still safe in your LMS balance.',
+  unavailable: 'AmmaWallet cannot approve this claim right now. Try again in a moment from your rewards.',
+  invalid: 'AmmaWallet could not read this claim. Start a new claim from your rewards.',
+};
+
+/** AmmaWallet returns here with #claim=<id>&signature=<base64> (or &declined=1, or &error=...). */
 export default function RewardClaimReturn() {
   const [view, setView] = useState<View>({ kind: 'working' });
   const started = useRef(false);
@@ -19,6 +26,9 @@ export default function RewardClaimReturn() {
     const claimId = params.get('claim') ?? '';
     const message = takeClaim(claimId);
     if (params.get('declined') === '1') { setView({ kind: 'declined' }); return; }
+    // A reason from the wallet is shown as it is and never verified; an unknown value falls through like a bare return.
+    const reason = WALLET_ERRORS[params.get('error') ?? ''];
+    if (reason) { setView({ kind: 'error', message: reason }); return; }
     const signature = params.get('signature') ?? '';
     if (!claimId || !signature || !message) {
       setView({ kind: 'error', message: 'This claim link is incomplete or expired. Start the claim again from your rewards.' });

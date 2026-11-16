@@ -87,3 +87,33 @@ describe('claiming rewards to the wallet', () => {
     expect(params.get('message')).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 });
+
+describe('AmmaWallet says why it could not approve', () => {
+  it.each([
+    ['#claim=c-1&error=expired', /claim expired/],
+    ['#claim=c-1&error=unavailable', /cannot approve this claim right now/],
+    ['#error=invalid', /could not read this claim/],
+  ])('shows a specific message for %s and never verifies', async (fragment, message) => {
+    rememberClaim('c-1', 'challenge text');
+    window.history.replaceState(null, '', `/student/rewards/claim${fragment}`);
+    render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(svc.verifyClaim).not.toHaveBeenCalled();
+  });
+
+  it('does not verify even if a signature is sent together with an error', async () => {
+    rememberClaim('c-1', 'challenge text');
+    window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&error=expired&signature=abc%3D%3D');
+    render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/claim expired/);
+    expect(svc.verifyClaim).not.toHaveBeenCalled();
+  });
+
+  it('treats an unknown error value like a bare return', async () => {
+    rememberClaim('c-1', 'challenge text');
+    window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&error=teapot');
+    render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
+    expect(await screen.findByText(/incomplete or expired/)).toBeTruthy();
+    expect(svc.verifyClaim).not.toHaveBeenCalled();
+  });
+});
