@@ -11,7 +11,7 @@ import { authenticate } from '../middleware/auth.js';
 import type { AuthRequest } from '../types/index.js';
 import { query } from '../config/database.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
-import { claimableStroops, createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
+import { cancelFailedClaim, claimableStroops, createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
 import { payoutConfiguration, payoutStatus, payRewardClaim } from '../services/rewards/rewardPayoutService.js';
 import logger from '../utils/logger.js';
 
@@ -117,6 +117,9 @@ router.post('/students/me/reward-claims/:id/payout', authenticate, async (req: A
     res.status(502).json({ success: false, error: { code: 'PAYOUT_UNAVAILABLE', message: 'The payout could not be sent. Your claim is saved; try again shortly.' } });
   }
 });
+
+/** Release a verified claim whose payout failed for good, so the balance is claimable again. */
+router.post('/students/me/reward-claims/:id/cancel', authenticate, claimHandler(req => cancelFailedClaim(req.user!.userId, req.params.id)));
 
 /** Payout state for one of my claims. */
 router.get('/students/me/reward-claims/:id/payout', authenticate,

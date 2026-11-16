@@ -224,13 +224,20 @@ describe('reward claim payouts (mainnet, guarded)', () => {
   });
 
   it('refuses once the rolling 24-hour cap is used, and allows it again a day later', async () => {
-    mainnet('1000000', '2000000');
+    mainnet('1000000', '2100000'); // two payouts plus their fees fit, a third does not
     const t0 = Date.now();
     const a = verifiedClaim('1000000'), b = verifiedClaim('1000000'), c = verifiedClaim('1000000');
     expect((await payRewardClaim(a.userId, a.claimId, t0)).status).toBe('paid');
     expect((await payRewardClaim(b.userId, b.claimId, t0 + 1000)).status).toBe('paid');
     await expect(payRewardClaim(c.userId, c.claimId, t0 + 2000)).rejects.toThrow(/daily payout limit/);
     expect((await payRewardClaim(c.userId, c.claimId, t0 + 25 * 3600 * 1000)).status).toBe('paid');
+  });
+
+  it('counts the network fee against the daily cap', async () => {
+    mainnet('1000000', '2000000'); // two 0.1 XLM payouts plus fees do not fit in 0.2 XLM
+    const a = verifiedClaim('1000000'), b = verifiedClaim('1000000');
+    expect((await payRewardClaim(a.userId, a.claimId)).status).toBe('paid');
+    await expect(payRewardClaim(b.userId, b.claimId)).rejects.toThrow(/daily payout limit/);
   });
 
   it('counts the wallet activation reserve against the caps', async () => {
