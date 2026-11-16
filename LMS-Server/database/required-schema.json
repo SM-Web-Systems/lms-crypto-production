@@ -938,6 +938,32 @@
       "status",
       "created_at",
       "responded_at"
+    ],
+    "web_push_subscriptions": [
+      "id",
+      "user_id",
+      "session_hash",
+      "authorization_version",
+      "token_issued_at",
+      "endpoint",
+      "p256dh",
+      "auth",
+      "lease_expires_at",
+      "created_at",
+      "updated_at"
+    ],
+    "web_push_outbox": [
+      "id",
+      "notification_id",
+      "subscription_id",
+      "state",
+      "attempts",
+      "next_attempt_at",
+      "expires_at",
+      "lease_until",
+      "claim_id",
+      "last_error",
+      "created_at"
     ]
   },
   "indexes": [
@@ -1055,7 +1081,9 @@
     "idx_reward_claims_user",
     "idx_reward_claim_payouts_network",
     "idx_class_invitations_user",
-    "idx_class_invitations_group"
+    "idx_class_invitations_group",
+    "idx_web_push_outbox_due",
+    "idx_web_push_subscriptions_user"
   ],
   "keys": {
     "active_sessions": {
@@ -3313,6 +3341,58 @@
         [
           "group_id",
           "user_groups",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "web_push_subscriptions": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "endpoint"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "web_push_outbox": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "notification_id",
+          "subscription_id"
+        ],
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "subscription_id",
+          "web_push_subscriptions",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "notification_id",
+          "notifications",
           "id",
           "NO ACTION",
           "CASCADE"

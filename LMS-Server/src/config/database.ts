@@ -9,6 +9,7 @@ import { paystackCheckoutSchema } from './paystackCheckoutSchema.js';
 import { rewardClaimSchema } from './rewardClaimSchema.js';
 import { classInvitationSchema } from './classInvitationSchema.js';
 import { pushSchema } from './pushSchema.js';
+import { webPushSchema } from './webPushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
@@ -1717,6 +1718,7 @@ startupMigrations.push(ensureRewardTables);
 startupMigrations.push(() => db.exec(rewardFundingSchema));
 startupMigrations.push(() => db.exec(platformCreditSchema));
 startupMigrations.push(() => db.exec(pushSchema));
+startupMigrations.push(() => db.exec(webPushSchema));
 startupMigrations.push(() => db.exec(rewardClaimSchema));
 startupMigrations.push(() => db.exec(classInvitationSchema));
 // The in-memory test database gets its course tables and triggers from the canonical fixture on reset.
