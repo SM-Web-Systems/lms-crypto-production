@@ -411,15 +411,24 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                   <Music className="h-8 w-8" aria-hidden />
                 </span>
                 <p className="text-base font-semibold text-neutral-800">{item.title}</p>
+                {ext && isDirectAudioFileUrl(ext) && (
+                  <audio controls preload="metadata" className="w-full max-w-lg" src={ext}
+                    onEnded={() => onItemComplete?.(item.id)} onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={(e) => {
+                      if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
+                    }}>
+                    Your browser does not support the audio element.
+                  </audio>
+                )}
                 {item.downloadUrl ? (
                   <a href={item.downloadUrl} download target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
                     <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
                     Download audio (MP3)
                   </a>
-                ) : (
+                ) : !ext || !isDirectAudioFileUrl(ext) ? (
                   <p className="text-sm text-neutral-500">No audio content is available for this item.</p>
-                )}
+                ) : null}
               </div>
             );
           })()
