@@ -82,3 +82,32 @@ describe('stellarPayLink', () => {
     expect(atob(hash.searchParams.get('memo')!).length).toBe(32);
   });
 });
+
+describe('admin: deposit flow messages', () => {
+  it('says it is waiting for the payment and shows clear errors for a wrong operation ID', async () => {
+    m.summary.mockResolvedValue(summary); m.beneficiaries.mockResolvedValue([]); m.verifyBackingDeposit.mockRejectedValue({ response: { data: { error: { message: 'That payment does not match this request.' } } } });
+    render(<AdminPlatformCredit />);
+    expect(await screen.findByTestId('waiting-note')).toHaveTextContent('Waiting for the payment');
+    const box = await screen.findByLabelText('Operation ID');
+    await userEvent.type(box, 'a'.repeat(64));
+    await userEvent.click(screen.getByRole('button', { name: 'Verify deposit' }));
+    expect(await screen.findByTestId('verify-error-i1')).toHaveTextContent('transaction hash');
+    expect(m.verifyBackingDeposit).not.toHaveBeenCalled();
+    await userEvent.clear(box); await userEvent.type(box, 'abc');
+    await userEvent.click(screen.getByRole('button', { name: 'Verify deposit' }));
+    expect(await screen.findByTestId('verify-error-i1')).toHaveTextContent('digits only');
+    await userEvent.clear(box); await userEvent.type(box, '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Verify deposit' }));
+    await waitFor(() => expect(m.verifyBackingDeposit).toHaveBeenCalledWith('i1', '123456'));
+    expect(await screen.findByTestId('verify-error-i1')).toHaveTextContent(/./);
+  });
+  it('shows the server message next to the form when a second open request is refused', async () => {
+    m.summary.mockResolvedValue({ ...summary, backingIntents: [] }); m.beneficiaries.mockResolvedValue([]);
+    m.createBackingIntent.mockRejectedValue({ response: { data: { error: { message: 'You already have an open deposit request.' } } } });
+    render(<AdminPlatformCredit />);
+    await userEvent.type(await screen.findByPlaceholderText('1.0'), '0.5');
+    await userEvent.type(screen.getByPlaceholderText('Back platform credit for reward funding'), 'again');
+    await userEvent.click(screen.getByRole('button', { name: 'Create deposit request' }));
+    expect(await screen.findByTestId('create-error')).toBeInTheDocument();
+  });
+});

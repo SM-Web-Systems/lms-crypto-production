@@ -6,7 +6,7 @@ import {v4 as uuid} from 'uuid';
 import {db} from '../config/database.js';
 import {activateReward,createReward,fundReward,fundRewardAsync,releaseAllocation} from '../services/rewards/rewardService.js';
 import {createFundingIntent,getFundingAvailability} from '../services/rewards/rewardFundingIntentService.js';
-import {createBackingIntent,verifyBackingDeposit,platformPool,requestPlatformCredit,approvePlatformCredit,cancelPlatformCreditRequest,
+import {detectBackingDeposits,createBackingIntent,verifyBackingDeposit,platformPool,requestPlatformCredit,approvePlatformCredit,cancelPlatformCreditRequest,
   creditGrant,releasePlatformCreditReservation,availablePlatformCredits,reconcilePlatformCredit} from '../services/rewards/platformCreditService.js';
 
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
@@ -304,5 +304,54 @@ describe('backed platform credit',()=>{
     expect(availablePlatformCredits(f.owner)).toEqual([]);
     expect(()=>requestPlatformCredit(f.a,f.owner,'100','No','denied')).toThrowError(expect.objectContaining({statusCode:403}));
     expect(platformPool('testnet').allocatedStroops).toBe(200);
+  });
+});
+
+describe('one open backing request per administrator and network',()=>{
+  it('refuses a second request while one is open, allows it once verified, and keeps other administrators independent',async()=>{
+    const f=fixture();
+    const first=await createBackingIntent(f.a,'1000','First',uuid());
+    await expect(createBackingIntent(f.a,'1000','Second',uuid())).rejects.toMatchObject({code:'OPEN_REQUEST_EXISTS',statusCode:409});
+    expect(count('platform_backing_intents')).toBe(1);
+    // another administrator is not blocked
+    await expect(createBackingIntent(f.b,'1000','Other admin',uuid())).resolves.toBeTruthy();
+    // once the first is verified a new one can be opened
+    f.proof(first,'101');await verifyBackingDeposit(first.id,f.a,'101');
+    await expect(createBackingIntent(f.a,'1000','Third',uuid())).resolves.toBeTruthy();
+  });
+  it('does not block when the open request has expired, and a retried idempotency key returns the same request',async()=>{
+    const f=fixture();
+    const key=uuid(),first=await createBackingIntent(f.a,'1000','First',key);
+    await expect(createBackingIntent(f.a,'1000','First',key)).resolves.toMatchObject({id:first.id});
+    db.pragma('foreign_keys = ON');
+    vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(Date.now()+31*60_000);
+    try { await expect(createBackingIntent(f.a,'1000','After expiry',uuid())).resolves.toBeTruthy(); } finally { vi.useRealTimers(); }
+  });
+});
+
+describe('automatic backing deposit detection',()=>{
+  function listPayments(f:ReturnType<typeof fixture>,records:unknown[]) {
+    const base=f.fetcher;
+    vi.stubGlobal('fetch',vi.fn(async(url:string)=>new URL(url).pathname===`/accounts/${f.destination}/payments`
+      ?new Response(JSON.stringify({_embedded:{records}}),{status:200}):base(url)));
+  }
+  const pay=(f:ReturnType<typeof fixture>,id:string,over:Record<string,unknown>={})=>({id,type:'payment',asset_type:'native',from:f.source,to:f.destination,amount:'0.0001000',created_at:new Date(Date.now()+1000).toISOString(),...over});
+  it('records a matching payment on its own, with the same verification, and only once',async()=>{
+    const f=fixture('public'),intent=await createBackingIntent(f.a,'1000','Auto',uuid());
+    f.proof(intent,'777');listPayments(f,[pay(f,'777')]);
+    await expect(detectBackingDeposits()).resolves.toBe(1);
+    expect(platformPool('public')).toMatchObject({depositedStroops:1000});
+    await expect(detectBackingDeposits()).resolves.toBe(0);expect(count('platform_backing_deposits')).toBe(1);
+  });
+  it('ignores a payment with the wrong amount, wrong sender or from before the request',async()=>{
+    const f=fixture('public'),intent=await createBackingIntent(f.a,'1000','Auto',uuid());
+    f.proof(intent,'778');
+    listPayments(f,[pay(f,'778',{amount:'0.0002000'}),pay(f,'778',{from:Keypair.random().publicKey()}),pay(f,'778',{created_at:'2000-01-01T00:00:00Z'})]);
+    await expect(detectBackingDeposits()).resolves.toBe(0);expect(count('platform_backing_deposits')).toBe(0);
+  });
+  it('does not record a payment that matches the amount and sender but carries the wrong memo',async()=>{
+    const f=fixture('public'),intent=await createBackingIntent(f.a,'1000','Auto',uuid());
+    f.proof({...intent,memo_hash:'a'.repeat(64)},'779');listPayments(f,[pay(f,'779')]);
+    await expect(detectBackingDeposits()).resolves.toBe(0);expect(count('platform_backing_deposits')).toBe(0);
   });
 });

@@ -69,6 +69,8 @@ export default function AdminPlatformCredit() {
   const [creditXlm, setCreditXlm] = useState('');
   const [creditReason, setCreditReason] = useState('');
   const [recon, setRecon] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [verifyErrors, setVerifyErrors] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +79,13 @@ export default function AdminPlatformCredit() {
     } catch (err) { setError(getErrorMessage(err, 'Could not load platform credit.')); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  // While a deposit request is waiting for its payment the server watches the network; keep the page in step so it flips to verified by itself.
+  const waiting = summary?.backingIntents.some(i => i.effective_status === 'awaiting_deposit') ?? false;
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const t = setInterval(() => { void load(); }, 10_000);
+    return () => clearInterval(t);
+  }, [waiting, load]);
 
   const run = async (label: string, action: () => Promise<unknown>) => {
     setBusy(true); setError(null); setNotice(null);
@@ -129,11 +138,18 @@ export default function AdminPlatformCredit() {
         <div className="px-5 py-3 border-b border-neutral-200"><CardTitle className="border-0 p-0 text-sm">1. Deposit backing</CardTitle></div>
         <CardContent className="p-5 space-y-3">
           <form className="grid gap-3 sm:grid-cols-[10rem,1fr,auto] items-end" onSubmit={e => { e.preventDefault(); if (!depositStroops) return;
-            void run('Deposit request created. Send exactly that amount with the memo shown.', async () => { setCreated(await platformCreditService.createBackingIntent(depositStroops, depositReason.trim())); }); }}>
+            setCreateError(null);
+            setBusy(true); setError(null); setNotice(null);
+            void platformCreditService.createBackingIntent(depositStroops, depositReason.trim())
+              .then(async (intent) => { setCreated(intent); setNotice('Deposit request created. Send exactly that amount with the memo shown. It is matched automatically once the payment is on the network.'); await load(); })
+              .catch(err => setCreateError(getErrorMessage(err, 'Could not create the deposit request.')))
+              .finally(() => setBusy(false)); }}>
             <label className="text-sm">Amount (XLM)<input className={field} inputMode="decimal" value={depositXlm} onChange={e => setDepositXlm(e.target.value)} placeholder="1.0" /></label>
             <label className="text-sm">Reason<input className={field} value={depositReason} onChange={e => setDepositReason(e.target.value)} placeholder="Back platform credit for reward funding" /></label>
             <Button type="submit" size="sm" disabled={busy || !depositStroops || !depositReason.trim()}>Create deposit request</Button>
           </form>
+          {createError && <p role="alert" data-testid="create-error" className="text-sm text-red-700">{createError}</p>}
+          {waiting && <p aria-live="polite" data-testid="waiting-note" className="text-sm text-neutral-700 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Waiting for the payment. This page updates by itself when it arrives (usually within a minute).</p>}
           {created && <DepositInstructions intent={created} />}
           {summary && summary.backingIntents.length > 0 && (
             <ul className="divide-y divide-neutral-100">
@@ -142,11 +158,24 @@ export default function AdminPlatformCredit() {
                   <p className="text-sm"><span className="font-medium">{stroopsToXlm(i.amount_stroops)} XLM</span> on {i.network} · {i.reason} · <span data-testid={`intent-${i.id}`}>{i.effective_status.replace('_', ' ')}</span> · {when(i.created_at)}</p>
                   {i.effective_status === 'awaiting_deposit' && created?.id !== i.id && <DepositInstructions intent={i} />}
                   {i.effective_status === 'awaiting_deposit' && (
-                    <div className="flex flex-wrap gap-2 items-end">
-                      <label className="text-sm flex-1 min-w-[12rem]">Operation ID<input className={field} value={operationIds[i.id] ?? ''} onChange={e => setOperationIds(o => ({ ...o, [i.id]: e.target.value }))} /></label>
-                      <Button size="sm" type="button" disabled={busy || !(operationIds[i.id] ?? '').trim()}
-                        onClick={() => void run('Deposit verified against the network.', () => platformCreditService.verifyBackingDeposit(i.id, operationIds[i.id].trim()))}>Verify deposit</Button>
-                    </div>
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-neutral-600">Payment sent but not picked up after a few minutes? Enter its operation ID</summary>
+                      <div className="mt-2 flex flex-wrap gap-2 items-end">
+                        <label className="text-sm flex-1 min-w-[12rem]">Operation ID<input className={field} value={operationIds[i.id] ?? ''} onChange={e => { setOperationIds(o => ({ ...o, [i.id]: e.target.value })); setVerifyErrors(v => ({ ...v, [i.id]: '' })); }} /></label>
+                        <Button size="sm" type="button" disabled={busy || !(operationIds[i.id] ?? '').trim()}
+                          onClick={() => {
+                            const id = (operationIds[i.id] ?? '').trim();
+                            if (/^[a-f0-9]{64}$/i.test(id)) { setVerifyErrors(v => ({ ...v, [i.id]: 'That is a transaction hash. Enter the payment operation ID instead: a number of about 18 digits.' })); return; }
+                            if (!/^[1-9][0-9]{0,19}$/.test(id)) { setVerifyErrors(v => ({ ...v, [i.id]: 'The operation ID is a number (digits only).' })); return; }
+                            setBusy(true); setError(null); setNotice(null);
+                            void platformCreditService.verifyBackingDeposit(i.id, id)
+                              .then(async () => { setNotice('Deposit verified against the network.'); setVerifyErrors(v => ({ ...v, [i.id]: '' })); await load(); })
+                              .catch(err => setVerifyErrors(v => ({ ...v, [i.id]: getErrorMessage(err, 'That did not match this request.') })))
+                              .finally(() => setBusy(false));
+                          }}>Verify deposit</Button>
+                      </div>
+                      {verifyErrors[i.id] && <p role="alert" data-testid={`verify-error-${i.id}`} className="mt-1 text-sm text-red-700">{verifyErrors[i.id]}</p>}
+                    </details>
                   )}
                 </li>))}
             </ul>

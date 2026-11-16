@@ -30,7 +30,7 @@ const providers = {
 } as const;
 const hashPattern = /^[a-f0-9]{64}$/;
 export const TEXT_MEMO_PATTERN = /^LMS-[A-Z2-7]{12}$/;
-const deny = () => new RewardError('FUNDING_UNVERIFIED', 'Stellar operation does not match the funding intent.', 402);
+const deny = () => new RewardError('FUNDING_UNVERIFIED', 'That payment does not match this request. Check the operation ID (the payment operation, not the transaction hash), and that the amount, memo and sending wallet are the ones shown.', 402);
 
 function horizonReader(provider: {url: string}) {
   const signal = AbortSignal.timeout(5000);
@@ -105,6 +105,26 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   return {operationId, transactionHash: operation.transaction_hash, ledger: transaction.ledger as number,
     ledgerHash: ledger.hash, network: binding.network, destination: binding.destination,
     amountStroops: binding.amountStroops, memoHash: binding.memoHash};
+}
+
+export interface RecentPayment {id: string; from: string; to: string; amountStroops: number; createdAt: string}
+/** Public-data read of the latest payments into an account, used only to find candidate operation IDs. Every candidate is still fully verified. */
+export async function recentPaymentsTo(network: 'testnet' | 'public', destination: string): Promise<RecentPayment[]> {
+  if ((network !== 'testnet' && network !== 'public') || !StrKey.isValidEd25519PublicKey(destination)) return [];
+  const root = await horizonReader(providers[network])(`/accounts/${destination}/payments?order=desc&limit=30`);
+  const records = ((root._embedded as {records?: unknown} | undefined)?.records);
+  if (!Array.isArray(records)) return [];
+  const out: RecentPayment[] = [];
+  for (const r of records as Record<string, unknown>[]) {
+    if (r.type !== 'payment' || r.asset_type !== 'native' || r.to !== destination || typeof r.from !== 'string' || typeof r.id !== 'string'
+      || !/^[1-9][0-9]{0,19}$/.test(r.id) || typeof r.created_at !== 'string' || typeof r.amount !== 'string'
+      || !/^(0|[1-9][0-9]*)\.[0-9]{7}$/.test(r.amount)) continue;
+    const [whole, fraction] = r.amount.split('.');
+    const stroops = BigInt(whole) * 10_000_000n + BigInt(fraction);
+    if (stroops > BigInt(Number.MAX_SAFE_INTEGER)) continue;
+    out.push({id: r.id, from: r.from, to: destination, amountStroops: Number(stroops), createdAt: r.created_at});
+  }
+  return out;
 }
 
 export async function stellarReceiverReadiness(config: {network: 'testnet' | 'public'; destination: string}): Promise<{ready: boolean; reason: string | null}> {
