@@ -43,7 +43,7 @@ export interface CourseItemText extends CourseItemBase {
 
 export interface CourseItemAudio extends CourseItemBase {
   type: 'audio';
-  /** Legacy audio URL — retained for backward compatibility but not rendered as primary player. */
+  /** Direct audio URL, used when no YouTube player is configured. */
   url: string;
   description?: string;
   /** YouTube video ID for the primary listening experience (embedded player). */

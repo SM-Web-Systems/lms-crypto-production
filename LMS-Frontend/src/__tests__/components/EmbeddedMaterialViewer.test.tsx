@@ -527,6 +527,13 @@ describe('EmbeddedMaterialViewer — audio YouTube primary', () => {
     expect(container.querySelector('iframe')).not.toBeNull();
   });
 
+  it('plays a direct audio URL without a YouTube or download URL', () => {
+    const item: CourseItemAudio = { id: 'sample', type: 'audio', title: 'Sample audio', url: 'https://example.com/sample.mp3' };
+    const { container } = render(<EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />);
+    expect(container.querySelector('audio')).toHaveAttribute('src', item.url);
+    expect(screen.queryByText('No audio content is available for this item.')).not.toBeInTheDocument();
+  });
+
   it('EMV-AYT-4: rejects invalid YouTube IDs (no embed or link rendered)', () => {
     const item: CourseItemAudio = {
       id: 'bad-yt',
@@ -658,7 +665,7 @@ describe('EmbeddedMaterialViewer — audio YouTube primary', () => {
     );
 
     expect(container.querySelector('iframe')).toBeNull();
-    expect(container.querySelector('audio')).toBeNull();
+    expect(container.querySelector('audio')).toHaveAttribute('src', item.url);
     expect(screen.queryByText('Listen on YouTube')).not.toBeInTheDocument();
     expect(screen.getByText('Download audio (MP3)')).toBeInTheDocument();
   });
