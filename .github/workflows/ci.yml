@@ -69,7 +69,8 @@ jobs:
           cache-dependency-path: LMS-Server/package-lock.json
       - run: npm ci
       - name: Audit backend dependencies
-        run: npm audit --audit-level=low
+        # picomatch ReDoS advisory (dev tooling only, no fixed version exists): tolerated until 2026-12-01, everything else still fails.
+        run: node ../scripts/audit-gate.mjs --level low --allow GHSA-fc5q-39xc-vjpf=2026-12-01
       - name: Verify patched Swagger and archive consumers
         run: npm run test:dependencies
       - run: npm run build
@@ -123,7 +124,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       # Include build dependencies so vulnerable parser resolutions cannot return.
       - name: Audit frontend including build tools
-        run: npm audit --audit-level=moderate
+        # Same single, expiring exception as the backend audit.
+        run: node ../scripts/audit-gate.mjs --level moderate --allow GHSA-fc5q-39xc-vjpf=2026-12-01
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx vite build
