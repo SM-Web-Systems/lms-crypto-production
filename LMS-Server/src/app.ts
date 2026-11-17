@@ -113,12 +113,36 @@ const corsOrigin: cors.CorsOptions['origin'] = (origin, callback) => {
   callback(new Error(`CORS blocked origin: ${origin}`));
 };
 
-app.use(cors({
+// The public certificate list (read-only, no auth) may be read from AmmaWallet's pages. Only that one route, GET/OPTIONS, and only for
+// the listed origins (PUBLIC_CREDENTIALS_ORIGINS, comma-separated) plus the LMS's own. Any other origin gets a clean 403, not a server error.
+const publicCredentialsOrigins = (process.env.PUBLIC_CREDENTIALS_ORIGINS ?? 'https://ammawallet.com,https://testnet.ammawallet.com')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+const isPublicCredentialsRequest = (req: express.Request): boolean =>
+  (req.method === 'GET' || req.method === 'OPTIONS') && req.path === '/api/v1/credentials/public';
+app.use((req, res, next) => {
+  if (!isPublicCredentialsRequest(req)) { next(); return; }
+  res.setHeader('Vary', 'Origin');
+  const origin = req.headers.origin;
+  if (origin) {
+    if (!publicCredentialsOrigins.includes(origin) && !allowedOrigins.includes(origin)) {
+      res.status(403).json({ success: false, error: { code: 'ORIGIN_NOT_ALLOWED', message: 'Origin not allowed' } });
+      return;
+    }
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+  if (req.method === 'OPTIONS') { res.status(204).end(); return; }
+  next();
+});
+
+const corsMiddleware = cors({
   origin: corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-}));
+});
+app.use((req, res, next) => (isPublicCredentialsRequest(req) ? next() : corsMiddleware(req, res, next)));
 
 // Request tracing — adds x-request-id to all requests
 app.use(requestLogger);
