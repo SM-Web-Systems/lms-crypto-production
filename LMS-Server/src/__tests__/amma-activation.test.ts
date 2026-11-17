@@ -74,9 +74,9 @@ describe('activation queue', () => {
     vi.stubGlobal('fetch', reply(503, {}));
     await processActivations(1000 + 60_000, cfg);
     expect(row(q.id)).toMatchObject({ attempts: 2, last_error: 'http_503', next_attempt_at: 1000 + 60_000 + 5 * 60_000 });
-    vi.stubGlobal('fetch', reply(409, { error: { code: 'ALREADY_COMPLETED' } }));
+    vi.stubGlobal('fetch', reply(400, { error: { code: 'INVALID_REQUEST' } }));
     await processActivations(1000 + 60_000 + 5 * 60_000, cfg);
-    expect(row(q.id)).toMatchObject({ status: 'failed', last_error: 'ALREADY_COMPLETED' });
+    expect(row(q.id)).toMatchObject({ status: 'failed', last_error: 'INVALID_REQUEST' });
   });
 
   it('waits and retries when the learner is not eligible yet, and does nothing when switched off', async () => {
@@ -99,5 +99,15 @@ describe('configuration', () => {
     expect(activationConfig({ ...env, AMMA_ACTIVATION_ENABLED: undefined })).toBeNull();
     expect(activationConfig({ ...env, AMMA_ACTIVATION_BASE_URL: 'http://insecure.example' })).toBeNull();
     expect(activationConfig({ ...env, AMMA_ACTIVATION_PRIVATE_KEY_B64: 'not a key' })).toBeNull();
+  });
+});
+
+describe('already completed', () => {
+  it('counts a refusal "already completed" as already activated, not as a failure, and tells the learner the wallet is activated', async () => {
+    const u = user(), q = enqueueActivation({ userId: u, ammaUserId: 27, completionId: uuid() }, 1000);
+    vi.stubGlobal('fetch', reply(409, { error: { code: 'ALREADY_COMPLETED' } }));
+    await processActivations(1000, cfg);
+    expect(row(q.id)).toMatchObject({ status: 'confirmed', remote_state: 'already_completed', last_error: null });
+    expect(activationStatusFor(u).state).toBe('activated');
   });
 });

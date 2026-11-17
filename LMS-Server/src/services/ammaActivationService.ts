@@ -98,6 +98,11 @@ function applyResult(row: Row, remote: Remote, nowMs: number) {
     return;
   }
   const code = remote.body?.error?.code ?? `http_${remote.status ?? 'unknown'}`;
+  // The learner already completed this task for the LMS (for example a second course): the wallet was activated before, so there is nothing to do.
+  if (code === 'ALREADY_COMPLETED') {
+    update(row, { attempts, status: 'confirmed', remote_state: 'already_completed', next_attempt_at: nowMs, last_error: null }, nowMs);
+    return;
+  }
   if (BLOCKED_BUDGET.has(code) || remote.status === 402) {
     update(row, { attempts, status: 'blocked', next_attempt_at: nowMs + 30 * MINUTE, last_error: code }, nowMs);
     logger.warn({ module: 'amma-activation', code }, 'Activation is waiting: AmmaWallet budget or switch');
