@@ -114,10 +114,25 @@ router.post('/admin/cohorts', authenticate, requirePermission('cohort.manage'), 
   if (!isAdminTier(req) && !sponsorCourseOptions(req.user!.userId).some(c => c.id === courseId)) {
     res.status(403).json({success:false,error:{code:ErrorCodes.FORBIDDEN,message:'Course is not available for sponsorship'}});return;
   }
+  // An administrator may create the cohort for a sponsor, for example one who signs in with AmmaWallet.
+  let sponsorUserId = req.user!.userId;
+  if (req.body.sponsorUserId != null && req.body.sponsorUserId !== req.user!.userId) {
+    if (!isAdminTier(req)) {
+      res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Only an administrator can create a cohort for another sponsor' } });
+      return;
+    }
+    const isSponsor = typeof req.body.sponsorUserId === 'string'
+      && !!queryOne('SELECT 1 FROM user_roles WHERE user_id = ? AND role_id = ?', [req.body.sponsorUserId, 'role_sponsor']);
+    if (!isSponsor) {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'sponsorUserId must be a user with the sponsor role' } });
+      return;
+    }
+    sponsorUserId = req.body.sponsorUserId;
+  }
   try {
     const cohort = createCohort({
       name,
-      sponsorUserId: req.user!.userId,
+      sponsorUserId,
       courseId,
       selectedTier: selectedTier || 'free',
       memberUserIds,
