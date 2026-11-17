@@ -493,6 +493,40 @@ export async function resetPassword(
   }
 }
 
+/**
+ * POST /auth/change-password: a signed-in user replaces their password, giving the current one.
+ * Every session of the account ends, so the user signs in again with the new password.
+ */
+export async function changePassword(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
+    const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+    if (!currentPassword || !newPassword) throw new AppError('Current and new password are required.', 400, ErrorCodes.VALIDATION_ERROR);
+    if (newPassword.length < 8 || newPassword.length > 128) throw new AppError('New password must be 8 to 128 characters.', 400, ErrorCodes.VALIDATION_ERROR);
+    if (newPassword === currentPassword) throw new AppError('New password must be different from the current one.', 400, ErrorCodes.VALIDATION_ERROR);
+    const user = queryOne<{ id: string; password_hash: string | null }>('SELECT id, password_hash FROM users WHERE id = ?', [req.user!.userId]);
+    if (!user?.password_hash || user.password_hash === '$sso$') {
+      throw new AppError('This account signs in with AmmaWallet and has no LMS password.', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
+      throw new AppError('Current password is incorrect.', 401, ErrorCodes.INVALID_CREDENTIALS);
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    db.transaction(() => {
+      execute(
+        `UPDATE users SET password_hash = ?, password_reset_token = NULL, password_reset_expires_at = NULL,
+         password_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
+        [passwordHash, user.id],
+      );
+      invalidateAuthorization(user.id);
+    })();
+    res.json({ success: true, message: 'Password changed. Please sign in with your new password.' });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AmmaWallet SSO — initiate + callback
 // ─────────────────────────────────────────────────────────────────────────────

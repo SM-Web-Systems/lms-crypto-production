@@ -1453,6 +1453,16 @@ CREATE TABLE IF NOT EXISTS role_requests (
 CREATE INDEX IF NOT EXISTS idx_role_requests_user ON role_requests(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status, created_at);
 
+-- Amma-held wallets imported from AmmaWallet's mapping file (one per learner)
+CREATE TABLE IF NOT EXISTS amma_wallet_links (
+  user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amma_user_id INTEGER NOT NULL UNIQUE,
+  wallet_address TEXT NOT NULL,
+  previous_address TEXT,
+  imported_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Wallet activation queue (additive).
 CREATE TABLE IF NOT EXISTS amma_activations (
   id TEXT PRIMARY KEY NOT NULL,

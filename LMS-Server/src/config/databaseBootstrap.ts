@@ -9,7 +9,8 @@ import { classInvitationTables } from './classInvitationSchema.js';
 import { parentInvitationTables } from './parentInvitationSchema.js';
 import { emailInvitationTables } from './emailInvitationSchema.js';
 import { roleRequestTables } from './roleRequestSchema.js';
-const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...webPushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...ammaActivationTables, ...classInvitationTables, ...parentInvitationTables, ...emailInvitationTables, ...roleRequestTables];
+import { ammaWalletLinkTables } from './ammaWalletLinkSchema.js';
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...webPushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...ammaActivationTables, ...classInvitationTables, ...parentInvitationTables, ...emailInvitationTables, ...roleRequestTables, ...ammaWalletLinkTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -104,7 +105,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
         : classInvitationTables.includes(table.name) ? 'class invitations'
         : parentInvitationTables.includes(table.name) ? 'parent invitations'
         : emailInvitationTables.includes(table.name) ? 'email invitations'
-        : roleRequestTables.includes(table.name) ? 'role requests' : 'offline learning';
+        : roleRequestTables.includes(table.name) ? 'role requests'
+        : ammaWalletLinkTables.includes(table.name) ? 'Amma-held wallets' : 'offline learning';
       if (!actual || normalize(actual.sql) !== normalize(table.ddl)) refuse(`changed ${feature} schema (${table.name})`);
     }
     const columns = db.pragma(`table_info("${table.name}")`) as { name: string }[];
