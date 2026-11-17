@@ -12,7 +12,7 @@ import sys
 import tempfile
 
 FILES = ('lms-health-monitor.sh', 'lms-deadman-check.sh', 'monitor_evidence.py',
-         'verify-stability.py', 'build-stability-evidence.py')
+         'verify-stability.py', 'build-stability-evidence.py', 'lms-5xx-user-lookup.js')
 
 
 def digest(path):

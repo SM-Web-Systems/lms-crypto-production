@@ -21,6 +21,8 @@
 #   LMS_DISK_THRESHOLD  — Disk usage alert threshold percent (default: 75)
 #   LMS_5XX_THRESHOLD   — 5xx count alert threshold (default: 0)
 #   LMS_MAX_RESTART_COUNT — Restart count alert threshold (default: 0)
+#   LMS_EDGE_LOG_CONTAINER / LMS_5XX_USER_LOOKUP (0|1, default 1): edge 5xx with affected
+#                         users; see section 5b and docs/ops/lms-edge-5xx-log.conf.
 #   LMS_EXPECTED_SHA    — Approved build SHA (full 40 hex), or instead:
 #   LMS_EXPECTED_SHA_FILE — approved-release.json in the release state directory,
 #                         rewritten by release-hold once writers are released. Read each run.
@@ -42,6 +44,8 @@ ALERT_EMAIL="${LMS_ALERT_EMAIL-mukhtar.meer@smwebsystems.com}"
 DISK_THRESHOLD="${LMS_DISK_THRESHOLD:-75}"
 MAX_5XX="${LMS_5XX_THRESHOLD:-0}"
 MAX_RESTART_COUNT="${LMS_MAX_RESTART_COUNT:-0}"
+EDGE_CONTAINER="${LMS_EDGE_LOG_CONTAINER:-}"
+USER_LOOKUP="${LMS_5XX_USER_LOOKUP:-1}"
 
 PYTHON_BIN="${LMS_PYTHON_BIN:-python3}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -60,6 +64,8 @@ if ! [[ "$BACKUP_MAX_AGE" =~ ^[0-9]{3,6}$ ]] || [ "$BACKUP_MAX_AGE" -lt 300 ] ||
 for value in "$DISK_THRESHOLD" "$MAX_5XX" "$MAX_RESTART_COUNT"; do
   if ! [[ "$value" =~ ^[0-9]{1,9}$ ]]; then echo "Invalid monitoring threshold" >&2; exit 2; fi
 done
+if ! [[ "$USER_LOOKUP" =~ ^[01]$ ]]; then echo "Invalid LMS_5XX_USER_LOOKUP" >&2; exit 2; fi
+if [ -n "$EDGE_CONTAINER" ] && ! [[ "$EDGE_CONTAINER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]]; then echo "Invalid LMS_EDGE_LOG_CONTAINER" >&2; exit 2; fi
 if [ "$DISK_THRESHOLD" -lt 1 ] || [ "$DISK_THRESHOLD" -gt 100 ]; then echo "Invalid disk threshold" >&2; exit 2; fi
 
 API_CONTAINER="lms-api"
@@ -157,8 +163,33 @@ else
   five_xx_count="-1"
   add_alert "Unable to read container logs"
 fi
+# --- 5b. Edge 5xx (nginx): includes 502/504s the API never logs, and who was affected ---
+api_five_xx_count="$five_xx_count"
+edge_five_xx_count="n/a"
+five_xx_details=""
+if [ -n "$EDGE_CONTAINER" ]; then
+  if edge_report=$(docker logs "$EDGE_CONTAINER" --since 5m --tail 50000 2>&1 | "$PYTHON_BIN" "$SCRIPT_DIR/monitor_evidence.py" five-xx 2>/dev/null) \
+     && edge_five_xx_count=$(printf '%s' "$edge_report" | "$PYTHON_BIN" -c 'import json,sys; print(int(json.load(sys.stdin)["count"]))' 2>/dev/null); then
+    if [ "$edge_five_xx_count" -gt 0 ]; then
+      users_json=""
+      if [ "$USER_LOOKUP" = 1 ]; then
+        affected_ips=()
+        while IFS= read -r ip; do [ -n "$ip" ] && affected_ips+=("$ip"); done < <(printf '%s' "$edge_report" | "$PYTHON_BIN" -c 'import json,sys; print("\n".join(json.load(sys.stdin)["ips"]))' 2>/dev/null || true)
+        if [ "${#affected_ips[@]}" -gt 0 ]; then
+          users_json=$(timeout 20 docker exec -i "$API_CONTAINER" node - "${affected_ips[@]}" < "$SCRIPT_DIR/lms-5xx-user-lookup.js" 2>/dev/null) || users_json=""
+        fi
+      fi
+      five_xx_details=$("$PYTHON_BIN" "$SCRIPT_DIR/monitor_evidence.py" five-xx-format --report "$edge_report" --users "$users_json" 2>/dev/null) || five_xx_details="  (details unavailable)"
+    fi
+    if [[ "$five_xx_count" =~ ^[0-9]+$ ]] && [ "$edge_five_xx_count" -gt "$five_xx_count" ]; then five_xx_count="$edge_five_xx_count"; fi
+  else
+    edge_five_xx_count="unknown"
+    add_alert "Unable to read edge (nginx) logs from $EDGE_CONTAINER; 502/504s may be missed"
+  fi
+fi
 if [ "$five_xx_count" -gt "$MAX_5XX" ] 2>/dev/null; then
-  add_alert "5xx errors detected: $five_xx_count in last 5 minutes (threshold: $MAX_5XX)"
+  add_alert "5xx errors detected: $five_xx_count in last 5 minutes (threshold: $MAX_5XX; api=$api_five_xx_count edge=$edge_five_xx_count)"
+  if [ -n "$five_xx_details" ]; then printf '%s\n' "$five_xx_details" >> "$LOG_FILE"; fi
 fi
 
 # --- 6. Database readiness ---
@@ -215,7 +246,10 @@ To: $ALERT_EMAIL
 LMS Health Monitor Alert — $(ts)
 
 $(echo -e "$alerts")
-
+${five_xx_details:+
+Failed requests (edge, last 5 minutes):
+$five_xx_details
+}
 Checks:
   API health:       $api_health
   Frontend HTTP:    $frontend_http

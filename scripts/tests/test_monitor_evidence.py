@@ -51,3 +51,51 @@ class EvidenceTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class EdgeFiveXxTests(unittest.TestCase):
+    def line(self, **fields):
+        row = {'site': 'lms', 'time': '2026-11-17T18:51:57+00:00', 'ip': '165.73.39.31', 'method': 'GET',
+               'uri': '/api/v1/messages/unread-count?token=SECRET', 'status': 502, 'upstream_status': '502'}
+        row.update(fields)
+        return json.dumps(row)
+
+    def test_counts_only_lms_5xx_and_drops_query_strings(self):
+        text = '\n'.join([
+            self.line(),
+            self.line(status=503, ip='41.135.86.248', uri='/api/v1/auth/me'),
+            self.line(status=200),
+            self.line(site='blog', status=500),
+            '1.2.3.4 - - [17/Nov/2026:18:51:57 +0000] "GET / HTTP/1.1" 502 1 "-" "-"',
+            'not json {',
+        ])
+        report = module.edge_five_xx(text)
+        self.assertEqual(report['count'], 2)
+        self.assertEqual(report['lms_lines'], 4 - 1)
+        self.assertEqual(report['ips'], ['165.73.39.31', '41.135.86.248'])
+        self.assertEqual(report['events'][0]['path'], '/api/v1/messages/unread-count')
+        self.assertNotIn('SECRET', json.dumps(report))
+
+    def test_docker_timestamp_prefix_and_bad_ip_are_handled(self):
+        report = module.edge_five_xx('2026-11-17T18:51:57.1Z ' + self.line(ip='not-an-ip'))
+        self.assertEqual(report['count'], 1)
+        self.assertEqual(report['ips'], [])
+        self.assertEqual(report['events'][0]['ip'], 'unknown')
+
+    def test_events_and_ips_are_capped(self):
+        text = '\n'.join(self.line(ip='10.0.0.%d' % i) for i in range(40))
+        report = module.edge_five_xx(text)
+        self.assertEqual(report['count'], 40)
+        self.assertEqual(len(report['events']), module.MAX_EVENTS)
+        self.assertEqual(len(report['ips']), module.MAX_IPS)
+        self.assertIn('... and 15 more', module.format_five_xx(report, {}))
+
+    def test_format_names_users_and_marks_unknown_ips(self):
+        report = module.edge_five_xx('\n'.join([self.line(), self.line(ip='41.135.86.248')]))
+        users = {'165.73.39.31': [{'user_id': 'u1', 'name': 'Admin One', 'role': 'admin', 'seen': '2026-11-17 18:52:00', 'source': 'session'}],
+                 '41.135.86.248': []}
+        text = module.format_five_xx(report, users)
+        self.assertIn('502 GET /api/v1/messages/unread-count ip=165.73.39.31', text)
+        self.assertIn('165.73.39.31: Admin One (admin) user_id=u1', text)
+        self.assertIn('41.135.86.248: no LMS account seen from this IP', text)
+        self.assertIn('lookup unavailable', module.format_five_xx(report, None))
