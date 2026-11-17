@@ -996,6 +996,14 @@
       "review_note",
       "created_at",
       "reviewed_at"
+    ],
+    "amma_wallet_links": [
+      "user_id",
+      "amma_user_id",
+      "wallet_address",
+      "previous_address",
+      "imported_by",
+      "imported_at"
     ]
   },
   "indexes": [
@@ -3515,6 +3523,35 @@
           "id",
           "NO ACTION",
           "CASCADE"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "amma_wallet_links": {
+      "primary": [
+        "user_id"
+      ],
+      "unique": [
+        [
+          "amma_user_id"
+        ],
+        [
+          "user_id"
+        ]
+      ],
+      "foreign": [
+        [
+          "imported_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "SET NULL"
         ],
         [
           "user_id",

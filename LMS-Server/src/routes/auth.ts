@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  login, register, logout, getMe, forgotPassword, resetPassword,
+  login, register, logout, getMe, forgotPassword, resetPassword, changePassword,
   ammaLogin, ammaLink, ammaCallback, ammaMobileSession,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
@@ -97,6 +97,9 @@ router.post('/forgot-password', forgotPassword);
  */
 // POST /auth/reset-password - Set a new password using a valid reset token (no auth required)
 router.post('/reset-password', resetPassword);
+
+// POST /auth/change-password - Signed-in user sets a new password, giving the current one. Ends every session.
+router.post('/change-password', authenticate, changePassword);
 
 /**
  * @openapi
