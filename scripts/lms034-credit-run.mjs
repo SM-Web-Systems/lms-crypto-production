@@ -104,6 +104,28 @@ export async function runCreditPath({ call, log = () => {}, runId, classId, amou
   return { rewardId: reward.id, requestId: request?.id ?? null, grantId: grant?.id ?? null, intentId: intent?.id ?? null, status };
 }
 
+/**
+ * After the reward is active and the scheduler has marked its allocation eligible, the teacher releases it to the learner.
+ * Only the teacher's sign-in is needed. Safe to repeat: a released allocation is skipped.
+ */
+export async function releaseEligible({ call, log = () => {}, runId, rewardId, teacher }) {
+  if (!rewardId) throw new Error('--release needs the reward id');
+  const res = await call('GET', `/teacher/rewards/${rewardId}/allocations`, { token: teacher.token });
+  if (res.status !== 200) throw new Error(`Reading the allocations failed (HTTP ${res.status})`);
+  const list = res.body?.data?.allocations ?? res.body?.data ?? [];
+  if (!Array.isArray(list) || !list.length) throw new Error('This reward has no allocation yet.');
+  const out = [];
+  for (const a of list) {
+    if (a.status === 'released') { log('release', `${a.id} is already released`); out.push({ id: a.id, status: 'released' }); continue; }
+    if (a.status !== 'eligible') { log('release', `${a.id} is ${a.status}, not eligible yet. Try again in a minute.`); out.push({ id: a.id, status: a.status }); continue; }
+    const r = await call('POST', `/teacher/rewards/${rewardId}/allocations/${a.id}/release`, { token: teacher.token, body: { idempotencyKey: `${runId}-release-${a.id}` } });
+    if (![200, 201].includes(r.status)) throw new Error(`Releasing ${a.id} failed (HTTP ${r.status} ${r.body?.error?.code ?? ''})`);
+    log('release', `${a.id} released (${r.body?.data?.status})`);
+    out.push({ id: a.id, status: r.body?.data?.status ?? 'released' });
+  }
+  return out;
+}
+
 // ───────────────────────── command line ─────────────────────────
 
 function parseArgs(argv) {
@@ -185,6 +207,14 @@ ${who}${expectedEmail ? ` (expected: ${expectedEmail})` : ''}`);
     return result;
   };
   const log = (step, text) => console.log(`${step.padEnd(9)} ${text}`);
+  if (args.release) {
+    console.log(`LMS ${base}
+This releases the eligible reward ${args.release} to the learner. It needs only the teacher's sign-in.
+`);
+    const teacher = await login('The TEACHER who owns the class', args.teacher);
+    await releaseEligible({ call, log, runId: args.run ?? 'release', rewardId: args.release, teacher });
+    return;
+  }
   const amountStroops = xlmToStroops(args.amount ?? '0.1');
   if (BigInt(amountStroops) > 10_000_000n) throw new Error('This check is limited to 1 XLM');
   console.log(`LMS ${base}\nThis creates ONE reward of ${args.amount ?? '0.1'} XLM and funds it from platform credit. Nothing is paid out to anyone.\n`);

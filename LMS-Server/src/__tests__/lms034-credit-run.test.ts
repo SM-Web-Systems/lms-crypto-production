@@ -119,4 +119,23 @@ describe('LMS-034 credit path script', () => {
     expect(run.stdout).not.toContain('super-secret-token-value');
     expect(run.stderr).not.toContain('super-secret-token-value');
   });
+
+  it('releases an eligible allocation to the learner with only the teacher sign-in, and skips one already released', async () => {
+    const { runCreditPath, releaseEligible } = await import(/* @vite-ignore */ scriptUrl);
+    const s = setup();
+    const out = await runCreditPath({ call: s.call, runId: 'run-test-6', classId: s.classId, amountStroops: '1000000',
+      teacher: { token: s.teacher.token }, requester: { token: s.adminA.token }, approver: { token: s.adminB.token } });
+    // The scheduler marks the allocation eligible when the learner's event is processed; here it is set directly.
+    const alloc = db.prepare('SELECT id, status FROM reward_allocations WHERE reward_id = ?').get(out.rewardId) as { id: string; status: string };
+    expect(alloc.status).toBe('pending');
+    const early = await releaseEligible({ call: s.call, runId: 'run-test-6', rewardId: out.rewardId, teacher: { token: s.teacher.token } });
+    expect(early).toEqual([{ id: alloc.id, status: 'pending' }]);
+    db.prepare("UPDATE reward_allocations SET status = 'eligible' WHERE id = ?").run(alloc.id);
+    const done = await releaseEligible({ call: s.call, runId: 'run-test-6', rewardId: out.rewardId, teacher: { token: s.teacher.token } });
+    expect(done).toEqual([{ id: alloc.id, status: 'released' }]);
+    expect(db.prepare("SELECT available_stroops AS a FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'").get(s.learner.id)).toMatchObject({ a: 1000000 });
+    const again = await releaseEligible({ call: s.call, runId: 'run-test-6', rewardId: out.rewardId, teacher: { token: s.teacher.token } });
+    expect(again).toEqual([{ id: alloc.id, status: 'released' }]);
+    expect(db.prepare("SELECT available_stroops AS a FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'").get(s.learner.id)).toMatchObject({ a: 1000000 });
+  });
 });
