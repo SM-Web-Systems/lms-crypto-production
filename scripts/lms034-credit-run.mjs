@@ -13,7 +13,7 @@
  * is a separate step. Every request has a fixed idempotency key built from the run id, so running it again with the same
  * --run id never creates anything twice.
  *
- *   node lms034-credit-run.mjs --base https://lms.smwebsystems.com --class <class id> --run lms034-1 [--amount 0.1] [--dry-run]
+ *   node lms034-credit-run.mjs --base https://lms.smwebsystems.com --class <class id> --run lms034-1 \n *     --teacher tester@smwebsystems.com --requester tester+admin-a@smwebsystems.com --approver mukhtar.meer@smwebsystems.com [--amount 0.1] [--dry-run]
  *
  * Passwords and tokens are typed at the prompt (hidden) and never written anywhere.
  */
@@ -116,12 +116,40 @@ function parseArgs(argv) {
   return args;
 }
 
-function ask(question, { hidden = false } = {}) {
+function ask(question) {
   return new Promise(resolve => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    if (hidden) { rl._writeToOutput = s => { if (s.includes(question)) process.stdout.write(s); }; }
-    rl.question(question, answer => { rl.close(); if (hidden) process.stdout.write('\n'); resolve(answer.trim()); });
+    rl.question(question, answer => { rl.close(); resolve(answer.trim()); });
   });
+}
+
+/** Reads a line without ever showing it, including pasted text, by reading raw key presses. */
+export function askHidden(question) {
+  return new Promise(resolve => {
+    const stdin = process.stdin;
+    process.stdout.write(question);
+    let buf = '';
+    const done = () => { stdin.setRawMode?.(false); stdin.pause(); stdin.removeListener('data', onData); process.stdout.write('\n'); resolve(buf.trim()); };
+    const onData = chunk => {
+      for (const c of String(chunk)) {
+        if (c === '\r' || c === '\n') { done(); return; }
+        if (c === '\u0003') { process.stdout.write('\n'); process.exit(130); }
+        if (c === '\u007f' || c === '\b') buf = buf.slice(0, -1); else buf += c;
+      }
+    };
+    stdin.setRawMode?.(true);
+    stdin.setEncoding('utf8');
+    stdin.resume();
+    stdin.on('data', onData);
+  });
+}
+
+/** Stops the run if a sign-in is not the account this step needs, so a token pasted at the wrong prompt cannot be used by mistake. */
+export function assertWho(label, expectedEmail, actualEmail) {
+  if (!expectedEmail) return;
+  if (String(actualEmail ?? '').toLowerCase() !== String(expectedEmail).toLowerCase()) {
+    throw new Error(`${label} must be ${expectedEmail}, but that sign-in was ${actualEmail}. Nothing was created. Run it again and paste the right one.`);
+  }
 }
 
 async function main() {
@@ -133,31 +161,36 @@ async function main() {
     const res = await fetch(api + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
     return { status: res.status, body: await res.json().catch(() => ({})) };
   };
-  // Either a session token (paste it, as for the seed script) or an email and password, typed hidden. Accounts with a second factor need the token.
-  const login = async who => {
-    const pasted = await ask(`${who}: paste a session token, or press Enter to sign in with email and password: `, { hidden: true });
+  // Either a session token (paste it, as for the seed script) or an email and password. Everything typed or pasted here stays hidden.
+  const login = async (who, expectedEmail) => {
+    console.log(`
+${who}${expectedEmail ? ` (expected: ${expectedEmail})` : ''}`);
+    const pasted = await askHidden('  Paste a session token, or press Enter to use email and password: ');
+    let result;
     if (pasted) {
       const me = await call('GET', '/auth/me', { token: pasted });
       const email = me.body?.data?.email ?? me.body?.data?.user?.email;
       if (me.status !== 200 || !email) throw new Error(`That token for ${who} was not accepted (HTTP ${me.status}).`);
-      console.log(`          signed in as ${email}`);
-      return { token: pasted, email };
+      result = { token: pasted, email };
+    } else {
+      const email = expectedEmail && (await ask(`  Email [${expectedEmail}]: `)) || expectedEmail || await ask('  Email: ');
+      const password = await askHidden('  Password (hidden): ');
+      const res = await call('POST', '/auth/login', { body: { email, password } });
+      const token = res.body?.data?.token ?? res.body?.data?.accessToken;
+      if (res.status !== 200 || !token) throw new Error(`Sign-in as ${who} failed (HTTP ${res.status}).`);
+      result = { token, email };
     }
-    const email = await ask(`${who} email: `);
-    const password = await ask(`${who} password (hidden): `, { hidden: true });
-    const res = await call('POST', '/auth/login', { body: { email, password } });
-    const token = res.body?.data?.token ?? res.body?.data?.accessToken;
-    if (res.status !== 200 || !token) throw new Error(`Sign-in as ${who} failed (HTTP ${res.status}).`);
-    console.log(`          signed in as ${email}`);
-    return { token, email };
+    assertWho(who, expectedEmail, result.email);
+    console.log(`  signed in as ${result.email}`);
+    return result;
   };
   const log = (step, text) => console.log(`${step.padEnd(9)} ${text}`);
   const amountStroops = xlmToStroops(args.amount ?? '0.1');
   if (BigInt(amountStroops) > 10_000_000n) throw new Error('This check is limited to 1 XLM');
   console.log(`LMS ${base}\nThis creates ONE reward of ${args.amount ?? '0.1'} XLM and funds it from platform credit. Nothing is paid out to anyone.\n`);
-  const teacher = await login('Teacher (class owner)');
-  const requester = await login('Administrator A (requests the credit)');
-  const approver = await login('Different administrator (approves and authorizes)');
+  const teacher = await login('1 of 3: the TEACHER who owns the class', args.teacher);
+  const requester = await login('2 of 3: ADMINISTRATOR A, who requests the credit', args.requester);
+  const approver = await login('3 of 3: a DIFFERENT ADMINISTRATOR, who approves and authorizes', args.approver);
   if (new Set([teacher.email, requester.email, approver.email].map(e => e.toLowerCase())).size !== 3) throw new Error('Use three different accounts.');
   const result = await runCreditPath({ call, log, runId: args.run, classId: args.class, amountStroops, teacher, requester, approver, dryRun: !!args['dry-run'] });
   if (!result.dryRun) {

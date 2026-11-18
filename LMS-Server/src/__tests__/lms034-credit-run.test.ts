@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import './setup.js';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import request from 'supertest';
 import { Keypair } from '@stellar/stellar-sdk';
@@ -100,5 +101,22 @@ describe('LMS-034 credit path script', () => {
     expect(xlmToStroops('1')).toBe('10000000');
     expect(() => xlmToStroops('0')).toThrow();
     expect(() => xlmToStroops('0.12345678')).toThrow();
+  });
+
+  it('stops when a sign-in is not the expected account, and accepts the right one regardless of case', async () => {
+    const { assertWho } = await import(/* @vite-ignore */ scriptUrl);
+    expect(() => assertWho('the teacher', 'tester@smwebsystems.com', 'mukhtar.meer@smwebsystems.com')).toThrow(/must be tester@smwebsystems.com, but that sign-in was mukhtar/);
+    expect(() => assertWho('the teacher', 'Tester@smwebsystems.com', 'tester@SMWEBSYSTEMS.com')).not.toThrow();
+    expect(() => assertWho('the teacher', undefined, 'anyone@x.test')).not.toThrow();
+  });
+
+  it('never prints what is typed or pasted at a hidden prompt', () => {
+    const run = spawnSync(process.execPath, ['--input-type=module', '-e',
+      `import('${scriptUrl}').then(async m => { const v = await m.askHidden('Token: '); console.log('LENGTH ' + v.length); })`],
+    { input: 'super-secret-token-value\n', encoding: 'utf8' });
+    expect(run.stdout).toContain('Token: ');
+    expect(run.stdout).toContain('LENGTH 24');
+    expect(run.stdout).not.toContain('super-secret-token-value');
+    expect(run.stderr).not.toContain('super-secret-token-value');
   });
 });
