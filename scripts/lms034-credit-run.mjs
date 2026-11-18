@@ -126,6 +126,18 @@ export async function releaseEligible({ call, log = () => {}, runId, rewardId, t
   return out;
 }
 
+/**
+ * Reversal check: the teacher cancels a reward that was funded from platform credit and not yet released.
+ * Only the teacher's sign-in is needed. Safe to repeat.
+ */
+export async function cancelFunded({ call, log = () => {}, runId, rewardId, teacher, reason = 'Credit path reversal check' }) {
+  if (!rewardId) throw new Error('--cancel needs the reward id');
+  const res = await call('POST', `/teacher/rewards/${rewardId}/cancel`, { token: teacher.token, body: { reason, idempotencyKey: `${runId}-cancel` } });
+  if (![200, 201].includes(res.status)) throw new Error(`Cancelling the reward failed (HTTP ${res.status} ${res.body?.error?.code ?? ''}${res.body?.error?.message ? `: ${res.body.error.message}` : ''})`);
+  log('cancel', `reward is ${res.body?.data?.status}`);
+  return { rewardId, status: res.body?.data?.status };
+}
+
 // ───────────────────────── command line ─────────────────────────
 
 function parseArgs(argv) {
@@ -207,6 +219,14 @@ ${who}${expectedEmail ? ` (expected: ${expectedEmail})` : ''}`);
     return result;
   };
   const log = (step, text) => console.log(`${step.padEnd(9)} ${text}`);
+  if (args.cancel) {
+    console.log(`LMS ${base}
+This cancels the unreleased reward ${args.cancel} that was funded from platform credit. It needs only the teacher's sign-in.
+`);
+    const teacher = await login('The TEACHER who owns the class', args.teacher);
+    await cancelFunded({ call, log, runId: args.run ?? 'cancel', rewardId: args.cancel, teacher });
+    return;
+  }
   if (args.release) {
     console.log(`LMS ${base}
 This releases the eligible reward ${args.release} to the learner. It needs only the teacher's sign-in.

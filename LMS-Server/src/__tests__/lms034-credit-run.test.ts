@@ -138,4 +138,25 @@ describe('LMS-034 credit path script', () => {
     expect(again).toEqual([{ id: alloc.id, status: 'released' }]);
     expect(db.prepare("SELECT available_stroops AS a FROM reward_accounts WHERE user_id = ? AND account_type = 'recipient'").get(s.learner.id)).toMatchObject({ a: 1000000 });
   });
+
+  it('reversal: cancelling a credit-funded reward before release cancels, is safe to repeat, and leaves the credit grant consumed (recorded behaviour)', async () => {
+    const { runCreditPath, cancelFunded } = await import(/* @vite-ignore */ scriptUrl);
+    const s = setup();
+    const out = await runCreditPath({ call: s.call, runId: 'run-test-7', classId: s.classId, amountStroops: '1000000',
+      teacher: { token: s.teacher.token }, requester: { token: s.adminA.token }, approver: { token: s.adminB.token } });
+    const before = db.prepare("SELECT status FROM platform_credit_reservations").all();
+    expect(before).toEqual([{ status: 'consumed' }]);
+    const first = await cancelFunded({ call: s.call, runId: 'run-test-7', rewardId: out.rewardId, teacher: { token: s.teacher.token } });
+    expect(first.status).toBe('cancelled');
+    const again = await cancelFunded({ call: s.call, runId: 'run-test-7', rewardId: out.rewardId, teacher: { token: s.teacher.token } });
+    expect(again.status).toBe('cancelled');
+    // Today's behaviour, recorded so a change is noticed: the reward's funds go back to the funder's reward account (a 'cancel'
+    // ledger entry) but the platform credit grant stays consumed and the pool still counts it as allocated.
+    const credits = await s.call('GET', `/admin/rewards/platform-credit/credits/${s.teacher.id}`, { token: s.adminB.token });
+    expect(credits.body.data[0]).toMatchObject({ availableStroops: 0, consumedStroops: 1000000 });
+    const ledger = db.prepare("SELECT transaction_type AS t FROM reward_transactions ORDER BY rowid").all() as { t: string }[];
+    expect(ledger.map(r => r.t)).toEqual(['fund', 'reserve', 'cancel']);
+    const pool = await s.call('GET', '/admin/rewards/platform-credit', { token: s.adminB.token });
+    expect(pool.body.data.pools.find((p: { network: string }) => p.network === 'public')).toMatchObject({ depositedStroops: 5000000, allocatedStroops: 1000000, availableStroops: 4000000 });
+  });
 });
