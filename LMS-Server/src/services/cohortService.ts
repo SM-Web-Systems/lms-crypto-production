@@ -18,6 +18,7 @@ import { getTiersEnabled } from './badgeService.js';
 import { getCourseProgress } from './courseCompletionService.js';
 import { sendEnrollmentEmail, sendCourseInviteEmail, sendPaymentReminderEmail } from './emailService.js';
 import logger from '../utils/logger.js';
+import { queueSponsorOnboarding } from './sponsorActivationService.js';
 
 // ─── Status Transitions (Phase 22 C2) ───────────────────────────────────────
 
@@ -46,6 +47,8 @@ export function transitionCohortStatus(
      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
     [uuidv4(), cohortId, fromStatus, toStatus, triggeredBy, reason ?? null],
   );
+  // A sponsor's first active cohort starts their one-time wallet activation (off unless AMMA_SPONSOR_ACTIVATION=on; never affects this change).
+  if (toStatus === 'active') queueSponsorOnboarding(cohortId);
   return true;
 }
 
