@@ -5,6 +5,8 @@
 **Repository:** SM-Web-Systems/lms-crypto-production
 **Scope:** Controlled merge of PR #72 (AUTH-03) and PR #71 (AUTH-02)
 
+> **Historical record.** This report is a snapshot from 2026-10-19, written while PR #71 was still awaiting approval. PR #71 was merged later (merge commit `66f6448`), and the AUTH-04 cross-module tests are already on `main`.
+
 ---
 
 ## 1. Repository Baseline
