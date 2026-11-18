@@ -77,7 +77,7 @@ export default function RewardsScreen() {
           <View className="mt-3">
             <Button label={claiming ? 'Opening AmmaWallet…' : 'Claim to my wallet'} onPress={claim} disabled={claiming} />
           </View>
-          <Text className="mt-2 text-xs text-neutral-500">AmmaWallet will ask you to approve with your wallet passphrase. This proves the wallet is yours. You need the device where your wallet was set up, or your recovery phrase to restore your wallet on this one.</Text>
+          <Text className="mt-2 text-xs text-neutral-500">AmmaWallet will ask you to approve with your Amma password. This proves the wallet is yours. You need the device where your wallet was set up, or your recovery phrase to restore your wallet on this one.</Text>
         </Card>
       ) : null}
       {rewards.length === 0 ? (
