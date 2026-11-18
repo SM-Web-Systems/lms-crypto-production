@@ -28,7 +28,20 @@ set -eu
 case "$(basename "$0")" in
   curl) if [[ "$*" == *http_code* ]]; then printf 200; else printf '{"status":"ok","buildSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","checks":{"db":{"status":"ok"}}}'; fi ;;
   docker)
+    if [[ "$1" == exec && "$2" == -i ]]; then
+      cat > /dev/null
+      [[ "${MODE:-}" != lookup_failure ]] || exit 1
+      printf '%s' '{"165.73.39.31":[{"user_id":"u1","name":"Admin One","role":"admin","seen":"2026-11-17 18:52:00","source":"session"}]}'; exit 0
+    fi
     if [[ "$1" == exec ]]; then printf 1000; exit 0; fi
+    if [[ "$1" == logs && "$2" == fixture-nginx ]]; then
+      [[ "${MODE:-}" != edge_failure ]] || exit 1
+      if [[ "${MODE:-}" == edge_5xx || "${MODE:-}" == lookup_failure ]]; then
+        printf '%s\n' '{"site":"lms","time":"2026-11-17T18:51:57+00:00","ip":"165.73.39.31","method":"GET","uri":"/api/v1/messages/unread-count?t=PRIVATE","status":502,"upstream_status":"502"}'
+        printf '%s\n' '{"site":"lms","time":"2026-11-17T18:51:58+00:00","ip":"165.73.39.31","method":"GET","uri":"/api/v1/health","status":200,"upstream_status":"200"}'
+      fi
+      exit 0
+    fi
     if [[ "$*" == *ReadonlyRootfs* ]]; then printf true; exit 0; fi
     if [[ "$1" == logs ]]; then
       [[ "${MODE:-}" != logs_failure ]] || exit 1
@@ -82,6 +95,36 @@ esac
         result=self.health('logs_failure');self.assertEqual(result.returncode,1,result.stderr)
         self.assertIn('Unable to read container logs',(self.root/'health.log').read_text())
         self.assertIn('MAIL_SUBMITTED',(self.root/'health.log').read_text())
+
+    def test_edge_502_counted_and_affected_user_listed(self):
+        self.env['LMS_EDGE_LOG_CONTAINER']='fixture-nginx'
+        result=self.health('edge_5xx');self.assertEqual(result.returncode,1,result.stderr)
+        log=(self.root/'health.log').read_text();mail=(self.root/'mail.body').read_text()
+        self.assertIn('5xx errors detected: 1 in last 5 minutes (threshold: 0; api=0 edge=1)',log)
+        self.assertIn('502 GET /api/v1/messages/unread-count ip=165.73.39.31',mail)
+        self.assertIn('165.73.39.31: Admin One (admin) user_id=u1',mail)
+        self.assertNotIn('PRIVATE',mail+log)
+
+    def test_edge_user_lookup_failure_still_alerts_with_requests(self):
+        self.env['LMS_EDGE_LOG_CONTAINER']='fixture-nginx'
+        result=self.health('lookup_failure');self.assertEqual(result.returncode,1,result.stderr)
+        mail=(self.root/'mail.body').read_text()
+        self.assertIn('ip=165.73.39.31',mail);self.assertIn('165.73.39.31: lookup unavailable',mail)
+
+    def test_edge_clean_run_stays_healthy(self):
+        self.env['LMS_EDGE_LOG_CONTAINER']='fixture-nginx'
+        result=self.health();self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_edge_log_failure_alerts(self):
+        self.env['LMS_EDGE_LOG_CONTAINER']='fixture-nginx'
+        result=self.health('edge_failure');self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Unable to read edge (nginx) logs',(self.root/'health.log').read_text())
+
+    def test_invalid_edge_settings_stop_before_checks(self):
+        for key,value in [('LMS_EDGE_LOG_CONTAINER','bad name;'),('LMS_5XX_USER_LOOKUP','yes')]:
+            with self.subTest(key=key):
+                env=dict(self.env);self.env[key]=value
+                self.assertEqual(self.health().returncode,2);self.env=env
 
     def test_restart_read_failure_alerts(self):
         result=self.health('restart_failure');self.assertEqual(result.returncode,1,result.stderr)

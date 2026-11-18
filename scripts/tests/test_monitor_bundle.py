@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT=Path(__file__).resolve().parents[2]
-FILES=['lms-health-monitor.sh','lms-deadman-check.sh','monitor_evidence.py','verify-stability.py','build-stability-evidence.py']
+FILES=['lms-health-monitor.sh','lms-deadman-check.sh','monitor_evidence.py','verify-stability.py','build-stability-evidence.py','lms-5xx-user-lookup.js']
 
 
 class BundleTests(unittest.TestCase):
