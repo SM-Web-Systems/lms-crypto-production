@@ -133,7 +133,16 @@ async function main() {
     const res = await fetch(api + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
     return { status: res.status, body: await res.json().catch(() => ({})) };
   };
+  // Either a session token (paste it, as for the seed script) or an email and password, typed hidden. Accounts with a second factor need the token.
   const login = async who => {
+    const pasted = await ask(`${who}: paste a session token, or press Enter to sign in with email and password: `, { hidden: true });
+    if (pasted) {
+      const me = await call('GET', '/auth/me', { token: pasted });
+      const email = me.body?.data?.email ?? me.body?.data?.user?.email;
+      if (me.status !== 200 || !email) throw new Error(`That token for ${who} was not accepted (HTTP ${me.status}).`);
+      console.log(`          signed in as ${email}`);
+      return { token: pasted, email };
+    }
     const email = await ask(`${who} email: `);
     const password = await ask(`${who} password (hidden): `, { hidden: true });
     const res = await call('POST', '/auth/login', { body: { email, password } });
