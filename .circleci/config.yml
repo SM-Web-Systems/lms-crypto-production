@@ -6,7 +6,6 @@ version: 2.1
 
 functions:
   node: github.com/circleci-functions/setup-node@v0.5.0
-  browser-tools: github.com/circleci-functions/setup-browser-tools@v0.5.0
 
 jobs:
   lms-server:
@@ -94,11 +93,12 @@ jobs:
       - node/install-packages:
           with:
             app-dir: e2e
-      - browser-tools/install-chrome
       - run:
+          # Playwright drives its own Chromium build, not Google Chrome, so it
+          # installs that build and its system libraries itself, as ci.yml does.
           name: Install Playwright Chromium
           working_directory: e2e
-          command: npx playwright install chromium
+          command: npx playwright install --with-deps chromium
       - run:
           name: Typecheck E2E harness
           working_directory: e2e
