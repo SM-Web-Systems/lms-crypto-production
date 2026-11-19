@@ -17,7 +17,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = localStorage.getItem('lms-theme') as Theme | null;
       if (stored === 'dark' || stored === 'light') return stored;
-    } catch {}
+    } catch {
+      // Storage can be blocked (private mode); fall back to the light theme.
+    }
     return 'light';
   });
 
@@ -30,7 +32,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       localStorage.setItem('lms-theme', theme);
-    } catch {}
+    } catch {
+      // Storage can be blocked (private mode); the theme still applies for this visit.
+    }
   }, [theme]);
 
   const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));

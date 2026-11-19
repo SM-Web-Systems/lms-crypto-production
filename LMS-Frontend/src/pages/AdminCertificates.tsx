@@ -25,6 +25,7 @@ import { adminCertificateService } from '../services/adminCertificateService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { NftApplication, NftApplicationStatus, CourseProgress, IssuedCredential } from '../types/api';
 import { getErrorMessage } from '../utils/apiError';
+import { explainMintFailure } from '../utils/mintFailure';
 import { toastSuccess } from '../utils/toastBus';
 
 // ─── CSV helpers ─────────────────────────────────────────────────────────────
@@ -227,7 +228,8 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
       const updated = await adminCertificateService.mintApplication(app.courseId, app.applicationId);
       setApplications((prev) => prev.map((a) => (a.applicationId === updated.applicationId ? { ...a, ...updated } : a)));
     } catch (e) {
-      setActionError((err) => ({ ...err, [app.applicationId]: getErrorMessage(e, 'Mint failed.') }));
+      const message = await explainMintFailure(e, app, (p) => adminCertificateService.getIssuedCredentials(p));
+      setActionError((err) => ({ ...err, [app.applicationId]: message }));
     } finally { setActionLoading(null); }
   }, []);
 

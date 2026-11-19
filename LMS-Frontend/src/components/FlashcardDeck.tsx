@@ -146,7 +146,6 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
     return () => { cancelled = true; };
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadContent, [url, itemId]);
 
   const currentCard = displayOrder[currentIndex];

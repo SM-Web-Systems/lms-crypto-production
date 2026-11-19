@@ -453,9 +453,7 @@ function makeReward(overrides: Partial<{ id: string; description: string; status
 describe('W06-R1: stale response guard', () => {
   // W6R1-FE-1: child→family same scopeId — late child success must not replace family rows
   it('W6R1-FE-1: late child response does not overwrite current family rows', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveChild!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const childDeferred = new Promise<any[]>(r => { resolveChild = r; });
 
     // First call (child): deferred; second call (family): immediate
@@ -488,9 +486,7 @@ describe('W06-R1: stale response guard', () => {
 
   // W6R1-FE-2: family→child — late family success must not replace child rows
   it('W6R1-FE-2: late family response does not overwrite current child rows', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveFamily!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const familyDeferred = new Promise<any[]>(r => { resolveFamily = r; });
 
     mockListRewards
@@ -550,9 +546,7 @@ describe('W06-R1: stale response guard', () => {
   // Refresh button is disabled during loading, so we trigger an out-of-order scenario
   // by using a scopeId A → B → A cycle: first visit A is deferred, second visit A is newer.
   it('W6R1-FE-4: re-visit of same scopeId wins over deferred first visit', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveFirst!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const firstDeferred = new Promise<any[]>(r => { resolveFirst = r; });
 
     // Call 1 (scopeA first visit): deferred
@@ -588,9 +582,7 @@ describe('W06-R1: stale response guard', () => {
 
   // W6R1-FE-5: switch to empty scopeId — old result must not repopulate
   it('W6R1-FE-5: switch to empty scopeId invalidates pending old request', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveOld!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const oldDeferred = new Promise<any[]>(r => { resolveOld = r; });
 
     mockListRewards.mockImplementationOnce(() => oldDeferred);
@@ -614,9 +606,7 @@ describe('W06-R1: stale response guard', () => {
 
   // W6R1-FE-6: unmount while pending — no state update after unmount
   it('W6R1-FE-6: unmount while load is pending does not commit state', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveLate!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deferred = new Promise<any[]>(r => { resolveLate = r; });
 
     mockListRewards.mockImplementationOnce(() => deferred);
@@ -707,9 +697,7 @@ describe('W06-R2: create and operation ownership guard', () => {
   // W6R2-FE-1: Primary reproduction — deferred child create resolves after family switch.
   // MUST FAIL before epoch guard, PASS after.
   it('W6R2-FE-1: deferred child create does not reload child list after family switch', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveCreate!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const createDeferred = new Promise<any>(r => { resolveCreate = r; });
     mockCreateReward.mockImplementationOnce(() => createDeferred);
     mockListRewards
@@ -742,9 +730,7 @@ describe('W06-R2: create and operation ownership guard', () => {
 
   // W6R2-FE-2: Reverse direction — family create → switch to child
   it('W6R2-FE-2: deferred family create does not reload family list after child switch', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveCreate!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const createDeferred = new Promise<any>(r => { resolveCreate = r; });
     mockCreateReward.mockImplementationOnce(() => createDeferred);
     mockListRewards
@@ -775,13 +761,9 @@ describe('W06-R2: create and operation ownership guard', () => {
   // W6R2-FE-3: Old create resolves while new target's list is still pending.
   // Old create must not invalidate the valid pending list request.
   it('W6R2-FE-3: old create completion cannot invalidate current pending list request', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveCreate!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const createDeferred = new Promise<any>(r => { resolveCreate = r; });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveFamilyList!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const familyListDeferred = new Promise<any[]>(r => { resolveFamilyList = r; });
     mockCreateReward.mockImplementationOnce(() => createDeferred);
     mockListRewards
@@ -819,9 +801,7 @@ describe('W06-R2: create and operation ownership guard', () => {
   // W6R2-FE-4: A→B→A — old first-visit create resolves on second visit.
   // Epoch must distinguish A@T1 from A@T3 even with identical textual key.
   it('W6R2-FE-4: A→B→A: old first-visit create cannot initiate reload on second visit', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveCreate!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const createDeferred = new Promise<any>(r => { resolveCreate = r; });
     mockCreateReward.mockImplementationOnce(() => createDeferred);
     mockListRewards
@@ -890,9 +870,7 @@ describe('W06-R2: create and operation ownership guard', () => {
   // W6R2-FE-6: Old create must not close the new target's form.
   // After switch the old create resolves; it must not call setShowCreate(false) on the new form.
   it('W6R2-FE-6: old create completion does not close currently-open form on new target', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveOldCreate!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const oldCreateDeferred = new Promise<any>(r => { resolveOldCreate = r; });
     mockCreateReward.mockImplementationOnce(() => oldCreateDeferred);
     mockListRewards
@@ -930,9 +908,7 @@ describe('W06-R2: create and operation ownership guard', () => {
   // W6R2-FE-7: toggleAllocations result after switch must not populate new target's state.
   // Behavioral test — success path already guarded by setExpanded({}); verifying end-to-end.
   it('W6R2-FE-7: stale getAllocations result is not applied to new target', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveAllocs!: (v: any[]) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allocDeferred = new Promise<any[]>(r => { resolveAllocs = r; });
     mockGetAllocations.mockImplementationOnce(() => allocDeferred);
     mockListRewards
@@ -996,9 +972,7 @@ describe('W06-R2: create and operation ownership guard', () => {
 
     const { rewardService: svc } = await import('../../services/rewardService');
     vi.mocked(svc.cancelReward)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .mockImplementationOnce(() => oldCancelDeferred as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .mockImplementationOnce(() => newCancelDeferred as any);
     mockListRewards
       .mockResolvedValueOnce([makeReward({ id: 'child-r1', description: 'Child reward', status: 'active' })])
@@ -1052,9 +1026,7 @@ describe('W06-R3: blocked-refund epoch guard', () => {
   // FE-10: deferred refund A→B→A — blocked result must NOT appear on second scopeA visit.
   // This is the RED test: before fix the setError fires because only targetKey is checked.
   it('W6R3-FE-10: deferred blocked refund A→B→A does not show stale blocked message on revisit', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveRefund!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const refundDeferred = new Promise<any>(r => { resolveRefund = r; });
 
     // Import refundAllocation mock from the module mock
@@ -1140,13 +1112,9 @@ describe('W06-R3: blocked-refund epoch guard', () => {
   it('W6R3-FE-12: old blocked response does not clear new visit pending operation spinner', async () => {
     const { rewardService } = await import('../../services/rewardService');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveOldRefund!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const oldRefundDeferred = new Promise<any>(r => { resolveOldRefund = r; });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let resolveNewCancel!: (v: any) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const newCancelDeferred = new Promise<any>(r => { resolveNewCancel = r; });
 
     vi.mocked(rewardService.refundAllocation).mockImplementationOnce(() => oldRefundDeferred as any);
