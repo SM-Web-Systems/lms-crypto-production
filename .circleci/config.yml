@@ -153,12 +153,77 @@ jobs:
             E2E_API_URL: http://localhost:3001
           command: circleci testsuite run "e2e playwright"
 
-  # TEMPORARY probe: does apt-get work on cimg/base:stable? Removed once known.
-  probe-apt:
+  # TEMPORARY probes to find why the Playwright browser install fails. Removed once known.
+  probe-pw-version:
     docker:
-      - image: cimg/base:stable
+      - image: cimg/node:22.23-browsers
     steps:
-      - run: sudo apt-get update
+      - checkout
+      - node:
+          with:
+            node-version: "22"
+      - node/install-packages:
+          with:
+            app-dir: e2e
+      - run:
+          working_directory: e2e
+          command: npx playwright --version
+  probe-pw-dryrun:
+    docker:
+      - image: cimg/node:22.23-browsers
+    steps:
+      - checkout
+      - node:
+          with:
+            node-version: "22"
+      - node/install-packages:
+          with:
+            app-dir: e2e
+      - run:
+          working_directory: e2e
+          command: npx playwright install --dry-run chromium
+  probe-pw-install:
+    docker:
+      - image: cimg/node:22.23-browsers
+    steps:
+      - checkout
+      - node:
+          with:
+            node-version: "22"
+      - node/install-packages:
+          with:
+            app-dir: e2e
+      - run:
+          working_directory: e2e
+          command: npx playwright install chromium
+  probe-pw-install-shell:
+    docker:
+      - image: cimg/node:22.23-browsers
+    steps:
+      - checkout
+      - node:
+          with:
+            node-version: "22"
+      - node/install-packages:
+          with:
+            app-dir: e2e
+      - run:
+          working_directory: e2e
+          command: npx playwright install --only-shell chromium
+  probe-pw-install-nodeenv:
+    docker:
+      - image: cimg/node:22.23-browsers
+    steps:
+      - checkout
+      - node:
+          with:
+            node-version: "22"
+      - node/install-packages:
+          with:
+            app-dir: e2e
+      - run:
+          working_directory: e2e
+          command: NODE_ENV=test npx playwright install chromium
 
 workflows:
   main:
@@ -167,4 +232,8 @@ workflows:
       - lms-frontend
       - lms-mobile
       - e2e
-      - probe-apt
+      - probe-pw-version
+      - probe-pw-dryrun
+      - probe-pw-install
+      - probe-pw-install-shell
+      - probe-pw-install-nodeenv
