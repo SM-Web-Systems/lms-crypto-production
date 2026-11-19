@@ -239,7 +239,6 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     return () => { cancelled = true; };
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadContent, [url]);
 
   // Post-process DOM to wrap tables and enhance code blocks after HTML is set
