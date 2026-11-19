@@ -153,38 +153,18 @@ jobs:
             E2E_API_URL: http://localhost:3001
           command: circleci testsuite run "e2e playwright"
 
-  # TEMPORARY probes to find why the Playwright browser install fails. Removed once known.
-  probe-pw-version:
+  # TEMPORARY probes to find why the Playwright browser install fails in the e2e job. Removed once known.
+  probe-env-e2eonly:
     docker:
       - image: cimg/node:22.23-browsers
-    steps:
-      - checkout
-      - node:
-          with:
-            node-version: "22"
-      - node/install-packages:
-          with:
-            app-dir: e2e
-      - run:
-          working_directory: e2e
-          command: npx playwright --version
-  probe-pw-dryrun:
-    docker:
-      - image: cimg/node:22.23-browsers
-    steps:
-      - checkout
-      - node:
-          with:
-            node-version: "22"
-      - node/install-packages:
-          with:
-            app-dir: e2e
-      - run:
-          working_directory: e2e
-          command: npx playwright install --dry-run chromium
-  probe-pw-install:
-    docker:
-      - image: cimg/node:22.23-browsers
+    environment:
+      NODE_ENV: test
+      E2E_FIXTURE_MODE: "1"
+      SMTP_HOST: ""
+      AMMA_WALLET_URL: http://127.0.0.1:1/
+      AMMA_WALLET_API_KEY: ""
+      AMMA_WALLET_TIMEOUT_MS: "500"
+      DATABASE_PATH: /tmp/lms-e2e.db
     steps:
       - checkout
       - node:
@@ -196,7 +176,7 @@ jobs:
       - run:
           working_directory: e2e
           command: npx playwright install chromium
-  probe-pw-install-shell:
+  probe-noenv-3installs:
     docker:
       - image: cimg/node:22.23-browsers
     steps:
@@ -206,24 +186,16 @@ jobs:
             node-version: "22"
       - node/install-packages:
           with:
-            app-dir: e2e
-      - run:
-          working_directory: e2e
-          command: npx playwright install --only-shell chromium
-  probe-pw-install-nodeenv:
-    docker:
-      - image: cimg/node:22.23-browsers
-    steps:
-      - checkout
-      - node:
+            app-dir: LMS-Server
+      - node/install-packages:
           with:
-            node-version: "22"
+            app-dir: LMS-Frontend
       - node/install-packages:
           with:
             app-dir: e2e
       - run:
           working_directory: e2e
-          command: NODE_ENV=test npx playwright install chromium
+          command: npx playwright install chromium
 
 workflows:
   main:
@@ -232,8 +204,5 @@ workflows:
       - lms-frontend
       - lms-mobile
       - e2e
-      - probe-pw-version
-      - probe-pw-dryrun
-      - probe-pw-install
-      - probe-pw-install-shell
-      - probe-pw-install-nodeenv
+      - probe-env-e2eonly
+      - probe-noenv-3installs
