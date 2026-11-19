@@ -70,3 +70,25 @@ export function getHealthStatus(): HealthStatus {
     },
   };
 }
+
+/** What anonymous callers see on /health and /api/v1/health. The release script, smoke test and monitor read
+ *  status, buildSha, writerHold and checks.db.status; uptime, version, memory, DB latency and AmmaWallet
+ *  configuration are left out so the public endpoint gives away less about the running server. */
+export interface PublicHealthStatus {
+  status: HealthStatus['status'];
+  timestamp: string;
+  buildSha: string;
+  writerHold: { active: boolean };
+  checks: { db: { status: 'ok' | 'error' } };
+}
+
+export function getPublicHealthStatus(): PublicHealthStatus {
+  const h = getHealthStatus();
+  return {
+    status: h.status,
+    timestamp: h.timestamp,
+    buildSha: h.buildSha,
+    writerHold: h.writerHold,
+    checks: { db: { status: h.checks.db.status } },
+  };
+}

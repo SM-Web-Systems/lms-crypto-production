@@ -62,3 +62,18 @@ describe('HEALTH-BUILD-SHA — health endpoint includes build SHA', () => {
     expect(validateBuildSha('abc;rm -rf /')).toBe('unknown');
   });
 });
+
+describe('AUDIT-2026-11 M2 — public health response is trimmed', () => {
+  it('HEALTH-PUBLIC-001: /api/v1/health and /health return only status, timestamp, buildSha, writerHold and db status', async () => {
+    const { default: request } = await import('supertest');
+    const { default: app } = await import('../app.js');
+    for (const path of ['/health', '/api/v1/health']) {
+      const res = await request(app).get(path);
+      expect(res.status).toBe(200);
+      expect(Object.keys(res.body).sort()).toEqual(['buildSha', 'checks', 'status', 'timestamp', 'writerHold']);
+      expect(res.body.checks).toEqual({ db: { status: 'ok' } });
+      expect(res.body).not.toHaveProperty('uptime');
+      expect(res.body).not.toHaveProperty('version');
+    }
+  });
+});

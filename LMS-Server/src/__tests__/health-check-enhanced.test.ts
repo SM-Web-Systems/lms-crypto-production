@@ -7,31 +7,31 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 
-describe('HC-001 — Enhanced health check response', () => {
-  it('should return uptime, memory, and db latency', async () => {
-    const res = await request(app).get('/health');
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ok');
-    expect(res.body.timestamp).toBeDefined();
-    expect(typeof res.body.uptime).toBe('number');
-    expect(typeof res.body.version).toBe('string');
-    expect(res.body.checks.db.status).toBe('ok');
-    expect(typeof res.body.checks.db.latencyMs).toBe('number');
-    expect(typeof res.body.checks.memory.heapUsedMB).toBe('number');
-    expect(typeof res.body.checks.memory.heapTotalMB).toBe('number');
-    expect(typeof res.body.checks.memory.rssMB).toBe('number');
-    expect(typeof res.body.checks.ammaWallet.configured).toBe('boolean');
+describe('HC-001 — Enhanced health check detail (internal)', () => {
+  it('getHealthStatus() still computes uptime, memory, and db latency', async () => {
+    const { getHealthStatus } = await import('../services/healthCheckService.js');
+    const h = getHealthStatus();
+    expect(h.status).toBe('ok');
+    expect(typeof h.uptime).toBe('number');
+    expect(typeof h.version).toBe('string');
+    expect(typeof h.checks.db.latencyMs).toBe('number');
+    expect(typeof h.checks.memory.heapUsedMB).toBe('number');
+    expect(typeof h.checks.ammaWallet.configured).toBe('boolean');
   });
 });
 
-describe('HC-002 — API-prefixed health endpoint', () => {
-  it('should return same health data on /api/v1/health', async () => {
-    const res = await request(app).get('/api/v1/health');
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBeDefined();
-    expect(res.body.checks).toBeDefined();
-    expect(res.body.checks.db).toBeDefined();
-    expect(res.body.checks.memory).toBeDefined();
+describe('HC-002 — Public health endpoints (AUDIT-2026-11 M2)', () => {
+  it('/health and /api/v1/health return status and db status but no runtime detail', async () => {
+    for (const path of ['/health', '/api/v1/health']) {
+      const res = await request(app).get(path);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+      expect(res.body.timestamp).toBeDefined();
+      expect(res.body.checks.db.status).toBe('ok');
+      expect(res.body).not.toHaveProperty('uptime');
+      expect(res.body.checks).not.toHaveProperty('memory');
+      expect(res.body.checks).not.toHaveProperty('ammaWallet');
+    }
   });
 });
 
