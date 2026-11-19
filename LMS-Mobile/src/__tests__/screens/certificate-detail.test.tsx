@@ -11,9 +11,10 @@ jest.mock('@/services/credentialService');
 const mockCredentialService = credentialService as jest.Mocked<typeof credentialService>;
 
 const mockBack = jest.fn();
+let mockId = 'cred-001';
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: mockBack }),
-  useLocalSearchParams: () => ({ id: 'cred-001' }),
+  useLocalSearchParams: () => ({ id: mockId }),
 }));
 
 const MOCK_CREDENTIAL: MyCredential = {
@@ -34,6 +35,7 @@ const MOCK_CREDENTIAL: MyCredential = {
 describe('CertificateDetailScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockId = 'cred-001';
     mockCredentialService.getVerificationUrl.mockImplementation(
       (id) => `https://lms.smwebsystems.com/verify/${id}`
     );
@@ -158,5 +160,20 @@ describe('CertificateDetailScreen', () => {
     await waitFor(() => {
       expect(screen.getByText(/could not load/i)).toBeTruthy();
     });
+  });
+
+  it('does not show the previous certificate (or its Stellar button) while another one loads', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
+    const view = render(<CertificateDetailScreen />);
+    await waitFor(() => expect(screen.getByText('View on Stellar')).toBeTruthy());
+
+    // The hidden tab stays mounted; the learner now taps a different certificate.
+    mockCredentialService.fetchMyCredentials.mockReturnValueOnce(new Promise(() => {}));
+    mockId = 'cred-002';
+    view.rerender(<CertificateDetailScreen />);
+
+    expect(screen.queryByText('View on Stellar')).toBeNull();
+    expect(screen.getByText('Loading certificate…')).toBeTruthy();
+    expect(Linking.openURL).not.toHaveBeenCalled();
   });
 });

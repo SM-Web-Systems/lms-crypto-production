@@ -47,6 +47,7 @@ export default function CertificateDetailScreen() {
   const loadCredential = useCallback(async () => {
     if (!id) return;
     setError(null);
+    setLoading(true);
     try {
       const creds = await credentialService.fetchMyCredentials();
       const found = creds.find((c) => c.credentialId === id) ?? null;
@@ -111,7 +112,11 @@ export default function CertificateDetailScreen() {
     }
   }, [credential]);
 
-  if (loading) return <LoadingView message="Loading certificate…" />;
+  // This screen is a hidden tab, so it stays mounted between visits. Without this check, opening a second
+  // certificate showed the previous one at once, with its "View on Stellar" button already under the
+  // finger, and the second half of a double tap on the card opened Chrome on the old transaction.
+  const showingAnotherCertificate = credential != null && credential.credentialId !== id;
+  if (loading || showingAnotherCertificate) return <LoadingView message="Loading certificate…" />;
 
   if (error || !credential) {
     return (
