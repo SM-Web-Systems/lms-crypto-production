@@ -48,7 +48,7 @@ When approved:
 4. Expected buildSha: first 7 chars of 4ebf054.
 5. `docker compose build web && docker compose up -d --no-deps web`
 6. Verify frontend loads correctly.
-7. Run BVC validator: `docker exec lms-api npm run validate:bvc -- --skip-reachability`
+7. Run BVC validator: `docker exec lms-api node dist/scripts/validateBvcContent.js --skip-reachability`
 
 ## Approval Required
 
