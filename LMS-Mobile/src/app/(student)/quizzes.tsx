@@ -121,7 +121,7 @@ export default function QuizzesScreen() {
           {prev ? (
             <View className="mt-3 rounded-lg bg-neutral-100 p-3">
               <Text className="text-sm text-neutral-700">
-                Previous: {prev.score}/{prev.total} ({prev.passed ? 'Passed' : 'Not passed'})
+                Previous: {prev.score}% ({prev.passed ? 'Passed' : 'Not passed'})
               </Text>
             </View>
           ) : null}
@@ -196,7 +196,7 @@ export default function QuizzesScreen() {
             />
             <Text className="mt-3 text-xl font-bold text-neutral-900">{lastResult.passed ? 'You passed!' : 'Keep practicing'}</Text>
             <Text className="mt-2 text-neutral-600">
-              Score: {lastResult.score}/{lastResult.total}
+              Score: {lastResult.score}%
             </Text>
           </View>
           <Button label="Back to quizzes" onPress={backToList} />
@@ -222,7 +222,7 @@ export default function QuizzesScreen() {
                 {completion ? (
                   <View className={`rounded-full px-2 py-1 ${completion.passed ? 'bg-emerald-100' : 'bg-amber-100'}`}>
                     <Text className={`text-xs font-semibold ${completion.passed ? 'text-emerald-800' : 'text-amber-800'}`}>
-                      {completion.score}/{completion.total}
+                      {completion.score}%
                     </Text>
                   </View>
                 ) : (
