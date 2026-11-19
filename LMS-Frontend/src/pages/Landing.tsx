@@ -247,7 +247,7 @@ const Landing: React.FC = () => {
           </div>
           <div className="grid md:grid-cols-2 gap-5 md:gap-8 max-w-5xl mx-auto">
             <div className="rounded-2xl border border-neutral-200 bg-white p-7 sm:p-9">
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-neutral-400 mb-5">Without</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-neutral-600 mb-5">Without</p>
               <ul className="space-y-3.5">
                 {comparison.without.map((line) => (
                   <li key={line} className="flex gap-3 text-neutral-600 text-[15px] leading-relaxed">
