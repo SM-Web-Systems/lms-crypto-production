@@ -8,6 +8,7 @@ import type { MyCourseProgress, CertificateStatus } from '../types/api';
 import type { Course, CourseItemQuiz } from '../types/course';
 import { getCourseWeeks } from '../types/course';
 import type { QuizCompletion } from '../types/quiz';
+import { quizScorePercent } from '../utils/quizScore';
 import {
   Loader2,
   CheckCircle,
@@ -303,7 +304,7 @@ const StudentProgress: React.FC = () => {
                           </thead>
                           <tbody>
                             {[...bestAttempts.values()].map((qc) => {
-                              const scorePct = qc.total > 0 ? Math.round((qc.score / qc.total) * 100) : 0;
+                              const scorePct = quizScorePercent(qc.score);
                               const reqQuiz = c.requiredQuizzes.find((rq) => rq.quizId === qc.quizId);
                               const passingPct = reqQuiz?.passingScore ?? 70;
                               return (
