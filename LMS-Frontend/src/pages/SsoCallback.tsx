@@ -31,6 +31,8 @@ const SsoCallback: React.FC = () => {
   completeRef.current = completeSso;
   const navigate = useNavigate();
   const tokenRef = useRef(new URLSearchParams(window.location.hash.slice(1)).get('token'));
+  // completeSso moves the token into the HttpOnly cookie and starts a new session marker; compare markers, not tokens.
+  const markerRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Parse hash fragment: #token=<jwt>
@@ -38,7 +40,7 @@ const SsoCallback: React.FC = () => {
     let cancelled = false;
 
     if (!token) return; // Provider-level recovery may remount after removing the hash.
-    if (attempt > 0 && getStoredToken() !== token) {
+    if (attempt > 0 && getStoredToken() !== markerRef.current) {
       setRecoverable(false);
       setError('The active session changed. Return to your workspace or sign in again.');
       return;
@@ -46,16 +48,18 @@ const SsoCallback: React.FC = () => {
 
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     // The provider owns token storage, generation guards and verification together.
-    completeRef.current(token).then(verified => {
-      if (cancelled || getStoredToken() !== token) return;
+    const pending = completeRef.current(token);
+    markerRef.current = getStoredToken();
+    pending.then(verified => {
+      if (cancelled || getStoredToken() !== markerRef.current) return;
       setSuccess(true);
       navigate(takeSsoReturn() ?? homeForUser(verified), {replace: true});
     }).catch((error: unknown) => {
       if (cancelled) return;
       const currentToken = getStoredToken();
-      if (currentToken && currentToken !== token) return;
+      if (currentToken && currentToken !== markerRef.current) return;
       const invalid = error instanceof ApiRequestError && error.status === 401;
-      setRecoverable(!invalid && currentToken === token);
+      setRecoverable(!invalid && currentToken === markerRef.current);
       setError(invalid ? 'This session has expired or was revoked. Please sign in again.' : 'Unable to verify your session. Reconnect and try again.');
     });
     return () => { cancelled = true; };

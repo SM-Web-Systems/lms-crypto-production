@@ -226,7 +226,8 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
       formData.append('zipfile', file);
       const res = await fetch(`/api/v1/courses/${courseId}/import/zip`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('lms_token')}` },
+        credentials: 'include',
+        headers: { 'X-LMS-CSRF': '1' },
         body: formData,
       });
       const data = await res.json();
@@ -343,7 +344,8 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
 
         const res = await fetch('/api/v1/documents', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('lms_token')}` },
+          credentials: 'include',
+          headers: { 'X-LMS-CSRF': '1' },
           body: formData,
         });
         const data = await res.json();
@@ -392,12 +394,12 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
     setGithubError('');
 
     try {
-      const token = localStorage.getItem('lms_token');
       const res = await fetch(`/api/v1/courses/${courseId}/import/github`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-LMS-CSRF': '1',
         },
         body: JSON.stringify({
           repoUrl: githubUrl.trim(),
@@ -494,9 +496,10 @@ export default function ImportWizard({ open, onClose, courseId, courseTitle, onI
 
       const res = await fetch(`/api/v1/courses/${courseId}/import`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('lms_token')}`,
+          'X-LMS-CSRF': '1',
         },
         body: JSON.stringify({ mode: importMode, sections: importSections }),
       });

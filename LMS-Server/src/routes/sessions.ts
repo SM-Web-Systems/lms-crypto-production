@@ -33,7 +33,7 @@ router.get('/sessions', authenticate, (req: AuthRequest, res: Response) => {
     "SELECT id, ip_address, user_agent, created_at, last_active, expires_at FROM active_sessions WHERE user_id = ? AND expires_at > datetime('now') AND revoked_at IS NULL ORDER BY last_active DESC",
     [userId],
   );
-  const current = queryOne<{id: string}>('SELECT id FROM active_sessions WHERE token_hash = ? AND user_id = ?', [hashToken(req.headers.authorization!.slice(7)), userId]);
+  const current = queryOne<{id: string}>('SELECT id FROM active_sessions WHERE token_hash = ? AND user_id = ?', [hashToken((req as AuthRequest).authToken!), userId]);
   res.json({ success: true, data: { sessions: sessions.map(session => ({ ...session, current: session.id === current?.id })) } });
 });
 

@@ -16,7 +16,7 @@ function handle(work:(req:AuthRequest)=>unknown) {
 router.get('/notifications/push/config',authenticate,handle(()=>{
   const {enabled,projectId}=pushConfiguration();return {enabled,projectId:enabled?projectId:null};
 }));
-router.put('/notifications/push/installation',authenticate,handle(req=>registerInstallation(req.body,req.headers.authorization!.slice(7))));
+router.put('/notifications/push/installation',authenticate,handle(req=>registerInstallation(req.body,(req as AuthRequest).authToken!)));
 // High-entropy per-installation credential, independent of expired/revoked JWTs. Never echo it or the token.
 router.post('/notifications/push/unregister',cleanupLimiter,handle(req=>unregisterInstallation(req.body)));
 router.get('/notifications/:id',authenticate,handle(req=>{

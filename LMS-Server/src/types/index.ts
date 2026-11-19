@@ -147,6 +147,10 @@ export interface JWTPayload {
 // Extended Request Type
 export interface AuthRequest extends Request {
   user?: JWTPayload;
+  /** The verified token for this request, from the Authorization header or the session cookie. */
+  authToken?: string;
+  /** How the token arrived. */
+  authVia?: 'bearer' | 'cookie';
 }
 
 // API Response Types

@@ -130,12 +130,12 @@ function offlineResponse(res: Response, work: () => unknown) {
 }
 
 router.post('/courses/:courseId/offline-lease', authenticate, (req: AuthRequest, res: Response) => {
-  offlineResponse(res, () => issueOfflineLease(req.user!, req.headers.authorization!.slice(7), req.params.courseId));
+  offlineResponse(res, () => issueOfflineLease(req.user!, (req as AuthRequest).authToken!, req.params.courseId));
 });
 
 router.get('/courses/:courseId/offline-lease/:leaseId', authenticate, (req: AuthRequest, res: Response) => {
   offlineResponse(res, () => inspectOfflineLease(
-    req.user!, req.headers.authorization!.slice(7), req.params.courseId, req.params.leaseId,
+    req.user!, (req as AuthRequest).authToken!, req.params.courseId, req.params.leaseId,
   ));
 });
 
@@ -143,7 +143,7 @@ router.put('/courses/:courseId/offline-progress', authenticate, (req: AuthReques
   const actor = req.user!;
   const courseId = req.params.courseId;
   offlineResponse(res, () => {
-    const result = syncOfflineProgress(actor, req.headers.authorization!.slice(7), courseId, req.body,
+    const result = syncOfflineProgress(actor, (req as AuthRequest).authToken!, courseId, req.body,
       (sectionId, operation) => {
         if (operation.kind === 'complete') return completeOwnLesson(actor.userId, courseId, operation.itemId, sectionId);
         saveOwnLessonProgress(actor.userId, courseId, operation.itemId, sectionId,

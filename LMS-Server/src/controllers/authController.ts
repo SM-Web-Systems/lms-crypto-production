@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db, query, queryOne, execute, hashToken } from "../config/database.js";
 import { invalidateAuthorization } from '../services/roleSecurityService.js';
 import { generateToken } from "../config/jwt.js";
+import { setSessionCookie, clearSessionCookie } from "../utils/sessionCookie.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { createUserWallet } from "../services/walletService.js";
@@ -174,6 +175,7 @@ export async function login(
       }
     } catch { /* best-effort */ }
 
+    setSessionCookie(res, token); // web clients use the HttpOnly cookie; body token stays for API/native clients
     res.json({
       success: true,
       data: {
@@ -288,6 +290,7 @@ export async function register(
 
     recordLoginHistory(userId, req, 'local');
 
+    setSessionCookie(res, token); // web clients use the HttpOnly cookie; body token stays for API/native clients
     res.status(201).json({
       success: true,
       data: {
@@ -310,15 +313,31 @@ export async function register(
 }
 
 export async function logout(req: AuthRequest, res: Response): Promise<void> {
-  const token = req.headers.authorization!.slice(7);
+  const token = (req as AuthRequest).authToken!;
   const expiresAt = new Date((req.user!.exp ?? Math.floor(Date.now() / 1000) + 86400) * 1000).toISOString();
   execute(`INSERT INTO active_sessions (id,user_id,token_hash,expires_at,revoked_at)
     VALUES (?,?,?,?,datetime('now')) ON CONFLICT(token_hash) DO UPDATE SET revoked_at = datetime('now')`,
     [uuidv4(),req.user!.userId,hashToken(token),expiresAt]);
+  clearSessionCookie(res);
   res.json({
     success: true,
     message: "Logged out successfully",
   });
+}
+
+/**
+ * POST /auth/session — move an already-valid bearer token into the HttpOnly session cookie.
+ * Used by the web app after AmmaWallet SSO (the token arrives in the URL fragment) and once for
+ * browsers that still hold a token in localStorage from before the cookie change.
+ */
+export function establishSession(req: AuthRequest, res: Response): void {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.authVia !== 'bearer') {
+    res.json({ success: true, data: { established: false } });
+    return;
+  }
+  setSessionCookie(res, req.authToken!);
+  res.json({ success: true, data: { established: true } });
 }
 
 export async function getMe(
@@ -544,7 +563,7 @@ export async function ammaLink(req: AuthRequest, res: Response, next: NextFuncti
     }
     // Password comparison is asynchronous; recheck version and revocation before issuing state.
     const current = queryOne<{authorization_version: number}>('SELECT authorization_version FROM users WHERE id = ?', [user.id]);
-    const sessionHash = hashToken(req.headers.authorization!.slice(7));
+    const sessionHash = hashToken((req as AuthRequest).authToken!);
     const session = queryOne<{revoked_at: string | null; expired: number}>(
       "SELECT revoked_at, datetime(expires_at) <= datetime('now') AS expired FROM active_sessions WHERE token_hash = ?", [sessionHash]);
     if (!current || current.authorization_version !== (req.user!.authorizationVersion ?? 0) || session?.revoked_at || session?.expired) {

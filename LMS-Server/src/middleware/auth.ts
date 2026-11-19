@@ -2,12 +2,16 @@ import { Response, NextFunction } from 'express';
 import { verifyToken } from '../config/jwt.js';
 import { queryOne, hashToken } from '../config/database.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
+import { readSessionCookie, CSRF_HEADER } from '../utils/sessionCookie.js';
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
   try {
     const authHeader = req.headers.authorization;
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const cookieToken = bearer ? null : readSessionCookie(req);
+    const token = bearer ?? cookieToken;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       res.status(401).json({
         success: false,
         error: {
@@ -18,7 +22,14 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       return;
     }
 
-    const token = authHeader.substring(7);
+    // Cookie-authenticated writes must carry the CSRF header (see utils/sessionCookie.ts).
+    if (cookieToken && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers[CSRF_HEADER] !== '1') {
+      res.status(403).json({
+        success: false,
+        error: { code: ErrorCodes.FORBIDDEN, message: 'Missing request verification header' },
+      });
+      return;
+    }
 
     try {
       const payload = verifyToken(token);
@@ -107,6 +118,8 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
       }
 
       req.user = payload;
+      req.authToken = token;
+      req.authVia = cookieToken ? 'cookie' : 'bearer';
       next();
     } catch {
       res.status(401).json({

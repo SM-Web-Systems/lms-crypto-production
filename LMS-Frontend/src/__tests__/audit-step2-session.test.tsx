@@ -12,7 +12,7 @@ const student: User={id:'session-user',name:'Audit',email:'audit@example.invalid
 const sponsor: User={...student,workspaces:['sponsor','student'],defaultWorkspace:'sponsor',permissions:['course.view','course.submit','cohort.view_own']};
 const response=(user:User)=>({data:{success:true,data:user}});
 function State() { const {user,isLoading}=useAuth(); return <><p>{isLoading?'Loading':user?homeForUser(user):'Signed out'}</p><output data-testid="current-authorization">{JSON.stringify(user)}</output></>; }
-beforeEach(()=>{vi.clearAllMocks();localStorage.setItem('lms_token','audit-session');api.get.mockResolvedValue(response(student));});
+beforeEach(()=>{vi.clearAllMocks();localStorage.setItem('lms_session_marker','audit-session');api.get.mockResolvedValue(response(student));});
 
 describe('A03 — refresh effective authorization in an open session',()=>{
   it('replaces stale role hints with current context and supports a response with no legacy field', async () => {
@@ -40,7 +40,7 @@ describe('A03 — refresh effective authorization in an open session',()=>{
     api.get.mockRejectedValueOnce(new ApiRequestError({status:401,message:'Authorization changed'}));
     fireEvent(window,new Event('focus'));
     await waitFor(()=>expect(screen.getByText('Signed out')).toBeInTheDocument());
-    expect(localStorage.getItem('lms_token')).toBeNull();
+    expect(localStorage.getItem('lms_session_marker')).toBeNull();
   });
   it('a temporary failure during revalidation retains the active session',async()=>{
     render(<AuthProvider><State /></AuthProvider>);
@@ -48,7 +48,7 @@ describe('A03 — refresh effective authorization in an open session',()=>{
     api.get.mockRejectedValueOnce(new ApiRequestError({status:503,message:'Unavailable'}));
     await act(async()=>{fireEvent(window,new Event('focus'));});
     expect(screen.getByText('/student')).toBeInTheDocument();
-    expect(localStorage.getItem('lms_token')).toBe('audit-session');
+    expect(localStorage.getItem('lms_session_marker')).toBe('audit-session');
   });
   it('a late authorization response cannot overwrite a newer context',async()=>{
     render(<AuthProvider><State /></AuthProvider>);

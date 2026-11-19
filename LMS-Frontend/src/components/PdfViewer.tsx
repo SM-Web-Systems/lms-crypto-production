@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuthToken } from '../services/api';
+import { authFetchInit } from '../services/api';
 import { documentsService } from '../services/documentsService';
 import { Loader2 } from 'lucide-react';
 
@@ -48,9 +48,8 @@ export const PdfViewerWithAuth: React.FC<PdfViewerWithAuthProps> = ({ documentId
 
     (async () => {
       try {
-        const token = await getAuthToken();
         const url = documentsService.getDownloadUrl(documentId);
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(url, authFetchInit());
         if (!res.ok) throw new Error('Failed to load PDF');
         const blob = await res.blob();
         if (cancelled) return;

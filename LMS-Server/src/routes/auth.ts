@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  login, register, logout, getMe, forgotPassword, resetPassword, changePassword,
+  login, register, logout, establishSession, getMe, forgotPassword, resetPassword, changePassword,
   ammaLogin, ammaLink, ammaCallback, ammaMobileSession,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
@@ -114,6 +114,19 @@ router.post('/change-password', authenticate, changePassword);
  */
 // POST /auth/logout - Logout user (requires auth)
 router.post('/logout', authenticate, logout);
+
+/**
+ * @openapi
+ * /auth/session:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Move a valid bearer token into the HttpOnly session cookie (web app)
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Cookie set }
+ *       401: { description: Unauthorized }
+ */
+router.post('/session', authenticate, establishSession);
 
 /**
  * @openapi

@@ -140,7 +140,7 @@ app.use((req, res, next) => {
 const corsMiddleware = cors({
   origin: corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-LMS-CSRF'],
   credentials: true,
 });
 app.use((req, res, next) => (isPublicCredentialsRequest(req) ? next() : corsMiddleware(req, res, next)));

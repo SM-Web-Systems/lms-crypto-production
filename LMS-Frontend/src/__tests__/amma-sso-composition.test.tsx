@@ -14,6 +14,8 @@ const internalUser: User = {...walletUser,id:'internal-user',email:'internal@exa
 let signOut:(()=>Promise<void>)|undefined;
 const originalAdapter=api.defaults.adapter;
 const reads: string[] = [];
+// Simulates the API's HttpOnly session cookie: set by login and POST /auth/session, cleared by logout.
+let cookieToken: string | null = null;
 
 function Session() {
   const auth=useAuth();signOut=auth.logout;
@@ -25,13 +27,17 @@ function Session() {
   </Routes></>;
 }
 beforeEach(()=>{
-  localStorage.clear();reads.length=0;
+  localStorage.clear();reads.length=0;cookieToken=null;
   window.history.replaceState({},'','/');
   api.defaults.adapter=async(config)=>{
-    const token=String(AxiosHeaders.from(config.headers).get('Authorization') || '');
-    if(config.url==='/auth/me')reads.push(token);
+    const bearer=String(AxiosHeaders.from(config.headers).get('Authorization') || '');
+    if(config.url==='/auth/session')cookieToken=bearer.replace(/^Bearer /,'');
+    if(config.url==='/auth/login')cookieToken='internal-token';
+    if(config.url==='/auth/logout')cookieToken=null;
+    if(config.url==='/auth/me')reads.push(`cookie:${cookieToken}`);
     const data=config.url==='/auth/login' ? {token:'internal-token',user:internalUser}
-      : token==='Bearer wallet-token' ? walletUser : internalUser;
+      : config.url==='/auth/session' ? {established:true}
+      : cookieToken==='wallet-token' ? walletUser : internalUser;
     return {status:200,statusText:'OK',headers:{},config,data:{success:true,data}};
   };
 });
@@ -47,7 +53,7 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     window.history.replaceState({},'','/sso-callback#token=wallet-token');
     fireEvent.click(screen.getByText('Complete wallet return'));
     await waitFor(()=>expect(screen.getByTestId('current-identity')).toHaveTextContent('wallet-user'));
-    expect(reads[reads.length-1]).toBe('Bearer wallet-token');
+    expect(reads[reads.length-1]).toBe('cookie:wallet-token');
     expect(await screen.findByText('Wallet dashboard')).toBeInTheDocument();
   });
   it('finishes wallet navigation after provider-level outage recovery remounts the callback without its hash',async()=>{
@@ -72,7 +78,7 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     render(<MemoryRouter initialEntries={['/sso-callback']}><AuthProvider><Session/></AuthProvider></MemoryRouter>);
     await waitFor(()=>expect(screen.getByText('Wallet dashboard')).toBeInTheDocument());
     expect(screen.getByTestId('current-identity')).toHaveTextContent('wallet-user');
-    expect(reads.every(value=>value==='Bearer wallet-token')).toBe(true);
+    expect(reads.every(value=>value==='cookie:wallet-token')).toBe(true);
   });
   it('does not accept an older internal-login result after a wallet sign-in starts',async()=>{
     const adapter=api.defaults.adapter as (config:any)=>Promise<any>;
@@ -89,7 +95,7 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     await waitFor(()=>expect(screen.getByText('Wallet dashboard')).toBeInTheDocument());
     await act(async()=>finish({status:200,statusText:'OK',headers:{},config:internalConfig,data:{success:true,data:{token:'late-internal-token',user:internalUser}}}));
     expect(screen.getByTestId('current-identity')).toHaveTextContent('wallet-user');
-    expect(localStorage.getItem('lms_token')).toBe('wallet-token');
+    expect(JSON.stringify({...localStorage})).not.toContain('wallet-token');
   });
   it('does not restore wallet identity after local logout during verification',async()=>{
     window.history.replaceState({},'','/sso-callback#token=wallet-token');
@@ -104,6 +110,6 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     await act(async()=>{await signOut!();});
     await act(async()=>finish({status:200,statusText:'OK',headers:{},config:requestConfig,data:{success:true,data:walletUser}}));
     expect(screen.getByTestId('current-identity')).toHaveTextContent('Signed out');
-    expect(localStorage.getItem('lms_token')).toBeNull();
+    expect(localStorage.getItem('lms_session_marker')).toBeNull();
   });
 });
