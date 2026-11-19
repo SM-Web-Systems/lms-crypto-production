@@ -1,0 +1,29 @@
+# CircleCI Smarter Testing suites, one per test suite.
+# Each job runs `circleci testsuite run "<name>"` from the project's folder.
+# The only option set is store-test-results, so results and insights show in
+# CircleCI. Test impact analysis, dynamic splitting, dynamic parallelism and
+# auto-rerun all stay off.
+---
+name: LMS-Server vitest
+discover: npx vitest list --filesOnly
+run: npx vitest run --reporter=default --reporter=junit --outputFile.junit="<< outputs.junit >>" << test.atoms >>
+options:
+  store-test-results: true
+---
+name: LMS-Frontend vitest
+discover: npx vitest list --filesOnly
+run: npx vitest run --reporter=default --reporter=junit --outputFile.junit="<< outputs.junit >>" << test.atoms >>
+options:
+  store-test-results: true
+---
+name: LMS-Mobile jest
+discover: npx jest --listTests
+run: JEST_JUNIT_OUTPUT_FILE="<< outputs.junit >>" npx jest --runInBand --reporters=default --reporters=../.circleci/jest-junit-reporter.cjs -- << test.atoms >>
+options:
+  store-test-results: true
+---
+name: e2e playwright
+discover: cd tests && find . -type f -name '*.spec.ts' | sed 's|^\./||' | sort
+run: PLAYWRIGHT_JUNIT_OUTPUT_FILE="<< outputs.junit >>" npx playwright test --project=chromium --reporter=list,junit << test.atoms >>
+options:
+  store-test-results: true
