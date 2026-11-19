@@ -64,6 +64,7 @@ import { requestLogger } from './middleware/requestLogger.js';
 import { getPublicHealthStatus } from './services/healthCheckService.js';
 import { getReadinessStatus } from './services/readinessService.js';
 import logger from './utils/logger.js';
+import cspReportRoutes from './routes/cspReport.js';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 import { authenticate } from './middleware/auth.js';
@@ -256,6 +257,9 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Webhook routes — mounted BEFORE JSON body parsing so they receive raw body for HMAC verification
 app.use('/api/v1/webhooks', webhookRoutes);
+
+// CSP violation reports (own small JSON parser and rate limit; before the global body parser).
+app.use('/api/v1', cspReportRoutes);
 
 // Body parsing middleware
 app.use(express.json({ limit: '1mb' }));
