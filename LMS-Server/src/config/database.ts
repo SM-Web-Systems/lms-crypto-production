@@ -2009,7 +2009,7 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-/** Insert a new row in active_sessions and return the generated session ID.
+/** Insert a row in active_sessions (or keep the existing row for this token) and return its session ID.
  *  req is optional — pass Express request to capture IP and User-Agent. */
 export function createSession(
   userId: string,
@@ -2022,11 +2022,12 @@ export function createSession(
   const ip = req?.ip ?? req?.get?.('x-forwarded-for') ?? null;
   const ua = req?.get?.('user-agent') ?? null;
   const expires = expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  // generateToken() records every token it signs, so a later call for the same token keeps that row.
   const stmt = db.prepare(
-    'INSERT INTO active_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO active_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(token_hash) DO NOTHING',
   );
-  stmt.run(sessionId, userId, tokenHash, ip, ua, expires);
-  return sessionId;
+  if (stmt.run(sessionId, userId, tokenHash, ip, ua, expires).changes === 1) return sessionId;
+  return (db.prepare('SELECT id FROM active_sessions WHERE token_hash = ?').get(tokenHash) as { id: string }).id;
 }
 
 export function _resetForTests(schemaSQL: string): void {

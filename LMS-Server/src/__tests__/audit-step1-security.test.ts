@@ -72,8 +72,8 @@ describe('A01 — revocation hierarchy and atomicity', () => {
   it('revokes a lower admin and invalidates its legacy and tracked sessions', async () => {
     const a = actor('role_admin2','admin');
     const target = actor('role_admin','admin');
-    execute(`INSERT INTO active_sessions (id,user_id,token_hash,expires_at)
-      VALUES (?,?,?,datetime('now','+1 day'))`, [randomUUID(),target.id,hashToken(target.token)]);
+    // generateToken already recorded the tracked session row for target.token.
+    expect(queryOne<{id: string}>('SELECT id FROM active_sessions WHERE token_hash = ?', [hashToken(target.token)])).toBeTruthy();
     expect((await revoke(a,target,'role_admin')).status).toBe(200);
     expect(getUserRoles(target.id)).toEqual([]);
     expect(hasPermission(target.id,'course.delete')).toBe(false);
@@ -105,7 +105,9 @@ describe('A02 — effective role replacement and token invalidation', () => {
     const target = actor('role_admin','admin');
     execute('INSERT INTO user_roles (user_id,role_id) VALUES (?,?)', [target.id,'role_sponsor']);
     const legacyToken = jwt.sign({userId:target.id,email:target.email,role:'admin'}, process.env.JWT_SECRET!, {expiresIn:'1h'});
-    expect((await request(app).get('/api/v1/auth/me').auth(legacyToken,{type:'bearer'})).status).toBe(200);
+    // A token with no session row is refused outright (fail-closed session check), before and after the demotion.
+    expect((await request(app).get('/api/v1/auth/me').auth(legacyToken,{type:'bearer'})).status).toBe(401);
+    expect((await request(app).get('/api/v1/auth/me').auth(target.token,{type:'bearer'})).status).toBe(200);
     expect((await change(a,target,'student')).status).toBe(200);
     expect(getUserRoles(target.id)).toEqual(['student']);
     expect(hasPermission(target.id,'course.delete')).toBe(false);

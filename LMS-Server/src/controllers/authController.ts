@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { db, query, queryOne, execute, createSession, hashToken } from "../config/database.js";
+import { db, query, queryOne, execute, hashToken } from "../config/database.js";
 import { invalidateAuthorization } from '../services/roleSecurityService.js';
 import { generateToken } from "../config/jwt.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
@@ -154,10 +154,9 @@ export async function login(
       role,
       roles: getUserRoles(user.id),
       studentId,
-    });
+    }, req);
 
     recordLoginHistory(user.id, req, 'local');
-    try { createSession(user.id, token, req); } catch { /* best-effort */ }
 
     // F6: Notify linked parents of student login (best-effort)
     try {
@@ -285,10 +284,9 @@ export async function register(
     const {studentId} = createRbacAccount({id:userId,name,email,passwordHash,initialRoleId:'role_student',walletAddress,walletLinkingStatus});
     const role = compatibleRole(userId);
 
-    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId }, req);
 
     recordLoginHistory(userId, req, 'local');
-    try { createSession(userId, token, req); } catch { /* best-effort */ }
 
     res.status(201).json({
       success: true,
@@ -669,10 +667,9 @@ export async function ammaCallback(
     }
 
     // 4. Issue LMS session JWT
-    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId }, req);
 
     recordLoginHistory(userId, req, 'sso');
-    createSession(userId, token, req);
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
     const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}`;
@@ -699,8 +696,7 @@ export function ammaMobileSession(req: Request, res: Response, next: NextFunctio
       throw new AppError('Sign-in has expired or is invalid. Please sign in with AmmaWallet again.',401,ErrorCodes.INVALID_CREDENTIALS);
     }
     const studentId = queryOne<{id:string}>('SELECT id FROM students WHERE user_id=?',[user.id])?.id;
-    const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId});
-    createSession(user.id,token,req);
+    const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId},req);
     recordLoginHistory(user.id,req,'sso');
     if (process.env.LMS_NATIVE_WALLET_BUILD_OBSERVATION_ENABLED === 'true') {
       logger.info({

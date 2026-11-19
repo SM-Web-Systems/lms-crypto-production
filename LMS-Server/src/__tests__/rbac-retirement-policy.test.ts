@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import app from '../app.js';
-import { db } from '../config/database.js';
+import { db, createSession } from '../config/database.js';
 import { generateToken, verifyToken } from '../config/jwt.js';
 import { getUserRoles } from '../middleware/rbac.js';
 import { getAuthorizationContext } from '../services/authorizationService.js';
@@ -149,6 +149,7 @@ describe('RBAC-only retirement safeguards already supported',()=>{
     const user=account('student',['role_student']);
     const token=jwt.sign({userId:user.id,email:user.email,role:'admin',roles:['super-admin'],authorizationVersion:0},
       process.env.JWT_SECRET!,{expiresIn:'1h'});
+    createSession(user.id,token); // a live session, so only the role claims are under test
     expect((await request(app).get('/api/v1/admin/payments').auth(token,{type:'bearer'})).status).toBe(403);
     const response=await request(app).get('/api/v1/auth/me').auth(token,{type:'bearer'});
     expect(response.status).toBe(200);

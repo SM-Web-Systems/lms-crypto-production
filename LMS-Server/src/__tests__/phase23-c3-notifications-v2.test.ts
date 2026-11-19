@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
-import { execute, query, queryOne } from '../config/database.js';
+import { execute, query, queryOne, createSession } from '../config/database.js';
 import { createNotification, getPreferences, updatePreferences, createBroadcast, CONFIGURABLE_TYPES } from '../services/notificationService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -16,7 +16,9 @@ const student2Id = uuidv4();
 const lecturerId = uuidv4();
 
 function getToken(userId: string, role: string): string {
-  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '1h' });
+  const token = jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '1h' });
+  createSession(userId, token); // authenticate() needs a session row
+  return token;
 }
 
 function seedUsers(): void {

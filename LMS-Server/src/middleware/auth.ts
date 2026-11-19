@@ -87,33 +87,24 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         }
       }
 
-      // Phase F2: session hash check.
-      // Look up the session row by token hash. Three cases:
-      //   1. Row found, revoked_at IS NULL, not expired → valid session, allow.
-      //   2. Row found but revoked_at IS NOT NULL or expired → explicitly revoked/expired, 401.
-      //   3. No row at all → token was created without going through login (test token or
-      //      pre-F2 token) → allow through for backward compatibility.
+      // Phase F2: session hash check. Fails closed: every token is issued through createSession(),
+      // so a token with no active_sessions row (pruned, deleted, restored from an older backup or
+      // never recorded) is refused, as is a revoked or expired row.
       const tokenHash = hashToken(token);
       const session = queryOne<{ id: string; revoked_at: string | null; expired: number }>(
         "SELECT id, revoked_at, datetime(expires_at) <= datetime('now') as expired FROM active_sessions WHERE token_hash = ?",
         [tokenHash],
       );
-      if (session) {
-        // Row exists — check if revoked or expired
-        if (session.revoked_at || session.expired) {
-          res.status(401).json({
-            success: false,
-            error: {
-              code: ErrorCodes.UNAUTHORIZED,
-              message: 'Session revoked or expired',
-            },
-          });
-          return;
-        }
-        // Not revoked; expiry is also enforced by the WHERE clause on session queries,
-        // but double-check here if needed (skip for performance — token jwt exp covers this)
+      if (!session || session.revoked_at || session.expired) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: ErrorCodes.UNAUTHORIZED,
+            message: 'Session revoked or expired',
+          },
+        });
+        return;
       }
-      // session === null → no row in active_sessions → test/pre-F2 token, allow through
 
       req.user = payload;
       next();

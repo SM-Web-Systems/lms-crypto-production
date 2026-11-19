@@ -12,8 +12,8 @@ function actor(){
   const id=randomUUID(),email=`${id}@account.invalid`;
   execute("INSERT INTO users (id,name,email,password_hash,role) VALUES (?,'Audit learner',?,?,'student')",[id,email,hash]);
   const token=generateToken({userId:id,email,role:'student'});
-  const session=randomUUID();
-  execute("INSERT INTO active_sessions (id,user_id,token_hash,expires_at) VALUES (?,?,?,datetime('now','+1 day'))",[session,id,hashToken(token)]);
+  // generateToken records the session row; read its id back.
+  const session=queryOne<{id:string}>('SELECT id FROM active_sessions WHERE token_hash=?',[hashToken(token)])!.id;
   return{id,email,token,session};
 }
 describe('A13/A14 account and session contracts',()=>{
