@@ -8,7 +8,7 @@ import { generateToken } from "../config/jwt.js";
 import { setSessionCookie, clearSessionCookie } from "../utils/sessionCookie.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { createUserWallet } from "../services/walletService.js";
+import { createUserWallet, registrationWalletMode } from "../services/walletService.js";
 import { getUserRoles } from "../middleware/rbac.js";
 import { getAuthorizationContext } from '../services/authorizationService.js';
 import { sendPasswordResetEmail } from "../services/emailService.js";
@@ -263,7 +263,10 @@ export async function register(
 
     let walletAddress: string | null = null;
     let walletLinkingStatus: 'none' | 'linked' | 'existing_account' = 'none';
-    try {
+    // AMMA_REGISTER_WALLET=off stops making the receive-only AmmaWallet account at sign-up (its password and secret
+    // are thrown away, so the learner can never use it). The learner then waits for an Amma-held wallet, listed by
+    // GET /admin/amma-wallets/needed and stored by the import. Default keeps today's behaviour (audit 2026-11 wallet custody).
+    if (registrationWalletMode() === 'receive-only') try {
       walletAddress = await createUserWallet(email, password, userId);
       walletLinkingStatus = 'linked';
     } catch (err: unknown) {

@@ -164,6 +164,11 @@ export async function generateWalletAddress(
   return keyPairRes.publicKey;
 }
 
+/** 'receive-only' (default): sign-up makes a keyless AmmaWallet wallet. 'off': sign-up makes none. */
+export function registrationWalletMode(): 'receive-only' | 'off' {
+  return (process.env.AMMA_REGISTER_WALLET ?? '').trim().toLowerCase() === 'off' ? 'off' : 'receive-only';
+}
+
 /**
  * Creates a wallet for a new user
  *

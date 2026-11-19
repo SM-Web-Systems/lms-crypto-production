@@ -97,3 +97,32 @@ export function ammaWalletStatus(userIds: string[]) {
     }),
   };
 }
+
+/**
+ * Learners who signed up with an email and password and whose wallet AmmaWallet does not hold: either the
+ * receive-only address made at registration (its secret was never kept, so nobody can move what it receives)
+ * or no wallet at all. This is the list AmmaWallet needs to create Amma-held wallets; its mapping file comes
+ * back through POST /admin/amma-wallets/import. Learners who sign in with AmmaWallet own their wallet and are left out.
+ */
+export function ammaWalletsNeeded(limit: unknown, offset: unknown) {
+  const lim = Math.min(Math.max(Number.parseInt(String(limit ?? ''), 10) || MAX_IMPORT_ROWS, 1), MAX_IMPORT_ROWS);
+  const off = Math.max(Number.parseInt(String(offset ?? ''), 10) || 0, 0);
+  const where = `FROM users u
+    JOIN user_roles ur ON ur.user_id = u.id AND ur.role_id = 'role_student'
+    LEFT JOIN amma_wallet_links l ON l.user_id = u.id AND l.wallet_address = u.walletAddress
+    WHERE u.deletion_status IS NULL AND COALESCE(u.auth_provider, 'local') <> 'ammawallet' AND l.user_id IS NULL`;
+  const total = (db.prepare(`SELECT COUNT(*) AS c ${where}`).get() as { c: number }).c;
+  const rows = db.prepare(`SELECT u.id, u.name, u.email, u.walletAddress,
+      (SELECT COUNT(*) FROM nft_credentials n WHERE n.user_id = u.id AND n.mint_status = 'minted' AND n.is_superseded = 0) AS minted,
+      (SELECT COUNT(*) FROM course_nft_applications a WHERE a.user_id = u.id AND a.status IN ('pending','approved')) AS waiting
+    ${where} ORDER BY u.created_at, u.id LIMIT ? OFFSET ?`).all(lim, off) as
+    { id: string; name: string; email: string; walletAddress: string | null; minted: number; waiting: number }[];
+  return {
+    total, limit: lim, offset: off,
+    users: rows.map(r => ({
+      lmsUserId: r.id, name: r.name, email: r.email,
+      currentAddress: r.walletAddress, keylessAddress: !!r.walletAddress,
+      mintedCertificates: r.minted, waitingApplications: r.waiting,
+    })),
+  };
+}
