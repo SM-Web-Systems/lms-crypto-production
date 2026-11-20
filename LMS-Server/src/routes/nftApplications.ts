@@ -892,6 +892,15 @@ router.post(
       return;
     }
 
+    // The admin page shows the application's wallet, but the mint goes to the user's
+    // current wallet. Say so in the log when they differ (e.g. after an AmmaWallet sign-in).
+    if (app.wallet_address && app.wallet_address !== userRow.walletAddress) {
+      logger.warn(
+        { module: 'mint-course', applicationId: appId, courseId, applicationWallet: app.wallet_address, userWallet: userRow.walletAddress },
+        'Application wallet differs from the user wallet; minting to the user wallet'
+      );
+    }
+
     // Synchronous mint — throws on any failure
     let txHash: string;
     let sorobanTokenId: number | null = null;
@@ -905,7 +914,13 @@ router.post(
       txHash = result.txHash;
       sorobanTokenId = result.sorobanTokenId;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+      // Log the cause so a failed mint can be diagnosed from the API log alone,
+      // without a database read (the edge may replace this 502's JSON body).
+      logger.error(
+        { module: 'mint-course', applicationId: appId, courseId, userId: app.user_id, walletAddress: userRow.walletAddress, error: msg },
+        'Course mint failed'
+      );
       // Persist a failed credential row so students and admins can see the error state.
       // UPDATE if a failed row already exists (retry scenario), INSERT otherwise.
       const existingFailedCred = queryOne<{ id: string }>(

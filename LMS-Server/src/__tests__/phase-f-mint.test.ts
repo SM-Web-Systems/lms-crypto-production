@@ -22,6 +22,7 @@ import app from '../app.js';
 import { db, queryOne } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
 import * as mintModule from '../services/mintService.js';
+import logger from '../utils/logger.js';
 
 const HASH = bcrypt.hashSync('password123', 4);
 const FAKE_TX = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
@@ -281,6 +282,43 @@ describe('F5 — mintCredential failure handling', () => {
     expect(res.status).toBe(502);
     expect(res.body.error.code).toBe('MINT_FAILED');
     expect(res.body.error.message).toContain('network timeout');
+  });
+
+  it('logs the mint failure cause and the wallet used, so it shows in the API log', async () => {
+    const { adminId, studentId, courseId } = seedBase();
+    const appId = seedApprovedApp(studentId, courseId);
+    vi.spyOn(mintModule, 'mintCredential').mockRejectedValue(new Error('Send failed: txInsufficientFee'));
+    const errSpy = vi.spyOn(logger, 'error');
+
+    const token = makeToken({ userId: adminId, email: 'admin-f@test.com', role: 'admin' });
+    const res = await request(app)
+      .post(`/api/v1/courses/${courseId}/completions/applications/${appId}/mint`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(502);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ module: 'mint-course', applicationId: appId, walletAddress: WALLET_ADDR, error: 'Send failed: txInsufficientFee' }),
+      'Course mint failed'
+    );
+  });
+
+  it('warns when the application wallet differs from the wallet the mint will use', async () => {
+    const { adminId, studentId, courseId } = seedBase();
+    const appId = seedApprovedApp(studentId, courseId);
+    const OTHER = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
+    db.prepare('UPDATE course_nft_applications SET wallet_address = ? WHERE id = ?').run(OTHER, appId);
+    vi.spyOn(mintModule, 'mintCredential').mockRejectedValue(new Error('Simulation failed: x'));
+    const warnSpy = vi.spyOn(logger, 'warn');
+
+    const token = makeToken({ userId: adminId, email: 'admin-f@test.com', role: 'admin' });
+    await request(app)
+      .post(`/api/v1/courses/${courseId}/completions/applications/${appId}/mint`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ applicationWallet: OTHER, userWallet: WALLET_ADDR }),
+      expect.stringContaining('differs')
+    );
   });
 });
 

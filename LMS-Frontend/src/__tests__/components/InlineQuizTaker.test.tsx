@@ -34,6 +34,7 @@ const makeQuiz = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+// Fixtures use the server shape: score is a percentage (0-100), total is the question count.
 describe('InlineQuizTaker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,7 +61,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(makeQuiz());
     mockGetCompletion.mockResolvedValue({
       id: 'comp-1', quizId: 'quiz-1', userId: 'u1',
-      score: 8, total: 10, passed: true,
+      score: 80, total: 10, passed: true,
       answers: {}, completedAt: new Date().toISOString(),
     });
 
@@ -127,7 +128,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(quiz);
     mockSubmitQuiz.mockResolvedValue({
       id: 'comp-1', quizId: 'quiz-1', userId: 'u1',
-      score: 1, total: 1, passed: true,
+      score: 100, total: 1, passed: true,
       answers: { q1: 'A' }, completedAt: new Date().toISOString(),
     });
     const user = userEvent.setup();
@@ -189,7 +190,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(quiz);
     mockSubmitQuiz.mockResolvedValue({
       id: 'comp-1', quizId: 'quiz-1', userId: 'u1',
-      score: 1, total: 1, passed: true,
+      score: 100, total: 1, passed: true,
       answers: { q1: 'A' }, completedAt: new Date().toISOString(),
     });
     const user = userEvent.setup();
@@ -275,7 +276,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(makeQuiz());
     mockGetCompletion.mockResolvedValue({
       id: 'comp-1', quizId: 'quiz-1', userId: 'u1',
-      score: 2, total: 2, passed: true,
+      score: 100, total: 2, passed: true,
       answers: { q1: 'Ledger', q2: 'Agreement' },
       completedAt: new Date().toISOString(),
     });

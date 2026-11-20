@@ -63,6 +63,14 @@ describe('Wallet connection and recovery journeys', () => {
     render(<MemoryRouter initialEntries={['/login?sso_error='+code]}><Login/></MemoryRouter>);
     expect(screen.getByRole('link', {name: 'Open AmmaWallet settings'})).toHaveAttribute('href', 'https://ammawallet.com/settings');
   });
+  it.each([
+    ['already_used', /already used/],
+    ['service_unavailable', /not available right now/],
+    ['assertion_failed', /could not verify your identity/],
+  ])('explains the AUTH-14 %s sign-in error', (code, text) => {
+    render(<MemoryRouter initialEntries={['/login?sso_error='+code]}><Login/></MemoryRouter>);
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
   it('keeps connection errors visible in the authenticated profile', () => {
     render(<AmmaWalletConnection user={user} errorCode="link_email_mismatch"/>);
     expect(screen.getByRole('alert')).toHaveTextContent('same verified email');

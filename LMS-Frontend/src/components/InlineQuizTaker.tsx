@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { quizService } from '../services/quizService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
+import { quizCorrectCount, quizScorePercent } from '../utils/quizScore';
 
 interface InlineQuizTakerProps {
   quizId: string;
@@ -182,7 +183,8 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
 
   // ─── Result ─────────────────────────────────────────────────────────────────
   if (step === 'result' && result) {
-    const pct = result.total > 0 ? Math.round((result.score / result.total) * 100) : 0;
+    // The API score is already a percentage; total is the number of questions.
+    const pct = quizScorePercent(result.score);
     return (
       <div className="flex flex-col items-center gap-5 py-8 px-4">
         <p className="text-base font-semibold text-neutral-800">{quiz?.title}</p>
@@ -197,7 +199,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
           {result.passed ? 'Passed' : 'Not passed'}
         </span>
         <p className="text-sm text-neutral-500">
-          {result.score} of {result.total} correct
+          {quizCorrectCount(result.score, result.total)} of {result.total} correct
         </p>
 
         {/* Review answers toggle */}

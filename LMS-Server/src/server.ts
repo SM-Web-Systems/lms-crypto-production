@@ -4,6 +4,7 @@ dotenv.config();
 import app from './app.js';
 import { db, close } from './config/database.js';
 import logger from './utils/logger.js';
+import { ammaKeyConfigWarnings } from './services/ammaKeyConfig.js';
 import { startPushWorker, stopPushWorker } from './services/pushDeliveryService.js';
 import { startWebPushWorker, stopWebPushWorker } from './services/webPushService.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
@@ -56,6 +57,7 @@ function startServer() {
     if (!process.env.AMMA_WALLET_API_KEY && process.env.NODE_ENV === 'production') {
       logger.warn('AMMA_WALLET_API_KEY not set in production — wallet creation will be blocked by Turnstile CAPTCHA');
     }
+    for (const warning of ammaKeyConfigWarnings(process.env)) logger.warn({ event: 'amma_key_config' }, warning);
 
     app.listen(PORT, () => {
       logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);

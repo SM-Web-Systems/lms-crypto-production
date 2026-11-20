@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { CheckCircle, ExternalLink, Download, AlertCircle, Loader2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import SocialShare from '../components/SocialShare';
+import { certificatePdfViewPath } from '../lib/certificatePdf';
 
 interface VerifiedCredential {
   credentialId: string;
@@ -160,15 +161,13 @@ const CertificateVerification: React.FC = () => {
 
           {/* Download PDF */}
           <div className="pt-2">
-            <a
-              href={`${apiBase}/credentials/${credential.credentialId}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to={certificatePdfViewPath(credential.credentialId)}
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors"
             >
               <Download className="h-4 w-4" aria-hidden />
               Download Certificate PDF
-            </a>
+            </Link>
           </div>
 
           {/* QR Code */}
