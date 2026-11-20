@@ -382,13 +382,12 @@ app.use('/api/v1/admin', apiLimiter, adminDeletionRoutes);
 // ─── API Documentation ─────────────────────────────────────────────────────
 // In production the raw spec is gated exactly like the Swagger UI, so it is not public on any host or port.
 // The docs sit outside /api/v1, so they carry the read limit themselves.
-app.use('/api-docs', globalReadLimiter);
 if (process.env.NODE_ENV === 'production') {
-  app.get('/api-docs/spec.json', authenticate, requirePermission('system.view_audit_log'), (_req, res) => { res.json(swaggerSpec); });
-  app.use('/api-docs', authenticate, requirePermission('system.view_audit_log'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs/spec.json', globalReadLimiter, authenticate, requirePermission('system.view_audit_log'), (_req, res) => { res.json(swaggerSpec); });
+  app.use('/api-docs', globalReadLimiter, authenticate, requirePermission('system.view_audit_log'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 } else {
-  app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs/spec.json', globalReadLimiter, (_req, res) => { res.json(swaggerSpec); });
+  app.use('/api-docs', globalReadLimiter, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints
