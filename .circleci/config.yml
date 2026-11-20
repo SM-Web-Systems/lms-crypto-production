@@ -2,7 +2,18 @@
 # One job per project, on cimg/base:stable, with Node.js 22 (the version the
 # existing GitHub Actions workflows use) installed by the setup-node function.
 # Tests run through CircleCI Smarter Testing; suites are in test-suites.yml.
+#
+# Paused: manual-only. The organisation's free CircleCI credits ran out (cycle
+# resets 19 Dec), and this repository is public, so the GitHub Actions CI
+# (.github/workflows/ci.yml) runs on GitHub-hosted runners at no cost and covers
+# these jobs. To run this pipeline by hand, trigger it in the CircleCI app with
+# the parameter run-circleci set to true.
 version: 2.1
+
+parameters:
+  run-circleci:
+    type: boolean
+    default: false
 
 functions:
   node: github.com/circleci-functions/setup-node@v0.5.0
@@ -154,6 +165,7 @@ jobs:
 
 workflows:
   main:
+    when: << pipeline.parameters.run-circleci >>
     jobs:
       - lms-server
       - lms-frontend
