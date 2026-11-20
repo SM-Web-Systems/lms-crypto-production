@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const svc = vi.hoisted(() => ({
-  getMyRewards: vi.fn(), getClaimableBalance: vi.fn(), startClaim: vi.fn(), verifyClaim: vi.fn(),
+  getMyRewards: vi.fn(), getClaimableBalance: vi.fn(), startClaim: vi.fn(), verifyClaim: vi.fn(), listMyClaims: vi.fn(), retryPayout: vi.fn(),
 }));
 vi.mock('../../services/rewardService', () => ({ rewardService: svc }));
 
@@ -16,6 +16,7 @@ beforeEach(() => {
   Object.values(svc).forEach(f => f.mockReset());
   sessionStorage.clear();
   svc.getMyRewards.mockResolvedValue([]);
+  svc.listMyClaims.mockResolvedValue([]);
 });
 
 describe('claiming rewards to the wallet', () => {
@@ -133,3 +134,51 @@ describe('the rewards list on a narrow screen', () => {
     expect(screen.getAllByRole('cell')).toHaveLength(4);
   });
 });
+
+describe('a refused payout is never shown as sent or released', () => {
+  const refusals = [
+    ['PAYOUT_CAP_EXCEEDED', 'This payout is above the per-claim limit. Your claim is saved.'],
+    ['PAYOUT_CAP_EXCEEDED', 'The daily payout limit has been reached. Your claim is saved and can be paid later.'],
+    ['TREASURY_PILOT_LIMIT_EXCEEDED', 'This payout exceeds the reward pool budget.'],
+    ['PAYOUT_UNAVAILABLE', 'Mainnet reward payouts are switched off.'],
+  ] as const;
+  it.each(refusals)('the claim return page says %s was not sent, with the reason', async (code, message) => {
+    rememberClaim('c-1', 'challenge text');
+    window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&signature=abc%3D%3D');
+    svc.verifyClaim.mockResolvedValue({ claimId: 'c-1', status: 'verified', payout: { status: 'refused', code, message } });
+    render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
+    const box = await screen.findByTestId('claim-payout-not-sent');
+    expect(box.textContent).toMatch(/not been sent/);
+    expect(box.textContent).toContain(message);
+    expect(screen.queryByText(/reward has been sent to it/)).toBeNull();
+  });
+
+  it('an unexpected payout failure is also shown as not sent', async () => {
+    rememberClaim('c-1', 'challenge text');
+    window.history.replaceState(null, '', '/student/rewards/claim#claim=c-1&signature=abc%3D%3D');
+    svc.verifyClaim.mockResolvedValue({ claimId: 'c-1', status: 'verified', payout: { status: 'pending', code: 'PAYOUT_UNAVAILABLE' } });
+    render(<MemoryRouter><RewardClaimReturn /></MemoryRouter>);
+    expect((await screen.findByTestId('claim-payout-not-sent')).textContent).toMatch(/could not be sent yet/);
+  });
+
+  it('My Rewards shows an earned reward as Earned and an unpaid claim as Not paid yet, and can retry it', async () => {
+    svc.getClaimableBalance.mockResolvedValue('0');
+    svc.getMyRewards.mockResolvedValue([{ allocationId: 'a-1', rewardType: 'custom', amountStroops: 2000000, currencyCode: 'XLM', status: 'released', releasedAt: '2026-11-20T18:00:00Z', createdAt: '2026-11-20T18:00:00Z' }]);
+    svc.listMyClaims.mockResolvedValue([
+      { claimId: 'c-2', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 2000000, status: 'verified', verifiedAt: '2026-11-20T18:05:00Z', payout: 'not_sent', txHash: null, ledger: null },
+      { claimId: 'c-1', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 1000000, status: 'verified', verifiedAt: '2026-11-18T10:00:00Z', payout: 'paid', txHash: 'ab', ledger: 5 },
+    ]);
+    svc.retryPayout.mockRejectedValue(Object.assign(new Error('x'), {
+      isAxiosError: true, response: { status: 409, data: { success: false, error: { code: 'PAYOUT_CAP_EXCEEDED', message: 'This payout is above the per-claim limit. Your claim is saved.' } } },
+    }));
+    render(<StudentRewardsPanel />);
+    const statuses = await screen.findAllByTestId('claim-payout-status');
+    expect(statuses.map(s => s.textContent)).toEqual(['Not paid yet', 'Paid to wallet']);
+    expect(screen.getByTestId('reward-status-badge').textContent).toBe('Earned');
+    expect(screen.queryByText('Released')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Try payment again/ }));
+    expect(svc.retryPayout).toHaveBeenCalledWith('c-2');
+    expect(await screen.findByText(/above the per-claim limit/)).toBeTruthy();
+  });
+});
+

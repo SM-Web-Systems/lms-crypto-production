@@ -8,7 +8,16 @@ import type { ApiResponse } from '@/types/api';
 export const CLAIM_RETURN_URL = 'lmsmobile://reward-claim';
 
 export interface StartedClaim { claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }
-export interface ClaimPayout { status: 'paid' | 'submitted' | 'failed' | 'pending'; txHash?: string; ledger?: number | null; code?: string }
+/**
+ * 'refused': a payout rule stopped it (per-claim or daily limit, reward pool budget, payouts switched off) and message says why.
+ * 'pending': it could not be sent yet. Only 'paid' means the reward reached the wallet.
+ */
+export interface ClaimPayout { status: 'paid' | 'submitted' | 'failed' | 'pending' | 'refused'; txHash?: string; ledger?: number | null; code?: string; message?: string }
+/** One of my claims to my wallet, with what really happened to its payout. */
+export interface MyRewardClaim {
+  claimId: string; destination: string; amountStroops: number; status: 'verified' | 'cancelled'; verifiedAt: string | null;
+  payout: 'paid' | 'submitted' | 'failed' | 'not_sent'; txHash: string | null; ledger: number | null;
+}
 export interface VerifiedClaim { claimId: string; status: 'verified'; payout: ClaimPayout | null }
 export interface ReceivedReward { allocationId: string; rewardType: string; amountStroops: number; currencyCode: string; status: string; releasedAt: string | null; createdAt: string }
 
@@ -62,6 +71,15 @@ export const rewardClaimService = {
   async received(): Promise<ReceivedReward[]> {
     const res = await api.get<ApiResponse<ReceivedReward[]>>('/students/me/rewards');
     return assertApiSuccess(res, 'Could not load your rewards.');
+  },
+  async claims(): Promise<MyRewardClaim[]> {
+    const res = await api.get<ApiResponse<MyRewardClaim[]>>('/students/me/reward-claims');
+    return assertApiSuccess(res, 'Could not load your claims.');
+  },
+  /** Try the payout of a verified claim again. Never pays twice. */
+  async retryPayout(claimId: string): Promise<ClaimPayout & { claimId: string }> {
+    const res = await api.post<ApiResponse<ClaimPayout & { claimId: string }>>(`/students/me/reward-claims/${encodeURIComponent(claimId)}/payout`);
+    return assertApiSuccess(res, 'The payment could not be sent. Your claim is saved.');
   },
   async payoutStatus(claimId: string): Promise<ClaimPayout & { claimId: string }> {
     const res = await api.get<ApiResponse<ClaimPayout & { claimId: string }>>(`/students/me/reward-claims/${encodeURIComponent(claimId)}/payout`);

@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
-import { rewardClaimService, type ReceivedReward } from '@/services/rewardClaimService';
+import { rewardClaimService, type ClaimPayout, type MyRewardClaim, type ReceivedReward } from '@/services/rewardClaimService';
 import { getErrorMessage } from '@/utils/apiError';
 import { formatDate } from '@/utils/format';
 import { brand } from '@/theme/colors';
@@ -17,6 +17,25 @@ export function stroopsToXlm(stroops: number): string {
   return `${s / 10_000_000n}${fraction ? `.${fraction}` : ''} XLM`;
 }
 
+/** What really happened to a claim's payout. Only 'paid' says the reward reached the wallet. */
+const CLAIM_PAYOUT: Record<MyRewardClaim['payout'], { label: string; color: string; note?: string }> = {
+  paid: { label: 'Paid to wallet', color: 'text-green-700' },
+  submitted: { label: 'Sending', color: 'text-blue-700', note: 'The payment is on its way. Pull to refresh in a minute.' },
+  failed: { label: 'Payment failed', color: 'text-red-700', note: 'The network did not accept the payment. Nothing was sent; try again.' },
+  not_sent: { label: 'Not paid yet', color: 'text-amber-700', note: 'Your claim is saved, but the payment has not been sent to your wallet.' },
+};
+
+/** The notice after a claim. A refused or unsent payout is never described as sent. */
+export function claimNotice(payout: ClaimPayout | null): string {
+  if (payout?.status === 'paid') return 'Your wallet is confirmed and the reward has been sent to it.';
+  if (payout?.status === 'refused' || payout?.status === 'pending') {
+    return `Your wallet is confirmed, but the reward has not been sent to it yet. ${payout.message || 'Your claim is saved.'}`;
+  }
+  return 'Your wallet is confirmed. The claimed amount is reserved for payment to that wallet.';
+}
+
+const shortAddress = (a: string) => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
+
 export default function RewardsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,13 +44,20 @@ export default function RewardsScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [claimable, setClaimable] = useState(0);
   const [rewards, setRewards] = useState<ReceivedReward[]>([]);
+  const [claims, setClaims] = useState<MyRewardClaim[]>([]);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [balance, list] = await Promise.all([rewardClaimService.claimable().catch(() => 0), rewardClaimService.received()]);
+      const [balance, list, myClaims] = await Promise.all([
+        rewardClaimService.claimable().catch(() => 0),
+        rewardClaimService.received(),
+        Promise.resolve().then(() => rewardClaimService.claims()).catch(() => [] as MyRewardClaim[]),
+      ]);
       setClaimable(balance);
       setRewards(list);
+      setClaims(Array.isArray(myClaims) ? myClaims : []);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load your rewards.'));
     } finally {
@@ -47,14 +73,25 @@ export default function RewardsScreen() {
       const outcome = await rewardClaimService.claim(claimable);
       if (outcome.kind === 'declined') setNotice('You declined the claim in AmmaWallet. Your rewards stay in your LMS balance.');
       else if (outcome.kind === 'cancelled') setNotice('The claim was not finished. Your rewards are still safe in your LMS balance.');
-      else setNotice(outcome.payout?.status === 'paid'
-        ? 'Your wallet is confirmed and the reward has been sent to it.'
-        : 'Your wallet is confirmed. The claimed amount is reserved for payment to that wallet.');
+      else setNotice(claimNotice(outcome.payout));
       await load();
     } catch (e) {
       setError(getErrorMessage(e, 'Could not complete the claim. Your rewards are still safe in your LMS balance.'));
     } finally {
       setClaiming(false);
+    }
+  };
+
+  const retry = async (claimId: string) => {
+    setRetrying(claimId); setError(null); setNotice(null);
+    try {
+      const paid = await rewardClaimService.retryPayout(claimId);
+      if (paid.status === 'paid') setNotice('The reward has been sent to your wallet.');
+      await load();
+    } catch (e) {
+      setError(getErrorMessage(e, 'The payment could not be sent. Your claim is saved.'));
+    } finally {
+      setRetrying(null);
     }
   };
 
@@ -88,9 +125,35 @@ export default function RewardsScreen() {
             <Text className="font-semibold text-neutral-900">{r.rewardType === 'custom' ? 'Reward' : r.rewardType.replace(/_/g, ' ')}</Text>
             <Text className="font-bold text-neutral-900">{stroopsToXlm(r.amountStroops)}</Text>
           </View>
-          <Text className="mt-1 text-xs text-neutral-500">{r.status === 'released' ? 'Released' : r.status} · {formatDate(r.releasedAt ?? r.createdAt)}</Text>
+          <Text className="mt-1 text-xs text-neutral-500">{r.status === 'released' ? 'Earned' : r.status} · {formatDate(r.releasedAt ?? r.createdAt)}</Text>
         </Card>
       ))}
+      {claims.length > 0 ? (
+        <View className="gap-2">
+          <Text className="text-xs font-semibold uppercase text-neutral-500">Payments to your wallet</Text>
+          {claims.map((c) => {
+            const p = c.status === 'cancelled'
+              ? { label: 'Cancelled', color: 'text-neutral-600', note: 'The payment failed, so this amount went back to your LMS balance.' }
+              : CLAIM_PAYOUT[c.payout];
+            const canRetry = c.status === 'verified' && (c.payout === 'not_sent' || c.payout === 'failed');
+            return (
+              <Card key={c.claimId}>
+                <View className="flex-row items-center justify-between">
+                  <Text className="font-bold text-neutral-900">{stroopsToXlm(c.amountStroops)}</Text>
+                  <Text testID="claim-payout-status" className={`text-sm font-semibold ${p.color}`}>{p.label}</Text>
+                </View>
+                <Text className="mt-1 text-xs text-neutral-500">to {shortAddress(c.destination)}{c.verifiedAt ? ` · ${formatDate(c.verifiedAt)}` : ''}</Text>
+                {p.note ? <Text className="mt-1 text-xs text-neutral-600">{p.note}</Text> : null}
+                {canRetry ? (
+                  <View className="mt-2">
+                    <Button label={retrying === c.claimId ? 'Trying…' : 'Try payment again'} onPress={() => retry(c.claimId)} disabled={retrying === c.claimId} />
+                  </View>
+                ) : null}
+              </Card>
+            );
+          })}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }

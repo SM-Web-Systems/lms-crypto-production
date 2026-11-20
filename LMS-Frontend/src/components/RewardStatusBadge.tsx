@@ -29,11 +29,13 @@ const DEFAULT_STYLE = { bg: 'bg-neutral-100', text: 'text-neutral-600' };
 interface RewardStatusBadgeProps {
   status: string;
   className?: string;
+  /** Overrides the label, e.g. a learner sees a released allocation as "Earned" (in the LMS, not yet paid to a wallet). */
+  label?: string;
 }
 
-export const RewardStatusBadge: React.FC<RewardStatusBadgeProps> = ({ status, className = '' }) => {
+export const RewardStatusBadge: React.FC<RewardStatusBadgeProps> = ({ status, className = '', label: labelOverride }) => {
   const style = STATUS_STYLES[status] ?? DEFAULT_STYLE;
-  const label = STATUS_STYLES[status]?.label ?? status.replace(/_/g, ' ');
+  const label = labelOverride ?? STATUS_STYLES[status]?.label ?? status.replace(/_/g, ' ');
 
   return (
     <span
