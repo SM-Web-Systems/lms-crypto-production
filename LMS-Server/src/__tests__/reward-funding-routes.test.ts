@@ -68,3 +68,37 @@ describe('funding availability and intent HTTP contract', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM reward_transactions').get()).toEqual({n: 0});
   });
 });
+
+describe('second-administrator authorization over HTTP (PR #219 rule)', () => {
+  it('refuses the administrator who created a reward and lets a different administrator authorize it', async () => {
+    const f = fixture(), adminB = uuidv4();
+    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash','admin')").run(adminB, `${adminB}@test.invalid`);
+    const course = uuidv4(), cohort = uuidv4();
+    db.prepare("INSERT INTO courses(id,title,course_code) VALUES (?,'Admin funding',?)").run(course, course);
+    db.prepare("INSERT INTO sponsor_cohorts(id,sponsor_user_id,course_id,name) VALUES (?,?,?,'Admin A cohort')").run(cohort, f.admin, course);
+    const own = createReward(f.admin, {scopeType: 'sponsor_cohort', scopeId: cohort,
+      rewardType: 'custom', amountStroops: '1000000', maxRecipients: 1, idempotencyKey: uuidv4()});
+    const url = `/api/v1/sponsor/rewards/${own.id}`;
+    const tokenA = `Bearer ${f.token(f.admin)}`;
+    const tokenB = `Bearer ${makeToken({userId: adminB, email: `${adminB}@test.invalid`, role: 'admin'})}`;
+
+    const optionsA = await request(app).get(`${url}/funding-options`).set('Authorization', tokenA);
+    expect(optionsA.status).toBe(200);
+    expect(optionsA.body.data.every((option: {available: boolean}) => !option.available)).toBe(true);
+
+    const intentA = await request(app).post(`${url}/funding-intents`).set('Authorization', tokenA).send({sourceType: 'admin_grant', idempotencyKey: 'a-intent'});
+    expect(intentA.status).toBe(403);
+    expect(intentA.body.error.code).toBe('CONFLICT_OF_INTEREST');
+    const fundA = await request(app).post(`${url}/fund`).set('Authorization', tokenA).send({sourceType: 'admin_grant', idempotencyKey: 'a-fund'});
+    expect(fundA.status).toBe(403);
+    expect(fundA.body.error.code).toBe('CONFLICT_OF_INTEREST');
+    expect(db.prepare('SELECT status FROM rewards WHERE id = ?').pluck().get(own.id)).toBe('draft');
+
+    const intentB = await request(app).post(`${url}/funding-intents`).set('Authorization', tokenB).send({sourceType: 'admin_grant', idempotencyKey: 'b-intent'});
+    expect(intentB.status).toBe(201);
+    const fundB = await request(app).post(`${url}/fund`).set('Authorization', tokenB)
+      .send({sourceType: 'admin_grant', intentId: intentB.body.data.id, idempotencyKey: 'b-fund'});
+    expect(fundB.status).toBe(200);
+    expect(fundB.body.data.status).toBe('funded');
+  });
+});
