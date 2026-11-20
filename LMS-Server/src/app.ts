@@ -1,4 +1,4 @@
-import express, { type Request, type RequestHandler } from 'express';
+import express, { type Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -61,9 +61,10 @@ import accountDeletionRoutes from './routes/accountDeletion.js';
 import adminDeletionRoutes from './routes/adminDeletion.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
-import { getHealthStatus } from './services/healthCheckService.js';
+import { getPublicHealthStatus } from './services/healthCheckService.js';
 import { getReadinessStatus } from './services/readinessService.js';
 import logger from './utils/logger.js';
+import cspReportRoutes from './routes/cspReport.js';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 import { authenticate } from './middleware/auth.js';
@@ -140,7 +141,7 @@ app.use((req, res, next) => {
 const corsMiddleware = cors({
   origin: corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-LMS-CSRF'],
   credentials: true,
 });
 app.use((req, res, next) => (isPublicCredentialsRequest(req) ? next() : corsMiddleware(req, res, next)));
@@ -198,21 +199,20 @@ const writeLimiter = rateLimit({
   max: writeMax,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS',
+  // Many routers share the '/api/v1' prefix, each mounted behind this limiter, so one request meets it once per
+  // mount. Count it only the first time; otherwise the real limit was about a tenth of writeMax.
+  skip: (req) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return true;
+    const counted = req as Request & { writeLimited?: boolean };
+    if (counted.writeLimited) return true;
+    counted.writeLimited = true;
+    return false;
+  },
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
 });
 
-/**
- * Many routers are mounted on the shared '/api/v1' prefix, each behind apiLimiter. One request passes
- * every apiLimiter in front of the router that finally answers it, so the shared limiter counted it
- * once per mount (about ten times) and the real limit was a tenth of writeMax. Count each request once.
- */
-const apiLimiter: RequestHandler = (req, res, next) => {
-  const counted = req as Request & { writeLimited?: boolean };
-  if (counted.writeLimited) { next(); return; }
-  counted.writeLimited = true;
-  writeLimiter(req, res, next);
-};
+/** Shared write limiter for the '/api/v1' routers; counts each request once however many mounts it passes. */
+const apiLimiter = writeLimiter; // the express-rate-limit instance itself, so scanners see the limit
 
 /** Read rate limiter — all methods including GET. Prevents abuse of expensive queries. */
 const readLimiter = rateLimit({
@@ -223,17 +223,42 @@ const readLimiter = rateLimit({
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
 });
 
+/**
+ * Global read limiter — GET/HEAD on /api/v1, per IP. Generous on purpose: a classroom behind one NAT address
+ * shares it. Override with READ_RATE_LIMIT_MAX. Counted once per request, like apiLimiter.
+ */
+function readGlobalReadMax(): number {
+  const raw = process.env.READ_RATE_LIMIT_MAX;
+  if (raw != null && raw !== '') {
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return isDev ? 10_000 : 1200;
+}
+const globalReadMax = readGlobalReadMax();
+const globalReadLimiter = rateLimit({
+  windowMs: RATE_WINDOW_MS,
+  max: globalReadMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !(req.method === 'GET' || req.method === 'HEAD') || req.path === '/health',
+  message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
+});
+
 if (process.env.NODE_ENV !== 'test') {
   const mins = RATE_WINDOW_MS / 60_000;
   logger.info(
-    { writeMax, authMax, windowMin: mins, trustProxy: !!app.get('trust proxy') },
-    `Rate limits: writes ${writeMax} req / ${mins} min per IP | auth ${authMax} / ${mins} min per IP | reads unlimited` +
+    { writeMax, authMax, readMax: globalReadMax, windowMin: mins, trustProxy: !!app.get('trust proxy') },
+    `Rate limits: writes ${writeMax} req / ${mins} min per IP | auth ${authMax} / ${mins} min per IP | reads ${globalReadMax} / ${mins} min per IP` +
       (app.get('trust proxy') ? ' (trust proxy on)' : '')
   );
 }
 
 // Webhook routes — mounted BEFORE JSON body parsing so they receive raw body for HMAC verification
 app.use('/api/v1/webhooks', webhookRoutes);
+
+// CSP violation reports (own small JSON parser and rate limit; before the global body parser).
+app.use('/api/v1', cspReportRoutes);
 
 // Body parsing middleware
 app.use(express.json({ limit: '1mb' }));
@@ -251,7 +276,7 @@ app.use(express.urlencoded({ extended: true }));
  *     responses:
  *       200: { description: Service healthy }
  */
-app.get('/health', (_req, res) => { res.json(getHealthStatus()); });
+app.get('/health', (_req, res) => { res.json(getPublicHealthStatus()); });
 /**
  * @openapi
  * /api/v1/health:
@@ -263,7 +288,7 @@ app.get('/health', (_req, res) => { res.json(getHealthStatus()); });
  *     responses:
  *       200: { description: Service healthy }
  */
-app.get('/api/v1/health', (_req, res) => { res.json(getHealthStatus()); });
+app.get('/api/v1/health', (_req, res) => { res.json(getPublicHealthStatus()); });
 /**
  * @openapi
  * /healthz:
@@ -297,6 +322,8 @@ app.use([
   res.set('Cache-Control', 'no-store');
   next();
 });
+// Every API read passes the global read limiter once, before any router.
+app.use('/api/v1', globalReadLimiter);
 app.use('/api/v1/auth', authLimiter, authRoutes);
 // studentProgressRoutes MUST be mounted before studentsRoutes — the students router applies
 // requirePermission('user.manage') to all /students/* paths, so /students/me/progress would be
@@ -353,11 +380,14 @@ app.use('/api/v1/account', apiLimiter, accountDeletionRoutes);
 app.use('/api/v1/admin', apiLimiter, adminDeletionRoutes);
 
 // ─── API Documentation ─────────────────────────────────────────────────────
-app.get('/api-docs/spec.json', (_req, res) => { res.json(swaggerSpec); });
+// In production the raw spec is gated exactly like the Swagger UI, so it is not public on any host or port.
+// The docs sit outside /api/v1, so they carry the read limit themselves.
 if (process.env.NODE_ENV === 'production') {
-  app.use('/api-docs', authenticate, requirePermission('system.view_audit_log'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs/spec.json', globalReadLimiter, authenticate, requirePermission('system.view_audit_log'), (_req, res) => { res.json(swaggerSpec); });
+  app.use('/api-docs', globalReadLimiter, authenticate, requirePermission('system.view_audit_log'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 } else {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs/spec.json', globalReadLimiter, (_req, res) => { res.json(swaggerSpec); });
+  app.use('/api-docs', globalReadLimiter, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
 
 // Serve uploaded avatars only — submissions/documents served via authenticated endpoints

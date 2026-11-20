@@ -20,7 +20,7 @@ import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
-import { db } from '../config/database.js';
+import { db, createSession } from '../config/database.js';
 import { renderTemplate } from '../services/emailTemplateService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
@@ -159,6 +159,7 @@ describe('GET /credentials/mine', () => {
 
   beforeEach(() => {
     token = jwt.sign({ userId, role: 'student' }, JWT_SECRET, { expiresIn: '1h' });
+    createSession(userId, token); // authenticate() needs a session row
   });
 
   it('GALLERY-BE-1: returns sorobanTokenId for minted credential', async () => {
@@ -190,6 +191,7 @@ describe('GET /credentials/mine', () => {
       `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'No Creds', ?, 'hash', 'student')`,
     ).run(noCredUserId, `nocreds-${noCredUserId}@test.com`);
     const noCredToken = jwt.sign({ userId: noCredUserId, role: 'student' }, JWT_SECRET, { expiresIn: '1h' });
+    createSession(noCredUserId, noCredToken);
 
     const res = await request(app)
       .get(`${BASE}/credentials/mine`)

@@ -1,4 +1,4 @@
-import api, { getAuthToken } from './api';
+import api, { authFetchInit } from './api';
 import { ApiRequestError, assertApiOk, assertApiSuccess, messageFromFailedFetchResponse } from '../utils/apiError';
 import {
   ApiResponse,
@@ -64,12 +64,7 @@ export const documentsService = {
   },
 
   async download(id: string): Promise<void> {
-    const token = await getAuthToken();
-    const response = await fetch(this.getDownloadUrl(id), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await fetch(this.getDownloadUrl(id), authFetchInit());
 
     if (!response.ok) {
       const msg = await messageFromFailedFetchResponse(response, 'Could not download the file.');

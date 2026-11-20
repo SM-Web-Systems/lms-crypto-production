@@ -32,8 +32,10 @@ function fixture(textOnly = false) {
     if (enrolled) db.prepare('INSERT INTO user_course_codes(user_id, course_code) VALUES (?,?)').run(id, courseCode);
     const token = makeToken({userId: id, email, role: 'student'});
     const sessionExpiry = Math.floor(Date.now() / 1000) * 1000 + 600_000;
-    if (session) db.prepare('INSERT INTO active_sessions(id, user_id, token_hash, expires_at) VALUES (?,?,?,?)')
-      .run(randomUUID(), id, hashToken(token), new Date(sessionExpiry).toISOString());
+    // makeToken records a session row; shorten its expiry, or drop it to model a missing durable session.
+    if (session) db.prepare('UPDATE active_sessions SET expires_at = ? WHERE token_hash = ?')
+      .run(new Date(sessionExpiry).toISOString(), hashToken(token));
+    else db.prepare('DELETE FROM active_sessions WHERE token_hash = ?').run(hashToken(token));
     return {id, token, sessionExpiry};
   }
   const path = '/api/v1/courses/' + courseId;

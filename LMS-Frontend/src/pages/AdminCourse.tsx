@@ -501,9 +501,10 @@ const AdminCourse: React.FC = () => {
     try {
       const res = await fetch(`/api/v1/courses/${editingId}/import`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('lms_token')}`,
+          'X-LMS-CSRF': '1',
         },
         body: JSON.stringify(parsed),
       });

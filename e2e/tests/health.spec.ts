@@ -9,13 +9,17 @@ test.describe('Health smoke test', () => {
     expect(body.status).toBe('ok');
   });
 
-  test('GET /api/v1/health returns enhanced status', async ({ request }) => {
+  test('GET /api/v1/health returns the trimmed public status', async ({ request }) => {
     const response = await request.get(`${apiURL}/api/v1/health`);
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.status).toBe('ok');
-    expect(body.checks).toBeDefined();
-    expect(body.uptime).toBeGreaterThan(0);
+    expect(body.checks.db.status).toBe('ok');
+    expect(typeof body.buildSha).toBe('string');
+    expect(body.writerHold).toBeDefined();
+    // Runtime detail is not public (audit 2026-11 M2).
+    expect(body).not.toHaveProperty('uptime');
+    expect(body.checks).not.toHaveProperty('memory');
   });
 });
 

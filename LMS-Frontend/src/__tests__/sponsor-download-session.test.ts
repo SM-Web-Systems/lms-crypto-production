@@ -14,7 +14,7 @@ const click = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorage.setItem('lms_token', 'original-sponsor-session');
+  localStorage.setItem('lms_session_marker', 'original-sponsor-session');
   vi.stubGlobal('URL', class extends URL {
     static createObjectURL = createObjectURL;
     static revokeObjectURL = revokeObjectURL;
@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  localStorage.removeItem('lms_token');
+  localStorage.removeItem('lms_session_marker');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -37,8 +37,8 @@ it.each([
   vi.mocked(api.get).mockReturnValueOnce(new Promise(done => { resolve = done; }));
 
   const pending = start();
-  if (nextToken) localStorage.setItem('lms_token', nextToken);
-  else localStorage.removeItem('lms_token');
+  if (nextToken) localStorage.setItem('lms_session_marker', nextToken);
+  else localStorage.removeItem('lms_session_marker');
   resolve({ data: new Blob(['private sponsor report']) });
 
   await expect(pending).rejects.toThrow('Your session changed');
@@ -53,7 +53,6 @@ it('pins the request to the current session and downloads while that session rem
   await sponsorService.downloadReceipt('payment-1');
 
   expect(api.get).toHaveBeenCalledWith('/payments/payment-1/receipt', expect.objectContaining({
-    headers: { Authorization: 'Bearer original-sponsor-session' },
     responseType: 'blob',
   }));
   expect(createObjectURL).toHaveBeenCalledWith(pdf);

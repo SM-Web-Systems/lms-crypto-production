@@ -1,6 +1,7 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
-  login, register, logout, getMe, forgotPassword, resetPassword, changePassword,
+  login, register, logout, establishSession, getMe, forgotPassword, resetPassword, changePassword,
   ammaLogin, ammaLink, ammaCallback, ammaMobileSession,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
@@ -114,6 +115,22 @@ router.post('/change-password', authenticate, changePassword);
  */
 // POST /auth/logout - Logout user (requires auth)
 router.post('/logout', authenticate, logout);
+
+/**
+ * @openapi
+ * /auth/session:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Move a valid bearer token into the HttpOnly session cookie (web app)
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Cookie set }
+ *       401: { description: Unauthorized }
+ */
+// Called once per browser after AmmaWallet sign-in or the one-time cookie migration. Sized for a classroom
+// behind one NAT address on launch day; looser outside production so e2e suites (one call per test) fit.
+const sessionLimiter = rateLimit({ windowMs: 60_000, limit: process.env.NODE_ENV === 'production' ? 120 : 2000, standardHeaders: 'draft-8', legacyHeaders: false });
+router.post('/session', sessionLimiter, authenticate, establishSession);
 
 /**
  * @openapi

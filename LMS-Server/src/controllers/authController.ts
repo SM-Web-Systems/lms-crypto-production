@@ -2,12 +2,13 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
-import { db, query, queryOne, execute, createSession, hashToken } from "../config/database.js";
+import { db, query, queryOne, execute, hashToken } from "../config/database.js";
 import { invalidateAuthorization } from '../services/roleSecurityService.js';
 import { generateToken } from "../config/jwt.js";
+import { setSessionCookie, clearSessionCookie } from "../utils/sessionCookie.js";
 import { AuthRequest, User, ErrorCodes, Student } from "../types/index.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { createUserWallet } from "../services/walletService.js";
+import { createUserWallet, registrationWalletMode } from "../services/walletService.js";
 import { getUserRoles } from "../middleware/rbac.js";
 import { getAuthorizationContext } from '../services/authorizationService.js';
 import { sendPasswordResetEmail } from "../services/emailService.js";
@@ -160,10 +161,9 @@ export async function login(
       role,
       roles: getUserRoles(user.id),
       studentId,
-    });
+    }, req);
 
     recordLoginHistory(user.id, req, 'local');
-    try { createSession(user.id, token, req); } catch { /* best-effort */ }
 
     // F6: Notify linked parents of student login (best-effort)
     try {
@@ -181,6 +181,7 @@ export async function login(
       }
     } catch { /* best-effort */ }
 
+    setSessionCookie(res, token); // web clients use the HttpOnly cookie; body token stays for API/native clients
     res.json({
       success: true,
       data: {
@@ -268,7 +269,10 @@ export async function register(
 
     let walletAddress: string | null = null;
     let walletLinkingStatus: 'none' | 'linked' | 'existing_account' = 'none';
-    try {
+    // AMMA_REGISTER_WALLET=off stops making the receive-only AmmaWallet account at sign-up (its password and secret
+    // are thrown away, so the learner can never use it). The learner then waits for an Amma-held wallet, listed by
+    // GET /admin/amma-wallets/needed and stored by the import. Default keeps today's behaviour (audit 2026-11 wallet custody).
+    if (registrationWalletMode() === 'receive-only') try {
       walletAddress = await createUserWallet(email, password, userId);
       walletLinkingStatus = 'linked';
     } catch (err: unknown) {
@@ -291,11 +295,11 @@ export async function register(
     const {studentId} = createRbacAccount({id:userId,name,email,passwordHash,initialRoleId:'role_student',walletAddress,walletLinkingStatus});
     const role = compatibleRole(userId);
 
-    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId }, req);
 
     recordLoginHistory(userId, req, 'local');
-    try { createSession(userId, token, req); } catch { /* best-effort */ }
 
+    setSessionCookie(res, token); // web clients use the HttpOnly cookie; body token stays for API/native clients
     res.status(201).json({
       success: true,
       data: {
@@ -318,15 +322,31 @@ export async function register(
 }
 
 export async function logout(req: AuthRequest, res: Response): Promise<void> {
-  const token = req.headers.authorization!.slice(7);
+  const token = (req as AuthRequest).authToken!;
   const expiresAt = new Date((req.user!.exp ?? Math.floor(Date.now() / 1000) + 86400) * 1000).toISOString();
   execute(`INSERT INTO active_sessions (id,user_id,token_hash,expires_at,revoked_at)
     VALUES (?,?,?,?,datetime('now')) ON CONFLICT(token_hash) DO UPDATE SET revoked_at = datetime('now')`,
     [uuidv4(),req.user!.userId,hashToken(token),expiresAt]);
+  clearSessionCookie(res);
   res.json({
     success: true,
     message: "Logged out successfully",
   });
+}
+
+/**
+ * POST /auth/session — move an already-valid bearer token into the HttpOnly session cookie.
+ * Used by the web app after AmmaWallet SSO (the token arrives in the URL fragment) and once for
+ * browsers that still hold a token in localStorage from before the cookie change.
+ */
+export function establishSession(req: AuthRequest, res: Response): void {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.authVia !== 'bearer') {
+    res.json({ success: true, data: { established: false } });
+    return;
+  }
+  setSessionCookie(res, req.authToken!);
+  res.json({ success: true, data: { established: true } });
 }
 
 export async function getMe(
@@ -552,7 +572,7 @@ export async function ammaLink(req: AuthRequest, res: Response, next: NextFuncti
     }
     // Password comparison is asynchronous; recheck version and revocation before issuing state.
     const current = queryOne<{authorization_version: number}>('SELECT authorization_version FROM users WHERE id = ?', [user.id]);
-    const sessionHash = hashToken(req.headers.authorization!.slice(7));
+    const sessionHash = hashToken((req as AuthRequest).authToken!);
     const session = queryOne<{revoked_at: string | null; expired: number}>(
       "SELECT revoked_at, datetime(expires_at) <= datetime('now') AS expired FROM active_sessions WHERE token_hash = ?", [sessionHash]);
     if (!current || current.authorization_version !== (req.user!.authorizationVersion ?? 0) || session?.revoked_at || session?.expired) {
@@ -734,10 +754,9 @@ export async function ammaCallback(
     }
 
     // 4. Issue LMS session JWT
-    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId });
+    const token = generateToken({ userId, email, role, roles: getUserRoles(userId), studentId }, req);
 
     recordLoginHistory(userId, req, 'sso');
-    createSession(userId, token, req);
 
     // 5. Hand token to the frontend via hash fragment (not visible to server logs)
     const ssoCallbackUrl = `${frontendUrl}/sso-callback#token=${encodeURIComponent(token)}`;
@@ -764,8 +783,7 @@ export function ammaMobileSession(req: Request, res: Response, next: NextFunctio
       throw new AppError('Sign-in has expired or is invalid. Please sign in with AmmaWallet again.',401,ErrorCodes.INVALID_CREDENTIALS);
     }
     const studentId = queryOne<{id:string}>('SELECT id FROM students WHERE user_id=?',[user.id])?.id;
-    const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId});
-    createSession(user.id,token,req);
+    const token = generateToken({userId:user.id,email:user.email,role:compatibleRole(user.id),roles:getUserRoles(user.id),studentId},req);
     recordLoginHistory(user.id,req,'sso');
     if (process.env.LMS_NATIVE_WALLET_BUILD_OBSERVATION_ENABLED === 'true') {
       logger.info({

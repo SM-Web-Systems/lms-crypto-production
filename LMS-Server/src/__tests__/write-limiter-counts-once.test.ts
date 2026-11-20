@@ -18,10 +18,19 @@ describe('write limiter counts each request once', () => {
     expect(remaining[0] - remaining[3]).toBe(3);
   });
 
-  it('does not count reads', async () => {
-    const a = await request(app).get('/api/v1/teacher/rewards').set('X-Forwarded-For', '203.0.113.78');
-    const b = await request(app).get('/api/v1/teacher/rewards').set('X-Forwarded-For', '203.0.113.78');
-    expect(a.headers['ratelimit-remaining']).toBeUndefined();
-    expect(b.headers['ratelimit-remaining']).toBeUndefined();
+  it('does not count reads against the write quota', async () => {
+    const ip = '203.0.113.78';
+    const before = await request(app).post('/api/v1/teacher/rewards').set('X-Forwarded-For', ip).send({});
+    await request(app).get('/api/v1/teacher/rewards').set('X-Forwarded-For', ip);
+    await request(app).get('/api/v1/teacher/rewards').set('X-Forwarded-For', ip);
+    const after = await request(app).post('/api/v1/teacher/rewards').set('X-Forwarded-For', ip).send({});
+    expect(Number(before.headers['ratelimit-remaining']) - Number(after.headers['ratelimit-remaining'])).toBe(1);
+  });
+
+  it('counts each read once against the global read limit', async () => {
+    const ip = '203.0.113.79';
+    const a = await request(app).get('/api/v1/teacher/rewards').set('X-Forwarded-For', ip);
+    const b = await request(app).get('/api/v1/teacher/rewards').set('X-Forwarded-For', ip);
+    expect(Number(a.headers['ratelimit-remaining']) - Number(b.headers['ratelimit-remaining'])).toBe(1);
   });
 });

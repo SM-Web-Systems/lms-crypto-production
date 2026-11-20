@@ -194,13 +194,12 @@ export const sponsorService = {
 };
 
 async function downloadForSession(path: string, filename: string, params?: Record<string, string>) {
-  const token = getStoredToken();
+  const token = getStoredToken(); // session marker, not a credential; the cookie authenticates
   if (!token) throw new Error('Please sign in to download this file.');
 
   const { data } = await api.get<Blob>(path, {
     params,
     responseType: 'blob',
-    headers: { Authorization: `Bearer ${token}` },
   });
   if (getStoredToken() !== token) throw new Error('Your session changed. Try the download again.');
 

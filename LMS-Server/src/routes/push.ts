@@ -7,6 +7,7 @@ import { queryOne } from '../config/database.js';
 
 const router=Router();
 const cleanupLimiter=rateLimit({windowMs:60_000,limit:30,standardHeaders:'draft-8',legacyHeaders:false});
+const registerLimiter=rateLimit({windowMs:60_000,limit:process.env.NODE_ENV==='production'?120:2000,standardHeaders:'draft-8',legacyHeaders:false});
 function handle(work:(req:AuthRequest)=>unknown) {
   return (req:AuthRequest,res:Response,next:NextFunction)=>{
     try {res.json({success:true,data:work(req)});}
@@ -16,7 +17,7 @@ function handle(work:(req:AuthRequest)=>unknown) {
 router.get('/notifications/push/config',authenticate,handle(()=>{
   const {enabled,projectId}=pushConfiguration();return {enabled,projectId:enabled?projectId:null};
 }));
-router.put('/notifications/push/installation',authenticate,handle(req=>registerInstallation(req.body,req.headers.authorization!.slice(7))));
+router.put('/notifications/push/installation',registerLimiter,authenticate,handle(req=>registerInstallation(req.body,(req as AuthRequest).authToken!)));
 // High-entropy per-installation credential, independent of expired/revoked JWTs. Never echo it or the token.
 router.post('/notifications/push/unregister',cleanupLimiter,handle(req=>unregisterInstallation(req.body)));
 router.get('/notifications/:id',authenticate,handle(req=>{

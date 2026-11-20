@@ -72,9 +72,13 @@ const swaggerDefinition: swaggerJsdoc.SwaggerDefinition = {
 
 const options: swaggerJsdoc.Options = {
   definition: swaggerDefinition,
+  // .ts when running from source (tests, tsx); .js in the compiled image, where tsc keeps the @openapi comments.
+  // Matching only .ts in dist/ picked up the .d.ts files, which have no route comments, so the spec was empty.
   apis: [
     path.resolve(__dirname, '../routes/*.ts'),
     path.resolve(__dirname, '../app.ts'),
+    path.resolve(__dirname, '../routes/*.js'),
+    path.resolve(__dirname, '../app.js'),
   ],
 };
 

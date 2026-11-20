@@ -1,8 +1,9 @@
 import { Router, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.js';
 import { getUserRoles } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
-import { importAmmaHeldWallets, queueActivations, ammaWalletStatus } from '../services/ammaHeldWalletService.js';
+import { importAmmaHeldWallets, queueActivations, ammaWalletStatus, ammaWalletsNeeded } from '../services/ammaHeldWalletService.js';
 
 const router = Router();
 
@@ -26,6 +27,13 @@ router.get('/admin/amma-wallets/status', authenticate, requireSuperAdmin, (req: 
   res.setHeader('Cache-Control', 'no-store');
   const ids = String(req.query.userIds ?? '').split(',').map(s => s.trim()).filter(Boolean);
   res.json({ success: true, data: ammaWalletStatus(ids) });
+});
+
+// GET /admin/amma-wallets/needed?limit=&offset= — learners whose wallet AmmaWallet does not hold (the list to send AmmaWallet)
+const neededLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false });
+router.get('/admin/amma-wallets/needed', neededLimiter, authenticate, requireSuperAdmin, (req: AuthRequest, res: Response): void => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, data: ammaWalletsNeeded(req.query.limit, req.query.offset) });
 });
 
 // POST /admin/amma-activations — queue one signed activation call per learner for their approved certificate
