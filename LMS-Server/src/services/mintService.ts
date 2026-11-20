@@ -80,6 +80,35 @@ export function isTriggerQuiz(quizId: string): boolean {
   return ids.has(quizId);
 }
 
+/** Highest total fee (stroops) a course mint may bid. A normal mint costs well under 1 XLM. */
+const DEFAULT_MAX_MINT_FEE_STROOPS = 20_000_000n; // 2 XLM
+
+export function maxMintFeeStroops(): bigint {
+  const raw = process.env.NFT_MAX_FEE_STROOPS?.trim();
+  if (raw && /^\d+$/.test(raw) && BigInt(raw) > 0n) return BigInt(raw);
+  return DEFAULT_MAX_MINT_FEE_STROOPS;
+}
+
+export function stroopsToXlmText(stroops: bigint | string | number): string {
+  const v = BigInt(stroops);
+  const whole = v / 10_000_000n;
+  const frac = (v % 10_000_000n).toString().padStart(7, '0').replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : `${whole}`;
+}
+
+/** Short, readable reason for a rejected send, e.g. "txInsufficientBalance (fee 24.85 XLM)". */
+export function describeSendError(errorResult: unknown, feeStroops: string): string {
+  let code = 'unknown';
+  try {
+    const r = errorResult as { result?: () => { switch?: () => { name?: string } } } | undefined;
+    code = r?.result?.().switch?.().name ?? code;
+  } catch { /* keep unknown */ }
+  const hint = code === 'txInsufficientBalance'
+    ? ' The minter account does not hold enough XLM to pay this fee.'
+    : '';
+  return `${code} (fee ${stroopsToXlmText(feeStroops)} XLM).${hint}`;
+}
+
 interface NftCredentialRow {
   id: string;
   mint_status: string;
@@ -293,11 +322,21 @@ export async function mintCredential(params: {
   }
 
   const prepared = StellarSdk.rpc.assembleTransaction(tx, simulated).build();
+
+  // Never bid an unexpected amount: refuse before signing when the total fee is above the cap.
+  const cap = maxMintFeeStroops();
+  if (BigInt(prepared.fee) > cap) {
+    throw new Error(
+      `Mint fee ${stroopsToXlmText(prepared.fee)} XLM is above the ${stroopsToXlmText(cap)} XLM cap ` +
+      `(resource fee ${stroopsToXlmText(simulated.minResourceFee)} XLM). Nothing was sent. ` +
+      'Check the contract storage and the minter balance before raising NFT_MAX_FEE_STROOPS.'
+    );
+  }
   prepared.sign(minterKeypair);
 
   const sendResult = await server.sendTransaction(prepared);
   if (sendResult.status === 'ERROR') {
-    throw new Error(`Send failed: ${JSON.stringify(sendResult.errorResult)}`);
+    throw new Error(`Send failed: ${describeSendError(sendResult.errorResult, prepared.fee)}`);
   }
 
   // Persist tx_hash immediately for reconciliation if poll times out.
