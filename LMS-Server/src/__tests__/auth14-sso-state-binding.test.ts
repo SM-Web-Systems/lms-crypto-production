@@ -76,6 +76,12 @@ describe('AUTH-14 browser binding of the SSO state', () => {
     expect(sso.verifyAssertion).not.toHaveBeenCalled();
   });
 
+  it('a leaked callback opened in another browser does not use up the real attempt', async () => {
+    const {state, cookie} = await start();
+    expect(ssoError(await callback(state))).toBe('invalid_state');
+    expect((await callback(state, cookie)).headers.location).toContain('/sso-callback#token=');
+  });
+
   it('refuses two binding cookies with the same name (cookie tossing)', async () => {
     const one = await start();
     const two = await start();

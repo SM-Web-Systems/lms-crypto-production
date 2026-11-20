@@ -672,9 +672,11 @@ export async function ammaCallback(
       return safeRedirectError('missing_params');
     }
 
-    // 1. Validate the state JWT (CSRF / replay protection)
+    // 1. Validate the state JWT (CSRF / replay protection). The nonce is spent only after the
+    //    browser-binding check below, so a leaked callback URL opened elsewhere cannot use up
+    //    the real user's attempt.
     try {
-      const context = validateState(state);
+      const context = validateState(state, {spend: false});
       if (context?.client === 'mobile') mobile = context;
       else if (context?.client === 'link') link = context;
     } catch (err) {
@@ -692,6 +694,12 @@ export async function ammaCallback(
     if (bound === 'missing') {
       logger.warn({ module: 'ammaCallback', event: 'amma_sso_state_unbound', binding: bound,
         client: mobile ? 'mobile' : link ? 'link' : 'web', mode: 'optional' }, 'SSO state has no browser binding; allowed by AMMA_SSO_STATE_BINDING=optional');
+    }
+    try {
+      validateState(state); // spends the nonce: single use
+    } catch (err) {
+      logger.warn({ module: 'ammaCallback', err }, 'Invalid state');
+      return safeRedirectError('invalid_state');
     }
 
     if (!assertion) return safeRedirectError(req.query.error === 'access_denied' ? 'cancelled' : 'missing_params');

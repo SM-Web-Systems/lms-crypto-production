@@ -203,7 +203,7 @@ function verifyStateSignature(state: string): StatePayload {
   }
 }
 
-export function validateState(state: string): SsoContext | undefined {
+export function validateState(state: string, options: { spend?: boolean } = {}): SsoContext | undefined {
   const payload = verifyStateSignature(state);
   if (payload.purpose !== "sso_state") {
     throw new Error("Invalid state token — wrong purpose");
@@ -224,7 +224,8 @@ export function validateState(state: string): SsoContext | undefined {
     || (payload.link !== undefined && payload.mobile !== undefined)) {
     throw new Error('Invalid wallet linking context');
   }
-  usedJtis.set(jti, Date.now() + JTI_RETENTION_MS);
+  // spend:false checks without using up the state (for the browser-binding check that runs first).
+  if (options.spend !== false) usedJtis.set(jti, Date.now() + JTI_RETENTION_MS);
   return (payload.mobile ?? payload.link) as SsoContext | undefined;
 }
 
