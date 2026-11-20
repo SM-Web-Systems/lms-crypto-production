@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { Keypair } from '@stellar/stellar-sdk';
 import { createHash } from 'node:crypto';
 import app from '../app.js';
+import { bindingCookie } from './helpers/ssoBinding.js';
 import { db, execute, queryOne, createSession } from '../config/database.js';
 import { generateToken } from '../config/jwt.js';
 import * as sso from '../services/ammaWalletSSOService.js';
@@ -34,6 +35,8 @@ async function localUser(boundId: string | null = null) {
 }
 const row = () => queryOne<Record<string, unknown>>('SELECT * FROM users WHERE id = ?', ['owner'])!;
 const sessions = () => queryOne<{total: number}>('SELECT count(*) AS total FROM active_sessions WHERE revoked_at IS NULL')!.total;
+// AUTH-14: the binding cookie each started sign-in set, by state.
+const bindings = new Map<string, string>();
 async function callback(state?: string, mobile = false) {
   if (!state) {
     const start = await request(app).get('/api/v1/auth/amma-login').query(mobile ? {
@@ -41,15 +44,18 @@ async function callback(state?: string, mobile = false) {
       code_challenge_method: 'S256', app_state: 's'.repeat(64),
     } : {});
     state = new URL(start.headers.location).searchParams.get('state')!;
+    bindings.set(state, bindingCookie(start));
   }
-  return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'assertion'});
+  return request(app).get('/api/v1/auth/amma-callback').set('Cookie', bindings.get(state) ?? '').query({state, assertion: 'assertion'});
 }
 async function linkState(token: string, body: object = {password}) {
   const start = await request(app).post('/api/v1/auth/amma-link').auth(token, {type: 'bearer'}).send(body);
   expect(start.status).toBe(200);
   expect(start.headers['cache-control']).toBe('no-store');
   expect(start.body.data.url).not.toContain(token);
-  return new URL(start.body.data.url).searchParams.get('state')!;
+  const state = new URL(start.body.data.url).searchParams.get('state')!;
+  bindings.set(state, bindingCookie(start));
+  return state;
 }
 function expectError(response: request.Response, code: string, mobile = false) {
   const destination = new URL(response.headers.location);
@@ -147,7 +153,7 @@ describe('Amma identity and explicit linking policy', () => {
     if (change === 'logout') await request(app).post('/api/v1/auth/logout').auth(token, {type: 'bearer'});
     if (change === 'version') execute("UPDATE users SET authorization_version=authorization_version+1 WHERE id='owner'");
     if (change === 'delete') execute("UPDATE users SET deletion_status='pending_deletion' WHERE id='owner'");
-    if (change === 'expiry') vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 301_000);
+    if (change === 'expiry') vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 601_000);
     expectError(await callback(state), change === 'expiry' ? 'invalid_state' : 'link_expired');
     expect(row().auth_provider).toBe('local');
   });

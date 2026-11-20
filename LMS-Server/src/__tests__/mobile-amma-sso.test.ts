@@ -5,6 +5,7 @@ import app from '../app.js';
 import { db, execute, queryOne } from '../config/database.js';
 import * as wallet from '../services/ammaWalletSSOService.js';
 import logger from '../utils/logger.js';
+import { bindingCookie } from './helpers/ssoBinding.js';
 
 const verifier = randomBytes(32).toString('hex');
 const challenge = createHash('sha256').update(verifier).digest('base64url');
@@ -31,7 +32,7 @@ async function callback() {
   expect(start.status).toBe(302);
   expect(start.headers['cache-control']).toBe('no-store');
   const state = new URL(start.headers.location).searchParams.get('state');
-  return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'wallet-assertion'});
+  return request(app).get('/api/v1/auth/amma-callback').set('Cookie', bindingCookie(start)).query({state, assertion: 'wallet-assertion'});
 }
 async function code() {
   const response = await callback();
@@ -47,7 +48,7 @@ describe('Amma Wallet native session handoff', () => {
     expect(start.status).toBe(302);
     expect(start.headers['cache-control']).toBe('no-store');
     const state = new URL(start.headers.location).searchParams.get('state');
-    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'web-assertion'});
+    const response = await request(app).get('/api/v1/auth/amma-callback').set('Cookie', bindingCookie(start)).query({state,assertion:'web-assertion'});
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
     expect(response.headers.location).toContain('/sso-callback#token=');
@@ -169,7 +170,7 @@ describe('Amma Wallet native session handoff', () => {
   it('returns a cancelled wallet request to the native app without issuing a session', async () => {
     const start = await initiate();
     const state = new URL(start.headers.location).searchParams.get('state');
-    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,error:'access_denied'});
+    const response = await request(app).get('/api/v1/auth/amma-callback').set('Cookie', bindingCookie(start)).query({state,error:'access_denied'});
     const destination = new URL(response.headers.location);
     expect(destination.protocol).toBe('lmsmobile:');
     expect(destination.searchParams.get('error')).toBe('cancelled');
@@ -187,18 +188,19 @@ describe('Amma Wallet native session handoff', () => {
   it('rejects an expired state before contacting the wallet', async () => {
     const start = await initiate();
     const state = new URL(start.headers.location).searchParams.get('state');
-    vi.spyOn(Date,'now').mockReturnValue(Date.now()+301_000);
-    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'});
+    vi.spyOn(Date,'now').mockReturnValue(Date.now()+601_000);
+    const response = await request(app).get('/api/v1/auth/amma-callback').set('Cookie', bindingCookie(start)).query({state,assertion:'a'});
     expect(response.headers.location).toContain('sso_error=invalid_state');
     expect(wallet.verifyAssertion).not.toHaveBeenCalled();
   });
   it('rejects tampered and replayed signed state before assertion exchange', async () => {
     const start = await initiate();
     const state = new URL(start.headers.location).searchParams.get('state')!;
-    await request(app).get('/api/v1/auth/amma-callback').query({state:state+'broken',assertion:'a'});
+    const cookie = bindingCookie(start);
+    await request(app).get('/api/v1/auth/amma-callback').set('Cookie', cookie).query({state:state+'broken',assertion:'a'});
     expect(wallet.verifyAssertion).not.toHaveBeenCalled();
-    await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'});
-    await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'});
+    await request(app).get('/api/v1/auth/amma-callback').set('Cookie', cookie).query({state,assertion:'a'});
+    await request(app).get('/api/v1/auth/amma-callback').set('Cookie', cookie).query({state,assertion:'a'});
     expect(wallet.verifyAssertion).toHaveBeenCalledTimes(1);
   });
 });
