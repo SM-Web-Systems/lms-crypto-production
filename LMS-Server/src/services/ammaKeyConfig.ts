@@ -3,11 +3,13 @@
  * the sign-in, and activations must use that same tenant key. Warn at startup when the SSO key
  * and the activation key differ, or point at different Amma hosts. Values are never logged.
  */
-import { timingSafeEqual, createHash } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 
+// Startup-only comparison of two configured values; nothing is hashed or stored.
 function sameSecret(a: string, b: string): boolean {
-  const digest = (value: string) => createHash('sha256').update(value, 'utf8').digest();
-  return timingSafeEqual(digest(a), digest(b));
+  const left = Buffer.from(a, 'utf8');
+  const right = Buffer.from(b, 'utf8');
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 function hostOf(url: string | undefined): string | null {
