@@ -13,6 +13,7 @@ import { runWhenWriterHoldReleased } from './services/writerHold.js';
 import { startRewardReconciliation } from './services/rewards/rewardReconciliationService.js';
 import { startBackingDepositWatcher } from './services/rewards/backingDepositWatcher.js';
 import { startAmmaActivationWorker } from './services/ammaActivationService.js';
+import { ammaConfigWarnings } from './services/ammaConfigCheck.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -56,6 +57,7 @@ function startServer() {
     if (!process.env.AMMA_WALLET_API_KEY && process.env.NODE_ENV === 'production') {
       logger.warn('AMMA_WALLET_API_KEY not set in production — wallet creation will be blocked by Turnstile CAPTCHA');
     }
+    for (const warning of ammaConfigWarnings()) logger.warn({ event: 'amma_config_mismatch' }, warning);
 
     app.listen(PORT, () => {
       logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);

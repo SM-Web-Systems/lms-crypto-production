@@ -42,14 +42,19 @@ async function callback(state?: string, mobile = false) {
     } : {});
     state = new URL(start.headers.location).searchParams.get('state')!;
   }
-  return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'assertion'});
+  return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'assertion'})
+    .set('Cookie', `${sso.SSO_STATE_COOKIE}=${sso.stateBindingCookie(state)}`);
 }
 async function linkState(token: string, body: object = {password}) {
   const start = await request(app).post('/api/v1/auth/amma-link').auth(token, {type: 'bearer'}).send(body);
   expect(start.status).toBe(200);
   expect(start.headers['cache-control']).toBe('no-store');
   expect(start.body.data.url).not.toContain(token);
-  return new URL(start.body.data.url).searchParams.get('state')!;
+  const state = new URL(start.body.data.url).searchParams.get('state')!;
+  // AUTH-14: linking binds its state to this browser too.
+  expect(([] as string[]).concat(start.headers['set-cookie'] ?? []))
+    .toContainEqual(expect.stringContaining(`${sso.SSO_STATE_COOKIE}=${sso.stateBindingCookie(state)};`));
+  return state;
 }
 function expectError(response: request.Response, code: string, mobile = false) {
   const destination = new URL(response.headers.location);

@@ -21,6 +21,8 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
+// AUTH-14: the callback must come from the browser that started the login.
+const bound = (state: string | null) => `${wallet.SSO_STATE_COOKIE}=${wallet.stateBindingCookie(state ?? '')}`;
 async function initiate(extra = {}) {
   return request(app).get('/api/v1/auth/amma-login').query({
     client: 'mobile', code_challenge: challenge, code_challenge_method: 'S256', app_state: appState, ...extra,
@@ -31,7 +33,7 @@ async function callback() {
   expect(start.status).toBe(302);
   expect(start.headers['cache-control']).toBe('no-store');
   const state = new URL(start.headers.location).searchParams.get('state');
-  return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'wallet-assertion'});
+  return request(app).get('/api/v1/auth/amma-callback').query({state, assertion: 'wallet-assertion'}).set('Cookie', bound(state));
 }
 async function code() {
   const response = await callback();
@@ -47,7 +49,7 @@ describe('Amma Wallet native session handoff', () => {
     expect(start.status).toBe(302);
     expect(start.headers['cache-control']).toBe('no-store');
     const state = new URL(start.headers.location).searchParams.get('state');
-    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'web-assertion'});
+    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'web-assertion'}).set('Cookie', bound(state));
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
     expect(response.headers.location).toContain('/sso-callback#token=');
@@ -169,7 +171,7 @@ describe('Amma Wallet native session handoff', () => {
   it('returns a cancelled wallet request to the native app without issuing a session', async () => {
     const start = await initiate();
     const state = new URL(start.headers.location).searchParams.get('state');
-    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,error:'access_denied'});
+    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,error:'access_denied'}).set('Cookie', bound(state));
     const destination = new URL(response.headers.location);
     expect(destination.protocol).toBe('lmsmobile:');
     expect(destination.searchParams.get('error')).toBe('cancelled');
@@ -188,7 +190,7 @@ describe('Amma Wallet native session handoff', () => {
     const start = await initiate();
     const state = new URL(start.headers.location).searchParams.get('state');
     vi.spyOn(Date,'now').mockReturnValue(Date.now()+301_000);
-    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'});
+    const response = await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'}).set('Cookie', bound(state));
     expect(response.headers.location).toContain('sso_error=invalid_state');
     expect(wallet.verifyAssertion).not.toHaveBeenCalled();
   });
@@ -197,8 +199,8 @@ describe('Amma Wallet native session handoff', () => {
     const state = new URL(start.headers.location).searchParams.get('state')!;
     await request(app).get('/api/v1/auth/amma-callback').query({state:state+'broken',assertion:'a'});
     expect(wallet.verifyAssertion).not.toHaveBeenCalled();
-    await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'});
-    await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'});
+    await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'}).set('Cookie', bound(state));
+    await request(app).get('/api/v1/auth/amma-callback').query({state,assertion:'a'}).set('Cookie', bound(state));
     expect(wallet.verifyAssertion).toHaveBeenCalledTimes(1);
   });
 });

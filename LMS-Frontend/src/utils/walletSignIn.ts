@@ -13,4 +13,6 @@ export const SSO_ERROR_MESSAGES: Record<string, string> = {
   link_expired: 'Your LMS session changed or expired while connecting. Sign in again and restart from your profile.',
   account_unavailable: 'This LMS account is unavailable. Contact your LMS administrator.',
   cancelled: 'AmmaWallet sign-in was cancelled. You can try again.',
+  already_used: 'This sign-in link was already used. Please sign in again.',
+  service_unavailable: 'AmmaWallet sign-in is not available right now. Please try again later.',
 };

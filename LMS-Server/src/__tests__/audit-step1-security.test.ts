@@ -154,11 +154,12 @@ describe('A02 — effective role replacement and token invalidation', () => {
     const target = actor('role_admin','admin');
     expect((await change(a,target,'student')).status).toBe(200);
     vi.stubEnv('ADMIN_EMAILS',target.email);
-    vi.spyOn(sso,'validateState').mockImplementation(() => {});
+    vi.spyOn(sso,'inspectState').mockReturnValue({nonce:'audit-step1-nonce',context:undefined});
     execute("UPDATE users SET auth_provider='ammawallet', ammawallet_user_id='audit-wallet-user' WHERE id=?", [target.id]);
     vi.spyOn(sso,'verifyAssertion').mockResolvedValue({userId:'audit-wallet-user',email:target.email,isEmailVerified:true,firstName:null,lastName:null,mainnetWalletAddress:null});
     try {
-      const res = await request(app).get('/api/v1/auth/amma-callback?assertion=audit&state=audit');
+      const res = await request(app).get('/api/v1/auth/amma-callback?assertion=audit&state=audit')
+        .set('Cookie', `${sso.SSO_STATE_COOKIE}=${sso.stateBindingCookie('audit')}`);
       expect(res.status).toBe(302);
       expect(res.headers.location).toContain('/sso-callback');
       expect(queryOne<{role: string}>('SELECT role FROM users WHERE id = ?', [target.id])?.role).toBe('admin');

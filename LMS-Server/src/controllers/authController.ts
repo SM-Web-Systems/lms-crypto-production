@@ -13,7 +13,15 @@ import { getAuthorizationContext } from '../services/authorizationService.js';
 import { sendPasswordResetEmail } from "../services/emailService.js";
 import {
   buildSsoInitiateUrl,
-  validateState,
+  inspectState,
+  consumeStateNonce,
+  stateBindingCookie,
+  stateCookieOptions,
+  stateMatchesBinding,
+  readCookie,
+  SSO_STATE_COOKIE,
+  SSO_VERIFY_ALERT_EVENT,
+  SsoVerifyError,
   verifyAssertion,
   parseSsoIdentity,
   type WalletLinkContext,
@@ -553,10 +561,12 @@ export async function ammaLink(req: AuthRequest, res: Response, next: NextFuncti
       throw new AppError('Session changed. Please sign in again.', 401, ErrorCodes.UNAUTHORIZED);
     }
     const frontendUrl = (process.env.FRONTEND_URL || 'https://lms.smwebsystems.com').replace(/\/$/, '');
-    const url = buildSsoInitiateUrl(`${frontendUrl}/api/v1/auth/amma-callback`, {
+    const {url, state} = buildSsoInitiateUrl(`${frontendUrl}/api/v1/auth/amma-callback`, {
       client: 'link', userId: user.id, authorizationVersion: current.authorization_version,
       sessionHash, sessionExpires: req.user!.exp!,
     });
+    // AUTH-14: bind this attempt to the browser that asked for it.
+    res.cookie(SSO_STATE_COOKIE, stateBindingCookie(state), stateCookieOptions());
     res.json({success: true, data: {url}});
   } catch (error) { next(error); }
 }
@@ -586,7 +596,10 @@ export function ammaLogin(
     const frontendUrl = (process.env.FRONTEND_URL || 'https://lms.smwebsystems.com').replace(/\/$/, '');
     // The callback target is the LMS API endpoint (not the frontend SPA route)
     const callbackUrl = `${frontendUrl}/api/v1/auth/amma-callback`;
-    const redirectUrl = buildSsoInitiateUrl(callbackUrl, mobile);
+    const {url: redirectUrl, state} = buildSsoInitiateUrl(callbackUrl, mobile);
+    // AUTH-14: bind this attempt to the browser that started it. A later login
+    // in another tab replaces the cookie, so only the newest attempt completes.
+    res.cookie(SSO_STATE_COOKIE, stateBindingCookie(state), stateCookieOptions());
     res.redirect(302, redirectUrl);
   } catch (error) {
     next(error);
@@ -622,16 +635,36 @@ export async function ammaCallback(
   try {
     const assertion = typeof req.query.assertion === 'string' ? req.query.assertion : '';
     const state     = typeof req.query.state     === 'string' ? req.query.state     : '';
+    const boundState = readCookie(req.headers.cookie, SSO_STATE_COOKIE);
+    // The binding cookie is single use: clear it on every callback, success or not.
+    res.clearCookie(SSO_STATE_COOKIE, stateCookieOptions(false));
 
     if (!state) {
       return safeRedirectError('missing_params');
     }
 
-    // 1. Validate the state JWT (CSRF / replay protection)
+    // 1. Validate the state JWT (signature, expiry, purpose, context)
+    let nonce: string;
     try {
-      const context = validateState(state);
-      if (context?.client === 'mobile') mobile = context;
-      else if (context?.client === 'link') link = context;
+      const inspected = inspectState(state);
+      nonce = inspected.nonce;
+      if (inspected.context?.client === 'mobile') mobile = inspected.context;
+      else if (inspected.context?.client === 'link') link = inspected.context;
+    } catch (err) {
+      logger.warn({ module: 'ammaCallback', err }, 'Invalid state');
+      return safeRedirectError('invalid_state');
+    }
+
+    // 2. AUTH-14: the state must belong to this browser. Checked before the nonce
+    //    is spent, so a stolen callback URL opened elsewhere cannot burn it.
+    if (!stateMatchesBinding(state, boundState)) {
+      logger.warn({ module: 'ammaCallback', reason: boundState ? 'mismatch' : 'missing_cookie' }, 'SSO state not bound to this browser');
+      return safeRedirectError('invalid_state');
+    }
+
+    // 3. Single use (replay protection)
+    try {
+      consumeStateNonce(nonce);
     } catch (err) {
       logger.warn({ module: 'ammaCallback', err }, 'Invalid state');
       return safeRedirectError('invalid_state');
@@ -639,12 +672,19 @@ export async function ammaCallback(
 
     if (!assertion) return safeRedirectError(req.query.error === 'access_denied' ? 'cancelled' : 'missing_params');
 
-    // 2. Exchange assertion for AmmaWallet user identity (server-to-server)
+    // 4. Exchange assertion for AmmaWallet user identity (server-to-server).
+    //    The state sent is the one that passed the signature, cookie and nonce checks.
     let ammaUser: AmmaWalletSSOUser;
     try {
-      ammaUser = parseSsoIdentity(await verifyAssertion(assertion));
+      ammaUser = parseSsoIdentity(await verifyAssertion(assertion, state));
     } catch (err) {
-      logger.error({ module: 'ammaCallback', err }, 'SSO verify error');
+      if (err instanceof SsoVerifyError) {
+        const fields = { module: 'ammaCallback', status: err.status, providerError: err.providerError, failure: err.failure };
+        if (err.alert) logger.error({ ...fields, event: SSO_VERIFY_ALERT_EVENT }, 'SSO verify failed; needs attention');
+        else logger.warn(fields, 'SSO verify rejected the assertion');
+        return safeRedirectError(err.failure);
+      }
+      logger.error({ module: 'ammaCallback', err, event: SSO_VERIFY_ALERT_EVENT }, 'SSO verify error');
       return safeRedirectError('verify_failed');
     }
 

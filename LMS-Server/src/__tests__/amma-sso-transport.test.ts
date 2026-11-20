@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
 const assertion = 'fixture-wallet-assertion';
+const state = 'fixture-bound-state';
 const apiKey = 'fixture-wallet-key';
 const identity = {
   userId: 'fixture-learner',
@@ -44,7 +45,7 @@ afterAll(async () => {
   await Promise.all(servers.map(server => new Promise<void>(resolve => server.close(() => resolve()))));
 });
 
-it('sends the assertion only to the configured verification endpoint and parses the identity', async () => {
+it('sends the assertion and bound state only to the configured verification endpoint and parses the identity', async () => {
   let received: { path?: string; method?: string; apiKey?: string | string[]; body: string } | undefined;
   reply = (req, res) => {
     let body = '';
@@ -56,9 +57,9 @@ it('sends the assertion only to the configured verification endpoint and parses 
     });
   };
 
-  await expect(verifyAssertion(assertion)).resolves.toEqual(identity);
+  await expect(verifyAssertion(assertion, state)).resolves.toEqual(identity);
   expect(received).toEqual({
-    path: '/api/v1/sso/verify', method: 'POST', apiKey, body: JSON.stringify({ assertion }),
+    path: '/api/v1/sso/verify', method: 'POST', apiKey, body: JSON.stringify({ assertion, state }),
   });
 });
 
@@ -67,7 +68,7 @@ it.each([307, 308])('refuses a provider redirect with HTTP %s before sending any
     res.writeHead(status, { location: redirectOrigin });
     res.end();
   };
-  await expect(verifyAssertion(assertion)).rejects.toThrow();
+  await expect(verifyAssertion(assertion, state)).rejects.toThrow();
   expect(redirectedRequests).toBe(0);
 });
 
@@ -79,5 +80,5 @@ it.each([
     res.statusCode = status;
     res.end(`fixture-sensitive-provider-body ${assertion}`);
   };
-  await expect(verifyAssertion(assertion)).rejects.toMatchObject({ message });
+  await expect(verifyAssertion(assertion, state)).rejects.toMatchObject({ message });
 });
