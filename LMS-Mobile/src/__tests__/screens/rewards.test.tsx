@@ -56,7 +56,7 @@ describe('student rewards screen', () => {
     svc.claim.mockResolvedValue({ kind: 'verified', payout: { status: 'refused', code, message } });
     render(<RewardsScreen />);
     fireEvent.press(await screen.findByText('Claim to my wallet'));
-    expect(await screen.findByText(new RegExp(`not been sent to it yet\\. ${message.replace(/[.]/g, '\\.')}`))).toBeTruthy();
+    expect(await screen.findByText(`Your wallet is confirmed, but the reward has not been sent to it yet. ${message}`)).toBeTruthy();
     expect(screen.queryByText(/reward has been sent/)).toBeNull();
   });
 
