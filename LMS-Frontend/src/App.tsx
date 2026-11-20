@@ -13,6 +13,7 @@ import ResetPassword from './pages/ResetPassword';
 import RewardClaimReturn from './pages/RewardClaimReturn';
 import SsoCallback from './pages/SsoCallback';
 import CertificateVerification from './pages/CertificateVerification';
+import CertificatePdfView from './pages/CertificatePdfView';
 import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
 import { ToastProvider } from './components/ToastProvider';
@@ -159,6 +160,8 @@ function App() {
             <Route path="/sso-callback" element={<SsoCallback />} />
             {/* Public certificate verification — no auth required */}
             <Route path="/verify/:credentialId" element={<CertificateVerification />} />
+            {/* In-app certificate PDF viewer with a Back button (iPhone home-screen app has no browser controls) */}
+            <Route path="/certificate/:credentialId/pdf" element={<CertificatePdfView />} />
             <Route path="/" element={<HomeRoute />} />
             <Route path="/access-denied" element={<ProtectedRoute><AccessDenied /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />

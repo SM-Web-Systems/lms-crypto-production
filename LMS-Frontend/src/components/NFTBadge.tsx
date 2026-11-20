@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Award, ExternalLink, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import SocialShare from './SocialShare';
+import { certificatePdfViewPath } from '../lib/certificatePdf';
 
 interface NFTBadgeProps {
   credentialId: string;
@@ -46,7 +48,6 @@ const NFTBadge: React.FC<NFTBadgeProps> = ({
     day: 'numeric',
   });
   const truncatedWallet = `${walletAddress.slice(0, 4)}\u2026${walletAddress.slice(-4)}`;
-  const apiBase = import.meta.env?.VITE_API_BASE_URL || '/api/v1';
 
   return (
     <div className="relative rounded-xl border border-violet-200/80 bg-gradient-to-br from-violet-50/60 via-white to-indigo-50/40 px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02] overflow-hidden">
@@ -104,15 +105,14 @@ const NFTBadge: React.FC<NFTBadgeProps> = ({
               title={courseTitle}
               compact
             />
-            <a
-              href={`${apiBase}/credentials/${credentialId}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
+            {/* Stay inside the app: a same-site target="_blank" traps the iPhone home-screen app with no Back. */}
+            <Link
+              to={certificatePdfViewPath(credentialId)}
               className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
             >
               <Download className="h-3 w-3" aria-hidden />
               PDF
-            </a>
+            </Link>
           </div>
         </div>
       </div>
