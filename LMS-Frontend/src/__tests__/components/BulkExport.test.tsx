@@ -7,6 +7,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 // ─── Mock BadgeGallery dependencies ──────────────────────────────────────────
 
@@ -65,7 +66,7 @@ describe('BULK-FE-1: BadgeGallery "Download All" button', () => {
 
     // Dynamic import to pick up mocks
     const { default: BadgeGallery } = await import('../../pages/BadgeGallery');
-    render(<BadgeGallery />);
+    render(<MemoryRouter><BadgeGallery /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByTestId('btn-download-all')).toBeDefined();

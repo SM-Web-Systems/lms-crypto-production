@@ -34,7 +34,7 @@ describe('NFTBadge', () => {
   });
 
   it('BADGE-FE-1: renders course title, date, and wallet', () => {
-    render(<NFTBadge {...mockCredential} />);
+    render(<MemoryRouter><NFTBadge {...mockCredential} /></MemoryRouter>);
     expect(screen.getByText('Blockchain 101')).toBeTruthy();
     expect(screen.getByText('BVC-101')).toBeTruthy();
     // Truncated wallet: GABC…BCDE
@@ -44,7 +44,7 @@ describe('NFTBadge', () => {
   });
 
   it('BADGE-FE-2: shows Stellar explorer link when txHash present', () => {
-    render(<NFTBadge {...mockCredential} />);
+    render(<MemoryRouter><NFTBadge {...mockCredential} /></MemoryRouter>);
     const link = screen.getByRole('link', { name: /View on Stellar/i });
     expect(link).toBeTruthy();
     expect(link.getAttribute('href')).toBe(
@@ -53,7 +53,7 @@ describe('NFTBadge', () => {
   });
 
   it('BADGE-FE-3: share Copy Link copies verification URL', () => {
-    render(<NFTBadge {...mockCredential} />);
+    render(<MemoryRouter><NFTBadge {...mockCredential} /></MemoryRouter>);
     const copyBtn = screen.getByLabelText('Copy link');
     fireEvent.click(copyBtn);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
