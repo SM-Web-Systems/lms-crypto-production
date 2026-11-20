@@ -1,4 +1,4 @@
-import express, { type Request, type RequestHandler } from 'express';
+import express, { type Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -199,21 +199,20 @@ const writeLimiter = rateLimit({
   max: writeMax,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS',
+  // Many routers share the '/api/v1' prefix, each mounted behind this limiter, so one request meets it once per
+  // mount. Count it only the first time; otherwise the real limit was about a tenth of writeMax.
+  skip: (req) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return true;
+    const counted = req as Request & { writeLimited?: boolean };
+    if (counted.writeLimited) return true;
+    counted.writeLimited = true;
+    return false;
+  },
   message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
 });
 
-/**
- * Many routers are mounted on the shared '/api/v1' prefix, each behind apiLimiter. One request passes
- * every apiLimiter in front of the router that finally answers it, so the shared limiter counted it
- * once per mount (about ten times) and the real limit was a tenth of writeMax. Count each request once.
- */
-const apiLimiter: RequestHandler = (req, res, next) => {
-  const counted = req as Request & { writeLimited?: boolean };
-  if (counted.writeLimited) { next(); return; }
-  counted.writeLimited = true;
-  writeLimiter(req, res, next);
-};
+/** Shared write limiter for the '/api/v1' routers; counts each request once however many mounts it passes. */
+const apiLimiter = writeLimiter; // the express-rate-limit instance itself, so scanners see the limit
 
 /** Read rate limiter — all methods including GET. Prevents abuse of expensive queries. */
 const readLimiter = rateLimit({
