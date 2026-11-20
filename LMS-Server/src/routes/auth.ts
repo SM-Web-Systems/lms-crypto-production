@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   login, register, logout, establishSession, getMe, forgotPassword, resetPassword, changePassword,
   ammaLogin, ammaLink, ammaCallback, ammaMobileSession,
@@ -126,7 +127,10 @@ router.post('/logout', authenticate, logout);
  *       200: { description: Cookie set }
  *       401: { description: Unauthorized }
  */
-router.post('/session', authenticate, establishSession);
+// Called once per browser after AmmaWallet sign-in or the one-time cookie migration. Sized for a classroom
+// behind one NAT address on launch day; looser outside production so e2e suites (one call per test) fit.
+const sessionLimiter = rateLimit({ windowMs: 60_000, limit: process.env.NODE_ENV === 'production' ? 120 : 2000, standardHeaders: 'draft-8', legacyHeaders: false });
+router.post('/session', sessionLimiter, authenticate, establishSession);
 
 /**
  * @openapi

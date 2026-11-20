@@ -1,4 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.js';
 import { getUserRoles } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
@@ -29,7 +30,8 @@ router.get('/admin/amma-wallets/status', authenticate, requireSuperAdmin, (req: 
 });
 
 // GET /admin/amma-wallets/needed?limit=&offset= — learners whose wallet AmmaWallet does not hold (the list to send AmmaWallet)
-router.get('/admin/amma-wallets/needed', authenticate, requireSuperAdmin, (req: AuthRequest, res: Response): void => {
+const neededLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false });
+router.get('/admin/amma-wallets/needed', neededLimiter, authenticate, requireSuperAdmin, (req: AuthRequest, res: Response): void => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ success: true, data: ammaWalletsNeeded(req.query.limit, req.query.offset) });
 });
