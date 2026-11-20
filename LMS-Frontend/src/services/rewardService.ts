@@ -137,11 +137,27 @@ function prefix(role: string): string {
 
 // ──── Service ────
 
-/** payout is null while payouts are not enabled; 'pending' when it could not be sent yet. */
+/**
+ * payout is null while payouts are not enabled. 'refused' means a payout rule stopped it (per-claim or daily limit, reward pool
+ * budget, payouts switched off): nothing was sent and message says why. 'pending' means it could not be sent yet.
+ */
+export type ClaimPayoutNotSent = { status: 'refused' | 'pending'; code: string; message?: string };
 export interface VerifiedClaim {
   claimId: string;
   status: 'verified';
-  payout: null | { status: 'paid' | 'submitted' | 'failed'; txHash: string; ledger: number | null } | { status: 'pending'; code: string };
+  payout: null | { status: 'paid' | 'submitted' | 'failed'; txHash: string; ledger: number | null } | ClaimPayoutNotSent;
+}
+
+/** One of my claims to my wallet. payout is what really happened: only 'paid' means the money reached the wallet. */
+export interface MyRewardClaim {
+  claimId: string;
+  destination: string;
+  amountStroops: number;
+  status: 'verified' | 'cancelled';
+  verifiedAt: string | null;
+  payout: 'paid' | 'submitted' | 'failed' | 'not_sent';
+  txHash: string | null;
+  ledger: number | null;
 }
 
 export interface AwaitingFundingReward {
@@ -287,6 +303,19 @@ export const rewardService = {
   async startClaim(amountStroops: string): Promise<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }> {
     const res = await api.post<ApiRes<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }>>(
       '/students/me/reward-claims', { amountStroops });
+    return res.data.data;
+  },
+
+  /** Student: my claims to my wallet, with the real payout state of each. */
+  async listMyClaims(): Promise<MyRewardClaim[]> {
+    const res = await api.get<ApiRes<MyRewardClaim[]>>('/students/me/reward-claims');
+    return res.data.data;
+  },
+
+  /** Student: try the payout of a verified claim again. Never pays twice. */
+  async retryPayout(claimId: string): Promise<{ claimId: string; status: 'paid' | 'submitted' | 'failed'; txHash: string; ledger: number | null }> {
+    const res = await api.post<ApiRes<{ claimId: string; status: 'paid' | 'submitted' | 'failed'; txHash: string; ledger: number | null }>>(
+      `/students/me/reward-claims/${encodeURIComponent(claimId)}/payout`);
     return res.data.data;
   },
 

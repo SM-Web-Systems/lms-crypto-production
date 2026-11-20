@@ -180,3 +180,31 @@ export function cancelFailedClaim(userId: string, claimId: string) {
     return { claimId, status: 'cancelled' as const };
   }).immediate();
 }
+
+export type ClaimPayoutState = 'paid' | 'submitted' | 'failed' | 'not_sent';
+
+/**
+ * The learner's claims to their wallet, newest first, with the payout's real state. A verified claim with no payout attempt
+ * is 'not_sent' (refused by a payout rule, or payouts are not enabled): it must never be shown as paid.
+ * Cancelled claims are listed only when a payout was tried, so the learner can see the money came back to their balance.
+ */
+export function listRewardClaims(userId: string, limit = 50) {
+  const rows = db.prepare(`SELECT c.id, c.destination, c.amount_stroops, c.status, c.verified_at, c.created_at,
+      p.status AS payout_status, p.tx_hash, p.ledger
+    FROM reward_claims c LEFT JOIN reward_claim_payouts p ON p.claim_id = c.id
+    WHERE c.user_id = ? AND (c.status = 'verified' OR (c.status = 'cancelled' AND p.claim_id IS NOT NULL))
+    ORDER BY COALESCE(c.verified_at, c.created_at) DESC LIMIT ?`).all(userId, limit) as {
+      id: string; destination: string; amount_stroops: number; status: 'verified' | 'cancelled'; verified_at: number | null; created_at: number;
+      payout_status: 'submitted' | 'paid' | 'failed' | null; tx_hash: string | null; ledger: number | null;
+    }[];
+  return rows.map(r => ({
+    claimId: r.id,
+    destination: r.destination,
+    amountStroops: r.amount_stroops,
+    status: r.status,
+    verifiedAt: r.verified_at ? new Date(r.verified_at).toISOString() : null,
+    payout: (r.payout_status ?? 'not_sent') as ClaimPayoutState,
+    txHash: r.payout_status === 'paid' || r.payout_status === 'submitted' ? r.tx_hash : null,
+    ledger: r.ledger,
+  }));
+}

@@ -7,10 +7,20 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
-import { rewardService, type StudentReward } from '../services/rewardService';
+import { rewardService, type MyRewardClaim, type StudentReward } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
 import { Gift, RefreshCw, AlertCircle, Loader2, Send } from 'lucide-react';
 import { rememberClaim, walletClaimNavigation, walletClaimUrl } from '../utils/rewardClaim';
+
+/** What really happened to each claim. Only 'paid' says the reward reached the wallet. */
+const CLAIM_PAYOUT: Record<MyRewardClaim['payout'], { label: string; tone: string; note?: string }> = {
+  paid: { label: 'Paid to wallet', tone: 'bg-green-100 text-green-800' },
+  submitted: { label: 'Sending', tone: 'bg-blue-100 text-blue-800', note: 'The payment is on its way. Refresh in a minute.' },
+  failed: { label: 'Payment failed', tone: 'bg-red-100 text-red-800', note: 'The network did not accept the payment. Nothing was sent; try again.' },
+  not_sent: { label: 'Not paid yet', tone: 'bg-amber-100 text-amber-900', note: 'Your claim is saved, but the payment has not been sent to your wallet.' },
+};
+
+const shortAddress = (a: string) => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
 
 export const StudentRewardsPanel: React.FC = () => {
   const [rewards, setRewards] = useState<StudentReward[]>([]);
@@ -18,14 +28,22 @@ export const StudentRewardsPanel: React.FC = () => {
   const [error, setError] = useState('');
   const [claimable, setClaimable] = useState<string>('0');
   const [claiming, setClaiming] = useState(false);
+  const [claims, setClaims] = useState<MyRewardClaim[]>([]);
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const [claimNotice, setClaimNotice] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [data, balance] = await Promise.all([rewardService.getMyRewards(), Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0')]);
+      const [data, balance, myClaims] = await Promise.all([
+        rewardService.getMyRewards(),
+        Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0'),
+        Promise.resolve().then(() => rewardService.listMyClaims()).catch(() => [] as MyRewardClaim[]),
+      ]);
       setRewards(data);
       setClaimable(balance);
+      setClaims(Array.isArray(myClaims) ? myClaims : []);
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load rewards'));
     } finally {
@@ -45,6 +63,19 @@ export const StudentRewardsPanel: React.FC = () => {
     } catch (err) {
       setError(getErrorMessage(err, 'Could not start the claim'));
       setClaiming(false);
+    }
+  };
+
+  const retry = async (claimId: string) => {
+    setRetrying(claimId);
+    try {
+      const paid = await rewardService.retryPayout(claimId);
+      setClaimNotice(n => ({ ...n, [claimId]: paid.status === 'paid' ? 'Sent to your wallet.' : '' }));
+      await load();
+    } catch (err) {
+      setClaimNotice(n => ({ ...n, [claimId]: getErrorMessage(err, 'The payment could not be sent. Your claim is saved.') }));
+    } finally {
+      setRetrying(null);
     }
   };
 
@@ -114,7 +145,7 @@ export const StudentRewardsPanel: React.FC = () => {
                       {formatStroopsShort(r.amountStroops)}
                     </td>
                     <td className="sm:table-cell sm:px-3 sm:py-3" role="cell">
-                      <RewardStatusBadge status={r.status} />
+                      <RewardStatusBadge status={r.status} label={r.status === 'released' ? 'Earned' : undefined} />
                     </td>
                     <td className="text-xs text-neutral-500 sm:table-cell sm:px-3 sm:py-3" role="cell">
                       {new Date(r.releasedAt ?? r.createdAt).toLocaleDateString()}
@@ -123,6 +154,35 @@ export const StudentRewardsPanel: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {claims.length > 0 && (
+          <div className="mt-5" data-testid="student-reward-claims">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Payments to your wallet</h3>
+            <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200">
+              {claims.map((c) => {
+                const p = c.status === 'cancelled'
+                  ? { label: 'Cancelled', tone: 'bg-neutral-100 text-neutral-700', note: 'The payment failed, so this amount went back to your LMS balance.' }
+                  : CLAIM_PAYOUT[c.payout];
+                const canRetry = c.status === 'verified' && (c.payout === 'not_sent' || c.payout === 'failed');
+                return (
+                  <li key={c.claimId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-3" data-testid="student-reward-claim">
+                    <span className="tabular-nums text-sm text-neutral-900">{formatStroopsShort(c.amountStroops)}</span>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${p.tone}`} data-testid="claim-payout-status">{p.label}</span>
+                    <span className="text-xs text-neutral-500">to {shortAddress(c.destination)}{c.verifiedAt ? ` · ${new Date(c.verifiedAt).toLocaleDateString()}` : ''}</span>
+                    {(p.note || claimNotice[c.claimId]) && (
+                      <p className="basis-full text-xs text-neutral-600">{claimNotice[c.claimId] || p.note}</p>
+                    )}
+                    {canRetry && (
+                      <Button variant="outline" size="sm" type="button" onClick={() => retry(c.claimId)} disabled={retrying === c.claimId}>
+                        {retrying === c.claimId ? 'Trying…' : 'Try payment again'}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
       </CardContent>

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { rewardService } from '../services/rewardService';
+import { rewardService, type VerifiedClaim } from '../services/rewardService';
 import { takeClaim } from '../utils/rewardClaim';
 import { getErrorMessage } from '../utils/apiError';
 
-type View = { kind: 'working' } | { kind: 'verified'; paid: boolean } | { kind: 'declined' } | { kind: 'error'; message: string };
+type View = { kind: 'working' } | { kind: 'verified'; paid: boolean; notSent?: string } | { kind: 'declined' } | { kind: 'error'; message: string };
 
 /** What AmmaWallet says when it cannot approve: #claim=<id>&error=expired|unavailable, or #error=invalid (no claim id). Never with a signature. */
 const WALLET_ERRORS: Record<string, string> = {
@@ -13,6 +13,12 @@ const WALLET_ERRORS: Record<string, string> = {
   unavailable: 'AmmaWallet cannot approve this claim right now. Try again in a moment from your rewards.',
   invalid: 'AmmaWallet could not read this claim. Start a new claim from your rewards.',
 };
+
+/** A payout that a rule refused, or that could not be sent, is never shown as sent: the learner sees why. */
+function notSentReason(payout: VerifiedClaim['payout']): string | undefined {
+  if (!payout || (payout.status !== 'refused' && payout.status !== 'pending')) return undefined;
+  return 'message' in payout && payout.message ? payout.message : 'The payment could not be sent yet. Your claim is saved.';
+}
 
 /** AmmaWallet returns here with #claim=<id>&signature=<base64> (or &declined=1, or &error=...). */
 export default function RewardClaimReturn() {
@@ -35,7 +41,7 @@ export default function RewardClaimReturn() {
       return;
     }
     rewardService.verifyClaim(claimId, message, signature)
-      .then(v => setView({ kind: 'verified', paid: v.payout?.status === 'paid' }))
+      .then(v => setView({ kind: 'verified', paid: v.payout?.status === 'paid', notSent: notSentReason(v.payout) }))
       .catch(err => setView({ kind: 'error', message: getErrorMessage(err, 'Could not verify the claim. Start it again from your rewards.') }));
   }, []);
 
@@ -45,7 +51,13 @@ export default function RewardClaimReturn() {
       {view.kind === 'working' && (
         <p className="flex items-center gap-2 text-neutral-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Checking your wallet's signature…</p>
       )}
-      {view.kind === 'verified' && (
+      {view.kind === 'verified' && view.notSent && (
+        <div role="status" data-testid="claim-payout-not-sent" className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <AlertCircle className="h-5 w-5 shrink-0" aria-hidden />
+          <p>Your wallet is confirmed, but the reward has <strong>not been sent</strong> to it yet. {view.notSent}</p>
+        </div>
+      )}
+      {view.kind === 'verified' && !view.notSent && (
         <div role="status" className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
           <CheckCircle className="h-5 w-5 shrink-0" aria-hidden />
           <p>{view.paid
