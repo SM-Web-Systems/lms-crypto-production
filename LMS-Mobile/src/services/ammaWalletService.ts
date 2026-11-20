@@ -83,6 +83,10 @@ export const ammaWalletService = {
           link_required: 'An LMS account already uses this email. Open the LMS web dashboard, sign in with its LMS password, then choose Connect AmmaWallet in your profile.',
           identity_conflict: 'This LMS account is connected to a different Wallet identity. Use the original AmmaWallet account or contact your LMS administrator for account recovery.',
           account_unavailable: 'This LMS account is unavailable. Contact your LMS administrator.',
+          invalid_state: 'The sign-in session expired. Please start again.',
+          assertion_failed: 'AmmaWallet could not verify your identity. Please start again.',
+          already_used: 'This sign-in was already used. Please start again.',
+          service_unavailable: 'AmmaWallet sign-in is not available right now. Please try again later.',
         };
         throw new Error(messages[error] || 'AmmaWallet could not complete sign-in. Please try again.');
       }

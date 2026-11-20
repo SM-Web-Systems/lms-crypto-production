@@ -5,6 +5,9 @@ export const SSO_ERROR_MESSAGES: Record<string, string> = {
   assertion_failed: 'AmmaWallet could not verify your identity. Please try again.',
   user_error: 'Could not create your LMS session. Please contact support.',
   verify_failed: 'AmmaWallet could not verify your identity. Please try again.',
+  // AUTH-14: a signed-in browser is sent straight to its home page by the login route.
+  already_used: 'This sign-in link was already used. Please start again.',
+  service_unavailable: 'AmmaWallet sign-in is not available right now. Please try again later.',
   email_required: 'LMS needs an email address. Add and verify an email in AmmaWallet settings, then return here to sign in.',
   email_unverified: 'Verify your email in AmmaWallet, then return here to sign in.',
   link_required: 'An LMS account already uses this email. Sign in with its LMS password below, open your profile, and choose Connect AmmaWallet.',
