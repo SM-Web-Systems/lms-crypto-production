@@ -1,4 +1,10 @@
-export const AMMA_WALLET_URL = 'https://ammawallet.com';
+/** AmmaWallet base URL, no trailing slash. Staging builds set VITE_AMMA_WALLET_URL to the testnet wallet. */
+export function resolveAmmaWalletUrl(configured: string | undefined): string {
+  const value = configured?.trim();
+  return (value ? value : 'https://ammawallet.com').replace(/\/+$/, '');
+}
+
+export const AMMA_WALLET_URL = resolveAmmaWalletUrl(import.meta.env.VITE_AMMA_WALLET_URL);
 
 export const SSO_ERROR_MESSAGES: Record<string, string> = {
   invalid_state: 'The sign-in session expired or was tampered with. Please try again.',
