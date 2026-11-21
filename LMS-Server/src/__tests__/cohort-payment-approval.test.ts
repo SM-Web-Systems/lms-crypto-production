@@ -144,10 +144,29 @@ describe('Cohort payment requests with administrator approval', () => {
     const late = seedUser('student', 'Lee Late').id;
     const lateApp = uuidv4();
     db.prepare("INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status, selected_tier, applied_at) VALUES (?, ?, ?, '', 'pending', 'paid', datetime('now', '+1 minute'))").run(lateApp, late, courseId);
-    db.prepare('INSERT INTO cohort_members (cohort_id, user_id, application_id) VALUES (?, ?, ?)').run(cohortId, late, lateApp);
+    db.prepare("INSERT INTO cohort_members (cohort_id, user_id, application_id, added_at) VALUES (?, ?, ?, datetime('now', '+1 minute'))").run(cohortId, late, lateApp);
     const res = await approve(paymentId);
     expect(res.body.data.learnersSettled).toBe(2);
     expect(isPaymentSatisfied(lateApp)).toBe(false);
+  });
+
+  it('CPA-10: a learner whose application was replaced after the request is still covered', async () => {
+    const { paymentId } = (await submit()).body.data;
+    const [first] = applicationIds();
+    const member = (db.prepare('SELECT user_id FROM cohort_members WHERE application_id = ?').get(first) as { user_id: string }).user_id;
+    db.prepare("UPDATE course_nft_applications SET status = 'rejected' WHERE id = ?").run(first);
+    const replacement = uuidv4();
+    db.prepare("INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status, selected_tier, applied_at) VALUES (?, ?, ?, '', 'pending', 'paid', datetime('now', '+1 minute'))").run(replacement, member, courseId);
+    db.prepare('UPDATE cohort_members SET application_id = ? WHERE cohort_id = ? AND user_id = ?').run(replacement, cohortId, member);
+    const res = await approve(paymentId);
+    expect(res.body.data.learnersSettled).toBe(2);
+    expect(isPaymentSatisfied(replacement)).toBe(true);
+  });
+
+  it('CPA-11: the waive route also refuses a cohort payment', async () => {
+    const { paymentId } = (await submit()).body.data;
+    const res = await request(app).post(`/api/v1/admin/payments/${paymentId}/waive`).set('Authorization', `Bearer ${admin.token}`).send({ notes: 'x' });
+    expect(res.status).toBe(409);
   });
 
   it('CPA-8: the generic confirm route refuses a cohort payment so learners are never left unsettled', async () => {

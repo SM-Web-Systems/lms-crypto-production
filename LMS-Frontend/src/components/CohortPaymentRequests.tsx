@@ -103,7 +103,7 @@ export function CohortPaymentRequests() {
           <p className="text-sm text-neutral-500">No cohort payment requests are waiting.</p>
         ) : (
           <ul className="divide-y divide-neutral-100">
-            {requests.map(r => (
+            {requests.map(r => { const own = r.sponsorUserId === user?.id; return (
               <li key={r.paymentId} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
                   <p className="font-medium text-neutral-900 truncate">{r.cohortName}</p>
@@ -111,13 +111,14 @@ export function CohortPaymentRequests() {
                     {formatAmount(r.amountCents, r.currency)} for {learners(r.learnerCount)}
                     {r.courseName ? ` · ${r.courseName}` : ''} · requested by {sponsorOf(r)}
                   </p>
+                  {own && <p className="text-xs text-amber-800">This is your own cohort: another administrator decides it.</p>}
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" type="button" onClick={() => void decline(r)}>Decline</Button>
-                  <Button size="sm" type="button" onClick={() => void approve(r)}>Approve</Button>
+                  <Button size="sm" variant="outline" type="button" disabled={own} onClick={() => void decline(r)}>Decline</Button>
+                  <Button size="sm" type="button" disabled={own} onClick={() => void approve(r)}>Approve</Button>
                 </div>
               </li>
-            ))}
+            ); })}
           </ul>
         )}
       </CardContent>

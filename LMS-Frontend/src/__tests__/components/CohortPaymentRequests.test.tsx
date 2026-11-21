@@ -51,6 +51,14 @@ describe('admin: cohort payment requests', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Approved Spring Cohort. Sam Sponsor has been told');
   });
 
+  it('does not offer a decision on a cohort the administrator sponsors', async () => {
+    mocks.list.mockResolvedValue([{ ...request, sponsorUserId: 'admin' }]);
+    render(<CohortPaymentRequests />);
+    expect(await screen.findByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeDisabled();
+    expect(screen.getByText(/your own cohort/i)).toBeInTheDocument();
+  });
+
   it('declines with a reason, and refuses an empty one', async () => {
     mocks.list.mockResolvedValueOnce([request]).mockResolvedValueOnce([]);
     mocks.decline.mockResolvedValue({ ...request, status: 'declined' });

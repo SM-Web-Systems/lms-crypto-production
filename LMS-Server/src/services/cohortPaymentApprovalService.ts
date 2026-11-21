@@ -38,11 +38,14 @@ export class CohortPaymentError extends Error {
   }
 }
 
-/** Learners a request covers: cohort members whose application existed when the sponsor asked. */
+/**
+ * Learners a request covers: members who were in the cohort when the sponsor asked and hold an
+ * application now (an application replaced after the request is still covered).
+ */
 const COVERED_APPLICATIONS = `
   SELECT a.id AS application_id, a.user_id
   FROM cohort_members cm JOIN course_nft_applications a ON a.id = cm.application_id
-  WHERE cm.cohort_id = ? AND a.applied_at <= ?`;
+  WHERE cm.cohort_id = ? AND cm.added_at <= ?`;
 
 interface RequestRow {
   payment_id: string; cohort_id: string; cohort_name: string; course_id: string; course_name: string | null;
@@ -58,7 +61,7 @@ const REQUEST_SELECT = `
          p.amount_cents, p.currency, p.status, p.decline_reason, p.confirmed_at, p.declined_at, p.created_at,
          CASE WHEN p.status = 'failed' THEN dby.name ELSE cby.name END AS decided_by_name,
          (SELECT COUNT(*) FROM cohort_members cm JOIN course_nft_applications a ON a.id = cm.application_id
-          WHERE cm.cohort_id = sc.id AND a.applied_at <= p.created_at) AS learner_count
+          WHERE cm.cohort_id = sc.id AND cm.added_at <= p.created_at) AS learner_count
   FROM sponsor_cohorts sc
   JOIN payments p ON p.id = sc.payment_id
   LEFT JOIN courses c ON c.id = sc.course_id
@@ -117,9 +120,17 @@ export function approveCohortPayment(paymentId: string, adminUserId: string): { 
   if (row.status === 'failed') throw new CohortPaymentError(409, 'ALREADY_DECLINED', 'This payment request was declined');
   if (row.status === 'refunded') throw new CohortPaymentError(409, 'ALREADY_REFUNDED', 'This payment was refunded');
 
-  const firstApproval = row.status === 'pending';
+  let firstApproval = false;
   const settle = db.transaction((): number => {
-    if (firstApproval) confirmPayment(paymentId, adminUserId, 'Cohort payment request approved');
+    // Guarded: a decline that landed after the read above wins, and only one approval confirms.
+    firstApproval = execute(
+      `UPDATE payments SET status = 'confirmed', confirmed_by = ?, confirmed_at = datetime('now'),
+       notes = COALESCE(notes, 'Cohort payment request approved'), updated_at = datetime('now')
+       WHERE id = ? AND status = 'pending'`,
+      [adminUserId, paymentId],
+    ) === 1;
+    const now = queryOne<{ status: string }>('SELECT status FROM payments WHERE id = ?', [paymentId])!.status;
+    if (now !== 'confirmed' && now !== 'waived') throw new CohortPaymentError(409, 'NOT_APPROVABLE', 'This payment request is no longer waiting for approval');
     let settled = 0;
     for (const learner of query<{ application_id: string; user_id: string }>(COVERED_APPLICATIONS, [row.cohort_id, row.created_at])) {
       if (isPaymentSatisfied(learner.application_id)) continue;
@@ -131,7 +142,7 @@ export function approveCohortPayment(paymentId: string, adminUserId: string): { 
     }
     return settled;
   });
-  const learnersSettled = settle();
+  const learnersSettled = settle.immediate();
 
   if (firstApproval) {
     try {

@@ -139,10 +139,11 @@ function BillingHistory({
 
 /** A cohort payment is a request an administrator approves or declines; other payments keep their status. */
 function paymentStatusLabel(p: { status: string; cohortName?: string; declineReason?: string }) {
+  // A declined request keeps its reason even after a newer request replaced it on the cohort.
+  if (p.status === 'failed' && p.declineReason) return `Declined: ${p.declineReason}`;
   if (!p.cohortName) return p.status;
   if (p.status === 'pending') return 'Waiting for administrator approval';
   if (p.status === 'confirmed' || p.status === 'waived') return 'Approved';
-  if (p.status === 'failed' && p.declineReason) return `Declined: ${p.declineReason}`;
   return p.status;
 }
 

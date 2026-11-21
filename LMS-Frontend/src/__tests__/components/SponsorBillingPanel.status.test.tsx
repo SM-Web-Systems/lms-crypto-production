@@ -24,6 +24,12 @@ describe('sponsor billing: cohort payment request status', () => {
     expect(screen.getByText(/Spring/)).toBeInTheDocument();
   });
 
+  it('still shows the decline reason once a newer request replaced the declined one', async () => {
+    mocks.getBilling.mockResolvedValue({ total: 1, payments: [{ ...base, id: 'p5', status: 'failed', declineReason: 'Wrong count' }] });
+    render(<SponsorBillingPanel />);
+    expect(await screen.findByText('Declined: Wrong count')).toBeInTheDocument();
+  });
+
   it('leaves ordinary payment statuses as they are', async () => {
     mocks.getBilling.mockResolvedValue({ total: 1, payments: [{ ...base, id: 'p4', status: 'confirmed' }] });
     render(<SponsorBillingPanel />);
