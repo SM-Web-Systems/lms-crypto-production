@@ -33,6 +33,9 @@ describe('admin: platform credit', () => {
     expect(await screen.findByText('Public (real XLM)')).toBeInTheDocument();
     expect(screen.getByText('1.4 XLM')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    // UX-001: approving moves value, so it is confirmed in a dialog first.
+    expect(m.approve).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Approve 0.1 XLM' }));
     await waitFor(() => expect(m.approve).toHaveBeenCalledWith('q1', expect.stringContaining('0.1 XLM')));
     expect(await screen.findByRole('status')).toHaveTextContent('Credit approved.');
   });

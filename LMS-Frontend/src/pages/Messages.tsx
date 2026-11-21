@@ -531,6 +531,7 @@ const Messages: React.FC = () => {
         confirmLabel="Delete"
         confirmVariant="danger"
         loading={deleting}
+        loadingLabel="Deleting…"
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
