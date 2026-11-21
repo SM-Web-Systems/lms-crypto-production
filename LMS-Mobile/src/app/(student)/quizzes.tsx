@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { quizService } from '@/services/quizService';
 import { Button } from '@/components/ui/Button';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import { Input } from '@/components/ui/Input';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
@@ -107,8 +108,8 @@ export default function QuizzesScreen() {
   if (step === 'intro' && activeQuiz) {
     const prev = completions[activeQuiz.id];
     return (
-      <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4">
-        <Pressable onPress={backToList} className="flex-row items-center gap-2">
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4">
+        <Pressable onPress={backToList} accessibilityRole="button" className="min-h-[44px] flex-row items-center gap-2 self-start">
           <Ionicons name="arrow-back" size={18} color={brand.primary.dark} />
           <Text className="font-semibold text-neutral-800">All quizzes</Text>
         </Pressable>
@@ -136,7 +137,7 @@ export default function QuizzesScreen() {
 
   if (step === 'take' && activeQuiz && currentQ) {
     return (
-      <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
+      <KeyboardAvoid><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
         <Text className="text-sm text-neutral-500">
           Question {questionIndex + 1} of {questions.length}
         </Text>
@@ -148,8 +149,10 @@ export default function QuizzesScreen() {
               {currentQ.options.map((opt, idx) => (
                 <Pressable
                   key={idx}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: answers[currentQ.id] === opt }}
                   onPress={() => setAnswers((prev) => ({ ...prev, [currentQ.id]: opt }))}
-                  className={`rounded-xl border p-3 ${answers[currentQ.id] === opt ? 'border-accent-teal bg-accent-teal/10' : 'border-neutral-200 bg-white'}`}>
+                  className={`min-h-[44px] justify-center rounded-xl border p-3 ${answers[currentQ.id] === opt ? 'border-accent-teal bg-accent-teal/10' : 'border-neutral-200 bg-white'}`}>
                   <Text className="text-sm text-neutral-800">{opt}</Text>
                 </Pressable>
               ))}
@@ -181,13 +184,13 @@ export default function QuizzesScreen() {
           )}
         </View>
         <Button label="Back to intro" variant="outline" onPress={() => setStep('intro')} />
-      </ScrollView>
+      </ScrollView></KeyboardAvoid>
     );
   }
 
   if (step === 'result' && activeQuiz && lastResult) {
     return (
-      <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4">
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4">
         <Card>
           <View className="items-center py-4">
             <Ionicons
@@ -208,7 +211,7 @@ export default function QuizzesScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-3 pb-8">
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-3 pb-8">
       {error ? <ErrorBanner message={error} /> : null}
       {quizzes.length === 0 ? (
         <EmptyState icon="clipboard-outline" title="No quizzes yet" message="Quizzes will appear here when your instructor adds them." />
