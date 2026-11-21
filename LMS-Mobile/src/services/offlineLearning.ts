@@ -261,7 +261,12 @@ export class OfflineLearning {
       if (session !== this.session || !session.verified) return;
       const delay = this.deps.retryAfter?.(error) ?? backoffDelay(this.failures, this.deps.random);
       this.failures = Math.min(this.failures + 1, 20);
-      const set = this.deps.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
+      const set = this.deps.setTimer ?? ((run: () => void, ms: number) => {
+        const timer = setTimeout(run, ms);
+        // A pending retry must not keep a Node process (tests, tooling) alive; React Native timers have no unref.
+        (timer as { unref?: () => void }).unref?.();
+        return timer;
+      });
       this.retryTimer = set(() => { this.retryTimer = undefined; this.syncInBackground(); }, Math.min(retryCapMs, Math.max(0, delay)));
     });
   }
