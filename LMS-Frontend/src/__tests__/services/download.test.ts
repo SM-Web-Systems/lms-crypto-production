@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AxiosError, type AxiosAdapter, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
-import api from '../../services/api';
+import api, { onUnauthorized, setTokenGetter } from '../../services/api';
 import { ApiRequestError } from '../../utils/apiError';
 import { downloadWithSession } from '../../services/download';
 
@@ -63,4 +63,25 @@ it('reads the JSON error inside a Blob error body', async () => {
 it('refuses to start when signed out', async () => {
   localStorage.removeItem('lms_session_marker');
   await expect(downloadWithSession('/payments/pay-1/receipt', 'r.pdf')).rejects.toThrow('Please sign in');
+});
+
+it('still reports a 401 on a download to the global session handler', async () => {
+  setTokenGetter(async () => 'learner-session');
+  const listener = vi.fn();
+  const stop = onUnauthorized(listener);
+  api.defaults.adapter = respond(401, new Blob(['{"success":false,"error":{"code":"UNAUTHORIZED","message":"Sign in"}}'], { type: 'application/json' }));
+
+  await expect(downloadWithSession('/payments/pay-1/receipt', 'r.pdf')).rejects.toMatchObject({ status: 401 });
+
+  expect(listener).toHaveBeenCalledWith('learner-session');
+  stop();
+});
+
+it('falls back to the status message when the error body is not JSON', async () => {
+  api.defaults.adapter = respond(502, new Blob(['<html>Bad gateway</html>'], { type: 'text/html' }));
+
+  await expect(downloadWithSession('/payments/pay-1/receipt', 'r.pdf')).rejects.toMatchObject({
+    status: 502,
+    message: 'The server is temporarily unavailable. Please try again.',
+  });
 });

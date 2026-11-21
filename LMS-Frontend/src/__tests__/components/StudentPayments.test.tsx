@@ -119,7 +119,7 @@ describe('StudentPayments', () => {
 
     expect(mockDownload).toHaveBeenCalledOnce();
     expect(mockDownload).toHaveBeenCalledWith('/payments/pay-1/receipt', 'receipt-pay-1.pdf');
-    expect(screen.getByRole('button', { name: /download receipt/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Downloading receipt for Blockchain Fundamentals' })).toBeDisabled();
     expect(screen.getByText('Downloading…')).toBeInTheDocument();
 
     finish();
@@ -155,6 +155,38 @@ describe('StudentPayments', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /download receipt/i })).toBeEnabled());
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('PAY-FE-5d — two rows can download at once; each keeps its own pending state', async () => {
+    const two = [MOCK_PAYMENTS[0], { ...MOCK_PAYMENTS[0], paymentId: 'pay-3', courseName: 'DeFi Basics' }];
+    mockGetMyPayments.mockResolvedValueOnce(two);
+    let finishFirst!: () => void;
+    mockDownload
+      .mockReturnValueOnce(new Promise<void>(done => { finishFirst = done; }))
+      .mockReturnValueOnce(new Promise<void>(() => {}));
+    render(<StudentPayments />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /receipt for Blockchain Fundamentals/i }));
+    await userEvent.click(screen.getByRole('button', { name: /receipt for DeFi Basics/i }));
+    expect(screen.getByRole('button', { name: /receipt for Blockchain Fundamentals/i })).toBeDisabled();
+
+    finishFirst();
+    await waitFor(() => expect(screen.getByRole('button', { name: /receipt for Blockchain Fundamentals/i })).toBeEnabled());
+    const second = screen.getByRole('button', { name: /receipt for DeFi Basics/i });
+    expect(second).toBeDisabled();
+    expect(second).toHaveAttribute('aria-busy', 'true');
+    expect(second).toHaveAccessibleName('Downloading receipt for DeFi Basics');
+  });
+
+  it('PAY-FE-5e — Retry moves focus back to the download button', async () => {
+    mockGetMyPayments.mockResolvedValueOnce(MOCK_PAYMENTS);
+    mockDownload.mockRejectedValueOnce(new ApiRequestError({ message: 'x', status: 404 })).mockResolvedValueOnce(undefined);
+    render(<StudentPayments />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /download receipt/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /retry download/i }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /download receipt/i })).toHaveFocus());
   });
 
   // PAY-FE-3: Empty state

@@ -55,7 +55,7 @@ const StudentPayments: React.FC = () => {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
   const [receiptErrors, setReceiptErrors] = useState<Record<string, string>>({});
 
   const fetchPayments = useCallback(async () => {
@@ -72,7 +72,7 @@ const StudentPayments: React.FC = () => {
   }, []);
 
   const downloadReceipt = async (paymentId: string) => {
-    setDownloadingId(paymentId);
+    setDownloading((prev) => ({ ...prev, [paymentId]: true }));
     setReceiptErrors((prev) => ({ ...prev, [paymentId]: '' }));
     try {
       await downloadWithSession(`/payments/${encodeURIComponent(paymentId)}/receipt`, `receipt-${paymentId}.pdf`);
@@ -84,7 +84,7 @@ const StudentPayments: React.FC = () => {
         setReceiptErrors((prev) => ({ ...prev, [paymentId]: message }));
       }
     } finally {
-      setDownloadingId(null);
+      setDownloading(({ [paymentId]: _done, ...rest }) => rest);
     }
   };
 
@@ -166,24 +166,30 @@ const StudentPayments: React.FC = () => {
                           <>
                             <button
                               type="button"
+                              id={`receipt-${p.paymentId}`}
                               onClick={() => downloadReceipt(p.paymentId)}
-                              disabled={downloadingId === p.paymentId}
+                              disabled={downloading[p.paymentId]}
+                              aria-busy={downloading[p.paymentId] || undefined}
                               className="inline-flex items-center text-primary-600 hover:text-primary-800 disabled:opacity-60"
-                              aria-label={`Download receipt for ${p.courseName ?? 'payment'}`}
+                              aria-label={`${downloading[p.paymentId] ? 'Downloading' : 'Download'} receipt for ${p.courseName ?? 'payment'}`}
                             >
-                              {downloadingId === p.paymentId ? (
+                              {downloading[p.paymentId] ? (
                                 <Loader2 className="h-4 w-4 mr-1 animate-spin" aria-hidden="true" />
                               ) : (
                                 <Download className="h-4 w-4 mr-1" aria-hidden="true" />
                               )}
-                              {downloadingId === p.paymentId ? 'Downloading…' : 'Receipt'}
+                              {downloading[p.paymentId] ? 'Downloading…' : 'Receipt'}
                             </button>
                             {receiptErrors[p.paymentId] && (
                               <div role="alert" className="mt-1 flex items-center gap-2 text-xs text-red-600">
                                 {receiptErrors[p.paymentId]}
                                 <button
                                   type="button"
-                                  onClick={() => downloadReceipt(p.paymentId)}
+                                  onClick={() => {
+                                    // The alert (and this button) unmounts on retry; keep focus on the row.
+                                    document.getElementById(`receipt-${p.paymentId}`)?.focus();
+                                    downloadReceipt(p.paymentId);
+                                  }}
                                   className="underline hover:text-red-800"
                                   aria-label={`Retry download of receipt for ${p.courseName ?? 'payment'}`}
                                 >
