@@ -55,7 +55,7 @@ export function snapshotIdentity(userId: string): void {
  * Idempotent: only affects rows where is_deleted = 0.
  * Does NOT affect other users' content.
  *
- * Ref: docs/phase3/specs/01-account-deletion-forum.md
+ * Ref: docs/archive/phase3/specs/01-account-deletion-forum.md
  */
 export function softDeleteForumContentForUser(userId: string): { topicsDeleted: number; postsDeleted: number } {
   const now = new Date().toISOString();
@@ -151,7 +151,7 @@ export function anonymizeUser(userId: string): void {
   }
 
   // Soft-delete forum content (best-effort — does not block finalization)
-  // Ref: docs/phase3/specs/01-account-deletion-forum.md
+  // Ref: docs/archive/phase3/specs/01-account-deletion-forum.md
   try {
     const forumResult = softDeleteForumContentForUser(userId);
     if (forumResult.topicsDeleted > 0 || forumResult.postsDeleted > 0) {

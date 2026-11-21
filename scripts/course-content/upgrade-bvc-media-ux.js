@@ -12,7 +12,7 @@
  *   DRY_RUN=0 node upgrade-bvc-media-ux.js   # Apply
  *
  * Docker:
- *   docker cp upgrade-bvc-media-ux.js lms-api:/app/
+ *   docker cp scripts/course-content/upgrade-bvc-media-ux.js lms-api:/app/
  *   docker exec -w /app lms-api node upgrade-bvc-media-ux.js
  *   docker exec -w /app -e DRY_RUN=0 lms-api node upgrade-bvc-media-ux.js
  */

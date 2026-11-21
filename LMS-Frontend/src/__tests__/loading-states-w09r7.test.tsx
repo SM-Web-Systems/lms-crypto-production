@@ -5,7 +5,7 @@
  * produce a user-visible defect when a certificate application mutation is
  * in-flight or recently committed?
  *
- * Background (see docs/release/W09-R7-spec.md):
+ * Background (see docs/archive/release/W09-R7-spec.md):
  * AuthProvider.refresh() calls setUser(response.data.data) on every /auth/me
  * success. The returned data is always a new JSON-deserialised object — new
  * object reference even when all fields are identical. StudentDashboard's

@@ -4,7 +4,7 @@
  * Investigation: can the courses-effect full-replace of appStatusMap overwrite a
  * pending application committed by an app retry merge or handleAppStatusChange?
  *
- * Conclusion (see docs/release/W09-R6-spec.md):
+ * Conclusion (see docs/archive/release/W09-R6-spec.md):
  * No user-facing defect demonstrated via product controls. The coursesLoading
  * skeleton guard prevents cert-button access during any courses-effect run, making
  * a concurrent handleAppStatusChange or app-retry-merge impossible through the UI.
