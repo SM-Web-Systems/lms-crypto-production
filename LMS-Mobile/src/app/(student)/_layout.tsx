@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { Tabs, Redirect, usePathname, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, View, Text } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +24,16 @@ export default function StudentTabsLayout() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const path = usePathname();
   const router = useRouter();
+
+  // A tab opened straight from a link has no history, so Android back would close the app. Go to Dashboard first.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (router.canGoBack() || path === '/dashboard') return false;
+      router.navigate('/(student)/dashboard');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [router, path]);
 
   if (isLoading) {
     return (

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BackHandler, Pressable, Text, TextInput } from 'react-native';
 import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 
 // jest.setup.js stubs expo-router for screen tests; this suite needs the real router.
 jest.unmock('expo-router');
@@ -26,19 +26,38 @@ jest.mock('react-native/Libraries/Utilities/BackHandler', () => {
 jest.mock('@/global.css', () => ({}));
 jest.mock('react-native-url-polyfill/auto', () => ({}));
 jest.mock('@/context/AuthContext', () => {
-  const user = {
+  const { useSyncExternalStore } = jest.requireActual('react');
+  const learner = {
     id: 'u1', email: 'learner@example.test', workspaces: ['student'],
     permissions: ['course.view', 'quiz.view', 'reward.view_own', 'certificate.view_own'],
   };
+  let user: typeof learner | null = learner;
+  const listeners = new Set<() => void>();
+  const subscribe = (fn: () => void) => { listeners.add(fn); return () => listeners.delete(fn); };
   return {
     AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-    useAuth: () => ({ user, isLoading: false, isAuthenticated: true }),
+    useAuth: () => {
+      const current = useSyncExternalStore(subscribe, () => user);
+      return { user: current, isLoading: false, isAuthenticated: !!current };
+    },
+    mockSignIn: (signedIn: boolean) => { user = signedIn ? learner : null; listeners.forEach(fn => fn()); },
+  };
+});
+jest.mock('@/services/pushNotifications', () => {
+  const snapshot = { revision: 1 };
+  return {
+  pushNotifications: { subscribe: () => () => undefined, getSnapshot: () => snapshot },
+  readPushNotification: async () => ({ title: 'New lesson', body: 'Open it', link: '/student/course', read: true }),
+  markPushNotificationRead: async () => undefined,
   };
 });
 jest.mock('@/components/SessionBoundary', () => ({ SessionBoundary: ({ children }: { children: React.ReactNode }) => children }));
 jest.mock('@/components/PushNotifications', () => ({ PushNotificationsBridge: () => null }));
 
 const RootLayout = jest.requireActual('@/app/_layout').default;
+const Index = jest.requireActual('@/app/index').default;
+const NotificationScreen = jest.requireActual('@/app/notification').default;
+const { mockSignIn } = jest.requireMock('@/context/AuthContext') as { mockSignIn: (signedIn: boolean) => void };
 const StudentLayout = jest.requireActual('@/app/(student)/_layout').default;
 
 /** Stands in for a quiz half answered: its answer lives only in component state. */
@@ -58,14 +77,30 @@ function Pushed() {
 const Empty = () => null;
 function Dashboard() {
   const router = useRouter();
-  return <Pressable onPress={() => router.navigate('/(student)/course')}><Text>Go to course</Text></Pressable>;
+  return <>
+    <Pressable onPress={() => router.navigate('/(student)/course')}><Text>Go to course</Text></Pressable>
+    <Pressable onPress={() => router.push('/account')}><Text>Account</Text></Pressable>
+  </>;
 }
+function SignedInOnly() {
+  const { user } = jest.requireMock('@/context/AuthContext').useAuth();
+  return user ? <Pushed /> : <Redirect href="/(auth)/sign-in" />;
+}
+function SignIn() {
+  const router = useRouter();
+  return <Pressable onPress={() => { mockSignIn(true); router.replace('/'); }}><Text>Sign in</Text></Pressable>;
+}
+/** The routes on the root Stack (the container holds that Stack as its only route). */
+const rootRoutes = () => app.getRouterState()?.routes[0].state?.routes.map(route => route.name);
 const pressBack = () => (BackHandler as unknown as { pressBack: () => void }).pressBack();
 
 let app: ReturnType<typeof renderRouter>;
 function renderApp(initialUrl = '/quizzes') {
   app = renderRouter({
     _layout: RootLayout,
+    index: Index,
+    '(auth)/_layout': jest.requireActual('@/app/(auth)/_layout').default,
+    '(auth)/sign-in': SignIn,
     '(student)/_layout': StudentLayout,
     '(student)/dashboard': Dashboard,
     '(student)/course': Empty,
@@ -78,8 +113,8 @@ function renderApp(initialUrl = '/quizzes') {
     '(student)/forum': Empty,
     '(student)/documents': Empty,
     '(student)/rewards': Empty,
-    notification: Pushed,
-    account: Pushed,
+    notification: NotificationScreen,
+    account: SignedInOnly,
     workspace: Pushed,
   }, { initialUrl });
 }
@@ -90,7 +125,7 @@ describe('root Stack keeps the tab tree mounted', () => {
     fireEvent.changeText(screen.getByTestId('answer'), 'half done');
     fireEvent.press(screen.getByText('Push tap'));
     expect(app.getPathname()).toBe('/notification');
-    fireEvent.press(screen.getByText('Back'));
+    fireEvent.press(await screen.findByText('Back to your workspace'));
     expect(app.getPathname()).toBe('/quizzes');
     expect(screen.getByTestId('answer').props.value).toBe('half done');
   });
@@ -128,6 +163,33 @@ describe('root Stack keeps the tab tree mounted', () => {
     act(() => { pressBack(); });
     expect(app.getPathname()).toBe('/dashboard');
     expect(exitApp).not.toHaveBeenCalled();
+    act(() => { pressBack(); });
+    expect(exitApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('Android back on a tab opened straight from a link goes to Dashboard first', async () => {
+    renderApp('/course');
+    act(() => { pressBack(); });
+    expect(app.getPathname()).toBe('/dashboard');
+  });
+
+  it('"Open in LMS" switches the tabs already open instead of stacking a second copy', async () => {
+    renderApp();
+    fireEvent.press(screen.getByText('Push tap'));
+    fireEvent.press(await screen.findByText('Open in LMS'));
+    expect(app.getPathname()).toBe('/course');
+    expect(rootRoutes()).toEqual(['(student)']);
+  });
+
+  it('signing out on a pushed screen and back in leaves one copy of the tabs', async () => {
+    const { exitApp } = BackHandler as unknown as { exitApp: jest.Mock };
+    exitApp.mockClear();
+    renderApp('/dashboard');
+    fireEvent.press(screen.getByText('Account'));
+    act(() => { mockSignIn(false); });
+    fireEvent.press(await screen.findByText('Sign in'));
+    expect(app.getPathname()).toBe('/dashboard');
+    expect(rootRoutes()).toEqual(['(student)']);
     act(() => { pressBack(); });
     expect(exitApp).toHaveBeenCalledTimes(1);
   });

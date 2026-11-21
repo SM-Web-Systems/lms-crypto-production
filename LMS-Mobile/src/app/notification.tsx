@@ -63,7 +63,7 @@ export default function NotificationScreen() {
         <Text className="text-base text-neutral-900">{current.detail.body}</Text>
       </> : null}
       {destination && canOpenStudentPath(user, destination)
-        ? <Button label="Open in LMS" onPress={() => router.push(destination)} /> : null}
+        ? <Button label="Open in LMS" onPress={() => router.dismissTo(destination)} /> : null}
       <Button label="Back to your workspace" variant="outline" onPress={() => backOr(router, mobileHome(user))} />
     </ScrollView>
   </SafeAreaView>;
