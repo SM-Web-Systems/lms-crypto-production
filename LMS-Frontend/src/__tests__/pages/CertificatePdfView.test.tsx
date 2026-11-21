@@ -3,7 +3,7 @@
  * On the iPhone home-screen app, a same-site target="_blank" PDF had no way back.
  */
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import NFTBadge from '../../components/NFTBadge';
 import CertificatePdfView from '../../pages/CertificatePdfView';
@@ -20,7 +20,7 @@ function setPdfViewerEnabled(value: boolean | undefined) {
   Object.defineProperty(navigator, 'pdfViewerEnabled', { value, configurable: true });
 }
 
-afterEach(() => setPdfViewerEnabled(undefined));
+afterEach(() => { setPdfViewerEnabled(undefined); vi.unstubAllGlobals(); });
 
 describe('Certificate PDF in-app viewer', () => {
   it('PDF link on the badge stays in the app (no new tab)', () => {
@@ -70,5 +70,27 @@ describe('Certificate PDF in-app viewer', () => {
     expect(screen.queryByTitle('Certificate PDF')).toBeNull();
     expect(screen.getByRole('link', { name: /Open PDF/ }).getAttribute('href')).toBe('/api/v1/credentials/cred-abc/pdf');
     expect(screen.getByRole('button', { name: /Back/ })).toBeTruthy();
+  });
+
+  it('a failed Save stays in the viewer with an error, never leaving the app for the raw PDF', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    const assign = vi.fn();
+    const realLocation = window.location;
+    Object.defineProperty(window, 'location', { value: { ...realLocation, assign }, configurable: true });
+    try {
+      render(
+        <MemoryRouter initialEntries={['/certificate/cred-abc/pdf']}>
+          <Routes>
+            <Route path="/certificate/:credentialId/pdf" element={<CertificatePdfView />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Save/ }));
+      expect((await screen.findByRole('alert')).textContent).toMatch(/could not be saved/);
+      expect(assign).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /Back/ })).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'location', { value: realLocation, configurable: true });
+    }
   });
 });

@@ -23,28 +23,32 @@ const CertificateVerification: React.FC = () => {
   const { credentialId } = useParams<{ credentialId: string }>();
   const [credential, setCredential] = useState<VerifiedCredential | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  // 'missing' only when the API says so (404); a network or server failure is 'unavailable', never "does not exist".
+  const [failure, setFailure] = useState<'missing' | 'unavailable' | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const apiBase = import.meta.env?.VITE_API_BASE_URL || '/api/v1';
 
   useEffect(() => {
     if (!credentialId) return;
+    let cancelled = false;
     setLoading(true);
-    fetch(`${apiBase}/credentials/verify/${credentialId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('not found');
-        return res.json();
+    setCredential(null);
+    setQrDataUrl(null);
+    fetch(`${apiBase}/credentials/verify/${encodeURIComponent(credentialId)}`)
+      .then(async (res) => {
+        if (res.status === 404) return 'missing' as const;
+        if (!res.ok) return 'unavailable' as const;
+        const found = (await res.json())?.data?.credential as VerifiedCredential | undefined;
+        if (!found) return 'unavailable' as const;
+        if (!cancelled) setCredential(found);
+        return null;
       })
-      .then((body) => {
-        setCredential(body.data.credential);
-        setNotFound(false);
-      })
-      .catch(() => {
-        setNotFound(true);
-      })
-      .finally(() => setLoading(false));
-  }, [credentialId, apiBase]);
+      .catch(() => 'unavailable' as const)
+      .then((result) => { if (!cancelled) { setFailure(result); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [credentialId, apiBase, attempt]);
 
   useEffect(() => {
     if (!credential) return;
@@ -62,15 +66,34 @@ const CertificateVerification: React.FC = () => {
     );
   }
 
-  if (notFound || !credential) {
+  if (failure || !credential) {
+    const missing = failure === 'missing';
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <AlertCircle className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-neutral-900 mb-2">Certificate Not Found</h1>
+        <div className="text-center max-w-md" role={missing ? undefined : 'alert'}>
+          <AlertCircle className="h-12 w-12 text-neutral-400 mx-auto mb-4" aria-hidden />
+          <h1 className="text-xl font-bold text-neutral-900 mb-2">
+            {missing ? 'Certificate not found' : "We couldn't check this certificate right now"}
+          </h1>
           <p className="text-sm text-neutral-500">
-            This certificate does not exist or has not been issued yet.
+            {missing
+              ? 'No issued certificate matches this link. Check that the link is complete, or ask the person who shared it for a new one.'
+              : 'This is a problem on our side or with the connection, not with the certificate. Please try again in a moment.'}
           </p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            {!missing && (
+              <button
+                type="button"
+                onClick={() => setAttempt((n) => n + 1)}
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+              >
+                Try again
+              </button>
+            )}
+            <Link to="/" className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100">
+              Go to the home page
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -91,7 +114,7 @@ const CertificateVerification: React.FC = () => {
           <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-3" />
           <h1 className="text-2xl font-bold text-neutral-900">Verified Certificate</h1>
           <p className="text-sm text-neutral-500 mt-1">
-            This credential has been verified on the Stellar blockchain.
+            This certificate has been verified on the Stellar blockchain.
           </p>
         </div>
 

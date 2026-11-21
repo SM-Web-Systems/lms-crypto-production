@@ -3,7 +3,8 @@
  *
  * Tests notification delivery, opt-out, failure isolation, privacy.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import * as authorization from '../services/authorizationService.js';
 import { db } from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -145,5 +146,55 @@ describe('Reward Notifications — N7-N8', () => {
       const body = notif.body as string;
       expect(body).not.toMatch(/available_stroops|reserved_stroops|recipient_available/i);
     }
+  });
+
+  it('NOTIF-LINK: every learner reward notification opens the learner Rewards page', () => {
+    const studentId = createUser('student');
+    const creatorId = createUser('admin');
+    notifyRewardEligible(studentId, creatorId, 'Linked', false);
+    notifyRewardReleased(studentId, 'Linked', '1.0');
+    notifyRewardRefunded(studentId, creatorId, '1.0', 'Linked');
+    notifyRewardCancelled(creatorId, 'Linked', [studentId]);
+
+    const notifs = getNotifications(studentId);
+    expect(notifs.length).toBe(4);
+    for (const n of notifs) expect(n.link).toBe('/student/rewards');
+  });
+
+  it('NOTIF-LINK: creator reward notifications open the creator workspace Rewards page', () => {
+    const studentId = createUser('student');
+    const creatorId = createUser('admin');
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(creatorId, 'role_admin');
+    notifyRewardEligible(studentId, creatorId, 'Linked', true);
+    notifyRewardRefunded(studentId, creatorId, '1.0', 'Linked');
+    notifyRewardExpired(creatorId, 'Linked');
+    notifyRewardCancelled(creatorId, 'Linked', []);
+
+    const notifs = getNotifications(creatorId);
+    expect(notifs.length).toBe(4);
+    for (const n of notifs) expect(n.link).toBe('/admin/rewards');
+  });
+
+  it('NOTIF-LINK: a sponsor creator lands on the sponsor Rewards tab', () => {
+    const sponsorId = createUser('student');
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
+    notifyRewardExpired(sponsorId, 'Linked');
+    expect(getNotifications(sponsorId, 'reward_expired')[0].link).toBe('/sponsor/rewards');
+  });
+
+  it('NOTIF-LINK: a failed link lookup still delivers the creator notification, without a link', () => {
+    const creatorId = createUser('admin');
+    const spy = vi.spyOn(authorization, 'getAuthorizationContext').mockImplementation(() => { throw new Error('db busy'); });
+    try { notifyRewardExpired(creatorId, 'Linked'); } finally { spy.mockRestore(); }
+    const notifs = getNotifications(creatorId, 'reward_expired');
+    expect(notifs.length).toBe(1);
+    expect(notifs[0].link).toBeNull();
+  });
+
+  it('NOTIF-LINK: refund_blocked opens a page that exists', () => {
+    const adminId = createUser('admin');
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(adminId, 'role_admin');
+    notifyRefundBlocked('attempt-link', '1.0');
+    expect(getNotifications(adminId, 'refund_blocked')[0].link).toBe('/admin/rewards');
   });
 });

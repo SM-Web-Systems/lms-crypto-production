@@ -18,7 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import {getStoredToken} from '../context/AuthContext';
 import { homeForUser } from '../utils/authorization';
-import { takeSsoReturn } from '../utils/ssoReturn';
+import { ssoReturnFor } from '../utils/ssoReturn';
 import { ApiRequestError } from '../utils/apiError';
 
 const SsoCallback: React.FC = () => {
@@ -53,7 +53,7 @@ const SsoCallback: React.FC = () => {
     pending.then(verified => {
       if (cancelled || getStoredToken() !== markerRef.current) return;
       setSuccess(true);
-      navigate(takeSsoReturn() ?? homeForUser(verified), {replace: true});
+      navigate(ssoReturnFor(verified, homeForUser(verified)), {replace: true});
     }).catch((error: unknown) => {
       if (cancelled) return;
       const currentToken = getStoredToken();

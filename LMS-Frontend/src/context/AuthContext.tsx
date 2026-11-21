@@ -4,6 +4,7 @@ import { currentSessionUser } from '../utils/rolePresentation';
 import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { User, LoginResponse, ApiResponse } from '../types/api';
 import { resyncWebPush } from '../lib/webPush';
+import { forgetSsoReturn } from '../utils/ssoReturn';
 
 // The sign-in token lives in an HttpOnly cookie set by the API; page scripts never see it.
 // The browser keeps only a random, non-secret session marker. It says "a sign-in may exist" (so a
@@ -135,6 +136,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     }finally{if(current())setIsLoading(false);}
   },[invalidate]);
   const logout=useCallback(async()=>{
+    forgetSsoReturn();
     const token=getStoredToken();generation.current++;request.current++;setStoredToken(null);setUser(null);setSessionError(null);setIsLoading(false);
     // The API revokes the session and clears the cookie. Local sign-out succeeds while offline.
     if(token){try{await api.post('/auth/logout',undefined,{timeout:5000});}catch{/* offline */}}
