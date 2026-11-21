@@ -25,10 +25,11 @@ const requirements: Record<string, string[]> = {
   '/admin/documents': ['document.manage'], '/admin/course': ['course.manage'],
   '/admin/quizzes': ['quiz.manage'], '/admin/certificates': ['certificate.approve'],
   '/admin/sponsor': ['cohort.manage', 'system.view_audit_log'], '/admin/users': ['user.assign_role', 'user.view_all'],
-  '/lecturer/course': ['course.manage'], '/lecturer/submissions': ['course.manage'],
+  '/lecturer/course': ['course.manage'], '/lecturer/submissions': ['course.grade'],
+  '/admin/rewards': ['reward.manage'], '/admin/platform-credit': ['reward.manage'],
   '/student/submissions': ['course.submit'], '/student/payments': ['billing.view_own'],
   '/student/rewards': ['reward.view_own'], '/student/badges': ['certificate.view_own'],
-  '/student/progress': ['course.view'], '/ta/grade': ['course.grade_pending'],
+  '/student/progress': ['course.view'],
   '/sponsor/cohorts': ['cohort.manage'], '/sponsor/billing': ['billing.view_own'],
   '/sponsor/impact': ['impact_report.read'], '/sponsor/rewards': ['reward.view_assigned'],
 };

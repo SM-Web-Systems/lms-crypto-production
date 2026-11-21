@@ -97,8 +97,10 @@ describe('Phase G Frontend', () => {
   it('G-NAV-5 — TA sees TA-specific nav items', () => {
     renderLayoutWithRole('teaching-assistant');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Courses')).toBeInTheDocument();
-    expect(screen.getByText('Grade')).toBeInTheDocument();
+    // UX-020: Courses and Grade were the same page as Dashboard; Messages and Profile were missing
+    expect(screen.queryByText('Courses')).not.toBeInTheDocument();
+    expect(screen.getByText('Messages')).toBeInTheDocument();
+    expect(screen.getByText('Profile')).toBeInTheDocument();
     // Should NOT show lecturer items
     expect(screen.queryByText('Course Editor')).not.toBeInTheDocument();
     expect(screen.queryByText('Submissions')).not.toBeInTheDocument();
