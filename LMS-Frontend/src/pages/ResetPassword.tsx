@@ -10,8 +10,12 @@ const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
-  const token = searchParams.get('token') ?? '';
-  const email = searchParams.get('email') ?? '';
+  // Read once, then scrub the address bar so the token and email stay out of history and Referer headers.
+  const [token] = useState(() => searchParams.get('token') ?? '');
+  const [email] = useState(() => searchParams.get('email') ?? '');
+  useEffect(() => {
+    if (window.location.search) window.history.replaceState(window.history.state, '', window.location.pathname);
+  }, []);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');

@@ -56,4 +56,20 @@ describe('ResetPassword landing (UX-004)', () => {
     renderAt('/reset-password?token=abc123');
     expect(screen.getByRole('link', { name: 'Request new link' })).toHaveAttribute('href', '/forgot-password?method=email');
   });
+
+  it('removes the token and email from the address bar once read', () => {
+    window.history.replaceState(null, '', '/reset-password?token=abc123&email=learner%40example.com');
+    renderAt('/reset-password?token=abc123&email=learner%40example.com');
+    expect(window.location.search).toBe('');
+    expect(screen.getByRole('button', { name: 'Set new password' })).toBeInTheDocument();
+  });
+
+  it('a link without an email (sent before this change) still lands on the success banner', async () => {
+    vi.mocked(authService.resetPassword).mockResolvedValue(undefined);
+    renderAt('/reset-password?token=abc123');
+    await userEvent.type(screen.getByLabelText('New password'), 'new-password-1');
+    await userEvent.type(screen.getByLabelText('Confirm new password'), 'new-password-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Set new password' }));
+    expect(await screen.findByText(/Password updated successfully/)).toBeInTheDocument();
+  });
 });

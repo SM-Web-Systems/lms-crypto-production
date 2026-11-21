@@ -79,6 +79,11 @@ const EmailReset: React.FC = () => {
   const [submitting, setSubmitting] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // The form unmounts on success; move focus to the message so it is read out and focus isn't lost.
+  const statusRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (submitted) statusRef.current?.focus();
+  }, [submitted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +101,7 @@ const EmailReset: React.FC = () => {
 
   if (submitted) {
     return (
-      <div role="status" className="rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-4 space-y-1">
+      <div ref={statusRef} tabIndex={-1} role="status" className="rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-4 space-y-1">
         <p className="font-semibold">Check your email</p>
         <p>
           If <strong>{email}</strong> has an LMS password, we have sent a reset link. It expires in 1 hour.

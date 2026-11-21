@@ -55,6 +55,7 @@ describe('ForgotPassword (UX-004)', () => {
 
     expect(mockForgot).toHaveBeenCalledWith('learner@example.com');
     expect(await screen.findByText('Check your email')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveFocus();
   });
 
   it('shows the same neutral message for known and unknown emails', async () => {
