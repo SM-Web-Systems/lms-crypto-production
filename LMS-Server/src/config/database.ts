@@ -20,6 +20,7 @@ import { courseContentSchema } from './courseContentSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { ensureTaGradeReviewColumns } from './taGradeReviewMigration.js';
 import { ensureRewardDeclineColumns } from './rewardDeclineMigration.js';
+import { ensurePaymentDeclineColumns } from './paymentDeclineMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
 dotenv.config();
@@ -646,6 +647,7 @@ function ensurePaystackColumns(): void {
   addCol('stellar_tx_hash', 'TEXT');
   addCol('stellar_memo', 'TEXT');
   addCol('stellar_expected_amount', 'REAL');
+  ensurePaymentDeclineColumns(db);
 
   // Add Stellar pricing columns to course_pricing
   const pricingCols = db.prepare("PRAGMA table_info('course_pricing')").all() as { name: string }[];

@@ -426,7 +426,9 @@ function priceBulkPay(cohortId: string): { cohort: SponsorCohort; quote: BulkPay
     throw Object.assign(new Error('Free-tier cohorts do not require payment'), { code: 'VALIDATION_ERROR' });
   }
 
-  if (cohort.payment_id) {
+  // A declined request (status 'failed' with a reason) may be replaced by a new one.
+  if (cohort.payment_id && !queryOne(
+    "SELECT 1 FROM payments WHERE id = ? AND status = 'failed' AND decline_reason IS NOT NULL", [cohort.payment_id])) {
     throw Object.assign(new Error('Cohort already has a payment'), { code: 'COHORT_ALREADY_PAID' });
   }
 
