@@ -101,6 +101,16 @@ describe('admin: payout problems (UX-019)', () => {
     await waitFor(() => expect(mocks.retry).toHaveBeenCalledWith('att1', expect.any(String)));
   });
 
+  it('one failing list does not hide the other', async () => {
+    mocks.list.mockResolvedValue([]);
+    mocks.stuck.mockRejectedValue(new Error('payouts down'));
+    mocks.attempts.mockResolvedValue([]);
+    render(<AdminRewards />);
+    const section = await screen.findByRole('region', { name: 'Payout problems' });
+    expect(await within(section).findByText('payouts down')).toBeInTheDocument();
+    expect(within(section).getByText('None.')).toBeInTheDocument();
+  });
+
   it('is hidden from an administrator without refund review', async () => {
     mocks.permissions = ['reward.manage'];
     mocks.list.mockResolvedValue([]);

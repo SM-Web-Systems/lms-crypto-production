@@ -11,7 +11,7 @@ const labels: Record<string, string> = {
 const RATE_LIMIT_MESSAGE = 'Too many requests right now. Your payment is safe. Wait a few minutes, then press the button again with the same details.';
 const isRateLimited = (err: unknown) => (err as {response?: {status?: number}})?.response?.status === 429;
 
-const networkLabel = (network?: string | null) => network === 'public' ? 'Public network — real XLM' : 'Testnet — test XLM';
+const networkLabel = (network?: string | null) => network === 'public' ? 'Public network — real XLM' : network === 'testnet' ? 'Testnet — test XLM' : 'Network unknown';
 
 export function RewardFundingDialog({role, rewardId, rewardName, onClose, onFunded, returnFocus}: {
   role: string; rewardId: string;

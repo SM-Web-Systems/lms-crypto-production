@@ -94,17 +94,19 @@ router.get(
   (_req: AuthRequest, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
     const now = Date.now();
+    // Only the network this server pays on; old payouts from another network are not this server's to fix.
+    const network = ['public', 'testnet'].includes(process.env.REWARD_STELLAR_NETWORK ?? '') ? process.env.REWARD_STELLAR_NETWORK! : null;
     const rows = db.prepare(`
       SELECT c.id AS claimId, u.name AS learnerName, c.amount_stroops AS amountStroops, c.verified_at AS verifiedAt,
              p.network, p.status AS payoutStatus, p.error, p.tx_hash AS txHash, p.attempts, p.updated_at AS updatedAt
       FROM reward_claims c
       JOIN users u ON u.id = c.user_id
       LEFT JOIN reward_claim_payouts p ON p.claim_id = c.id
-      WHERE c.status = 'verified' AND (
+      WHERE c.status = 'verified' AND (p.claim_id IS NULL OR ? IS NULL OR p.network = ?) AND (
         p.status = 'failed'
         OR (p.status = 'submitted' AND p.max_time * 1000 < ?)
         OR (p.claim_id IS NULL AND c.verified_at < ?))
-      ORDER BY COALESCE(p.updated_at, c.verified_at) DESC LIMIT 100`).all(now, now - NEVER_SENT_AFTER_MS);
+      ORDER BY COALESCE(p.updated_at, c.verified_at) DESC LIMIT 100`).all(network, network, now, now - NEVER_SENT_AFTER_MS);
     res.json({ success: true, data: rows });
   },
 );

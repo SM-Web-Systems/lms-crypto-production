@@ -116,14 +116,17 @@ export default function AdminRewards() {
 function PayoutProblems({ xlmUsdc, ask }: { xlmUsdc: number | null; ask: ReturnType<typeof useConfirmAction>['ask'] }) {
   const [payouts, setPayouts] = useState<StuckPayout[] | null>(null);
   const [refunds, setRefunds] = useState<RefundAttempt[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [payoutsError, setPayoutsError] = useState<string | null>(null);
+  const [refundsError, setRefundsError] = useState<string | null>(null);
 
+  // Each list loads on its own, so one failing endpoint does not hide the other.
   const load = useCallback(async () => {
-    setError(null);
-    try {
-      const [p, r] = await Promise.all([rewardService.listStuckPayouts(), rewardService.listRefundAttempts()]);
-      setPayouts(p); setRefunds(r);
-    } catch (err) { setError(getErrorMessage(err, 'Could not load payout problems.')); setPayouts([]); setRefunds([]); }
+    setPayoutsError(null); setRefundsError(null);
+    const [p, r] = await Promise.allSettled([rewardService.listStuckPayouts(), rewardService.listRefundAttempts()]);
+    if (p.status === 'fulfilled') setPayouts(p.value);
+    else { setPayouts([]); setPayoutsError(getErrorMessage(p.reason, 'Could not load learner payouts.')); }
+    if (r.status === 'fulfilled') setRefunds(r.value);
+    else { setRefunds([]); setRefundsError(getErrorMessage(r.reason, 'Could not load blocked refunds.')); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -153,11 +156,11 @@ function PayoutProblems({ xlmUsdc, ask }: { xlmUsdc: number | null; ask: ReturnT
           </Button>
         </div>
         <CardContent className="p-5 space-y-5">
-          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
           <div>
             <h3 className="text-sm font-medium text-neutral-800 mb-2">Learner payouts that did not arrive</h3>
+            {payoutsError && <p role="alert" className="text-sm text-red-700">{payoutsError}</p>}
             {payouts === null ? <p role="status" className="text-sm text-neutral-500">Loading…</p>
-              : payouts.length === 0 ? <p className="text-sm text-neutral-500">None. Every verified claim was paid or is on its way.</p>
+              : payouts.length === 0 ? (payoutsError ? null : <p className="text-sm text-neutral-500">None. Every verified claim was paid or is on its way.</p>)
               : <ul className="divide-y divide-neutral-100">{payouts.map(p => (
                 <li key={p.claimId} className="py-2 text-sm">
                   <p className="font-medium text-neutral-900">{p.learnerName} · {formatXlm(p.amountStroops, xlmUsdc)}</p>
@@ -169,8 +172,9 @@ function PayoutProblems({ xlmUsdc, ask }: { xlmUsdc: number | null; ask: ReturnT
           </div>
           <div>
             <h3 className="text-sm font-medium text-neutral-800 mb-2">Blocked refunds</h3>
+            {refundsError && <p role="alert" className="text-sm text-red-700">{refundsError}</p>}
             {refunds === null ? <p role="status" className="text-sm text-neutral-500">Loading…</p>
-              : refunds.length === 0 ? <p className="text-sm text-neutral-500">None.</p>
+              : refunds.length === 0 ? (refundsError ? null : <p className="text-sm text-neutral-500">None.</p>)
               : <ul className="divide-y divide-neutral-100">{refunds.map(a => (
                 <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
                   <div className="min-w-0">

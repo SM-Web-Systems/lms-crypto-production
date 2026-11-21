@@ -98,6 +98,23 @@ describe('POST /admin/rewards/:id/decline', () => {
 });
 
 describe('creator is told to press Activate', () => {
+  it('through the real fund route (admin grant via /teacher/rewards/:id/fund), once, even when the request is replayed', async () => {
+    const sponsor = user('role_sponsor', 'lecturer');
+    const admin = user('role_admin', 'admin');
+    const id = sponsorDraft(sponsor.id, 'Route bonus');
+    const url = `/api/v1/teacher/rewards/${id}`;
+    const intent = await request(app).post(`${url}/funding-intents`).set('Authorization', `Bearer ${admin.token}`).send({ sourceType: 'admin_grant', idempotencyKey: 'prep' });
+    expect(intent.status).toBe(201);
+    for (let i = 0; i < 2; i++) {
+      const fund = await request(app).post(`${url}/fund`).set('Authorization', `Bearer ${admin.token}`)
+        .send({ sourceType: 'admin_grant', intentId: intent.body.data.id, idempotencyKey: 'consume' });
+      expect(fund.status).toBe(200);
+    }
+    const notes = notifications(sponsor.id, 'reward_funded');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].body).toContain('Route bonus');
+  });
+
   it('an independent admin funding a reward notifies the creator once, and self-funding does not', () => {
     const sponsor = user('role_sponsor', 'lecturer');
     const admin = user('role_admin', 'admin');
@@ -146,6 +163,20 @@ describe('GET /admin/rewards/stuck-payouts', () => {
     expect(res.body.data.find((r: { claimId: string }) => r.claimId === failed)).toMatchObject({
       learnerName: expect.stringContaining('U role_student'), amountStroops: 2000000, payoutStatus: 'failed', error: 'tx_bad_seq', network: 'testnet',
     });
+  });
+
+  it('leaves out payouts from a network this server does not pay on', async () => {
+    const admin = user('role_admin', 'admin');
+    const learner = user('role_student', 'student');
+    const otherNetwork = claim(learner.id, 'verified', 60_000); payout(otherNetwork, 'failed', 0, 'old');
+    const before = process.env.REWARD_STELLAR_NETWORK;
+    process.env.REWARD_STELLAR_NETWORK = 'public';
+    try {
+      const res = await request(app).get('/api/v1/admin/rewards/stuck-payouts').set('Authorization', `Bearer ${admin.token}`);
+      expect(res.body.data.map((r: { claimId: string }) => r.claimId)).not.toContain(otherNetwork);
+    } finally {
+      if (before === undefined) delete process.env.REWARD_STELLAR_NETWORK; else process.env.REWARD_STELLAR_NETWORK = before;
+    }
   });
 
   it('is closed to a sponsor', async () => {
