@@ -9,7 +9,7 @@
  *   DRY_RUN=0 node upgrade-bvc-audio-youtube.js   # Apply
  *
  * Docker:
- *   docker cp upgrade-bvc-audio-youtube.js lms-api:/app/
+ *   docker cp scripts/course-content/upgrade-bvc-audio-youtube.js lms-api:/app/
  *   docker exec -w /app lms-api node upgrade-bvc-audio-youtube.js
  *   docker exec -w /app -e DRY_RUN=0 lms-api node upgrade-bvc-audio-youtube.js
  */

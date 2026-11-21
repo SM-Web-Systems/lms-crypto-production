@@ -7,6 +7,7 @@ import { MaterialViewer } from '@/components/MaterialViewer';
 import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import { OfflineLearningPanel } from '@/components/OfflineLearningPanel';
 import { getCourseWeeks, type Course, type CourseItem, type CourseSection } from '@/types/course';
 import { getErrorMessage } from '@/utils/apiError';
@@ -76,11 +77,11 @@ export default function CourseScreen() {
 
   if (selectedMaterial && selectedCourse) {
     return (
-      <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4">
+      <KeyboardAvoid><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4">
         {progressError ? <ErrorBanner message={progressError} onRetry={learning.refresh} /> : null}
         {learning.loading ? <>
           {!progressError && !learning.error ? <LoadingView message="Loading lesson progress…" /> : null}
-          <Pressable onPress={() => setSelectedMaterial(null)}><Text>Back to materials</Text></Pressable>
+          <Pressable onPress={() => setSelectedMaterial(null)} accessibilityRole="button" className="min-h-[44px] justify-center self-start"><Text className="font-semibold text-neutral-800">Back to materials</Text></Pressable>
         </> : <MaterialViewer
           key={`${selectedCourse.id}:${selectedMaterial.item.id}`}
           courseId={selectedCourse.id}
@@ -93,12 +94,12 @@ export default function CourseScreen() {
           item={selectedMaterial.item}
           onClose={() => { void learning.flush(); setSelectedMaterial(null); }}
         />}
-      </ScrollView>
+      </ScrollView></KeyboardAvoid>
     );
   }
 
   return (
-    <ScrollView
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
       className="flex-1 bg-neutral-50"
       contentContainerClassName="p-4 gap-4 pb-8"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.accent.teal} />}>
@@ -141,7 +142,9 @@ export default function CourseScreen() {
                 setSelectedWeekId(null);
               }
             }}
-            className="flex-row items-center gap-2 self-start">
+            disabled={courses.length <= 1}
+            accessibilityRole={courses.length > 1 ? 'button' : undefined}
+            className="min-h-[44px] flex-row items-center gap-2 self-start">
             {courses.length > 1 ? <Ionicons name="arrow-back" size={18} color={brand.primary.dark} /> : null}
             <Text className="text-xl font-bold text-neutral-900">{selectedCourse.title}</Text>
           </Pressable>

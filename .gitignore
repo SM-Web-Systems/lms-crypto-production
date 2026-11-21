@@ -63,7 +63,7 @@ __pycache__/
 .playwright-cli/
 output/playwright/local-stack/
 
-# Raw audit exports, dependencies and runtime output; curated evidence is in docs/audits.
+# Raw audit exports, dependencies and runtime output; curated evidence is in docs/archive/audits.
 output/playwright/lms-audit-2026-11-05/
 
 # Generated private RBAC reports and local browser fixtures

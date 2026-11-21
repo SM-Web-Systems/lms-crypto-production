@@ -105,7 +105,9 @@ export default function DocumentsScreen() {
                   {doc.category} · {formatFileSize(doc.fileSize)} · {formatDate(doc.uploadedAt)}
                 </Text>
               </View>
-              <Pressable onPress={() => handleDownload(doc)} disabled={downloadingId === doc.id}>
+              <Pressable onPress={() => handleDownload(doc)} disabled={downloadingId === doc.id}
+                accessibilityRole="button" accessibilityLabel={`Download ${doc.title}`} accessibilityState={{ busy: downloadingId === doc.id }}
+                className="h-[44px] w-[44px] items-center justify-center">
                 <Ionicons
                   name={downloadingId === doc.id ? 'hourglass-outline' : 'download-outline'}
                   size={24}

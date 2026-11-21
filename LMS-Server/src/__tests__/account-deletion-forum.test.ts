@@ -5,7 +5,7 @@
  * topics and posts authored by that user should be soft-deleted with
  * deletion_type = 'account_deletion'.
  *
- * Ref: docs/phase3/specs/01-account-deletion-forum.md
+ * Ref: docs/archive/phase3/specs/01-account-deletion-forum.md
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';

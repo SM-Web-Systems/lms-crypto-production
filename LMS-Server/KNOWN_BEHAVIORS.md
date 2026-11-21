@@ -23,7 +23,7 @@ The historical policy below is retained for context; its claim that all backend
 authorization ignores legacy JWT roles was incorrect. Audit step 2 replaces
 legacy-role decisions in the audited course/resource reads and web routing with
 effective permissions, assignments and workspace context. See
-`docs/audits/2026-10-22-step2-authorization-remediation.md` in the repository root.
+`docs/archive/audits/2026-10-22-step2-authorization-remediation.md` in the repository root.
 
 ### Historical policy (superseded)
 
