@@ -18,9 +18,9 @@ Profile provides **Account and security**, workspace selection, payments/rewards
 
 Native tokens stay in SecureStore; the web preview uses tab-scoped session storage. Startup network failures preserve credentials and show a reconnect screen. Existing sessions remain available during transient refresh failures. Authenticated 401 responses centrally sign out the matching session, while permission-denied responses do not discard credentials. Revalidation runs on foreground and periodically while active. Push notifications and durable offline content/progress remain roadmap items.
 
-See `../docs/audits/2026-10-22-step5-mobile-account-session-remediation.md` for validation and device checks.
+See `../docs/archive/audits/2026-10-22-step5-mobile-account-session-remediation.md` for validation and device checks.
 
-The account-authority correction and native SSO contract are documented in `../docs/audits/2026-10-23-amma-wallet-mobile-auth-alignment.md`. Deploy the backwards-compatible API extension before distributing the updated mobile build. Pending sign-in codes use the same single-process deployment assumption as the existing SSO replay cache; restarts require starting sign-in again.
+The account-authority correction and native SSO contract are documented in `../docs/archive/audits/2026-10-23-amma-wallet-mobile-auth-alignment.md`. Deploy the backwards-compatible API extension before distributing the updated mobile build. Pending sign-in codes use the same single-process deployment assumption as the existing SSO replay cache; restarts require starting sign-in again.
 
 ## Development
 
@@ -49,7 +49,7 @@ npx tsc --noEmit
 npx expo export --platform android --platform ios --max-workers 2 --output-dir dist/validation
 ```
 
-Device acceptance checks are listed in `../docs/audits/2026-10-22-step4-native-learning-remediation.md`.
+Device acceptance checks are listed in `../docs/archive/audits/2026-10-22-step4-native-learning-remediation.md`.
 
 ## Local Android emulator on Windows
 

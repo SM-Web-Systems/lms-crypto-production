@@ -57,7 +57,8 @@ export function Button({
       accessibilityRole="button"
       disabled={isDisabled}
       className={cn(
-        'flex-row items-center justify-center',
+        // 44pt minimum touch target for every size.
+        'min-h-[44px] flex-row items-center justify-center',
         sizeContainer[size],
         containerByVariant[variant],
         fullWidth && 'w-full',

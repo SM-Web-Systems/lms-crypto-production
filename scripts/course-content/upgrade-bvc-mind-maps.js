@@ -14,7 +14,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 const DRY_RUN = process.env.DRY_RUN !== '0';
-const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, 'LMS-Server/data/student_ms.db');
+const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '../../LMS-Server/data/student_ms.db');
 
 const COURSE_ID = 'bvc-2026-0000-0000-000000000001';
 const EXPECTED_SECTIONS = 7;

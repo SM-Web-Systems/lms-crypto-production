@@ -5,6 +5,7 @@ import type { Quiz, QuizCompletion } from '../types/quiz';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { ErrorBanner } from './ErrorBanner';
+import { QuizRewardNote } from './QuizRewardNote';
 import { getErrorMessage } from '../utils/apiError';
 
 export function LessonQuiz({ quizId, courseId, onSubmitted }: { quizId: string; courseId: string; onSubmitted: () => void }) {
@@ -46,6 +47,7 @@ export function LessonQuiz({ quizId, courseId, onSubmitted }: { quizId: string; 
       {/* The API returns score as a percentage; total is the number of questions. */}
       <Text accessibilityRole="alert">{result.passed ? 'You passed!' : 'Not passed yet'} Score: {result.score}%</Text>
       {!result.passed ? <Button label="Try quiz again" onPress={() => setResult(null)} /> : null}
+      <QuizRewardNote passed={result.passed} completedAt={result.completedAt} />
     </> : <>
       {[...quiz.questions].sort((a, b) => a.order - b.order).map((question) => <View key={question.id} className="gap-2">
         <Text className="font-semibold">{question.question}</Text>
@@ -53,7 +55,7 @@ export function LessonQuiz({ quizId, courseId, onSubmitted }: { quizId: string; 
         {question.type === 'multiple_choice' && question.options ? question.options.map((option, index) => <Pressable
           key={index} accessibilityRole="radio" accessibilityState={{ checked: answers[question.id] === option }}
           onPress={() => setAnswers((old) => ({ ...old, [question.id]: option }))}
-          className={`rounded-lg border p-3 ${answers[question.id] === option ? 'border-accent-teal bg-primary-50' : 'border-neutral-200'}`}>
+          className={`min-h-[44px] justify-center rounded-lg border p-3 ${answers[question.id] === option ? 'border-accent-teal bg-primary-50' : 'border-neutral-200'}`}>
           <Text>{option}</Text>
         </Pressable>) : <Input label="Your answer" accessibilityLabel={`Your answer: ${question.question}`} value={answers[question.id] || ''} onChangeText={(value) => setAnswers((old) => ({ ...old, [question.id]: value }))} />}
       </View>)}

@@ -3,7 +3,7 @@
  */
 
 import api from './api';
-import { getStoredToken } from '../context/AuthContext';
+import { downloadWithSession } from './download';
 import type { CourseAnalytics, SponsorStudent } from './analyticsService';
 import { assertApiSuccess } from '../utils/apiError';
 
@@ -127,10 +127,10 @@ export const sponsorService = {
     return assertApiSuccess(response, 'Could not load cohort spending.');
   },
   async exportCoursesCsv(): Promise<void> {
-    await downloadForSession('/sponsor/courses/export', 'sponsor-analytics.csv');
+    await downloadWithSession('/sponsor/courses/export', 'sponsor-analytics.csv');
   },
   async downloadReceipt(id: string): Promise<void> {
-    await downloadForSession(`/payments/${encodeURIComponent(id)}/receipt`, `receipt-${id}.pdf`);
+    await downloadWithSession(`/payments/${encodeURIComponent(id)}/receipt`, `receipt-${id}.pdf`);
   },
   async getDashboard(): Promise<SponsorDashboardData> {
     const res = await api.get<{ success: boolean; data: SponsorDashboardData }>('/sponsor/dashboard');
@@ -166,7 +166,7 @@ export const sponsorService = {
     if (dateRange?.from) params.from = dateRange.from;
     if (dateRange?.to) params.to = dateRange.to;
     const today = new Date().toISOString().slice(0, 10);
-    await downloadForSession('/sponsor/impact-report', `impact-report-${today}.csv`, params);
+    await downloadWithSession('/sponsor/impact-report', `impact-report-${today}.csv`, params);
   },
 
   async getBilling(dateRange?: DateRange, scope?: 'cohort'): Promise<SponsorBilling> {
@@ -192,23 +192,3 @@ export const sponsorService = {
     };
   },
 };
-
-async function downloadForSession(path: string, filename: string, params?: Record<string, string>) {
-  const token = getStoredToken(); // session marker, not a credential; the cookie authenticates
-  if (!token) throw new Error('Please sign in to download this file.');
-
-  const { data } = await api.get<Blob>(path, {
-    params,
-    responseType: 'blob',
-  });
-  if (getStoredToken() !== token) throw new Error('Your session changed. Try the download again.');
-
-  const url = URL.createObjectURL(data);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
