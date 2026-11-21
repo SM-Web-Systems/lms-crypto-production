@@ -314,7 +314,7 @@ describe('InlineQuizTaker', () => {
     render(<InlineQuizTaker quizId="quiz-1" />);
     await user.click(await screen.findByText('Begin'));
 
-    expect(screen.queryByPlaceholderText('Your answer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Option A: Agreement' }));
     await user.click(screen.getByText('Submit'));
     await user.click(await screen.findByText('Confirm Submit'));
@@ -341,5 +341,18 @@ describe('InlineQuizTaker', () => {
     expect(screen.getByRole('link', { name: /open it in Quizzes/i })).toHaveAttribute('href', '/student/quizzes?quiz=quiz-1');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.getByText('Submit')).toBeEnabled();
+  });
+  // IQ-15: Number keys pick a flashcard card, as they do for multiple choice
+  it('number keys select a flashcard option', async () => {
+    mockGetById.mockResolvedValue(makeQuiz({
+      questions: [{ id: 'q1', type: 'flashcard', question: 'Consensus means?', options: ['Agreement', 'Mining'], order: 1 }],
+    }));
+    const user = userEvent.setup();
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await user.click(await screen.findByText('Begin'));
+
+    fireEvent.keyDown(window, { key: '2' });
+
+    expect(screen.getByRole('radio', { name: 'Option B: Mining' })).toHaveAttribute('aria-checked', 'true');
   });
 });

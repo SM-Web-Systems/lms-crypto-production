@@ -2,7 +2,6 @@ import Input from './Input';
 import type { QuizQuestion } from '../types/quiz';
 import { CARD_LETTERS, isAnswerableHere } from '../utils/quizQuestion';
 
-
 interface QuestionInputProps {
   question: QuizQuestion;
   value: string;
@@ -15,15 +14,10 @@ interface QuestionInputProps {
 /** The answer control for one quiz question. Shared by lessons, the Quizzes page and the admin preview. */
 export default function QuestionInput({ question: q, value, onChange, quizHref, disabled }: QuestionInputProps) {
   if (!isAnswerableHere(q)) {
+    if (!quizHref) return <p className="text-sm text-neutral-600">This question type isn't supported yet.</p>;
     return (
       <p className="text-sm text-neutral-600">
-        This question can't be answered here
-        {quizHref ? (
-          <>
-            , <a href={quizHref} className="text-accent-teal underline">open it in Quizzes</a>
-          </>
-        ) : null}
-        .
+        This question can't be answered here, <a href={quizHref} className="text-accent-teal underline">open it in Quizzes</a>.
       </p>
     );
   }
@@ -47,7 +41,7 @@ export default function QuestionInput({ question: q, value, onChange, quizHref, 
               checked={value === opt}
               onChange={() => onChange(opt)}
               disabled={disabled}
-              className="rounded border-neutral-300 text-accent-teal focus:ring-accent-teal"
+              className="accent-accent-teal"
             />
             <span className="text-neutral-700">{opt}</span>
           </label>

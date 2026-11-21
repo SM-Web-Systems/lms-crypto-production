@@ -22,7 +22,6 @@ interface AdminQuizPreviewProps {
 
 type Step = 'intro' | 'take' | 'result';
 
-
 function sortedQuestions(quiz: Quiz): QuizQuestion[] {
   return [...(quiz.questions || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }

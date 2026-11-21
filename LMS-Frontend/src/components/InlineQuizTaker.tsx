@@ -114,7 +114,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
     } else if (e.key === 'Enter' && isLast && allAnswered) {
       e.preventDefault();
       setShowConfirm(true);
-    } else if (q.type === 'multiple_choice' && q.options) {
+    } else if ((q.type === 'multiple_choice' || q.type === 'flashcard') && q.options) {
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= q.options.length) {
         e.preventDefault();
@@ -295,7 +295,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
         question={q}
         value={answers[q.id] ?? ''}
         onChange={(val) => handleAnswer(q.id, val)}
-        quizHref={`/student/quizzes?quiz=${quizId}`}
+        quizHref={`/student/quizzes?quiz=${encodeURIComponent(quizId)}`}
       />
 
       <div className="flex justify-between items-center pt-2">

@@ -50,3 +50,9 @@ it('a choice question with no options is not answerable here', () => {
   expect(screen.getByText(/This question can't be answered here/)).toBeInTheDocument();
   expect(isAnswerableHere(q('multiple_choice', { options: undefined }))).toBe(false);
 });
+
+it('without a Quizzes link (on the Quizzes page itself) says the type is not supported yet', () => {
+  render(<QuestionInput question={q('matching')} value="" onChange={vi.fn()} />);
+  expect(screen.getByText("This question type isn't supported yet.")).toBeInTheDocument();
+  expect(screen.queryByRole('link')).toBeNull();
+});
