@@ -1,4 +1,4 @@
-/** UX-002 AC5: the "waiting for review" nudge includes TA grades waiting for approval. */
+/** UX-003 AC4 (and UX-002 AC5): dashboard counts are server totals, not the rows loaded. */
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -8,6 +8,8 @@ const sub = (id: string, gradeStatus: string) => ({ id, status: 'pending', grade
 vi.mock('../../context/DataContext', () => ({
   useData: () => ({
     students: [], submissions: [sub('direct', 'direct'), sub('ta', 'pending_approval')],
+    studentsPagination: { page: 1, limit: 20, total: 57, totalPages: 3 },
+    submissionsPagination: { page: 1, limit: 20, total: 61, totalPages: 4 },
     studentsLoading: false, submissionsLoading: false, studentsError: null, submissionsError: null,
     fetchStudents: vi.fn(), fetchSubmissions: vi.fn(),
   }),
@@ -24,13 +26,21 @@ vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: () => Promise.resolve({
 
 import AdminDashboard from '../../pages/AdminDashboard';
 
-describe('AdminDashboard needs-review count', () => {
-  beforeEach(() => getAll.mockResolvedValue({ submissions: [], pagination: { page: 1, limit: 1, total: 3, totalPages: 3 } }));
+const totals: Record<string, number> = { pending: 42, approved: 13, rejected: 6 };
 
-  it('count includes pending TA grades', async () => {
+describe('AdminDashboard counts', () => {
+  beforeEach(() => getAll.mockImplementation(async (p?: { status?: string }) => (
+    { submissions: [], pagination: { page: 1, limit: 1, total: totals[p?.status ?? ''] ?? 0, totalPages: 1 } }
+  )));
+
+  it('uses server totals', async () => {
     render(<MemoryRouter><AdminDashboard /></MemoryRouter>);
-    // 1 pending direct submission + 3 TA grades from the server total; the loaded TA row is not counted twice.
-    expect(await screen.findByText(/^4 submissions waiting for review/)).toBeInTheDocument();
-    expect(getAll).toHaveBeenCalledWith({ gradeStatus: 'pending_approval', limit: 1 });
+    // Pending includes TA grades waiting for approval (they keep status=pending), so it is one server count.
+    expect(await screen.findByText(/^42 submissions waiting for review/)).toBeInTheDocument();
+    for (const status of ['pending', 'approved', 'rejected']) expect(getAll).toHaveBeenCalledWith({ status, limit: 1 });
+    expect(screen.getAllByText('13').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('6').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('57').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('61').length).toBeGreaterThan(0);
   });
 });

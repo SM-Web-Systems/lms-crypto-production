@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
 import Button from '../components/Button';
@@ -8,9 +8,13 @@ import { courseService } from '../services/courseService';
 import { userDirectoryService } from '../services/userDirectoryService';
 import { usersService } from '../services/usersService';
 import { studentsService } from '../services/studentsService';
-import { UserPlus, Edit, Trash2, Mail, BookOpen, Loader2, KeyRound, Search, Upload, Download, CheckCircle, AlertCircle, Wallet, XCircle, Copy } from 'lucide-react';
+import { UserPlus, Edit, Trash2, Mail, BookOpen, Loader2, KeyRound, Upload, Download, CheckCircle, AlertCircle, Wallet, XCircle, Copy } from 'lucide-react';
 import { Student, CreateStudentData, UpdateStudentData } from '../types/api';
 import { getErrorMessage } from '../utils/apiError';
+import { useListParams } from '../hooks/useListParams';
+import { Pagination, SearchInput, SkeletonRows } from '../components/Pagination';
+
+const WALLET_FILTERS = ['linked', 'none', 'existing_account'] as const;
 
 // ─── CSV helpers ────────────────────────────────────────────────────────────
 
@@ -52,6 +56,7 @@ function parseCSV(text: string): CreateStudentData[] {
 const AdminStudents: React.FC = () => {
   const {
     students,
+    studentsPagination,
     studentsLoading,
     studentsError,
     fetchStudents,
@@ -59,6 +64,17 @@ const AdminStudents: React.FC = () => {
     updateStudent,
     deleteStudent,
   } = useData();
+
+  // Page, search and wallet filter live in the URL and run on the server (UX-003).
+  const list = useListParams();
+  const { page, limit, update } = list;
+  const searchQuery = list.get('search');
+  const walletFilter = WALLET_FILTERS.find((w) => w === list.get('walletStatus'));
+  const loadStudents = useCallback(() => fetchStudents({
+    page, limit,
+    ...(searchQuery ? { search: searchQuery } : {}),
+    ...(walletFilter ? { walletStatus: walletFilter } : {}),
+  }), [fetchStudents, page, limit, searchQuery, walletFilter]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -75,25 +91,6 @@ const AdminStudents: React.FC = () => {
 
   const [courses, setCourses] = useState<Awaited<ReturnType<typeof courseService.fetchCourses>>>([]);
   const [courseCodesMap, setCourseCodesMap] = useState<Record<string, string[]>>({});
-
-  // Search + wallet filter
-  const [searchQuery, setSearchQuery] = useState('');
-  const [walletFilter, setWalletFilter] = useState<'all' | 'linked' | 'none' | 'existing_account'>('all');
-  const filteredStudents = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return students.filter((s) => {
-      if (q && !(
-        s.name.toLowerCase().includes(q) ||
-        s.email.toLowerCase().includes(q) ||
-        s.enrollmentNumber.toLowerCase().includes(q) ||
-        s.department.toLowerCase().includes(q)
-      )) return false;
-      if (walletFilter === 'linked') return s.walletLinkingStatus === 'linked';
-      if (walletFilter === 'none') return !s.walletLinkingStatus || s.walletLinkingStatus === 'none';
-      if (walletFilter === 'existing_account') return s.walletLinkingStatus === 'existing_account';
-      return true;
-    });
-  }, [students, searchQuery, walletFilter]);
 
   // CSV import
   const [importOpen, setImportOpen] = useState(false);
@@ -123,8 +120,8 @@ const AdminStudents: React.FC = () => {
   const semesters = Array.from({ length: 8 }, (_, i) => i + 1);
 
   useEffect(() => {
-    fetchStudents();
-  }, [fetchStudents]);
+    void loadStudents();
+  }, [loadStudents]);
 
   useEffect(() => {
     courseService.fetchCourses().then(setCourses).catch(() => setCourses([]));
@@ -177,6 +174,7 @@ const AdminStudents: React.FC = () => {
         const userId = student.userId || student.id;
         if (userId && selectedCourseCodes.length > 0) await usersService.patchUserCourseCodes(userId, selectedCourseCodes);
         userDirectoryService.add({ id: userId || student.id, name: student.name, email: student.email, courseCodes: selectedCourseCodes });
+        void loadStudents();
       }
       setIsModalOpen(false);
     } catch (error) {
@@ -190,6 +188,7 @@ const AdminStudents: React.FC = () => {
     if (window.confirm('Delete this student? All their submissions will also be deleted.')) {
       try {
         await deleteStudent(id);
+        void loadStudents();
       } catch (error) {
         alert(getErrorMessage(error, 'Could not delete the student.'));
       }
@@ -219,7 +218,7 @@ const AdminStudents: React.FC = () => {
     try {
       const result = await studentsService.importBulk(importRows);
       setImportResults(result);
-      fetchStudents();
+      void loadStudents();
     } catch (err) {
       setImportError(getErrorMessage(err, 'Import failed.'));
     } finally {
@@ -234,7 +233,7 @@ const AdminStudents: React.FC = () => {
     if (csvInputRef.current) csvInputRef.current.value = '';
   };
 
-  if (studentsLoading) {
+  if (studentsLoading && !studentsPagination) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -264,32 +263,30 @@ const AdminStudents: React.FC = () => {
       </div>
 
       {studentsError && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-600">{studentsError}</p>
+          <Button variant="outline" size="sm" onClick={() => void loadStudents()}>Retry</Button>
         </div>
       )}
 
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>All Students ({filteredStudents.length}{(searchQuery || walletFilter !== 'all') ? ` of ${students.length}` : ''})</CardTitle>
+            <CardTitle>All Students ({studentsPagination?.total ?? students.length})</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, enrollment…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white"
-                />
-              </div>
+              <SearchInput
+                label="Search students"
+                placeholder="Search by name, email, enrollment…"
+                value={searchQuery}
+                onSearch={(value) => update({ search: value })}
+              />
               <select
-                value={walletFilter}
-                onChange={(e) => setWalletFilter(e.target.value as typeof walletFilter)}
+                aria-label="Wallet"
+                value={walletFilter ?? ''}
+                onChange={(e) => update({ walletStatus: e.target.value })}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
               >
-                <option value="all">All wallets</option>
+                <option value="">All wallets</option>
                 <option value="linked">Linked</option>
                 <option value="none">No wallet</option>
                 <option value="existing_account">Action needed</option>
@@ -298,11 +295,11 @@ const AdminStudents: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {filteredStudents.length === 0 ? (
+          {students.length === 0 && !studentsLoading ? (
             <div className="text-center py-12">
               <UserPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">{searchQuery ? 'No students match your search' : 'No students yet'}</p>
-              {!searchQuery && <p className="text-sm text-gray-500">Click "Add Student" or "Import CSV" to get started</p>}
+              <p className="text-gray-600 mb-2">{searchQuery || walletFilter ? 'No students match your search' : 'No students yet'}</p>
+              {!searchQuery && !walletFilter && <p className="text-sm text-gray-500">Click "Add Student" or "Import CSV" to get started</p>}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -320,7 +317,7 @@ const AdminStudents: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredStudents.map((student) => (
+                  {studentsLoading ? <SkeletonRows cols={8} /> : students.map((student) => (
                     <tr key={student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center">
@@ -396,6 +393,12 @@ const AdminStudents: React.FC = () => {
               </table>
             </div>
           )}
+          <Pagination
+            pagination={studentsPagination}
+            disabled={studentsLoading}
+            onPage={(p) => update({ page: p })}
+            onLimit={(l) => update({ limit: l })}
+          />
         </CardContent>
       </Card>
 

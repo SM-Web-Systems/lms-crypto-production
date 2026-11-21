@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { studentsService } from '../services/studentsService';
 import { submissionsService } from '../services/submissionsService';
 import { getErrorMessage } from '../utils/apiError';
@@ -53,19 +53,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
 
   // Student operations
+  // Only the latest request may set state, so a slow earlier page cannot overwrite a newer one.
+  const studentsRequest = useRef(0);
+  const submissionsRequest = useRef(0);
+
   const fetchStudents = useCallback(async (params?: StudentQueryParams) => {
+    const request = ++studentsRequest.current;
     setStudentsLoading(true);
     setStudentsError(null);
     try {
       const data = await studentsService.getAll(params);
+      if (request !== studentsRequest.current) return;
       setStudents(data.students);
       setStudentsPagination(data.pagination);
     } catch (error) {
+      if (request !== studentsRequest.current) return;
       const message = getErrorMessage(error, 'Could not load students.');
       setStudentsError(message);
       console.error('Error fetching students:', error);
     } finally {
-      setStudentsLoading(false);
+      if (request === studentsRequest.current) setStudentsLoading(false);
     }
   }, []);
 
@@ -90,18 +97,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Submission operations
   const fetchSubmissions = useCallback(async (params?: SubmissionQueryParams) => {
+    const request = ++submissionsRequest.current;
     setSubmissionsLoading(true);
     setSubmissionsError(null);
     try {
       const data = await submissionsService.getAll(params);
+      if (request !== submissionsRequest.current) return;
       setSubmissions(data.submissions);
       setSubmissionsPagination(data.pagination);
     } catch (error) {
+      if (request !== submissionsRequest.current) return;
       const message = getErrorMessage(error, 'Could not load submissions.');
       setSubmissionsError(message);
       console.error('Error fetching submissions:', error);
     } finally {
-      setSubmissionsLoading(false);
+      if (request === submissionsRequest.current) setSubmissionsLoading(false);
     }
   }, []);
 

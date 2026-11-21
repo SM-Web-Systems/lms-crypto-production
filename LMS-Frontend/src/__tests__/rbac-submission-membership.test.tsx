@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import AdminSubmissions from '../pages/AdminSubmissions';
 import { courseService } from '../services/courseService';
 import { studentsService } from '../services/studentsService';
@@ -12,6 +13,7 @@ vi.mock('../context/DataContext', () => ({useData: () => ({
 })}));
 vi.mock('../services/courseService', () => ({courseService:{fetchCourses:vi.fn(),fetchCourseMembers:vi.fn()}}));
 vi.mock('../services/studentsService', () => ({studentsService:{getAll:vi.fn()}}));
+vi.mock('../services/submissionsService', () => ({submissionsService:{getAll:vi.fn().mockResolvedValue({submissions:[],pagination:{page:1,limit:1,total:0,totalPages:0}})}}));
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(courseService.fetchCourses).mockResolvedValue([{id:'course',title:'Contracts',courseCode:'RBAC'}]);
@@ -24,7 +26,7 @@ describe('explicit learner membership in submission review', () => {
       {id:'revoked',name:'Historical learner',email:'old@invalid.test',studentId:'s-old',rbacRoles:[]},
       {id:'display',name:'No learner profile',email:'display@invalid.test',studentId:null,rbacRoles:['student']},
     ]);
-    render(<AdminSubmissions />);
+    render(<MemoryRouter><AdminSubmissions /></MemoryRouter>);
     await userEvent.click(await screen.findByRole('button',{name:'RBAC'}));
     expect(await screen.findByText('Staff learner')).toBeInTheDocument();
     expect(screen.getByText('Historical learner')).toBeInTheDocument();
@@ -36,7 +38,7 @@ describe('explicit learner membership in submission review', () => {
       pagination:{page:1,limit:500,total:1,totalPages:1},
     });
     vi.mocked(courseService.fetchCourseMembers).mockResolvedValue([{id:'old',name:'Compatibility learner',email:'old@invalid.test',rbacRoles:['instructor']}]);
-    render(<AdminSubmissions />);
+    render(<MemoryRouter><AdminSubmissions /></MemoryRouter>);
     await userEvent.click(await screen.findByRole('button',{name:'RBAC'}));
     await waitFor(()=>expect(screen.getByText('Compatibility learner')).toBeInTheDocument());
   });

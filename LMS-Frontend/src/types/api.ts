@@ -214,6 +214,7 @@ export interface StudentQueryParams {
   search?: string;
   department?: string;
   semester?: number;
+  walletStatus?: 'linked' | 'none' | 'existing_account';
 }
 
 export interface SubmissionQueryParams {
@@ -222,6 +223,8 @@ export interface SubmissionQueryParams {
   limit?: number;
   status?: SubmissionStatus;
   studentId?: string;
+  courseId?: string;
+  search?: string;
   gradeStatus?: 'pending_approval';
 }
 

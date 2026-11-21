@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { hasCapability, canAccessPath } from '../utils/authorization';
 import { useData } from '../context/DataContext';
-import { usePendingTaGrades } from '../context/usePendingTaGrades';
+import { useSubmissionCounts } from '../context/useSubmissionCounts';
 import { validateBuildSha, getShortSha } from '../utils/buildInfo';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
@@ -70,6 +70,8 @@ const AdminDashboard: React.FC = () => {
   const canAudit = hasCapability(user, 'system.view_audit_log');
   const {
     students,
+    studentsPagination,
+    submissionsPagination,
     submissions,
     studentsLoading,
     submissionsLoading,
@@ -100,11 +102,13 @@ const AdminDashboard: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  // TA grades come from the server total; skip loaded rows that are already in it.
-  const taGrades = usePendingTaGrades(canGrade, 1);
-  const pendingSubmissions = submissions.filter((s) => s.status === 'pending' && s.gradeStatus !== 'pending_approval').length + taGrades.total;
-  const approvedSubmissions = submissions.filter((s) => s.status === 'approved').length;
-  const rejectedSubmissions = submissions.filter((s) => s.status === 'rejected').length;
+  // Server totals, not the 20 rows loaded. Pending includes TA grades waiting for approval (still status=pending).
+  const { counts, reload: reloadCounts } = useSubmissionCounts(canGrade);
+  const totalStudents = studentsPagination?.total ?? students.length;
+  const totalSubmissions = submissionsPagination?.total ?? submissions.length;
+  const pendingSubmissions = counts?.pending ?? 0;
+  const approvedSubmissions = counts?.approved ?? 0;
+  const rejectedSubmissions = counts?.rejected ?? 0;
 
   const recentSubmissions = [...submissions]
     .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
@@ -122,20 +126,20 @@ const AdminDashboard: React.FC = () => {
         icon: Inbox,
       };
     }
-    if (submissions.length > 0) {
+    if (totalSubmissions > 0) {
       return {
         text: 'No pending reviews right now. Great time to check the forum or update course content.',
         icon: ShieldCheck,
       };
     }
-    if (students.length === 0) {
+    if (totalStudents === 0) {
       return {
         text: 'Add students from the Students tab so submissions and rosters come alive.',
         icon: Users,
       };
     }
     return { text: dailyLine, icon: Sparkles };
-  }, [pendingSubmissions, submissions.length, students.length, dailyLine]);
+  }, [pendingSubmissions, totalSubmissions, totalStudents, dailyLine]);
 
   const NudgeIcon = nudge.icon;
 
@@ -143,7 +147,7 @@ const AdminDashboard: React.FC = () => {
     {
       title: 'Students',
       subtitle: 'In directory',
-      value: students.length,
+      value: totalStudents,
       icon: Users,
       accent: 'from-primary-100 to-primary-200/70 text-primary-dark',
       ring: 'ring-primary-200/60',
@@ -151,7 +155,7 @@ const AdminDashboard: React.FC = () => {
     {
       title: 'Submissions',
       subtitle: 'All time',
-      value: submissions.length,
+      value: totalSubmissions,
       icon: FileText,
       accent: 'from-violet-100 to-purple-100/80 text-violet-900',
       ring: 'ring-violet-200/70',
@@ -334,7 +338,7 @@ const AdminDashboard: React.FC = () => {
               <Button variant="outline" size="sm" type="button" onClick={() => void fetchStudents()}>
                 Retry students
               </Button>
-              <Button variant="outline" size="sm" type="button" onClick={() => void fetchSubmissions()}>
+              <Button variant="outline" size="sm" type="button" onClick={() => { void fetchSubmissions(); void reloadCounts(); }}>
                 Retry submissions
               </Button>
             </div>
