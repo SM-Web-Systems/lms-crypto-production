@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, Alert } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { backOr } from '@/utils/navigation';
 import * as Linking from 'expo-linking';
-import { documentDirectory, downloadAsync } from 'expo-file-system/legacy';
+import { deleteAsync, documentDirectory, downloadAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { credentialService } from '@/services/credentialService';
-import { getErrorMessage } from '@/utils/apiError';
+import { ApiRequestError, getErrorMessage } from '@/utils/apiError';
 import { formatDate } from '@/utils/format';
 import { brand } from '@/theme/colors';
 import type { MyCredential } from '@/types/credential';
@@ -39,6 +40,7 @@ function DetailRow({
 
 export default function CertificateDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [credential, setCredential] = useState<MyCredential | null>(null);
@@ -94,16 +96,21 @@ export default function CertificateDetailScreen() {
       const filename = `certificate-${credential.credentialId}.pdf`;
       const fileUri = `${documentDirectory}${filename}`;
 
-      await downloadAsync(url, fileUri);
+      // A 404 or 500 body would otherwise be saved and shared as the learner's certificate.
+      const result = await downloadAsync(url, fileUri);
+      if (result.status !== 200) {
+        await deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+        throw new ApiRequestError({ message: 'Could not download the certificate PDF.', status: result.status });
+      }
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(fileUri, {
+        await Sharing.shareAsync(result.uri, {
           mimeType: 'application/pdf',
           dialogTitle: 'Certificate PDF',
         });
       } else {
-        Alert.alert('Downloaded', `Certificate saved to ${filename}`);
+        Alert.alert('Sharing unavailable', 'This device cannot open the share sheet. Download your certificate PDF from the LMS website instead.');
       }
     } catch (e) {
       Alert.alert('Download failed', getErrorMessage(e, 'Could not download the certificate PDF.'));
@@ -125,6 +132,9 @@ export default function CertificateDetailScreen() {
           message={error ?? 'Certificate not found.'}
           onRetry={loadCredential}
         />
+        <View className="mt-3">
+          <Button label="Back to certificates" variant="outline" onPress={() => backOr(router, '/(student)/certificates')} />
+        </View>
       </View>
     );
   }
@@ -161,7 +171,7 @@ export default function CertificateDetailScreen() {
         <CardTitle className="mb-2">Certificate Details</CardTitle>
         <DetailRow
           icon="finger-print-outline"
-          label="Credential ID"
+          label="Certificate ID"
           value={credential.credentialId}
         />
         <DetailRow

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { messageService } from '@/services/messageService';
@@ -37,44 +38,63 @@ export default function MessagesScreen() {
   const [sending, setSending] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [threadError, setThreadError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const openId = useRef<string | null>(null);
+  openId.current = selectedConversation?.id ?? null;
 
-  useEffect(() => {
+  const loadList = useCallback(async () => {
     if (!userId) {
       setLoading(false);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const [convs, peerList] = await Promise.all([
-          messageService.getConversationsForUser(userId, canBrowseDirectory),
-          enrollmentService.getPeersInMyCourses(userId, canBrowseDirectory),
-        ]);
-        if (!cancelled) {
-          setConversations(convs);
-          setPeers(peerList);
-        }
-      } catch (e) {
-        if (!cancelled) setError(getErrorMessage(e, 'Could not load messages.'));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setError(null);
+    try {
+      const [convs, peerList] = await Promise.all([
+        messageService.getConversationsForUser(userId, canBrowseDirectory),
+        enrollmentService.getPeersInMyCourses(userId, canBrowseDirectory),
+      ]);
+      setConversations(convs);
+      setPeers(peerList);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not load messages.'));
+    } finally {
+      setLoading(false);
+    }
   }, [userId, canBrowseDirectory]);
 
-  useEffect(() => {
-    if (!selectedConversation) {
-      setMessages([]);
-      return;
+  // A failed load is shown as an error, never as an empty thread that looks like "no messages".
+  const loadThread = useCallback(async (conversationId: string) => {
+    setThreadError(null);
+    try {
+      const msgs = await messageService.getMessages(conversationId);
+      if (openId.current === conversationId) setMessages(msgs);
+    } catch (e) {
+      if (openId.current === conversationId) setThreadError(getErrorMessage(e, 'Could not load this conversation.'));
     }
-    messageService.getMessages(selectedConversation.id).then(setMessages).catch(() => setMessages([]));
+  }, []);
+
+  // There is no live channel, so catch up whenever the learner comes back to Messages.
+  useFocusEffect(useCallback(() => {
+    loadList();
+    if (openId.current) loadThread(openId.current);
+  }, [loadList, loadThread]));
+
+  useEffect(() => {
+    setMessages([]);
+    setThreadError(null);
+    setSendError(null);
+    if (!selectedConversation) return;
+    loadThread(selectedConversation.id);
     messageService.markConversationRead(selectedConversation.id);
-  }, [selectedConversation]);
+  }, [selectedConversation, loadThread]);
+
+  const refresh = async (work: () => Promise<void>) => {
+    setRefreshing(true);
+    try { await work(); } finally { setRefreshing(false); }
+  };
 
   const openConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
@@ -90,8 +110,6 @@ export default function MessagesScreen() {
       setConversations(convs);
       setSelectedConversation(conv);
       setShowNewConversation(false);
-      const msgs = await messageService.getMessages(conv.id);
-      setMessages(msgs);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not open conversation.'));
     }
@@ -101,6 +119,7 @@ export default function MessagesScreen() {
     const body = newMessageBody.trim();
     if (!body || !selectedConversation || !userId) return;
     setSending(true);
+    setSendError(null);
     try {
       await messageService.sendMessage(selectedConversation.id, userId, body);
       const msgs = await messageService.getMessages(selectedConversation.id);
@@ -110,7 +129,7 @@ export default function MessagesScreen() {
       setConversations(convs);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not send message.'));
+      setSendError(getErrorMessage(e, 'Could not send message.'));
     } finally {
       setSending(false);
     }
@@ -131,7 +150,9 @@ export default function MessagesScreen() {
           </View>
           <Text className="flex-1 font-bold text-neutral-900">{otherUserName}</Text>
         </View>
-        <ScrollView ref={scrollRef} className="flex-1 px-4 py-3" contentContainerClassName="gap-2 pb-4">
+        <ScrollView ref={scrollRef} className="flex-1 px-4 py-3" contentContainerClassName="gap-2 pb-4"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refresh(() => loadThread(selectedConversation.id))} tintColor={brand.accent.teal} />}>
+          {threadError ? <ErrorBanner message={threadError} onRetry={() => loadThread(selectedConversation.id)} /> : null}
           {messages.map((msg) => {
             const mine = msg.senderId === userId;
             return (
@@ -143,6 +164,7 @@ export default function MessagesScreen() {
           })}
         </ScrollView>
         <View className="border-t border-neutral-200 bg-white p-3 gap-2">
+          {sendError ? <ErrorBanner message={sendError} /> : null}
           <Input value={newMessageBody} onChangeText={setNewMessageBody} placeholder="Write a message…" multiline />
           <Button label={sending ? 'Sending…' : 'Send'} onPress={handleSend} disabled={sending || !newMessageBody.trim()} />
         </View>
@@ -151,8 +173,9 @@ export default function MessagesScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-3 pb-8">
-      {error ? <ErrorBanner message={error} /> : null}
+    <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-3 pb-8"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refresh(loadList)} tintColor={brand.accent.teal} />}>
+      {error ? <ErrorBanner message={error} onRetry={loadList} /> : null}
       <Button label={showNewConversation ? 'Cancel' : 'New message'} variant="outline" onPress={() => setShowNewConversation((v) => !v)} />
 
       {showNewConversation ? (
@@ -176,7 +199,7 @@ export default function MessagesScreen() {
         </Card>
       ) : null}
 
-      {conversations.length === 0 ? (
+      {error && conversations.length === 0 ? null : conversations.length === 0 ? (
         <EmptyState icon="mail-outline" title="No conversations yet" message="Start a new message with a classmate." />
       ) : (
         conversations.map((conv) => {
