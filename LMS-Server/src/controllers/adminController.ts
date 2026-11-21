@@ -502,7 +502,7 @@ export async function remintCredential(
           txHash,
           sorobanTokenId,
           contractId,
-          existing.network ?? 'public',
+          process.env.NFT_STELLAR_NETWORK === 'testnet' ? 'testnet' : 'public', // the network this re-issue really mints on
           existing.course_id,
           existing.application_id,
         ],

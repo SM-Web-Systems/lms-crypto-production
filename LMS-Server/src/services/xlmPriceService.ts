@@ -14,7 +14,7 @@ const TTL_MS = 5 * 60_000;
 const FAILURE_TTL_MS = 60_000;
 const TIMEOUT_MS = 5_000;
 
-let cache: { value: number | null; expiresAt: number } | null = null;
+let cache: { value: Promise<number | null>; expiresAt: number } | null = null;
 
 export function resetXlmUsdcPriceCache(): void {
   cache = null;
@@ -43,9 +43,12 @@ async function fetchMidPrice(): Promise<number | null> {
 }
 
 /** USDC per 1 XLM, or null when no price is available. Cached for about 5 minutes. */
-export async function getXlmUsdcPrice(): Promise<number | null> {
+export function getXlmUsdcPrice(): Promise<number | null> {
   if (cache && Date.now() < cache.expiresAt) return cache.value;
-  const value = await fetchMidPrice();
-  cache = { value, expiresAt: Date.now() + (value === null ? FAILURE_TTL_MS : TTL_MS) };
+  // Cache the promise so concurrent requests share one Horizon call.
+  const value = fetchMidPrice();
+  const entry = { value, expiresAt: Date.now() + TTL_MS };
+  cache = entry;
+  void value.then((v) => { if (v === null) entry.expiresAt = Date.now() + FAILURE_TTL_MS; });
   return value;
 }

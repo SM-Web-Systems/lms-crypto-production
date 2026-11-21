@@ -55,6 +55,13 @@ describe('getXlmUsdcPrice', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('shares one Horizon call between concurrent requests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(book('0.29', '0.31'));
+    vi.stubGlobal('fetch', fetchMock);
+    await Promise.all([getXlmUsdcPrice(), getXlmUsdcPrice(), getXlmUsdcPrice()]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('passes an abort signal so a slow Horizon times out', async () => {
     const fetchMock = vi.fn().mockResolvedValue(book('0.29', '0.31'));
     vi.stubGlobal('fetch', fetchMock);
