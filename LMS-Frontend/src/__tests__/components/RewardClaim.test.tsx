@@ -191,5 +191,31 @@ describe('a refused payout is never shown as sent or released', () => {
     expect(svc.retryPayout).toHaveBeenCalledWith('c-2');
     expect(await screen.findByText(/above the per-claim limit/)).toBeTruthy();
   });
+
+  it('My Rewards reloads after a refused retry and keeps the reason on screen when the claim leaves the list', async () => {
+    const stuck = { claimId: 'c-9', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 2000000, status: 'verified', verifiedAt: '2026-11-20T18:05:00Z', payout: 'not_sent', txHash: null, ledger: null };
+    svc.getClaimableBalance.mockResolvedValueOnce('0').mockResolvedValue('2000000');
+    svc.getMyRewards.mockResolvedValue([]);
+    svc.listMyClaims.mockResolvedValueOnce([stuck]).mockResolvedValue([]);
+    const msg = 'This claim was not paid and is back in your LMS balance.';
+    svc.retryPayout.mockRejectedValue(Object.assign(new Error('x'), {
+      isAxiosError: true, response: { status: 409, data: { success: false, error: { code: 'PAYOUT_CAP_EXCEEDED', message: msg } } },
+    }));
+    render(<StudentRewardsPanel />);
+    await userEvent.click(await screen.findByRole('button', { name: /Try payment again/ }));
+    expect((await screen.findByTestId('payment-retry-notice')).textContent).toBe(`The payment was not sent. ${msg}`);
+    expect(svc.listMyClaims).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: /Try payment again/ })).toBeNull();
+  });
+
+  it('My Rewards shows a failed payments load as an error, never as no payments', async () => {
+    svc.getClaimableBalance.mockResolvedValue('0');
+    svc.getMyRewards.mockResolvedValue([]);
+    svc.listMyClaims.mockRejectedValue(Object.assign(new Error('x'), {
+      isAxiosError: true, response: { status: 500, data: { success: false, error: { code: 'INTERNAL', message: 'Could not load your payments.' } } },
+    }));
+    render(<StudentRewardsPanel />);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not load your payments/);
+  });
 });
 

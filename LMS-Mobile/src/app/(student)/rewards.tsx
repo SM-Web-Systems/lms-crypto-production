@@ -28,7 +28,9 @@ const CLAIM_PAYOUT: Record<MyRewardClaim['payout'], { label: string; color: stri
 /** The notice after a claim. A refused or unsent payout is never described as sent. */
 export function claimNotice(payout: ClaimPayout | null): string {
   if (payout?.status === 'paid') return 'Your wallet is confirmed and the reward has been sent to it.';
-  if (payout?.status === 'refused' || payout?.status === 'pending') {
+  // 'refused' is a payout rule's answer (it may already be back in the balance), so it never promises a later payment.
+  if (payout?.status === 'refused') return `Your wallet is confirmed, but the reward has not been sent to it. ${payout.message || 'Your claim is saved.'}`;
+  if (payout?.status === 'pending') {
     return `Your wallet is confirmed, but the reward has not been sent to it yet. ${payout.message || 'Your claim is saved.'}`;
   }
   return 'Your wallet is confirmed. The claimed amount is reserved for payment to that wallet.';
@@ -108,14 +110,19 @@ export default function RewardsScreen() {
 
   const retry = async (claimId: string) => {
     setRetrying(claimId); setError(null); setNotice(null);
+    let outcome: string;
     try {
       const paid = await rewardClaimService.retryPayout(claimId);
-      if (paid.status === 'paid') setNotice('The reward has been sent to your wallet.');
-      else if (paid.status === 'submitted') setNotice('The payment is on its way. Pull to refresh in a minute.');
-      else setNotice(`The payment was not sent. ${paid.message || 'Your claim is saved.'}`);
-      await load();
+      if (paid.status === 'paid') outcome = 'The reward has been sent to your wallet.';
+      else if (paid.status === 'submitted') outcome = 'The payment is on its way. Pull to refresh in a minute.';
+      else outcome = `The payment was not sent. ${paid.message || 'Your claim is saved.'}`;
     } catch (e) {
-      setError(getErrorMessage(e, 'The payment could not be sent. Your claim is saved.'));
+      outcome = `The payment was not sent. ${getErrorMessage(e, 'Your claim is saved.')}`;
+    }
+    try {
+      // Reload either way: a refusal can close the claim and put the amount back in the balance, so the list must not go stale.
+      await load();
+      setNotice(outcome);
     } finally {
       setRetrying(null);
     }

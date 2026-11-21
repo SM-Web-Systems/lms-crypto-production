@@ -66,7 +66,7 @@ describe('student rewards screen', () => {
     svc.claim.mockResolvedValue({ kind: 'verified', payout: { status: 'refused', code, message } });
     render(<RewardsScreen />);
     fireEvent.press(await screen.findByText('Claim to my wallet'));
-    expect(await screen.findByText(`Your wallet is confirmed, but the reward has not been sent to it yet. ${message}`)).toBeTruthy();
+    expect(await screen.findByText(`Your wallet is confirmed, but the reward has not been sent to it. ${message}`)).toBeTruthy();
     expect(screen.queryByText(/reward has been sent/)).toBeNull();
   });
 
@@ -85,7 +85,7 @@ describe('student rewards screen', () => {
     expect(screen.queryByText(/Released/)).toBeNull();
     fireEvent.press(screen.getByText('Try payment again'));
     await waitFor(() => expect(svc.retryPayout).toHaveBeenCalledWith('c-2'));
-    expect(await screen.findByText('This payout is above the per-claim limit. Your claim is saved.')).toBeTruthy();
+    expect(await screen.findByText('The payment was not sent. This payout is above the per-claim limit. Your claim is saved.')).toBeTruthy();
   });
 
   it('shows a failed balance load as an error with retry, never as nothing to claim', async () => {
@@ -126,7 +126,28 @@ describe('student rewards screen', () => {
     svc.retryPayout.mockRejectedValue(new ApiRequestError({ message: 'Mainnet reward payouts are switched off.', status: 502, code: 'PAYOUT_UNAVAILABLE' }));
     render(<RewardsScreen />);
     fireEvent.press(await screen.findByText('Try payment again'));
-    expect(await screen.findByText('Mainnet reward payouts are switched off.')).toBeTruthy();
+    expect(await screen.findByText('The payment was not sent. Mainnet reward payouts are switched off.')).toBeTruthy();
+  });
+
+  it('says an unpaid (pending) payout has not been sent yet', async () => {
+    svc.claim.mockResolvedValue({ kind: 'verified', payout: { status: 'pending', code: 'PAYOUT_UNAVAILABLE', message: 'The payout could not be sent. Your claim is saved; try again shortly.' } });
+    render(<RewardsScreen />);
+    fireEvent.press(await screen.findByText('Claim to my wallet'));
+    expect(await screen.findByText(/has not been sent to it yet\. The payout could not be sent/)).toBeTruthy();
+  });
+
+  it('reloads after a refused retry, so a claim the server put back in the balance does not stay listed', async () => {
+    const stuck = { claimId: 'c-9', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 2000000, status: 'verified' as const, verifiedAt: '2026-11-20T18:05:00Z', payout: 'not_sent' as const, txHash: null, ledger: null };
+    svc.claimable.mockResolvedValueOnce(0).mockResolvedValue(2000000);
+    svc.claims.mockResolvedValueOnce([stuck]).mockResolvedValue([]);
+    const msg = 'This claim was not paid and is back in your LMS balance. One claim can be at most 0.1 XLM.';
+    svc.retryPayout.mockRejectedValue(new ApiRequestError({ message: msg, status: 409, code: 'PAYOUT_CAP_EXCEEDED' }));
+    render(<RewardsScreen />);
+    fireEvent.press(await screen.findByText('Try payment again'));
+    expect(await screen.findByText(`The payment was not sent. ${msg}`)).toBeTruthy();
+    expect(svc.claims).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Try payment again')).toBeNull();
+    expect(screen.getByText('0.2 XLM')).toBeTruthy();
   });
 
   it('shows one banner when the whole page fails to load', async () => {
