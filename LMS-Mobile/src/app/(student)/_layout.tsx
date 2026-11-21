@@ -1,10 +1,23 @@
 import { Tabs, Redirect, usePathname, useRouter } from 'expo-router';
-import { ActivityIndicator, View, Text } from 'react-native';
+import { ActivityIndicator, Pressable, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { canStudy, canOpenStudentPath } from '@/utils/authorization';
 import { brand } from '@/theme/colors';
+import { backOr } from '@/utils/navigation';
+
+/** Header Back for screens without a tab of their own. */
+function HiddenTabBack() {
+  const router = useRouter();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Back" hitSlop={12} style={{ paddingHorizontal: 16 }}
+      onPress={() => backOr(router, '/(student)/dashboard')}>
+      <Ionicons name="arrow-back" size={24} color={brand.primary.dark} />
+    </Pressable>
+  );
+}
+const hidden = (title: string) => ({ href: null, title, headerLeft: () => <HiddenTabBack /> });
 
 export default function StudentTabsLayout() {
   const { isLoading, isAuthenticated, user } = useAuth();
@@ -34,6 +47,8 @@ export default function StudentTabsLayout() {
 
   return (
     <Tabs
+      // Back walks the tabs the learner actually visited, and ends on Dashboard (the first tab).
+      backBehavior="history"
       screenOptions={{
         headerShown: true,
         tabBarActiveTintColor: brand.accent.teal,
@@ -90,11 +105,11 @@ export default function StudentTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
         }}
       />
-      <Tabs.Screen name="certificate-detail" options={{ href: null, title: 'Certificate' }} />
-      <Tabs.Screen name="quizzes" options={{ href: null, title: 'Quizzes' }} />
-      <Tabs.Screen name="forum" options={{ href: null, title: 'Forum' }} />
-      <Tabs.Screen name="documents" options={{ href: null, title: 'Resources' }} />
-      <Tabs.Screen name="rewards" options={{ href: null, title: 'Rewards' }} />
+      <Tabs.Screen name="certificate-detail" options={hidden('Certificate')} />
+      <Tabs.Screen name="quizzes" options={hidden('Quizzes')} />
+      <Tabs.Screen name="forum" options={hidden('Forum')} />
+      <Tabs.Screen name="documents" options={hidden('Resources')} />
+      <Tabs.Screen name="rewards" options={hidden('Rewards')} />
     </Tabs>
   );
 }

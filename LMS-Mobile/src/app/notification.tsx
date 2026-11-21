@@ -9,6 +9,7 @@ import {ErrorBanner} from '@/components/ErrorBanner';
 import {markPushNotificationRead, pushNotifications, readPushNotification, type NotificationDetail} from '@/services/pushNotifications';
 import {canOpenStudentPath, mobileHome} from '@/utils/authorization';
 import {getErrorMessage} from '@/utils/apiError';
+import {backOr} from '@/utils/navigation';
 
 function studentDestination(link: string | null) {
   switch (link) {
@@ -63,7 +64,7 @@ export default function NotificationScreen() {
       </> : null}
       {destination && canOpenStudentPath(user, destination)
         ? <Button label="Open in LMS" onPress={() => router.push(destination)} /> : null}
-      <Button label="Back to your workspace" variant="outline" onPress={() => router.replace(mobileHome(user))} />
+      <Button label="Back to your workspace" variant="outline" onPress={() => backOr(router, mobileHome(user))} />
     </ScrollView>
   </SafeAreaView>;
 }
