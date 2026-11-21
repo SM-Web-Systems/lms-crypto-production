@@ -703,6 +703,26 @@ function ensureTenantTables(): void {
 }
 startupMigrations.push(ensureTenantTables);
 
+/** The certificate email default before UX-023 (learners saw "NFT" and "minted"). */
+export const LEGACY_CERTIFICATE_EMAIL = {
+  subject: 'Your NFT Certificate for "{{courseName}}" Has Been Minted!',
+  bodyHtml: `<p>Hi {{studentName}},</p>\n<p>Congratulations! Your NFT certificate for <strong>{{courseName}}</strong> has been minted on the Stellar blockchain.</p>\n<p><a href="{{{verifyUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">View &amp; Verify Certificate</a></p>\n<p><a href="{{{explorerUrl}}}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View on Blockchain Explorer</a></p>\n<p>Your certificate is permanently recorded on the blockchain and can be independently verified by anyone.</p>\n<p>— {{lmsName}}</p>`,
+};
+
+/** UX-023: learners only see the word "Certificate". */
+export const CERTIFICATE_EMAIL = {
+  subject: 'Your certificate for "{{courseName}}" has been issued',
+  bodyHtml: `<p>Hi {{studentName}},</p>\n<p>Congratulations! Your certificate for <strong>{{courseName}}</strong> has been issued and recorded on the Stellar network.</p>\n<p><a href="{{{verifyUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">View &amp; Verify Certificate</a></p>\n<p><a href="{{{explorerUrl}}}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View the record on Stellar</a></p>\n<p>Anyone can check your certificate, and the record is permanent.</p>\n<p>— {{lmsName}}</p>`,
+};
+
+/** Replace the old default certificate email with the new copy, only where nobody edited it. */
+export function upgradeCertificateEmailCopy(): void {
+  db.prepare(
+    `UPDATE email_templates SET name = 'Certificate Issued Notification', subject = ?, body_html = ?, updated_at = datetime('now')
+     WHERE slug = 'certificate-minted' AND subject = ? AND body_html = ?`,
+  ).run(CERTIFICATE_EMAIL.subject, CERTIFICATE_EMAIL.bodyHtml, LEGACY_CERTIFICATE_EMAIL.subject, LEGACY_CERTIFICATE_EMAIL.bodyHtml);
+}
+
 // ─── Phase 22 C3: Email Templates ──────────────────────────────────────────────
 function ensureEmailTemplates(): void {
 db.exec(`
@@ -746,14 +766,15 @@ db.exec(`
      'Payment reminder for {{courseName}}',
      `<p>Hi {{studentName}},</p>\n<p>This is a reminder that payment is pending for <strong>{{courseName}}</strong> (cohort: {{cohortName}}) on <strong>{{lmsName}}</strong>.</p>\n<p><a href="{{{loginUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">Sign in to complete payment</a></p>\n<p>If you have questions, contact your administrator.</p>`,
      '["studentName","courseName","cohortName","lmsName","loginUrl"]'],
-    ['certificate-minted', 'certificate', 'Certificate Minted Notification',
-     'Your NFT Certificate for "{{courseName}}" Has Been Minted!',
-     `<p>Hi {{studentName}},</p>\n<p>Congratulations! Your NFT certificate for <strong>{{courseName}}</strong> has been minted on the Stellar blockchain.</p>\n<p><a href="{{{verifyUrl}}}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">View &amp; Verify Certificate</a></p>\n<p><a href="{{{explorerUrl}}}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View on Blockchain Explorer</a></p>\n<p>Your certificate is permanently recorded on the blockchain and can be independently verified by anyone.</p>\n<p>— {{lmsName}}</p>`,
+    ['certificate-minted', 'certificate', 'Certificate Issued Notification',
+     CERTIFICATE_EMAIL.subject,
+     CERTIFICATE_EMAIL.bodyHtml,
      '["studentName","courseName","verifyUrl","explorerUrl","lmsName"]'],
   ];
   for (const [slug, category, name, subject, bodyHtml, variables] of seeds) {
     seedInsert.run(uuidv4(), slug, category, name, subject, bodyHtml, variables);
   }
+  upgradeCertificateEmailCopy();
 }
 
 }

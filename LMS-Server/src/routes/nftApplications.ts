@@ -57,6 +57,9 @@ function logDemoSponsorTrigger(applicationId: string, userId: string, courseId: 
   }
 }
 
+/** The network course mints go to (mintService fails closed on any other NFT_STELLAR_NETWORK value). */
+const mintNetwork = (): 'public' | 'testnet' => (process.env.NFT_STELLAR_NETWORK === 'testnet' ? 'testnet' : 'public');
+
 const router = Router();
 
 // ─── POST /courses/:courseId/completions/apply ────────────────────────────────
@@ -321,12 +324,12 @@ router.get(
       reviewed_by: string | null; review_notes: string | null;
       lecturer_rec: string | null; tx_hash: string | null;
       user_name: string; user_email: string; course_title: string;
-      mint_error: string | null;
+      mint_error: string | null; network: string | null;
     }>(
       `SELECT a.*,
               u.name AS user_name, u.email AS user_email,
               c.title AS course_title,
-              nc.error AS mint_error
+              nc.error AS mint_error, nc.network AS network
        FROM course_nft_applications a
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
@@ -355,6 +358,7 @@ router.get(
           lecturerRecommendation: r.lecturer_rec,
           txHash: r.tx_hash,
           mintError: r.mint_error,
+          network: r.network,
         })),
       },
     });
@@ -936,8 +940,8 @@ router.post(
         execute(
           `INSERT INTO nft_credentials
              (id, user_id, quiz_id, wallet_address, mint_status, error, contract_id, network, course_id, application_id)
-           VALUES (?, ?, NULL, ?, 'failed', ?, ?, 'public', ?, ?)`,
-          [uuidv4(), app.user_id, userRow.walletAddress, msg, contractId, courseId, appId]
+           VALUES (?, ?, NULL, ?, 'failed', ?, ?, ?, ?, ?)`,
+          [uuidv4(), app.user_id, userRow.walletAddress, msg, contractId, mintNetwork(), courseId, appId]
         );
       }
       res.status(502).json({
@@ -962,8 +966,8 @@ router.post(
       execute(
         `INSERT INTO nft_credentials
            (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
-         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, 'public', ?, ?)`,
-        [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, courseId, appId]
+         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?)`,
+        [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), courseId, appId]
       );
 
       execute(
@@ -1019,6 +1023,7 @@ router.post(
         courseName: courseRow?.title ?? 'your course',
         credentialId: credId,
         txHash: txHash!,
+        network: mintNetwork(),
         userId: app.user_id,
       }).catch((emailErr) => logger.error({ err: emailErr }, 'Failed to send certificate minted email'));
     }
