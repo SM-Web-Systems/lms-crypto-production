@@ -221,11 +221,11 @@ router.post('/parent/groups', authenticate, requirePermission('group.create'), (
   const { userId } = (req as AuthRequest).user!;
   const parsed = parseFamilyGroupBody(req.body);
   if ('error' in parsed) {
-    res.status(400).json({ success: false, error: parsed.error });
+    res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error } });
     return;
   }
   if (parsed.memberIds && !allLinkedChildren(userId, parsed.memberIds)) {
-    res.status(403).json({ success: false, error: 'Can only add linked children to family group' });
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You can only add children linked to you.' } });
     return;
   }
 
@@ -246,16 +246,16 @@ router.put('/parent/groups/:id', authenticate, requirePermission('group.manage')
   const { userId } = (req as AuthRequest).user!;
   const { id } = req.params;
   if (!ownsFamilyGroup(id, userId)) {
-    res.status(404).json({ success: false, error: 'Group not found' });
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Group not found' } });
     return;
   }
   const parsed = parseFamilyGroupBody(req.body);
   if ('error' in parsed) {
-    res.status(400).json({ success: false, error: parsed.error });
+    res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error } });
     return;
   }
   if (parsed.memberIds && !allLinkedChildren(userId, parsed.memberIds)) {
-    res.status(403).json({ success: false, error: 'Can only add linked children to family group' });
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You can only add children linked to you.' } });
     return;
   }
 
@@ -273,7 +273,7 @@ router.delete('/parent/groups/:id', authenticate, requirePermission('group.manag
   const { userId } = (req as AuthRequest).user!;
   const { id } = req.params;
   if (!ownsFamilyGroup(id, userId)) {
-    res.status(404).json({ success: false, error: 'Group not found' });
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Group not found' } });
     return;
   }
   const busy = queryOne(
@@ -283,12 +283,22 @@ router.delete('/parent/groups/:id', authenticate, requirePermission('group.manag
   if (busy) {
     res.status(409).json({
       success: false,
-      error: "This group has rewards that are funded or paid, so it can't be deleted. Cancel any open rewards first. Groups with paid rewards are kept for your records.",
+      error: {
+        code: 'GROUP_HAS_FUNDED_REWARDS',
+        message: "This group has rewards that are funded or paid, so it can't be deleted. Cancel any open rewards first. Groups with paid rewards are kept for your records.",
+      },
     });
     return;
   }
 
-  execute('DELETE FROM user_groups WHERE id = ?', [id]);
+  db.transaction(() => {
+    // Drafts hold no money; cancel them so they don't linger with no group to show them under.
+    execute(
+      "UPDATE rewards SET status = 'cancelled', cancelled_at = datetime('now'), updated_at = datetime('now') WHERE scope_type = 'parent_family' AND scope_id = ? AND status = 'draft'",
+      [id]
+    );
+    execute('DELETE FROM user_groups WHERE id = ?', [id]);
+  }).immediate();
   res.json({ success: true, data: { deleted: true } });
 });
 
@@ -308,7 +318,7 @@ router.post('/parent/groups/:id/members', authenticate, requirePermission('group
     [id]
   );
   if (!group || group.owner_user_id !== parentId) {
-    res.status(404).json({ success: false, error: 'Group not found' });
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Group not found' } });
     return;
   }
 
@@ -318,7 +328,7 @@ router.post('/parent/groups/:id/members', authenticate, requirePermission('group
     [parentId, memberId]
   );
   if (!link) {
-    res.status(403).json({ success: false, error: 'Can only add linked children to family group' });
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You can only add children linked to you.' } });
     return;
   }
 
@@ -342,7 +352,7 @@ router.delete('/parent/groups/:id/members/:userId', authenticate, requirePermiss
     [id]
   );
   if (!group || group.owner_user_id !== parentId) {
-    res.status(404).json({ success: false, error: 'Group not found' });
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Group not found' } });
     return;
   }
 

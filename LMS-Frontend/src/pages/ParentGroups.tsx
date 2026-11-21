@@ -25,10 +25,13 @@ const GroupForm: React.FC<{
   onSaved: () => void;
 }> = ({ editing, linkedChildren, onCancel, onSaved }) => {
   const [name, setName] = useState(editing.name);
-  const [memberIds, setMemberIds] = useState<string[]>(editing.memberIds);
+  // Only children still linked can be kept; anyone else would make the server refuse the save.
+  const [memberIds, setMemberIds] = useState<string[]>(() =>
+    editing.memberIds.filter((id) => linkedChildren.some((c) => c.id === id)));
   const [errors, setErrors] = useState<{ name?: string; members?: string; save?: string }>({});
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const firstChildRef = useRef<HTMLInputElement>(null);
   useEffect(() => { nameRef.current?.focus(); }, []);
 
   const toggle = (id: string) =>
@@ -39,10 +42,12 @@ const GroupForm: React.FC<{
     const trimmed = name.trim();
     const next = {
       name: !trimmed ? 'Enter a group name.' : trimmed.length > NAME_MAX ? `Use ${NAME_MAX} characters or fewer.` : undefined,
-      members: memberIds.length === 0 ? 'Choose at least one child.' : undefined,
+      // With no linked children left, a parent can still rename the group.
+      members: memberIds.length === 0 && linkedChildren.length > 0 ? 'Choose at least one child.' : undefined,
     };
     setErrors(next);
-    if (next.name || next.members) return;
+    if (next.name) { nameRef.current?.focus(); return; }
+    if (next.members) { firstChildRef.current?.focus(); return; }
     setSaving(true);
     try {
       if (editing.id) await parentService.updateGroup(editing.id, { name: trimmed, memberIds });
@@ -71,22 +76,35 @@ const GroupForm: React.FC<{
               aria-describedby={errors.name ? 'family-group-name-error' : undefined}
               className={`touch-target w-full max-w-md px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-teal focus:border-transparent ${errors.name ? 'border-red-500' : 'border-neutral-300'}`}
             />
-            {errors.name && <p id="family-group-name-error" className="mt-1 text-sm text-red-600">{errors.name}</p>}
+            {errors.name && <p id="family-group-name-error" role="alert" className="mt-1 text-sm text-red-600">{errors.name}</p>}
           </div>
-          <fieldset aria-describedby={errors.members ? 'family-group-members-error' : undefined}>
+          <fieldset>
             <legend className="text-sm font-medium text-neutral-700 mb-1">Children in this group</legend>
+            {linkedChildren.length === 0 && (
+              <p className="text-sm text-neutral-600">
+                No children are linked to you. <Link to="/parent/children" className="font-medium text-accent-teal underline">Link a child</Link> to add them.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              {linkedChildren.map((c) => (
+              {linkedChildren.map((c, i) => (
                 <label
                   key={c.id}
                   className="touch-target inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-800 cursor-pointer has-[:checked]:border-accent-teal has-[:checked]:bg-accent-teal/10"
                 >
-                  <input type="checkbox" checked={memberIds.includes(c.id)} onChange={() => toggle(c.id)} className="h-4 w-4 accent-accent-teal" />
+                  <input
+                    type="checkbox"
+                    ref={i === 0 ? firstChildRef : undefined}
+                    checked={memberIds.includes(c.id)}
+                    onChange={() => toggle(c.id)}
+                    aria-invalid={!!errors.members}
+                    aria-describedby={errors.members ? 'family-group-members-error' : undefined}
+                    className="h-4 w-4 accent-accent-teal"
+                  />
                   {c.name}
                 </label>
               ))}
             </div>
-            {errors.members && <p id="family-group-members-error" className="mt-1 text-sm text-red-600">{errors.members}</p>}
+            {errors.members && <p id="family-group-members-error" role="alert" className="mt-1 text-sm text-red-600">{errors.members}</p>}
           </fieldset>
           {errors.save && <p role="alert" className="text-sm text-red-700">{errors.save}</p>}
           <div className="flex flex-wrap gap-2">
@@ -160,7 +178,7 @@ const ParentGroups: React.FC = () => {
 
   let body: React.ReactNode;
   if (loading) {
-    body = <div className="py-16 text-center text-neutral-500 text-sm">Loading...</div>;
+    body = <div role="status" className="py-16 text-center text-neutral-500 text-sm">Loading...</div>;
   } else if (loadError) {
     body = (
       <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900" role="alert">

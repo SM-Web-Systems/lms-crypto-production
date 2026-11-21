@@ -81,6 +81,41 @@ describe('/parent/groups', () => {
     expect(screen.getByText('Use 80 characters or fewer.')).toBeInTheDocument();
   });
 
+  it('announces validation errors and moves focus to the first invalid field', async () => {
+    renderAt('/parent/groups', <ParentGroups />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Create your family group' }));
+    await userEvent.type(screen.getByLabelText('Group name'), 'Ok');
+    await userEvent.click(screen.getByRole('button', { name: 'Create group' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose at least one child.');
+    expect(screen.getByLabelText('Ada')).toHaveFocus();
+    expect(screen.getByLabelText('Ada')).toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.clear(screen.getByLabelText('Group name'));
+    await userEvent.click(screen.getByLabelText('Ada'));
+    await userEvent.click(screen.getByRole('button', { name: 'Create group' }));
+    expect(screen.getByLabelText('Group name')).toHaveFocus();
+  });
+
+  it('edit only keeps members who are still linked, and allows renaming with no linked children', async () => {
+    svc.getGroups.mockResolvedValue([{ ...group, members: [{ id: 'c1', name: 'Ada' }, { id: 'gone', name: 'Old' }] }]);
+    svc.updateGroup.mockResolvedValue(undefined);
+    renderAt('/parent/groups', <ParentGroups />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit The Smiths' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(svc.updateGroup).toHaveBeenCalledWith('g1', { name: 'The Smiths', memberIds: ['c1'] }));
+  });
+
+  it('a parent with no linked children left can still rename a group', async () => {
+    svc.getChildren.mockResolvedValue([]);
+    svc.getGroups.mockResolvedValue([group]);
+    svc.updateGroup.mockResolvedValue(undefined);
+    renderAt('/parent/groups', <ParentGroups />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit The Smiths' }));
+    await userEvent.type(screen.getByLabelText('Group name'), ' 2');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(svc.updateGroup).toHaveBeenCalledWith('g1', { name: 'The Smiths 2', memberIds: [] }));
+  });
+
   it('creates a group with a name and the chosen children, then shows it', async () => {
     svc.createGroup.mockResolvedValue({ id: 'g1' });
     renderAt('/parent/groups', <ParentGroups />);

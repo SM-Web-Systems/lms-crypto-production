@@ -130,7 +130,30 @@ describe('UX-007 parent family groups', () => {
     insertReward(parent.userId, id, 'funded');
     const res = await request(app).delete(`/api/v1/parent/groups/${id}`).set(as(parent));
     expect(res.status).toBe(409);
+    // The web client shows error.message, so the reason must arrive in that shape.
+    expect(res.body.error.code).toBe('GROUP_HAS_FUNDED_REWARDS');
+    expect(res.body.error.message).toMatch(/funded or paid/);
     expect(queryOne('SELECT id FROM user_groups WHERE id = ?', [id])).toBeTruthy();
+  });
+
+  it.each(['pending_funding', 'refunded', 'released'])('refuses to delete while a reward is %s', async (status) => {
+    const id = (await create({ name: status, memberIds: [childA.userId] })).body.data.id;
+    insertReward(parent.userId, id, status);
+    expect((await request(app).delete(`/api/v1/parent/groups/${id}`).set(as(parent))).status).toBe(409);
+  });
+
+  it('returns validation and scoping errors as { code, message }', async () => {
+    const bad = await create({ name: '' });
+    expect(bad.body.error).toMatchObject({ code: 'VALIDATION_ERROR', message: 'Group name is required' });
+    const unlinked = await create({ name: 'X', memberIds: [stranger.userId] });
+    expect(unlinked.body.error.message).toBe('You can only add children linked to you.');
+  });
+
+  it("will not touch the parent's own non-family group through these endpoints", async () => {
+    const classId = uuidv4();
+    execute("INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, 'A class', 'class', ?)", [classId, parent.userId]);
+    expect((await request(app).put(`/api/v1/parent/groups/${classId}`).set(as(parent)).send({ name: 'Renamed' })).status).toBe(404);
+    expect((await request(app).delete(`/api/v1/parent/groups/${classId}`).set(as(parent))).status).toBe(404);
   });
 
   it('allows deleting a group whose only rewards are drafts or cancelled', async () => {
@@ -138,5 +161,7 @@ describe('UX-007 parent family groups', () => {
     insertReward(parent.userId, id, 'draft');
     insertReward(parent.userId, id, 'cancelled');
     expect((await request(app).delete(`/api/v1/parent/groups/${id}`).set(as(parent))).status).toBe(200);
+    // Drafts left behind would be invisible, so they are cancelled with the group.
+    expect(queryOne("SELECT id FROM rewards WHERE scope_id = ? AND status = 'draft'", [id])).toBeNull();
   });
 });
