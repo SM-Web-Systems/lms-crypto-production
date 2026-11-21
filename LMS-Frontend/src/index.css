@@ -99,6 +99,12 @@
     .touch-target-badge::after { content: ''; position: absolute; inset: -8px; }
   }
 
+  /* Hidden until hover only where hover exists; touch screens always show it (UX-025: message delete). */
+  @media (hover: hover) {
+    .reveal-on-hover { opacity: 0; }
+    .group:hover .reveal-on-hover, .reveal-on-hover:focus-visible { opacity: 1; }
+  }
+
   /**
    * Embedded PDF / document viewport — inset surface so the iframe reads as part of the app chrome.
    */

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from '../Button';
 import { courseCompletionService } from '../../services/courseCompletionService';
 import type { CourseProgress, NftApplication } from '../../types/api';
@@ -83,6 +83,15 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
 }) => {
   const [certState, setCertState] = useState<Record<string, 'idle' | 'loading' | 'applied' | 'error'>>({});
   const [certErrors, setCertErrors] = useState<Record<string, string>>({});
+  const { hash } = useLocation();
+
+  // UX-025: "Apply for certificate" on Progress links to /student#certificate-<courseId>; bring that course into view.
+  useEffect(() => {
+    if (coursesLoading || !hash.startsWith('#certificate-')) return;
+    const card = document.getElementById(hash.slice(1));
+    card?.scrollIntoView?.({ block: 'center' });
+    card?.focus();
+  }, [hash, coursesLoading, courses]);
 
   const handleApplyCertificate = async (courseId: string) => {
     // W09-R4/R5: enforce action gate — do not apply when application status is unknown.
@@ -198,7 +207,10 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
           return (
             <div
               key={course.id}
-              className="rounded-xl border border-neutral-200/90 bg-white px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02]"
+              id={`certificate-${course.id}`}
+              tabIndex={-1}
+              aria-label={`Certificate for ${course.title}`}
+              className="rounded-xl border border-neutral-200/90 bg-white px-4 py-4 shadow-card ring-1 ring-neutral-900/[0.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
             >
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex-1 min-w-0 space-y-2">

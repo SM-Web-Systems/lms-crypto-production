@@ -157,6 +157,12 @@ const Landing: React.FC = () => {
                 Learning paths
               </a>
               <Link
+                to="/sign-up"
+                className="hidden sm:inline-flex text-sm font-semibold text-neutral-700 hover:text-neutral-900 px-3 py-2 rounded-lg transition-colors"
+              >
+                Create an account
+              </Link>
+              <Link
                 to="/login"
                 className="inline-flex items-center px-4 py-2.5 rounded-full text-sm font-semibold bg-primary-dark text-white hover:bg-primary-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal focus-visible:ring-offset-2 shadow-sm"
               >
@@ -198,6 +204,13 @@ const Landing: React.FC = () => {
                 >
                   Continue to Sign in
                   <ArrowRight className="w-4 h-4 ml-2" />
+                </Link>
+                {/* UX-025: new learners need a way in that is not only the sign-in page. */}
+                <Link
+                  to="/sign-up"
+                  className="inline-flex justify-center items-center px-7 py-3.5 rounded-full text-[15px] font-semibold border border-primary-dark bg-white text-primary-dark hover:bg-neutral-50 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent-teal shadow-sm"
+                >
+                  Create an account
                 </Link>
                 <a
                   href="#topics"
