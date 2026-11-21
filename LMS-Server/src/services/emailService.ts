@@ -308,6 +308,7 @@ export async function sendCertificateMintedEmail(opts: {
   courseName: string;
   credentialId: string;
   txHash: string;
+  network?: string;
   userId: string;
 }): Promise<void> {
   const { to, name, courseName, credentialId, txHash, userId } = opts;
@@ -319,7 +320,7 @@ export async function sendCertificateMintedEmail(opts: {
   if (pref && pref.enabled === 0) return;
 
   const verifyUrl = `${FRONTEND_URL}/verify/${credentialId}`;
-  const explorerUrl = `https://stellar.expert/explorer/public/tx/${txHash}`;
+  const explorerUrl = `https://stellar.expert/explorer/${opts.network === 'testnet' ? 'testnet' : 'public'}/tx/${txHash}`;
 
   const rendered = renderTemplate('certificate-minted', {
     studentName: name,
@@ -329,13 +330,13 @@ export async function sendCertificateMintedEmail(opts: {
     lmsName: LMS_NAME,
   });
 
-  const subject = rendered?.subject ?? `Your NFT Certificate for "${courseName}" Has Been Minted!`;
+  const subject = rendered?.subject ?? `Your certificate for "${courseName}" has been issued`;
   const html = rendered?.html ?? `
     <p>Hi ${escapeHtml(name)},</p>
-    <p>Congratulations! Your NFT certificate for <strong>${escapeHtml(courseName)}</strong> has been minted on the Stellar blockchain.</p>
+    <p>Congratulations! Your certificate for <strong>${escapeHtml(courseName)}</strong> has been issued and recorded on the Stellar network.</p>
     <p><a href="${verifyUrl}" style="display:inline-block;padding:10px 20px;background:#3d7a8c;color:#fff;border-radius:6px;text-decoration:none;">View &amp; Verify Certificate</a></p>
-    <p><a href="${explorerUrl}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View on Blockchain Explorer</a></p>
-    <p>Your certificate is permanently recorded on the blockchain and can be independently verified by anyone.</p>
+    <p><a href="${explorerUrl}" style="display:inline-block;padding:10px 20px;background:#2d5a6b;color:#fff;border-radius:6px;text-decoration:none;margin-top:8px;">View the record on Stellar</a></p>
+    <p>Anyone can check your certificate, and the record is permanent.</p>
     <p>— ${escapeHtml(LMS_NAME)}</p>
   `.trim();
 
