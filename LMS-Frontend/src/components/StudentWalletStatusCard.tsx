@@ -4,6 +4,8 @@ import { getWalletStatus } from '../services/walletService';
 import type { User, WalletStatusResponse } from '../types/api';
 import { Wallet, AlertCircle, Copy, ExternalLink, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
+import { formatXlm } from '../utils/xlmAmount';
 
 interface Props {
   user: User;
@@ -17,6 +19,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
   const [status, setStatus] = useState<WalletStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const xlmUsdc = useXlmUsdcPrice();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -48,7 +51,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
           </span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-amber-900 text-sm">Wallet not linked</p>
-            <p className="text-xs text-amber-800/80 mt-0.5">Create an active mainnet wallet on AmmaWallet, then connect or refresh it from your LMS profile.</p>
+            <p className="text-xs text-amber-800/80 mt-0.5">Create a wallet on AmmaWallet, then connect or refresh it from your LMS profile.</p>
           </div>
           <Link
             to="/profile"
@@ -116,9 +119,11 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
                   <CheckCircle className="h-3 w-3" aria-hidden="true" />
                   Wallet confirmed at sign-in
                 </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-700/10 text-emerald-900 text-xs font-medium">
-                  Mainnet
-                </span>
+                {status?.network && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-700/10 text-emerald-900 text-xs font-medium">
+                    {status.network === 'mainnet' ? 'Stellar public network' : 'Stellar testnet'}
+                  </span>
+                )}
               </div>
               {walletAddr && (
                 <button
@@ -138,12 +143,12 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
           {/* Right: balance + link */}
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-xs text-neutral-500">XLM balance</p>
+              <p className="text-xs text-neutral-500">Balance</p>
               {loading ? (
                 <div className="mt-1 h-4 w-16 animate-pulse rounded bg-neutral-200" />
               ) : (
                 <p className="text-sm font-semibold text-neutral-800">
-                  {xlmBalance != null ? `${xlmBalance.toFixed(2)} XLM` : '—'}
+                  {xlmBalance != null ? formatXlm(Math.round(xlmBalance * 10_000_000), xlmUsdc) : '—'}
                 </p>
               )}
             </div>
@@ -158,7 +163,7 @@ const StudentWalletStatusCard: React.FC<Props> = ({ user }) => {
             </a>
           </div>
         </div>
-        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active mainnet wallet at sign-in.
+        <p className="mt-3 text-xs text-neutral-600">This is the last confirmed address. AmmaWallet supplies its newest active wallet at sign-in.
           {' '}<Link to="/profile" className="touch-target-link font-semibold underline">Review or refresh wallet connection</Link></p>
       </CardContent>
     </Card>

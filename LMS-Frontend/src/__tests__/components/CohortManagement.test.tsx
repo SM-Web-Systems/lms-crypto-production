@@ -263,8 +263,8 @@ describe('CohortManagement', () => {
 
     await user.click(screen.getByText('Acme Cohort'));
     await waitFor(() => {
-      expect(screen.getByText('NFT')).toBeInTheDocument();
-      expect(screen.getByText('Badge')).toBeInTheDocument();
+      expect(screen.getByText('Verified certificate')).toBeInTheDocument();
+      expect(screen.getByText('Free certificate')).toBeInTheDocument();
     });
   });
 

@@ -56,6 +56,12 @@ describe('youtubeEmbedUrl', () => {
 
   it('returns null for invalid ID', () => {
     expect(youtubeEmbedUrl(undefined)).toBeNull();
+    expect(youtubeEmbedUrl('https://example.com/watch?x=1')).toBeNull();
+  });
+
+  it('also accepts a full YouTube URL, since courses store either form', () => {
+    expect(youtubeEmbedUrl('https://www.youtube.com/watch?v=RW1Q7lIExOM')).toBe('https://www.youtube.com/embed/RW1Q7lIExOM?rel=0');
+    expect(youtubeEmbedUrl('https://youtu.be/RW1Q7lIExOM')).toBe('https://www.youtube.com/embed/RW1Q7lIExOM?rel=0');
   });
 });
 

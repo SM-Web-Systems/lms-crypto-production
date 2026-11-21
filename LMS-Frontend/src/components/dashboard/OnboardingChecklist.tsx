@@ -63,7 +63,7 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({
             <p className="text-xs text-neutral-500 mt-0.5">
               {checklistAllDone
                 ? 'You\'ve completed all the steps — amazing work!'
-                : 'Complete these steps to earn your NFT certificate.'}
+                : 'Complete these steps to earn your certificate.'}
             </p>
           </div>
         </div>

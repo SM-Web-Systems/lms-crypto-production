@@ -380,7 +380,7 @@ describe('EmbeddedMaterialViewer — video item rendering', () => {
 
     const iframe = container.querySelector('iframe');
     expect(iframe).not.toBeNull();
-    expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/SyK8hJVq3_Q?rel=0');
+    expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/SyK8hJVq3_Q?rel=0&enablejsapi=1&origin=http%3A%2F%2Flocalhost%3A3000');
   });
 
   it('EMV-VID-2: renders clean GitHub download button for video', () => {
@@ -467,7 +467,7 @@ describe('EmbeddedMaterialViewer — video item rendering', () => {
     );
 
     const iframe = container.querySelector('iframe');
-    expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/J4lw7bN8isw?rel=0');
+    expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/J4lw7bN8isw?rel=0&enablejsapi=1&origin=http%3A%2F%2Flocalhost%3A3000');
   });
 });
 
@@ -490,7 +490,7 @@ describe('EmbeddedMaterialViewer — audio YouTube primary', () => {
 
     const iframe = container.querySelector('iframe');
     expect(iframe).not.toBeNull();
-    expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/RW1Q7lIExOM?rel=0');
+    expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/RW1Q7lIExOM?rel=0&enablejsapi=1&origin=http%3A%2F%2Flocalhost%3A3000');
   });
 
   it('EMV-AYT-2: does NOT render redundant "Listen on YouTube" button', () => {

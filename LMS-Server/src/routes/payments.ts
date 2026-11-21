@@ -1068,7 +1068,7 @@ router.get(
  *       '403':
  *         description: Not authorized to view this badge
  *       '404':
- *         description: Badge not found
+ *         description: Certificate not found
  */
 router.get(
   '/badges/:badgeId',
@@ -1077,7 +1077,7 @@ router.get(
     const badge = getBadge(badgeId);
 
     if (!badge) {
-      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Badge not found' } });
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Certificate not found' } });
       return;
     }
 
@@ -1137,7 +1137,7 @@ router.get(
  *       '403':
  *         description: Not authorized to download this badge
  *       '404':
- *         description: Badge not found
+ *         description: Certificate not found
  */
 router.get(
   '/badges/:badgeId/download',
@@ -1146,7 +1146,7 @@ router.get(
     const badge = getBadge(badgeId);
 
     if (!badge) {
-      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Badge not found' } });
+      res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Certificate not found' } });
       return;
     }
 

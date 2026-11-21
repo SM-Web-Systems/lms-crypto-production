@@ -9,6 +9,7 @@ import type { Course, CourseItemQuiz } from '../types/course';
 import { getCourseWeeks } from '../types/course';
 import type { QuizCompletion } from '../types/quiz';
 import { quizScorePercent } from '../utils/quizScore';
+import { stellarTxUrl } from '../utils/stellarExplorer';
 import {
   Loader2,
   CheckCircle,
@@ -28,7 +29,7 @@ function certLabel(status: CertificateStatus): {
     case 'minted':
       return { text: 'Certificate issued', className: 'bg-green-100 text-green-800' };
     case 'approved':
-      return { text: 'Approved — minting soon', className: 'bg-blue-100 text-blue-800' };
+      return { text: 'Approved — being issued', className: 'bg-blue-100 text-blue-800' };
     case 'pending':
       return { text: 'Application pending', className: 'bg-amber-100 text-amber-800' };
     case 'rejected':
@@ -349,7 +350,7 @@ const StudentProgress: React.FC = () => {
                     )}
                     {c.certificateStatus === 'minted' && c.txHash && (
                       <a
-                        href={`https://stellar.expert/explorer/public/tx/${c.txHash}`}
+                        href={stellarTxUrl(c.txHash, c.network)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:underline"

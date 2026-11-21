@@ -111,7 +111,7 @@ const StudentQuizzes: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const takeInitRef = useRef<string | null>(null);
-  const [pricingCache, setPricingCache] = useState<Record<string, number>>({});
+  const [pricingCache, setPricingCache] = useState<Record<string, { priceCents: number; currency: string }>>({});
 
   const activeQuiz = useMemo(() => quizzes.find((x) => x.id === qQuiz) ?? null, [quizzes, qQuiz]);
   const questions = useMemo(() => (activeQuiz ? sortedQuestions(activeQuiz) : []), [activeQuiz]);
@@ -176,8 +176,8 @@ const StudentQuizzes: React.FC = () => {
   useEffect(() => {
     if (!activeQuiz?.courseId || pricingCache[activeQuiz.courseId] !== undefined) return;
     courseCompletionService.getPricing(activeQuiz.courseId)
-      .then((p) => setPricingCache((c) => ({ ...c, [activeQuiz.courseId!]: p.priceCents })))
-      .catch(() => setPricingCache((c) => ({ ...c, [activeQuiz.courseId!]: 0 })));
+      .then((p) => setPricingCache((c) => ({ ...c, [activeQuiz.courseId!]: { priceCents: p.priceCents, currency: p.currency } })))
+      .catch(() => setPricingCache((c) => ({ ...c, [activeQuiz.courseId!]: { priceCents: 0, currency: 'USD' } })));
   }, [activeQuiz?.courseId, pricingCache]);
 
   /** Sync question index from URL while taking */
@@ -399,11 +399,11 @@ const StudentQuizzes: React.FC = () => {
                   <h2 className="text-base font-semibold text-neutral-800">Certificate pricing</h2>
                 </div>
                 {activeQuiz?.courseId && pricingCache[activeQuiz.courseId] !== undefined ? (
-                  pricingCache[activeQuiz.courseId] === 0 ? (
+                  pricingCache[activeQuiz.courseId].priceCents === 0 ? (
                     <p className="text-sm text-emerald-700 font-medium">This certificate is free.</p>
                   ) : (
                     <p className="text-sm text-neutral-600">
-                      Certificate fee: <span className="font-semibold text-neutral-900">${(pricingCache[activeQuiz.courseId] / 100).toFixed(2)}</span>.
+                      Certificate fee: <span className="font-semibold text-neutral-900">{(pricingCache[activeQuiz.courseId].priceCents / 100).toFixed(2)} {pricingCache[activeQuiz.courseId].currency}</span>.
                       Payment is confirmed by an administrator after you apply.
                     </p>
                   )

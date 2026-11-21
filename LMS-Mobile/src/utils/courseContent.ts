@@ -2,6 +2,11 @@ import type { Course, CourseItem, CourseSection, CourseWeek } from '../types/cou
 
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const string = (value: unknown) => typeof value === 'string' ? value : undefined;
+// Courses store `youtubeUrl` either as a full YouTube URL or as a bare video ID (the BVC course uses IDs).
+const youtubeUrl = (value: unknown) => {
+  const raw = string(value)?.trim();
+  return raw && /^[a-zA-Z0-9_-]{6,12}$/.test(raw) ? `https://www.youtube.com/watch?v=${raw}` : raw;
+};
 const order = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
 function itemFromApi(value: unknown, index: number, sectionId: string): CourseItem {
@@ -14,7 +19,7 @@ function itemFromApi(value: unknown, index: number, sectionId: string): CourseIt
     case 'video': return { ...base, type: 'video', url, downloadUrl: string(raw.downloadUrl) };
     case 'link': return { ...base, type: 'link', url };
     case 'text': return { ...base, type: 'text', url };
-    case 'audio': return { ...base, type: 'audio', url, youtubeUrl: string(raw.youtubeUrl), downloadUrl: string(raw.downloadUrl) };
+    case 'audio': return { ...base, type: 'audio', url, youtubeUrl: youtubeUrl(raw.youtubeUrl), downloadUrl: string(raw.downloadUrl) };
     case 'pdf': return { ...base, type: 'pdf', documentId: string(raw.documentId), fileUrl: string(raw.fileUrl) };
     case 'download': return { ...base, type: 'download', documentId: string(raw.documentId), fileUrl: string(raw.fileUrl), fileName: string(raw.fileName) || base.title };
     case 'quiz': return { ...base, type: 'quiz', quizId: string(raw.quizId) || '' };

@@ -88,7 +88,7 @@ describe('PaymentCheckout', () => {
         stellarPriceXlm={100}
       />
     );
-    expect(screen.getByText('Pay with XLM (100 XLM)')).toBeInTheDocument();
+    expect(screen.getByText('Pay with XLM: 100 XLM')).toBeInTheDocument();
   });
 
   // PAY-F13: Stellar USDC button with price
@@ -169,7 +169,7 @@ describe('PaymentCheckout', () => {
       />
     );
 
-    await user.click(screen.getByText('Pay with XLM (100 XLM)'));
+    await user.click(screen.getByText('Pay with XLM: 100 XLM'));
 
     await waitFor(() => {
       expect(screen.getByText('GABCDEFGHIJK')).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Platform, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { CourseItem, CourseSection } from '@/types/course';
@@ -11,6 +11,7 @@ import { getErrorMessage } from '@/utils/apiError';
 import { LessonAudio, LessonVideo } from './LessonMedia';
 import { LessonYouTube } from './LessonYouTube';
 import { LessonReading, isHtmlContent } from './LessonReading';
+import { createPlayTracker, lessonContentService, type PlaySource } from '@/services/lessonContentService';
 import { LessonQuiz } from './LessonQuiz';
 import { LessonAssignment } from './LessonAssignment';
 import { Button } from './ui/Button';
@@ -24,6 +25,21 @@ function ResourcePreview({ url, headers }: { url: string; headers?: Record<strin
       onShouldStartLoadWithRequest={(request) => !headers || request.url === 'about:blank' || request.url.startsWith(`${new URL(url).origin}/`)} /> : <Text>Use the button below to open this resource.</Text>}
     {error ? <ErrorBanner message="The preview could not load. Use the open or download button below." /> : null}
   </View>;
+}
+
+/** A text lesson from a URL: the server's formatted copy when it has one (approved GitHub markdown), else the page itself. */
+function ServerReading({ courseId, itemId, url }: { courseId: string; itemId: string; url: string }) {
+  const [state, setState] = useState<{ html: string } | 'loading' | 'fallback'>('loading');
+  useEffect(() => {
+    let cancelled = false;
+    lessonContentService.getReading(courseId, itemId)
+      .then((reading) => { if (!cancelled) setState({ html: reading.html }); })
+      .catch(() => { if (!cancelled) setState('fallback'); });
+    return () => { cancelled = true; };
+  }, [courseId, itemId]);
+  if (state === 'loading') return <Text>Loading reading…</Text>;
+  if (state === 'fallback') return <ResourcePreview url={toReadableResourceUrl(url)} />;
+  return <LessonReading content={state.html} />;
 }
 
 function AuthenticatedPdfViewer({ documentId }: { documentId: string }) {
@@ -65,13 +81,27 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
   let content: React.ReactNode = missing;
   let available = false;
   let readingInBody = false;
-  const mediaProps = { initialPosition: progress?.lastPositionS ?? 0, onProgress, onComplete: () => { void onComplete(); } };
+  const videoYoutube = item.type === 'video' && !isDirectVideoFileUrl(item.url) ? extractYoutubeId(item.url) : null;
+  const audioYoutube = item.type === 'audio' ? extractYoutubeId(item.youtubeUrl || item.url || '') : null;
+  const youtubeId = videoYoutube || audioYoutube;
+  const playSource: PlaySource = youtubeId ? 'youtube_embed' : 'direct_file';
+  const tracker = useMemo(() => createPlayTracker(courseId, item.id, playSource), [courseId, item.id, playSource]);
+  const mediaProps = {
+    initialPosition: progress?.lastPositionS ?? 0,
+    onProgress: (position: number, percent: number) => { tracker.progress(percent); onProgress(position, percent); },
+    onComplete: () => { tracker.complete(); void onComplete(); },
+  };
+  // Opening the YouTube app keeps the view on the channel, and lets learners save the video there for offline use.
+  const youtubeAppButton = youtubeId ? <Button label="Watch or save in YouTube app" variant="outline" onPress={() => {
+    void lessonContentService.recordPlay(courseId, item.id, 'youtube_app', 'open_external');
+    void open(`https://www.youtube.com/watch?v=${youtubeId}`);
+  }} /> : null;
 
   if (item.type === 'video') {
     available = isWebResource(item.url);
     if (available) content = <View className="gap-3">
       {isDirectVideoFileUrl(item.url) ? <LessonVideo url={item.url} {...mediaProps} /> : extractYoutubeId(item.url) ? <LessonYouTube url={item.url} {...mediaProps} /> : <ResourcePreview url={getIframeVideoEmbedSrc(item.url)} />}
-      <Button label="Open video" variant="outline" onPress={() => open(item.url)} />
+      {youtubeAppButton ?? <Button label="Open video" variant="outline" onPress={() => open(item.url)} />}
       {isWebResource(item.downloadUrl) ? <Button label="Download video" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;
   } else if (item.type === 'audio') {
@@ -83,7 +113,7 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     if (available) content = <View className="gap-3">
       {isWebResource(embedded) ? <LessonYouTube url={embedded} {...mediaProps} /> : direct ? <LessonAudio url={direct} {...mediaProps} /> : null}
       {direct ? <Button label="Open audio" variant="outline" onPress={() => open(direct)} /> : null}
-      {isWebResource(embedded) ? <Button label="Open listening video" variant="outline" onPress={() => open(embedded)} /> : null}
+      {isWebResource(embedded) ? youtubeAppButton ?? <Button label="Open listening video" variant="outline" onPress={() => open(embedded)} /> : null}
       {isWebResource(item.downloadUrl) ? <Button label="Download audio" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;
   } else if (item.type === 'text' && !isWebResource(item.url) && item.information?.trim()) {
@@ -94,7 +124,7 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
   } else if (item.type === 'text' || item.type === 'link') {
     available = isWebResource(item.url);
     if (available) content = <View className="gap-3">
-      {item.type === 'text' ? <ResourcePreview url={toReadableResourceUrl(item.url)} /> : null}
+      {item.type === 'text' ? <ServerReading courseId={courseId} itemId={item.id} url={item.url} /> : null}
       <Button label={item.type === 'text' ? 'Open reading' : 'Open link'} onPress={() => open(item.url)} />
     </View>;
   } else if (item.type === 'pdf' || item.type === 'download') {

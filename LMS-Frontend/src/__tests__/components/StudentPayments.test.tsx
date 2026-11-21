@@ -89,8 +89,8 @@ describe('StudentPayments', () => {
     });
 
     expect(screen.getByText('Smart Contract Development')).toBeInTheDocument();
-    expect(screen.getByText('$25.00 USD')).toBeInTheDocument();
-    expect(screen.getByText('$50.00 USD')).toBeInTheDocument();
+    expect(screen.getByText('25.00 USD')).toBeInTheDocument();
+    expect(screen.getByText('50.00 USD')).toBeInTheDocument();
     expect(screen.getByText('Confirmed')).toBeInTheDocument();
     expect(screen.getByText('Pending')).toBeInTheDocument();
     expect(screen.getByText('Paystack')).toBeInTheDocument();

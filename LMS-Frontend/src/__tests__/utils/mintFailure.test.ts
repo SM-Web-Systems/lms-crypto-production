@@ -35,7 +35,7 @@ describe('mint failure message on the Admin Certificates page', () => {
     const err = axios502('');
     const message = await explainMintFailure(err, app, vi.fn().mockResolvedValue([]));
     expect(message).not.toMatch(/temporarily unavailable/i);
-    expect(message).toMatch(/Issued NFTs/);
+    expect(message).toMatch(/Issued certificates/);
   });
 
   it('keeps the plain message when the lookup itself fails', async () => {

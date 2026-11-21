@@ -46,9 +46,11 @@ router.get('/students/me/progress', authenticate, (req: AuthRequest, res: Respon
       status: string;
       applied_at: string;
       tx_hash: string | null;
+      network: string | null;
     }>(
-      `SELECT id, status, applied_at, tx_hash
-       FROM course_nft_applications
+      `SELECT id, status, applied_at, tx_hash,
+              (SELECT nc.network FROM nft_credentials nc WHERE nc.application_id = a.id AND nc.mint_status = 'minted' ORDER BY nc.created_at DESC LIMIT 1) AS network
+       FROM course_nft_applications a
        WHERE user_id = ? AND course_id = ?
        ORDER BY applied_at DESC LIMIT 1`,
       [userId, course.id]
@@ -75,6 +77,7 @@ router.get('/students/me/progress', authenticate, (req: AuthRequest, res: Respon
       certificateStatus: certStatus,
       applicationId: app?.id ?? null,
       txHash: app?.tx_hash ?? null,
+      network: app?.network ?? null,
     };
   });
 

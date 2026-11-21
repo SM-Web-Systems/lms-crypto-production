@@ -39,7 +39,7 @@ describe('NotificationSettings', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Submission Reviewed')).toBeInTheDocument();
-      expect(screen.getByText('NFT Approved')).toBeInTheDocument();
+      expect(screen.getByText('Certificate Approved')).toBeInTheDocument();
       expect(screen.getByText('Course Enrolled')).toBeInTheDocument();
     });
 

@@ -8,18 +8,22 @@ export class ApiRequestError extends Error {
   readonly status?: number;
   readonly code?: string;
   readonly details?: ApiValidationDetail[];
+  /** Seconds the server asked us to wait (Retry-After), when it sent one. */
+  readonly retryAfterSeconds?: number;
 
   constructor(opts: {
     message: string;
     status?: number;
     code?: string;
     details?: ApiValidationDetail[];
+    retryAfterSeconds?: number;
   }) {
     super(opts.message);
     this.name = 'ApiRequestError';
     this.status = opts.status;
     this.code = opts.code;
     this.details = opts.details;
+    this.retryAfterSeconds = opts.retryAfterSeconds;
   }
 }
 
@@ -104,11 +108,13 @@ export function fromAxiosError(err: AxiosError): ApiRequestError {
   if (!message) {
     message = 'Something went wrong. Please try again.';
   }
+  const retryHeader = Number((err.response?.headers as Record<string, unknown> | undefined)?.['retry-after']);
   return new ApiRequestError({
     message,
     status,
     code: parsed?.code,
     details: parsed?.details,
+    retryAfterSeconds: Number.isFinite(retryHeader) && retryHeader >= 0 ? retryHeader : undefined,
   });
 }
 

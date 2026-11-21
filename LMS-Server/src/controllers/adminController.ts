@@ -97,12 +97,14 @@ export async function listCertificates(
       user_name: string; user_email: string; course_title: string;
       payment_status: string | null; payment_id: string | null;
       price_cents: number | null; selected_tier: string | null;
+      network: string | null;
     }>(
       `SELECT a.*,
               u.name AS user_name, u.email AS user_email,
               c.title AS course_title,
               p.status AS payment_status, p.id AS payment_id,
-              cp.price_cents
+              cp.price_cents,
+              (SELECT nc.network FROM nft_credentials nc WHERE nc.application_id = a.id AND nc.mint_status = 'minted' ORDER BY nc.created_at DESC LIMIT 1) AS network
        FROM course_nft_applications a
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
@@ -136,6 +138,7 @@ export async function listCertificates(
       paymentId: r.payment_id,
       priceCents: r.price_cents ?? 0,
       selectedTier: r.selected_tier,
+      network: r.network,
     }));
 
     res.json({ success: true, data: { certificates, total: certificates.length } });
@@ -499,7 +502,7 @@ export async function remintCredential(
           txHash,
           sorobanTokenId,
           contractId,
-          existing.network ?? 'public',
+          process.env.NFT_STELLAR_NETWORK === 'testnet' ? 'testnet' : 'public', // the network this re-issue really mints on
           existing.course_id,
           existing.application_id,
         ],

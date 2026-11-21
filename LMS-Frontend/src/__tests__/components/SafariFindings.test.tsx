@@ -26,7 +26,7 @@ describe('NFT badges on the dashboard', () => {
     nft.getUserNfts.mockResolvedValue({ unavailable: true, nfts: null });
     render(<NftBadgesSection walletAddress="GADDR" />);
     expect(await screen.findByText(/could not be loaded right now/)).toBeTruthy();
-    expect(screen.queryByText('No NFT badges yet')).toBeNull();
+    expect(screen.queryByText('No certificates in your wallet yet')).toBeNull();
   });
 
   it('treats a failed request the same way, and "no badges" stays for a learner who has none', async () => {
@@ -36,7 +36,7 @@ describe('NFT badges on the dashboard', () => {
     unmount();
     nft.getUserNfts.mockResolvedValue({ unavailable: false, nfts: { indexed: { tokens: [] } } });
     render(<NftBadgesSection walletAddress="GADDR" />);
-    await waitFor(() => expect(screen.getByText('No NFT badges yet')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('No certificates in your wallet yet')).toBeTruthy());
   });
 });
 
