@@ -16,7 +16,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import {getStoredToken} from '../context/AuthContext';
+import {getStoredToken} from '../context/authSession';
 import { homeForUser } from '../utils/authorization';
 import { ssoReturnFor } from '../utils/ssoReturn';
 import { ApiRequestError } from '../utils/apiError';

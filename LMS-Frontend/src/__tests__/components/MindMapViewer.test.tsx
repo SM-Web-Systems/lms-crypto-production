@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-import { validateMindMap, isApprovedMindMapUrl, MindMapViewer } from '../../components/MindMapViewer';
+import { MindMapViewer } from '../../components/MindMapViewer';
+import { validateMindMap, isApprovedMindMapUrl } from '../../utils/mindMap';
 
 // ── Schema / validation tests ──────────────────────────────────────────────────
 

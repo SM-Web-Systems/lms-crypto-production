@@ -7,8 +7,8 @@ import { assertApiSuccess, getErrorMessage } from '../utils/apiError';
 import { AMMA_WALLET_URL, SSO_ERROR_MESSAGES } from '../utils/walletSignIn';
 import { rememberSsoReturn } from '../utils/ssoReturn';
 import { NoStellarWalletPrompt } from './NoStellarWalletPrompt';
+import { walletNavigation } from '../utils/walletNavigation';
 
-export const walletNavigation = {go: (url: string) => window.location.assign(url)};
 
 /** Explicit consent for conversion; refresh is bound to the authenticated Wallet ID. */
 export default function AmmaWalletConnection({user, errorCode}: {user: User; errorCode?: string | null}) {

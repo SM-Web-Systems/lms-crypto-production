@@ -114,6 +114,8 @@ const StudentQuizzes: React.FC = () => {
   const [pricingCache, setPricingCache] = useState<Record<string, { priceCents: number; currency: string }>>({});
 
   const activeQuiz = useMemo(() => quizzes.find((x) => x.id === qQuiz) ?? null, [quizzes, qQuiz]);
+  // Effects key on the id, so a refreshed quiz list (new objects, same quiz) does not re-run them.
+  const activeQuizId = activeQuiz?.id;
   const questions = useMemo(() => (activeQuiz ? sortedQuestions(activeQuiz) : []), [activeQuiz]);
 
   useEffect(() => {
@@ -182,32 +184,32 @@ const StudentQuizzes: React.FC = () => {
 
   /** Sync question index from URL while taking */
   useEffect(() => {
-    if (!activeQuiz || qStep !== 'take') return;
+    if (!activeQuizId || qStep !== 'take') return;
     if (questions.length === 0) return;
     const safeQi = Math.min(qQi, questions.length - 1);
     setQuestionIndex(safeQi);
-  }, [activeQuiz?.id, qStep, qQi, questions.length]);
+  }, [activeQuizId, qStep, qQi, questions.length]);
 
   /** Load draft answers once per take session */
   useEffect(() => {
-    if (!activeQuiz || qStep !== 'take') {
+    if (!activeQuizId || qStep !== 'take') {
       takeInitRef.current = null;
       return;
     }
-    const key = `${activeQuiz.id}:take`;
+    const key = `${activeQuizId}:take`;
     if (takeInitRef.current === key) return;
     takeInitRef.current = key;
-    const sess = readSession(activeQuiz.id);
+    const sess = readSession(activeQuizId);
     if (sess && Object.keys(sess.answers).length > 0) {
       setAnswers(sess.answers);
     }
-  }, [activeQuiz?.id, qStep]);
+  }, [activeQuizId, qStep]);
 
   /** Persist draft as student answers or index changes */
   useEffect(() => {
-    if (!activeQuiz || qStep !== 'take') return;
-    writeSession(activeQuiz.id, { answers, qi: questionIndex });
-  }, [activeQuiz?.id, qStep, answers, questionIndex]);
+    if (!activeQuizId || qStep !== 'take') return;
+    writeSession(activeQuizId, { answers, qi: questionIndex });
+  }, [activeQuizId, qStep, answers, questionIndex]);
 
   const setAnswer = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -284,16 +286,16 @@ const StudentQuizzes: React.FC = () => {
 
   /** Load completion when landing on result via URL (e.g. refresh) */
   useEffect(() => {
-    if (!activeQuiz || !userId || qStep !== 'result') return;
-    if (lastResult && lastResult.quizId === activeQuiz.id) return;
+    if (!activeQuizId || !userId || qStep !== 'result') return;
+    if (lastResult && lastResult.quizId === activeQuizId) return;
     let cancelled = false;
-    quizService.getCompletion(activeQuiz.id, userId).then((c) => {
+    quizService.getCompletion(activeQuizId, userId).then((c) => {
       if (!cancelled && c) setLastResult(c);
     });
     return () => {
       cancelled = true;
     };
-  }, [activeQuiz?.id, userId, qStep, lastResult]);
+  }, [activeQuizId, userId, qStep, lastResult]);
 
   const passingScore = activeQuiz?.passingScore ?? 70;
 

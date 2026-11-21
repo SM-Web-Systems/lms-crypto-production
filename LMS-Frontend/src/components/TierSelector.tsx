@@ -28,15 +28,19 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // The latest onSelect, so a parent's inline callback does not refetch the tiers on every render.
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => { onSelectRef.current = onSelect; });
+
   useEffect(() => {
     courseCompletionService.getTiers(courseId)
       .then((info) => {
         setTierInfo(info);
         // Auto-select if only one tier available
         if (info.tiersEnabled === 'free_only') {
-          onSelect('free');
+          onSelectRef.current('free');
         } else if (info.tiersEnabled === 'paid_only') {
-          onSelect('paid');
+          onSelectRef.current('paid');
         }
       })
       .catch(() => { setTierInfo(null); setError(true); })

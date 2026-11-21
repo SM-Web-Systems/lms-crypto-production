@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
-import { parseFlashcards, FlashcardDeck } from '../../components/FlashcardDeck';
+import { FlashcardDeck } from '../../components/FlashcardDeck';
+import { parseFlashcards } from '../../utils/flashcards';
 
 // ── Parser tests ──────────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import api from './api';
+import { stroopsToXlm } from '../utils/xlmAmount';
 
 /**
  * Administrator client for backed platform credit: real XLM is deposited from the treasury account into the reward pool
@@ -62,4 +63,13 @@ export function xlmToStroops(value: string): string | null {
   return stroops > 0n ? stroops.toString() : null;
 }
 
-export { stroopsToXlm } from '../utils/xlmAmount';
+export { stroopsToXlm };
+
+/** web+stellar:pay link (SEP-7): wallets that support it pre-fill destination, amount and memo. */
+export function stellarPayLink(i: Pick<BackingIntent, 'destination' | 'amount_stroops' | 'memo_hash' | 'text_memo' | 'network'>): string {
+  const q = new URLSearchParams({ destination: i.destination, amount: stroopsToXlm(i.amount_stroops) });
+  if (i.text_memo) { q.set('memo', i.text_memo); q.set('memo_type', 'MEMO_TEXT'); }
+  else { q.set('memo', btoa(String.fromCharCode(...(i.memo_hash.match(/../g) ?? []).map(h => parseInt(h, 16))))); q.set('memo_type', 'MEMO_HASH'); }
+  if (i.network === 'public') q.set('network_passphrase', 'Public Global Stellar Network ; September 2015');
+  return `web+stellar:pay?${q.toString()}`;
+}

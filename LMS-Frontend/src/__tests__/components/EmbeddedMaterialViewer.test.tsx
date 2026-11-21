@@ -19,6 +19,9 @@ vi.mock('../../components/MarkdownViewer', () => ({
   MarkdownViewer: ({ url, title }: { url: string; title: string }) => (
     <div data-testid="markdown-viewer" data-url={url} data-title={title} />
   ),
+}));
+
+vi.mock('../../utils/approvedContentUrl', () => ({
   toApprovedRawUrl: (url: string) => {
     if (url.includes('github.com/SM-Web-Systems/') || url.includes('raw.githubusercontent.com/SM-Web-Systems/')) {
       return `https://raw.githubusercontent.com/SM-Web-Systems/blockchain-foundations-for-vibe-coding/b9fad25/${url.split('/').pop()}`;

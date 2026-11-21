@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
@@ -171,13 +171,16 @@ const StudentDashboardContent: React.FC = () => {
   // W09-R5: replaces the eager setAppErrorIds(new Set()) with appLoadingIds so the
   // unknown/error state is maintained throughout the in-flight window. appErrorIds is
   // only updated when results settle — not before.
+  // The retry reads the failed IDs at the moment it runs; keyed on them it would retry again every time they change.
+  const appErrorIdsRef = useRef(appErrorIds);
+  useEffect(() => { appErrorIdsRef.current = appErrorIds; }, [appErrorIds]);
   useEffect(() => {
     if (!user || courses.length === 0 || appRetryCount === 0) return;
     let cancelled = false;
     // Only retry courses whose application fetch previously failed — courses with a confirmed
     // status are not disturbed. This avoids one course's stalled retry blocking a
     // neighbouring course that already has a known (button-eligible) status.
-    const coursesToRetry = courses.filter((c) => appErrorIds.has(c.id));
+    const coursesToRetry = courses.filter((c) => appErrorIdsRef.current.has(c.id));
     if (coursesToRetry.length === 0) return;
     // Mark only the failed courses as loading — do NOT clear appErrorIds yet.
     // Errors remain visible until the retry settles so the UI never briefly
