@@ -228,6 +228,10 @@ export function evaluateEligibility(
       if (data.reviewerId === reward.creator_user_id) {
         return 'ineligible';
       }
+      // Same for the TA who entered a grade a lecturer/admin then approved.
+      if (data.graderId && data.graderId === reward.creator_user_id) {
+        return 'ineligible';
+      }
 
       // Check reviewer roles — reject if TA-only
       const reviewerRoles = db.prepare(

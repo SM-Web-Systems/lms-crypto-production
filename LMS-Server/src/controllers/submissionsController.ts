@@ -453,6 +453,8 @@ export async function downloadSubmission(req: AuthRequest, res: Response, next: 
 export function applyApprovedGradeEffects(
   submission: { id: string; student_id: string; course_id?: string | null; item_id?: string | null },
   reviewerUserId: string,
+  /** The TA who entered the grade, when a lecturer/admin approves a TA grade. */
+  graderUserId?: string | null,
 ): void {
   const studentRecord = queryOne<{ user_id: string | null }>(
     'SELECT user_id FROM students WHERE id = ?',
@@ -488,6 +490,7 @@ export function applyApprovedGradeEffects(
   // R12: produce outbox event for reward eligibility
   produceOutboxEvent('grade_approved', submission.id, studentRecord.user_id, {
     reviewerId: reviewerUserId,
+    ...(graderUserId ? { graderId: graderUserId } : {}),
     courseId: submission.course_id,
     itemId: submission.item_id,
   });

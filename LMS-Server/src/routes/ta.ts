@@ -160,7 +160,7 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
       [finalStatus, userId, submissionId],
     );
     if (changes === 0) return false;
-    if (finalStatus === 'approved') applyApprovedGradeEffects(submission, userId);
+    if (finalStatus === 'approved') applyApprovedGradeEffects(submission, userId, submission.graded_by);
     return true;
   });
   if (!approveAtomically()) {

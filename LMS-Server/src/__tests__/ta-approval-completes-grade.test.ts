@@ -30,6 +30,7 @@ describe('TA grade approval applies the direct-grade side effects', () => {
   let courseId: string;
   let submissionId: string;
   let rewardId: string;
+  let sponsorId: string;
 
   beforeEach(() => {
     lecturer = createUserWithRole('role_instructor', 'lecturer');
@@ -58,7 +59,7 @@ describe('TA grade approval applies the direct-grade side effects', () => {
     );
 
     // An active grade reward whose audience includes the learner.
-    const sponsorId = uuidv4();
+    sponsorId = uuidv4();
     db.prepare("INSERT INTO users (id, name, email, password_hash, role) VALUES (?, 'Sponsor', ?, 'hash', 'admin')").run(sponsorId, `${sponsorId}@test.com`);
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     const cohortId = uuidv4();
@@ -161,5 +162,30 @@ describe('TA grade approval applies the direct-grade side effects', () => {
     expect(res.status).toBe(200);
     expect(completion()).toBeFalsy();
     expect(eligibleCount()).toBe(0);
+  });
+
+  it('TA-APPROVE-7: a grade entered by the reward creator does not pay that reward, even when someone else approves it', async () => {
+    db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_ta');
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, sponsorId, lecturer.userId]);
+    const creatorToken = generateToken({ userId: sponsorId, email: `${sponsorId}@test.com`, role: 'student' as any });
+    const graded = await request(app)
+      .post(`/api/v1/ta/submissions/${submissionId}/grade`)
+      .set('Authorization', `Bearer ${creatorToken}`)
+      .send({ status: 'approved' });
+    expect(graded.status).toBe(200);
+    expect((await approve()).status).toBe(200);
+    expect(completion()).toEqual({ progress_pct: 100 });
+    expect(eligibleCount()).toBe(0);
+  });
+
+  it('TA-APPROVE-8: a TA approval followed by a direct review of the same submission pays once', async () => {
+    await taGrades();
+    expect((await approve()).status).toBe(200);
+    const review = await request(app)
+      .post(`/api/v1/submissions/${submissionId}/review`)
+      .set('Authorization', `Bearer ${lecturer.token}`)
+      .send({ status: 'approved', feedback: 'Confirmed' });
+    expect(review.status).toBe(200);
+    expect(eligibleCount()).toBe(1);
   });
 });
