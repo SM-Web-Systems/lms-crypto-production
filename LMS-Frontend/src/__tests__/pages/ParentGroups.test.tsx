@@ -76,7 +76,8 @@ describe('/parent/groups', () => {
     expect(screen.getByText('Choose at least one child.')).toBeInTheDocument();
     expect(svc.createGroup).not.toHaveBeenCalled();
 
-    await userEvent.type(screen.getByLabelText('Group name'), 'x'.repeat(81));
+    // Paste, not type: 81 keystrokes pushed this test past 5 s under load (T-03).
+    await userEvent.click(screen.getByLabelText('Group name')); await userEvent.paste('x'.repeat(81));
     await userEvent.click(screen.getByRole('button', { name: 'Create group' }));
     expect(screen.getByText('Use 80 characters or fewer.')).toBeInTheDocument();
   });

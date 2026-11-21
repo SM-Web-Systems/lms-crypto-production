@@ -31,7 +31,7 @@ export function onUnauthorized(listener:(token:string)=>void) {
   return ()=>{unauthorizedListeners.delete(listener);};
 }
 
-/** Supplies the current session marker (not a credential); see AuthContext. */
+/** Supplies the current session marker (not a credential); see context/authSession. */
 export function setTokenGetter(getter: () => Promise<string | null>) {
   tokenGetter = getter;
 }

@@ -10,6 +10,7 @@ import { sponsorService, type ImpactReport, type DateRange } from '../services/s
 import { SponsorBillingPanel } from '../components/SponsorBillingPanel';
 import { useAuth } from '../context/useAuth';
 import { hasCapability } from '../utils/authorization';
+import { useGeneration } from '../hooks/useGeneration';
 import { getErrorMessage } from '../utils/apiError';
 import {
   RefreshCw,
@@ -140,7 +141,7 @@ const DateRangeFilter: React.FC<{
 // ─── Impact Report Tab ─────────────────────────────────────────────────────
 
 const ImpactReportTab: React.FC<{ refreshTick: number }> = ({ refreshTick }) => {
-  const generation = useRef(0);
+  const generation = useGeneration();
   const [impact, setImpact] = useState<ImpactReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,36 +149,36 @@ const ImpactReportTab: React.FC<{ refreshTick: number }> = ({ refreshTick }) => 
   const [exportingCsv, setExportingCsv] = useState(false);
 
   const loadImpact = useCallback(async (range?: DateRange) => {
-    const current = ++generation.current;
+    const current = generation.next();
     setLoading(true);
     setError(null);
     try {
       const data = await sponsorService.getImpactReport(range);
-      if (current === generation.current) setImpact(data);
+      if (generation.isCurrent(current)) setImpact(data);
     } catch (e) {
-      if (current === generation.current) setError(getErrorMessage(e, 'Could not load impact report.'));
+      if (generation.isCurrent(current)) setError(getErrorMessage(e, 'Could not load impact report.'));
     } finally {
-      if (current === generation.current) setLoading(false);
+      if (generation.isCurrent(current)) setLoading(false);
     }
-  }, []);
+  }, [generation]);
 
   useEffect(() => {
     loadImpact(dateRange);
     return () => {
-      generation.current++;
+      generation.next();
     };
-  }, [loadImpact, dateRange, refreshTick]);
+  }, [loadImpact, dateRange, refreshTick, generation]);
 
   const handleDateApply = useCallback(
     (range: DateRange) => {
       setDateRange(range);
     },
-    [loadImpact],
+    [],
   );
 
   const handleDateClear = useCallback(() => {
     setDateRange(undefined);
-  }, [loadImpact]);
+  }, []);
 
   const handleExportCsv = useCallback(async () => {
     setExportingCsv(true);
@@ -391,30 +392,30 @@ function useResource<T>(loader: () => Promise<T>, enabled: boolean) {
     [error, setError] = useState(''),
     [pending, setPending] = useState(false),
     [loaded, setLoaded] = useState(false);
-  const generation = useRef(0);
+  const generation = useGeneration();
   const load = useCallback(async () => {
-    const current = ++generation.current;
+    const current = generation.next();
     setPending(true);
     setError('');
     setData(null);
     try {
       const value = await loader();
-      if (current === generation.current) setData(value);
+      if (generation.isCurrent(current)) setData(value);
     } catch (err) {
-      if (current === generation.current) setError(getErrorMessage(err, 'Could not load this section.'));
+      if (generation.isCurrent(current)) setError(getErrorMessage(err, 'Could not load this section.'));
     } finally {
-      if (current === generation.current) {
+      if (generation.isCurrent(current)) {
         setPending(false);
         setLoaded(true);
       }
     }
-  }, [loader]);
+  }, [loader, generation]);
   useEffect(() => {
     if (enabled) void load();
     return () => {
-      generation.current++;
+      generation.next();
     };
-  }, [enabled, load]);
+  }, [enabled, load, generation]);
   return { data, error, loading: enabled && (pending || !loaded), load };
 }
 const ResourceError: React.FC<{ message: string; retry: () => void }> = ({ message, retry }) => (
@@ -490,15 +491,18 @@ const SponsorDashboard: React.FC = () => {
     loading = courseResource.loading,
     error = courseResource.error;
   const spendingReport = reportResource.data;
+  // Each resource's load is a stable useCallback; the resource objects themselves are new every render.
+  const { load: loadCourses } = courseResource, { load: loadReport } = reportResource,
+    { load: loadOptions } = optionResource, { load: loadCohorts } = cohortResource;
   const load = useCallback(() => {
     setRefreshTick((n) => n + 1);
-    if (activeTab === 'overview') void courseResource.load();
+    if (activeTab === 'overview') void loadCourses();
     if (activeTab === 'cohorts') {
-      void reportResource.load();
-      void optionResource.load();
+      void loadReport();
+      void loadOptions();
     }
-    if (activeTab === 'rewards') void cohortResource.load();
-  }, [activeTab, courseResource.load, reportResource.load, optionResource.load, cohortResource.load]);
+    if (activeTab === 'rewards') void loadCohorts();
+  }, [activeTab, loadCourses, loadReport, loadOptions, loadCohorts]);
   const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>({
     overview: null,
     cohorts: null,

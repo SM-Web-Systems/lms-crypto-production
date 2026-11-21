@@ -365,7 +365,7 @@ const StudentCourse: React.FC = () => {
   }, [selectedCourseId, user?.id, flatPath]);
 
   useEffect(() => {
-    if (!selectedCourse || !selectedWeekId) return;
+    if (!selectedCourse?.id || !selectedWeekId) return;
     if (flatPath.length === 0) {
       setFocusItemId(null);
       return;

@@ -5,7 +5,7 @@
  * (deferred — FOLLOW-UP(parent-wallet-billing-ui)).
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { parentService, type ParentDashboardData, type ParentGroup } from '../services/parentService';
@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   Plus,
 } from 'lucide-react';
+import { useGeneration } from '../hooks/useGeneration';
 import { getErrorMessage } from '../utils/apiError';
 
 /** Shown to a parent with no family group yet: rewards need one, so lead them to create it. */
@@ -59,9 +60,9 @@ const ParentDashboardContent: React.FC = () => {
   const [groupsError, setGroupsError] = useState<string | null>(null);
 
   // W09-R1: monotonic request counter — each load() invocation captures its generation.
-  // State is only committed when reqIdRef.current still matches, preventing a superseded
+  // State is only committed when reqGen is still current, preventing a superseded
   // request (e.g. Refresh clicked while initial load is pending) from overwriting newer data.
-  const reqIdRef = useRef(0);
+  const reqGen = useGeneration();
 
   const section = location.pathname.includes('/rewards')
     ? 'rewards'
@@ -70,22 +71,22 @@ const ParentDashboardContent: React.FC = () => {
       : 'dashboard';
 
   const load = useCallback(() => {
-    const myReqId = ++reqIdRef.current;
+    const myReqId = reqGen.next();
     setDashboardLoading(true);
     setGroupsLoading(true);
     setError(null);
     setGroupsError(null);
 
     // W09-R3: launch concurrently but commit each result as it settles independently.
-    // The reqIdRef guard ensures only the latest load() generation commits state.
+    // The reqGen guard ensures only the latest load() generation commits state.
     parentService.getDashboard().then(
       (data) => {
-        if (reqIdRef.current !== myReqId) return;
+        if (!reqGen.isCurrent(myReqId)) return;
         setDashboard(data);
         setDashboardLoading(false);
       },
       (err) => {
-        if (reqIdRef.current !== myReqId) return;
+        if (!reqGen.isCurrent(myReqId)) return;
         setDashboard(null);
         setError(getErrorMessage(err, 'Could not load parent data.'));
         setDashboardLoading(false);
@@ -94,24 +95,24 @@ const ParentDashboardContent: React.FC = () => {
 
     parentService.getGroups().then(
       (data) => {
-        if (reqIdRef.current !== myReqId) return;
+        if (!reqGen.isCurrent(myReqId)) return;
         setGroups(data);
         setGroupsLoading(false);
       },
       (err) => {
-        if (reqIdRef.current !== myReqId) return;
+        if (!reqGen.isCurrent(myReqId)) return;
         setGroups([]);
         setGroupsError(getErrorMessage(err, 'Could not load family groups.'));
         setGroupsLoading(false);
       },
     );
-  }, []);
+  }, [reqGen]);
 
   useEffect(() => {
     load();
     // Invalidate any in-flight request on unmount so it cannot commit state after cleanup.
-    return () => { ++reqIdRef.current; };
-  }, [load]);
+    return () => { reqGen.next(); };
+  }, [load, reqGen]);
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
 

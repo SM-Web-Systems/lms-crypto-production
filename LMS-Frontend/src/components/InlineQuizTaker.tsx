@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { quizService } from '../services/quizService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
@@ -47,7 +47,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
     return () => { cancelled = true; };
   }, [quizId, user?.id]);
 
-  const questions = quiz?.questions ?? [];
+  const questions = useMemo(() => quiz?.questions ?? [], [quiz]);
   // A question this view can't render counts as answered, so it never blocks Submit.
   const answeredCount = questions.filter((qq) => !isAnswerableHere(qq) || answers[qq.id]?.trim()).length;
   const allAnswered = answeredCount === questions.length;

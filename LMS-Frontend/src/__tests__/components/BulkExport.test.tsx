@@ -5,7 +5,7 @@
  * BULK-FE-2 — CohortManagement renders "Export Certificates" button when NFT members exist
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -35,8 +35,13 @@ vi.mock('../../services/cohortService', () => ({
   },
 }));
 
+import userEvent from '@testing-library/user-event';
 import { courseCompletionService } from '../../services/courseCompletionService';
 import { cohortService } from '../../services/cohortService';
+// Static imports: vi.mock is hoisted, and a dynamic import inside the test made module loading count
+// against the 5 s test timeout, which made this test fail under load (T-03).
+import BadgeGallery from '../../pages/BadgeGallery';
+import { CohortManagement } from '../../components/CohortManagement';
 
 const mockGetMyCredentials = courseCompletionService.getMyCredentials as ReturnType<typeof vi.fn>;
 const mockListCohorts = cohortService.listCohorts as ReturnType<typeof vi.fn>;
@@ -64,15 +69,9 @@ describe('BULK-FE-1: BadgeGallery "Download All" button', () => {
       },
     ]);
 
-    // Dynamic import to pick up mocks
-    const { default: BadgeGallery } = await import('../../pages/BadgeGallery');
     render(<MemoryRouter><BadgeGallery /></MemoryRouter>);
 
-    await waitFor(() => {
-      expect(screen.getByTestId('btn-download-all')).toBeDefined();
-    });
-
-    const btn = screen.getByTestId('btn-download-all');
+    const btn = await screen.findByTestId('btn-download-all');
     expect(btn.textContent).toContain('Download All');
   });
 });
@@ -111,25 +110,15 @@ describe('BULK-FE-2: CohortManagement "Export Certificates" button', () => {
 
     mockGetStatusLog.mockResolvedValue([]);
 
-    const { CohortManagement } = await import('../../components/CohortManagement');
     render(<CohortManagement courses={[{ id: 'c1', title: 'Test Course', tiersEnabled: 'both' }]} />);
 
     // Expand the cohort detail
-    const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
 
-    await waitFor(() => {
-      expect(screen.getByText('Test Cohort')).toBeDefined();
-    });
-
     // Click cohort row to expand
-    await user.click(screen.getByText('Test Cohort'));
+    await user.click(await screen.findByText('Test Cohort'));
 
-    await waitFor(() => {
-      expect(screen.getByTestId('btn-export-certificates')).toBeDefined();
-    });
-
-    const btn = screen.getByTestId('btn-export-certificates');
+    const btn = await screen.findByTestId('btn-export-certificates');
     expect(btn.textContent).toContain('Export Certificates');
   });
 });

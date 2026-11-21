@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-import { toApprovedRawUrl, MarkdownViewer } from '../../components/MarkdownViewer';
+import { MarkdownViewer } from '../../components/MarkdownViewer';
+import { toApprovedRawUrl } from '../../utils/approvedContentUrl';
 
 const PINNED = 'b9fad25e1e0ad1d6bd2c428778decfc1cd6cc472';
 const RAW_BASE = `https://raw.githubusercontent.com/SM-Web-Systems/blockchain-foundations-for-vibe-coding/${PINNED}`;

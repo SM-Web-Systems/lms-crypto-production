@@ -5,9 +5,11 @@ import InlineQuizTaker from './InlineQuizTaker';
 import InlineAssignmentForm from './InlineAssignmentForm';
 import type { CourseItem, CourseSection } from '../types/course';
 import { PdfViewer, PdfViewerWithAuth } from './PdfViewer';
-import { MarkdownViewer, toApprovedRawUrl } from './MarkdownViewer';
+import { MarkdownViewer } from './MarkdownViewer';
+import { toApprovedRawUrl } from '../utils/approvedContentUrl';
 import { FlashcardDeck } from './FlashcardDeck';
-import { MindMapViewer, isApprovedMindMapUrl } from './MindMapViewer';
+import { MindMapViewer } from './MindMapViewer';
+import { isApprovedMindMapUrl } from '../utils/mindMap';
 import {
   getIframeVideoEmbedSrc,
   isDirectVideoFileUrl,

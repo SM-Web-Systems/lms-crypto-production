@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import AdminPlatformCredit, { stellarPayLink } from '../../pages/AdminPlatformCredit';
-import { xlmToStroops, stroopsToXlm } from '../../services/platformCreditService';
+import AdminPlatformCredit from '../../pages/AdminPlatformCredit';
+import { stellarPayLink, xlmToStroops, stroopsToXlm } from '../../services/platformCreditService';
 
 const m = vi.hoisted(() => ({ summary: vi.fn(), beneficiaries: vi.fn(), createBackingIntent: vi.fn(), verifyBackingDeposit: vi.fn(), requestCredit: vi.fn(), approve: vi.fn(), cancel: vi.fn(), releaseReservation: vi.fn(), reconcile: vi.fn() }));
 vi.mock('../../services/platformCreditService', async (orig) => ({ ...(await orig<typeof import('../../services/platformCreditService')>()), platformCreditService: m }));
@@ -92,7 +92,8 @@ describe('admin: deposit flow messages', () => {
     render(<AdminPlatformCredit />);
     expect(await screen.findByTestId('waiting-note')).toHaveTextContent('Waiting for the payment');
     const box = await screen.findByLabelText('Operation ID');
-    await userEvent.type(box, 'a'.repeat(64));
+    // Paste, not type: 64 keystrokes each re-render this page and pushed the test past 5 s under load (T-03).
+    await userEvent.click(box); await userEvent.paste('a'.repeat(64));
     await userEvent.click(screen.getByRole('button', { name: 'Verify deposit' }));
     expect(await screen.findByTestId('verify-error-i1')).toHaveTextContent('transaction hash');
     expect(m.verifyBackingDeposit).not.toHaveBeenCalled();

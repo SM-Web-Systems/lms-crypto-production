@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({post: vi.fn(), status: vi.fn()}));
 vi.mock('../services/api', () => ({default: {post: mocks.post}}));
 vi.mock('../services/walletService', () => ({getWalletStatus: mocks.status}));
 vi.mock('../context/useAuth', () => ({useAuth: () => ({login: vi.fn()})}));
-import AmmaWalletConnection, {walletNavigation} from '../components/AmmaWalletConnection';
+import AmmaWalletConnection from '../components/AmmaWalletConnection';
+import {walletNavigation} from '../utils/walletNavigation';
 import StudentWalletStatusCard from '../components/StudentWalletStatusCard';
 import Login from '../pages/Login';
 const user: User = {id: 'owner', name: 'Owner', email: 'owner@example.invalid', role: 'student',

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RewardStatusBadge, formatStroops } from '../../components/RewardStatusBadge';
+import { RewardStatusBadge } from '../../components/RewardStatusBadge';
 import { formatXlm } from '../../utils/xlmAmount';
 
 // Mock rewardService for RewardDashboard and StudentRewardsPanel
@@ -126,11 +126,7 @@ describe('RewardStatusBadge', () => {
   });
 });
 
-describe('formatStroops', () => {
-  it('R-FE-5a: formats 10000000 stroops as XLM', () => {
-    expect(formatStroops(10000000)).toBe('1.0000000 XLM');
-  });
-
+describe('reward amounts', () => {
   it('R-FE-5b: list amounts keep full precision (UX-023: never round 0.0000001 to 0.00)', () => {
     expect(formatXlm(15000000)).toBe('1.5 XLM');
     expect(formatXlm(1)).toBe('0.0000001 XLM');

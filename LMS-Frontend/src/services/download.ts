@@ -1,5 +1,5 @@
 import api from './api';
-import { getStoredToken } from '../context/AuthContext';
+import { getStoredToken } from '../context/authSession';
 
 /** Download an authenticated file with the current session and save it as `filename`. */
 export async function downloadWithSession(path: string, filename: string, params?: Record<string, string>) {

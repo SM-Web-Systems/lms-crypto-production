@@ -5,21 +5,12 @@ import { Button } from '../components/Button';
 import { getErrorMessage } from '../utils/apiError';
 import { useConfirmAction, type ConfirmActionOptions } from '../hooks/useConfirmAction';
 import {
-  platformCreditService, stroopsToXlm, xlmToStroops,
+  platformCreditService, stellarPayLink, stroopsToXlm, xlmToStroops,
   type Beneficiary, type BackingIntent, type Summary,
 } from '../services/platformCreditService';
 
 const when = (iso: string) => new Date(iso).toLocaleString();
 const field = 'w-full rounded-md border border-neutral-300 px-3 py-2 text-sm';
-
-/** web+stellar:pay link (SEP-7): wallets that support it pre-fill destination, amount and memo. */
-export function stellarPayLink(i: Pick<BackingIntent, 'destination' | 'amount_stroops' | 'memo_hash' | 'text_memo' | 'network'>): string {
-  const q = new URLSearchParams({ destination: i.destination, amount: stroopsToXlm(i.amount_stroops) });
-  if (i.text_memo) { q.set('memo', i.text_memo); q.set('memo_type', 'MEMO_TEXT'); }
-  else { q.set('memo', btoa(String.fromCharCode(...(i.memo_hash.match(/../g) ?? []).map(h => parseInt(h, 16))))); q.set('memo_type', 'MEMO_HASH'); }
-  if (i.network === 'public') q.set('network_passphrase', 'Public Global Stellar Network ; September 2015');
-  return `web+stellar:pay?${q.toString()}`;
-}
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);

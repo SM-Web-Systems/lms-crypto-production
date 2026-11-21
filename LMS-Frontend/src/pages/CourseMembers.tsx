@@ -226,7 +226,7 @@ const CourseMembers: React.FC = () => {
     [membersByCourseId]
   );
 
-  const rosterMembers = selectedCourse ? getMembersForCourse(selectedCourse.id) : [];
+  const rosterMembers = useMemo(() => (selectedCourse ? getMembersForCourse(selectedCourse.id) : []), [selectedCourse, getMembersForCourse]);
   const filteredRoster = useMemo(() => {
     const q = memberQuery.trim().toLowerCase();
     if (!q) return rosterMembers;

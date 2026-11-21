@@ -46,10 +46,3 @@ export const RewardStatusBadge: React.FC<RewardStatusBadgeProps> = ({ status, cl
     </span>
   );
 };
-
-/** Format stroops with full precision. 10000000 → "1.0000000 XLM"; pass the row's currency code when known. */
-export function formatStroops(stroops: number, currency = 'XLM'): string {
-  const xlm = stroops / 10_000_000;
-  return `${xlm.toFixed(7)} ${currency}`;
-}
-
