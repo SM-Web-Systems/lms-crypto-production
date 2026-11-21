@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
@@ -16,6 +16,7 @@ import CertificateVerification from './pages/CertificateVerification';
 import CertificatePdfView from './pages/CertificatePdfView';
 import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
+import { rememberSsoReturn, takeSsoReturn } from './utils/ssoReturn';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { availableWorkspaces, canAccessPath, homeForUser } from './utils/authorization';
@@ -83,6 +84,8 @@ export const ProtectedRoute: React.FC<{
   }
 
   if (!isAuthenticated) {
+    // Kept through password and AmmaWallet sign-in, so a deep link or a reward-claim return is not lost.
+    rememberSsoReturn(location.pathname + location.search + location.hash);
     return <Navigate to="/login" replace />;
   }
 
@@ -115,7 +118,19 @@ const HomeRoute: React.FC = () => {
   return <Landing />;
 };
 
-const LoginRoute: React.FC = () => {
+/** Sends a just-signed-in user to the page they were sent to sign in from, else to their workspace home. */
+const ReturnAfterSignIn: React.FC<{ home: string }> = ({ home }) => {
+  const navigate = useNavigate();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current) return; // the return path is read once; StrictMode re-runs effects
+    done.current = true;
+    navigate(takeSsoReturn() ?? home, { replace: true });
+  }, [navigate, home]);
+  return null;
+};
+
+export const LoginRoute: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -123,7 +138,7 @@ const LoginRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={homeForUser(user)} replace />;
+    return <ReturnAfterSignIn home={homeForUser(user)} />;
   }
 
   return <Login />;

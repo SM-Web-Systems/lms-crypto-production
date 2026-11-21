@@ -1,5 +1,5 @@
-// Where to land after a Wallet round trip that the learner started from inside the LMS
-// (for example "Refresh from AmmaWallet" on their profile). Same-origin paths only, short-lived.
+// Where to land after sign-in or a Wallet round trip: the deep link a signed-out visitor opened,
+// or the page a Wallet action started from. Same-origin signed-in app routes only, short-lived.
 const KEY = 'lms.sso.returnTo';
 const MAX_AGE_MS = 15 * 60 * 1000;
 
@@ -20,6 +20,16 @@ export function takeSsoReturn(now = Date.now()): string | null {
   } catch { return null; }
 }
 
+// First path segments of signed-in app routes (App.tsx). Public and auth pages are never a return target.
+const APP_ROOTS = new Set(['student', 'admin', 'lecturer', 'ta', 'sponsor', 'employer', 'parent', 'teacher', 'settings', 'profile', 'messages', 'forum']);
+
+/** Accepts only a path that already is its own normalised same-origin form, so nothing can steer it off-site. */
 function isSafePath(path: string) {
-  return /^\/(?!\/)[A-Za-z0-9/_-]*$/.test(path) && /(^|\/)profile(\/|$)/.test(path);
+  if (!path.startsWith('/') || /[\\\s]/.test(path)) return false;
+  let url: URL;
+  try { url = new URL(path, 'https://lms.invalid'); } catch { return false; }
+  return url.origin === 'https://lms.invalid'
+    && url.pathname + url.search + url.hash === path
+    && /^\/[A-Za-z0-9/_-]*$/.test(url.pathname)
+    && APP_ROOTS.has(url.pathname.split('/')[1]);
 }
