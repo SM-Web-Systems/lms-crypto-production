@@ -14,7 +14,7 @@ jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'me', 
 jest.mock('@/services/enrollmentService', () => ({ enrollmentService: { getPeersInMyCourses: jest.fn().mockResolvedValue([]) } }));
 jest.mock('@/services/messageService', () => ({
   messageService: {
-    getConversationsForUser: jest.fn(), getMessages: jest.fn(), markConversationRead: jest.fn().mockResolvedValue(undefined),
+    getConversationsForUser: jest.fn(), getMessages: jest.fn(), sendMessage: jest.fn(), markConversationRead: jest.fn().mockResolvedValue(undefined),
     getOtherDisplayName: jest.fn(() => ({ otherUserId: 'pat', otherUserName: 'Pat Lee' })),
   },
 }));
@@ -73,4 +73,22 @@ describe('messages refresh', () => {
     expect(await screen.findByText('Hello')).toBeTruthy();
     await waitFor(() => expect(screen.queryByText('Could not load messages.')).toBeNull());
   });
+
+  it('shows a failed send inside the thread', async () => {
+    svc.sendMessage.mockRejectedValueOnce(new ApiRequestError({ message: 'Could not send your message.', status: 500 }));
+    render(<MessagesScreen />);
+    fireEvent.press(await screen.findByText('Pat Lee'));
+    await screen.findByText('Hello');
+    fireEvent.changeText(screen.getByPlaceholderText('Write a message…'), 'Hi Pat');
+    fireEvent.press(screen.getByText('Send'));
+    expect(await screen.findByText('Could not send your message.')).toBeTruthy();
+  });
+
+  it('does not claim there are no conversations when the list failed to load', async () => {
+    svc.getConversationsForUser.mockRejectedValueOnce(new ApiRequestError({ message: 'Could not load conversations.', status: 500 }));
+    render(<MessagesScreen />);
+    await screen.findByText('Could not load conversations.');
+    expect(screen.queryByText('No conversations yet')).toBeNull();
+  });
 });
+

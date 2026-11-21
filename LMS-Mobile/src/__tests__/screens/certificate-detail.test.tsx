@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react-nativ
 import * as Linking from 'expo-linking';
 import * as Clipboard from 'expo-clipboard';
 import { Alert } from 'react-native';
-import { downloadAsync } from 'expo-file-system/legacy';
+import { deleteAsync, downloadAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import CertificateDetailScreen from '@/app/(student)/certificate-detail';
 import { credentialService } from '@/services/credentialService';
@@ -188,6 +188,7 @@ describe('CertificateDetailScreen', () => {
     fireEvent.press(await screen.findByText('Download PDF'));
     await waitFor(() => expect(alert).toHaveBeenCalledWith('Download failed', expect.stringMatching(/could not download the certificate PDF/i)));
     expect(Sharing.shareAsync).not.toHaveBeenCalled();
+    expect(deleteAsync).toHaveBeenCalledWith('/tmp/certificate-cred-001.pdf', { idempotent: true });
   });
 
   it('shares the PDF when the download succeeds', async () => {

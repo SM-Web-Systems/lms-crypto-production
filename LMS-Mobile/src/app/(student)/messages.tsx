@@ -39,6 +39,7 @@ export default function MessagesScreen() {
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [threadError, setThreadError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const openId = useRef<string | null>(null);
@@ -84,6 +85,7 @@ export default function MessagesScreen() {
   useEffect(() => {
     setMessages([]);
     setThreadError(null);
+    setSendError(null);
     if (!selectedConversation) return;
     loadThread(selectedConversation.id);
     messageService.markConversationRead(selectedConversation.id);
@@ -108,8 +110,6 @@ export default function MessagesScreen() {
       setConversations(convs);
       setSelectedConversation(conv);
       setShowNewConversation(false);
-      const msgs = await messageService.getMessages(conv.id);
-      setMessages(msgs);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not open conversation.'));
     }
@@ -119,6 +119,7 @@ export default function MessagesScreen() {
     const body = newMessageBody.trim();
     if (!body || !selectedConversation || !userId) return;
     setSending(true);
+    setSendError(null);
     try {
       await messageService.sendMessage(selectedConversation.id, userId, body);
       const msgs = await messageService.getMessages(selectedConversation.id);
@@ -128,7 +129,7 @@ export default function MessagesScreen() {
       setConversations(convs);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not send message.'));
+      setSendError(getErrorMessage(e, 'Could not send message.'));
     } finally {
       setSending(false);
     }
@@ -163,6 +164,7 @@ export default function MessagesScreen() {
           })}
         </ScrollView>
         <View className="border-t border-neutral-200 bg-white p-3 gap-2">
+          {sendError ? <ErrorBanner message={sendError} /> : null}
           <Input value={newMessageBody} onChangeText={setNewMessageBody} placeholder="Write a message…" multiline />
           <Button label={sending ? 'Sending…' : 'Send'} onPress={handleSend} disabled={sending || !newMessageBody.trim()} />
         </View>
@@ -197,7 +199,7 @@ export default function MessagesScreen() {
         </Card>
       ) : null}
 
-      {conversations.length === 0 ? (
+      {error && conversations.length === 0 ? null : conversations.length === 0 ? (
         <EmptyState icon="mail-outline" title="No conversations yet" message="Start a new message with a classmate." />
       ) : (
         conversations.map((conv) => {

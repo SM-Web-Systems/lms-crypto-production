@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { backOr } from '@/utils/navigation';
 import * as Linking from 'expo-linking';
-import { documentDirectory, downloadAsync } from 'expo-file-system/legacy';
+import { deleteAsync, documentDirectory, downloadAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -99,7 +99,8 @@ export default function CertificateDetailScreen() {
       // A 404 or 500 body would otherwise be saved and shared as the learner's certificate.
       const result = await downloadAsync(url, fileUri);
       if (result.status !== 200) {
-        throw new ApiRequestError({ message: 'Could not download the certificate PDF. Try again in a moment.', status: result.status });
+        await deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+        throw new ApiRequestError({ message: 'Could not download the certificate PDF.', status: result.status });
       }
 
       const canShare = await Sharing.isAvailableAsync();

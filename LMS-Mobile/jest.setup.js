@@ -14,6 +14,7 @@ jest.mock('expo-linking', () => ({
 jest.mock('expo-file-system/legacy', () => ({
   downloadAsync: jest.fn().mockResolvedValue({ uri: '/tmp/test.pdf', status: 200 }),
   documentDirectory: '/tmp/',
+  deleteAsync: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('expo-file-system', () => ({}));
 
