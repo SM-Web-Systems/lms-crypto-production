@@ -9,6 +9,7 @@ import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, B
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { getErrorMessage } from '../utils/apiError';
+import { useConfirmAction } from '../hooks/useConfirmAction';
 import {
   Users,
   Plus,
@@ -111,6 +112,9 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreate
   );
 };
 
+/** Cents in the cohort's own currency code, e.g. 5000 + 'EUR' → "50.00 EUR" (never a hard-coded "$"). */
+const formatMoney = (cents: number, currency: string) => `${(cents / 100).toFixed(2)} ${currency}`;
+
 // ─── Cohort Detail ──────────────────────────────────────────────────────────
 
 interface CohortDetailProps {
@@ -126,7 +130,8 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
   const [completionStats, setCompletionStats] = useState<CohortCompletionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [applyResult, setApplyResult] = useState<BulkApplyResult | null>(null);
-  const [payResult, setPayResult] = useState<{ paymentId: string; amountCents: number } | null>(null);
+  const [payResult, setPayResult] = useState<{ paymentId: string; amountCents: number; currency: string } | null>(null);
+  const { ask, dialog: confirmDialog, busy: confirming } = useConfirmAction();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusLog, setStatusLog] = useState<Array<{ id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string }>>([]);
@@ -168,18 +173,29 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
     }
   };
 
+  // UX-001: quote first, then confirm the amount before the payment is created.
   const handleBulkPay = async () => {
     setActionLoading('pay');
     setError(null);
+    let quote;
     try {
-      const result = await cohortService.bulkPay(cohortId);
-      setPayResult(result);
-      onRefresh();
+      quote = await cohortService.quoteBulkPay(cohortId);
     } catch (err) {
       setError(getErrorMessage(err));
+      return;
     } finally {
       setActionLoading(null);
     }
+    const amount = formatMoney(quote.amountCents, quote.currency);
+    const learners = `${quote.memberCount} learner${quote.memberCount === 1 ? '' : 's'}`;
+    const done = await ask({
+      title: 'Create payment?',
+      description: <>Create a pending payment of <strong>{amount}</strong> for <strong>{learners}</strong>. An administrator confirms it once it is paid.</>,
+      confirmLabel: `Create payment of ${amount}`,
+      variant: 'primary',
+      action: async () => { setPayResult(await cohortService.bulkPay(cohortId)); },
+    });
+    if (done) onRefresh();
   };
 
   const handleRemoveMember = async (userId: string) => {
@@ -263,6 +279,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
 
   return (
     <div className="p-3 bg-gray-50 border-t">
+      {confirmDialog}
       {error && <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm flex items-center gap-1"><AlertCircle className="w-4 h-4" />{error}</div>}
 
       {applyResult && (
@@ -273,7 +290,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
 
       {payResult && (
         <div className="mb-2 p-2 bg-blue-50 text-blue-800 rounded text-sm flex items-center gap-1">
-          <CreditCard className="w-4 h-4" /> Payment created: ${(payResult.amountCents / 100).toFixed(2)} (pending)
+          <CreditCard className="w-4 h-4" /> Payment created: {formatMoney(payResult.amountCents, payResult.currency)} (pending)
         </div>
       )}
 
@@ -296,7 +313,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
           Apply for All
         </Button>
         {selectedTier === 'paid' && (
-          <Button size="sm" variant="outline" onClick={handleBulkPay} disabled={actionLoading !== null}>
+          <Button size="sm" variant="outline" onClick={handleBulkPay} disabled={actionLoading !== null || confirming}>
             {actionLoading === 'pay' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
             Create Payment
           </Button>

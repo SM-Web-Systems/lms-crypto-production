@@ -156,22 +156,22 @@ describe('/parent/groups', () => {
     svc.getGroups.mockResolvedValue([group]);
     renderAt('/parent/groups', <ParentGroups />);
     await userEvent.click(await screen.findByRole('button', { name: 'Delete The Smiths' }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent('Delete The Smiths?');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(svc.deleteGroup).not.toHaveBeenCalled();
 
     svc.deleteGroup.mockRejectedValueOnce(new ApiRequestError({ message: 'This group has rewards that are funded or paid.', status: 409 }));
     await userEvent.click(screen.getByRole('button', { name: 'Delete The Smiths' }));
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete group' }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete group' }));
     await waitFor(() => expect(svc.deleteGroup).toHaveBeenCalledWith('g1'));
     expect(await screen.findByText('This group has rewards that are funded or paid.')).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
 
     svc.deleteGroup.mockResolvedValue(undefined);
     svc.getGroups.mockResolvedValue([]);
     await userEvent.click(screen.getByRole('button', { name: 'Delete The Smiths' }));
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete group' }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete group' }));
     expect(await screen.findByRole('heading', { name: 'Create your family group' })).toBeInTheDocument();
   });
 });

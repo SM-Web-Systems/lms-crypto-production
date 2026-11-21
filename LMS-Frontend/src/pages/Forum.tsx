@@ -373,6 +373,7 @@ const Forum: React.FC = () => {
           confirmLabel="Delete"
           confirmVariant="danger"
           loading={deleteLoading}
+          loadingLabel="Deleting…"
           onConfirm={handleDelete}
           onCancel={() => {
             if (!deleteLoading) {
@@ -659,6 +660,7 @@ const Forum: React.FC = () => {
         confirmLabel="Delete"
         confirmVariant="danger"
         loading={deleteLoading}
+        loadingLabel="Deleting…"
         onConfirm={handleDelete}
         onCancel={() => {
           if (!deleteLoading) {

@@ -1,15 +1,19 @@
-import React, { useEffect, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import React, { useEffect, useId, useRef } from 'react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from './Button';
 
 export interface ConfirmDialogProps {
   isOpen: boolean;
   title: string;
-  description: string;
+  description: React.ReactNode;
   confirmLabel?: string;
   confirmVariant?: 'primary' | 'danger';
   cancelLabel?: string;
   loading?: boolean;
+  /** Shown on the confirm button, with a spinner, while `loading`. */
+  loadingLabel?: string;
+  /** Shown inside the dialog, e.g. when the confirmed action failed. */
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -22,30 +26,57 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmVariant = 'danger',
   cancelLabel = 'Cancel',
   loading = false,
+  loadingLabel = 'Working…',
+  error,
   onConfirm,
   onCancel,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const titleId = `${id}-title`;
+  const descId = `${id}-desc`;
+
+  // Latest values for the document-level listener without re-binding it.
+  const live = useRef({ loading, onCancel });
+  live.current = { loading, onCancel };
 
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => panelRef.current?.focus(), 30);
-    }
+    if (!isOpen) return undefined;
+    const opener = document.activeElement as HTMLElement | null;
+    const t = setTimeout(() => panelRef.current?.focus(), 30);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (!live.current.loading) live.current.onCancel();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled])'));
+      if (items.length === 0) { e.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      // The panel itself holds focus when the dialog opens; Shift+Tab from there must wrap too.
+      const inside = panelRef.current.contains(active) && active !== panelRef.current;
+      if (e.shiftKey && (active === first || !inside)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (active === last || !inside)) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+      if (opener && document.contains(opener)) opener.focus();
+    };
   }, [isOpen]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape' && !loading) onCancel();
-  };
 
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
+      role="alertdialog"
       aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      onKeyDown={handleKeyDown}
+      aria-labelledby={titleId}
+      aria-describedby={descId}
     >
       <div
         className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm"
@@ -58,15 +89,16 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500">
               <AlertTriangle className="h-5 w-5" aria-hidden />
             </div>
-            <div>
-              <h2 id="confirm-dialog-title" className="text-base font-bold text-neutral-900">
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-base font-bold text-neutral-900">
                 {title}
               </h2>
-              <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{description}</p>
+              <div id={descId} className="text-sm text-neutral-600 mt-1 leading-relaxed break-words">{description}</div>
+              {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
             </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-neutral-100">
+        <div className="flex flex-wrap justify-end gap-2 px-5 py-4 border-t border-neutral-100">
           <Button
             type="button"
             variant="outline"
@@ -83,7 +115,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? 'Deleting…' : confirmLabel}
+            {loading ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" aria-hidden />{loadingLabel}</> : confirmLabel}
           </Button>
         </div>
       </div>
