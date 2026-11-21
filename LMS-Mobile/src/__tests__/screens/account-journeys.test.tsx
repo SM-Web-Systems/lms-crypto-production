@@ -133,3 +133,25 @@ describe('LMS-041-F4 account action feedback placement',()=>{
     expect(banner).toBeTruthy();
   });
 });
+
+describe('UX-009 Account and Workspace pop back to the screen that opened them',()=>{
+  const {useRouter}=jest.requireMock('expo-router') as {useRouter:jest.Mock};
+  const router={back:jest.fn(),replace:jest.fn(),push:jest.fn(),canGoBack:jest.fn()};
+  beforeEach(()=>{useRouter.mockReturnValue(router);});
+  it.each([
+    ['Account','Back to your workspace',()=><AccountScreen/>],
+    ['Workspace','Continue student learning',()=><WorkspaceScreen/>],
+  ])('%s goes back when it was pushed, so the tabs below keep their state',async(_name,label,Screen)=>{
+    router.canGoBack.mockReturnValue(true);render(<Screen/>);
+    fireEvent.press(await screen.findByText(label));
+    expect(router.back).toHaveBeenCalledTimes(1);expect(router.replace).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['Account','Back to your workspace',()=><AccountScreen/>],
+    ['Workspace','Continue student learning',()=><WorkspaceScreen/>],
+  ])('%s opened from a link goes to the learner home',async(_name,label,Screen)=>{
+    router.canGoBack.mockReturnValue(false);render(<Screen/>);
+    fireEvent.press(await screen.findByText(label));
+    expect(router.replace).toHaveBeenCalledWith('/(student)/dashboard');expect(router.back).not.toHaveBeenCalled();
+  });
+});
