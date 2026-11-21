@@ -128,7 +128,7 @@ export default function RewardsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={brand.accent.teal} />}>
       {error ? <ErrorBanner message={error} onRetry={load} /> : null}
       {notice ? <Card><Text accessibilityRole="alert" className="text-sm text-neutral-800">{notice}</Text></Card> : null}
-      {balanceError ? <ErrorBanner message={balanceError} onRetry={load} /> : null}
+      {balanceError && !error ? <ErrorBanner message={balanceError} onRetry={load} /> : null}
       {claimable > 0 ? (
         <Card>
           <View className="flex-row items-center gap-3">
@@ -148,7 +148,7 @@ export default function RewardsScreen() {
         </Card>
       ) : null}
       {!balanceError && claimable === 0 && rewards.some((r) => r.status === 'released') ? (
-        <Text className="text-sm text-neutral-600">Nothing to claim right now. Rewards you have already claimed are under Payments to your wallet.</Text>
+        <Text className="text-sm text-neutral-600">Nothing to claim right now. Rewards you have already claimed are listed under "Payments to your wallet".</Text>
       ) : null}
       {rewards.some((r) => r.status === 'released') ? (
         <Text className="text-xs text-neutral-500">"Earned" means not paid yet: the reward is in your LMS balance. It reaches your wallet when you claim it and its payment shows Paid to wallet.</Text>
@@ -164,7 +164,7 @@ export default function RewardsScreen() {
           <Text className="mt-1 text-xs text-neutral-500">{rewardStatusLabel(r.status)} · {formatDate(r.releasedAt ?? r.createdAt)}</Text>
         </Card>
       ))}
-      {claimsError ? <ErrorBanner message={claimsError} onRetry={load} /> : null}
+      {claimsError && !error ? <ErrorBanner message={claimsError} onRetry={load} /> : null}
       {claims.length > 0 ? (
         <View className="gap-2">
           <Text className="text-xs font-semibold uppercase text-neutral-500">Payments to your wallet</Text>

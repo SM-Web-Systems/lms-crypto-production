@@ -107,15 +107,35 @@ describe('student rewards screen', () => {
     await waitFor(() => expect(screen.queryByText('Could not load your claims.')).toBeNull());
   });
 
-  it.each([['refused'], ['pending']] as const)('shows the server message when a retried payment comes back %s', async (status) => {
+  it('says a retried payment that failed was not sent', async () => {
+    svc.claimable.mockResolvedValue(0);
+    svc.claims.mockResolvedValue([
+      { claimId: 'c-2', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 2000000, status: 'verified', verifiedAt: '2026-11-20T18:05:00Z', payout: 'failed', txHash: null, ledger: null },
+    ]);
+    svc.retryPayout.mockResolvedValue({ claimId: 'c-2', status: 'failed' });
+    render(<RewardsScreen />);
+    fireEvent.press(await screen.findByText('Try payment again'));
+    expect(await screen.findByText('The payment was not sent. Your claim is saved.')).toBeTruthy();
+  });
+
+  it('shows the server message when a retried payment is refused', async () => {
     svc.claimable.mockResolvedValue(0);
     svc.claims.mockResolvedValue([
       { claimId: 'c-2', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 2000000, status: 'verified', verifiedAt: '2026-11-20T18:05:00Z', payout: 'not_sent', txHash: null, ledger: null },
     ]);
-    svc.retryPayout.mockResolvedValue({ claimId: 'c-2', status, code: 'PAYOUT_CAP_EXCEEDED', message: 'The daily payout limit has been reached.' });
+    svc.retryPayout.mockRejectedValue(new ApiRequestError({ message: 'Mainnet reward payouts are switched off.', status: 502, code: 'PAYOUT_UNAVAILABLE' }));
     render(<RewardsScreen />);
     fireEvent.press(await screen.findByText('Try payment again'));
-    expect(await screen.findByText('The payment was not sent. The daily payout limit has been reached.')).toBeTruthy();
+    expect(await screen.findByText('Mainnet reward payouts are switched off.')).toBeTruthy();
+  });
+
+  it('shows one banner when the whole page fails to load', async () => {
+    svc.received.mockRejectedValueOnce(new ApiRequestError({ message: 'Could not load your rewards.', status: 500 }));
+    svc.claimable.mockRejectedValueOnce(new ApiRequestError({ message: 'Could not load your reward balance.', status: 500 }));
+    render(<RewardsScreen />);
+    expect(await screen.findByText('Could not load your rewards.')).toBeTruthy();
+    expect(screen.queryByText('Could not load your reward balance.')).toBeNull();
+    expect(screen.getAllByText('Try again')).toHaveLength(1);
   });
 
   it('labels statuses and reward types in plain words and explains Earned', async () => {
