@@ -386,6 +386,18 @@ describe('EmbeddedMaterialViewer — video item rendering', () => {
     expect(iframe!.getAttribute('src')).toBe('https://www.youtube.com/embed/SyK8hJVq3_Q?rel=0&enablejsapi=1&origin=http%3A%2F%2Flocalhost%3A3000');
   });
 
+  it('EMV-VID-YT: shows Watch on YouTube and Save in YouTube app directly under the YouTube player', () => {
+    const item: CourseItemVideo = { id: 'v', type: 'video', title: 'Intro', url: 'https://www.youtube.com/watch?v=SyK8hJVq3_Q' };
+    render(<EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />);
+    const group = screen.getByRole('group', { name: 'YouTube actions' });
+    for (const name of ['Watch on YouTube', 'Save in YouTube app']) {
+      const link = screen.getByRole('link', { name });
+      expect(group).toContainElement(link);
+      expect(link.getAttribute('href')).toBe('https://www.youtube.com/watch?v=SyK8hJVq3_Q');
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    }
+  });
+
   it('EMV-VID-2: renders clean GitHub download button for video', () => {
     const item: CourseItemVideo = {
       id: 'bvc-1-video',

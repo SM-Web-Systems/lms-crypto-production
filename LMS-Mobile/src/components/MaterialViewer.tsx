@@ -91,17 +91,22 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     onProgress: (position: number, percent: number) => { tracker.progress(percent); onProgress(position, percent); },
     onComplete: () => { tracker.complete(); void onComplete(); },
   };
-  // Opening the YouTube app keeps the view on the channel, and lets learners save the video there for offline use.
-  const youtubeAppButton = youtubeId ? <Button label="Watch or save in YouTube app" variant="outline" onPress={() => {
+  // YouTube actions sit directly under the YouTube player, with the same wording on web and mobile.
+  // Opening YouTube keeps the view on the channel; the YouTube app lets learners save the video offline.
+  const openOnYouTube = () => {
     void lessonContentService.recordPlay(courseId, item.id, 'youtube_app', 'open_external');
     void open(`https://www.youtube.com/watch?v=${youtubeId}`);
-  }} /> : null;
+  };
+  const youtubeActions = youtubeId ? <View className="-mt-1 flex-row gap-2" accessibilityLabel="YouTube actions">
+    <View className="flex-1"><Button label="Watch on YouTube" variant="outline" size="sm" onPress={openOnYouTube} /></View>
+    <View className="flex-1"><Button label="Save in YouTube app" variant="outline" size="sm" onPress={openOnYouTube} /></View>
+  </View> : null;
 
   if (item.type === 'video') {
     available = isWebResource(item.url);
     if (available) content = <View className="gap-3">
       {isDirectVideoFileUrl(item.url) ? <LessonVideo url={item.url} {...mediaProps} /> : extractYoutubeId(item.url) ? <LessonYouTube url={item.url} {...mediaProps} /> : <ResourcePreview url={getIframeVideoEmbedSrc(item.url)} />}
-      {youtubeAppButton ?? <Button label="Open video" variant="outline" onPress={() => open(item.url)} />}
+      {youtubeActions ?? <Button label="Open video" variant="outline" onPress={() => open(item.url)} />}
       {isWebResource(item.downloadUrl) ? <Button label="Download video" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;
   } else if (item.type === 'audio') {
@@ -112,8 +117,8 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     available = !!direct || isWebResource(embedded);
     if (available) content = <View className="gap-3">
       {isWebResource(embedded) ? <LessonYouTube url={embedded} {...mediaProps} /> : direct ? <LessonAudio url={direct} {...mediaProps} /> : null}
+      {isWebResource(embedded) ? youtubeActions ?? <Button label="Open listening video" variant="outline" onPress={() => open(embedded)} /> : null}
       {direct ? <Button label="Open audio" variant="outline" onPress={() => open(direct)} /> : null}
-      {isWebResource(embedded) ? youtubeAppButton ?? <Button label="Open listening video" variant="outline" onPress={() => open(embedded)} /> : null}
       {isWebResource(item.downloadUrl) ? <Button label="Download audio" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;
   } else if (item.type === 'text' && !isWebResource(item.url) && item.information?.trim()) {
