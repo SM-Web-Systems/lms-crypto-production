@@ -11,6 +11,7 @@ const ResetPassword: React.FC = () => {
   const { logout } = useAuth();
 
   const token = searchParams.get('token') ?? '';
+  const email = searchParams.get('email') ?? '';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -19,10 +20,10 @@ const ResetPassword: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect to forgot-password (admin path) if no token in URL
+  // No token in the URL: start again at the email reset choice
   useEffect(() => {
     if (!token) {
-      navigate('/forgot-password?admin=true', { replace: true });
+      navigate('/forgot-password?method=email', { replace: true });
     }
   }, [token, navigate]);
 
@@ -44,7 +45,7 @@ const ResetPassword: React.FC = () => {
       await authService.resetPassword(token, password);
       await logout();
       // Redirect to login with a success indicator in state
-      navigate('/login', { state: { passwordReset: true }, replace: true });
+      navigate('/login', { state: { passwordReset: true, email }, replace: true });
     } catch (err) {
       setError(
         getErrorMessage(err) ||
@@ -82,7 +83,7 @@ const ResetPassword: React.FC = () => {
               {error}{' '}
               {error.toLowerCase().includes('invalid') ||
               error.toLowerCase().includes('expired') ? (
-                <Link to="/forgot-password?admin=true" className="underline font-semibold">
+                <Link to="/forgot-password?method=email" className="underline font-semibold">
                   Request a new link
                 </Link>
               ) : null}
@@ -157,7 +158,7 @@ const ResetPassword: React.FC = () => {
               Back to sign in
             </Link>
             {' · '}
-            <Link to="/forgot-password?admin=true" className="text-gray-400 hover:underline text-xs">
+            <Link to="/forgot-password?method=email" className="text-gray-400 hover:underline text-xs">
               Request new link
             </Link>
           </p>
