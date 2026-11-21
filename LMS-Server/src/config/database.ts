@@ -20,6 +20,8 @@ import { courseContentSchema } from './courseContentSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { ensureTaGradeReviewColumns } from './taGradeReviewMigration.js';
 import { ensureRewardDeclineColumns } from './rewardDeclineMigration.js';
+import { backfillTestnetCertificateNetwork } from './certificateNetworkBackfill.js';
+import logger from '../utils/logger.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
 dotenv.config();
@@ -400,6 +402,19 @@ function ensureNftCredentialsSorobanTokenId(): void {
   } catch { /* column already exists */ }
 }
 startupMigrations.push(ensureNftCredentialsSorobanTokenId);
+
+/** Owner decision 2026-11-21: certificates with no network recorded that are shown to be testnet get 'testnet'. */
+function backfillCertificateNetwork(): void {
+  const result = backfillTestnetCertificateNetwork(db, {
+    nftNetwork: process.env.NFT_STELLAR_NETWORK,
+    nftContractId: process.env.NFT_CONTRACT_ID,
+  });
+  if (result.missing > 0 || result.publicOnTestnetContract > 0) {
+    logger.info({ module: 'certificate-network-backfill', ...result },
+      `Certificate network backfill: ${result.markedTestnet} marked testnet, ${result.unclassified} left unclassified, ${result.publicOnTestnetContract} recorded public on a testnet contract (not changed)`);
+  }
+}
+startupMigrations.push(backfillCertificateNetwork);
 
 /** LMS-ADM-001 — audit_log table for admin mutation tracking. */
 function ensureAuditLogTable(): void {

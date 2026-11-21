@@ -21,6 +21,7 @@
     "db:migrate-course-code": "tsx src/scripts/migrateCourseCodeAccess.ts",
     "db:migrate-clerk": "tsx src/scripts/migrateClerkUserId.ts",
     "db:migrate-reward-txn-check": "tsx src/scripts/migrateRewardTxnCheck.ts",
+    "db:certificate-network-dry-run": "node dist/scripts/certificateNetworkDryRun.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:bvc": "tsx src/scripts/validateBvcContent.ts",
