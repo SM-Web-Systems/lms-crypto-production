@@ -24,7 +24,7 @@ table{border-collapse:collapse;display:block;overflow-x:auto}th,td{border:1px so
 export function LessonReading({ content, height = 420 }: { content: string; height?: number }) {
   const [error, setError] = useState(false);
   if (!isHtmlContent(content) || Platform.OS === 'web') {
-    return <Text className="text-base text-neutral-900">{isHtmlContent(content) ? content.replace(/<[^>]+>/g, '') : content}</Text>;
+    return <Text className="text-base text-neutral-900">{isHtmlContent(content) ? content.replace(/<[^>]*>/g, ' ').replace(/[<>]/g, '') : content}</Text>;
   }
   return <View className="gap-2">
     <WebView
