@@ -13,7 +13,7 @@
  *   node upgrade-bvc-course-v2.js              # Apply changes
  *
  * Run from host:
- *   docker cp upgrade-bvc-course-v2.js lms-api:/app/
+ *   docker cp scripts/course-content/upgrade-bvc-course-v2.js lms-api:/app/
  *   docker exec -w /app lms-api node upgrade-bvc-course-v2.js           # dry run by default
  *   docker exec -w /app -e DRY_RUN=0 lms-api node upgrade-bvc-course-v2.js  # apply
  */

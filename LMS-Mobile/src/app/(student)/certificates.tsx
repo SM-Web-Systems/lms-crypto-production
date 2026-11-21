@@ -163,7 +163,7 @@ export default function CertificatesScreen() {
         <EmptyState
           icon="ribbon-outline"
           title="No certificates yet"
-          message="Complete courses and quizzes to earn NFT certificates."
+          message="Complete courses and quizzes to earn certificates."
         />
       ) : (
         <View className="gap-3">

@@ -12,16 +12,18 @@ const Login: React.FC = () => {
   const { login } = useAuth();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const passwordReset = (location.state as { passwordReset?: boolean } | null)?.passwordReset ?? false;
+  const resetState = location.state as { passwordReset?: boolean; email?: string } | null;
+  const passwordReset = resetState?.passwordReset ?? false;
   const ssoErrorCode = searchParams.get('sso_error');
   const ssoErrorMsg = ssoErrorCode ? (SSO_ERROR_MESSAGES[ssoErrorCode] ?? 'Sign-in failed. Please try again.') : null;
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(resetState?.email ?? '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ssoRequired, setSsoRequired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showAdminForm, setShowAdminForm] = useState(ssoErrorCode === 'link_required');
+  // After an LMS password reset, open the email form so the filled-in address is visible.
+  const [showAdminForm, setShowAdminForm] = useState(ssoErrorCode === 'link_required' || Boolean(resetState?.email));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

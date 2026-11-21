@@ -73,7 +73,7 @@ export default function SignInScreen() {
             {Platform.OS === 'web' ? <Text className="text-sm text-neutral-500">Opens the LMS web dashboard in your browser.</Text> : null}
             {Platform.OS === 'android' ? <Text className="text-sm text-neutral-500">Need a code from your authenticator app? Come back using the Recent apps button so the AmmaWallet page stays open.</Text> : null}
             {interrupted ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" className="text-sm text-amber-800">Sign-in closed before it finished. If you left to get a 2FA code, tap Sign in with AmmaWallet to start again.</Text> : null}
-            <Link href="/(auth)/forgot-password" className="text-sm font-semibold text-accent-teal">Recover your AmmaWallet account</Link>
+            <Link href="/(auth)/forgot-password" className="py-[14px] text-sm font-semibold text-accent-teal">Recover your AmmaWallet account</Link>
             {error ? <Text accessibilityRole="alert" className="text-sm text-red-500">{error}</Text> : null}
             {error ? <>
               <Button label="Open AmmaWallet settings" variant="ghost" disabled={walletBusy || submitting}
@@ -107,14 +107,14 @@ export default function SignInScreen() {
               textContentType="password"
             />
 
-            <Link href="/(auth)/internal-forgot-password" className="text-sm font-semibold text-accent-teal">Forgot internal account password?</Link>
+            <Link href="/(auth)/internal-forgot-password" className="py-[14px] text-sm font-semibold text-accent-teal">Forgot internal account password?</Link>
             <Button label="Sign in to internal account" onPress={onSubmit} loading={submitting} size="lg" />
             </View> : null}
           </View>
 
-          <View className="mt-6 flex-row justify-center gap-1">
+          <View className="mt-6 flex-row items-center justify-center gap-1">
             <Text className="text-sm text-neutral-500">New here?</Text>
-            <Link href="/(auth)/sign-up" className="text-sm font-semibold text-accent-teal">
+            <Link href="/(auth)/sign-up" className="py-[14px] text-sm font-semibold text-accent-teal">
               Create AmmaWallet account
             </Link>
           </View>

@@ -3,6 +3,8 @@ import { quizService } from '../services/quizService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
 import { quizCorrectCount, quizScorePercent } from '../utils/quizScore';
+import QuestionInput from './QuestionInput';
+import { isAnswerableHere } from '../utils/quizQuestion';
 
 interface InlineQuizTakerProps {
   quizId: string;
@@ -46,7 +48,8 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
   }, [quizId, user?.id]);
 
   const questions = quiz?.questions ?? [];
-  const answeredCount = questions.filter((qq) => answers[qq.id]?.trim()).length;
+  // A question this view can't render counts as answered, so it never blocks Submit.
+  const answeredCount = questions.filter((qq) => !isAnswerableHere(qq) || answers[qq.id]?.trim()).length;
   const allAnswered = answeredCount === questions.length;
   const isLast = qi === questions.length - 1;
 
@@ -111,7 +114,7 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
     } else if (e.key === 'Enter' && isLast && allAnswered) {
       e.preventDefault();
       setShowConfirm(true);
-    } else if (q.type === 'multiple_choice' && q.options) {
+    } else if ((q.type === 'multiple_choice' || q.type === 'flashcard') && q.options) {
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= q.options.length) {
         e.preventDefault();
@@ -288,31 +291,12 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
         <p className="text-xs text-neutral-500 italic">{q.information}</p>
       )}
 
-      {q.type === 'multiple_choice' && q.options ? (
-        <div className="flex flex-col gap-2">
-          {q.options.map((opt, i) => (
-            <label key={i} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name={`iq-${q.id}`}
-                value={opt}
-                checked={answers[q.id] === opt}
-                onChange={() => handleAnswer(q.id, opt)}
-                className="accent-amber-500"
-              />
-              {opt}
-            </label>
-          ))}
-        </div>
-      ) : (
-        <input
-          type="text"
-          value={answers[q.id] || ''}
-          onChange={(e) => handleAnswer(q.id, e.target.value)}
-          placeholder="Your answer"
-          className="rounded border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-        />
-      )}
+      <QuestionInput
+        question={q}
+        value={answers[q.id] ?? ''}
+        onChange={(val) => handleAnswer(q.id, val)}
+        quizHref={`/student/quizzes?quiz=${encodeURIComponent(quizId)}`}
+      />
 
       <div className="flex justify-between items-center pt-2">
         <button

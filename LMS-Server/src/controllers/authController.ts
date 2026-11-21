@@ -430,7 +430,8 @@ export async function forgotPassword(
       const rawToken = randomBytes(32).toString("hex");
       const tokenHash = createHash("sha256").update(rawToken).digest("hex");
       const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/$/, "");
-      const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+      // email lets Login fill in the address after the reset (UX-004).
+      const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
 
       execute(
         `UPDATE users SET
