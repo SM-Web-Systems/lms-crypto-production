@@ -45,6 +45,16 @@ describe('backfillTestnetCertificateNetwork', () => {
     expect(result.markedTestnet).toBe(1);
   });
 
+  it('does not take a failed testnet attempt as evidence for its contract', () => {
+    const db = freshDb();
+    db.prepare(`INSERT INTO nft_credentials (id, user_id, wallet_address, mint_status, error, contract_id, network)
+                VALUES ('f1', 'u1', 'G', 'failed', 'boom', ?, 'testnet')`).run(UNKNOWN_CONTRACT);
+    cred(db, 'c1', UNKNOWN_CONTRACT, '');
+    const result = backfillTestnetCertificateNetwork(db, {});
+    expect(networkOf(db, 'c1')).toBe('');
+    expect(result.unclassified).toBe(1);
+  });
+
   it('leaves a certificate it cannot classify and counts it', () => {
     const db = freshDb();
     cred(db, 'c1', UNKNOWN_CONTRACT, '');

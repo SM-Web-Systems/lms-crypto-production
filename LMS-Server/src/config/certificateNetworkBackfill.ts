@@ -5,12 +5,14 @@ import type { Database } from 'better-sqlite3';
  * (NULL or blank nft_credentials.network) is marked 'testnet' only when the record shows it was
  * issued on testnet. A Soroban contract id belongs to one network, so the evidence is the contract:
  *   - it is the testnet contract this server issues with (NFT_STELLAR_NETWORK=testnet, NFT_CONTRACT_ID), or
- *   - another certificate on the same contract is recorded as 'testnet' (that value is only ever
- *     written from a real testnet configuration).
+ *   - another certificate on the same contract was minted (minted, with a tx hash) and is recorded
+ *     'testnet' (that value is only ever written from a real testnet configuration).
+ * The column is NOT NULL DEFAULT 'public' in schema.sql, so on current databases nothing is blank;
+ * this covers blank values from older or hand-edited databases.
  * A certificate on the mainnet contract this server issues with is never marked. Anything else is
- * left as it is and counted as unclassified. A recorded network is never changed; certificates
- * recorded 'public' on a testnet contract (course issues before the network was recorded for real)
- * are only counted, for an owner decision.
+ * left as it is and counted as unclassified. A recorded network is never changed. Course issues
+ * before #288 were recorded 'public' whatever network they were really on; those on a testnet
+ * contract are only counted (publicOnTestnetContract), for an owner decision.
  *
  * Only blank values are written, so it is idempotent and safe to run on every startup.
  */
@@ -49,7 +51,8 @@ export function backfillTestnetCertificateNetwork(
   // Contract ids shown to be on testnet, excluding the mainnet contract this server issues with.
   const testnetContracts = `(
     SELECT ? AS contract_id WHERE ? IS NOT NULL
-    UNION SELECT DISTINCT contract_id FROM nft_credentials WHERE network = 'testnet'
+    UNION SELECT DISTINCT contract_id FROM nft_credentials
+          WHERE network = 'testnet' AND mint_status = 'minted' AND tx_hash IS NOT NULL
   )`;
   const provablyTestnet = `contract_id IN ${testnetContracts} AND contract_id IS NOT ?`;
   const params = [configuredTestnet, configuredTestnet, configuredMainnet];
