@@ -1051,12 +1051,14 @@ export function listRewards(
 }
 
 /**
- * Get allocations for a reward.
+ * Get allocations for a reward, with each learner's name (UX-001: confirmations say who is paid).
  */
-export function getRewardAllocations(rewardId: string): AllocationRow[] {
+export function getRewardAllocations(rewardId: string): Array<AllocationRow & { student_name: string | null }> {
   return db.prepare(
-    `SELECT * FROM reward_allocations WHERE reward_id = ? ORDER BY created_at ASC`
-  ).all(rewardId) as AllocationRow[];
+    `SELECT ra.*, u.name AS student_name
+       FROM reward_allocations ra LEFT JOIN users u ON u.id = ra.student_user_id
+      WHERE ra.reward_id = ? ORDER BY ra.created_at ASC`
+  ).all(rewardId) as Array<AllocationRow & { student_name: string | null }>;
 }
 
 /**

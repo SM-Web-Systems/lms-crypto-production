@@ -51,6 +51,7 @@ const LecturerSubmissions = React.lazy(() => import('./pages/LecturerSubmissions
 const TADashboard = React.lazy(() => import('./pages/TADashboard'));
 const EmployerDashboard = React.lazy(() => import('./pages/EmployerDashboard'));
 const ParentDashboard = React.lazy(() => import('./pages/ParentDashboard'));
+const ParentGroups = React.lazy(() => import('./pages/ParentGroups'));
 const TeacherDashboard = React.lazy(() => import('./pages/TeacherDashboard'));
 
 export const AccessDenied: React.FC = () => {
@@ -674,7 +675,9 @@ function App() {
               path="/parent/groups"
               element={
                 <ProtectedRoute allowedWorkspace="parent">
-                  <Navigate to="/parent" replace />
+                  <Layout>
+                    <ParentGroups />
+                  </Layout>
                 </ProtectedRoute>
               }
             />

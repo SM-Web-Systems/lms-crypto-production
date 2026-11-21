@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
 import logger from '../../utils/logger.js';
+import { overCapMessage, perClaimCapStroops } from './rewardPayoutService.js';
 
 /**
  * A reward only leaves the LMS after the learner proves they still control the Stellar key of the
@@ -105,6 +106,8 @@ export function createRewardClaim(userId: string, amount: unknown, now = Date.no
     throw new RewardError('INVALID_AMOUNT', 'Use a positive whole number of stroops.', 400);
   }
   const amountStroops = Number(amount);
+  const cap = perClaimCapStroops();
+  if (cap !== null && BigInt(amountStroops) > cap) throw new RewardError('PAYOUT_CAP_EXCEEDED', overCapMessage(cap), 409);
   const wallet = currentAddress(userId);
   const readyAt = destinationReadyAt(userId, wallet, amountStroops, now);
   if (readyAt > now) {
@@ -129,7 +132,8 @@ export function verifyRewardClaim(userId: string, claimId: string, message: unkn
   if (typeof message !== 'string' || message.length > 1000 || typeof signature !== 'string' || !/^[A-Za-z0-9+/]{86}==$/.test(signature)) {
     throw new RewardError('INVALID_SIGNATURE', 'The signed challenge is missing or malformed.', 400);
   }
-  return db.transaction(() => {
+  // A refusal that closes the claim is returned rather than thrown, so the closing UPDATE is committed, then thrown below.
+  const outcome = db.transaction((): { claimId: string; status: 'verified' } | { refused: RewardError } => {
     const claim = db.prepare('SELECT * FROM reward_claims WHERE id = ? AND user_id = ?').get(claimId, userId) as ClaimRow | undefined;
     if (!claim) throw new RewardError('NOT_FOUND', 'Claim not found.', 404);
     if (claim.status === 'verified') return { claimId, status: 'verified' as const };
@@ -155,6 +159,12 @@ export function verifyRewardClaim(userId: string, claimId: string, message: unkn
     let valid = false;
     try { valid = Keypair.fromPublicKey(claim.destination).verify(Buffer.from(message, 'utf8'), Buffer.from(signature, 'base64')); } catch { valid = false; }
     if (!valid) throw new RewardError('INVALID_SIGNATURE', 'The signature does not match your wallet key.', 400);
+    // A challenge made before the limit was lowered (or before this check existed) must not become an unpayable verified claim.
+    const cap = perClaimCapStroops();
+    if (cap !== null && BigInt(claim.amount_stroops) > cap) {
+      db.prepare("UPDATE reward_claims SET status = 'cancelled' WHERE id = ?").run(claimId);
+      return { refused: new RewardError('PAYOUT_CAP_EXCEEDED', `Nothing was claimed. ${overCapMessage(cap)}`, 409) };
+    }
     if (claim.amount_stroops > claimableStroops(userId)) {
       db.prepare("UPDATE reward_claims SET status = 'cancelled' WHERE id = ?").run(claimId);
       throw new RewardError('INSUFFICIENT_BALANCE', 'Your claimable balance changed. Start a new claim.', 409);
@@ -162,6 +172,8 @@ export function verifyRewardClaim(userId: string, claimId: string, message: unkn
     db.prepare("UPDATE reward_claims SET status = 'verified', verified_at = ? WHERE id = ?").run(now, claimId);
     return { claimId, status: 'verified' as const };
   }).immediate();
+  if ('refused' in outcome) throw outcome.refused;
+  return outcome;
 }
 
 /**

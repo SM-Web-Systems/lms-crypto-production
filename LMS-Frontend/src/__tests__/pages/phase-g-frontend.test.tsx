@@ -75,13 +75,13 @@ describe('Phase G Frontend', () => {
     expect(screen.queryByText('Billing')).not.toBeInTheDocument();
   });
 
-  it('G-NAV-3 — Parent sees parent nav items (W08: Wallets/Groups/Billing deferred)', () => {
+  it('G-NAV-3 — Parent sees parent nav items (W08: Wallets/Billing deferred)', () => {
     renderLayoutWithRole('parent');
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Children')).toBeInTheDocument();
-    // Wallets, Groups, Billing deferred — FOLLOW-UP(parent-wallet-group-billing-ui)
+    expect(screen.getByText('Groups')).toBeInTheDocument();
+    // Wallets, Billing deferred — FOLLOW-UP(parent-wallet-billing-ui)
     expect(screen.queryByText('Wallets')).not.toBeInTheDocument();
-    expect(screen.queryByText('Groups')).not.toBeInTheDocument();
     expect(screen.queryByText('Billing')).not.toBeInTheDocument();
   });
 

@@ -27,6 +27,7 @@ export const StudentRewardsPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [claimable, setClaimable] = useState<string>('0');
+  const [maxClaim, setMaxClaim] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claims, setClaims] = useState<MyRewardClaim[]>([]);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -36,13 +37,15 @@ export const StudentRewardsPanel: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const [data, balance, myClaims] = await Promise.all([
+      const [data, balance, myClaims, limit] = await Promise.all([
         rewardService.getMyRewards(),
         Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0'),
         Promise.resolve().then(() => rewardService.listMyClaims()).catch(() => [] as MyRewardClaim[]),
+        Promise.resolve().then(() => rewardService.getMaxClaimStroops()).catch(() => null),
       ]);
       setRewards(data);
       setClaimable(balance);
+      setMaxClaim(typeof limit === 'string' && /^[1-9][0-9]*$/.test(limit) ? limit : null);
       setClaims(Array.isArray(myClaims) ? myClaims : []);
     } catch (err) {
       setError(getErrorMessage(err, 'Could not load rewards'));
@@ -53,11 +56,14 @@ export const StudentRewardsPanel: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // A claim above the per-payment limit can never be paid, so claim at most the limit; the rest stays claimable.
+  const claimAmount = maxClaim !== null && BigInt(claimable) > BigInt(maxClaim) ? maxClaim : claimable;
+
   // Rewards stay in the LMS until the learner proves, in AmmaWallet, that they control their wallet.
   const claim = async () => {
     setClaiming(true); setError('');
     try {
-      const started = await rewardService.startClaim(claimable);
+      const started = await rewardService.startClaim(claimAmount);
       rememberClaim(started.claimId, started.message);
       walletClaimNavigation.go(walletClaimUrl(started.message, `${window.location.origin}/student/rewards/claim`));
     } catch (err) {
@@ -99,8 +105,13 @@ export const StudentRewardsPanel: React.FC = () => {
             <p className="text-sm text-emerald-900">Ready to claim: <strong className="tabular-nums">{formatStroopsShort(Number(claimable))}</strong></p>
             <Button size="sm" type="button" onClick={claim} disabled={claiming}>
               <Send className="h-3.5 w-3.5 mr-1" aria-hidden />
-              {claiming ? 'Opening AmmaWallet…' : 'Claim to my wallet'}
+              {claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${formatStroopsShort(Number(claimAmount))} to my wallet`}
             </Button>
+            {claimAmount !== claimable && (
+              <p className="basis-full text-xs text-emerald-800" data-testid="claim-limit-note">
+                One payment can be at most {formatStroopsShort(Number(claimAmount))}. Claim again for the rest.
+              </p>
+            )}
             <p className="basis-full text-xs text-emerald-800" data-testid="restore-wallet-note">
               AmmaWallet will ask you to approve with your Amma password. You need the device where your wallet was set up, or your recovery phrase to restore your wallet on this one.
             </p>

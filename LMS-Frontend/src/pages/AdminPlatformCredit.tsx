@@ -3,6 +3,7 @@ import { Coins, RefreshCw, AlertCircle, CheckCircle, Loader2 } from 'lucide-reac
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import { getErrorMessage } from '../utils/apiError';
+import { useConfirmAction, type ConfirmActionOptions } from '../hooks/useConfirmAction';
 import {
   platformCreditService, stroopsToXlm, xlmToStroops,
   type Beneficiary, type BackingIntent, type Summary,
@@ -93,6 +94,15 @@ export default function AdminPlatformCredit() {
     catch (err) { setError(getErrorMessage(err, 'That did not work.')); }
     finally { setBusy(false); }
   };
+
+  const { ask, dialog, busy: confirming } = useConfirmAction();
+  /** Money moves only after the person confirms in the dialog (UX-001). */
+  const confirmRun = (label: string, opts: ConfirmActionOptions) => {
+    void ask(opts).then(async ok => { if (ok) { setError(null); setNotice(label); await load(); } });
+  };
+  // Credit is only requested on the public pool (reservations carry no network of their own).
+  const amountOf = (stroops: number, network: string) =>
+    `${stroopsToXlm(stroops)} ${summary?.pools.find(p => p.network === network)?.currency ?? ''}`.trim();
 
   const nameOf = useMemo(() => {
     const m = new Map(people.map(p => [p.id, p.name || p.email]));
@@ -208,8 +218,18 @@ export default function AdminPlatformCredit() {
                 <p className="text-sm"><span className="font-medium">{stroopsToXlm(r.amount_stroops)} XLM</span> for {nameOf(r.beneficiary_user_id)} · requested by {nameOf(r.requester_user_id)} · {r.reason} · <span data-testid={`request-${r.id}`}>{r.effective_status}</span></p>
                 {r.effective_status === 'pending' && (
                   <div className="flex gap-2">
-                    <Button size="sm" type="button" disabled={busy} onClick={() => void run('Credit approved.', () => platformCreditService.approve(r.id, `Approved ${stroopsToXlm(r.amount_stroops)} XLM platform credit`))}>Approve</Button>
-                    <Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => void run('Request cancelled.', () => platformCreditService.cancel(r.id, 'Cancelled by an administrator'))}>Cancel</Button>
+                    <Button size="sm" type="button" disabled={busy || confirming} onClick={() => confirmRun('Credit approved.', {
+                      title: 'Approve platform credit?',
+                      description: <>Approve <strong>{amountOf(r.amount_stroops, r.network)}</strong> for <strong>{nameOf(r.beneficiary_user_id)}</strong>. Requested by {nameOf(r.requester_user_id)}.</>,
+                      confirmLabel: `Approve ${amountOf(r.amount_stroops, r.network)}`, variant: 'primary',
+                      action: () => platformCreditService.approve(r.id, `Approved ${amountOf(r.amount_stroops, r.network)} platform credit`),
+                    })}>Approve</Button>
+                    <Button size="sm" variant="outline" type="button" disabled={busy || confirming} onClick={() => confirmRun('Request cancelled.', {
+                      title: 'Cancel credit request?',
+                      description: <>Cancel this request. {amountOf(r.amount_stroops, r.network)} for {nameOf(r.beneficiary_user_id)} will not be given.</>,
+                      confirmLabel: 'Cancel request', cancelLabel: 'Keep request',
+                      action: () => platformCreditService.cancel(r.id, 'Cancelled by an administrator'),
+                    })}>Cancel</Button>
                   </div>
                 )}
               </li>))}
@@ -226,7 +246,12 @@ export default function AdminPlatformCredit() {
             {summary?.reservations.slice(0, 10).map(c => (
               <li key={c.intent_id} className="py-2 flex flex-wrap items-center justify-between gap-3 text-sm">
                 <span>{stroopsToXlm(c.amount_stroops)} XLM for {nameOf(c.owner_user_id)} · {c.effective_status}</span>
-                {c.effective_status === 'held' && <Button size="sm" variant="outline" type="button" disabled={busy} onClick={() => void run('Reservation released.', () => platformCreditService.releaseReservation(c.intent_id))}>Release</Button>}
+                {c.effective_status === 'held' && <Button size="sm" variant="outline" type="button" disabled={busy || confirming} onClick={() => confirmRun('Reservation released.', {
+                  title: 'Release held credit?',
+                  description: <>Release <strong>{amountOf(c.amount_stroops, 'public')}</strong> held for <strong>{nameOf(c.owner_user_id)}</strong>.</>,
+                  confirmLabel: `Release ${amountOf(c.amount_stroops, 'public')}`,
+                  action: () => platformCreditService.releaseReservation(c.intent_id),
+                })}>Release</Button>}
               </li>))}
           </ul>
           {summary && summary.audit.length > 0 && (
@@ -236,6 +261,7 @@ export default function AdminPlatformCredit() {
           )}
         </CardContent>
       </Card>
+      {dialog}
     </div>
   );
 }

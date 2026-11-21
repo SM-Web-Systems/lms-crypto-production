@@ -5,6 +5,7 @@ import {Redirect,useRouter} from 'expo-router';
 import {useAuth} from '@/context/AuthContext';
 import {accountService,type AccountSession,type DataExport,type DeletionStatus} from '@/services/accountService';
 import {mobileHome} from '@/utils/authorization';
+import {backOr} from '@/utils/navigation';
 import {getErrorMessage} from '@/utils/apiError';
 import {Button} from '@/components/ui/Button';
 import {Input} from '@/components/ui/Input';
@@ -52,7 +53,7 @@ export default function AccountScreen(){
   return <SafeAreaView style={{flex:1,backgroundColor:'#f8fafb'}}><ScrollView automaticallyAdjustKeyboardInsets contentContainerClassName="p-4 gap-4 pb-8" keyboardShouldPersistTaps="handled">
     <Text className="text-2xl font-bold text-neutral-900">Account and security</Text>
     <Text>{user.email}</Text>
-    {!pending ? <Button label="Back to your workspace" variant="outline" onPress={()=>router.replace(mobileHome(user))}/> : null}
+    {!pending ? <Button label="Back to your workspace" variant="outline" onPress={()=>backOr(router,mobileHome(user))}/> : null}
     {pending ? <Text accessibilityRole="alert" className="rounded-lg bg-amber-50 p-3 text-amber-900">Your account is pending deletion. You can cancel during the grace period or export your data. Learning is unavailable until you cancel.</Text> : null}
     {!pending ? <PushNotificationSettings /> : null}
     <Card><CardTitle>Active sessions</CardTitle>

@@ -268,6 +268,38 @@ describe('Sponsor Cohorts (C3)', () => {
     expect(res.body.data.status).toBe('pending');
   });
 
+  // COH-B13 (UX-001): the quote shown before Create Payment matches what bulk-pay then charges
+  it('COH-B13 — pay quote returns amount, currency and member count, and matches bulk-pay', async () => {
+    seedEnrollment(studentId1, courseCode);
+    seedEnrollment(studentId2, courseCode);
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Quote Test', courseId, selectedTier: 'paid', memberUserIds: [studentId1, studentId2] });
+    const cohortId = createRes.body.data.cohortId;
+    await request(app).post(`/api/v1/admin/cohorts/${cohortId}/apply`).set('Authorization', `Bearer ${adminToken}`);
+
+    const quote = await request(app).get(`/api/v1/admin/cohorts/${cohortId}/pay/quote`).set('Authorization', `Bearer ${adminToken}`);
+    expect(quote.status).toBe(200);
+    expect(quote.body.data).toEqual({ amountCents: 5000, currency: 'USD', memberCount: 2 });
+    expect(db.prepare('SELECT payment_id FROM sponsor_cohorts WHERE id = ?').get(cohortId)).toEqual({ payment_id: null });
+
+    const pay = await request(app).post(`/api/v1/admin/cohorts/${cohortId}/pay`).set('Authorization', `Bearer ${adminToken}`);
+    expect(pay.status).toBe(201);
+    expect({ amountCents: pay.body.data.amountCents, currency: pay.body.data.currency, memberCount: pay.body.data.memberCount }).toEqual(quote.body.data);
+  });
+
+  it('COH-B14 — pay quote refuses free-tier cohorts and other sponsors', async () => {
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Free Quote', courseId, selectedTier: 'free', memberUserIds: [studentId1] });
+    const cohortId = createRes.body.data.cohortId;
+    const free = await request(app).get(`/api/v1/admin/cohorts/${cohortId}/pay/quote`).set('Authorization', `Bearer ${adminToken}`);
+    expect(free.status).toBe(400);
+    const missing = await request(app).get(`/api/v1/admin/cohorts/${uuidv4()}/pay/quote`).set('Authorization', `Bearer ${adminToken}`);
+    expect(missing.status).toBe(404);
+    const student = await request(app).get(`/api/v1/admin/cohorts/${cohortId}/pay/quote`)
+      .set('Authorization', `Bearer ${makeToken({ userId: studentId1, email: 'coh-s1@test.com', role: 'student' })}`);
+    expect(student.status).toBe(403);
+  });
+
   // COH-B11: bulkPay rejects free-tier cohorts
   it('COH-B11 — bulk-pay rejects free-tier cohort', async () => {
     const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)

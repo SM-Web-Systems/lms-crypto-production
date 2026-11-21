@@ -3,6 +3,8 @@ import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { Building2, AlertCircle, Plus, Trash2, UserPlus } from 'lucide-react';
 import { tenantService, type Tenant, type TenantUser } from '../services/tenantService';
+import { useConfirmAction } from '../hooks/useConfirmAction';
+import { getErrorMessage } from '../utils/apiError';
 
 type PanelState = 'loading' | 'error' | 'empty' | 'data';
 
@@ -15,6 +17,9 @@ export function TenantAdminPanel() {
   const [newName, setNewName] = useState('');
   const [newSlug, setNewSlug] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  // UX-001: delete, suspend and activate are confirmed; their errors show in the dialog.
+  const { ask, dialog, busy: confirming } = useConfirmAction();
 
   // Expanded tenant users
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -42,36 +47,45 @@ export function TenantAdminPanel() {
   const handleCreate = async () => {
     if (!newName.trim() || !newSlug.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       await tenantService.createTenant(newName.trim(), newSlug.trim());
       setNewName('');
       setNewSlug('');
       setShowCreate(false);
       load();
-    } catch {
-      // Error handled silently
+    } catch (err) {
+      setCreateError(getErrorMessage(err, 'Could not create the tenant.'));
     } finally {
       setCreating(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await tenantService.deleteTenant(id);
-      load();
-    } catch {
-      // Error handled silently
-    }
+  const handleDelete = async (tenant: Tenant) => {
+    const done = await ask({
+      title: 'Delete tenant?',
+      description: <>Delete <strong>{tenant.name}</strong> ({tenant.userCount} users, {tenant.courseCount} courses). This cannot be undone.</>,
+      confirmLabel: `Delete ${tenant.name}`,
+      action: () => tenantService.deleteTenant(tenant.id),
+    });
+    if (done) load();
   };
 
   const handleStatusToggle = async (tenant: Tenant) => {
-    const newStatus = tenant.status === 'active' ? 'suspended' : 'active';
-    try {
-      await tenantService.updateTenant(tenant.id, { status: newStatus });
-      load();
-    } catch {
-      // Error handled silently
-    }
+    const suspend = tenant.status === 'active';
+    const done = await ask(suspend ? {
+      title: 'Suspend tenant?',
+      description: <>Suspend <strong>{tenant.name}</strong> ({tenant.userCount} users). You can activate it again later.</>,
+      confirmLabel: `Suspend ${tenant.name}`,
+      action: () => tenantService.updateTenant(tenant.id, { status: 'suspended' }),
+    } : {
+      title: 'Activate tenant?',
+      description: <>Activate <strong>{tenant.name}</strong> again.</>,
+      confirmLabel: `Activate ${tenant.name}`,
+      variant: 'primary',
+      action: () => tenantService.updateTenant(tenant.id, { status: 'active' }),
+    });
+    if (done) load();
   };
 
   const handleExpand = async (tenantId: string) => {
@@ -188,6 +202,7 @@ export function TenantAdminPanel() {
                 Save
               </Button>
             </div>
+            {createError && <p role="alert" className="mt-2 text-sm text-red-700">{createError}</p>}
           </div>
         )}
 
@@ -232,6 +247,7 @@ export function TenantAdminPanel() {
                               variant="outline"
                               size="sm"
                               type="button"
+                              disabled={confirming}
                               onClick={() => handleStatusToggle(t)}
                             >
                               {t.status === 'active' ? 'Suspend' : 'Activate'}
@@ -240,7 +256,8 @@ export function TenantAdminPanel() {
                               variant="outline"
                               size="sm"
                               type="button"
-                              onClick={() => handleDelete(t.id)}
+                              disabled={confirming}
+                              onClick={() => handleDelete(t)}
                             >
                               <Trash2 className="h-3.5 w-3.5" aria-hidden />
                               Delete
@@ -315,6 +332,7 @@ export function TenantAdminPanel() {
           </div>
         )}
       </CardContent>
+      {dialog}
     </Card>
   );
 }

@@ -43,6 +43,7 @@ export default function RewardsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [claimable, setClaimable] = useState(0);
+  const [maxClaim, setMaxClaim] = useState<number | null>(null);
   const [rewards, setRewards] = useState<ReceivedReward[]>([]);
   const [claims, setClaims] = useState<MyRewardClaim[]>([]);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -50,12 +51,14 @@ export default function RewardsScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [balance, list, myClaims] = await Promise.all([
+      const [balance, list, myClaims, limit] = await Promise.all([
         rewardClaimService.claimable().catch(() => 0),
         rewardClaimService.received(),
         Promise.resolve().then(() => rewardClaimService.claims()).catch(() => [] as MyRewardClaim[]),
+        Promise.resolve().then(() => rewardClaimService.maxClaim()).catch(() => null),
       ]);
       setClaimable(balance);
+      setMaxClaim(typeof limit === 'number' && limit > 0 ? limit : null);
       setRewards(list);
       setClaims(Array.isArray(myClaims) ? myClaims : []);
     } catch (e) {
@@ -67,10 +70,13 @@ export default function RewardsScreen() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // A claim above the per-payment limit can never be paid, so claim at most the limit; the rest stays claimable.
+  const claimAmount = maxClaim !== null && claimable > maxClaim ? maxClaim : claimable;
+
   const claim = async () => {
     setClaiming(true); setError(null); setNotice(null);
     try {
-      const outcome = await rewardClaimService.claim(claimable);
+      const outcome = await rewardClaimService.claim(claimAmount);
       if (outcome.kind === 'declined') setNotice('You declined the claim in AmmaWallet. Your rewards stay in your LMS balance.');
       else if (outcome.kind === 'cancelled') setNotice('The claim was not finished. Your rewards are still safe in your LMS balance.');
       else setNotice(claimNotice(outcome.payout));
@@ -112,8 +118,11 @@ export default function RewardsScreen() {
             </View>
           </View>
           <View className="mt-3">
-            <Button label={claiming ? 'Opening AmmaWallet…' : 'Claim to my wallet'} onPress={claim} disabled={claiming} />
+            <Button label={claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${stroopsToXlm(claimAmount)} to my wallet`} onPress={claim} disabled={claiming} />
           </View>
+          {claimAmount !== claimable ? (
+            <Text className="mt-2 text-xs text-neutral-500">One payment can be at most {stroopsToXlm(claimAmount)}. Claim again for the rest.</Text>
+          ) : null}
           <Text className="mt-2 text-xs text-neutral-500">AmmaWallet will ask you to approve with your Amma password. This proves the wallet is yours. You need the device where your wallet was set up, or your recovery phrase to restore your wallet on this one.</Text>
         </Card>
       ) : null}
