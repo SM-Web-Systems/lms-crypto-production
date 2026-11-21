@@ -2,13 +2,14 @@
  * CohortManagement — Phase 11 C3: cohort tab in SponsorDashboard.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { cohortService } from '../services/cohortService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { SponsorCohortSummary, CohortMemberDetail, CohortCompletionStats, BulkApplyResult, CertificateTier } from '../types/api';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { getErrorMessage } from '../utils/apiError';
+import { useGeneration } from '../hooks/useGeneration';
 import { useConfirmAction } from '../hooks/useConfirmAction';
 import {
   Users,
@@ -460,7 +461,7 @@ interface CohortManagementProps {
 }
 
 export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, ownerOnly=false, refreshTick=0, onChanged, courseOptionsLoading=false, courseOptionsError=false }) => {
-  const generation = useRef(0);
+  const generation = useGeneration();
   const [cohorts, setCohorts] = useState<SponsorCohortSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -468,20 +469,20 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, own
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const current = ++generation.current;
+    const current = generation.next();
     setLoading(true);
     setError(null);
     try {
       const data = await cohortService.listCohorts(undefined,ownerOnly ? 'own' : undefined);
-      if (current === generation.current) setCohorts(data);
+      if (generation.isCurrent(current)) setCohorts(data);
     } catch (err) {
-      if (current === generation.current) setError(getErrorMessage(err));
+      if (generation.isCurrent(current)) setError(getErrorMessage(err));
     } finally {
-      if (current === generation.current) setLoading(false);
+      if (generation.isCurrent(current)) setLoading(false);
     }
-  }, [ownerOnly]);
+  }, [ownerOnly, generation]);
 
-  useEffect(() => { load(); return () => { generation.current++; }; }, [load,refreshTick]);
+  useEffect(() => { load(); return () => { generation.next(); }; }, [load, refreshTick, generation]);
 
   return (
     <div>

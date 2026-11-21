@@ -127,6 +127,10 @@ jobs:
         # Same single, expiring exception as the backend audit.
         run: node ../scripts/audit-gate.mjs --level moderate --allow GHSA-fc5q-39xc-vjpf=2026-12-01
       - run: npx tsc --noEmit
+      # Two known warnings remain (react-refresh in context/DataContext.tsx and components/StatusBadge.tsx's fmtSize,
+      # both waiting on the submissions/students paging files). Lower to `npm run lint` (--max-warnings 0) once fixed.
+      - name: Lint (no new warnings)
+        run: npx eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 2
       - run: npx vitest run
       - run: npx vite build
       - name: Check bundle sizes
