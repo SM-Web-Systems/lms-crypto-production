@@ -2,6 +2,9 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
 import * as Linking from 'expo-linking';
 import * as Clipboard from 'expo-clipboard';
+import { Alert } from 'react-native';
+import { downloadAsync } from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import CertificateDetailScreen from '@/app/(student)/certificate-detail';
 import { credentialService } from '@/services/credentialService';
 import type { MyCredential } from '@/types/credential';
@@ -13,7 +16,7 @@ const mockCredentialService = credentialService as jest.Mocked<typeof credential
 const mockBack = jest.fn();
 let mockId = 'cred-001';
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn(), back: mockBack }),
+  useRouter: () => ({ push: jest.fn(), back: mockBack, canGoBack: () => true, replace: jest.fn() }),
   useLocalSearchParams: () => ({ id: mockId }),
 }));
 
@@ -176,4 +179,37 @@ describe('CertificateDetailScreen', () => {
     expect(screen.getByText('Loading certificate…')).toBeTruthy();
     expect(Linking.openURL).not.toHaveBeenCalled();
   });
+
+  it('never shares an error page as the certificate PDF', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
+    (downloadAsync as jest.Mock).mockResolvedValueOnce({ uri: '/tmp/certificate-cred-001.pdf', status: 404 });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    render(<CertificateDetailScreen />);
+    fireEvent.press(await screen.findByText('Download PDF'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Download failed', expect.stringMatching(/could not download the certificate PDF/i)));
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+  });
+
+  it('shares the PDF when the download succeeds', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
+    (downloadAsync as jest.Mock).mockResolvedValueOnce({ uri: '/tmp/certificate-cred-001.pdf', status: 200 });
+    render(<CertificateDetailScreen />);
+    fireEvent.press(await screen.findByText('Download PDF'));
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledWith('/tmp/certificate-cred-001.pdf', expect.objectContaining({ mimeType: 'application/pdf' })));
+  });
+
+  it('gives the error state a way back', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([]);
+    render(<CertificateDetailScreen />);
+    fireEvent.press(await screen.findByText('Back to certificates'));
+    expect(mockBack).toHaveBeenCalled();
+  });
+
+  it('only ever calls it a Certificate', async () => {
+    mockCredentialService.fetchMyCredentials.mockResolvedValueOnce([MOCK_CREDENTIAL]);
+    render(<CertificateDetailScreen />);
+    await screen.findByText('Blockchain 101');
+    expect(screen.queryByText(/credential|badge|NFT/i)).toBeNull();
+  });
 });
+

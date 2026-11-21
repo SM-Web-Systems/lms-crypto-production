@@ -12,7 +12,7 @@ jest.mock('expo-linking', () => ({
 
 // Mock expo-file-system (legacy API used for download)
 jest.mock('expo-file-system/legacy', () => ({
-  downloadAsync: jest.fn().mockResolvedValue({ uri: '/tmp/test.pdf' }),
+  downloadAsync: jest.fn().mockResolvedValue({ uri: '/tmp/test.pdf', status: 200 }),
   documentDirectory: '/tmp/',
 }));
 jest.mock('expo-file-system', () => ({}));
@@ -33,6 +33,8 @@ jest.mock('expo-clipboard', () => ({
 jest.mock('expo-router', () => ({
   useRouter: jest.fn(() => ({ push: jest.fn(), back: jest.fn() })),
   useLocalSearchParams: jest.fn(() => ({})),
+  // Screens load on focus; in tests the first render is the focus.
+  useFocusEffect: jest.fn((cb) => require('react').useEffect(() => cb(), [cb])),
   Link: 'Link',
   Tabs: { Screen: 'TabsScreen' },
 }));
