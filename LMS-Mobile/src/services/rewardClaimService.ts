@@ -35,12 +35,14 @@ export type ResumedClaim = Exclude<ClaimOutcome, { kind: 'cancelled' }> | { kind
  * the exact challenge text, so it is kept on the device until the claim ends.
  */
 export const PENDING_CLAIM_KEY = 'lms_reward_claim_pending';
-interface PendingClaim { claimId: string; message: string; startedAt: number }
+interface PendingClaim { claimId: string; message: string; startedAt: number; expiresAt: string }
 
 async function readPendingClaim(): Promise<PendingClaim | null> {
   try {
     const saved = JSON.parse((await SecureStore.getItemAsync(PENDING_CLAIM_KEY)) ?? 'null');
-    return typeof saved?.claimId === 'string' && typeof saved?.message === 'string' ? saved : null;
+    if (typeof saved?.claimId !== 'string' || typeof saved?.message !== 'string') return null;
+    // A claim left over from an abandoned hand-off can no longer be verified; never offer it.
+    return Date.parse(saved.expiresAt) > Date.now() ? saved : null;
   } catch { return null; }
 }
 const forgetPendingClaim = () => SecureStore.deleteItemAsync(PENDING_CLAIM_KEY).catch(() => undefined);
@@ -115,12 +117,14 @@ export const rewardClaimService = {
     const started = assertApiSuccess(
       await api.post<ApiResponse<StartedClaim>>('/students/me/reward-claims', { amountStroops: String(amountStroops) }),
       'Could not start the claim.');
-    const pending: PendingClaim = { claimId: started.claimId, message: started.message, startedAt: Date.now() };
+    const pending: PendingClaim = { claimId: started.claimId, message: started.message, startedAt: Date.now(), expiresAt: started.expiresAt };
     // Without the saved copy only a cold-start return is lost; the claim itself can still go ahead.
     await SecureStore.setItemAsync(PENDING_CLAIM_KEY, JSON.stringify(pending)).catch(() => undefined);
+    const result = await WebBrowser.openAuthSessionAsync(walletClaimUrl(started.message), CLAIM_RETURN_URL, { createTask: false });
+    // No answer is not the end of the claim: when Android recreates the app screen the session reports a
+    // dismiss, and the signed answer arrives as the link that opens the new screen (resumeClaim). Keep it.
+    if (result.type !== 'success') return { kind: 'cancelled' };
     try {
-      const result = await WebBrowser.openAuthSessionAsync(walletClaimUrl(started.message), CLAIM_RETURN_URL, { createTask: false });
-      if (result.type !== 'success') return { kind: 'cancelled' };
       return await finishClaim(pending, result.url);
     } finally {
       await forgetPendingClaim();
@@ -131,8 +135,10 @@ export const rewardClaimService = {
     try {
       const pending = await readPendingClaim();
       const hashAt = url.indexOf('#');
-      const linkClaim = hashAt === -1 ? null : new URLSearchParams(url.slice(hashAt + 1)).get('claim');
+      const link = new URLSearchParams(hashAt === -1 ? '' : url.slice(hashAt + 1));
+      const linkClaim = link.get('claim');
       if (!pending || (linkClaim !== null && linkClaim !== pending.claimId)) return { kind: 'interrupted' };
+      if (link.get('error') === 'expired') return { kind: 'expired' };
       try {
         return await finishClaim(pending, url);
       } catch (error) {

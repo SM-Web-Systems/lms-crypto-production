@@ -11,7 +11,7 @@ const get = api.get as jest.Mock;
 
 const message = 'SM Web Systems LMS reward claim\nclaim:c-1\ndestination:GADDR\namount_stroops:1000000\nexpires:2026-11-14T08:00:00.000Z\nnonce:' + 'a'.repeat(64);
 const signature = 'A'.repeat(86) + '==';
-const started = { claimId: 'c-1', destination: 'GADDR', amountStroops: 1000000, expiresAt: 'x', message };
+const started = { claimId: 'c-1', destination: 'GADDR', amountStroops: 1000000, expiresAt: '2999-01-01T00:00:00.000Z', message };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -82,7 +82,7 @@ describe('UX-008 a claim survives Android closing the app during the AmmaWallet 
   const getItem = SecureStore.getItemAsync as jest.Mock;
   const deleteItem = SecureStore.deleteItemAsync as jest.Mock;
   const signedReturn = `${CLAIM_RETURN_URL}#claim=c-1&signature=${encodeURIComponent(signature)}`;
-  const save = (claimId = 'c-1') => store.set(PENDING_CLAIM_KEY, JSON.stringify({ claimId, message, startedAt: 1 }));
+  const save = (claimId = 'c-1', expiresAt = started.expiresAt) => store.set(PENDING_CLAIM_KEY, JSON.stringify({ claimId, message, startedAt: 1, expiresAt }));
   beforeEach(() => {
     store.clear();
     setItem.mockImplementation(async (k: string, v: string) => { store.set(k, v); });
@@ -91,11 +91,32 @@ describe('UX-008 a claim survives Android closing the app during the AmmaWallet 
   });
   afterAll(() => { setItem.mockResolvedValue(undefined); getItem.mockResolvedValue(null); deleteItem.mockResolvedValue(undefined); });
 
-  it('saves the claim id and the exact challenge before opening AmmaWallet', async () => {
+  it('saves the claim id and the exact challenge before opening AmmaWallet, and forgets it once the claim ends', async () => {
     let savedWhenOpened: unknown;
-    browser.mockImplementation(async () => { savedWhenOpened = JSON.parse(store.get(PENDING_CLAIM_KEY)!); return { type: 'cancel' }; });
+    browser.mockImplementation(async () => { savedWhenOpened = JSON.parse(store.get(PENDING_CLAIM_KEY)!); return { type: 'success', url: signedReturn }; });
     await rewardClaimService.claim(1000000);
-    expect(savedWhenOpened).toEqual({ claimId: 'c-1', message, startedAt: expect.any(Number) });
+    expect(savedWhenOpened).toEqual({ claimId: 'c-1', message, startedAt: expect.any(Number), expiresAt: started.expiresAt });
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+  });
+
+  it('keeps the saved claim when the wallet hand-off ends without an answer', async () => {
+    // With "Don't keep activities", Android recreates the app screen: the browser session reports a dismiss
+    // and the signed answer arrives later as the link that starts the new screen.
+    browser.mockResolvedValue({ type: 'dismiss' });
+    expect(await rewardClaimService.claim(1000000)).toEqual({ kind: 'cancelled' });
+    expect(await rewardClaimService.resumeClaim(signedReturn)).toEqual({ kind: 'verified', payout: { status: 'paid', txHash: 'ab', ledger: 5 } });
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+  });
+
+  it('ignores a saved claim whose challenge has already expired', async () => {
+    save('c-1', '2000-01-01T00:00:00.000Z');
+    expect(await rewardClaimService.resumeClaim(signedReturn)).toEqual({ kind: 'interrupted' });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('reports the wallet saying the claim expired as expired', async () => {
+    save();
+    expect(await rewardClaimService.resumeClaim(`${CLAIM_RETURN_URL}#claim=c-1&error=expired`)).toEqual({ kind: 'expired' });
     expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
   });
 
