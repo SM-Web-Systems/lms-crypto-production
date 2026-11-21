@@ -223,7 +223,7 @@ describe('E2 — Notification Emission', () => {
     expect(notif).toBeDefined();
     expect(notif!.title).toBe('Certificate Approved');
     expect(notif!.body).toContain('Course E');
-    expect(notif!.link).toBe('/student/course');
+    expect(notif!.link).toBe('/student/badges');
   });
 
   it('E2-AC3: Reject NFT application → notification created for student', async () => {
@@ -245,6 +245,6 @@ describe('E2 — Notification Emission', () => {
     expect(notif).toBeDefined();
     expect(notif!.title).toBe('Certificate Rejected');
     expect(notif!.body).toContain('Course E');
-    expect(notif!.link).toBe('/student/course');
+    expect(notif!.link).toBe('/student/badges');
   });
 });

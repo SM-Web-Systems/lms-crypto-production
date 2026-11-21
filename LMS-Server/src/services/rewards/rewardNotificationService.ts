@@ -12,6 +12,17 @@
 import { createNotification } from '../notificationService.js';
 import { db } from '../../config/database.js';
 import logger from '../../utils/logger.js';
+import { getAuthorizationContext } from '../authorizationService.js';
+
+const LEARNER_REWARDS = '/student/rewards';
+const CREATOR_REWARDS = { sponsor: '/sponsor/rewards', employer: '/employer/rewards', parent: '/parent/rewards', teacher: '/teacher/rewards', admin: '/admin/rewards' } as const;
+
+/** The Rewards page of the workspace the reward creator manages rewards from; undefined when they have none. */
+function creatorRewardsLink(userId: string): string | undefined {
+  const { workspaces } = getAuthorizationContext(userId);
+  const workspace = (Object.keys(CREATOR_REWARDS) as Array<keyof typeof CREATOR_REWARDS>).find((w) => workspaces.includes(w));
+  return workspace && CREATOR_REWARDS[workspace];
+}
 
 /**
  * Notify student that their reward allocation has been released.
@@ -23,6 +34,7 @@ export function notifyRewardReleased(studentUserId: string, rewardDescription: s
       type: 'reward_released',
       title: 'Reward Released',
       body: `Your reward of ${amountXlm} XLM has been released: ${rewardDescription}`,
+      link: LEARNER_REWARDS,
     });
   } catch (err) {
     logger.error({ module: 'reward-notifications', err, userId: studentUserId }, 'Failed to send reward_released notification');
@@ -44,6 +56,7 @@ export function notifyRewardEligible(
       type: 'reward_eligible',
       title: 'Reward Eligible',
       body: `You are now eligible for a reward: ${rewardDescription}`,
+      link: LEARNER_REWARDS,
     });
 
     if (requiresApproval) {
@@ -52,6 +65,7 @@ export function notifyRewardEligible(
         type: 'reward_eligible',
         title: 'Reward Approval Needed',
         body: `A student is eligible for reward: ${rewardDescription}. Manual approval required.`,
+        link: creatorRewardsLink(creatorUserId),
       });
     }
   } catch (err) {
@@ -74,6 +88,7 @@ export function notifyRewardRefunded(
       type: 'reward_refunded',
       title: 'Reward Refunded',
       body: `A reward of ${amountXlm} XLM has been refunded: ${rewardDescription}`,
+      link: LEARNER_REWARDS,
     });
 
     createNotification({
@@ -81,6 +96,7 @@ export function notifyRewardRefunded(
       type: 'reward_refunded',
       title: 'Reward Refund Processed',
       body: `Refund of ${amountXlm} XLM processed for: ${rewardDescription}`,
+      link: creatorRewardsLink(creatorUserId),
     });
   } catch (err) {
     logger.error({ module: 'reward-notifications', err }, 'Failed to send reward_refunded notification');
@@ -97,6 +113,7 @@ export function notifyRewardExpired(creatorUserId: string, rewardDescription: st
       type: 'reward_expired',
       title: 'Reward Expired',
       body: `Your reward has expired: ${rewardDescription}. Reserved funds have been returned.`,
+      link: creatorRewardsLink(creatorUserId),
     });
   } catch (err) {
     logger.error({ module: 'reward-notifications', err }, 'Failed to send reward_expired notification');
@@ -117,6 +134,7 @@ export function notifyRewardCancelled(
       type: 'reward_cancelled',
       title: 'Reward Cancelled',
       body: `Your reward has been cancelled: ${rewardDescription}`,
+      link: creatorRewardsLink(creatorUserId),
     });
   } catch (err) {
     logger.error({ module: 'reward-notifications', err, userId: creatorUserId }, 'Failed to send reward_cancelled notification to creator');
@@ -129,6 +147,7 @@ export function notifyRewardCancelled(
         type: 'reward_cancelled',
         title: 'Reward Cancelled',
         body: `A reward you were eligible for has been cancelled: ${rewardDescription}`,
+        link: LEARNER_REWARDS,
       });
     } catch (err) {
       logger.error({ module: 'reward-notifications', err, userId: studentId }, 'Failed to send reward_cancelled notification to student');
@@ -156,7 +175,7 @@ export function notifyRefundBlocked(attemptId: string, amountXlm: string): void 
         type: 'refund_blocked',
         title: 'Refund Blocked — Review Needed',
         body: `A refund of ${amountXlm} XLM is blocked and requires review. Attempt ID: ${attemptId}`,
-        link: `/admin/rewards/refund-attempts`,
+        link: CREATOR_REWARDS.admin, // the admin Rewards page; there is no refund-attempts page
       });
     }
   } catch (err) {
