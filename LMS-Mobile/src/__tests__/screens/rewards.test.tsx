@@ -87,4 +87,49 @@ describe('student rewards screen', () => {
     await waitFor(() => expect(svc.retryPayout).toHaveBeenCalledWith('c-2'));
     expect(await screen.findByText('This payout is above the per-claim limit. Your claim is saved.')).toBeTruthy();
   });
+
+  it('shows a failed balance load as an error with retry, never as nothing to claim', async () => {
+    svc.claimable.mockRejectedValueOnce(new ApiRequestError({ message: 'Could not load your reward balance.', status: 500 }));
+    render(<RewardsScreen />);
+    expect(await screen.findByText('Could not load your reward balance.')).toBeTruthy();
+    expect(screen.queryByText(/Nothing to claim/)).toBeNull();
+    fireEvent.press(screen.getByText('Try again'));
+    expect(await screen.findByText('Claim to my wallet')).toBeTruthy();
+    expect(screen.queryByText('Could not load your reward balance.')).toBeNull();
+  });
+
+  it('shows a failed payments load as an error with retry instead of hiding the payments', async () => {
+    svc.claims.mockRejectedValueOnce(new ApiRequestError({ message: 'Could not load your claims.', status: 500 }));
+    render(<RewardsScreen />);
+    expect(await screen.findByText('Could not load your claims.')).toBeTruthy();
+    fireEvent.press(screen.getByText('Try again'));
+    await waitFor(() => expect(svc.claims).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Could not load your claims.')).toBeNull());
+  });
+
+  it.each([['refused'], ['pending']] as const)('shows the server message when a retried payment comes back %s', async (status) => {
+    svc.claimable.mockResolvedValue(0);
+    svc.claims.mockResolvedValue([
+      { claimId: 'c-2', destination: 'GABCDEFGHIJKLMNOPQRSTUVWXYZ', amountStroops: 2000000, status: 'verified', verifiedAt: '2026-11-20T18:05:00Z', payout: 'not_sent', txHash: null, ledger: null },
+    ]);
+    svc.retryPayout.mockResolvedValue({ claimId: 'c-2', status, code: 'PAYOUT_CAP_EXCEEDED', message: 'The daily payout limit has been reached.' });
+    render(<RewardsScreen />);
+    fireEvent.press(await screen.findByText('Try payment again'));
+    expect(await screen.findByText('The payment was not sent. The daily payout limit has been reached.')).toBeTruthy();
+  });
+
+  it('labels statuses and reward types in plain words and explains Earned', async () => {
+    svc.claimable.mockResolvedValue(0);
+    svc.received.mockResolvedValue([
+      { ...reward, allocationId: 'a-1', rewardType: 'course_completion' },
+      { ...reward, allocationId: 'a-2', status: 'partially_refunded' },
+    ]);
+    render(<RewardsScreen />);
+    expect(await screen.findByText('Course completion reward')).toBeTruthy();
+    expect(screen.getByText(/^Partially refunded ·/)).toBeTruthy();
+    expect(screen.queryByText(/partially_refunded|partially refunded ·/)).toBeNull();
+    expect(screen.getByText(/"Earned" means not paid yet/)).toBeTruthy();
+    expect(screen.getByText(/Nothing to claim right now/)).toBeTruthy();
+  });
 });
+
