@@ -35,6 +35,7 @@ const CertificateVerification: React.FC = () => {
     let cancelled = false;
     setLoading(true);
     setCredential(null);
+    setQrDataUrl(null);
     fetch(`${apiBase}/credentials/verify/${encodeURIComponent(credentialId)}`)
       .then(async (res) => {
         if (res.status === 404) return 'missing' as const;

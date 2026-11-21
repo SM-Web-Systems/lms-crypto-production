@@ -16,11 +16,11 @@ import CertificateVerification from './pages/CertificateVerification';
 import CertificatePdfView from './pages/CertificatePdfView';
 import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
-import { rememberSsoReturn, takeSsoReturn } from './utils/ssoReturn';
+import { rememberSsoReturn, resumeSsoReturn, ssoReturnFor } from './utils/ssoReturn';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { availableWorkspaces, canAccessPath, homeForUser } from './utils/authorization';
-import type { Workspace } from './types/api';
+import type { User, Workspace } from './types/api';
 
 // Lazy-loaded pages — split into separate chunks per route
 const Messages = React.lazy(() => import('./pages/Messages'));
@@ -119,14 +119,14 @@ const HomeRoute: React.FC = () => {
 };
 
 /** Sends a just-signed-in user to the page they were sent to sign in from, else to their workspace home. */
-const ReturnAfterSignIn: React.FC<{ home: string }> = ({ home }) => {
+const ReturnAfterSignIn: React.FC<{ user: User }> = ({ user }) => {
   const navigate = useNavigate();
   const done = useRef(false);
   useEffect(() => {
     if (done.current) return; // the return path is read once; StrictMode re-runs effects
     done.current = true;
-    navigate(takeSsoReturn() ?? home, { replace: true });
-  }, [navigate, home]);
+    navigate(ssoReturnFor(user, homeForUser(user)), { replace: true });
+  }, [navigate, user]);
   return null;
 };
 
@@ -138,13 +138,19 @@ export const LoginRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <ReturnAfterSignIn home={homeForUser(user)} />;
+    return <ReturnAfterSignIn user={user} />;
   }
 
-  return <Login />;
+  return <SignedOut><Login /></SignedOut>;
 };
 
-const SignUpRoute: React.FC = () => {
+/** Reaching a sign-in page ends the pause an explicit sign-out set, so later deep links are kept again. */
+const SignedOut: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useEffect(() => { resumeSsoReturn(); }, []);
+  return <>{children}</>;
+};
+
+export const SignUpRoute: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -152,10 +158,10 @@ const SignUpRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={homeForUser(user)} replace />;
+    return <ReturnAfterSignIn user={user} />;
   }
 
-  return <SignUp />;
+  return <SignedOut><SignUp /></SignedOut>;
 };
 
 function App() {

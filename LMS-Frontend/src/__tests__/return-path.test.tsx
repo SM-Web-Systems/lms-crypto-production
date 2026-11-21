@@ -7,9 +7,10 @@ import type { User } from '../types/api';
 const mocks = vi.hoisted(() => ({ user: null as User | null }));
 vi.mock('../context/useAuth', () => ({ useAuth: () => ({ user: mocks.user, isAuthenticated: !!mocks.user, isLoading: false, logout: vi.fn() }) }));
 vi.mock('../pages/Login', () => ({ default: () => <p>Sign in page</p> }));
+vi.mock('../pages/SignUp', () => ({ default: () => <p>Sign up page</p> }));
 
-import { LoginRoute, ProtectedRoute } from '../App';
-import { takeSsoReturn } from '../utils/ssoReturn';
+import { LoginRoute, ProtectedRoute, SignUpRoute } from '../App';
+import { forgetSsoReturn, rememberSsoReturn, takeSsoReturn } from '../utils/ssoReturn';
 
 function learner(): User {
   return { id: 'u', name: 'L', email: 'l@example.invalid', role: 'student', walletAddress: null, walletLinkingStatus: 'none',
@@ -39,7 +40,7 @@ describe('UX-013 return path through sign-in', () => {
     app('/student/course?course=c-1').unmount();
     mocks.user = learner();
     const view = app('/login');
-    expect(screen.getAllByTestId('where').at(-1)).toHaveTextContent('/student/course?course=c-1');
+    expect(screen.getAllByTestId('where').slice(-1)[0]).toHaveTextContent('/student/course?course=c-1');
     view.unmount();
     expect(takeSsoReturn()).toBeNull();
   });
@@ -48,5 +49,31 @@ describe('UX-013 return path through sign-in', () => {
     mocks.user = learner();
     app('/login');
     expect(screen.getByTestId('where')).toHaveTextContent(/^\/student$/);
+  });
+
+  it('does not remember the page being left on an explicit sign-out, then remembers deep links again', () => {
+    forgetSsoReturn();
+    app('/student/rewards').unmount();
+    expect(takeSsoReturn()).toBeNull();
+    app('/student/course?course=c-2').unmount();
+    expect(takeSsoReturn()).toBe('/student/course?course=c-2');
+  });
+
+  it('goes home instead of to a remembered page this user cannot open', () => {
+    rememberSsoReturn('/admin/users');
+    mocks.user = learner();
+    app('/login');
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/student$/);
+    expect(takeSsoReturn()).toBeNull();
+  });
+
+  it('a new account also returns to the remembered page', () => {
+    rememberSsoReturn('/student/rewards');
+    mocks.user = learner();
+    render(<MemoryRouter initialEntries={['/sign-up']}><Routes>
+      <Route path="/sign-up" element={<SignUpRoute />} />
+      <Route path="*" element={<Where />} />
+    </Routes></MemoryRouter>);
+    expect(screen.getByTestId('where')).toHaveTextContent('/student/rewards');
   });
 });
