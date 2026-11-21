@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
 import Button from '../components/Button';
 import { courseCompletionService } from '../services/courseCompletionService';
-import { getErrorMessage } from '../utils/apiError';
-import { CreditCard, Loader2, ExternalLink } from 'lucide-react';
+import { downloadWithSession } from '../services/download';
+import { ApiRequestError, getErrorMessage } from '../utils/apiError';
+import { CreditCard, Loader2, Download } from 'lucide-react';
 
 interface PaymentRecord {
   paymentId: string;
@@ -44,12 +45,18 @@ function statusBadgeClass(status: string): string {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const RECEIPT_ERRORS: Record<number, string> = {
+  400: 'Receipt not ready yet',
+  403: 'Not your receipt',
+  404: 'Receipt not found',
+};
 
 const StudentPayments: React.FC = () => {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
+  const [receiptErrors, setReceiptErrors] = useState<Record<string, string>>({});
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -63,6 +70,23 @@ const StudentPayments: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const downloadReceipt = async (paymentId: string) => {
+    setDownloading((prev) => ({ ...prev, [paymentId]: true }));
+    setReceiptErrors((prev) => ({ ...prev, [paymentId]: '' }));
+    try {
+      await downloadWithSession(`/payments/${encodeURIComponent(paymentId)}/receipt`, `receipt-${paymentId}.pdf`);
+    } catch (err) {
+      const status = err instanceof ApiRequestError ? err.status : undefined;
+      // A 401 is handled by the global session handler, which asks the user to sign in.
+      if (status !== 401) {
+        const message = (status && RECEIPT_ERRORS[status]) || 'Could not download the receipt. Try again.';
+        setReceiptErrors((prev) => ({ ...prev, [paymentId]: message }));
+      }
+    } finally {
+      setDownloading(({ [paymentId]: _done, ...rest }) => rest);
+    }
+  };
 
   useEffect(() => {
     fetchPayments();
@@ -139,16 +163,41 @@ const StudentPayments: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {(p.status === 'confirmed' || p.status === 'waived') && (
-                          <a
-                            href={`${API_BASE}/payments/${p.paymentId}/receipt`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-primary-600 hover:text-primary-800"
-                            aria-label={`Download receipt for ${p.courseName ?? 'payment'}`}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" aria-hidden="true" />
-                            Receipt
-                          </a>
+                          <>
+                            <button
+                              type="button"
+                              id={`receipt-${p.paymentId}`}
+                              onClick={() => downloadReceipt(p.paymentId)}
+                              disabled={downloading[p.paymentId]}
+                              aria-busy={downloading[p.paymentId] || undefined}
+                              className="inline-flex items-center text-primary-600 hover:text-primary-800 disabled:opacity-60"
+                              aria-label={`${downloading[p.paymentId] ? 'Downloading' : 'Download'} receipt for ${p.courseName ?? 'payment'}`}
+                            >
+                              {downloading[p.paymentId] ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" aria-hidden="true" />
+                              ) : (
+                                <Download className="h-4 w-4 mr-1" aria-hidden="true" />
+                              )}
+                              {downloading[p.paymentId] ? 'Downloading…' : 'Receipt'}
+                            </button>
+                            {receiptErrors[p.paymentId] && (
+                              <div role="alert" className="mt-1 flex items-center gap-2 text-xs text-red-600">
+                                {receiptErrors[p.paymentId]}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // The alert (and this button) unmounts on retry; keep focus on the row.
+                                    document.getElementById(`receipt-${p.paymentId}`)?.focus();
+                                    downloadReceipt(p.paymentId);
+                                  }}
+                                  className="underline hover:text-red-800"
+                                  aria-label={`Retry download of receipt for ${p.courseName ?? 'payment'}`}
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>
