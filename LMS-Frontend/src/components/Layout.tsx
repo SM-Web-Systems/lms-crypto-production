@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { messageService } from '../services/messageService';
 import {
@@ -22,9 +22,10 @@ import {
   Briefcase,
   Heart,
   GraduationCap,
-  PenTool,
   Gift,
   Shield,
+  Bell,
+  ChevronDown,
 } from 'lucide-react';
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
@@ -45,9 +46,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [walletBannerDismissed, setWalletBannerDismissed] = useState(false);
 
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     setMobileNavOpen(false);
+    setUserMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setUserMenuOpen(false); userMenuButtonRef.current?.focus(); } };
+    // Closes on a click or a Tab that lands outside the menu.
+    const onOutside = (e: Event) => { if (!userMenuRef.current?.contains(e.target as Node)) setUserMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('focusin', onOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('focusin', onOutside);
+    };
+  }, [userMenuOpen]);
 
   const refreshUnread = useCallback(async () => {
     if (!user) return;
@@ -74,6 +95,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (dashboardPaths.includes(path)) return false;
     return location.pathname.startsWith(path + '/');
   };
+
+  // These workspaces have no own Messages/Profile pages; the shared ones work for every signed-in user.
+  const sharedPartnerNav = [
+    { name: 'Messages', path: '/messages', icon: Mail },
+    { name: 'Profile', path: '/profile', icon: User },
+  ];
 
   const navigationMap: Record<string, Array<{ name: string; path: string; icon: typeof LayoutDashboard }>> = {
     admin: [
@@ -103,8 +130,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ],
     'teaching-assistant': [
       { name: 'Dashboard', path: '/ta', icon: LayoutDashboard },
-      { name: 'Courses', path: '/ta/courses', icon: BookOpen },
-      { name: 'Grade', path: '/ta/grade', icon: PenTool },
+      ...sharedPartnerNav,
     ],
     sponsor: [
       { name: 'Dashboard', path: '/sponsor', icon: LayoutDashboard },
@@ -112,25 +138,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Rewards', path: '/sponsor/rewards', icon: Gift },
       { name: 'Impact Report', path: '/sponsor/impact', icon: BarChart2 },
       { name: 'Billing', path: '/sponsor/billing', icon: CreditCard },
+      ...sharedPartnerNav,
     ],
     employer: [
       { name: 'Dashboard', path: '/employer', icon: LayoutDashboard },
       { name: 'Rewards', path: '/employer/rewards', icon: Gift },
       { name: 'Teams', path: '/employer/teams', icon: Briefcase },
-      // Billing deferred — FOLLOW-UP(employer-billing-ui)
+      ...sharedPartnerNav,
     ],
     parent: [
       { name: 'Dashboard', path: '/parent', icon: LayoutDashboard },
       { name: 'Rewards', path: '/parent/rewards', icon: Gift },
       { name: 'Children', path: '/parent/children', icon: Heart },
       { name: 'Groups', path: '/parent/groups', icon: Users },
-      // Wallets, Billing deferred — FOLLOW-UP(parent-wallet-billing-ui)
+      ...sharedPartnerNav,
     ],
     teacher: [
       { name: 'Dashboard', path: '/teacher', icon: LayoutDashboard },
       { name: 'Rewards', path: '/teacher/rewards', icon: Gift },
       { name: 'Classes', path: '/teacher/classes', icon: GraduationCap },
-      // Analytics, Billing deferred — FOLLOW-UP(teacher-analytics-billing-ui)
+      ...sharedPartnerNav,
     ],
     student: [
       { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
@@ -241,21 +268,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
             <NotificationBell />
-            <div className="text-right hidden sm:block min-w-0">
-              <p className="text-sm font-medium text-neutral-800 truncate max-w-[140px] sm:max-w-[200px]">
-                {user?.name}
-              </p>
-              <p className="text-xs text-neutral-500 capitalize">{workspace?.replace(/-/g, ' ')}</p>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                ref={userMenuButtonRef}
+                type="button"
+                aria-label="Account menu"
+                aria-expanded={userMenuOpen}
+                aria-controls={userMenuOpen ? 'user-menu' : undefined}
+                onClick={() => setUserMenuOpen(open => !open)}
+                className="touch-target inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-teal"
+              >
+                <UserCircle className="h-6 w-6 text-neutral-500 shrink-0" aria-hidden />
+                <span className="hidden sm:block min-w-0">
+                  <span className="block text-sm font-medium text-neutral-800 truncate max-w-[140px] sm:max-w-[200px]">{user?.name}</span>
+                  <span className="block text-xs text-neutral-500 capitalize">{workspace?.replace(/-/g, ' ')}</span>
+                </span>
+                <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" aria-hidden />
+              </button>
+              {userMenuOpen && (
+                <div id="user-menu" className="absolute right-0 mt-2 w-56 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+                  <p className="px-4 py-2 text-sm font-medium text-neutral-800 truncate sm:hidden">{user?.name}</p>
+                  <Link to="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
+                    <User className="h-4 w-4" aria-hidden />Profile
+                  </Link>
+                  <Link to="/settings/notifications" className="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
+                    <Bell className="h-4 w-4" aria-hidden />Notification settings
+                  </Link>
+                  <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
+                    <LogOut className="h-4 w-4" aria-hidden />Sign out
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              aria-label="Logout"
-              className="touch-target inline-flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md text-white bg-accent-teal hover:bg-accent-teal-hover transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-teal shrink-0"
-            >
-              <LogOut className="h-4 w-4 sm:mr-2" aria-hidden />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
           </div>
         </header>
 
