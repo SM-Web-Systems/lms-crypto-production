@@ -414,7 +414,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     let blocked = false;
     const run = async () => {
       // Re-check at confirm time: capability may have been revoked while the dialog was open.
-      if (!allowed()) return;
+      // Throw so the dialog says nothing was sent, instead of closing as if it worked.
+      if (!allowed()) throw new Error('You no longer have permission to do this. Nothing was sent.');
       switch (action) {
         case 'activate':
           await rewardService.activateReward(role, rewardId, idem);

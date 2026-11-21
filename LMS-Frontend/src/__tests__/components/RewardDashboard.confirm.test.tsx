@@ -125,14 +125,15 @@ describe('RewardDashboard asks before money moves (UX-001)', () => {
     await waitFor(() => expect(svc.approveReward).toHaveBeenCalledTimes(1));
   });
 
-  it('a capability revoked while the dialog is open sends nothing on confirm', async () => {
+  it('a capability revoked while the dialog is open sends nothing and says so', async () => {
     const { rerender } = renderWith('funded');
     await userEvent.click(await screen.findByRole('button', { name: 'Activate' }));
     const confirm = within(screen.getByRole('alertdialog')).getByRole('button', { name: /^Activate/ });
     vi.mocked(useAuth).mockReturnValue({ user: { id: 'u1', permissions: ['reward.view_assigned'] }, isAuthenticated: true, isLoading: false, logout: vi.fn() } as never);
     rerender(<MemoryRouter><RewardDashboard role="sponsor" scopeId="s1" scopeLabel="Alpha Cohort" canRefund /></MemoryRouter>);
     await userEvent.click(confirm);
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    // Nothing is sent, and the dialog says so instead of closing as if it worked.
+    expect(await within(screen.getByRole('alertdialog')).findByRole('alert')).toHaveTextContent('no longer have permission');
     expect(svc.activateReward).not.toHaveBeenCalled();
   });
 

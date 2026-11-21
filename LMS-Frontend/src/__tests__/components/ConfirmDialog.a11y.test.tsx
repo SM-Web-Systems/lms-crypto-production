@@ -52,6 +52,14 @@ describe('ConfirmDialog a11y (UX-001 AC8)', () => {
     expect(confirm).toHaveFocus();
   });
 
+  it('Shift+Tab straight after opening stays inside the dialog', async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'Open it' }));
+    await waitFor(() => expect(screen.getByRole('alertdialog').contains(document.activeElement)).toBe(true));
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Release 0.2000000 XLM' })).toHaveFocus();
+  });
+
   it('closes on Escape pressed anywhere and returns focus to the opener', async () => {
     render(<Harness />);
     const opener = screen.getByRole('button', { name: 'Open it' });

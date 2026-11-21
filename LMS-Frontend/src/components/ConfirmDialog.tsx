@@ -55,7 +55,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       const first = items[0];
       const last = items[items.length - 1];
       const active = document.activeElement;
-      const inside = panelRef.current.contains(active);
+      // The panel itself holds focus when the dialog opens; Shift+Tab from there must wrap too.
+      const inside = panelRef.current.contains(active) && active !== panelRef.current;
       if (e.shiftKey && (active === first || !inside)) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && (active === last || !inside)) { e.preventDefault(); first.focus(); }
     };

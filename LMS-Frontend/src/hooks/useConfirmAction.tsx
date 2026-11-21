@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -33,7 +33,11 @@ export function useConfirmAction() {
   const pendingRef = useRef<Pending | null>(null);
   pendingRef.current = pending;
 
+  // A page that unmounts with the dialog open settles the waiting caller.
+  useEffect(() => () => pendingRef.current?.resolve(false), []);
+
   const ask = useCallback((opts: ConfirmActionOptions) => new Promise<boolean>(resolve => {
+    pendingRef.current?.resolve(false);
     setError(null);
     setPending({ ...opts, resolve });
   }), []);
