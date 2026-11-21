@@ -1,6 +1,7 @@
 /** UX-002 AC1/AC2/AC3/AC6: lecturers and admins approve or send back TA grades. */
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 let permissions: string[] = [];
 vi.mock('../../context/useAuth', () => ({ useAuth: () => ({ user: { name: 'Lena Lecturer', permissions } }) }));
@@ -41,7 +42,7 @@ const pending = {
   fileName: 'essay.pdf', fileSize: 10, fileUrl: '', status: 'pending', submittedAt: '2026-11-01T10:00:00Z',
   gradeStatus: 'pending_approval', gradedByName: 'Tom Assistant', proposedStatus: 'approved', taFeedback: 'Clear argument',
 };
-const page = (submissions: unknown[]) => ({ submissions, pagination: { page: 1, limit: 100, total: submissions.length, totalPages: 1 } });
+const page = (submissions: unknown[], total = submissions.length) => ({ submissions, pagination: { page: 1, limit: 20, total, totalPages: Math.ceil(total / 20) } });
 
 describe('TA grades to approve', () => {
   beforeEach(() => {
@@ -53,24 +54,24 @@ describe('TA grades to approve', () => {
   });
 
   async function openTab() {
-    render(<AdminSubmissions />);
+    render(<MemoryRouter><AdminSubmissions /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: /TA grades to approve \(1\)/ }));
     return screen.findByTestId('ta-grade-s1');
   }
 
   it('lists pending TA grades', async () => {
     const row = within(await openTab());
-    expect(getAll).toHaveBeenCalledWith({ gradeStatus: 'pending_approval', limit: 100 });
+    expect(getAll).toHaveBeenCalledWith({ gradeStatus: 'pending_approval', page: 1, limit: 20 });
     for (const text of ['Sam Learner', 'Essay 1', 'Tom Assistant', 'Clear argument']) expect(row.getByText(text, { exact: false })).toBeInTheDocument();
     expect(row.getByText(/Approve/, { selector: 'p, span' })).toBeInTheDocument();
   });
 
   it('hidden without course.grade', async () => {
     permissions = [];
-    render(<AdminSubmissions />);
+    render(<MemoryRouter><AdminSubmissions /></MemoryRouter>);
     await screen.findByText('All submissions');
     expect(screen.queryByRole('button', { name: /TA grades to approve/ })).not.toBeInTheDocument();
-    expect(getAll).not.toHaveBeenCalled();
+    expect(getAll).not.toHaveBeenCalledWith(expect.objectContaining({ gradeStatus: 'pending_approval' }));
   });
 
   it('approve calls endpoint once', async () => {
@@ -94,8 +95,20 @@ describe('TA grades to approve', () => {
     await waitFor(() => expect(sendBackGrade).toHaveBeenCalledWith('s1', 'Too lenient'));
   });
 
+  it('the queue pages past its first 20 rows (UX-003)', async () => {
+    getAll.mockImplementation(async (p: { page?: number; limit?: number }) => ({
+      submissions: [pending], pagination: { page: p.page ?? 1, limit: p.limit ?? 20, total: 45, totalPages: Math.ceil(45 / (p.limit ?? 20)) },
+    }));
+    render(<MemoryRouter><AdminSubmissions /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /TA grades to approve \(45\)/ }));
+    expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(await screen.findByText('Page 2 of 3')).toBeInTheDocument();
+    expect(getAll).toHaveBeenLastCalledWith({ gradeStatus: 'pending_approval', page: 2, limit: 20 });
+  });
+
   it('lecturers get the same tab', async () => {
-    render(<LecturerSubmissions />);
+    render(<MemoryRouter><LecturerSubmissions /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: /TA grades to approve \(1\)/ }));
     expect(await screen.findByTestId('ta-grade-s1')).toBeInTheDocument();
   });
