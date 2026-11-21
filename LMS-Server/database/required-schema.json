@@ -1007,6 +1007,29 @@
       "previous_address",
       "imported_by",
       "imported_at"
+    ],
+    "course_content_sources": [
+      "course_id",
+      "owner",
+      "repo",
+      "ref",
+      "created_at"
+    ],
+    "course_content_cache": [
+      "source_url",
+      "html",
+      "fetched_at"
+    ],
+    "media_play_events": [
+      "id",
+      "user_id",
+      "course_id",
+      "item_id",
+      "source",
+      "event",
+      "percent",
+      "platform",
+      "created_at"
     ]
   },
   "indexes": [
@@ -1132,7 +1155,8 @@
     "idx_email_invitations_email",
     "idx_email_invitations_inviter",
     "idx_role_requests_user",
-    "idx_role_requests_status"
+    "idx_role_requests_status",
+    "idx_media_play_events_course"
   ],
   "keys": {
     "active_sessions": {
@@ -3555,6 +3579,66 @@
           "id",
           "NO ACTION",
           "SET NULL"
+        ],
+        [
+          "user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_content_sources": {
+      "primary": [
+        "course_id",
+        "owner",
+        "repo"
+      ],
+      "unique": [
+        [
+          "course_id",
+          "owner",
+          "repo"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "course_content_cache": {
+      "primary": [
+        "source_url"
+      ],
+      "unique": [
+        [
+          "source_url"
+        ]
+      ],
+      "foreign": []
+    },
+    "media_play_events": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "course_id",
+          "courses",
+          "id",
+          "NO ACTION",
+          "CASCADE"
         ],
         [
           "user_id",

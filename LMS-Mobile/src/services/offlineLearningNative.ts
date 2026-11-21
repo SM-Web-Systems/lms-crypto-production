@@ -145,6 +145,8 @@ export const offlineLearning = new OfflineLearning({
     if (error.status === 409) return 'The offline lease or course changed. Pending updates were discarded. Save the course again.';
     return null;
   },
+  retryAfter: error => error instanceof ApiRequestError && error.status === 429 && error.retryAfterSeconds !== undefined
+    ? error.retryAfterSeconds * 1000 : null,
 });
 
 export function setOfflineSession(token: string | null, verified = false) {

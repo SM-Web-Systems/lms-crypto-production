@@ -25,6 +25,18 @@ import { produceOutboxEvent, processPendingEvents } from '../services/rewards/re
 import { isCourseCompleteForReward } from '../services/courseCompletionService.js';
 import { OfflineLearningError, inspectOfflineLease, issueOfflineLease, syncOfflineProgress } from '../services/offlineLearningService.js';
 import logger from '../utils/logger.js';
+import rateLimit from 'express-rate-limit';
+
+// Reconnecting phones send queued progress one action at a time; cap each learner so a burst of
+// reconnects (or a tampered client) cannot flood the server. Clients back off on 429 using Retry-After.
+const offlineSyncLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: process.env.NODE_ENV === 'production' ? 60 : 5000,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => (req as AuthRequest).user?.userId ?? 'anonymous',
+  message: { success: false, error: { code: 'RATE_LIMITED', message: 'Too many offline updates. The app will retry shortly.' } },
+});
 
 /**
  * Phase E4: Super-Student auto-unlock.
@@ -139,7 +151,7 @@ router.get('/courses/:courseId/offline-lease/:leaseId', authenticate, (req: Auth
   ));
 });
 
-router.put('/courses/:courseId/offline-progress', authenticate, (req: AuthRequest, res: Response) => {
+router.put('/courses/:courseId/offline-progress', authenticate, offlineSyncLimiter, (req: AuthRequest, res: Response) => {
   const actor = req.user!;
   const courseId = req.params.courseId;
   offlineResponse(res, () => {

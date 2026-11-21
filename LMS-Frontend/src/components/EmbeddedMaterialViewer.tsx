@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
 import InlineQuizTaker from './InlineQuizTaker';
@@ -17,7 +17,41 @@ import {
   getOfficeOnlineEmbedUrl,
   isGoogleDriveUrl,
   youtubeEmbedUrl,
+  extractYoutubeId,
 } from '../utils/mediaUrl';
+import { createPlayTracker, lessonPlayService, watchYouTubeFrame, withYouTubeProgress, type PlayTracker } from '../services/lessonPlayService';
+
+/** A YouTube player that reports start, 25/50/75 percent and completion for view analytics. */
+function TrackedYouTubeFrame({ title, src, tracker }: { title: string; src: string; tracker: PlayTracker }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  useEffect(() => (ref.current ? watchYouTubeFrame(ref.current, tracker) : undefined), [tracker]);
+  return (
+    <iframe
+      ref={ref}
+      title={title}
+      src={withYouTubeProgress(src)}
+      className="lms-embed-iframe--video"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+    />
+  );
+}
+
+/** Opens the video on YouTube (app on phones), where learners can also save it to watch offline. */
+function WatchOnYouTubeLink({ videoId, courseId, itemId }: { videoId: string; courseId?: string; itemId: string }) {
+  return (
+    <a
+      href={`https://www.youtube.com/watch?v=${videoId}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => { if (courseId) void lessonPlayService.recordPlay(courseId, itemId, 'youtube_app', 'open_external'); }}
+      className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors"
+    >
+      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+      Watch or save on YouTube
+    </a>
+  );
+}
 
 /** Sanitize HTML content — matches the MarkdownViewer sanitization config. */
 function sanitizeContentHtml(html: string): string {
@@ -148,6 +182,12 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
   weekId,
 }) => {
   const lastProgressReport = useRef(0);
+  const youtubeTracker = useMemo(() => createPlayTracker(courseId, item.id, 'youtube_embed'), [courseId, item.id]);
+  const fileTracker = useMemo(() => createPlayTracker(courseId, item.id, 'direct_file'), [courseId, item.id]);
+  const trackFile = (e: React.SyntheticEvent<HTMLMediaElement>) => {
+    const media = e.currentTarget;
+    if (media.duration && isFinite(media.duration)) fileTracker.progress((media.currentTime / media.duration) * 100);
+  };
 
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
     const audio = e.currentTarget;
@@ -286,6 +326,8 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                       playsInline
                       className="w-full max-h-[min(72vh,85dvh)] object-contain bg-black"
                       src={url}
+                      onTimeUpdate={trackFile}
+                      onEnded={() => fileTracker.complete()}
                     >
                       Your browser does not support embedded video.
                     </video>
@@ -295,24 +337,31 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                     className="lms-video-stage w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20"
                     style={{ paddingBottom: '56.25%' }}
                   >
-                    <iframe
-                      title={item.title}
-                      src={iframeSrc}
-                      className="lms-embed-iframe--video"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
+                    {extractYoutubeId(url) ? (
+                      <TrackedYouTubeFrame title={item.title} src={iframeSrc} tracker={youtubeTracker} />
+                    ) : (
+                      <iframe
+                        title={item.title}
+                        src={iframeSrc}
+                        className="lms-embed-iframe--video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    )}
                   </div>
                 )}
-                {videoDlUrl && (
-                  <div className="flex justify-center pt-4">
+                {(extractYoutubeId(url) && !direct) || videoDlUrl ? (
+                  <div className="flex flex-wrap justify-center gap-3 pt-4">
+                    {!direct && extractYoutubeId(url) ? <WatchOnYouTubeLink videoId={extractYoutubeId(url)!} courseId={courseId} itemId={item.id} /> : null}
+                    {videoDlUrl ? (
                     <a href={videoDlUrl} download target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
                       <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
                       Download video (MP4)
                     </a>
+                    ) : null}
                   </div>
-                )}
+                ) : null}
               </>
             );
           })()
@@ -327,8 +376,8 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               preload="metadata"
               className="w-full max-w-lg"
               src={ext}
-              onEnded={() => onItemComplete?.(item.id)}
-              onTimeUpdate={handleTimeUpdate}
+              onEnded={() => { fileTracker.complete(); onItemComplete?.(item.id); }}
+              onTimeUpdate={(e) => { trackFile(e); handleTimeUpdate(e); }}
               onLoadedMetadata={(e) => {
                 if (itemProgress?.positionSeconds) e.currentTarget.currentTime = itemProgress.positionSeconds;
               }}
@@ -394,7 +443,8 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                   preload="metadata"
                   className="w-full max-w-lg"
                   src={directAudio}
-                  onEnded={() => onItemComplete?.(item.id)}
+                  onTimeUpdate={trackFile}
+                  onEnded={() => { fileTracker.complete(); onItemComplete?.(item.id); }}
                 >
                   Your browser does not support the audio element.
                 </audio>
@@ -405,23 +455,18 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                   className="lms-video-stage w-full rounded-lg overflow-hidden ring-1 ring-neutral-900/20"
                   style={{ paddingBottom: '56.25%' }}
                 >
-                  <iframe
-                    title={item.title}
-                    src={ytEmbed}
-                    className="lms-embed-iframe--video"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
+                  <TrackedYouTubeFrame title={item.title} src={ytEmbed} tracker={youtubeTracker} />
                 </div>
+                <div className="flex flex-wrap justify-center gap-3 pt-4">
+                  {extractYoutubeId(ytEmbed) ? <WatchOnYouTubeLink videoId={extractYoutubeId(ytEmbed)!} courseId={courseId} itemId={item.id} /> : null}
                 {item.downloadUrl && (
-                  <div className="flex justify-center pt-4">
                     <a href={item.downloadUrl} download target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
                       <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
                       Download audio (MP3)
                     </a>
-                  </div>
                 )}
+                </div>
               </>
             ) : (
               <div className="flex flex-col items-center gap-5 py-8 px-4">

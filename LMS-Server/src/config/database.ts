@@ -16,6 +16,7 @@ import { ammaWalletLinkSchema } from './ammaWalletLinkSchema.js';
 import { pushSchema } from './pushSchema.js';
 import { webPushSchema } from './webPushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
+import { courseContentSchema } from './courseContentSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { ensureTaGradeReviewColumns } from './taGradeReviewMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
@@ -1733,6 +1734,7 @@ startupMigrations.push(() => db.exec(parentInvitationSchema));
 startupMigrations.push(() => db.exec(emailInvitationSchema));
 startupMigrations.push(() => db.exec(roleRequestSchema));
 startupMigrations.push(() => db.exec(ammaWalletLinkSchema));
+startupMigrations.push(() => db.exec(courseContentSchema));
 // The in-memory test database gets its course tables and triggers from the canonical fixture on reset.
 if (DB_PATH !== ':memory:') startupMigrations.push(() => db.exec(offlineLearningSchema));
 

@@ -55,6 +55,18 @@ interface OfflineDependencies {
   inspect(token: string, courseId: string, leaseId: string): Promise<LeaseStatus>;
   submit(token: string, courseId: string, operation: OfflineOperation): Promise<LessonProgress>;
   rejection(error: unknown): string | null;
+  /** Server-requested wait (Retry-After on a 429), in ms, or null. */
+  retryAfter?(error: unknown): number | null;
+  random?(): number;
+  setTimer?(run: () => void, ms: number): unknown;
+  clearTimer?(timer: unknown): void;
+}
+
+const retryBaseMs = 1_000;
+const retryCapMs = 5 * 60_000;
+/** Exponential backoff with full jitter: a random wait up to min(cap, base * 2^attempt). */
+export function backoffDelay(attempt: number, random: () => number = Math.random) {
+  return Math.floor(random() * Math.min(retryCapMs, retryBaseMs * 2 ** Math.max(0, attempt)));
 }
 
 interface Session { token: string; verified: boolean }
@@ -69,6 +81,8 @@ export class OfflineLearning {
   private syncing?: {session: Session; request: Promise<void>};
   private version = 0;
   private listeners = new Set<() => void>();
+  private failures = 0;
+  private retryTimer: unknown;
 
   constructor(private readonly deps: OfflineDependencies) {}
 
@@ -93,7 +107,7 @@ export class OfflineLearning {
   setSession(token: string | null, verified = false): Promise<boolean> {
     if (token && this.session?.token === token) {
       this.session.verified = verified;
-      if (verified) void this.sync().catch(() => undefined);
+      if (verified) this.syncInBackground();
       return Promise.resolve(true);
     }
     if (token === null && this.session === null && !this.cleanupRequired) return Promise.resolve(true);
@@ -101,7 +115,8 @@ export class OfflineLearning {
     this.session = token ? {token, verified} : null;
     this.publish();
     const cleanup = this.serialize(() => this.clearPrevious()).then(() => true, () => false);
-    if (verified) void cleanup.then(ok => { if (ok) void this.sync().catch(() => undefined); });
+    if (!token) { this.cancelRetry(); this.failures = 0; }
+    if (verified) void cleanup.then(ok => { if (ok) this.syncInBackground(); });
     return cleanup;
   }
 
@@ -210,9 +225,9 @@ export class OfflineLearning {
     this.publish();
     if (session.verified) {
       const running = this.syncing?.request;
-      void (running ? running.then(() => {
-        if (session === this.session && session.verified) return this.sync();
-      }) : this.sync()).catch(() => undefined);
+      void (running ?? Promise.resolve()).catch(() => undefined).then(() => {
+        if (session === this.session && session.verified) this.syncInBackground();
+      });
     }
   }
 
@@ -231,6 +246,30 @@ export class OfflineLearning {
       this.current(session);
     });
     this.publish();
+  }
+
+  /**
+   * Sync without blocking the caller. When it fails (offline, server busy), retry later with exponential
+   * backoff and full jitter, or after the server's Retry-After, so many phones reconnecting at once spread
+   * their requests out instead of hammering the server.
+   */
+  syncInBackground(): void {
+    const session = this.session;
+    if (!session?.verified) return;
+    this.cancelRetry();
+    void this.sync().then(() => { this.failures = 0; }, (error) => {
+      if (session !== this.session || !session.verified) return;
+      const delay = this.deps.retryAfter?.(error) ?? backoffDelay(this.failures, this.deps.random);
+      this.failures = Math.min(this.failures + 1, 20);
+      const set = this.deps.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
+      this.retryTimer = set(() => { this.retryTimer = undefined; this.syncInBackground(); }, Math.min(retryCapMs, Math.max(0, delay)));
+    });
+  }
+
+  private cancelRetry() {
+    if (this.retryTimer === undefined) return;
+    (this.deps.clearTimer ?? ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>)))(this.retryTimer);
+    this.retryTimer = undefined;
   }
 
   sync(): Promise<void> {
