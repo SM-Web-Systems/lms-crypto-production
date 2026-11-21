@@ -208,7 +208,7 @@ describe('NotificationBell', () => {
 
     await user.click(screen.getByRole('button', { name: 'Notifications' }));
 
-    const settingsButton = screen.getByTitle('Notification settings');
+    const settingsButton = screen.getByRole('button', { name: 'Notification settings' });
     await user.click(settingsButton);
 
     expect(mockNavigate).toHaveBeenCalledWith('/settings/notifications');

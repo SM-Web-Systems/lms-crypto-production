@@ -459,7 +459,7 @@ const Messages: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setDeleteTarget(m.id)}
-                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 focus:bg-white/20"
+                                className="reveal-on-hover transition-opacity p-0.5 rounded hover:bg-white/20 focus:bg-white/20"
                                 aria-label="Delete message"
                                 title="Delete message"
                               >

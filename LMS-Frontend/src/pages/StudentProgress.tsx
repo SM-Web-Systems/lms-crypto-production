@@ -342,7 +342,7 @@ const StudentProgress: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     {c.certificateStatus === 'eligible' && (
                       <Link
-                        to="/student"
+                        to={`/student#certificate-${c.courseId}`}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded-lg transition-colors"
                       >
                         Apply for certificate

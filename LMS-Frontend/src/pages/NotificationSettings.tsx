@@ -14,6 +14,19 @@ const TYPE_LABELS: Record<string, string> = {
   payment_confirmed: 'Payment Confirmed',
   payment_failed: 'Payment Failed',
   cohort_invited: 'Cohort Invitation',
+  student_login: 'Learner Signed In',
+  class_completion: 'Class Completed',
+  cohort_milestone: 'Cohort Milestone',
+  team_completion: 'Team Completed',
+  grade_approved: 'Grade Approved',
+  reward_released: 'Reward Paid',
+  reward_eligible: 'Reward Earned',
+  reward_refunded: 'Reward Refunded',
+  reward_expired: 'Reward Expired',
+  reward_cancelled: 'Reward Cancelled',
+  refund_blocked: 'Refund Blocked',
+  reward_funded: 'Reward Funded',
+  reward_declined: 'Reward Sent Back',
 };
 
 const NotificationSettings: React.FC = () => {
@@ -88,13 +101,14 @@ const NotificationSettings: React.FC = () => {
           <ul className="divide-y divide-neutral-100">
             {preferences.map((pref) => (
               <li key={pref.type} className="flex items-center justify-between px-5 py-3.5">
-                <span className="text-sm font-medium text-neutral-700">
+                <span id={`pref-${pref.type}`} className="text-sm font-medium text-neutral-700">
                   {TYPE_LABELS[pref.type] ?? pref.type}
                 </span>
                 <button
                   type="button"
                   role="switch"
                   aria-checked={pref.enabled}
+                  aria-labelledby={`pref-${pref.type}`}
                   onClick={() => handleToggle(pref.type)}
                   className={[
                     'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
