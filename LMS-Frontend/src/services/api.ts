@@ -61,7 +61,7 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (!isAxiosError(error)) {
       return Promise.reject(error);
     }
@@ -72,6 +72,11 @@ api.interceptors.response.use(
     const publicAuth = /\/auth\/(login|register|forgot-password|reset-password|session)(?:\?|$)/.test(reqUrl);
     if (status === 401 && !publicAuth && !explicitBearer && marker) {
       unauthorizedListeners.forEach(listener=>listener(marker));
+    }
+    // File downloads use responseType 'blob', so a JSON error body arrives as a Blob.
+    const body: unknown = error.response?.data;
+    if (error.response && body instanceof Blob && body.type.includes('json')) {
+      try { error.response.data = JSON.parse(await body.text()); } catch { /* keep the status message */ }
     }
     const parsed = fromAxiosError(error);
     if (status === 429) {
