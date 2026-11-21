@@ -54,6 +54,12 @@ describe('GET /api/v1/submissions search', () => {
     expect((await list({ status: 'rejected', limit: '1' })).body.data.pagination.total).toBe(1);
   });
 
+  it('finds a literal underscore, and not a near miss', async () => {
+    submission('lit-1', ids.studentId, 'week_1 notes');
+    submission('lit-2', ids.studentId, 'weekx1 notes');
+    expect(titles(await list({ search: 'week_1' }))).toEqual(['week_1 notes']);
+  });
+
   it('search is a parameterised LIKE: wildcards and quotes are literal', async () => {
     for (const search of ['%', '_', "' OR 1=1 --"]) {
       const res = await list({ search });

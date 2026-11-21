@@ -96,18 +96,28 @@ describe('AdminSubmissions paging', () => {
   it('search and filter go to the server', async () => {
     renderAt('/admin/submissions?page=2');
     await screen.findByText('Page 2 of 3');
+    const status = screen.getByLabelText('Status');
+    expect(await within(status).findByRole('option', { name: 'Pending (30)' })).toBeInTheDocument();
+    expect(within(status).getByRole('option', { name: 'Approved (10)' })).toBeInTheDocument();
+    expect(within(status).getByRole('option', { name: 'Rejected (5)' })).toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText('Search submissions'), { target: { value: 'Essay 4' } });
     expect(await screen.findByText('All Submissions (7)', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(lastCall()).toMatchObject({ page: 1, search: 'Essay 4' });
     expect(location).toContain('search=Essay+4');
+    // Status totals ignore the search, so they are hidden while one is active.
+    expect(within(status).getByRole('option', { name: 'Pending' })).toBeInTheDocument();
 
-    const status = screen.getByLabelText('Status');
-    expect(within(status).getByRole('option', { name: 'Pending (30)' })).toBeInTheDocument();
-    expect(within(status).getByRole('option', { name: 'Approved (10)' })).toBeInTheDocument();
-    expect(within(status).getByRole('option', { name: 'Rejected (5)' })).toBeInTheDocument();
     fireEvent.change(status, { target: { value: 'approved' } });
     await waitFor(() => expect(lastCall()).toMatchObject({ page: 1, status: 'approved', search: 'Essay 4' }));
     expect(location).toContain('status=approved');
+  });
+
+  it('a page past the last one moves to the last page', async () => {
+    renderAt('/admin/submissions?page=9');
+    expect(await screen.findByText('Page 3 of 3')).toBeInTheDocument();
+    expect(await screen.findByText('Essay 45')).toBeInTheDocument();
+    expect(location).toContain('page=3');
   });
 
   it('pending badge on the All tab is the server count', async () => {

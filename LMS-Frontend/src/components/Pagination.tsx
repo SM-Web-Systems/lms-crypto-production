@@ -7,10 +7,17 @@ import type { Pagination as PageInfo } from '../types/api';
 /** Previous / "Page 2 of 3" / Next, plus rows per page. Uses the server's page info. */
 export function Pagination({ pagination, onPage, onLimit, disabled }: {
   pagination: PageInfo | null | undefined;
-  onPage: (page: number) => void;
+  onPage: (page: number, replace?: boolean) => void;
   onLimit: (limit: number) => void;
   disabled?: boolean;
 }) {
+  // Past the last page (the last row was approved or deleted, or an old link): go to the last page.
+  const pastEnd = !disabled && !!pagination && pagination.totalPages > 0 && pagination.page > pagination.totalPages;
+  const lastPage = pagination?.totalPages ?? 1;
+  const onPageRef = useRef(onPage);
+  onPageRef.current = onPage;
+  useEffect(() => { if (pastEnd) onPageRef.current(lastPage, true); }, [pastEnd, lastPage]);
+
   if (!pagination || pagination.total === 0) return null;
   const pages = Math.max(1, pagination.totalPages);
   return (
@@ -64,7 +71,8 @@ export function SearchInput({ value, onSearch, label, placeholder }: {
   const [text, setText] = useState(value);
   const onSearchRef = useRef(onSearch);
   onSearchRef.current = onSearch;
-  useEffect(() => { setText(value); }, [value]);
+  // Sync from the URL (Back, a cleared filter) without trimming what the user is still typing.
+  useEffect(() => { setText((current) => (current.trim() === value ? current : value)); }, [value]);
   useEffect(() => {
     if (text.trim() === value) return;
     const timer = setTimeout(() => onSearchRef.current(text.trim()), 300);
@@ -79,7 +87,7 @@ export function SearchInput({ value, onSearch, label, placeholder }: {
         placeholder={placeholder}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white"
+        className="touch-target w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 bg-white"
       />
     </div>
   );

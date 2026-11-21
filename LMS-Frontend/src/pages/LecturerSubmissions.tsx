@@ -42,7 +42,6 @@ const LecturerSubmissions: React.FC = () => {
   const { page, limit, update } = list;
   const search = list.get('search');
   const status = SUBMISSION_STATUSES.find((s) => s === list.get('status'));
-  const showTaGrades = list.get('gradeStatus') === 'pending_approval';
 
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
@@ -55,7 +54,10 @@ const LecturerSubmissions: React.FC = () => {
   const [reviewError, setReviewError] = useState('');
 
   const canGrade = hasCapability(user, 'course.grade');
+  const showTaGrades = canGrade && list.get('gradeStatus') === 'pending_approval';
   const taGrades = usePendingTaGrades(canGrade, showTaGrades ? page : 1, showTaGrades ? limit : 1);
+  // The list still holds another page (or the badge's 1-row call) until the new page lands.
+  const taGradesStale = taGrades.loading && (taGrades.pagination?.page !== page || taGrades.pagination?.limit !== limit);
 
   useEffect(() => {
     courseService.fetchCourses({access: 'manage'})
@@ -92,7 +94,7 @@ const LecturerSubmissions: React.FC = () => {
     setReviewError('');
     try {
       await reviewSubmission(reviewingSubmission.id, 'approved', feedback, user.name);
-      void load();
+      void load(); void taGrades.reload();
       setReviewingSubmission(null);
     } catch (err) {
       setReviewError(getErrorMessage(err, 'Could not approve.'));
@@ -108,7 +110,7 @@ const LecturerSubmissions: React.FC = () => {
     setReviewError('');
     try {
       await reviewSubmission(reviewingSubmission.id, 'rejected', feedback, user.name);
-      void load();
+      void load(); void taGrades.reload();
       setReviewingSubmission(null);
     } catch (err) {
       setReviewError(getErrorMessage(err, 'Could not reject.'));
@@ -201,15 +203,16 @@ const LecturerSubmissions: React.FC = () => {
                 <CardTitle className="border-0 p-0 text-gray-900">TA grades to approve ({taGrades.total})</CardTitle>
               </div>
               <CardContent>
-                <TaGradeApprovals
+                {taGradesStale ? <p role="status" className="py-8 text-center text-sm text-gray-500">Loading…</p> : <TaGradeApprovals
                   submissions={taGrades.submissions}
                   error={taGrades.error}
                   onDecided={() => { void taGrades.reload(); void load(); }}
                   onDownload={handleDownload}
-                />
+                />}
                 <Pagination
-                  pagination={taGrades.pagination}
-                  onPage={(p) => update({ page: p })}
+                  pagination={taGradesStale ? null : taGrades.pagination}
+                  disabled={taGrades.loading}
+                  onPage={(p, replace) => update({ page: p }, { replace })}
                   onLimit={(l) => update({ limit: l })}
                 />
               </CardContent>
@@ -281,7 +284,7 @@ const LecturerSubmissions: React.FC = () => {
               <Pagination
                 pagination={submissionsPagination}
                 disabled={submissionsLoading}
-                onPage={(p) => update({ page: p })}
+                onPage={(p, replace) => update({ page: p }, { replace })}
                 onLimit={(l) => update({ limit: l })}
               />
             </CardContent>

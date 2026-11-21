@@ -71,7 +71,6 @@ const AdminDashboard: React.FC = () => {
   const {
     students,
     studentsPagination,
-    submissionsPagination,
     submissions,
     studentsLoading,
     submissionsLoading,
@@ -105,7 +104,7 @@ const AdminDashboard: React.FC = () => {
   // Server totals, not the 20 rows loaded. Pending includes TA grades waiting for approval (still status=pending).
   const { counts, reload: reloadCounts } = useSubmissionCounts(canGrade);
   const totalStudents = studentsPagination?.total ?? students.length;
-  const totalSubmissions = submissionsPagination?.total ?? submissions.length;
+  const totalSubmissions = counts ? counts.pending + counts.approved + counts.rejected : submissions.length;
   const pendingSubmissions = counts?.pending ?? 0;
   const approvedSubmissions = counts?.approved ?? 0;
   const rejectedSubmissions = counts?.rejected ?? 0;

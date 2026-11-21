@@ -278,13 +278,13 @@ const AdminStudents: React.FC = () => {
                 label="Search students"
                 placeholder="Search by name, email, enrollment…"
                 value={searchQuery}
-                onSearch={(value) => update({ search: value })}
+                onSearch={(value) => update({ search: value }, { replace: true })}
               />
               <select
                 aria-label="Wallet"
                 value={walletFilter ?? ''}
                 onChange={(e) => update({ walletStatus: e.target.value })}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+                className="touch-target text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
               >
                 <option value="">All wallets</option>
                 <option value="linked">Linked</option>
@@ -396,7 +396,7 @@ const AdminStudents: React.FC = () => {
           <Pagination
             pagination={studentsPagination}
             disabled={studentsLoading}
-            onPage={(p) => update({ page: p })}
+            onPage={(p, replace) => update({ page: p }, { replace })}
             onLimit={(l) => update({ limit: l })}
           />
         </CardContent>

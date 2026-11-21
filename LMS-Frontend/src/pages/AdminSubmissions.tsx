@@ -40,12 +40,15 @@ function MemberRow({
   onReview,
   onDownload,
   onDelete,
+  partial,
 }: {
   member: CourseMember;
   submissions: Submission[];
   onReview: (s: Submission) => void;
   onDownload: (id: string) => void;
   onDelete: (id: string) => void;
+  /** The rows are one page of the course, so the count is for this page only. */
+  partial?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const initials = member.name.split(' ').map((n) => n[0]).join('').toUpperCase();
@@ -67,7 +70,7 @@ function MemberRow({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 font-medium">
-            {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+            {submissions.length} submission{submissions.length !== 1 ? 's' : ''}{partial ? ' on this page' : ''}
             {submissions.filter((s) => s.status === 'pending').length > 0 && (
               <span className="ml-1.5 bg-yellow-100 text-yellow-700 rounded-full px-1.5 py-0.5 font-semibold">
                 {submissions.filter((s) => s.status === 'pending').length} pending
@@ -147,7 +150,8 @@ const AdminSubmissions: React.FC = () => {
   const search = list.get('search');
   const status = SUBMISSION_STATUSES.find((s) => s === list.get('status'));
   const courseId = list.get('courseId');
-  const isTaTab = list.get('gradeStatus') === 'pending_approval';
+  const canGrade = hasCapability(user, 'course.grade');
+  const isTaTab = canGrade && list.get('gradeStatus') === 'pending_approval';
   const selectedCourseId = isTaTab ? TA_TAB : courseId || '__all__';
 
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -163,8 +167,9 @@ const AdminSubmissions: React.FC = () => {
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState('');
 
-  const canGrade = hasCapability(user, 'course.grade');
   const taGrades = usePendingTaGrades(canGrade, isTaTab ? page : 1, isTaTab ? limit : 1);
+  // The list still holds another page (or the badge's 1-row call) until the new page lands.
+  const taGradesStale = taGrades.loading && (taGrades.pagination?.page !== page || taGrades.pagination?.limit !== limit);
   const counts = useSubmissionCounts(true);
 
   const load = useCallback(() => fetchSubmissions({
@@ -216,7 +221,7 @@ const AdminSubmissions: React.FC = () => {
     return () => { cancelled = true; };
   }, [needsStudentMap]);
 
-  const refresh = () => { void load(); void counts.reload(); };
+  const refresh = () => { void load(); void counts.reload(); void taGrades.reload(); };
 
   // Historical learner membership remains visible even after a role is revoked.
   // The ID map supports Step 2 backends during the client compatibility window.
@@ -295,12 +300,12 @@ const AdminSubmissions: React.FC = () => {
     <Pagination
       pagination={submissionsPagination}
       disabled={submissionsLoading}
-      onPage={(p) => update({ page: p })}
+      onPage={(p, replace) => update({ page: p }, { replace })}
       onLimit={(l) => update({ limit: l })}
     />
   );
   const filters = (
-    <SubmissionFilters search={search} status={status ?? ''} counts={courseId ? null : counts.counts} onChange={update} />
+    <SubmissionFilters search={search} status={status ?? ''} counts={courseId || search ? null : counts.counts} onChange={update} />
   );
 
   return (
@@ -440,15 +445,16 @@ const AdminSubmissions: React.FC = () => {
             <CardTitle>TA grades to approve ({taGrades.total})</CardTitle>
           </CardHeader>
           <CardContent>
-            <TaGradeApprovals
+            {taGradesStale ? <p role="status" className="py-8 text-center text-sm text-gray-500">Loading…</p> : <TaGradeApprovals
               submissions={taGrades.submissions}
               error={taGrades.error}
-              onDecided={() => { void taGrades.reload(); refresh(); }}
+              onDecided={refresh}
               onDownload={handleDownload}
-            />
+            />}
             <Pagination
-              pagination={taGrades.pagination}
-              onPage={(p) => update({ page: p })}
+              pagination={taGradesStale ? null : taGrades.pagination}
+              disabled={taGrades.loading}
+              onPage={(p, replace) => update({ page: p }, { replace })}
               onLimit={(l) => update({ limit: l })}
             />
           </CardContent>
@@ -462,7 +468,7 @@ const AdminSubmissions: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary-600" />
-                {courses.find((c) => c.id === selectedCourseId)?.title ?? 'Course'} — Members
+                {courses.find((c) => c.id === selectedCourseId)?.title ?? 'Course'} — Members ({submissionsPagination?.total ?? submissions.length} submissions)
               </CardTitle>
               {filters}
             </div>
@@ -489,6 +495,7 @@ const AdminSubmissions: React.FC = () => {
                       key={member.id}
                       member={member}
                       submissions={memberSubs}
+                      partial={filtered || (submissionsPagination?.totalPages ?? 1) > 1}
                       onReview={handleReview}
                       onDownload={handleDownload}
                       onDelete={handleDelete}

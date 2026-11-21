@@ -50,6 +50,15 @@ describe('GET /api/v1/students search', () => {
     }
   });
 
+  it('finds a literal underscore or percent sign, and only that', async () => {
+    execute("INSERT INTO students (id, name, email, enrollment_number, department, semester) VALUES ('u1', 'Underscore', 'john_doe@test.com', 'U-1', 'Maths', 1)");
+    execute("INSERT INTO students (id, name, email, enrollment_number, department, semester) VALUES ('u2', 'Near miss', 'johnxdoe@test.com', 'U-2', 'Maths', 1)");
+    execute("INSERT INTO students (id, name, email, enrollment_number, department, semester) VALUES ('p1', 'Top 5% club', 'p1@test.com', 'P-1', 'Maths', 1)");
+    expect(names(await list({ search: 'john_doe' }))).toEqual(['Underscore']);
+    expect(names(await list({ search: '5%' }))).toEqual(['Top 5% club']);
+    expect(names(await list({ search: 'p\\1' }))).toEqual([]);
+  });
+
   it('walletStatus filters on the linked wallet', async () => {
     expect(names(await list({ walletStatus: 'linked' }))).toEqual(['Linked Student']);
     const none = await list({ walletStatus: 'none', search: 'STU-00' });

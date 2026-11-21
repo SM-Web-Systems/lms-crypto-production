@@ -9,7 +9,6 @@ vi.mock('../../context/DataContext', () => ({
   useData: () => ({
     students: [], submissions: [sub('direct', 'direct'), sub('ta', 'pending_approval')],
     studentsPagination: { page: 1, limit: 20, total: 57, totalPages: 3 },
-    submissionsPagination: { page: 1, limit: 20, total: 61, totalPages: 4 },
     studentsLoading: false, submissionsLoading: false, studentsError: null, submissionsError: null,
     fetchStudents: vi.fn(), fetchSubmissions: vi.fn(),
   }),

@@ -9,7 +9,7 @@ export function SubmissionFilters({ search, status, counts, onChange }: {
   search: string;
   status: string;
   counts?: Record<SubmissionStatus, number> | null;
-  onChange: (patch: { search?: string; status?: string }) => void;
+  onChange: (patch: { search?: string; status?: string }, options?: { replace?: boolean }) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -17,13 +17,13 @@ export function SubmissionFilters({ search, status, counts, onChange }: {
         label="Search submissions"
         placeholder="Search by title or student…"
         value={search}
-        onSearch={(value) => onChange({ search: value })}
+        onSearch={(value) => onChange({ search: value }, { replace: true })}
       />
       <select
         aria-label="Status"
         value={status}
         onChange={(e) => onChange({ status: e.target.value })}
-        className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+        className="touch-target text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
       >
         <option value="">All statuses</option>
         {SUBMISSION_STATUSES.map((s) => (
