@@ -46,6 +46,7 @@ describe('D0: Schema — Tables + Columns', () => {
     const colNames = cols.map(c => c.name);
     expect(colNames).toContain('grade_status');
     expect(colNames).toContain('graded_by');
+    expect(colNames).toEqual(expect.arrayContaining(['proposed_status', 'ta_feedback', 'review_note']));
   });
 });
 
@@ -375,17 +376,23 @@ describe('D4: Grade + Material Approval', () => {
     expect(sub!.reviewed_by_id).toBe(instructor.userId);
   });
 
-  it('D4-APPROVE-2: instructor rejects TA grade → grade_status reset to direct', async () => {
+  // UX-002: send-back now takes a required `note`, stored in review_note, and no
+  // longer overwrites the learner-facing feedback. The response reports 'sent_back'.
+  it('D4-APPROVE-2: instructor sends back TA grade → sent_back with review_note, feedback kept', async () => {
+    execute("UPDATE submissions SET feedback = 'Earlier feedback', ta_feedback = 'TA feedback' WHERE id = ?", [submissionId]);
     const res = await request(app)
       .post(`/api/v1/ta/submissions/${submissionId}/reject-grade`)
       .set('Authorization', `Bearer ${instructor.token}`)
-      .send({ feedback: 'Grading was too lenient' });
+      .send({ note: 'Grading was too lenient' });
 
     expect(res.status).toBe(200);
+    expect(res.body.data.gradeStatus).toBe('sent_back');
 
-    const sub = queryOne<{ grade_status: string }>(
-      'SELECT grade_status FROM submissions WHERE id = ?', [submissionId]);
-    expect(sub!.grade_status).toBe('direct');
+    const sub = queryOne<{ grade_status: string; review_note: string; feedback: string; ta_feedback: string }>(
+      'SELECT grade_status, review_note, feedback, ta_feedback FROM submissions WHERE id = ?', [submissionId]);
+    expect(sub).toEqual({
+      grade_status: 'direct', review_note: 'Grading was too lenient', feedback: 'Earlier feedback', ta_feedback: 'TA feedback',
+    });
   });
 
   it('D4-MATERIAL-1: TA-submitted material not visible until approved, merge on approval', async () => {

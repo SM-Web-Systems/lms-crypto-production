@@ -15,10 +15,14 @@ export interface TASubmission {
   id: string;
   title: string;
   student_id: string;
+  student_name: string | null;
   status: string;
   grade_status: string;
   submitted_at: string;
   file_name: string;
+  proposed_status: 'approved' | 'rejected' | null;
+  ta_feedback: string | null;
+  review_note: string | null;
 }
 
 export interface GradeResult {
@@ -51,5 +55,15 @@ export const taService = {
       data,
     );
     return res.data.data;
+  },
+
+  /** POST /ta/submissions/:id/approve-grade — lecturer/admin accepts the TA's proposed grade */
+  async approveGrade(submissionId: string): Promise<void> {
+    await api.post(`/ta/submissions/${submissionId}/approve-grade`, {});
+  },
+
+  /** POST /ta/submissions/:id/reject-grade — lecturer/admin sends the grade back with a note */
+  async sendBackGrade(submissionId: string, note: string): Promise<void> {
+    await api.post(`/ta/submissions/${submissionId}/reject-grade`, { note });
   },
 };

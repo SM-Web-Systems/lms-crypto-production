@@ -13,6 +13,9 @@ import type { Submission } from '../types/api';
 import { courseService } from '../services/courseService';
 import { getErrorMessage } from '../utils/apiError';
 import { StatusBadge, fmtSize } from '../components/StatusBadge';
+import { hasCapability } from '../utils/authorization';
+import { usePendingTaGrades } from '../context/usePendingTaGrades';
+import { TaGradeApprovals } from '../components/TaGradeApprovals';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +43,10 @@ const LecturerSubmissions: React.FC = () => {
   const [feedback, setFeedback] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState('');
+
+  const canGrade = hasCapability(user, 'course.grade');
+  const taGrades = usePendingTaGrades(canGrade);
+  const [showTaGrades, setShowTaGrades] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -148,9 +155,9 @@ const LecturerSubmissions: React.FC = () => {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setSelectedCourseId(c.id)}
+                onClick={() => { setSelectedCourseId(c.id); setShowTaGrades(false); }}
                 className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                  selectedCourseId === c.id
+                  selectedCourseId === c.id && !showTaGrades
                     ? 'bg-primary-dark text-white border-primary-dark'
                     : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                 }`}
@@ -159,9 +166,37 @@ const LecturerSubmissions: React.FC = () => {
                 {c.courseCode ?? c.title}
               </button>
             ))}
+            {canGrade && (
+              <button
+                type="button"
+                onClick={() => setShowTaGrades(true)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                  showTaGrades
+                    ? 'bg-primary-dark text-white border-primary-dark'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                TA grades to approve ({taGrades.total})
+              </button>
+            )}
           </div>
 
-          {/* Submissions list */}
+          {showTaGrades && canGrade ? (
+            <Card>
+              <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                <CardTitle className="border-0 p-0 text-gray-900">TA grades to approve ({taGrades.total})</CardTitle>
+              </div>
+              <CardContent>
+                <TaGradeApprovals
+                  submissions={taGrades.submissions}
+                  error={taGrades.error}
+                  onDecided={() => { void taGrades.reload(); fetchSubmissions(); }}
+                  onDownload={handleDownload}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+          /* Submissions list */
           <Card>
             <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
               <CardTitle className="border-0 p-0 text-gray-900">
@@ -225,6 +260,7 @@ const LecturerSubmissions: React.FC = () => {
               )}
             </CardContent>
           </Card>
+          )}
         </>
       )}
 

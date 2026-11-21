@@ -635,6 +635,9 @@
       "item_id",
       "grade_status",
       "graded_by",
+      "proposed_status",
+      "ta_feedback",
+      "review_note",
       "created_at",
       "updated_at"
     ],

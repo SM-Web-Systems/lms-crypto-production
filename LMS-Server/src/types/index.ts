@@ -97,11 +97,17 @@ export interface Submission {
   course_id?: string;
   week_id?: string;
   item_id?: string;
+  grade_status?: string | null;
+  graded_by?: string | null;
+  proposed_status?: string | null;
+  ta_feedback?: string | null;
+  review_note?: string | null;
   created_at: Date;
   updated_at: Date;
   // Joined fields
   student_name?: string;
   reviewer_name?: string;
+  graded_by_name?: string | null;
 }
 
 export interface SubmissionResponse {
@@ -126,6 +132,12 @@ export interface SubmissionResponse {
   itemId?: string;
   createdAt?: string;
   updatedAt?: string;
+  // UX-002: staff-only (course.grade) TA review fields
+  gradeStatus?: string;
+  gradedByName?: string;
+  proposedStatus?: string;
+  taFeedback?: string;
+  reviewNote?: string;
 }
 
 // JWT Types

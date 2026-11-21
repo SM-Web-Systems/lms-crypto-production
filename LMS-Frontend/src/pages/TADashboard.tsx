@@ -6,6 +6,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import { taService, type TACourse, type TASubmission } from '../services/taService';
+import { submissionsService } from '../services/submissionsService';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import {
@@ -17,6 +18,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Download,
+  Undo2,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -77,6 +80,14 @@ const TADashboard: React.FC = () => {
       if (selectedCourseId) loadSubmissions(selectedCourseId);
     } catch (e) {
       setError(getErrorMessage(e, 'Grading failed.'));
+    }
+  };
+
+  const handleDownload = async (submissionId: string) => {
+    try {
+      await submissionsService.download(submissionId);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not download the file.'));
     }
   };
 
@@ -201,16 +212,31 @@ const TADashboard: React.FC = () => {
                   <CardContent className="py-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="min-w-0">
-                        <p className="font-medium text-neutral-900 truncate">{sub.title}</p>
+                        <p className="font-medium text-neutral-900 truncate">{sub.student_name ?? 'Unknown learner'}</p>
+                        <p className="text-sm text-neutral-700 truncate">{sub.title}</p>
                         <p className="text-xs text-neutral-500">
                           {sub.file_name} | {new Date(sub.submitted_at).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={() => handleDownload(sub.id)}
+                          aria-label={`Download ${sub.file_name} from ${sub.student_name ?? 'learner'}`}
+                        >
+                          <Download className="h-4 w-4" aria-hidden />
+                        </Button>
                         {sub.grade_status === 'pending_approval' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-medium">
                             <Clock className="h-3 w-3" aria-hidden />
                             Awaiting Approval
+                          </span>
+                        ) : sub.grade_status === 'sent_back' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100 text-orange-800 text-xs font-medium">
+                            <Undo2 className="h-3 w-3" aria-hidden />
+                            Sent back
                           </span>
                         ) : sub.status === 'approved' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium">
@@ -243,6 +269,9 @@ const TADashboard: React.FC = () => {
                         )}
                       </div>
                     </div>
+                    {sub.grade_status === 'sent_back' && sub.review_note && (
+                      <p className="mt-2 text-sm text-orange-900"><strong>Lecturer note:</strong> {sub.review_note}</p>
+                    )}
 
                     {/* Inline grading form */}
                     {gradingId === sub.id && (

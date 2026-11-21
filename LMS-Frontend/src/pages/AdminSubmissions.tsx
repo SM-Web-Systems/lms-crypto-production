@@ -14,6 +14,11 @@ import { courseService, type CourseMember } from '../services/courseService';
 import { studentsService } from '../services/studentsService';
 import { getErrorMessage } from '../utils/apiError';
 import { StatusBadge, fmtSize } from '../components/StatusBadge';
+import { hasCapability } from '../utils/authorization';
+import { usePendingTaGrades } from '../context/usePendingTaGrades';
+import { TaGradeApprovals } from '../components/TaGradeApprovals';
+
+const TA_TAB = '__ta__';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -134,6 +139,9 @@ const AdminSubmissions: React.FC = () => {
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState('');
 
+  const canGrade = hasCapability(user, 'course.grade');
+  const taGrades = usePendingTaGrades(canGrade);
+
   // Load initial data
   useEffect(() => {
     fetchSubmissions();
@@ -150,7 +158,7 @@ const AdminSubmissions: React.FC = () => {
 
   // Load members when course changes
   useEffect(() => {
-    if (selectedCourseId === '__all__') {
+    if (selectedCourseId === '__all__' || selectedCourseId === TA_TAB) {
       setMembers([]);
       setMembersLoading(false);
       return;
@@ -269,6 +277,18 @@ const AdminSubmissions: React.FC = () => {
             </span>
           )}
         </button>
+        {canGrade && (
+          <button
+            onClick={() => setSelectedCourseId(TA_TAB)}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+              selectedCourseId === TA_TAB
+                ? 'bg-primary-dark text-white border-primary-dark'
+                : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            TA grades to approve ({taGrades.total})
+          </button>
+        )}
         {courses.map((c) => {
           return (
             <button
@@ -353,8 +373,24 @@ const AdminSubmissions: React.FC = () => {
         </Card>
       )}
 
+      {selectedCourseId === TA_TAB && canGrade && (
+        <Card>
+          <CardHeader>
+            <CardTitle>TA grades to approve ({taGrades.total})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TaGradeApprovals
+              submissions={taGrades.submissions}
+              error={taGrades.error}
+              onDecided={() => { void taGrades.reload(); fetchSubmissions(); }}
+              onDownload={handleDownload}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Course → members → submissions ── */}
-      {selectedCourseId !== '__all__' && (
+      {selectedCourseId !== '__all__' && selectedCourseId !== TA_TAB && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

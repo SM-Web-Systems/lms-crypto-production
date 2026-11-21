@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   item_id TEXT,
   grade_status TEXT DEFAULT 'direct' CHECK (grade_status IN ('direct', 'pending_approval', 'approved')),
   graded_by TEXT REFERENCES users(id),
+  proposed_status TEXT CHECK (proposed_status IN ('approved', 'rejected')),
+  ta_feedback TEXT,
+  review_note TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
