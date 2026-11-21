@@ -161,38 +161,135 @@ router.get('/parent/billing', authenticate, requirePermission('billing.view_own'
   res.json({ success: true, data: { payments } });
 });
 
-// GET /parent/groups — list family groups
+// GET /parent/groups — list family groups with their member children
 router.get('/parent/groups', authenticate, requirePermission('group.manage'), (req, res: Response) => {
   const { userId } = (req as AuthRequest).user!;
 
-  const groups = query<{ id: string; name: string; member_count: number }>(
-    `SELECT ug.id, ug.name,
-       (SELECT COUNT(*) FROM user_group_members ugm WHERE ugm.group_id = ug.id) AS member_count
-     FROM user_groups ug
-     WHERE ug.owner_user_id = ? AND ug.group_type = 'family'`,
+  const rows = query<{ id: string; name: string; created_at: string }>(
+    `SELECT id, name, created_at FROM user_groups
+     WHERE owner_user_id = ? AND group_type = 'family' ORDER BY created_at, name`,
     [userId]
   );
+  const members = query<{ group_id: string; id: string; name: string }>(
+    `SELECT m.group_id, u.id, u.name FROM user_group_members m
+     JOIN user_groups g ON g.id = m.group_id JOIN users u ON u.id = m.user_id
+     WHERE g.owner_user_id = ? AND g.group_type = 'family' ORDER BY u.name`,
+    [userId]
+  );
+  const groups = rows.map((g) => {
+    const mine = members.filter((m) => m.group_id === g.id).map(({ id, name }) => ({ id, name }));
+    return { ...g, member_count: mine.length, members: mine };
+  });
 
   res.json({ success: true, data: { groups } });
 });
 
-// POST /parent/groups — create family group
+const GROUP_NAME_MAX = 80;
+
+/** Validates a family-group body. Returns an error message, or the cleaned name and member ids. */
+function parseFamilyGroupBody(body: { name?: unknown; memberIds?: unknown }):
+  { error: string } | { name: string; memberIds: string[] | undefined } {
+  const { name, memberIds } = body ?? {};
+  if (typeof name !== 'string' || !name.trim()) return { error: 'Group name is required' };
+  if (name.trim().length > GROUP_NAME_MAX) return { error: `Group name must be ${GROUP_NAME_MAX} characters or fewer` };
+  if (memberIds !== undefined
+    && (!Array.isArray(memberIds) || memberIds.length > 100 || !memberIds.every((m) => typeof m === 'string'))) {
+    return { error: 'memberIds must be a list of child ids' };
+  }
+  return { name: name.trim(), memberIds: memberIds === undefined ? undefined : [...new Set(memberIds as string[])] };
+}
+
+/** True when every id is a child linked to this parent. */
+function allLinkedChildren(parentId: string, ids: string[]): boolean {
+  return ids.every((childId) => queryOne(
+    "SELECT id FROM user_links WHERE parent_user_id = ? AND child_user_id = ? AND link_type = 'parent'",
+    [parentId, childId]
+  ));
+}
+
+function setFamilyMembers(groupId: string, ids: string[]): void {
+  execute('DELETE FROM user_group_members WHERE group_id = ?', [groupId]);
+  for (const childId of ids) execute('INSERT INTO user_group_members (group_id, user_id) VALUES (?, ?)', [groupId, childId]);
+}
+
+function ownsFamilyGroup(groupId: string, parentId: string): boolean {
+  return !!queryOne("SELECT id FROM user_groups WHERE id = ? AND owner_user_id = ? AND group_type = 'family'", [groupId, parentId]);
+}
+
+// POST /parent/groups — create family group, optionally with linked children as members
 router.post('/parent/groups', authenticate, requirePermission('group.create'), (req, res: Response) => {
   const { userId } = (req as AuthRequest).user!;
-  const { name } = req.body;
-
-  if (!name || typeof name !== 'string' || !name.trim()) {
-    res.status(400).json({ success: false, error: 'Group name is required' });
+  const parsed = parseFamilyGroupBody(req.body);
+  if ('error' in parsed) {
+    res.status(400).json({ success: false, error: parsed.error });
+    return;
+  }
+  if (parsed.memberIds && !allLinkedChildren(userId, parsed.memberIds)) {
+    res.status(403).json({ success: false, error: 'Can only add linked children to family group' });
     return;
   }
 
   const id = uuidv4();
-  execute(
-    "INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, 'family', ?)",
-    [id, name.trim(), userId]
-  );
+  db.transaction(() => {
+    execute(
+      "INSERT INTO user_groups (id, name, group_type, owner_user_id) VALUES (?, ?, 'family', ?)",
+      [id, parsed.name, userId]
+    );
+    if (parsed.memberIds) setFamilyMembers(id, parsed.memberIds);
+  }).immediate();
 
-  res.status(201).json({ success: true, data: { id, name: name.trim(), groupType: 'family' } });
+  res.status(201).json({ success: true, data: { id, name: parsed.name, groupType: 'family' } });
+});
+
+// PUT /parent/groups/:id — rename; when memberIds is given, it replaces the members
+router.put('/parent/groups/:id', authenticate, requirePermission('group.manage'), (req, res: Response) => {
+  const { userId } = (req as AuthRequest).user!;
+  const { id } = req.params;
+  if (!ownsFamilyGroup(id, userId)) {
+    res.status(404).json({ success: false, error: 'Group not found' });
+    return;
+  }
+  const parsed = parseFamilyGroupBody(req.body);
+  if ('error' in parsed) {
+    res.status(400).json({ success: false, error: parsed.error });
+    return;
+  }
+  if (parsed.memberIds && !allLinkedChildren(userId, parsed.memberIds)) {
+    res.status(403).json({ success: false, error: 'Can only add linked children to family group' });
+    return;
+  }
+
+  db.transaction(() => {
+    execute("UPDATE user_groups SET name = ?, updated_at = datetime('now') WHERE id = ?", [parsed.name, id]);
+    if (parsed.memberIds) setFamilyMembers(id, parsed.memberIds);
+  }).immediate();
+
+  res.json({ success: true, data: { id, name: parsed.name } });
+});
+
+// DELETE /parent/groups/:id — refused while a reward for the group holds or has paid out money,
+// so funded rewards never lose the scope that lets the parent manage them.
+router.delete('/parent/groups/:id', authenticate, requirePermission('group.manage'), (req, res: Response) => {
+  const { userId } = (req as AuthRequest).user!;
+  const { id } = req.params;
+  if (!ownsFamilyGroup(id, userId)) {
+    res.status(404).json({ success: false, error: 'Group not found' });
+    return;
+  }
+  const busy = queryOne(
+    "SELECT id FROM rewards WHERE scope_type = 'parent_family' AND scope_id = ? AND status NOT IN ('draft', 'cancelled') LIMIT 1",
+    [id]
+  );
+  if (busy) {
+    res.status(409).json({
+      success: false,
+      error: "This group has rewards that are funded or paid, so it can't be deleted. Cancel any open rewards first. Groups with paid rewards are kept for your records.",
+    });
+    return;
+  }
+
+  execute('DELETE FROM user_groups WHERE id = ?', [id]);
+  res.json({ success: true, data: { deleted: true } });
 });
 
 // POST /parent/groups/:id/members — add member (must be linked child)

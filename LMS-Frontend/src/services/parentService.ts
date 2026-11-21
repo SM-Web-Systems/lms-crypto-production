@@ -39,6 +39,7 @@ export interface ParentGroup {
   name: string;
   created_at: string;
   member_count: number;
+  members: Array<{ id: string; name: string }>;
 }
 
 export const parentService = {
@@ -72,13 +73,14 @@ export const parentService = {
     return res.data.data.groups;
   },
 
-  async createGroup(name: string): Promise<ParentGroup> {
-    const res = await api.post<{ success: boolean; data: ParentGroup }>('/parent/groups', { name });
+  async createGroup(name: string, memberIds: string[]): Promise<{ id: string; name: string }> {
+    const res = await api.post<{ success: boolean; data: { id: string; name: string } }>('/parent/groups', { name, memberIds });
     return res.data.data;
   },
 
-  async updateGroup(id: string, name: string): Promise<void> {
-    await api.put(`/parent/groups/${id}`, { name });
+  /** memberIds replaces the group's members. */
+  async updateGroup(id: string, data: { name: string; memberIds: string[] }): Promise<void> {
+    await api.put(`/parent/groups/${id}`, data);
   },
 
   async deleteGroup(id: string): Promise<void> {
