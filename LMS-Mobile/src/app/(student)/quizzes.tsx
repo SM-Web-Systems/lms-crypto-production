@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { quizService } from '@/services/quizService';
 import { Button } from '@/components/ui/Button';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import { Input } from '@/components/ui/Input';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
@@ -136,7 +137,7 @@ export default function QuizzesScreen() {
 
   if (step === 'take' && activeQuiz && currentQ) {
     return (
-      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
+      <KeyboardAvoid><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
         <Text className="text-sm text-neutral-500">
           Question {questionIndex + 1} of {questions.length}
         </Text>
@@ -151,7 +152,7 @@ export default function QuizzesScreen() {
                   accessibilityRole="radio"
                   accessibilityState={{ checked: answers[currentQ.id] === opt }}
                   onPress={() => setAnswers((prev) => ({ ...prev, [currentQ.id]: opt }))}
-                  className={`rounded-xl border p-3 ${answers[currentQ.id] === opt ? 'border-accent-teal bg-accent-teal/10' : 'border-neutral-200 bg-white'}`}>
+                  className={`min-h-[44px] justify-center rounded-xl border p-3 ${answers[currentQ.id] === opt ? 'border-accent-teal bg-accent-teal/10' : 'border-neutral-200 bg-white'}`}>
                   <Text className="text-sm text-neutral-800">{opt}</Text>
                 </Pressable>
               ))}
@@ -183,7 +184,7 @@ export default function QuizzesScreen() {
           )}
         </View>
         <Button label="Back to intro" variant="outline" onPress={() => setStep('intro')} />
-      </ScrollView>
+      </ScrollView></KeyboardAvoid>
     );
   }
 

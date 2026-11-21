@@ -2,7 +2,9 @@ import React from 'react';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { KeyboardAvoidingView, Platform, Text } from 'react-native';
 import { Button } from '@/components/ui/Button';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import DocumentsScreen from '@/app/(student)/documents';
 import MessagesScreen from '@/app/(student)/messages';
 import { documentsService } from '@/services/documentsService';
@@ -56,11 +58,32 @@ describe('tap targets', () => {
   });
 });
 
+describe('keyboard on Android', () => {
+  const os = Platform.OS;
+  afterEach(() => { Platform.OS = os; });
+
+  it('pads the content above the keyboard, offset by where the screen starts in the window', () => {
+    Platform.OS = 'android';
+    render(<KeyboardAvoid><Text>Reply</Text></KeyboardAvoid>);
+    const kav = screen.UNSAFE_getByType(KeyboardAvoidingView);
+    expect(kav.props.behavior).toBe('padding');
+    expect(typeof kav.props.keyboardVerticalOffset).toBe('number');
+  });
+
+  it('leaves iOS to the ScrollView keyboard insets', () => {
+    Platform.OS = 'ios';
+    render(<KeyboardAvoid><Text>Reply</Text></KeyboardAvoid>);
+    expect(screen.UNSAFE_queryByType(KeyboardAvoidingView)).toBeNull();
+    expect(screen.getByText('Reply')).toBeTruthy();
+  });
+});
+
 describe('source rules', () => {
   const read = (file: string) => readFileSync(join(__dirname, '..', '..', 'app', '(student)', file), 'utf8');
 
   it.each(['forum.tsx', 'profile.tsx', 'quizzes.tsx', 'course.tsx'])(
-    '%s keeps typed text above the keyboard in every vertical ScrollView', (file) => {
+    '%s keeps typed text above the keyboard: iOS insets on every vertical ScrollView, Android padding', (file) => {
+      expect(read(file)).toMatch(/<KeyboardAvoid>/);
       const tags = read(file).match(/<ScrollView\b[^>]*>/g) ?? [];
       const vertical = tags.filter((t) => !/\bhorizontal\b/.test(t));
       expect(vertical.length).toBeGreaterThan(0);
@@ -76,6 +99,7 @@ describe('source rules', () => {
       expect(row).toMatch(/accessibilityRole="button"/);
       expect(row).toMatch(/min-h-\[44px\]/);
     }
+    expect(read('quizzes.tsx')).toMatch(/accessibilityRole="radio"[\s\S]{0,300}min-h-\[44px\]/);
   });
 
   it('standalone quiz options are announced as radio buttons', () => {

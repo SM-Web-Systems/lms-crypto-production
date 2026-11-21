@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { forumService } from '@/services/forumService';
 import { courseService } from '@/services/courseService';
 import { Button } from '@/components/ui/Button';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
@@ -115,7 +116,7 @@ export default function ForumScreen() {
 
   if (selectedTopic) {
     return (
-      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
+      <KeyboardAvoid><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
         <Pressable onPress={() => setSelectedTopic(null)} accessibilityRole="button" className="min-h-[44px] flex-row items-center gap-2 self-start">
           <Ionicons name="arrow-back" size={18} color={brand.primary.dark} />
           <Text className="font-semibold text-neutral-800">Back to discussions</Text>
@@ -140,12 +141,12 @@ export default function ForumScreen() {
         )}
         <Input label="Reply" value={replyBody} onChangeText={setReplyBody} placeholder="Write a reply…" multiline />
         <Button label={submitting ? 'Posting…' : 'Post reply'} onPress={handleReply} disabled={submitting || !replyBody.trim()} />
-      </ScrollView>
+      </ScrollView></KeyboardAvoid>
     );
   }
 
   return (
-    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
+    <KeyboardAvoid><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
       className="flex-1 bg-neutral-50"
       contentContainerClassName="p-4 gap-4 pb-8"
       refreshControl={
@@ -201,6 +202,6 @@ export default function ForumScreen() {
           </Pressable>
         ))
       )}
-    </ScrollView>
+    </ScrollView></KeyboardAvoid>
   );
 }

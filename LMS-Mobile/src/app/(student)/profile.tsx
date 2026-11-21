@@ -9,6 +9,7 @@ import { WebHandoffButton } from '@/components/WebHandoffButton';
 import { useAuth } from '@/context/AuthContext';
 import { profileService } from '@/services/profileService';
 import { Button } from '@/components/ui/Button';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import { Input } from '@/components/ui/Input';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
@@ -134,11 +135,10 @@ export default function ProfileScreen() {
   const shownName = displayName.trim() || user.name;
 
   return (
-    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
+    <KeyboardAvoid><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
       className="flex-1 bg-neutral-50"
       contentContainerClassName="p-4 gap-4 pb-8"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.accent.teal} />}
-      keyboardShouldPersistTaps="handled">
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.accent.teal} />}>
       <Card>
         <View className="items-center py-2">
           <Pressable onPress={pickAvatar} className="relative">
@@ -202,6 +202,6 @@ export default function ProfileScreen() {
         <WebHandoffButton path="/student" label="Wallet setup on web"/>
       </Card>
       <Button label="Sign out" variant="outline" onPress={logout} />
-    </ScrollView>
+    </ScrollView></KeyboardAvoid>
   );
 }
