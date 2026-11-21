@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { hasCapability } from '../utils/authorization';
@@ -97,7 +97,7 @@ const Messages: React.FC = () => {
     })();
   }, [isAdmin, userId]);
 
-  const openConversationFromState = async (otherUserId: string, otherUserName: string) => {
+  const openConversationFromState = useCallback(async (otherUserId: string, otherUserName: string) => {
     if (!userId) return;
     setOpeningConversation(true);
     setActionError(null);
@@ -117,15 +117,16 @@ const Messages: React.FC = () => {
     } finally {
       setOpeningConversation(false);
     }
-  };
+  }, [userId, userName, isAdmin]);
 
   useEffect(() => {
     const state = location.state as { openUserId?: string; openUserName?: string } | null;
     if (state?.openUserId && state?.openUserName && userId) {
       openConversationFromState(state.openUserId, state.openUserName);
+      // Clearing the state stops this effect from opening the conversation again.
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, userId, isAdmin, userName]);
+  }, [location.state, location.pathname, userId, navigate, openConversationFromState]);
 
   useEffect(() => {
     if (!selectedConversation) {
