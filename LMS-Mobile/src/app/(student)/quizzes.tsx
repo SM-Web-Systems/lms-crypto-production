@@ -9,6 +9,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
+import { QuizRewardNote } from '@/components/QuizRewardNote';
 import type { Quiz, QuizCompletion, QuizQuestion } from '@/types/quiz';
 import { getErrorMessage } from '@/utils/apiError';
 import { brand } from '@/theme/colors';
@@ -199,6 +200,7 @@ export default function QuizzesScreen() {
               Score: {lastResult.score}%
             </Text>
           </View>
+          <View className="mb-3"><QuizRewardNote passed={lastResult.passed} completedAt={lastResult.completedAt} /></View>
           <Button label="Back to quizzes" onPress={backToList} />
         </Card>
       </ScrollView>
