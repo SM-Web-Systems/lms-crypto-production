@@ -9,7 +9,7 @@
  * Fix: Change skip to exempt all GET/HEAD/OPTIONS requests (matching writeLimiter
  * pattern). POST-based brute-force protection remains at 60/15min.
  *
- * See: production-audit/LMS-AMMA-LOGIN-RATE-LIMIT.md
+ * See: docs/archive/production-audit/LMS-AMMA-LOGIN-RATE-LIMIT.md
  */
 
 import { describe, it, expect } from 'vitest';

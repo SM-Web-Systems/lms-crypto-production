@@ -89,7 +89,7 @@ A TypeScript/Express backend server for the KanyaCSI Student Management System. 
    administrator provisioning procedure (confirm the selected identity, then use `npm run db:promote-admin -- <email>`); never seed demonstration credentials into a deployment.
 
    Normal startup refuses missing, corrupt, partial or unsupported databases. Preserve the database
-   and all sidecars, then follow the [AUTH-13 bootstrap procedure](../docs/specs/AUTH-13-application-integrity-spec.md).
+   and all sidecars, then follow the [AUTH-13 bootstrap procedure](../docs/archive/specs/AUTH-13-application-integrity-spec.md).
    Do not delete files or rerun initialization as a repair. Existing legacy rebuilds need a separately
    reviewed offline migration; the startup path performs additive changes transactionally.
 

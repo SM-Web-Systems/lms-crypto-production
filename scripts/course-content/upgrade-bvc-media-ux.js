@@ -12,7 +12,7 @@
  *   DRY_RUN=0 node upgrade-bvc-media-ux.js   # Apply
  *
  * Docker:
- *   docker cp upgrade-bvc-media-ux.js lms-api:/app/
+ *   docker cp scripts/course-content/upgrade-bvc-media-ux.js lms-api:/app/
  *   docker exec -w /app lms-api node upgrade-bvc-media-ux.js
  *   docker exec -w /app -e DRY_RUN=0 lms-api node upgrade-bvc-media-ux.js
  */
@@ -159,6 +159,16 @@ if (parsed.length !== 2) { console.error('ERROR: Expected 2 weeks'); process.exi
 if (parsed[0].sections.length !== 4) { console.error('ERROR: Week 1 should have 4 sections'); process.exit(1); }
 if (parsed[1].sections.length !== 3) { console.error('ERROR: Week 2 should have 3 sections'); process.exit(1); }
 
+// True only when the URL's host is exactly raw.githubusercontent.com over https.
+function isRawGithubUrl(value) {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' && u.hostname === 'raw.githubusercontent.com';
+  } catch {
+    return false;
+  }
+}
+
 // Verify all video items have clean descriptions and download URLs
 for (let n = 1; n <= 7; n++) {
   const videoItem = allItems.find(i => i.id === `bvc-${n}-video`);
@@ -167,7 +177,7 @@ for (let n = 1; n <= 7; n++) {
     console.error(`ERROR: bvc-${n}-video description still contains unwanted text`);
     process.exit(1);
   }
-  if (!videoItem.downloadUrl?.includes('raw.githubusercontent.com')) {
+  if (!isRawGithubUrl(videoItem.downloadUrl)) {
     console.error(`ERROR: bvc-${n}-video missing downloadUrl`);
     process.exit(1);
   }
@@ -182,7 +192,7 @@ for (let n = 1; n <= 7; n++) {
     console.error(`ERROR: bvc-${n}-audio missing valid youtubeUrl`);
     process.exit(1);
   }
-  if (!audioItem.downloadUrl?.includes('raw.githubusercontent.com')) {
+  if (!isRawGithubUrl(audioItem.downloadUrl)) {
     console.error(`ERROR: bvc-${n}-audio missing downloadUrl`);
     process.exit(1);
   }

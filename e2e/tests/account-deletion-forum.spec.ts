@@ -12,7 +12,7 @@
  *    'finalized' shows "Deleted User" author (LEFT JOIN anonymization).
  * 3. Cancelling deletion restores forum access.
  *
- * Ref: docs/phase3/specs/01-account-deletion-forum.md
+ * Ref: docs/archive/phase3/specs/01-account-deletion-forum.md
  */
 
 import { test, expect } from '@playwright/test';

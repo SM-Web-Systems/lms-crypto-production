@@ -390,7 +390,7 @@ export function writePrivateDetails(filename, details) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   if (process.argv.length === 3 && process.argv[2] === '--help') {
-    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json] [--review-output /private/new-review.json --expected-snapshot-sha <64 lowercase hex characters>] [--verify-review /private/completed-review.json --expected-snapshot-sha <64 lowercase hex characters>]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Private outputs contain identifiers. See docs/release/LMS-010-PRIVATE-REVIEW.md.');
+    console.log('Usage: node scripts/rbac-inventory.mjs --snapshot --database /private/finalized-snapshot.db --deployed-sha <40 hex characters> [--details-output /private/new-exceptions.json] [--review-output /private/new-review.json --expected-snapshot-sha <64 lowercase hex characters>] [--verify-review /private/completed-review.json --expected-snapshot-sha <64 lowercase hex characters>]\nNo application imports, env files, network calls, schema upgrades, grants or database writes. Private outputs contain identifiers. See docs/archive/release/LMS-010-PRIVATE-REVIEW.md.');
   } else {
     try {
       const options = parseArguments(process.argv.slice(2));

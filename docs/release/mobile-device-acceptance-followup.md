@@ -2,7 +2,7 @@
 
 This laptop work uses synthetic fixtures and native mocks. **Physical Android and iOS acceptance are NOT RUN.** No EAS build, store submission, deployment, real login/provider/email/payment operation or server access is included. Server owners evaluate and merge the PRs separately.
 
-The existing `docs/deliverable-1/batch-1-device-verification.md` remains historical evidence. Its old branch, test counts, internal-account login and Expo Go instructions are not current release instructions. Use the current approved app/API/Wallet SHAs and the steps here. Wallet remains the account authority; adding another LMS registration/password is not part of acceptance.
+The existing `docs/archive/deliverable-1/batch-1-device-verification.md` remains historical evidence. Its old branch, test counts, internal-account login and Expo Go instructions are not current release instructions. Use the current approved app/API/Wallet SHAs and the steps here. Wallet remains the account authority; adding another LMS registration/password is not part of acceptance.
 
 ## What the laptop verifies
 
