@@ -649,7 +649,7 @@ router.patch(
         type: 'nft_approved',
         title: 'Certificate Approved',
         body: `Your certificate application for "${courseRow?.title ?? 'course'}" was approved`,
-        link: '/student/course',
+        link: '/student/badges',
       });
     } catch (err) {
       logger.error({ module: 'notification', err }, 'NFT approve emission error');
@@ -742,7 +742,7 @@ router.patch(
         type: 'nft_rejected',
         title: 'Certificate Rejected',
         body: `Your certificate application for "${courseRow?.title ?? 'course'}" was rejected`,
-        link: '/student/course',
+        link: '/student/badges',
       });
     } catch (err) {
       logger.error({ module: 'notification', err }, 'NFT reject emission error');
@@ -999,9 +999,9 @@ router.post(
       createNotification({
         userId: app.user_id,
         type: 'nft_minted',
-        title: 'Certificate Minted',
-        body: `Your NFT certificate for "${courseRow?.title ?? 'course'}" has been minted`,
-        link: '/student/course',
+        title: 'Certificate Issued',
+        body: `Your certificate for "${courseRow?.title ?? 'course'}" has been issued`,
+        link: '/student/badges',
       });
     } catch (err) {
       logger.error({ module: 'notification', err }, 'NFT mint emission error');
