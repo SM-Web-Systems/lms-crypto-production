@@ -141,6 +141,12 @@ export interface Submission {
   courseId?: string;
   weekId?: string;
   itemId?: string;
+  // Staff-only (course.grade): TA review state
+  gradeStatus?: 'direct' | 'pending_approval' | 'approved' | 'sent_back';
+  gradedByName?: string;
+  proposedStatus?: 'approved' | 'rejected';
+  taFeedback?: string;
+  reviewNote?: string;
 }
 
 export interface CreateSubmissionData {
@@ -216,6 +222,7 @@ export interface SubmissionQueryParams {
   limit?: number;
   status?: SubmissionStatus;
   studentId?: string;
+  gradeStatus?: 'pending_approval';
 }
 
 // Course Document Types

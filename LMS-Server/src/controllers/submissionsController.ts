@@ -20,9 +20,10 @@ function safeName(raw: string): string {
   return path.basename(raw).replace(/[^\w\s.\-]/g, '_');
 }
 
-// Helper to convert DB submission to API response
-function toSubmissionResponse(submission: Submission & { student_name?: string; reviewer_name?: string }): SubmissionResponse {
-  return {
+// Helper to convert DB submission to API response. TA review fields are added
+// only for course.grade staff; learners see TA feedback only once it is approved.
+function toSubmissionResponse(submission: Submission & { student_name?: string; reviewer_name?: string }, staff = false): SubmissionResponse {
+  const response: SubmissionResponse = {
     id: submission.id,
     studentId: submission.student_id,
     studentName: submission.student_name || '',
@@ -37,12 +38,22 @@ function toSubmissionResponse(submission: Submission & { student_name?: string; 
     reviewedAt: submission.reviewed_at as unknown as string | undefined,
     reviewedBy: submission.reviewer_name,
     reviewedById: submission.reviewed_by_id,
-    feedback: submission.feedback,
+    feedback: submission.feedback ?? (submission.grade_status === 'approved' ? submission.ta_feedback ?? undefined : undefined),
     courseId: submission.course_id || undefined,
     weekId: submission.week_id || undefined,
     itemId: submission.item_id || undefined,
     createdAt: submission.created_at as unknown as string,
     updatedAt: submission.updated_at as unknown as string,
+  };
+  if (!staff) return response;
+  const sentBack = submission.grade_status === 'direct' && !!submission.review_note && submission.status === 'pending';
+  return {
+    ...response,
+    gradeStatus: sentBack ? 'sent_back' : submission.grade_status ?? undefined,
+    gradedByName: submission.graded_by_name ?? undefined,
+    proposedStatus: submission.proposed_status ?? undefined,
+    taFeedback: submission.ta_feedback ?? undefined,
+    reviewNote: submission.review_note ?? undefined,
   };
 }
 
@@ -54,15 +65,17 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     const status = req.query.status as SubmissionStatus;
     const studentId = req.query.studentId as string;
     const courseId = req.query.courseId as string;
+    const gradeStatus = req.query.gradeStatus as string;
 
     const userId = req.user!.userId;
     const staff = submissionStaffScope(userId);
+    const permissions = new Set(getUserPermissions(userId));
+    const showStaffFields = req.query.view !== 'own' && permissions.has('course.grade');
     const conditions: string[] = [];
     const params: unknown[] = [];
     if (req.query.view === 'own') {
       conditions.push('s.student_id = ?'); params.push(studentRecordId(userId) ?? '');
     } else {
-      const permissions = new Set(getUserPermissions(userId));
       if (permissions.has('course.delete') || permissions.has('course.grade') || permissions.has('course.grade_pending')) {
         conditions.push(staff.sql); params.push(...staff.params);
       } else {
@@ -81,6 +94,10 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
       conditions.push(`s.course_id = ?`);
     }
 
+    if (showStaffFields && gradeStatus === 'pending_approval') {
+      conditions.push(`s.grade_status = 'pending_approval' AND s.status = 'pending'`);
+    }
+
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
     // Get total count
@@ -92,10 +109,11 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
 
     // Get submissions with student name
     const submissions = query<Submission & { student_name: string; reviewer_name: string }>(
-      `SELECT s.*, st.name as student_name, u.name as reviewer_name
+      `SELECT s.*, st.name as student_name, u.name as reviewer_name, g.name as graded_by_name
        FROM submissions s
        LEFT JOIN students st ON s.student_id = st.id
        LEFT JOIN users u ON s.reviewed_by_id = u.id
+       LEFT JOIN users g ON s.graded_by = g.id
        ${whereClause}
        ORDER BY s.submitted_at DESC
        LIMIT ? OFFSET ?`,
@@ -105,7 +123,7 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     res.json({
       success: true,
       data: {
-        submissions: submissions.map(toSubmissionResponse),
+        submissions: submissions.map(s => toSubmissionResponse(s, showStaffFields)),
         pagination: {
           page,
           limit,
@@ -463,7 +481,9 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
     const atomicWrite = db.transaction(() => {
       execute(
         `UPDATE submissions
-         SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now')
+         SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now'),
+           -- A direct review settles any TA proposal still waiting (UX-002).
+           grade_status = CASE WHEN grade_status = 'pending_approval' THEN 'direct' ELSE grade_status END
          WHERE id = ?`,
         [status, feedback?.trim() || null, reviewerUserId, id]
       );
@@ -597,7 +617,7 @@ export async function getCourseSubmissions(req: AuthRequest, res: Response, next
 
     res.json({
       success: true,
-      data: { submissions: submissions.map(toSubmissionResponse) },
+      data: { submissions: submissions.map(s => toSubmissionResponse(s)) },
     });
   } catch (error) {
     next(error);

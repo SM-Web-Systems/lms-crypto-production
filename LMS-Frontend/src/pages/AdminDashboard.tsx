@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { hasCapability, canAccessPath } from '../utils/authorization';
 import { useData } from '../context/DataContext';
+import { usePendingTaGrades } from '../context/usePendingTaGrades';
 import { validateBuildSha, getShortSha } from '../utils/buildInfo';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
@@ -99,7 +100,9 @@ const AdminDashboard: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  const pendingSubmissions = submissions.filter((s) => s.status === 'pending').length;
+  // TA grades come from the server total; skip loaded rows that are already in it.
+  const taGrades = usePendingTaGrades(canGrade, 1);
+  const pendingSubmissions = submissions.filter((s) => s.status === 'pending' && s.gradeStatus !== 'pending_approval').length + taGrades.total;
   const approvedSubmissions = submissions.filter((s) => s.status === 'approved').length;
   const rejectedSubmissions = submissions.filter((s) => s.status === 'rejected').length;
 

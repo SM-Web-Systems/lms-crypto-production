@@ -17,6 +17,7 @@ import { pushSchema } from './pushSchema.js';
 import { webPushSchema } from './webPushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
+import { ensureTaGradeReviewColumns } from './taGradeReviewMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
 dotenv.config();
@@ -1414,6 +1415,7 @@ function ensureSubmissionsGradeColumns(): void {
   if (!info.some(col => col.name === 'graded_by')) {
     db.exec('ALTER TABLE submissions ADD COLUMN graded_by TEXT');
   }
+  ensureTaGradeReviewColumns(db);
 }
 startupMigrations.push(ensureSubmissionsGradeColumns);
 

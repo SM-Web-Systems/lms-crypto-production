@@ -116,6 +116,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
       if (!afterMigrations && table.name === 'users' && column === 'authorization_version') continue;
       // Additive lesson-completion progress columns are added by ensureLessonCompletionsTable migration.
       if (!afterMigrations && table.name === 'lesson_completions' && (column === 'progress_pct' || column === 'last_position_s')) continue;
+      // UX-002 TA review columns are added by ensureTaGradeReviewColumns.
+      if (!afterMigrations && table.name === 'submissions' && ['proposed_status', 'ta_feedback', 'review_note'].includes(column)) continue;
       if (!columns.some(c => c.name === column)) refuse(`unsupported schema (${table.name}.${column})`);
     }
   }

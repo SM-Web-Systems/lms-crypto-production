@@ -754,6 +754,8 @@ describe('F6: Notification Preferences Per Role', () => {
       'INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)',
       [courseId, taId, instructorId],
     );
+    // UX-002 AC8: only a lecturer of the course (or an admin) may approve a TA grade.
+    execute('INSERT INTO course_lecturers (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, instructorId, instructorId]);
 
     // Create a students record (submissions.student_id references students.id, not users.id)
     const studentRecordId = uuidv4();
@@ -780,6 +782,6 @@ describe('F6: Notification Preferences Per Role', () => {
       "SELECT type FROM notifications WHERE user_id = ? AND type = 'grade_approved'",
       [taId],
     );
-    expect(notif).toBeDefined();
+    expect(notif).not.toBeNull();
   });
 });
