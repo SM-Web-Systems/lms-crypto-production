@@ -558,6 +558,8 @@
       "released_at",
       "cancelled_at",
       "refunded_at",
+      "decline_reason",
+      "declined_by_user_id",
       "created_at",
       "updated_at"
     ],

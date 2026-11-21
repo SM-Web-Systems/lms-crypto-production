@@ -17,6 +17,7 @@ export const CONFIGURABLE_TYPES = [
   // Reward notification types
   'reward_released', 'reward_eligible', 'reward_refunded',
   'reward_expired', 'reward_cancelled', 'refund_blocked',
+  'reward_funded', 'reward_declined',
 ] as const;
 
 export function createNotification(params: {

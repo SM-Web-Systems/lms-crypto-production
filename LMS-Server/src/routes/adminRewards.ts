@@ -6,6 +6,8 @@
  * POST /admin/rewards/refund-attempts/:id/resolve — Resolve (waive/escalate) a blocked refund
  * POST /admin/rewards/process-outbox              — Manually trigger outbox processing
  * GET  /admin/rewards/awaiting-funding            — Draft rewards created by someone else, for independent funding authorization
+ * POST /admin/rewards/:id/decline                 — Send a draft back to its creator with a reason (not the caller's own)
+ * GET  /admin/rewards/stuck-payouts               — Learner payouts that failed, timed out, or were never sent
  */
 import { Router, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,7 +15,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { db } from '../config/database.js';
-import { refundAllocation } from '../services/rewards/rewardService.js';
+import { declineDraftReward, refundAllocation } from '../services/rewards/rewardService.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { processOutboxRetries } from '../services/rewards/rewardOutboxWorker.js';
 import logger from '../utils/logger.js';
@@ -57,6 +59,58 @@ router.get(
   },
 );
 
+// ──── POST /admin/rewards/:id/decline ────
+
+router.post(
+  '/:id/decline',
+  authenticate,
+  requirePermission('reward.manage'),
+  (req: AuthRequest, res: Response) => {
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    if (!reason || reason.length > 500) {
+      res.status(400).json({ success: false, error: { code: 'MISSING_FIELD', message: 'Give a reason of up to 500 characters. The creator will see it.' } });
+      return;
+    }
+    try {
+      res.json({ success: true, data: declineDraftReward(req.params.id, req.user!.userId, reason) });
+    } catch (err) {
+      handleRewardError(err, res);
+    }
+  },
+);
+
+// ──── GET /admin/rewards/stuck-payouts ────
+
+const NEVER_SENT_AFTER_MS = 10 * 60_000;
+
+/**
+ * Learner payouts an administrator should look at (UX-019): failed on the network, past their time bound while
+ * still "submitted", or verified claims with no payout at all after 10 minutes. Read-only.
+ */
+router.get(
+  '/stuck-payouts',
+  authenticate,
+  requirePermission('reward.refund_review'),
+  (_req: AuthRequest, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const now = Date.now();
+    // Only the network this server pays on; old payouts from another network are not this server's to fix.
+    const network = ['public', 'testnet'].includes(process.env.REWARD_STELLAR_NETWORK ?? '') ? process.env.REWARD_STELLAR_NETWORK! : null;
+    const rows = db.prepare(`
+      SELECT c.id AS claimId, u.name AS learnerName, c.amount_stroops AS amountStroops, c.verified_at AS verifiedAt,
+             p.network, p.status AS payoutStatus, p.error, p.tx_hash AS txHash, p.attempts, p.updated_at AS updatedAt
+      FROM reward_claims c
+      JOIN users u ON u.id = c.user_id
+      LEFT JOIN reward_claim_payouts p ON p.claim_id = c.id
+      WHERE c.status = 'verified' AND (p.claim_id IS NULL OR ? IS NULL OR p.network = ?) AND (
+        p.status = 'failed'
+        OR (p.status = 'submitted' AND p.max_time * 1000 < ?)
+        OR (p.claim_id IS NULL AND c.verified_at < ?))
+      ORDER BY COALESCE(p.updated_at, c.verified_at) DESC LIMIT 100`).all(network, network, now, now - NEVER_SENT_AFTER_MS);
+    res.json({ success: true, data: rows });
+  },
+);
+
 // ──── GET /admin/rewards/refund-attempts ────
 
 router.get(
@@ -71,26 +125,32 @@ router.get(
     const from = req.query.from as string | undefined;
     const to = req.query.to as string | undefined;
 
-    let sql = `SELECT id, reward_id, allocation_id, attempted_by_user_id,
-                      attempted_amount_stroops, currency_code, status, resolution,
-                      resolved_at, resolved_by_user_id, created_at
-               FROM reward_refund_attempts WHERE 1=1`;
+    // UX-019: the reward and learner names let the review screen say whose refund is blocked.
+    let sql = `SELECT a.id, a.reward_id, a.allocation_id, a.attempted_by_user_id,
+                      a.attempted_amount_stroops, a.currency_code, a.status, a.resolution,
+                      a.resolved_at, a.resolved_by_user_id, a.created_at,
+                      r.description AS reward_description, u.name AS learner_name
+               FROM reward_refund_attempts a
+               LEFT JOIN rewards r ON r.id = a.reward_id
+               LEFT JOIN reward_allocations al ON al.id = a.allocation_id
+               LEFT JOIN users u ON u.id = al.student_user_id
+               WHERE 1=1`;
     const params: unknown[] = [];
 
     if (status && ['blocked', 'resolved'].includes(status)) {
-      sql += ' AND status = ?';
+      sql += ' AND a.status = ?';
       params.push(status);
     }
     if (from) {
-      sql += ' AND created_at >= ?';
+      sql += ' AND a.created_at >= ?';
       params.push(from);
     }
     if (to) {
-      sql += ' AND created_at <= ?';
+      sql += ' AND a.created_at <= ?';
       params.push(to);
     }
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    sql += ' ORDER BY a.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const attempts = db.prepare(sql).all(...params);

@@ -57,6 +57,9 @@ export interface RewardRow {
   released_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;
+  /** UX-018: set when an authorizer sends a draft back to its creator. */
+  decline_reason?: string | null;
+  declined_by_user_id?: string | null;
   created_at: string;
   updated_at: string;
 }

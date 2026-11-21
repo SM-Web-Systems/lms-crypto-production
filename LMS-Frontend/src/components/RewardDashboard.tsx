@@ -9,7 +9,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { RewardFundingDialog } from './RewardFundingDialog';
-import { RewardStatusBadge, formatStroops } from './RewardStatusBadge';
+import { RewardStatusBadge } from './RewardStatusBadge';
 import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
 import { formatXlm } from '../utils/xlmAmount';
 import { useConfirmAction, type ConfirmActionOptions } from '../hooks/useConfirmAction';
@@ -81,8 +81,8 @@ const ACTION_CAPABILITY: Record<string, string> = {
 };
 
 /** UX-001 Rev 2 copy for each confirmed action. Amounts keep full precision in the reward's own currency. */
-function confirmCopy(action: string, reward: Reward, alloc: RewardAllocation | undefined, scopeLabel?: string): Omit<ConfirmActionOptions, 'action'> {
-  const amount = formatStroops(alloc?.amount_stroops ?? reward.amount_stroops, alloc?.currency_code ?? reward.currency_code);
+function confirmCopy(action: string, reward: Reward, alloc: RewardAllocation | undefined, scopeLabel: string | undefined, xlmUsdc: number | null): Omit<ConfirmActionOptions, 'action'> {
+  const amount = formatXlm(alloc?.amount_stroops ?? reward.amount_stroops, xlmUsdc, alloc?.currency_code ?? reward.currency_code);
   const learner = alloc?.student_name || 'this learner';
   switch (action) {
     case 'release':
@@ -447,11 +447,11 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
 
     // UX-001: say what will happen, to whom and how much, before anything is sent.
     // Errors stay in the dialog so the person can retry.
-    const done = await ask({ ...confirmCopy(action, reward, alloc, scopeLabel), action: run });
+    const done = await ask({ ...confirmCopy(action, reward, alloc, scopeLabel, xlmUsdc), action: run });
     // W06-R1+R2: only reload if still on the same target (key) AND same target visit (epoch).
     // A blocked refund changed nothing, so keep its message instead of reloading.
     if (done && !blocked && sameTarget()) await load();
-  }, [role, targetKey, load, ask, scopeLabel]);
+  }, [role, targetKey, load, ask, scopeLabel, xlmUsdc]);
 
   return (
     <div data-testid="reward-dashboard">
@@ -567,6 +567,10 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                         </td>
                         <td className="px-3 py-3">
                           <RewardStatusBadge status={r.status} />
+                          {/* UX-017/018: say whose turn it is. */}
+                          {r.status === 'draft' && <p className="mt-1 text-xs text-neutral-500">Waiting for an administrator to fund it.</p>}
+                          {r.status === 'funded' && <p className="mt-1 text-xs font-medium text-blue-800">Funded. Press Activate to make it live.</p>}
+                          {r.status === 'cancelled' && r.decline_reason && <p className="mt-1 text-xs text-red-800 max-w-[220px] break-words">Sent back: {r.decline_reason}</p>}
                         </td>
                         <td className="px-3 py-3 text-xs text-neutral-500">
                           {new Date(r.created_at).toLocaleDateString()}
@@ -689,7 +693,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
 
       {fundingReward && hasCapability(user, 'reward.fund') && (
         <RewardFundingDialog key={`${targetKey}|${user?.id}|${fundingReward}`}
-          role={role} rewardId={fundingReward} returnFocus={fundingOpener.current} onClose={() => setFundingReward(null)}
+          role={role} rewardId={fundingReward} rewardName={rewards.find(x => x.id === fundingReward)?.description} returnFocus={fundingOpener.current} onClose={() => setFundingReward(null)}
           onFunded={() => {
             if (targetEpochRef.current !== capturedEpoch) return;
             setFundingReward(null);

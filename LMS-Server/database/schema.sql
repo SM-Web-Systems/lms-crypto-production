@@ -733,6 +733,8 @@ CREATE TABLE IF NOT EXISTS rewards (
   released_at           TEXT,
   cancelled_at          TEXT,
   refunded_at           TEXT,
+  decline_reason        TEXT,
+  declined_by_user_id   TEXT,
   created_at            TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -25,11 +25,12 @@ for(const width of [320,390,768]) {
     });
     await page.setViewportSize({width,height:844});await page.goto('/sponsor/rewards');
     const opener=page.getByRole('row').filter({hasText:id}).getByRole('button',{name:'Funding options'});await opener.click();
-    const dialog=page.getByRole('dialog',{name:'Reward funding'});
+    // UX-018: the dialog is titled with the reward's name (its description, the id here).
+    const dialog=page.getByRole('dialog',{name:`Fund “${id}”`});
     await expect(dialog.getByLabel('Available platform credit')).toHaveValue(grant);
     await dialog.getByRole('button',{name:'Reserve platform credit'}).click();
     await expect(dialog.getByText('Testnet — test XLM')).toBeVisible();
-    await expect(dialog.getByText('Authorize 0.1234567 XLM from the reserved platform credit to fund this reward.')).toBeVisible();
+    await expect(dialog.getByText(/^Authorize 0\.1234567 XLM( \(.*USDC\))? from the reserved platform credit to fund this reward\.$/)).toBeVisible();
     const authorize=dialog.getByRole('button',{name:'Authorize platform credit'});
     for(let retry=0;retry<3;retry++){await authorize.click();await expect(dialog.getByRole('alert')).toBeVisible();await expect(authorize).toBeEnabled();}
     expect(attempts).toHaveLength(3);expect(attempts[0]).toEqual(attempts[1]);expect(attempts[1]).toEqual(attempts[2]);

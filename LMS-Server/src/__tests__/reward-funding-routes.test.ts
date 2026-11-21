@@ -26,7 +26,7 @@ describe('funding availability and intent HTTP contract', () => {
     for (const role of ['sponsor', 'employer', 'parent', 'teacher']) {
       const result = await request(app).get(`/api/v1/${role}/rewards/${f.reward.id}/funding-options`).set('Authorization', `Bearer ${f.token(f.admin)}`);
       expect(result.status).toBe(200);
-      expect(result.body.data.filter((option: {available: boolean}) => option.available)).toEqual([{sourceType: 'admin_grant', available: true, reason: null}]);
+      expect(result.body.data.filter((option: {available: boolean}) => option.available)).toEqual([{sourceType: 'admin_grant', available: true, reason: null, payoutNetwork: null}]);
     }
     const anonymous = await request(app).get(`/api/v1/sponsor/rewards/${f.reward.id}/funding-options`);
     expect(anonymous.status).toBe(401);

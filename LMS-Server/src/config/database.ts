@@ -19,6 +19,7 @@ import { offlineLearningSchema } from './offlineLearningSchema.js';
 import { courseContentSchema } from './courseContentSchema.js';
 import { ensureLessonCompletionSchema } from './lessonCompletionMigration.js';
 import { ensureTaGradeReviewColumns } from './taGradeReviewMigration.js';
+import { ensureRewardDeclineColumns } from './rewardDeclineMigration.js';
 import { captureForeignKeyEvidence, assertNoNewForeignKeyEvidence } from './foreignKeyIntegrity.js';
 
 dotenv.config();
@@ -1742,6 +1743,7 @@ function ensureRewardTables(): void {
     CREATE INDEX IF NOT EXISTS idx_refund_attempts_reward ON reward_refund_attempts(reward_id);
     CREATE INDEX IF NOT EXISTS idx_refund_attempts_status ON reward_refund_attempts(status);
   `);
+  ensureRewardDeclineColumns(db);
 }
 startupMigrations.push(ensureRewardTables);
 startupMigrations.push(() => db.exec(rewardFundingSchema));

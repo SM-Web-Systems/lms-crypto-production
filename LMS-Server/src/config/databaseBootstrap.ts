@@ -120,6 +120,8 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
       if (!afterMigrations && table.name === 'lesson_completions' && (column === 'progress_pct' || column === 'last_position_s')) continue;
       // UX-002 TA review columns are added by ensureTaGradeReviewColumns.
       if (!afterMigrations && table.name === 'submissions' && ['proposed_status', 'ta_feedback', 'review_note'].includes(column)) continue;
+      // UX-018 reward decline columns are added by ensureRewardDeclineColumns.
+      if (!afterMigrations && table.name === 'rewards' && ['decline_reason', 'declined_by_user_id'].includes(column)) continue;
       if (!columns.some(c => c.name === column)) refuse(`unsupported schema (${table.name}.${column})`);
     }
   }

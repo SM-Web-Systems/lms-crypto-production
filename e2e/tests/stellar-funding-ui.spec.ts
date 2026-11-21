@@ -26,10 +26,11 @@ for (const width of [320,390,768]) {
     await page.goto('/sponsor/rewards');
     const opener = page.getByRole('row').filter({hasText: id}).getByRole('button',{name: 'Funding options'});
     await opener.click();
-    const dialog = page.getByRole('dialog',{name: 'Reward funding'});
+    // UX-018: the dialog is titled with the reward's name (its description, the id here).
+    const dialog = page.getByRole('dialog',{name: `Fund “${id}”`});
     await dialog.getByRole('button',{name: 'Prepare Stellar payment'}).click();
     await expect(dialog.getByText('Public network — real XLM')).toBeVisible();
-    await expect(dialog.getByText('Send exactly 0.1234567 XLM as native XLM from your wallet.')).toBeVisible();
+    await expect(dialog.getByText(/^Send exactly 0\.1234567 XLM( \(.*USDC\))? as native XLM from your wallet\.$/)).toBeVisible();
     await expect(dialog.getByText(destination)).toBeVisible();
     await expect(dialog.getByText('a'.repeat(64))).toBeVisible();
     const operation = dialog.getByLabel('Stellar payment operation ID');

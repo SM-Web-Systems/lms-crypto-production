@@ -62,6 +62,8 @@ export function getFundingAvailability(rewardId: string, actorId: string) {
     sourceType,
     available: reward.status === 'draft' && ((sourceType === 'admin_grant' && independent) || (sourceType === 'stellar' && stellar) || (sourceType === 'platform_credit' && credits.length>0)),
     ...(sourceType==='platform_credit' && independent?{creditGrants:credits.map(grant=>({id:grant.id,availableStroops:grant.availableStroops}))}:{}),
+    // UX-018: an administrator grant is an LMS ledger entry; say which network learners will be paid on.
+    ...(sourceType==='admin_grant'?{payoutNetwork:['public','testnet'].includes(process.env.REWARD_STELLAR_NETWORK??'')?process.env.REWARD_STELLAR_NETWORK:null}:{}),
     reason: reward.status !== 'draft' ? 'This reward is no longer awaiting funding.'
       : sourceType === 'stellar' ? (stellar ? null : 'Stellar funding is not configured.')
       : sourceType === 'paystack' ? 'Card payments are available for course purchases only.'

@@ -23,6 +23,8 @@ export interface FundingOption {
   available: boolean;
   reason: string | null;
   creditGrants?: Array<{id:string;availableStroops:number}>;
+  /** admin_grant only: the network learners are paid on, or null when payouts are not set up. */
+  payoutNetwork?: 'public' | 'testnet' | null;
 }
 
 export interface FundingIntent {
@@ -63,6 +65,8 @@ export interface Reward {
   activated_at: string | null;
   released_at: string | null;
   cancelled_at: string | null;
+  /** Set when an administrator sent the draft back (UX-018). */
+  decline_reason?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -167,10 +171,47 @@ export interface AwaitingFundingReward {
   scopeType: string; scopeName: string | null; creatorName: string; createdAt: string;
 }
 
+/** A learner payout that failed, timed out, or was never sent (GET /admin/rewards/stuck-payouts). */
+export interface StuckPayout {
+  claimId: string; learnerName: string; amountStroops: number; verifiedAt: number | null;
+  network: 'public' | 'testnet' | null; payoutStatus: 'submitted' | 'failed' | null; error: string | null;
+  txHash: string | null; attempts: number | null; updatedAt: number | null;
+}
+
+/** A refund that was blocked because the learner had already moved the money (GET /admin/rewards/refund-attempts). */
+export interface RefundAttempt {
+  id: string; reward_id: string; reward_description: string | null; learner_name: string | null;
+  attempted_amount_stroops: number; currency_code: string; status: 'blocked' | 'resolved'; created_at: string;
+}
+
 export const rewardService = {
   /** Administrators: draft rewards made by someone else that this administrator may authorize. */
   async listAwaitingFunding(): Promise<AwaitingFundingReward[]> {
     const res = await api.get<ApiRes<AwaitingFundingReward[]>>('/admin/rewards/awaiting-funding');
+    return res.data.data;
+  },
+
+  /** Administrators: send someone else's draft back to its creator with a reason (it ends as cancelled). */
+  async declineReward(rewardId: string, reason: string): Promise<Reward> {
+    const res = await api.post<ApiRes<Reward>>(`/admin/rewards/${encodeURIComponent(rewardId)}/decline`, { reason });
+    return res.data.data;
+  },
+
+  /** Refund reviewers: learner payouts that need a look. */
+  async listStuckPayouts(): Promise<StuckPayout[]> {
+    const res = await api.get<ApiRes<StuckPayout[]>>('/admin/rewards/stuck-payouts');
+    return res.data.data;
+  },
+
+  /** Refund reviewers: refunds still blocked. */
+  async listRefundAttempts(): Promise<RefundAttempt[]> {
+    const res = await api.get<ApiRes<RefundAttempt[]>>('/admin/rewards/refund-attempts', { params: { status: 'blocked', limit: 50 } });
+    return res.data.data;
+  },
+
+  /** Refund reviewers: try a blocked refund again. */
+  async retryRefundAttempt(attemptId: string, idempotencyKey: string): Promise<unknown> {
+    const res = await api.post<ApiRes<unknown>>(`/admin/rewards/refund-attempts/${encodeURIComponent(attemptId)}/retry`, { idempotencyKey });
     return res.data.data;
   },
 

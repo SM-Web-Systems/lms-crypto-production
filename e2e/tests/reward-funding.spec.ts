@@ -16,7 +16,8 @@ for (const width of [320, 390, 768]) {
     const row = page.getByRole('row').filter({hasText: id});
     const options = row.getByRole('button', {name: 'Funding options'});
     await options.click();
-    const dialog = page.getByRole('dialog', {name: 'Reward funding'});
+    // UX-018: the dialog is titled with the reward's name (its description, the id here).
+    const dialog = page.getByRole('dialog', {name: `Fund “${id}”`});
     await expect(dialog.getByText('Card payments are available for course purchases only.')).toBeVisible();
     await expect(dialog.getByText('An independent reward administrator must authorize this grant.')).toBeVisible();
     await expect(dialog.getByRole('button', {name: 'Prepare grant'})).toHaveCount(0);

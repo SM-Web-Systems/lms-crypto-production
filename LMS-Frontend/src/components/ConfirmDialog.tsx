@@ -50,7 +50,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         return;
       }
       if (e.key !== 'Tab' || !panelRef.current) return;
-      const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled])'));
+      const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled])'));
       if (items.length === 0) { e.preventDefault(); return; }
       const first = items[0];
       const last = items[items.length - 1];
