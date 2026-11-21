@@ -80,6 +80,17 @@ function positiveStroops(name: string): bigint | null {
   return v && /^[1-9][0-9]{0,15}$/.test(v) ? BigInt(v) : null;
 }
 
+/**
+ * The most one mainnet payout may send (REWARD_PAYOUT_MAX_CLAIM_STROOPS), or null when there is no such limit (testnet, or not set).
+ * A claim above it can never be paid, so claims are refused above it before they lock any of the learner's balance.
+ */
+export function perClaimCapStroops(): bigint | null {
+  return process.env.REWARD_STELLAR_NETWORK === 'public' ? positiveStroops('REWARD_PAYOUT_MAX_CLAIM_STROOPS') : null;
+}
+
+export const overCapMessage = (cap: bigint) =>
+  `One payment to your wallet can be at most ${stroopsToXlm(Number(cap)).replace(/\.?0+$/, '')} XLM. Claim that much or less at a time.`;
+
 /** null when payouts are not configured; throws when the configuration is unsafe. */
 export function payoutConfiguration() {
   const network = process.env.REWARD_STELLAR_NETWORK;
@@ -174,9 +185,12 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
   const envelope = tx.toXDR();
 
   // Record the attempt before it leaves the LMS; lose the race quietly to a concurrent caller.
-  const recorded = db.transaction(() => {
+  const recorded = db.transaction((): 'recorded' | 'lost' | 'over_cap' => {
     const current = row(claimId);
-    if (current && (current.status !== 'failed' || current.tx_hash !== previous?.tx_hash)) return false;
+    if (current && (current.status !== 'failed' || current.tx_hash !== previous?.tx_hash)) return 'lost';
+    // The claim may have been cancelled since it was read above; a cancelled claim's amount is back in the balance, so never pay it.
+    const still = db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(claimId) as { status: string } | undefined;
+    if (still?.status !== 'verified') throw new RewardError('CLAIM_CLOSED', 'Only a verified claim can be paid.', 409);
     const committed = db.prepare(`SELECT COALESCE(SUM(amount_stroops + activation_stroops), 0) AS total FROM reward_claim_payouts
       WHERE network = ? AND status IN ('submitted', 'paid') AND claim_id <> ?`).get(cfg.network, claimId) as { total: number };
     if (BigInt(committed.total) + BigInt(claim.amount_stroops + activation) > treasuryBudgetStroops()) {
@@ -184,7 +198,14 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
     }
     if (cfg.caps) {
       const outgoing = BigInt(claim.amount_stroops + activation);
+      if (BigInt(claim.amount_stroops) > cfg.caps.perClaim) {
+        // The reward alone is above the per-claim limit, so retrying can never succeed, and a verified claim keeps its amount
+        // locked. Nothing was sent (no attempt, or only one that definitely failed), so close the claim and give the amount back.
+        db.prepare("UPDATE reward_claims SET status = 'cancelled' WHERE id = ? AND status = 'verified'").run(claimId);
+        return 'over_cap';
+      }
       if (outgoing > cfg.caps.perClaim) {
+        // Only the new-wallet reserve takes it over the limit; it can be paid once the wallet exists, so the claim stays.
         throw new RewardError('PAYOUT_CAP_EXCEEDED', 'This payout is above the per-claim limit. Your claim is saved.', 409);
       }
       const day = db.prepare(`SELECT COALESCE(SUM(amount_stroops + activation_stroops + ${PAYOUT_FEE_STROOPS}), 0) AS total FROM reward_claim_payouts
@@ -201,9 +222,12 @@ export async function payRewardClaim(userId: string, claimId: string, now = Date
         envelope_xdr, max_time, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 1, ?, ?)`)
         .run(claimId, cfg.network, cfg.signer.publicKey(), claim.destination, claim.amount_stroops, activation, hash, envelope, maxTime, now, now);
     }
-    return true;
+    return 'recorded';
   }).immediate();
-  if (!recorded) return result(row(claimId)!);
+  if (recorded === 'lost') return result(row(claimId)!);
+  if (recorded === 'over_cap') {
+    throw new RewardError('PAYOUT_CAP_EXCEEDED', `This claim was not paid and is back in your LMS balance. ${overCapMessage(cfg.caps!.perClaim)}`, 409);
+  }
 
   try {
     const submitted = await cfg.horizon.submit(envelope);

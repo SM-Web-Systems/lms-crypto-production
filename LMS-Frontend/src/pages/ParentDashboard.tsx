@@ -1,11 +1,12 @@
 /**
  * ParentDashboard — Phase G: Parent dashboard with children and rewards.
  * Uses URL path to determine which section to display.
- * Wallets, Groups, Billing routes redirect to /parent (deferred — FOLLOW-UP(parent-wallet-group-billing-ui)).
+ * Family groups live at /parent/groups (ParentGroups). Wallets and Billing routes redirect to /parent
+ * (deferred — FOLLOW-UP(parent-wallet-billing-ui)).
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { parentService, type ParentDashboardData, type ParentGroup } from '../services/parentService';
 import { Card, CardContent } from '../components/Card';
@@ -19,8 +20,31 @@ import {
   RefreshCw,
   AlertCircle,
   LayoutDashboard,
+  Plus,
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
+
+/** Shown to a parent with no family group yet: rewards need one, so lead them to create it. */
+const CreateFamilyGroupCallout: React.FC = () => (
+  <Card>
+    <CardContent className="py-5 flex flex-wrap items-center justify-between gap-4">
+      <div className="flex items-start gap-3">
+        <Users className="h-8 w-8 shrink-0 text-accent-teal" aria-hidden />
+        <div>
+          <p className="font-semibold text-neutral-900">Set up rewards for your children</p>
+          <p className="text-sm text-neutral-600">Rewards go to the children in a family group. Create one to get started.</p>
+        </div>
+      </div>
+      <Link
+        to="/parent/groups"
+        className="touch-target inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium bg-accent-teal text-white hover:bg-accent-teal-hover focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2"
+      >
+        <Plus className="h-4 w-4" aria-hidden />
+        Create your family group
+      </Link>
+    </CardContent>
+  </Card>
+);
 
 const ParentDashboardContent: React.FC = () => {
   const { user } = useAuth();
@@ -172,6 +196,7 @@ const ParentDashboardContent: React.FC = () => {
                     )}
                   </div>
                 )}
+                {!groupsLoading && !groupsError && groups.length === 0 && <CreateFamilyGroupCallout />}
                 <ParentInvitePanel />
               </>
             )
@@ -198,7 +223,7 @@ const ParentDashboardContent: React.FC = () => {
                     <RewardDashboard key={g.id} role="parent" scopeId={g.id} scopeLabel={g.name} targetType="family" />
                   ))
                 ) : (
-                  <p className="text-neutral-500 text-sm py-8 text-center">Create a family group first to manage rewards.</p>
+                  <CreateFamilyGroupCallout />
                 )}
               </div>
             )
