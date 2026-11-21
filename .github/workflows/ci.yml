@@ -184,6 +184,7 @@ jobs:
                 wget -S -q -O /dev/null "http://127.0.0.1$path" 2> /tmp/headers
                 grep -qiE "^ *Content-Security-Policy-Report-Only: default-src .*report-uri /api/v1/csp-report" /tmp/headers
                 grep -qiE "^ *Permissions-Policy: camera=\(\)" /tmp/headers
+                if grep -qiE "^ *Content-Security-Policy:" /tmp/headers; then echo "CSP is enforced on $path"; exit 1; fi
               done
               wget -S -q -O /dev/null http://127.0.0.1/sw.js 2>&1 | grep -qi "^ *Cache-Control: no-cache"
             '
