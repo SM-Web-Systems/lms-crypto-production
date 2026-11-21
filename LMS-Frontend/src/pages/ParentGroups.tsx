@@ -282,6 +282,7 @@ const ParentGroups: React.FC = () => {
         description="This removes the group. Your children stay linked to you. A group with funded or paid rewards can't be deleted."
         confirmLabel="Delete group"
         loading={deleteBusy}
+        loadingLabel="Deleting…"
         onConfirm={confirmDelete}
         onCancel={() => setDeleting(null)}
       />
