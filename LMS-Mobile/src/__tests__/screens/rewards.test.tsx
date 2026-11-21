@@ -4,7 +4,7 @@ import { rewardClaimService } from '@/services/rewardClaimService';
 import { ApiRequestError } from '@/utils/apiError';
 
 jest.mock('@/services/rewardClaimService', () => ({
-  rewardClaimService: { claimable: jest.fn(), received: jest.fn(), claim: jest.fn(), claims: jest.fn(), retryPayout: jest.fn() },
+  rewardClaimService: { claimable: jest.fn(), received: jest.fn(), claim: jest.fn(), claims: jest.fn(), retryPayout: jest.fn(), maxClaim: jest.fn() },
 }));
 const svc = rewardClaimService as jest.Mocked<typeof rewardClaimService>;
 const reward = { allocationId: 'a-1', rewardType: 'custom', amountStroops: 1000000, currencyCode: 'XLM', status: 'released', releasedAt: '2026-11-13T20:33:38Z', createdAt: '2026-11-13T19:00:00Z' };
@@ -25,6 +25,16 @@ describe('student rewards screen', () => {
     fireEvent.press(await screen.findByText('Claim to my wallet'));
     await waitFor(() => expect(svc.claim).toHaveBeenCalledWith(1000000));
     expect(await screen.findByText(/reward has been sent/)).toBeTruthy();
+  });
+
+  it('claims at most the per-payment limit and says the rest stays claimable', async () => {
+    svc.claimable.mockResolvedValue(2000000);
+    svc.maxClaim.mockResolvedValue(1000000);
+    svc.claim.mockResolvedValue({ kind: 'verified', payout: { status: 'paid' } });
+    render(<RewardsScreen />);
+    fireEvent.press(await screen.findByText('Claim 0.1 XLM to my wallet'));
+    await waitFor(() => expect(svc.claim).toHaveBeenCalledWith(1000000));
+    expect(screen.getByText(/at most 0\.1 XLM\. Claim again for the rest/)).toBeTruthy();
   });
 
   it('explains how to restore the wallet on another device', async () => {

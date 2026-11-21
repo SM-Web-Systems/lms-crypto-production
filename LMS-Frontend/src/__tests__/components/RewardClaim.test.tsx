@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const svc = vi.hoisted(() => ({
-  getMyRewards: vi.fn(), getClaimableBalance: vi.fn(), startClaim: vi.fn(), verifyClaim: vi.fn(), listMyClaims: vi.fn(), retryPayout: vi.fn(),
+  getMyRewards: vi.fn(), getClaimableBalance: vi.fn(), startClaim: vi.fn(), verifyClaim: vi.fn(), listMyClaims: vi.fn(), retryPayout: vi.fn(), getMaxClaimStroops: vi.fn(),
 }));
 vi.mock('../../services/rewardService', () => ({ rewardService: svc }));
 
@@ -33,6 +33,17 @@ describe('claiming rewards to the wallet', () => {
     const params = new URLSearchParams(url.hash.slice(1));
     expect(params.get('return')).toBe(`${window.location.origin}/student/rewards/claim`);
     expect(takeClaim('c-1')).toBe('SM Web Systems LMS reward claim\nclaim:c-1');
+  });
+
+  it('claims at most the per-payment limit and says the rest stays claimable', async () => {
+    svc.getClaimableBalance.mockResolvedValue('2000000');
+    svc.getMaxClaimStroops.mockResolvedValue('1000000');
+    svc.startClaim.mockResolvedValue({ claimId: 'c-2', destination: 'GADDR', amountStroops: 1000000, expiresAt: 'x', message: 'm' });
+    vi.spyOn(walletClaimNavigation, 'go').mockImplementation(() => {});
+    render(<StudentRewardsPanel />);
+    await userEvent.click(await screen.findByRole('button', { name: /Claim 0\.1.* to my wallet/ }));
+    await waitFor(() => expect(svc.startClaim).toHaveBeenCalledWith('1000000'));
+    expect(screen.getByTestId('claim-limit-note').textContent).toMatch(/at most 0\.1.*Claim again for the rest/);
   });
 
   it('tells the learner what is needed to restore their wallet on another device', async () => {
