@@ -30,7 +30,7 @@ for (const width of [320, 390, 768]) {
     await page.goto('/sponsor');
     const search = page.getByRole('button', { name: 'Search', exact: true });
     await expect(search).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Logout', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Account menu', exact: true })).toBeVisible();
     await search.click();
     const dialog = page.getByRole('dialog', { name: 'Search', exact: true });
     const input = dialog.getByRole('textbox', { name: 'Search courses, certificates, and more' });

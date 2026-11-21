@@ -58,10 +58,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     if (!userMenuOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setUserMenuOpen(false); userMenuButtonRef.current?.focus(); } };
-    const onClick = (e: MouseEvent) => { if (!userMenuRef.current?.contains(e.target as Node)) setUserMenuOpen(false); };
+    // Closes on a click or a Tab that lands outside the menu.
+    const onOutside = (e: Event) => { if (!userMenuRef.current?.contains(e.target as Node)) setUserMenuOpen(false); };
     document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClick);
-    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onClick); };
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('focusin', onOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('focusin', onOutside);
+    };
   }, [userMenuOpen]);
 
   const refreshUnread = useCallback(async () => {
@@ -267,9 +273,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 ref={userMenuButtonRef}
                 type="button"
                 aria-label="Account menu"
-                aria-haspopup="menu"
                 aria-expanded={userMenuOpen}
-                aria-controls="user-menu"
+                aria-controls={userMenuOpen ? 'user-menu' : undefined}
                 onClick={() => setUserMenuOpen(open => !open)}
                 className="touch-target inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-teal"
               >
@@ -281,15 +286,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <ChevronDown className="h-4 w-4 text-neutral-400 shrink-0" aria-hidden />
               </button>
               {userMenuOpen && (
-                <div id="user-menu" role="menu" aria-label="Account" className="absolute right-0 mt-2 w-56 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+                <div id="user-menu" className="absolute right-0 mt-2 w-56 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
                   <p className="px-4 py-2 text-sm font-medium text-neutral-800 truncate sm:hidden">{user?.name}</p>
-                  <Link role="menuitem" to="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
+                  <Link to="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
                     <User className="h-4 w-4" aria-hidden />Profile
                   </Link>
-                  <Link role="menuitem" to="/settings/notifications" className="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
+                  <Link to="/settings/notifications" className="flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
                     <Bell className="h-4 w-4" aria-hidden />Notification settings
                   </Link>
-                  <button role="menuitem" type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
+                  <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none">
                     <LogOut className="h-4 w-4" aria-hidden />Sign out
                   </button>
                 </div>

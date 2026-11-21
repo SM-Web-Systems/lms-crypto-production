@@ -9,6 +9,7 @@ vi.mock('../context/useAuth', () => ({ useAuth: () => ({ user: mocks.user, isAut
 vi.mock('../services/messageService', () => ({ messageService: { getUnreadCount: vi.fn().mockResolvedValue(0) } }));
 vi.mock('../components/GlobalSearchBar', () => ({ default: () => null }));
 vi.mock('../components/NotificationBell', () => ({ default: () => null }));
+vi.mock('../services/api', () => ({ default: { get: vi.fn(() => new Promise(() => {})), post: vi.fn() }, setTokenGetter: vi.fn(), onUnauthorized: () => () => {} }));
 
 import { canAccessPath } from '../utils/authorization';
 import Layout from '../components/Layout';
@@ -54,8 +55,8 @@ describe('UX-020 partner navigation', () => {
 
   it('TA nav no longer lists Courses and Grade, which were the same page', () => {
     renderLayout(user('teaching-assistant', ['course.grade_pending']), '/ta');
-    expect(screen.queryByText('Courses')).toBeNull();
-    expect(screen.queryByText('Grade')).toBeNull();
+    const items = Array.from(nav().querySelectorAll('button')).map(b => b.textContent);
+    expect(items).toEqual(['Dashboard', 'Messages', 'Profile']);
   });
 
   it('header user menu reaches Profile, Notification settings and Sign out', async () => {
@@ -64,12 +65,12 @@ describe('UX-020 partner navigation', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveAttribute('href', '/profile');
-    expect(screen.getByRole('menuitem', { name: 'Notification settings' })).toHaveAttribute('href', '/settings/notifications');
+    expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/profile');
+    expect(screen.getByRole('link', { name: 'Notification settings' })).toHaveAttribute('href', '/settings/notifications');
     await userEvent.keyboard('{Escape}');
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(trigger);
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(mocks.logout).toHaveBeenCalled();
   });
 });
@@ -88,5 +89,12 @@ describe('UX-020 no silent redirects', () => {
   it('a signed-out visitor on an unknown page is offered the home page', () => {
     render(<MemoryRouter initialEntries={['/teacher/billing']}><AppRoutes /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Go to your home page' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+  });
+
+  it('the Paystack return path goes to the learner payments page, not "not available"', async () => {
+    mocks.user = user('student', ['billing.view_own']);
+    render(<MemoryRouter initialEntries={['/payment/callback?reference=r1']}><AppRoutes /></MemoryRouter>);
+    expect(screen.queryByRole('heading', { name: 'This page is not available' })).toBeNull();
   });
 });

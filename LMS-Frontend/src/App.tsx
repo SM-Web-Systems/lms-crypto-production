@@ -68,7 +68,10 @@ export const PageNotAvailable: React.FC = () => {
   const body = <div className="max-w-xl p-8 space-y-4">
     <h1 className="text-xl font-bold text-neutral-900">This page is not available</h1>
     <p className="text-neutral-600">It is not built yet, or the link is wrong.</p>
-    <Link className="inline-block font-medium text-accent-teal underline" to={isAuthenticated && user ? homeForUser(user) : '/'}>Go to your home page</Link>
+    <div className="flex gap-4">
+      <Link className="font-medium text-accent-teal underline" to={isAuthenticated && user ? homeForUser(user) : '/'}>Go to your home page</Link>
+      {!isAuthenticated && <Link className="font-medium text-accent-teal underline" to="/login">Sign in</Link>}
+    </div>
   </div>;
   return isAuthenticated && user ? <Layout>{body}</Layout> : body;
 };
@@ -585,6 +588,9 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Paystack returns the learner here after a certificate card payment (LMS-Server payments.ts callback_url). */}
+      <Route path="/payment/callback" element={<ProtectedRoute allowedWorkspace="student"><Navigate to="/student/payments" replace /></ProtectedRoute>} />
 
       {/* /ta/courses and /ta/grade were the same page as /ta; old links land there. */}
       <Route path="/ta/courses" element={<Navigate to="/ta" replace />} />
