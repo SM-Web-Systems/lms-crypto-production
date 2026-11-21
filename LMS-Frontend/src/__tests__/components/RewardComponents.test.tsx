@@ -649,9 +649,9 @@ describe('W06-R1: stale response guard', () => {
 
     await waitFor(() => expect(screen.getByText('Child reward')).toBeInTheDocument());
 
-    // Click the Cancel button on the child reward
-    const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
-    fireEvent.click(cancelBtn);
+    // Click Cancel on the child reward and confirm it (UX-001)
+    await clickAndConfirm(/^Cancel$/);
+    await waitFor(() => expect(vi.mocked(svc.cancelReward)).toHaveBeenCalledTimes(1));
 
     // Switch to family target while cancel is in flight
     rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
