@@ -48,3 +48,17 @@ export function isWebResource(url: string | undefined): url is string {
   if (!url?.trim()) return false;
   try { return ['https:', 'http:'].includes(new URL(url).protocol); } catch { return false; }
 }
+
+/**
+ * A github.com "blob" page is GitHub's full website, which is slow and cluttered inside a lesson.
+ * Point it at the raw file on raw.githubusercontent.com instead. Other URLs are returned unchanged.
+ */
+export function toReadableResourceUrl(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname !== 'github.com' && u.hostname !== 'www.github.com') return url;
+    const [owner, repo, kind, ...rest] = u.pathname.split('/').filter(Boolean);
+    if (!owner || !repo || kind !== 'blob' || rest.length < 2) return url;
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${rest.join('/')}`;
+  } catch { return url; }
+}

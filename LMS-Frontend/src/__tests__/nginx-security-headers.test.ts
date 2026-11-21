@@ -27,7 +27,8 @@ describe('nginx.docker.conf security headers', () => {
     const directive = (name: string) => csp.split(';').map(d => d.trim()).find(d => d.startsWith(`${name} `));
     expect(directive('default-src')).toBe("default-src 'self'");
     expect(directive('script-src')).toBe("script-src 'self'");
-    expect(directive('connect-src')).toBe("connect-src 'self'");
+    // Markdown lessons, flashcards and mind maps are fetched from GitHub raw files (MarkdownViewer).
+    expect(directive('connect-src')).toBe("connect-src 'self' https://raw.githubusercontent.com");
     expect(directive('base-uri')).toBe("base-uri 'self'");
     expect(directive('frame-ancestors')).toBe("frame-ancestors 'self'");
     expect(directive('report-uri')).toBe('report-uri /api/v1/csp-report');

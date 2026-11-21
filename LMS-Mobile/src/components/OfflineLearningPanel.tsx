@@ -5,6 +5,7 @@ import {getErrorMessage} from '@/utils/apiError';
 import {isStorageFull, STORAGE_FULL_MESSAGE} from '@/utils/storageErrors';
 import {Button} from './ui/Button';
 import {Card, CardTitle} from './ui/Card';
+import {LessonReading, isHtmlContent} from './LessonReading';
 
 export function OfflineLearningPanel({courseId}: {courseId?: string}) {
   return supportsOfflineLearning ? <SavedLessons courseId={courseId} /> : null;
@@ -90,7 +91,8 @@ function SavedLessons({courseId}: {courseId?: string}) {
             if (range > 0) setReadingPercent(Math.max(0, Math.min(100, Math.floor(nativeEvent.contentOffset.y / range * 100))));
           }}>
           {lesson.description ? <Text>{lesson.description}</Text> : null}
-          <Text className="text-base text-neutral-900">{lesson.information}</Text>
+          {isHtmlContent(lesson.information) ? <LessonReading content={lesson.information} />
+            : <Text className="text-base text-neutral-900">{lesson.information}</Text>}
         </ScrollView>
         <Text accessibilityLiveRegion="polite">
           {progress?.completedAt ? 'Completed' : completionPending ? 'Completion pending sync' :

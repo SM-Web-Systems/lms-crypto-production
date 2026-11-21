@@ -27,7 +27,7 @@ Do these on staging with the Report-Only header live, then check the API log for
 2. **Lesson with an audio file and a PDF** (BVC audio and PDF items): audio plays, PDF shows in the viewer.
    Covers `media-src`, `object-src`, `frame-src blob:`.
 3. **Lesson with an Office document** (Office Online embed): renders.
-4. **Markdown lesson with images from GitHub raw URLs**: images show. Covers `img-src https:`.
+4. **Markdown lesson, flashcards and mind map from GitHub** (BVC course): the text loads, not "Failed to load content", and images show. Covers `connect-src https://raw.githubusercontent.com` and `img-src https:`.
 5. **Sign in with AmmaWallet** (SSO round trip) on iPhone Safari: lands on the dashboard.
 6. **Home-screen app on iPhone** (installed PWA): opens, web push permission prompt and a test push still work.
    Covers `worker-src 'self'` and `manifest-src 'self'`.

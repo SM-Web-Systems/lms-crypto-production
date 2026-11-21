@@ -6,10 +6,11 @@ import type { LessonProgress } from '@/services/courseCompletionService';
 import { documentsService } from '@/services/documentsService';
 import { getAuthToken } from '@/lib/api';
 import { getIframeVideoEmbedSrc, isDirectVideoFileUrl, extractYoutubeId } from '@/utils/mediaUrl';
-import { isWebResource } from '@/utils/courseContent';
+import { isWebResource, toReadableResourceUrl } from '@/utils/courseContent';
 import { getErrorMessage } from '@/utils/apiError';
 import { LessonAudio, LessonVideo } from './LessonMedia';
 import { LessonYouTube } from './LessonYouTube';
+import { LessonReading, isHtmlContent } from './LessonReading';
 import { LessonQuiz } from './LessonQuiz';
 import { LessonAssignment } from './LessonAssignment';
 import { Button } from './ui/Button';
@@ -63,6 +64,7 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
   const missing = <Text>This resource has not been configured yet. Please contact your instructor.</Text>;
   let content: React.ReactNode = missing;
   let available = false;
+  let readingInBody = false;
   const mediaProps = { initialPosition: progress?.lastPositionS ?? 0, onProgress, onComplete: () => { void onComplete(); } };
 
   if (item.type === 'video') {
@@ -74,18 +76,25 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     </View>;
   } else if (item.type === 'audio') {
     const embedded = item.youtubeUrl || (extractYoutubeId(item.url) ? item.url : undefined);
-    const direct = !extractYoutubeId(item.url) && isWebResource(item.url) ? item.url : undefined;
+    // Same order as the web viewer: YouTube is the primary player and `url` is a legacy file kept for
+    // older courses. Only play that file when there is no YouTube player to show.
+    const direct = !isWebResource(embedded) && !extractYoutubeId(item.url) && isWebResource(item.url) ? item.url : undefined;
     available = !!direct || isWebResource(embedded);
     if (available) content = <View className="gap-3">
-      {direct ? <LessonAudio url={direct} {...mediaProps} /> : embedded ? <LessonYouTube url={embedded} {...mediaProps} /> : null}
+      {isWebResource(embedded) ? <LessonYouTube url={embedded} {...mediaProps} /> : direct ? <LessonAudio url={direct} {...mediaProps} /> : null}
       {direct ? <Button label="Open audio" variant="outline" onPress={() => open(direct)} /> : null}
       {isWebResource(embedded) ? <Button label="Open listening video" variant="outline" onPress={() => open(embedded)} /> : null}
       {isWebResource(item.downloadUrl) ? <Button label="Download audio" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;
+  } else if (item.type === 'text' && !isWebResource(item.url) && item.information?.trim()) {
+    // GitHub and ZIP imports store the lesson itself in `information` (server-rendered, sanitized HTML), with no URL.
+    available = true;
+    readingInBody = true;
+    content = <LessonReading content={item.information} />;
   } else if (item.type === 'text' || item.type === 'link') {
     available = isWebResource(item.url);
     if (available) content = <View className="gap-3">
-      {item.type === 'text' ? <ResourcePreview url={item.url} /> : null}
+      {item.type === 'text' ? <ResourcePreview url={toReadableResourceUrl(item.url)} /> : null}
       <Button label={item.type === 'text' ? 'Open reading' : 'Open link'} onPress={() => open(item.url)} />
     </View>;
   } else if (item.type === 'pdf' || item.type === 'download') {
@@ -110,7 +119,9 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     <View>
       <Text className="text-xs uppercase text-neutral-400">{section.title}</Text>
       <Text className="mt-1 text-xl font-bold text-neutral-900">{item.title}</Text>
-      {item.information ? <Text className="mt-2 text-neutral-600">{item.information}</Text> : null}
+      {item.information && !readingInBody ? isHtmlContent(item.information)
+        ? <View className="mt-2"><LessonReading content={item.information} height={160} /></View>
+        : <Text className="mt-2 text-neutral-600">{item.information}</Text> : null}
       {item.description ? <Text className="mt-1 text-neutral-500">{item.description}</Text> : null}
     </View>
     {content}

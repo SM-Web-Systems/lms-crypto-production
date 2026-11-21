@@ -58,3 +58,6 @@ jest.mock('react-native-css-interop', () => ({
 const nativeComponents = require('react-native');
 for (const name of ['Text', 'Pressable', 'View', 'ActivityIndicator', 'TextInput',
   'Image', 'Switch', 'ScrollView', 'Modal']) void nativeComponents[name];
+
+// react-native-webview needs its native module; tests that care about the WebView mock it themselves.
+jest.mock('react-native-webview', () => ({ WebView: 'WebView' }));
