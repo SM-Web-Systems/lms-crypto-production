@@ -12,7 +12,8 @@ import { setPayoutHorizonForTests, type PayoutHorizon } from '../services/reward
 /**
  * A payout refused by a rule must never look paid: the verify answer says 'refused' with the code and reason, the refusal is
  * logged with the claim id, nothing reaches the network, and the claims list shows the claim as not sent.
- * (20 Nov 2026: a 0.2 XLM claim hit the 0.1 XLM per-claim cap and the learner's screen still said Released.)
+ * (19 and 20 Nov 2026: 0.2 XLM claims hit the 0.1 XLM per-claim cap and the learner's screen still said Released.)
+ * A claim above the per-claim cap can never be paid, so it is refused before it locks the learner's balance.
  */
 
 const HASH = bcrypt.hashSync('password123', 4);
@@ -93,16 +94,56 @@ async function expectRefused(l: ReturnType<typeof learner>, amount: string, code
 }
 
 describe('refused reward payouts are reported truthfully', () => {
-  it('PAYOUT_CAP_EXCEEDED (per-claim cap): 0.2 XLM against a 0.1 XLM cap', async () => {
+  it('PAYOUT_CAP_EXCEEDED (per-claim cap): a 0.2 XLM claim against a 0.1 XLM cap is refused before it locks any balance', async () => {
     mainnet('1000000', '100000000');
-    const l = learner();
-    const claimId = await expectRefused(l, '2000000', 'PAYOUT_CAP_EXCEEDED', /per-claim limit/);
-    // Retrying via the payout route is refused the same way, logged, and still not paid.
+    const l = learner(5_000_000);
+    const start = await request(app).post('/api/v1/students/me/reward-claims').set('Authorization', `Bearer ${l.token}`).send({ amountStroops: '2000000' });
+    expect(start.status).toBe(409);
+    expect(start.body.error).toEqual({ code: 'PAYOUT_CAP_EXCEEDED', message: expect.stringMatching(/at most 0\.1 XLM/) });
+    const balance = await request(app).get('/api/v1/students/me/reward-claims/balance').set('Authorization', `Bearer ${l.token}`);
+    expect(balance.body.data).toEqual({ claimableStroops: '5000000', maxClaimStroops: '1000000' });
+    // Up to the cap still works.
+    const ok = await claimAndVerify(l, '1000000');
+    expect(ok.verify.body.data.payout.status).toBe('paid');
+  });
+
+  it('a challenge made before the cap applied is not verified into an unpayable claim', async () => {
+    const l = learner(5_000_000);
+    const start = await request(app).post('/api/v1/students/me/reward-claims').set('Authorization', `Bearer ${l.token}`).send({ amountStroops: '2000000' });
+    expect(start.status).toBe(200);
+    mainnet('1000000', '100000000');
+    const verify = await request(app).post(`/api/v1/students/me/reward-claims/${start.body.data.claimId}/verify`).set('Authorization', `Bearer ${l.token}`)
+      .send({ message: start.body.data.message, signature: l.kp.sign(Buffer.from(start.body.data.message, 'utf8')).toString('base64') });
+    expect(verify.status).toBe(409);
+    expect(verify.body.error.code).toBe('PAYOUT_CAP_EXCEEDED');
+    expect(db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(start.body.data.claimId)).toEqual({ status: 'cancelled' });
+    expect(horizon.submitted.length).toBe(0);
+  });
+
+  it('an already verified claim above the cap (19 Nov case) is closed on retry and its amount goes back to the balance', async () => {
+    mainnet('1000000', '100000000');
+    const l = learner(5_000_000);
+    // As left in production: verified, no payout attempt, 0.2 XLM locked.
+    const claimId = uuidv4();
+    db.prepare(`INSERT INTO reward_claims (id, user_id, destination, amount_stroops, nonce_hash, challenge_expires_at, status, verified_at, created_at)
+      VALUES (?, ?, ?, 2000000, 'x', 0, 'verified', ?, ?)`).run(claimId, l.id, l.kp.publicKey(), Date.now(), Date.now());
+    const before = await request(app).get('/api/v1/students/me/reward-claims').set('Authorization', `Bearer ${l.token}`);
+    expect(before.body.data).toContainEqual(expect.objectContaining({ claimId, payout: 'not_sent' }));
+
     const warn = vi.spyOn(logger, 'warn');
     const retry = await request(app).post(`/api/v1/students/me/reward-claims/${claimId}/payout`).set('Authorization', `Bearer ${l.token}`);
     expect(retry.status).toBe(409);
-    expect(retry.body.error.code).toBe('PAYOUT_CAP_EXCEEDED');
+    expect(retry.body.error).toEqual({ code: 'PAYOUT_CAP_EXCEEDED', message: expect.stringMatching(/back in your LMS balance.*at most 0\.1 XLM/) });
     expect(warn).toHaveBeenCalledWith(expect.objectContaining({ claimId, code: 'PAYOUT_CAP_EXCEEDED', route: 'payout' }), 'Reward claim payout refused');
+    expect(horizon.submitted.length).toBe(0);
+    expect(db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(claimId)).toEqual({ status: 'cancelled' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM reward_claim_payouts WHERE claim_id = ?').get(claimId)).toEqual({ n: 0 });
+    const balance = await request(app).get('/api/v1/students/me/reward-claims/balance').set('Authorization', `Bearer ${l.token}`);
+    expect(balance.body.data.claimableStroops).toBe('5000000');
+    // A second retry does not pay a cancelled claim.
+    const again = await request(app).post(`/api/v1/students/me/reward-claims/${claimId}/payout`).set('Authorization', `Bearer ${l.token}`);
+    expect(again.body.error.code).toBe('CLAIM_CLOSED');
+    expect(horizon.submitted.length).toBe(0);
   });
 
   it('PAYOUT_CAP_EXCEEDED (daily cap)', async () => {

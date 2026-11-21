@@ -299,6 +299,12 @@ export const rewardService = {
     return res.data.data.claimableStroops;
   },
 
+  /** Student: the most one claim may be (stroops, as a string), or null when there is no limit. */
+  async getMaxClaimStroops(): Promise<string | null> {
+    const res = await api.get<ApiRes<{ claimableStroops: string; maxClaimStroops?: string | null }>>('/students/me/reward-claims/balance');
+    return res.data.data.maxClaimStroops ?? null;
+  },
+
   /** Student: start a claim; returns the one-time challenge their wallet must sign. */
   async startClaim(amountStroops: string): Promise<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }> {
     const res = await api.post<ApiRes<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }>>(
