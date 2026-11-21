@@ -79,8 +79,8 @@ router.post('/ta/submissions/:id/grade', authenticate, requirePermission('course
     return;
   }
 
-  const submission = queryOne<{ id: string; course_id: string | null }>(
-    'SELECT id, course_id FROM submissions WHERE id = ?', [submissionId]);
+  const submission = queryOne<{ id: string; course_id: string | null; status: string }>(
+    'SELECT id, course_id, status FROM submissions WHERE id = ?', [submissionId]);
   if (!submission) {
     res.status(404).json({ success: false, error: 'Submission not found' });
     return;
@@ -94,6 +94,11 @@ router.post('/ta/submissions/:id/grade', authenticate, requirePermission('course
       res.status(403).json({ success: false, error: 'Not assigned to this course' });
       return;
     }
+  }
+
+  if (submission.status !== 'pending') {
+    res.status(400).json({ success: false, error: 'This submission has already been reviewed' });
+    return;
   }
 
   // TA grade: set grade_status to pending_approval, do NOT change main status
@@ -117,10 +122,10 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
   }
 
   const submission = queryOne<{
-    id: string; grade_status: string; proposed_status: string | null; course_id: string | null;
+    id: string; status: string; grade_status: string; proposed_status: string | null; course_id: string | null;
     title: string; student_user_id: string | null;
   }>(
-    `SELECT s.id, s.grade_status, s.proposed_status, s.course_id, s.title, st.user_id AS student_user_id
+    `SELECT s.id, s.status, s.grade_status, s.proposed_status, s.course_id, s.title, st.user_id AS student_user_id
      FROM submissions s LEFT JOIN students st ON st.id = s.student_id WHERE s.id = ?`, [submissionId]);
   if (!submission) {
     res.status(404).json({ success: false, error: 'Submission not found' });
@@ -130,7 +135,7 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
     res.status(403).json({ success: false, error: 'You do not teach this course' });
     return;
   }
-  if (submission.grade_status !== 'pending_approval') {
+  if (submission.grade_status !== 'pending_approval' || submission.status !== 'pending') {
     res.status(400).json({ success: false, error: 'No pending TA grade to approve' });
     return;
   }
@@ -184,8 +189,8 @@ router.post('/ta/submissions/:id/reject-grade', authenticate, requirePermission(
     return;
   }
 
-  const submission = queryOne<{ id: string; grade_status: string; course_id: string | null }>(
-    'SELECT id, grade_status, course_id FROM submissions WHERE id = ?', [submissionId]);
+  const submission = queryOne<{ id: string; status: string; grade_status: string; course_id: string | null }>(
+    'SELECT id, status, grade_status, course_id FROM submissions WHERE id = ?', [submissionId]);
   if (!submission) {
     res.status(404).json({ success: false, error: 'Submission not found' });
     return;
@@ -194,7 +199,7 @@ router.post('/ta/submissions/:id/reject-grade', authenticate, requirePermission(
     res.status(403).json({ success: false, error: 'You do not teach this course' });
     return;
   }
-  if (submission.grade_status !== 'pending_approval') {
+  if (submission.grade_status !== 'pending_approval' || submission.status !== 'pending') {
     res.status(400).json({ success: false, error: 'No pending TA grade to reject' });
     return;
   }

@@ -20,7 +20,8 @@ function seed(db: Database.Database) {
     INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, status, feedback, grade_status, graded_by) VALUES
       ('pending', 'st1', 'A', 'd', 'a.pdf', 1, '/tmp/a', 'pending', 'TA wrote this', 'pending_approval', 'ta'),
       ('direct', 'st1', 'B', 'd', 'b.pdf', 1, '/tmp/b', 'rejected', 'Lecturer wrote this', 'direct', NULL),
-      ('approved', 'st1', 'C', 'd', 'c.pdf', 1, '/tmp/c', 'approved', 'Approved TA feedback', 'approved', 'ta');`);
+      ('approved', 'st1', 'C', 'd', 'c.pdf', 1, '/tmp/c', 'approved', 'Approved TA feedback', 'approved', 'ta'),
+      ('sentback', 'st1', 'D', 'd', 'd.pdf', 1, '/tmp/d', 'pending', 'Old lecturer note to TA', 'direct', 'ta');`);
 }
 const rows = (db: Database.Database) =>
   db.prepare('SELECT id, status, feedback, grade_status, graded_by, ta_feedback, proposed_status, review_note FROM submissions ORDER BY id').all();
@@ -29,6 +30,8 @@ const expected = [
   { id: 'direct', status: 'rejected', feedback: 'Lecturer wrote this', grade_status: 'direct', graded_by: null, ta_feedback: null, proposed_status: null, review_note: null },
   // A pending TA proposal's feedback moves out of the learner-visible column.
   { id: 'pending', status: 'pending', feedback: null, grade_status: 'pending_approval', graded_by: 'ta', ta_feedback: 'TA wrote this', proposed_status: null, review_note: null },
+  // The old reject-grade wrote the lecturer's note to the TA into `feedback`; it becomes the review_note.
+  { id: 'sentback', status: 'pending', feedback: null, grade_status: 'direct', graded_by: 'ta', ta_feedback: null, proposed_status: null, review_note: 'Old lecturer note to TA' },
 ];
 
 describe('ensureTaGradeReviewColumns', () => {
@@ -83,7 +86,7 @@ describe('real startup on an existing pre-upgrade database', { timeout: 60000 },
     for (let run = 0; run < 2; run++) {
       const result = start(file);
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toContain('{"n":3}');
+      expect(result.stdout).toContain('{"n":4}');
     }
     const check = new Database(file, { readonly: true });
     try {

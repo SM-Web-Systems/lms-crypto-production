@@ -49,7 +49,6 @@ function toSubmissionResponse(submission: Submission & { student_name?: string; 
   const sentBack = submission.grade_status === 'direct' && !!submission.review_note && submission.status === 'pending';
   return {
     ...response,
-    feedback: submission.feedback,
     gradeStatus: sentBack ? 'sent_back' : submission.grade_status ?? undefined,
     gradedByName: submission.graded_by_name ?? undefined,
     proposedStatus: submission.proposed_status ?? undefined,
@@ -96,7 +95,7 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     }
 
     if (showStaffFields && gradeStatus === 'pending_approval') {
-      conditions.push(`s.grade_status = 'pending_approval'`);
+      conditions.push(`s.grade_status = 'pending_approval' AND s.status = 'pending'`);
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -482,7 +481,9 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
     const atomicWrite = db.transaction(() => {
       execute(
         `UPDATE submissions
-         SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now')
+         SET status = ?, feedback = ?, reviewed_at = datetime('now'), reviewed_by_id = ?, updated_at = datetime('now'),
+           -- A direct review settles any TA proposal still waiting (UX-002).
+           grade_status = CASE WHEN grade_status = 'pending_approval' THEN 'direct' ELSE grade_status END
          WHERE id = ?`,
         [status, feedback?.trim() || null, reviewerUserId, id]
       );

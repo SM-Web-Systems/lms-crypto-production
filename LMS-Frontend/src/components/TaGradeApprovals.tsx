@@ -53,7 +53,7 @@ function TaGradeRow({ sub, onDecided, onDownload }: {
           <Button variant="success" size="sm" disabled={busy} onClick={() => void run(() => taService.approveGrade(sub.id), 'Could not approve the grade.')}>
             Approve grade
           </Button>
-          <Button variant="secondary" size="sm" disabled={busy} onClick={() => { setSendingBack(o => !o); setError(''); }}>
+          <Button variant="secondary" size="sm" disabled={busy} aria-expanded={sendingBack} onClick={() => { setSendingBack(o => !o); setError(''); }}>
             Send back
           </Button>
         </div>

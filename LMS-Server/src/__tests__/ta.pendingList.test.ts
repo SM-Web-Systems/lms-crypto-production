@@ -153,6 +153,23 @@ describe('UX-002: TA grade review loop', () => {
     expect((await approve(admin.token)).status).toBe(200);
   });
 
+  it('a direct lecturer review settles a pending TA grade, so it leaves the queue and cannot be decided again', async () => {
+    await grade(subId, { status: 'rejected', feedback: 'Weak' });
+    const review = await request(app).post(`/api/v1/submissions/${subId}/review`)
+      .set('Authorization', `Bearer ${lecturer.token}`).send({ status: 'approved', feedback: 'Good after all' });
+    expect(review.status).toBe(200);
+    expect(queryOne<{ grade_status: string }>('SELECT grade_status FROM submissions WHERE id = ?', [subId])!.grade_status).toBe('direct');
+    const queue = await request(app).get('/api/v1/submissions?gradeStatus=pending_approval').set('Authorization', `Bearer ${lecturer.token}`);
+    expect(queue.body.data.pagination.total).toBe(0);
+    for (const path of ['approve-grade', 'reject-grade']) {
+      const res = await request(app).post(`/api/v1/ta/submissions/${subId}/${path}`)
+        .set('Authorization', `Bearer ${lecturer.token}`).send({ note: 'x' });
+      expect(res.status).toBe(400);
+    }
+    expect((await grade(subId, { status: 'rejected' })).status).toBe(400);
+    expect(queryOne<{ status: string }>('SELECT status FROM submissions WHERE id = ?', [subId])!.status).toBe('approved');
+  });
+
   it('the TA list includes the learner name', async () => {
     const res = await request(app).get(`/api/v1/ta/courses/${courseId}/submissions`).set('Authorization', `Bearer ${ta.token}`);
     expect(res.body.data.submissions[0]).toMatchObject({ id: subId, student_name: 'Sam Learner', file_name: 'essay.pdf' });
