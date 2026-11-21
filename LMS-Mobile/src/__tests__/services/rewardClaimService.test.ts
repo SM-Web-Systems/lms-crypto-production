@@ -1,6 +1,7 @@
 import * as Browser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
 import api from '@/lib/api';
-import { rewardClaimService, walletClaimUrl, parseClaimReturn, CLAIM_RETURN_URL } from '@/services/rewardClaimService';
+import { rewardClaimService, walletClaimUrl, parseClaimReturn, CLAIM_RETURN_URL, PENDING_CLAIM_KEY } from '@/services/rewardClaimService';
 
 jest.mock('expo-web-browser', () => ({ openAuthSessionAsync: jest.fn() }));
 jest.mock('@/lib/api', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn() } }));
@@ -72,5 +73,68 @@ describe('AmmaWallet says why it could not approve', () => {
   it('treats an unknown reason like a bare return, and only trusts the exact return address', () => {
     expect(() => parseClaimReturn(`${CLAIM_RETURN_URL}#claim=c-1&error=teapot`, 'c-1')).toThrow(/incomplete/);
     expect(() => parseClaimReturn(`lmsmobile://sso-callback#claim=c-1&error=expired`, 'c-1')).toThrow(/could not be verified/);
+  });
+});
+
+describe('UX-008 a claim survives Android closing the app during the AmmaWallet hand-off', () => {
+  const store = new Map<string, string>();
+  const setItem = SecureStore.setItemAsync as jest.Mock;
+  const getItem = SecureStore.getItemAsync as jest.Mock;
+  const deleteItem = SecureStore.deleteItemAsync as jest.Mock;
+  const signedReturn = `${CLAIM_RETURN_URL}#claim=c-1&signature=${encodeURIComponent(signature)}`;
+  const save = (claimId = 'c-1') => store.set(PENDING_CLAIM_KEY, JSON.stringify({ claimId, message, startedAt: 1 }));
+  beforeEach(() => {
+    store.clear();
+    setItem.mockImplementation(async (k: string, v: string) => { store.set(k, v); });
+    getItem.mockImplementation(async (k: string) => store.get(k) ?? null);
+    deleteItem.mockImplementation(async (k: string) => { store.delete(k); });
+  });
+  afterAll(() => { setItem.mockResolvedValue(undefined); getItem.mockResolvedValue(null); deleteItem.mockResolvedValue(undefined); });
+
+  it('saves the claim id and the exact challenge before opening AmmaWallet', async () => {
+    let savedWhenOpened: unknown;
+    browser.mockImplementation(async () => { savedWhenOpened = JSON.parse(store.get(PENDING_CLAIM_KEY)!); return { type: 'cancel' }; });
+    await rewardClaimService.claim(1000000);
+    expect(savedWhenOpened).toEqual({ claimId: 'c-1', message, startedAt: expect.any(Number) });
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+  });
+
+  it('still opens AmmaWallet when the device cannot save the claim', async () => {
+    setItem.mockRejectedValueOnce(new Error('keystore locked'));
+    browser.mockResolvedValue({ type: 'success', url: signedReturn });
+    expect(await rewardClaimService.claim(1000000)).toEqual({ kind: 'verified', payout: { status: 'paid', txHash: 'ab', ledger: 5 } });
+  });
+
+  it('finishes the saved claim from the return link after a cold start, then forgets it', async () => {
+    save();
+    expect(await rewardClaimService.resumeClaim(signedReturn)).toEqual({ kind: 'verified', payout: { status: 'paid', txHash: 'ab', ledger: 5 } });
+    expect(post).toHaveBeenCalledWith('/students/me/reward-claims/c-1/verify', { message, signature });
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+  });
+
+  it('reports an interrupted claim when nothing saved matches the return link', async () => {
+    expect(await rewardClaimService.resumeClaim(signedReturn)).toEqual({ kind: 'interrupted' });
+    save('other');
+    expect(await rewardClaimService.resumeClaim(signedReturn)).toEqual({ kind: 'interrupted' });
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('reports an expired challenge, and forgets the claim', async () => {
+    save();
+    post.mockRejectedValueOnce(Object.assign(new Error('Request failed with status code 409'), {
+      isAxiosError: true, response: { status: 409, data: { success: false, error: { code: 'CLAIM_EXPIRED', message: 'The challenge expired. Start a new claim.' } } },
+    }));
+    expect(await rewardClaimService.resumeClaim(signedReturn)).toEqual({ kind: 'expired' });
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+  });
+
+  it('passes on a decline or a wallet error, and forgets the claim either way', async () => {
+    save();
+    expect(await rewardClaimService.resumeClaim(`${CLAIM_RETURN_URL}#claim=c-1&declined=1`)).toEqual({ kind: 'declined' });
+    save();
+    await expect(rewardClaimService.resumeClaim(`${CLAIM_RETURN_URL}#claim=c-1&error=unavailable`)).rejects.toThrow(/cannot approve/);
+    expect(store.has(PENDING_CLAIM_KEY)).toBe(false);
+    expect(post).not.toHaveBeenCalled();
   });
 });
