@@ -68,6 +68,12 @@ export const rewardClaimService = {
     const res = await api.get<ApiResponse<{ claimableStroops: string }>>('/students/me/reward-claims/balance');
     return Number(assertApiSuccess(res, 'Could not load your reward balance.').claimableStroops);
   },
+  /** The most one claim may be, in stroops, or null when there is no limit. */
+  async maxClaim(): Promise<number | null> {
+    const res = await api.get<ApiResponse<{ claimableStroops: string; maxClaimStroops?: string | null }>>('/students/me/reward-claims/balance');
+    const max = assertApiSuccess(res, 'Could not load your reward balance.').maxClaimStroops;
+    return max ? Number(max) : null;
+  },
   async received(): Promise<ReceivedReward[]> {
     const res = await api.get<ApiResponse<ReceivedReward[]>>('/students/me/rewards');
     return assertApiSuccess(res, 'Could not load your rewards.');

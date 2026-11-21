@@ -12,7 +12,7 @@ import type { AuthRequest } from '../types/index.js';
 import { query } from '../config/database.js';
 import { RewardError } from '../services/rewards/rewardErrors.js';
 import { cancelFailedClaim, claimableStroops, createRewardClaim, listRewardClaims, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
-import { payoutConfiguration, payoutStatus, payRewardClaim } from '../services/rewards/rewardPayoutService.js';
+import { payoutConfiguration, payoutStatus, payRewardClaim, perClaimCapStroops } from '../services/rewards/rewardPayoutService.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -77,8 +77,11 @@ const claimHandler = (work: (req: AuthRequest) => unknown) => (req: AuthRequest,
   }
 };
 
-/** Claimable released balance (not yet committed to a verified claim). */
-router.get('/students/me/reward-claims/balance', authenticate, claimHandler(req => ({ claimableStroops: String(claimableStroops(req.user!.userId)) })));
+/** Claimable released balance (not yet committed to a verified claim), and the most one claim may be (null: no limit). */
+router.get('/students/me/reward-claims/balance', authenticate, claimHandler(req => {
+  const cap = perClaimCapStroops();
+  return { claimableStroops: String(claimableStroops(req.user!.userId)), maxClaimStroops: cap === null ? null : String(cap) };
+}));
 /** Start a claim: returns a one-time challenge for the learner's wallet to sign. Nothing is paid. */
 router.post('/students/me/reward-claims', authenticate, claimHandler(req => createRewardClaim(req.user!.userId, req.body?.amountStroops)));
 /** My claims to my wallet, with whether each one was actually paid. */

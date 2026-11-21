@@ -12,7 +12,7 @@
  * MT-FE-9 — Shows retry button on error
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -134,6 +134,9 @@ describe('Phase 20 C1 — TenantAdminPanel', () => {
 
     const deleteButtons = screen.getAllByText('Delete');
     await user.click(deleteButtons[0]);
+    // UX-001: deleting is confirmed in a dialog first
+    expect(tenantService.deleteTenant).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete Acme Corp' }));
 
     await waitFor(() => {
       expect(tenantService.deleteTenant).toHaveBeenCalledWith('t1');
@@ -153,6 +156,9 @@ describe('Phase 20 C1 — TenantAdminPanel', () => {
 
     // First tenant is active, so button says "Suspend"
     await user.click(screen.getByText('Suspend'));
+    // UX-001: suspending is confirmed in a dialog first
+    expect(tenantService.updateTenant).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Suspend Acme Corp' }));
 
     await waitFor(() => {
       expect(tenantService.updateTenant).toHaveBeenCalledWith('t1', { status: 'suspended' });

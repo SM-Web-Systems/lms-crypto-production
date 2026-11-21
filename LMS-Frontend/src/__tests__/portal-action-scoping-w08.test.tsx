@@ -181,10 +181,10 @@ describe('W08 — Portal action scoping', () => {
       expect(screen.queryByText('Billing')).toBeNull();
     });
 
-    it('W8-NAV-2 — Parent nav has no Wallets, Groups, or Billing links', () => {
+    it('W8-NAV-2 — Parent nav has Groups (UX-007) but no Wallets or Billing links', () => {
       renderNav('parent');
       expect(screen.queryByText('Wallets')).toBeNull();
-      expect(screen.queryByText('Groups')).toBeNull();
+      expect(screen.getByText('Groups')).toBeInTheDocument();
       expect(screen.queryByText('Billing')).toBeNull();
     });
 
@@ -398,8 +398,8 @@ describe('W08 — Portal action scoping', () => {
         </MemoryRouter>,
       );
       await screen.findByText('Parent Portal');
-      // After fix: remove outer groups.length > 0 guard; inner message must render
-      expect(screen.getByText('Create a family group first to manage rewards.')).toBeInTheDocument();
+      // UX-007: the empty state leads to group creation instead of a dead end
+      expect(await screen.findByRole('link', { name: 'Create your family group' })).toHaveAttribute('href', '/parent/groups');
     });
   });
 
