@@ -94,3 +94,19 @@ describe('ConfirmDialog a11y (UX-001 AC8)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Server said no');
   });
 });
+
+describe('a field in the description (UX-018 reason)', () => {
+  it('is part of the focus trap: Shift+Tab from it wraps to the last button, Tab from the last button returns to it', async () => {
+    render(<ConfirmDialog isOpen title="Send back?" description={<label>Reason<textarea /></label>} confirmLabel="Send back reward"
+      onConfirm={() => {}} onCancel={() => {}} />);
+    const reason = screen.getByLabelText('Reason');
+    const confirm = screen.getByRole('button', { name: 'Send back reward' });
+    // The dialog moves focus to its panel just after opening; wait for that before placing focus.
+    await waitFor(() => expect(screen.getByRole('alertdialog').contains(document.activeElement)).toBe(true));
+    reason.focus();
+    await userEvent.tab({ shift: true });
+    expect(confirm).toHaveFocus();
+    await userEvent.tab();
+    expect(reason).toHaveFocus();
+  });
+});

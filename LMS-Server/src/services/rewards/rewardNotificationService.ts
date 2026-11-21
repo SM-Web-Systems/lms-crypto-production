@@ -128,6 +128,36 @@ export function notifyRewardExpired(creatorUserId: string, rewardDescription: st
   }
 }
 
+/** UX-017: an administrator funded someone else's reward; it does nothing until its creator presses Activate. */
+export function notifyRewardFunded(creatorUserId: string, rewardDescription: string): void {
+  try {
+    createNotification({
+      userId: creatorUserId,
+      type: 'reward_funded',
+      title: 'Reward funded: press Activate',
+      body: `An administrator funded your reward: ${rewardDescription}. Open Rewards and press Activate so learners can start earning it.`,
+      link: creatorRewardsLink(creatorUserId),
+    });
+  } catch (err) {
+    logger.error({ module: 'reward-notifications', err }, 'Failed to send reward_funded notification');
+  }
+}
+
+/** UX-018: an authorizer sent a draft back; the creator sees why and can create a corrected reward. */
+export function notifyRewardDeclined(creatorUserId: string, rewardDescription: string, reason: string): void {
+  try {
+    createNotification({
+      userId: creatorUserId,
+      type: 'reward_declined',
+      title: 'Reward sent back',
+      body: `An administrator did not fund your reward: ${rewardDescription}. Reason: ${reason}. Create a new reward with the changes.`,
+      link: creatorRewardsLink(creatorUserId),
+    });
+  } catch (err) {
+    logger.error({ module: 'reward-notifications', err }, 'Failed to send reward_declined notification');
+  }
+}
+
 /**
  * Notify creator and affected recipients of a cancelled reward.
  */

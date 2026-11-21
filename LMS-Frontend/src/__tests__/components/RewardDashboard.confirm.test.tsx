@@ -94,7 +94,7 @@ describe('RewardDashboard asks before money moves (UX-001)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Activate' }));
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent('Make this reward live. Learners can start earning it.');
-    const confirm = within(dialog).getByRole('button', { name: 'Activate 0.2000000 XLM reward' });
+    const confirm = within(dialog).getByRole('button', { name: 'Activate 0.2 XLM reward' });
     expect(confirm.className).toMatch(/bg-accent-teal/);
     expect(svc.activateReward).not.toHaveBeenCalled();
     await userEvent.click(confirm);
@@ -119,7 +119,7 @@ describe('RewardDashboard asks before money moves (UX-001)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toHaveTextContent("Approve Alpha Cohort's reward for payment.");
-    const confirm = within(dialog).getByRole('button', { name: 'Approve 0.2000000 XLM' });
+    const confirm = within(dialog).getByRole('button', { name: 'Approve 0.2 XLM' });
     expect(confirm.className).toMatch(/bg-accent-teal/);
     await userEvent.click(confirm);
     await waitFor(() => expect(svc.approveReward).toHaveBeenCalledTimes(1));
@@ -150,5 +150,24 @@ describe('RewardDashboard asks before money moves (UX-001)', () => {
     expect(await within(screen.getByRole('alertdialog')).findByRole('button', { name: /Working…/ })).toBeDisabled();
     reject(new Error('Network down'));
     expect(await within(screen.getByRole('alertdialog')).findByRole('alert')).toHaveTextContent('Network down');
+  });
+});
+
+describe('UX-017/018: the creator is told whose turn it is', () => {
+  it('a draft says it waits for funding', async () => {
+    renderWith('draft');
+    expect(await screen.findByText(/Waiting for an administrator to fund it/)).toBeInTheDocument();
+  });
+
+  it('a funded reward tells the creator to press Activate', async () => {
+    renderWith('funded');
+    expect(await screen.findByText('Funded. Press Activate to make it live.')).toBeInTheDocument();
+  });
+
+  it('a reward sent back shows the reason', async () => {
+    svc.listRewards.mockResolvedValue([{ ...reward('cancelled'), decline_reason: 'Amount is too high' }] as never);
+    svc.getAllocations.mockResolvedValue([]);
+    render(<MemoryRouter><RewardDashboard role="sponsor" scopeId="s1" /></MemoryRouter>);
+    expect(await screen.findByText('Sent back: Amount is too high')).toBeInTheDocument();
   });
 });

@@ -27,6 +27,8 @@ import {
   notifyRewardExpired,
   notifyRewardCancelled,
   notifyRefundBlocked,
+  notifyRewardFunded,
+  notifyRewardDeclined,
 } from './rewardNotificationService.js';
 
 // ──── Parameter Types ────
@@ -198,6 +200,7 @@ export function fundReward(
   // validation, cross-reference idempotency, and internal source authorization.
   verifyFundingSourceSync(source, rewardId, authContext);
 
+  let fundedNow = false;
   const txn = db.transaction(() => {
     const replay = fundingReplay(rewardId, actorId, source, idempotencyKey);
     if (replay) return replay;
@@ -299,11 +302,15 @@ export function fundReward(
 
     assertTransition('pending_funding', 'funded');
     updateRewardStatus(rewardId, 'funded');
+    fundedNow = true;
 
     return getRewardRow(rewardId)!;
   });
 
-  return txn.immediate();
+  const result = txn.immediate();
+  // UX-017: someone else funded it, so its creator must be told the next step is theirs. Replays send nothing.
+  if (fundedNow && result.creator_user_id !== actorId) notifyRewardFunded(result.creator_user_id, result.description ?? 'Reward');
+  return result;
 }
 
 /**
@@ -1011,6 +1018,32 @@ export function expireReward(
 /**
  * Get a reward by ID.
  */
+/**
+ * UX-018: an independent authorizer sends a draft back to its creator with a reason. A draft holds no funds,
+ * so nothing moves; the reward ends as cancelled and the creator is notified.
+ * Refused while a funding intent is still open, so a late Stellar payment cannot land on a cancelled reward.
+ */
+export function declineDraftReward(rewardId: string, actorId: string, reason: string): RewardRow {
+  const result = db.transaction(() => {
+    const reward = getRewardRow(rewardId);
+    if (!reward) throw new RewardError('REWARD_NOT_FOUND', 'Reward not found', 404);
+    if (reward.creator_user_id === actorId) {
+      throw new RewardError('CONFLICT_OF_INTEREST', 'You cannot decline a reward you created. Another administrator must review it.', 403);
+    }
+    if (reward.status !== 'draft') throw new RewardError('INVALID_STATE_TRANSITION', 'This reward is no longer awaiting funding.', 409);
+    const open = (db.prepare("SELECT expires_at FROM reward_funding_intents WHERE reward_id = ? AND status = 'pending'").all(rewardId) as Array<{ expires_at: string }>)
+      .some(i => Date.parse(i.expires_at.includes('T') ? i.expires_at : `${i.expires_at.replace(' ', 'T')}Z`) > Date.now());
+    if (open) {
+      throw new RewardError('FUNDING_IN_PROGRESS', 'A funding payment for this reward is still open. Try again once it is finished or has expired.', 409);
+    }
+    db.prepare(`UPDATE rewards SET status = 'cancelled', cancelled_at = datetime('now'), updated_at = datetime('now'),
+      decline_reason = ?, declined_by_user_id = ? WHERE id = ? AND status = 'draft'`).run(reason, actorId, rewardId);
+    return getRewardRow(rewardId)!;
+  }).immediate();
+  notifyRewardDeclined(result.creator_user_id, result.description ?? 'Reward', reason);
+  return result;
+}
+
 export function getReward(rewardId: string): RewardRow | null {
   return getRewardRow(rewardId);
 }

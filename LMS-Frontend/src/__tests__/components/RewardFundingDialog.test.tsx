@@ -158,3 +158,24 @@ describe('reward funding availability and confirmation', () => {
     expect(mocks.fund.mock.calls[0]).toEqual(['sponsor','reward','platform_credit','approved-credit',mocks.prepare.mock.calls[0][3],'reserved-intent']);
   });
 });
+
+describe('UX-018: the dialog names the reward and the network', () => {
+  it('is titled with the reward name and shows the network on the administrator grant step', async () => {
+    const user = userEvent.setup();
+    mocks.options.mockResolvedValue([{...available[0], payoutNetwork: 'testnet'}]);
+    mocks.prepare.mockResolvedValue({id: 'grant-intent', amount_stroops: 2000000, network: 'internal'});
+    render(<RewardFundingDialog role="teacher" rewardId="reward" rewardName="Finish module 1" onClose={vi.fn()} onFunded={vi.fn()} />);
+    expect(screen.getByRole('dialog', {name: 'Fund “Finish module 1”'})).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name: 'Fund “Finish module 1”'})).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', {name: 'Prepare grant'}));
+    expect(await screen.findByText('Learners are paid on the Testnet — test XLM')).toBeVisible();
+    expect(screen.getByText(/Authorize a grant of 0\.2 XLM/)).toBeVisible();
+  });
+
+  it('labels platform credit choices by amount, not "Allocation 1"', async () => {
+    mocks.options.mockResolvedValue([{sourceType: 'platform_credit', available: true, reason: null, creditGrants: [{id: 'g1', availableStroops: 15000000}]}]);
+    render(<RewardFundingDialog role="teacher" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
+    expect(await screen.findByRole('option', {name: '1.5 XLM available'})).toBeInTheDocument();
+    expect(screen.queryByText(/Allocation 1/)).toBeNull();
+  });
+});

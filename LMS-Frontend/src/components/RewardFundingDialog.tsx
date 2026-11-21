@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { rewardService, type FundingOption, type FundingIntent } from '../services/rewardService';
 import { Button } from './Button';
+import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
+import { formatXlm } from '../utils/xlmAmount';
 
 const labels: Record<string, string> = {
   stellar: 'Stellar transfer', paystack: 'Card payment', platform_credit: 'Platform credit', admin_grant: 'Administrator grant',
@@ -9,9 +11,16 @@ const labels: Record<string, string> = {
 const RATE_LIMIT_MESSAGE = 'Too many requests right now. Your payment is safe. Wait a few minutes, then press the button again with the same details.';
 const isRateLimited = (err: unknown) => (err as {response?: {status?: number}})?.response?.status === 429;
 
-export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFocus}: {
-  role: string; rewardId: string; onClose: () => void; onFunded: () => void; returnFocus?: HTMLElement | null;
+const networkLabel = (network?: string | null) => network === 'public' ? 'Public network — real XLM' : 'Testnet — test XLM';
+
+export function RewardFundingDialog({role, rewardId, rewardName, onClose, onFunded, returnFocus}: {
+  role: string; rewardId: string;
+  /** Shown in the title so the funder knows which reward this is (UX-018). */
+  rewardName?: string | null;
+  onClose: () => void; onFunded: () => void; returnFocus?: HTMLElement | null;
 }) {
+  const xlmUsdc = useXlmUsdcPrice();
+  const title = rewardName ? `Fund “${rewardName}”` : 'Reward funding';
   const [options, setOptions] = useState<FundingOption[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -90,8 +99,9 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
     finally { if (alive.current) setBusy(false); }
   };
 
-  const exactAmount = exposure === null ? '' : `${BigInt(exposure) / 10_000_000n}.${(BigInt(exposure) % 10_000_000n).toString().padStart(7, '0')} XLM`;
-  return <div ref={dialog} tabIndex={-1} className="fixed inset-0 bg-neutral-900/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Reward funding"
+  const exactAmount = exposure === null ? '' : formatXlm(exposure, xlmUsdc);
+  const grantPayoutNetwork = options?.find(o => o.sourceType === 'admin_grant')?.payoutNetwork;
+  return <div ref={dialog} tabIndex={-1} className="fixed inset-0 bg-neutral-900/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}
     onKeyDown={event => {
       if (event.key === 'Escape' && !busy) { event.preventDefault(); onClose(); }
       if (event.key !== 'Tab') return;
@@ -105,7 +115,7 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
       }
     }}>
     <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-      <h3 className="text-lg font-bold">Reward funding</h3>
+      <h3 className="text-lg font-bold break-words">{title}</h3>
       {!options && !error && <p role="status">Loading funding methods…</p>}
       {options && <ul className="space-y-3">{options.map(option => <li key={option.sourceType}>
         <span className="font-medium">{labels[option.sourceType] ?? option.sourceType}</span>
@@ -115,24 +125,25 @@ export function RewardFundingDialog({role, rewardId, onClose, onFunded, returnFo
         {option.available && option.sourceType==='platform_credit' && !prepared && !!option.creditGrants?.length && <div>
           <label>Available platform credit
             <select value={selectedCredit||option.creditGrants[0].id} onChange={event=>setSelectedCredit(event.target.value)} disabled={busy} className="block w-full rounded border border-neutral-300 p-2">
-              {option.creditGrants.map((grant,index)=><option key={grant.id} value={grant.id}>Allocation {index+1}: {(BigInt(grant.availableStroops)/10_000_000n).toString()}.{(BigInt(grant.availableStroops)%10_000_000n).toString().padStart(7,'0')} XLM available</option>)}
+              {option.creditGrants.map(grant=><option key={grant.id} value={grant.id}>{formatXlm(grant.availableStroops, xlmUsdc)} available</option>)}
             </select>
           </label>
           <Button type="button" size="sm" disabled={busy} onClick={()=>prepare('platform_credit',selectedCredit||option.creditGrants![0].id)}>Reserve platform credit</Button>
         </div>}
       </li>)}</ul>}
       {prepared && preparedSource === 'admin_grant' && <div>
+        <p className="font-semibold">{grantPayoutNetwork ? `Learners are paid on the ${networkLabel(grantPayoutNetwork)}` : 'No payout network is set up yet, so learners cannot be paid until it is.'}</p>
         <p>Authorize a grant of {exactAmount} to fund and reserve this reward.</p>
         <Button type="button" size="sm" disabled={busy} onClick={authorize}>Authorize grant</Button>
       </div>}
       {prepared && preparedSource==='platform_credit' && <div>
-        <p>{instructions?.network==='public'?'Public network — real XLM':'Testnet — test XLM'}</p>
+        <p className="font-semibold">{networkLabel(instructions?.network)}</p>
         <p>Authorize {exactAmount} from the reserved platform credit to fund this reward.</p>
         <p className="text-sm">Unused reservations expire at {new Date(instructions!.expires_at).toLocaleString()}.</p>
         <Button type="button" size="sm" disabled={busy} onClick={authorize}>Authorize platform credit</Button>
       </div>}
       {prepared && preparedSource === 'stellar' && instructions && <div className="space-y-3 text-sm">
-        <p className="font-semibold">{instructions.network === 'public' ? 'Public network — real XLM' : 'Testnet — test XLM'}</p>
+        <p className="font-semibold">{networkLabel(instructions.network)}</p>
         <p>Send exactly {exactAmount} as native XLM from your wallet.</p>
         <p>Receiving account: <code className="break-all">{instructions.destination}</code></p>
         <p>Memo type: hash. Memo value (hex): <code className="break-all">{instructions.memo_hash}</code></p>
