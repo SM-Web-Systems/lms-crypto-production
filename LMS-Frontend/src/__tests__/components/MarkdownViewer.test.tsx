@@ -9,6 +9,12 @@ const RAW_BASE = `https://raw.githubusercontent.com/SM-Web-Systems/blockchain-fo
 // ── URL approval tests ──────────────────────────────────────────────────────
 
 describe('toApprovedRawUrl', () => {
+  it('accepts the approved org and repo in any letter case', () => {
+    expect(toApprovedRawUrl('https://github.com/sm-web-systems/Blockchain-Foundations-For-Vibe-Coding/blob/main/a/b.md'))
+      .toBe(`${RAW_BASE}/a/b.md`);
+    expect(toApprovedRawUrl('https://github.com/other-org/blockchain-foundations-for-vibe-coding/blob/main/a.md')).toBeNull();
+  });
+
   it('MV-1: converts GitHub blob URL to pinned raw URL', () => {
     const url = 'https://github.com/SM-Web-Systems/vibe-coding-blockchain/blob/main/module-1-intro/content/lesson.md';
     expect(toApprovedRawUrl(url)).toBe(`${RAW_BASE}/module-1-intro/content/lesson.md`);

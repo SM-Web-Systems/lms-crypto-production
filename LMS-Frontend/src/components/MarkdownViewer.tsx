@@ -12,6 +12,9 @@ const APPROVED_REPOS = [
   'vibe-coding-blockchain',
 ];
 const RAW_HOST = 'https://raw.githubusercontent.com';
+/** GitHub owner and repo names are case-insensitive, so instructors may paste either spelling. */
+const isApprovedRepo = (owner: string | undefined, repo: string | undefined) =>
+  owner?.toLowerCase() === APPROVED_ORG.toLowerCase() && !!repo && APPROVED_REPOS.includes(repo.toLowerCase());
 const APPROVED_RAW_BASE = `${RAW_HOST}/${APPROVED_ORG}/blockchain-foundations-for-vibe-coding/${PINNED_COMMIT}`;
 
 // Force new-tab links to have noopener
@@ -37,7 +40,7 @@ export function toApprovedRawUrl(url: string): string | null {
     if (u.hostname === 'raw.githubusercontent.com') {
       const parts = u.pathname.split('/').filter(Boolean);
       // /org/repo/commit/path...
-      if (parts[0] === APPROVED_ORG && APPROVED_REPOS.includes(parts[1])) {
+      if (isApprovedRepo(parts[0], parts[1])) {
         // Extract path after org/repo/commit
         const contentPath = parts.slice(3).join('/');
         return `${APPROVED_RAW_BASE}/${contentPath}`;
@@ -48,7 +51,7 @@ export function toApprovedRawUrl(url: string): string | null {
     // GitHub blob URL: github.com/org/repo/blob/branch/path...
     if (u.hostname === 'github.com' || u.hostname === 'www.github.com') {
       const parts = u.pathname.split('/').filter(Boolean);
-      if (parts[0] === APPROVED_ORG && APPROVED_REPOS.includes(parts[1]) && parts[2] === 'blob') {
+      if (isApprovedRepo(parts[0], parts[1]) && parts[2] === 'blob') {
         // Extract path after org/repo/blob/branch
         const contentPath = parts.slice(4).join('/');
         return `${APPROVED_RAW_BASE}/${contentPath}`;

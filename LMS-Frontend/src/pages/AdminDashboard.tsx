@@ -39,6 +39,7 @@ import { BroadcastPanel } from '../components/BroadcastPanel';
 import { MessageAuditPanel } from '../components/MessageAuditPanel';
 import { CohortInsightsPanel } from '../components/CohortInsightsPanel';
 import { SponsorROIPanel } from '../components/SponsorROIPanel';
+import { LessonViewsPanel } from '../components/LessonViewsPanel';
 import { analyticsService, type CourseAnalytics } from '../services/analyticsService';
 import { Tag } from 'lucide-react';
 
@@ -563,6 +564,8 @@ const AdminDashboard: React.FC = () => {
           </div>
         </Card>
       )}
+
+      {canAudit ? <LessonViewsPanel /> : null}
 
       {/* System Info */}
       <div data-testid="system-info" className="mt-4 border-t border-neutral-200/60 pt-4">

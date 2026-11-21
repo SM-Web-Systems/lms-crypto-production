@@ -68,9 +68,12 @@ export function youtubeWatchUrl(id: string | undefined | null): string | null {
 }
 
 /** Build a YouTube embed URL from a validated ID. Returns null for invalid IDs. */
+/** Embed URL from a YouTube video ID or a full YouTube URL (courses store either). */
 export function youtubeEmbedUrl(id: string | undefined | null): string | null {
-  if (!isValidYoutubeId(id)) return null;
-  return `https://www.youtube.com/embed/${id}?rel=0`;
+  const value = id?.trim();
+  const videoId = isValidYoutubeId(value) ? value : value ? extractYoutubeId(value) : null;
+  if (!isValidYoutubeId(videoId)) return null;
+  return `https://www.youtube.com/embed/${videoId}?rel=0`;
 }
 
 export function extractVimeoId(raw: string): string | null {
