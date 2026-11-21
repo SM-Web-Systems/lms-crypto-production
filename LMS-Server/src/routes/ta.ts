@@ -3,7 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
-import { query, queryOne, execute } from '../config/database.js';
+import { db, query, queryOne, execute } from '../config/database.js';
+import { applyApprovedGradeEffects } from '../controllers/submissionsController.js';
+import { processPendingEvents } from '../services/rewards/rewardEligibilityService.js';
+import logger from '../utils/logger.js';
 import { createNotification } from '../services/notificationService.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { canAccessCourse } from '../services/courseAccessService.js';
@@ -123,9 +126,10 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
 
   const submission = queryOne<{
     id: string; status: string; grade_status: string; proposed_status: string | null; course_id: string | null;
-    title: string; student_user_id: string | null;
+    item_id: string | null; student_id: string; graded_by: string | null; title: string; student_user_id: string | null;
   }>(
-    `SELECT s.id, s.status, s.grade_status, s.proposed_status, s.course_id, s.title, st.user_id AS student_user_id
+    `SELECT s.id, s.status, s.grade_status, s.proposed_status, s.course_id, s.item_id, s.student_id, s.graded_by,
+            s.title, st.user_id AS student_user_id
      FROM submissions s LEFT JOIN students st ON st.id = s.student_id WHERE s.id = ?`, [submissionId]);
   if (!submission) {
     res.status(404).json({ success: false, error: 'Submission not found' });
@@ -139,13 +143,37 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
     res.status(400).json({ success: false, error: 'No pending TA grade to approve' });
     return;
   }
+  // Two-person rule: whoever entered the TA grade cannot also approve it.
+  if (submission.graded_by === userId) {
+    res.status(403).json({ success: false, error: 'You cannot approve a grade you entered' });
+    return;
+  }
 
   const finalStatus = status || submission.proposed_status || 'approved';
 
-  execute(
-    "UPDATE submissions SET grade_status = 'approved', status = ?, reviewed_by_id = ?, reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
-    [finalStatus, userId, submissionId],
-  );
+  // Same side effects as a direct review (lesson completion + grade_approved reward event), in one
+  // transaction with the approval. The conditional UPDATE makes a concurrent second approval a no-op.
+  const approveAtomically = db.transaction((): boolean => {
+    const changes = execute(
+      `UPDATE submissions SET grade_status = 'approved', status = ?, reviewed_by_id = ?, reviewed_at = datetime('now'), updated_at = datetime('now')
+       WHERE id = ? AND grade_status = 'pending_approval' AND status = 'pending'`,
+      [finalStatus, userId, submissionId],
+    );
+    if (changes === 0) return false;
+    if (finalStatus === 'approved') applyApprovedGradeEffects(submission, userId);
+    return true;
+  });
+  if (!approveAtomically()) {
+    res.status(400).json({ success: false, error: 'No pending TA grade to approve' });
+    return;
+  }
+  if (finalStatus === 'approved') {
+    try {
+      processPendingEvents();
+    } catch (err) {
+      logger.error({ module: 'reward-eligibility', err, submissionId }, 'Reward event processing failed');
+    }
+  }
 
   // F6: Notify the TA whose grade was approved (best-effort)
   try {
