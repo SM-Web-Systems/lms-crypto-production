@@ -88,10 +88,11 @@ describe('lesson content from GitHub, YouTube and file downloads', () => {
     expect(screen.queryByText('direct-audio-player')).toBeNull();
   });
 
-  it('opens YouTube lessons in the YouTube app and records it as a YouTube app view', async () => {
+  it.each(['Watch on YouTube', 'Save in YouTube app'])('"%s" under the player opens YouTube and records a YouTube app view', async (label) => {
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     render(<MaterialViewer {...props} item={{ id: 'v', title: 'L', type: 'video', url: 'https://youtu.be/abcdefghijk' } as CourseItem} />);
-    fireEvent.press(screen.getByText('Watch or save in YouTube app'));
+    expect(screen.queryByText('Open video')).toBeNull();
+    fireEvent.press(screen.getByText(label));
     await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://www.youtube.com/watch?v=abcdefghijk'));
     expect(lessonContentService.recordPlay).toHaveBeenCalledWith('course', 'v', 'youtube_app', 'open_external');
   });

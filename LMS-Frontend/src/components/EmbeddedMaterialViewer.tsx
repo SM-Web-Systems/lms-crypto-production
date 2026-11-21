@@ -39,19 +39,25 @@ function TrackedYouTubeFrame({ title, src, tracker }: { title: string; src: stri
   );
 }
 
-/** Opens the video on YouTube (app on phones), where learners can also save it to watch offline. */
-function WatchOnYouTubeLink({ videoId, courseId, itemId }: { videoId: string; courseId?: string; itemId: string }) {
+/**
+ * YouTube actions attached to the bottom of the YouTube player, with the same wording as the mobile app.
+ * Both open the video on YouTube (the YouTube app on phones, where learners can save it to watch offline).
+ */
+function YouTubeActions({ videoId, courseId, itemId }: { videoId: string; courseId?: string; itemId: string }) {
+  const record = () => { if (courseId) void lessonPlayService.recordPlay(courseId, itemId, 'youtube_app', 'open_external'); };
+  const href = `https://www.youtube.com/watch?v=${videoId}`;
+  const cls = 'inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 transition-colors';
   return (
-    <a
-      href={`https://www.youtube.com/watch?v=${videoId}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={() => { if (courseId) void lessonPlayService.recordPlay(courseId, itemId, 'youtube_app', 'open_external'); }}
-      className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors"
-    >
-      <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-      Watch or save on YouTube
-    </a>
+    <div role="group" aria-label="YouTube actions" className="flex w-full divide-x divide-neutral-200 rounded-b-lg border border-t-0 border-neutral-200 bg-white">
+      <a href={href} target="_blank" rel="noopener noreferrer" onClick={record} className={cls}>
+        <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+        Watch on YouTube
+      </a>
+      <a href={href} target="_blank" rel="noopener noreferrer" onClick={record} className={cls}>
+        <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
+        Save in YouTube app
+      </a>
+    </div>
   );
 }
 
@@ -352,16 +358,14 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                     )}
                   </div>
                 )}
-                {(extractYoutubeId(url) && !direct) || videoDlUrl ? (
+                {!direct && extractYoutubeId(url) ? <YouTubeActions videoId={extractYoutubeId(url)!} courseId={courseId} itemId={item.id} /> : null}
+                {videoDlUrl ? (
                   <div className="flex flex-wrap justify-center gap-3 pt-4">
-                    {!direct && extractYoutubeId(url) ? <WatchOnYouTubeLink videoId={extractYoutubeId(url)!} courseId={courseId} itemId={item.id} /> : null}
-                    {videoDlUrl ? (
                     <a href={videoDlUrl} download target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
                       <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
                       Download video (MP4)
                     </a>
-                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -459,16 +463,16 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
                 >
                   <TrackedYouTubeFrame title={item.title} src={ytEmbed} tracker={youtubeTracker} />
                 </div>
-                <div className="flex flex-wrap justify-center gap-3 pt-4">
-                  {extractYoutubeId(ytEmbed) ? <WatchOnYouTubeLink videoId={extractYoutubeId(ytEmbed)!} courseId={courseId} itemId={item.id} /> : null}
+                {extractYoutubeId(ytEmbed) ? <YouTubeActions videoId={extractYoutubeId(ytEmbed)!} courseId={courseId} itemId={item.id} /> : null}
                 {item.downloadUrl && (
+                  <div className="flex flex-wrap justify-center gap-3 pt-4">
                     <a href={item.downloadUrl} download target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg border border-neutral-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors">
                       <DownloadIcon className="h-4 w-4 shrink-0" aria-hidden />
                       Download audio (MP3)
                     </a>
+                  </div>
                 )}
-                </div>
               </>
             ) : (
               <div className="flex flex-col items-center gap-5 py-8 px-4">
