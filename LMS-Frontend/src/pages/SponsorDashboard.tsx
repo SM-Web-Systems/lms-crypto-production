@@ -981,7 +981,7 @@ const SponsorDashboard: React.FC = () => {
                                                             : 'bg-neutral-100 text-neutral-500'
                                                         }`}
                                                       >
-                                                        {s.nftStatus === 'minted' ? 'Minted' : 'None'}
+                                                        {s.nftStatus === 'minted' ? 'Issued' : 'None'}
                                                       </span>
                                                     </td>
                                                   </tr>

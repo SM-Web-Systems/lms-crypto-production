@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RewardStatusBadge, formatStroops, formatStroopsShort } from '../../components/RewardStatusBadge';
+import { RewardStatusBadge, formatStroops } from '../../components/RewardStatusBadge';
+import { formatXlm } from '../../utils/xlmAmount';
 
 // Mock rewardService for RewardDashboard and StudentRewardsPanel
 const mockListRewards = vi.fn();
@@ -130,12 +131,13 @@ describe('formatStroops', () => {
     expect(formatStroops(10000000)).toBe('1.0000000 XLM');
   });
 
-  it('R-FE-5b: formatStroopsShort shows 2 decimal places', () => {
-    expect(formatStroopsShort(15000000)).toBe('1.50 XLM');
+  it('R-FE-5b: list amounts keep full precision (UX-023: never round 0.0000001 to 0.00)', () => {
+    expect(formatXlm(15000000)).toBe('1.5 XLM');
+    expect(formatXlm(1)).toBe('0.0000001 XLM');
   });
 
   it('R-FE-5c: validates zero amount display', () => {
-    expect(formatStroopsShort(0)).toBe('0.00 XLM');
+    expect(formatXlm(0)).toBe('0 XLM');
   });
 });
 
@@ -154,7 +156,7 @@ describe('RewardDashboard', () => {
     // W06: listRewards now passes targetType as 3rd arg; undefined when not provided
     expect(mockListRewards).toHaveBeenCalledWith('sponsor', 'cohort1', undefined);
     expect(screen.getByText('custom')).toBeInTheDocument();
-    expect(screen.getByText('1.00 XLM')).toBeInTheDocument();
+    expect(screen.getByText('1 XLM')).toBeInTheDocument();
   });
 
   it('R-FE-2: renders for employer role', async () => {
@@ -225,7 +227,7 @@ describe('StudentRewardsPanel', () => {
       expect(screen.getByText('custom')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('1.00 XLM')).toBeInTheDocument();
+    expect(screen.getByText('1 XLM')).toBeInTheDocument();
     expect(screen.getByTestId('student-rewards-panel')).toBeInTheDocument();
   });
 

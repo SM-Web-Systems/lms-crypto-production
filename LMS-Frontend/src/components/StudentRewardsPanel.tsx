@@ -6,7 +6,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
-import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
+import { RewardStatusBadge } from './RewardStatusBadge';
+import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
+import { formatXlm } from '../utils/xlmAmount';
 import { rewardService, type MyRewardClaim, type StudentReward } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
 import { Gift, RefreshCw, AlertCircle, Loader2, Send } from 'lucide-react';
@@ -35,6 +37,7 @@ export const StudentRewardsPanel: React.FC = () => {
   const [paymentNotice, setPaymentNotice] = useState<{ text: string; failed: boolean } | null>(null);
   // A payments list that failed to load is shown as failed, never as no payments.
   const [claimsError, setClaimsError] = useState('');
+  const xlmUsdc = useXlmUsdcPrice();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,14 +114,14 @@ export const StudentRewardsPanel: React.FC = () => {
       <CardContent className="p-5">
         {claimable !== '0' && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <p className="text-sm text-emerald-900">Ready to claim: <strong className="tabular-nums">{formatStroopsShort(Number(claimable))}</strong></p>
+            <p className="text-sm text-emerald-900">Ready to claim: <strong className="tabular-nums">{formatXlm(claimable, xlmUsdc)}</strong></p>
             <Button size="sm" type="button" onClick={claim} disabled={claiming}>
               <Send className="h-3.5 w-3.5 mr-1" aria-hidden />
-              {claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${formatStroopsShort(Number(claimAmount))} to my wallet`}
+              {claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${formatXlm(claimAmount, xlmUsdc)} to my wallet`}
             </Button>
             {claimAmount !== claimable && (
               <p className="basis-full text-xs text-emerald-800" data-testid="claim-limit-note">
-                One payment can be at most {formatStroopsShort(Number(claimAmount))}. Claim again for the rest.
+                One payment can be at most {formatXlm(claimAmount, xlmUsdc)}. Claim again for the rest.
               </p>
             )}
             <p className="basis-full text-xs text-emerald-800" data-testid="restore-wallet-note">
@@ -162,7 +165,7 @@ export const StudentRewardsPanel: React.FC = () => {
                     className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-3 hover:bg-neutral-50/60 transition-colors sm:table-row sm:px-0 sm:py-0">
                     <td className="capitalize text-neutral-900 sm:table-cell sm:px-3 sm:py-3" role="cell">{r.rewardType}</td>
                     <td className="tabular-nums text-neutral-700 sm:table-cell sm:px-3 sm:py-3" role="cell">
-                      {formatStroopsShort(r.amountStroops)}
+                      {formatXlm(r.amountStroops, xlmUsdc, r.currencyCode)}
                     </td>
                     <td className="sm:table-cell sm:px-3 sm:py-3" role="cell">
                       <RewardStatusBadge status={r.status} label={r.status === 'released' ? 'Earned' : undefined} />
@@ -201,7 +204,7 @@ export const StudentRewardsPanel: React.FC = () => {
                 const canRetry = c.status === 'verified' && (c.payout === 'not_sent' || c.payout === 'failed');
                 return (
                   <li key={c.claimId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-3" data-testid="student-reward-claim">
-                    <span className="tabular-nums text-sm text-neutral-900">{formatStroopsShort(c.amountStroops)}</span>
+                    <span className="tabular-nums text-sm text-neutral-900">{formatXlm(c.amountStroops, xlmUsdc)}</span>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${p.tone}`} data-testid="claim-payout-status">{p.label}</span>
                     <span className="text-xs text-neutral-500">to {shortAddress(c.destination)}{c.verifiedAt ? ` · ${new Date(c.verifiedAt).toLocaleDateString()}` : ''}</span>
                     {p.note && <p className="basis-full text-xs text-neutral-600">{p.note}</p>}

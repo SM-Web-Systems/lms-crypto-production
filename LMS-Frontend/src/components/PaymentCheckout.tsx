@@ -11,6 +11,8 @@ import { Button } from './Button';
 import { CreditCard, Wallet, AlertCircle, Copy, Check, Loader2 } from 'lucide-react';
 import { courseCompletionService } from '../services/courseCompletionService';
 import { getErrorMessage } from '../utils/apiError';
+import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
+import { formatXlm } from '../utils/xlmAmount';
 
 interface PaymentCheckoutProps {
   applicationId: string;
@@ -43,6 +45,7 @@ export function PaymentCheckout({
   const [error, setError] = useState<string | null>(null);
   const [stellarInstructions, setStellarInstructions] = useState<StellarInstructions | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const xlmUsdc = useXlmUsdcPrice();
 
   if (priceCents === 0 || paymentMethods.length === 0) {
     return null; // Free course — no payment needed
@@ -89,7 +92,7 @@ export function PaymentCheckout({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const formatPrice = (cents: number) => (cents / 100).toFixed(2);
 
   return (
     <Card>
@@ -174,7 +177,7 @@ export function PaymentCheckout({
                 disabled={loadingMethod !== null}
               >
                 {loadingMethod === 'xlm' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
-                Pay with XLM ({stellarPriceXlm} XLM)
+                Pay with XLM: {formatXlm(Math.round(stellarPriceXlm * 10_000_000), xlmUsdc)}
               </Button>
             )}
 

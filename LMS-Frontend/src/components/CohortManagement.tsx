@@ -90,12 +90,12 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ courses, onCreate
             <div className="flex gap-3">
               {canFree && (
                 <label className="flex items-center gap-1.5 text-sm">
-                  <input type="radio" name="tier" value="free" checked={tier === 'free'} onChange={() => setTier('free')} /> Free Badge
+                  <input type="radio" name="tier" value="free" checked={tier === 'free'} onChange={() => setTier('free')} /> Free certificate
                 </label>
               )}
               {canPaid && (
                 <label className="flex items-center gap-1.5 text-sm">
-                  <input type="radio" name="tier" value="paid" checked={tier === 'paid'} onChange={() => setTier('paid')} /> Paid NFT
+                  <input type="radio" name="tier" value="paid" checked={tier === 'paid'} onChange={() => setTier('paid')} /> Verified certificate
                 </label>
               )}
             </div>
@@ -398,9 +398,9 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
                 </td>
                 <td className="py-1.5 pr-2">
                   {m.certificateStatus === 'nft' ? (
-                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">NFT</span>
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">Verified certificate</span>
                   ) : m.certificateStatus === 'badge' ? (
-                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Badge</span>
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Free certificate</span>
                   ) : (
                     <span className="text-gray-400 text-xs">—</span>
                   )}
@@ -512,7 +512,7 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, own
                     <td className="py-2 px-3 text-gray-600">{c.courseName}</td>
                     <td className="py-2 px-3">
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${c.selectedTier === 'paid' ? 'bg-violet-100 text-violet-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                        {c.selectedTier === 'paid' ? 'NFT' : 'Free'}
+                        {c.selectedTier === 'paid' ? 'Verified' : 'Free'}
                       </span>
                     </td>
                     <td className="py-2 px-3">{c.memberCount}</td>

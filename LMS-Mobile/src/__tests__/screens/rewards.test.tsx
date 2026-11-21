@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
-import RewardsScreen, { stroopsToXlm } from '@/app/(student)/rewards';
+import RewardsScreen from '@/app/(student)/rewards';
+import { formatXlm } from '@/utils/xlmAmount';
 import { rewardClaimService } from '@/services/rewardClaimService';
 import { ApiRequestError } from '@/utils/apiError';
 
@@ -13,9 +14,9 @@ beforeEach(() => { jest.clearAllMocks(); svc.received.mockResolvedValue([reward]
 
 describe('student rewards screen', () => {
   it('formats stroops as XLM', () => {
-    expect(stroopsToXlm(1000000)).toBe('0.1 XLM');
-    expect(stroopsToXlm(100000000)).toBe('10 XLM');
-    expect(stroopsToXlm(1)).toBe('0.0000001 XLM');
+    expect(formatXlm(1000000)).toBe('0.1 XLM');
+    expect(formatXlm(100000000)).toBe('10 XLM');
+    expect(formatXlm(1)).toBe('0.0000001 XLM');
   });
 
   it('shows the claimable amount and runs the claim', async () => {

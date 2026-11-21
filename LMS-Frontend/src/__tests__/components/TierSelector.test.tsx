@@ -58,8 +58,8 @@ describe('TierSelector', () => {
     await waitFor(() => {
       expect(screen.getByText('Choose Certificate Type')).toBeInTheDocument();
     });
-    expect(screen.getByText('Free Badge')).toBeInTheDocument();
-    expect(screen.getByText('Verified NFT Certificate')).toBeInTheDocument();
+    expect(screen.getByText('Free certificate')).toBeInTheDocument();
+    expect(screen.getByText('Verified certificate')).toBeInTheDocument();
     expect(onSelect).not.toHaveBeenCalled();
   });
 
@@ -99,10 +99,10 @@ describe('TierSelector', () => {
     render(<TierSelector courseId="c1" onSelect={onSelect} onCancel={onCancel} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Free Badge')).toBeInTheDocument();
+      expect(screen.getByText('Free certificate')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText('Free Badge'));
+    await user.click(screen.getByText('Free certificate'));
     expect(onSelect).toHaveBeenCalledWith('free');
   });
 
@@ -116,10 +116,10 @@ describe('TierSelector', () => {
     render(<TierSelector courseId="c1" onSelect={onSelect} onCancel={onCancel} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Verified NFT Certificate')).toBeInTheDocument();
+      expect(screen.getByText('Verified certificate')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText('Verified NFT Certificate'));
+    await user.click(screen.getByText('Verified certificate'));
     expect(onSelect).toHaveBeenCalledWith('paid');
   });
 
@@ -132,7 +132,7 @@ describe('TierSelector', () => {
     render(<TierSelector courseId="c1" onSelect={onSelect} onCancel={onCancel} />);
 
     await waitFor(() => {
-      expect(screen.getByText('$25.00')).toBeInTheDocument();
+      expect(screen.getByText('25.00 USD')).toBeInTheDocument();
     });
   });
 });
@@ -157,7 +157,7 @@ describe('BadgeDisplay', () => {
     render(<BadgeDisplay badgeId="badge-123" />);
 
     await waitFor(() => {
-      expect(screen.getByText('View Badge')).toBeInTheDocument();
+      expect(screen.getByText('View Certificate')).toBeInTheDocument();
     });
     expect(screen.getByText('Download')).toBeInTheDocument();
   });
@@ -178,12 +178,12 @@ describe('BadgeDisplay', () => {
     render(<BadgeDisplay badgeId="badge-456" />);
 
     await waitFor(() => {
-      expect(screen.getByText('View Badge')).toBeInTheDocument();
+      expect(screen.getByText('View Certificate')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText('View Badge'));
+    await user.click(screen.getByText('View Certificate'));
 
-    expect(screen.getByText('Your Certificate Badge')).toBeInTheDocument();
+    expect(screen.getByText('Your Certificate')).toBeInTheDocument();
     expect(screen.getByText('Download SVG')).toBeInTheDocument();
   });
 });

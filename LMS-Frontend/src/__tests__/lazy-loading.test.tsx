@@ -29,7 +29,7 @@ describe('Lazy loading (Phase 25 C3)', () => {
 
     // After lazy load resolves, the component renders
     await waitFor(() => {
-      expect(screen.getByText('My Badges')).toBeTruthy();
+      expect(screen.getByText('My Certificates')).toBeTruthy();
     }, { timeout: 5000 });
   });
 });

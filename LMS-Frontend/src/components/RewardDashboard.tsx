@@ -9,7 +9,9 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { RewardFundingDialog } from './RewardFundingDialog';
-import { RewardStatusBadge, formatStroops, formatStroopsShort } from './RewardStatusBadge';
+import { RewardStatusBadge, formatStroops } from './RewardStatusBadge';
+import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
+import { formatXlm } from '../utils/xlmAmount';
 import { useConfirmAction, type ConfirmActionOptions } from '../hooks/useConfirmAction';
 import {
   rewardService,
@@ -276,6 +278,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const { user } = useAuth();
   const [state, setState] = useState<ViewState>('loading');
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const xlmUsdc = useXlmUsdcPrice();
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Record<string, ExpandedEntry>>({});
   const [showCreate, setShowCreate] = useState(false);
@@ -560,7 +563,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                           )}
                         </td>
                         <td className="px-3 py-3 tabular-nums text-neutral-700">
-                          {formatStroopsShort(r.amount_stroops)}
+                          {formatXlm(r.amount_stroops, xlmUsdc, r.currency_code)}
                         </td>
                         <td className="px-3 py-3">
                           <RewardStatusBadge status={r.status} />
@@ -633,7 +636,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                           {a.student_name || 'Unnamed learner'}
                                         </td>
                                         <td className="py-1.5 tabular-nums text-neutral-700">
-                                          {formatStroopsShort(a.amount_stroops)}
+                                          {formatXlm(a.amount_stroops, xlmUsdc, a.currency_code)}
                                         </td>
                                         <td className="py-1.5">
                                           <RewardStatusBadge status={a.status} />

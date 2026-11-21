@@ -122,7 +122,7 @@ describe('BadgeGallery', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/No badges yet/i)).toBeTruthy();
+    expect(await screen.findByText(/No certificates yet/i)).toBeTruthy();
   });
 
   it('SEARCH-FE-1: search input filters by course title', async () => {
@@ -134,7 +134,7 @@ describe('BadgeGallery', () => {
 
     await screen.findAllByText('Blockchain 101');
 
-    const searchInput = screen.getByRole('textbox', { name: /search badges/i });
+    const searchInput = screen.getByRole('textbox', { name: /search certificates/i });
     fireEvent.change(searchInput, { target: { value: 'Block' } });
 
     await waitFor(() => {
@@ -152,7 +152,7 @@ describe('BadgeGallery', () => {
 
     await screen.findAllByText('Blockchain 101');
 
-    const searchInput = screen.getByRole('textbox', { name: /search badges/i });
+    const searchInput = screen.getByRole('textbox', { name: /search certificates/i });
     fireEvent.change(searchInput, { target: { value: 'SVC' } });
 
     await waitFor(() => {
@@ -170,7 +170,7 @@ describe('BadgeGallery', () => {
 
     await screen.findAllByText('Blockchain 101');
 
-    const searchInput = screen.getByRole('textbox', { name: /search badges/i });
+    const searchInput = screen.getByRole('textbox', { name: /search certificates/i });
     fireEvent.change(searchInput, { target: { value: 'Block' } });
 
     await waitFor(() => {

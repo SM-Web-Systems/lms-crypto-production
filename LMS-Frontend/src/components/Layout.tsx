@@ -138,7 +138,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'My Submissions', path: '/student/submissions', icon: FileText },
       { name: 'Payments', path: '/student/payments', icon: CreditCard },
       { name: 'Rewards', path: '/student/rewards', icon: Gift },
-      { name: 'Badges', path: '/student/badges', icon: Award },
+      { name: 'Certificates', path: '/student/badges', icon: Award },
       { name: 'Course', path: '/student/course', icon: BookOpen },
       { name: 'Quizzes', path: '/student/quizzes', icon: ClipboardList },
       { name: 'Resources', path: '/student/documents', icon: BookOpen },

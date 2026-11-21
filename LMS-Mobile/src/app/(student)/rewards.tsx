@@ -10,12 +10,8 @@ import { rewardClaimService, type ClaimPayout, type MyRewardClaim, type Received
 import { getErrorMessage } from '@/utils/apiError';
 import { formatDate } from '@/utils/format';
 import { brand } from '@/theme/colors';
-
-export function stroopsToXlm(stroops: number): string {
-  const s = BigInt(Math.trunc(stroops));
-  const fraction = (s % 10_000_000n).toString().padStart(7, '0').replace(/0+$/, '');
-  return `${s / 10_000_000n}${fraction ? `.${fraction}` : ''} XLM`;
-}
+import { formatXlm } from '@/utils/xlmAmount';
+import { useXlmUsdcPrice } from '@/hooks/useXlmUsdcPrice';
 
 /** What really happened to a claim's payout. Only 'paid' says the reward reached the wallet. */
 const CLAIM_PAYOUT: Record<MyRewardClaim['payout'], { label: string; color: string; note?: string }> = {
@@ -66,6 +62,7 @@ export default function RewardsScreen() {
   const [rewards, setRewards] = useState<ReceivedReward[]>([]);
   const [claims, setClaims] = useState<MyRewardClaim[]>([]);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const xlmUsdc = useXlmUsdcPrice();
 
   const load = useCallback(async () => {
     setError(null); setBalanceError(null); setClaimsError(null);
@@ -142,14 +139,14 @@ export default function RewardsScreen() {
             <Ionicons name="gift-outline" size={22} color={brand.accent.teal} />
             <View className="flex-1">
               <Text className="text-xs text-neutral-500">Ready to claim</Text>
-              <Text className="text-lg font-bold text-neutral-900">{stroopsToXlm(claimable)}</Text>
+              <Text className="text-lg font-bold text-neutral-900">{formatXlm(claimable, xlmUsdc)}</Text>
             </View>
           </View>
           <View className="mt-3">
-            <Button label={claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${stroopsToXlm(claimAmount)} to my wallet`} onPress={claim} disabled={claiming} />
+            <Button label={claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${formatXlm(claimAmount, xlmUsdc)} to my wallet`} onPress={claim} disabled={claiming} />
           </View>
           {claimAmount !== claimable ? (
-            <Text className="mt-2 text-xs text-neutral-500">One payment can be at most {stroopsToXlm(claimAmount)}. Claim again for the rest.</Text>
+            <Text className="mt-2 text-xs text-neutral-500">One payment can be at most {formatXlm(claimAmount, xlmUsdc)}. Claim again for the rest.</Text>
           ) : null}
           <Text className="mt-2 text-xs text-neutral-500">AmmaWallet will ask you to approve with your Amma password. This proves the wallet is yours. You need the device where your wallet was set up, or your recovery phrase to restore your wallet on this one.</Text>
         </Card>
@@ -166,7 +163,7 @@ export default function RewardsScreen() {
         <Card key={r.allocationId}>
           <View className="flex-row items-center justify-between">
             <Text className="font-semibold text-neutral-900">{rewardTypeLabel(r.rewardType)}</Text>
-            <Text className="font-bold text-neutral-900">{stroopsToXlm(r.amountStroops)}</Text>
+            <Text className="font-bold text-neutral-900">{formatXlm(r.amountStroops, xlmUsdc, r.currencyCode)}</Text>
           </View>
           <Text className="mt-1 text-xs text-neutral-500">{rewardStatusLabel(r.status)} · {formatDate(r.releasedAt ?? r.createdAt)}</Text>
         </Card>
@@ -183,7 +180,7 @@ export default function RewardsScreen() {
             return (
               <Card key={c.claimId}>
                 <View className="flex-row items-center justify-between">
-                  <Text className="font-bold text-neutral-900">{stroopsToXlm(c.amountStroops)}</Text>
+                  <Text className="font-bold text-neutral-900">{formatXlm(c.amountStroops, xlmUsdc)}</Text>
                   <Text testID="claim-payout-status" className={`text-sm font-semibold ${p.color}`}>{p.label}</Text>
                 </View>
                 <Text className="mt-1 text-xs text-neutral-500">to {shortAddress(c.destination)}{c.verifiedAt ? ` · ${formatDate(c.verifiedAt)}` : ''}</Text>

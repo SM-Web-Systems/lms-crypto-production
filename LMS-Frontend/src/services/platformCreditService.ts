@@ -62,8 +62,4 @@ export function xlmToStroops(value: string): string | null {
   return stroops > 0n ? stroops.toString() : null;
 }
 
-export function stroopsToXlm(stroops: number | string): string {
-  const s = BigInt(stroops);
-  const frac = (s % 10_000_000n).toString().padStart(7, '0').replace(/0+$/, '');
-  return `${s / 10_000_000n}${frac ? `.${frac}` : ''}`;
-}
+export { stroopsToXlm } from '../utils/xlmAmount';

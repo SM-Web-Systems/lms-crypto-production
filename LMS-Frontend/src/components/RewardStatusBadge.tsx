@@ -53,8 +53,3 @@ export function formatStroops(stroops: number, currency = 'XLM'): string {
   return `${xlm.toFixed(7)} ${currency}`;
 }
 
-/** Shorter format: 10000000 → "1.00 XLM" */
-export function formatStroopsShort(stroops: number): string {
-  const xlm = stroops / 10_000_000;
-  return `${xlm.toFixed(2)} XLM`;
-}
