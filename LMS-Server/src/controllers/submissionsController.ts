@@ -444,6 +444,58 @@ export async function downloadSubmission(req: AuthRequest, res: Response, next: 
   }
 }
 
+/**
+ * Side effects of an approved grade: complete the linked lesson, queue course_completion when that
+ * finishes the course, and queue the grade_approved reward event. Shared by a direct review and a
+ * lecturer/admin approving a TA grade. Call inside the transaction that records the approval;
+ * the outbox dedup (produceOutboxEvent) keeps a replay from paying twice.
+ */
+export function applyApprovedGradeEffects(
+  submission: { id: string; student_id: string; course_id?: string | null; item_id?: string | null },
+  reviewerUserId: string,
+  /** The TA who entered the grade, when a lecturer/admin approves a TA grade. */
+  graderUserId?: string | null,
+): void {
+  const studentRecord = queryOne<{ user_id: string | null }>(
+    'SELECT user_id FROM students WHERE id = ?',
+    [submission.student_id]
+  );
+  if (!studentRecord?.user_id) return;
+
+  // Phase 4: auto-complete linked course item on approval
+  if (submission.course_id && submission.item_id) {
+    const course = queryOne<{ sections: string }>(
+      'SELECT sections FROM courses WHERE id = ?',
+      [submission.course_id]
+    );
+    if (course?.sections) {
+      const sId = findSectionForItem(course.sections, submission.item_id);
+      if (sId) {
+        execute(
+          `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
+           VALUES (?, ?, ?, ?, ?, NULL, 100)
+           ON CONFLICT (user_id, course_id, item_id) DO UPDATE SET
+             completed_at = COALESCE(lesson_completions.completed_at, datetime('now')), progress_pct = 100`,
+          [uuidv4(), studentRecord.user_id, submission.course_id, submission.item_id, sId]
+        );
+        // W04-R1 F2: Check if this approval satisfies the final course requirement.
+        // Use student's user_id (not reviewerUserId) — critical identity invariant.
+        if (isCourseCompleteForReward(studentRecord.user_id, submission.course_id)) {
+          produceOutboxEvent('course_completion', submission.course_id, studentRecord.user_id);
+        }
+      }
+    }
+  }
+
+  // R12: produce outbox event for reward eligibility
+  produceOutboxEvent('grade_approved', submission.id, studentRecord.user_id, {
+    reviewerId: reviewerUserId,
+    ...(graderUserId ? { graderId: graderUserId } : {}),
+    courseId: submission.course_id,
+    itemId: submission.item_id,
+  });
+}
+
 export async function reviewSubmission(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
@@ -496,45 +548,7 @@ export async function reviewSubmission(req: AuthRequest, res: Response, next: Ne
         [status, feedback?.trim() || null, reviewerUserId, id]
       );
 
-      if (status === 'approved') {
-        const studentRecord = queryOne<{ user_id: string | null }>(
-          'SELECT user_id FROM students WHERE id = ?',
-          [existing.student_id]
-        );
-        if (studentRecord?.user_id) {
-          // Phase 4: auto-complete linked course item on approval
-          if (existing.course_id && existing.item_id) {
-            const course = queryOne<{ sections: string }>(
-              'SELECT sections FROM courses WHERE id = ?',
-              [existing.course_id]
-            );
-            if (course?.sections) {
-              const sId = findSectionForItem(course.sections, existing.item_id);
-              if (sId) {
-                execute(
-                  `INSERT INTO lesson_completions (id, user_id, course_id, item_id, section_id, marked_by, progress_pct)
-                   VALUES (?, ?, ?, ?, ?, NULL, 100)
-               ON CONFLICT (user_id, course_id, item_id) DO UPDATE SET
-                 completed_at = COALESCE(lesson_completions.completed_at, datetime('now')), progress_pct = 100`,
-                  [uuidv4(), studentRecord.user_id, existing.course_id, existing.item_id, sId]
-                );
-                // W04-R1 F2: Check if this approval satisfies the final course requirement.
-                // Use student's user_id (not reviewerUserId) — critical identity invariant.
-                if (isCourseCompleteForReward(studentRecord.user_id, existing.course_id)) {
-                  produceOutboxEvent('course_completion', existing.course_id, studentRecord.user_id);
-                }
-              }
-            }
-          }
-
-          // R12: produce outbox event for reward eligibility
-          produceOutboxEvent('grade_approved', id, studentRecord.user_id, {
-            reviewerId: reviewerUserId,
-            courseId: existing.course_id,
-            itemId: existing.item_id,
-          });
-        }
-      }
+      if (status === 'approved') applyApprovedGradeEffects(existing, reviewerUserId);
     });
 
     try {
