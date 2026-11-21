@@ -78,7 +78,7 @@ const NFTBadge: React.FC<NFTBadgeProps> = ({
               )}
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
                 <Award className="h-3 w-3" aria-hidden />
-                NFT Issued
+                Certificate issued
               </span>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-neutral-500">

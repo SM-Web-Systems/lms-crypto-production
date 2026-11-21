@@ -91,7 +91,7 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
             <div className="flex items-start gap-3">
               <Award className="h-6 w-6 text-emerald-600 mt-0.5 flex-shrink-0" />
               <div>
-                <div className="font-semibold text-emerald-700">Free Badge</div>
+                <div className="font-semibold text-emerald-700">Free certificate</div>
                 <p className="text-sm text-neutral-600 mt-1">
                   Digital certificate of completion. Download as SVG image.
                 </p>
@@ -110,12 +110,12 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
             <div className="flex items-start gap-3">
               <Shield className="h-6 w-6 text-violet-600 mt-0.5 flex-shrink-0" />
               <div>
-                <div className="font-semibold text-violet-700">Verified NFT Certificate</div>
+                <div className="font-semibold text-violet-700">Verified certificate</div>
                 <p className="text-sm text-neutral-600 mt-1">
-                  On-chain credential on Stellar blockchain. Verifiable and permanent.
+                  Recorded on the Stellar network. Anyone can verify it, and it is permanent.
                 </p>
                 <span className="inline-block mt-2 text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded">
-                  {tierInfo.isFree ? 'Free' : `$${(tierInfo.priceCents / 100).toFixed(2)}`}
+                  {tierInfo.isFree ? 'Free' : `${(tierInfo.priceCents / 100).toFixed(2)} ${tierInfo.currency}`}
                 </span>
               </div>
             </div>
@@ -144,7 +144,7 @@ export function BadgeDisplay({ badgeId }: BadgeDisplayProps) {
       .finally(() => setLoading(false));
   }, [badgeId]);
 
-  if (loading) return <span className="text-xs text-neutral-400">Loading badge...</span>;
+  if (loading) return <span className="text-xs text-neutral-400">Loading certificate...</span>;
   if (!badge) return null;
 
   const handleDownload = () => {
@@ -162,7 +162,7 @@ export function BadgeDisplay({ badgeId }: BadgeDisplayProps) {
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
           <Award className="h-3 w-3 mr-1" />
-          View Badge
+          View Certificate
         </Button>
         <Button variant="outline" size="sm" onClick={handleDownload}>
           <Download className="h-3 w-3 mr-1" />
@@ -174,7 +174,7 @@ export function BadgeDisplay({ badgeId }: BadgeDisplayProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="badge-dialog-title" onKeyDown={(e) => { if (e.key === 'Escape') setShowPreview(false); }}>
           <div className="bg-white rounded-lg p-6 max-w-lg shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 id="badge-dialog-title" className="text-lg font-semibold">Your Certificate Badge</h3>
+              <h3 id="badge-dialog-title" className="text-lg font-semibold">Your Certificate</h3>
               <button onClick={() => setShowPreview(false)} className="text-neutral-400 hover:text-neutral-600">
                 <X className="h-5 w-5" />
               </button>

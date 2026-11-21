@@ -6,9 +6,9 @@ import WebPushCard from '../components/WebPushCard';
 
 const TYPE_LABELS: Record<string, string> = {
   submission_reviewed: 'Submission Reviewed',
-  nft_approved: 'NFT Approved',
-  nft_rejected: 'NFT Rejected',
-  nft_minted: 'NFT Minted',
+  nft_approved: 'Certificate Approved',
+  nft_rejected: 'Certificate Not Approved',
+  nft_minted: 'Certificate Issued',
   course_enrolled: 'Course Enrolled',
   new_enrollment: 'New Enrollment',
   payment_confirmed: 'Payment Confirmed',

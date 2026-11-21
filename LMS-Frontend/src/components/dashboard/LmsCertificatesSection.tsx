@@ -36,7 +36,7 @@ const LmsCertificatesSection: React.FC = () => {
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-neutral-900 mb-4">LMS Certificates</h2>
+      <h2 className="text-lg font-bold text-neutral-900 mb-4">Your certificates</h2>
       {lmsCredentialsError ? (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden />

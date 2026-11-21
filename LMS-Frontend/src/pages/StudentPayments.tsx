@@ -19,8 +19,7 @@ interface PaymentRecord {
 }
 
 function formatAmount(cents: number, currency: string): string {
-  const dollars = (cents / 100).toFixed(2);
-  return `$${dollars} ${currency}`;
+  return `${(cents / 100).toFixed(2)} ${currency}`;
 }
 
 function formatMethod(method: string): string {

@@ -30,5 +30,5 @@ export async function explainMintFailure(
   } catch {
     /* fall through to the generic text */
   }
-  return 'Mint failed, and the server’s reason did not reach this page. Check the Issued NFTs tab for the stored error before trying again.';
+  return 'Mint failed, and the server’s reason did not reach this page. Check the Issued certificates tab for the stored error before trying again.';
 }

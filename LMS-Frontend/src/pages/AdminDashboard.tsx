@@ -242,7 +242,7 @@ const AdminDashboard: React.FC = () => {
     {
       to: '/admin/certificates',
       title: 'Certificates',
-      blurb: 'NFT credentials',
+      blurb: 'Applications and issued certificates',
       icon: Award,
       gradient: 'from-violet-100/80 via-white to-purple-50/50',
       iconBg: 'bg-violet-500/15 text-violet-700',

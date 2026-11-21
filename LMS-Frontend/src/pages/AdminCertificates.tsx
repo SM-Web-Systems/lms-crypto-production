@@ -27,6 +27,7 @@ import type { NftApplication, NftApplicationStatus, CourseProgress, IssuedCreden
 import { getErrorMessage } from '../utils/apiError';
 import { explainMintFailure } from '../utils/mintFailure';
 import { toastSuccess } from '../utils/toastBus';
+import { stellarTxUrl } from '../utils/stellarExplorer';
 
 // ─── CSV helpers ─────────────────────────────────────────────────────────────
 
@@ -79,24 +80,24 @@ function exportIssuedCSV(credentials: IssuedCredential[]): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `issued-nfts-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `issued-certificates-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  toastSuccess('Issued NFTs CSV exported');
+  toastSuccess('Issued certificates CSV exported');
 }
 
 // ─── Status definitions (PHASE 4) ────────────────────────────────────────────
 
 const STATUS_LABELS: Record<NftApplicationStatus, { label: string; cls: string; description: string }> = {
   pending:  { label: 'Pending',  cls: 'bg-amber-100 text-amber-900',    description: 'Application submitted by student; awaiting admin review.' },
-  approved: { label: 'Approved', cls: 'bg-emerald-100 text-emerald-900', description: 'Admin approved — NFT can now be minted on-chain.' },
+  approved: { label: 'Approved', cls: 'bg-emerald-100 text-emerald-900', description: 'Admin approved — the certificate can now be issued on-chain.' },
   rejected: { label: 'Rejected', cls: 'bg-red-100 text-red-900',        description: 'Admin declined this application; student may reapply.' },
-  minted:   { label: 'Minted',   cls: 'bg-violet-100 text-violet-900',  description: 'NFT credential issued and confirmed on Stellar mainnet.' },
+  minted:   { label: 'Issued',   cls: 'bg-violet-100 text-violet-900',  description: 'Certificate issued and confirmed on Stellar.' },
 };
 
 const MINT_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Pending',  cls: 'bg-amber-100 text-amber-900'   },
-  minted:  { label: 'Minted',   cls: 'bg-violet-100 text-violet-900' },
+  minted:  { label: 'Issued',   cls: 'bg-violet-100 text-violet-900' },
   failed:  { label: 'Failed',   cls: 'bg-red-100 text-red-900'       },
 };
 
@@ -310,9 +311,9 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
           <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-neutral-900/[0.08] flex flex-col">
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-neutral-100">
               <div>
-                <h2 id="mint-confirm-title" className="text-base font-bold text-neutral-900">Mint certificate NFT?</h2>
+                <h2 id="mint-confirm-title" className="text-base font-bold text-neutral-900">Issue this certificate?</h2>
                 <p className="text-sm text-neutral-600 mt-0.5 leading-relaxed">
-                  Issue an NFT credential to <strong>{mintModal.userName ?? mintModal.userEmail ?? 'this student'}</strong>
+                  Issue a certificate to <strong>{mintModal.userName ?? mintModal.userEmail ?? 'this student'}</strong>
                   {mintModal.courseName ? <> for <strong>{mintModal.courseName}</strong></> : null}.{' '}
                   This on-chain transaction cannot be reversed.
                 </p>
@@ -332,7 +333,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
               </Button>
               <Button type="button" size="sm" onClick={() => submitMint(mintModal)}>
                 <Coins className="h-3.5 w-3.5 mr-1.5" aria-hidden />
-                Mint NFT
+                Issue certificate
               </Button>
             </div>
           </div>
@@ -363,7 +364,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
           ['all',      'All',      applications.length, 'bg-neutral-100 text-neutral-800'],
           ['pending',  'Pending',  counts.pending,       'bg-amber-100 text-amber-900'],
           ['approved', 'Approved', counts.approved,      'bg-emerald-100 text-emerald-900'],
-          ['minted',   'Minted',   counts.minted,        'bg-violet-100 text-violet-900'],
+          ['minted',   'Issued',   counts.minted,        'bg-violet-100 text-violet-900'],
           ['rejected', 'Rejected', counts.rejected,      'bg-red-100 text-red-900'],
         ] as const).map(([val, label, count, cls]) => (
           <button
@@ -441,7 +442,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <StatusBadge status={app.status} />
                         {app.selectedTier === 'paid' ? (
-                          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">NFT</span>
+                          <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">Verified</span>
                         ) : (
                           <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Free</span>
                         )}
@@ -481,7 +482,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                           <Button size="sm" type="button" disabled={isActing} onClick={() => handleMint(app)}
                             className="text-xs bg-violet-600 hover:bg-violet-700 text-white">
                             <Coins className="h-3.5 w-3.5 mr-1" aria-hidden />
-                            {isActing ? 'Minting…' : 'Mint NFT'}
+                            {isActing ? 'Issuing…' : 'Issue certificate'}
                           </Button>
                         )}
                         {app.selectedTier === 'free' && app.status === 'approved' && (
@@ -491,7 +492,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                         )}
                         {app.status === 'minted' && app.txHash && (
                           <a
-                            href={`https://stellar.expert/explorer/public/tx/${app.txHash}`}
+                            href={stellarTxUrl(app.txHash, app.network)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-violet-700 font-mono flex items-center gap-1 hover:underline"
@@ -612,10 +613,10 @@ const IssuedCredentialsPanel: React.FC = () => {
       const walletOverride = remintWallet.trim() !== remintTarget.walletAddress ? remintWallet.trim() : undefined;
       await adminCertificateService.remintCredential(remintTarget.credentialId, walletOverride);
       closeRemint();
-      toastSuccess('Credential re-minted successfully.');
+      toastSuccess('Certificate re-issued.');
       await load();
     } catch (e) {
-      setRemintError(getErrorMessage(e, 'Re-mint failed. Check the server logs.'));
+      setRemintError(getErrorMessage(e, 'Re-issue failed. Check the server logs.'));
     } finally {
       setRemintLoading(false);
     }
@@ -633,7 +634,7 @@ const IssuedCredentialsPanel: React.FC = () => {
     try {
       const result = await adminCertificateService.reconcileCredential(credId);
       if (result.status === 'recovered') {
-        toastSuccess('Credential recovered — Horizon confirmed the transaction.');
+        toastSuccess('Certificate recovered — Horizon confirmed the transaction.');
         await load();
       } else {
         setError(`Reconciliation: ${result.reason ?? result.status}`);
@@ -655,7 +656,7 @@ const IssuedCredentialsPanel: React.FC = () => {
       });
       setCredentials(creds);
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not load issued credentials.'));
+      setError(getErrorMessage(e, 'Could not load issued certificates.'));
     } finally {
       setLoading(false);
     }
@@ -691,7 +692,7 @@ const IssuedCredentialsPanel: React.FC = () => {
       <div className="flex flex-wrap gap-3">
         {([
           ['all',     'All',     credentials.length, 'bg-neutral-100 text-neutral-800'],
-          ['minted',  'Minted',  counts.minted,      'bg-violet-100 text-violet-900'],
+          ['minted',  'Issued',  counts.minted,      'bg-violet-100 text-violet-900'],
           ['pending', 'Pending', counts.pending,      'bg-amber-100 text-amber-900'],
           ['failed',  'Failed',  counts.failed,       'bg-red-100 text-red-900'],
         ] as const).map(([val, label, count, cls]) => (
@@ -739,7 +740,7 @@ const IssuedCredentialsPanel: React.FC = () => {
       <Card className="overflow-hidden shadow-card ring-1 ring-neutral-900/[0.04]">
         <div className="border-b border-neutral-200/90 bg-gradient-to-r from-neutral-50 via-white to-violet-50/30 px-5 py-4">
           <CardTitle className="border-0 p-0 text-neutral-900">
-            Issued NFT credentials ({credentials.length})
+            Issued certificates ({credentials.length})
           </CardTitle>
         </div>
         <CardContent className="p-0">
@@ -748,7 +749,7 @@ const IssuedCredentialsPanel: React.FC = () => {
           ) : credentials.length === 0 ? (
             <div className="py-16 text-center">
               <History className="h-10 w-10 text-neutral-300 mx-auto mb-3" aria-hidden />
-              <p className="text-neutral-500 text-sm">No credentials found.</p>
+              <p className="text-neutral-500 text-sm">No certificates found.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -760,7 +761,7 @@ const IssuedCredentialsPanel: React.FC = () => {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Wallet</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Path</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Minted</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Issued</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Tx</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide">Actions</th>
                   </tr>
@@ -827,7 +828,7 @@ const IssuedCredentialsPanel: React.FC = () => {
                         {cred.txHash ? (
                           <div className="flex items-center gap-1">
                             <a
-                              href={`https://stellar.expert/explorer/${cred.network || 'public'}/tx/${cred.txHash}`}
+                              href={stellarTxUrl(cred.txHash, cred.network)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-mono text-xs text-violet-600 hover:text-violet-800 hover:underline flex items-center gap-0.5"
@@ -859,10 +860,10 @@ const IssuedCredentialsPanel: React.FC = () => {
                               type="button"
                               onClick={() => openRemint(cred)}
                               className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors"
-                              title="Re-mint to a corrected wallet address"
+                              title="Re-issue to a corrected wallet address"
                             >
                               <RotateCcw className="h-3 w-3" aria-hidden />
-                              Re-mint
+                              Re-issue
                             </button>
                           )}
                           {cred.mintStatus === 'failed' && cred.txHash && !cred.isSuperseded && (
@@ -898,7 +899,7 @@ const IssuedCredentialsPanel: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md ring-1 ring-neutral-900/10 overflow-hidden">
             <div className="px-6 py-4 border-b border-neutral-100 flex items-center gap-2">
               <RotateCcw className="h-5 w-5 text-amber-600 shrink-0" aria-hidden />
-              <h2 className="text-base font-semibold text-neutral-900">Re-mint Credential</h2>
+              <h2 className="text-base font-semibold text-neutral-900">Re-issue Certificate</h2>
             </div>
             <div className="px-6 py-4 space-y-4">
               {/* Warning */}
@@ -906,7 +907,7 @@ const IssuedCredentialsPanel: React.FC = () => {
                 <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" aria-hidden />
                 <div className="text-sm text-amber-900 space-y-1">
                   <p className="font-medium">This action is irreversible.</p>
-                  <p>The original credential will be marked <strong>superseded</strong> and kept in the database for audit. A new NFT will be minted to the destination wallet.</p>
+                  <p>The original certificate will be marked <strong>superseded</strong> and kept in the database for audit. A new certificate will be issued to the destination wallet.</p>
                 </div>
               </div>
 
@@ -935,7 +936,7 @@ const IssuedCredentialsPanel: React.FC = () => {
                 </div>
                 {remintWallet !== remintTarget.walletAddress && (
                   <p className="text-xs text-amber-700 font-medium">
-                    ⚠ Wallet override applied — new NFT will go to the changed address.
+                    ⚠ Wallet override applied — the new certificate will go to the changed address.
                   </p>
                 )}
               </div>
@@ -953,7 +954,7 @@ const IssuedCredentialsPanel: React.FC = () => {
               </Button>
               <Button size="sm" type="button" onClick={submitRemint} disabled={remintLoading}
                 className="bg-amber-600 hover:bg-amber-700 text-white border-amber-600">
-                {remintLoading ? 'Minting…' : 'Confirm Re-mint'}
+                {remintLoading ? 'Issuing…' : 'Confirm Re-issue'}
               </Button>
             </div>
           </div>
@@ -990,10 +991,10 @@ const AdminCertificates: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 flex items-center gap-2">
           <Award className="h-6 w-6 text-accent-teal" aria-hidden />
-          Certificates &amp; NFT Credentials
+          Certificates
         </h1>
         <p className="text-sm text-neutral-600 mt-1">
-          Manage certificate applications and view all issued NFT credentials.
+          Manage certificate applications and view all issued certificates.
         </p>
       </div>
 
@@ -1001,7 +1002,7 @@ const AdminCertificates: React.FC = () => {
       <div className="flex gap-1 rounded-xl bg-neutral-100 p-1 w-fit">
         {([
           ['applications', 'Certificate Applications', <Award className="h-4 w-4" aria-hidden />],
-          ['issued',       'Issued NFTs',              <History className="h-4 w-4" aria-hidden />],
+          ['issued',       'Issued certificates',              <History className="h-4 w-4" aria-hidden />],
         ] as const).map(([tab, label, icon]) => (
           <button
             key={tab}

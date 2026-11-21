@@ -7,6 +7,7 @@ import type { Course } from '../../types/course';
 import { CertEligibilitySkeleton } from '../PageSkeletons';
 import { CertificatePaymentPanel } from './CertificatePaymentPanel';
 import { NoStellarWalletPrompt } from '../NoStellarWalletPrompt';
+import { stellarTxUrl } from '../../utils/stellarExplorer';
 import {
   CheckCircle,
   XCircle,
@@ -33,10 +34,10 @@ const CERT_STATE_MSGS: Record<string, { desc: string; next: string }> = {
   },
   approved: {
     desc: 'Your application has been approved.',
-    next: 'Your instructor will mint your NFT certificate — you\'ll see it in your wallet once issued.',
+    next: 'Your instructor will now issue your certificate — you\'ll see it in your wallet once issued.',
   },
   minted: {
-    desc: 'Your NFT certificate has been issued to your wallet.',
+    desc: 'Your certificate has been issued to your wallet.',
     next: 'View it in AmmaWallet or follow the transaction link below.',
   },
   rejected: {
@@ -152,7 +153,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
         <div>
           <h2 className="text-lg font-bold text-neutral-900">Certificate eligibility</h2>
           <p className="text-sm text-neutral-600 mt-0.5">
-            Complete lessons, quizzes, and submission to earn your NFT credential.
+            Complete lessons, quizzes, and submission to earn your certificate.
           </p>
         </div>
         <Link
@@ -221,13 +222,13 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                     {displayState === 'approved' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-xs font-medium">
                         <CheckCircle className="h-3 w-3" aria-hidden />
-                        Approved · Awaiting mint
+                        Approved · Being issued
                       </span>
                     )}
                     {displayState === 'minted' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 text-xs font-medium">
                         <Award className="h-3 w-3" aria-hidden />
-                        NFT Issued
+                        Certificate issued
                       </span>
                     )}
                     {displayState === 'rejected' && (
@@ -277,7 +278,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                       <div className="text-xs text-amber-800">
                         <p className="font-medium">Wallet address changed</p>
                         <p className="mt-0.5">
-                          Your application was submitted with a different wallet address. If minting fails,
+                          Your application was submitted with a different wallet address. If your certificate cannot be issued,
                           please contact your instructor.
                         </p>
                       </div>
@@ -287,7 +288,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                   {appStatus?.mintError && (
                     <p className="text-xs text-red-600 flex items-center gap-1">
                       <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      Minting error — please contact your instructor for assistance.
+                      Your certificate could not be issued — please contact your instructor for assistance.
                     </p>
                   )}
                   {prog ? (
@@ -342,7 +343,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                   )}
                   {displayState === 'minted' && appStatus?.txHash && (
                     <a
-                      href={`https://stellar.expert/explorer/public/tx/${appStatus.txHash}`}
+                      href={stellarTxUrl(appStatus.txHash, appStatus.network)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-violet-600 font-mono inline-flex items-center gap-1 hover:underline"

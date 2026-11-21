@@ -296,6 +296,8 @@ export interface MyCourseProgress extends CourseProgress {
   certificateStatus: CertificateStatus;
   applicationId: string | null;
   txHash: string | null;
+  /** Network the certificate was issued on ('public' | 'testnet'); null before it is issued. */
+  network?: string | null;
 }
 
 export type NftApplicationStatus = 'pending' | 'approved' | 'rejected' | 'minted';
@@ -323,6 +325,8 @@ export interface NftApplication {
   priceCents?: number;
   /** Phase 11 C2: selected tier for this application */
   selectedTier?: CertificateTier;
+  /** Network the certificate was issued on ('public' | 'testnet'); null before it is issued. */
+  network?: string | null;
 }
 
 export type CredentialMintStatus = 'pending' | 'minted' | 'failed';

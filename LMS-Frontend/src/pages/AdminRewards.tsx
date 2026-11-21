@@ -3,7 +3,8 @@ import { Gift, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import { RewardFundingDialog } from '../components/RewardFundingDialog';
-import { formatStroopsShort } from '../components/RewardStatusBadge';
+import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
+import { formatXlm } from '../utils/xlmAmount';
 import { rewardService, type AwaitingFundingReward } from '../services/rewardService';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -15,6 +16,7 @@ export default function AdminRewards() {
   const [rewards, setRewards] = useState<AwaitingFundingReward[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [funding, setFunding] = useState<AwaitingFundingReward | null>(null);
+  const xlmUsdc = useXlmUsdcPrice();
 
   const load = useCallback(async () => {
     setError(null);
@@ -49,7 +51,7 @@ export default function AdminRewards() {
                   <div className="min-w-0">
                     <p className="font-medium text-neutral-900 truncate">{r.description || 'Reward'}</p>
                     <p className="text-xs text-neutral-500">
-                      {formatStroopsShort(r.amountStroops)}{r.maxRecipients ? ` for up to ${r.maxRecipients} learner${r.maxRecipients === 1 ? '' : 's'}` : ' per learner'}
+                      {formatXlm(r.amountStroops, xlmUsdc)}{r.maxRecipients ? ` for up to ${r.maxRecipients} learner${r.maxRecipients === 1 ? '' : 's'}` : ' per learner'}
                       {r.scopeName ? ` · ${r.scopeName}` : ''} · created by {r.creatorName}
                     </p>
                   </div>

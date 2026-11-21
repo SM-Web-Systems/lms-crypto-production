@@ -3,7 +3,8 @@ import { View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { rewardClaimService } from '@/services/rewardClaimService';
-import { stroopsToXlm } from '@/app/(student)/rewards';
+import { formatXlm } from '@/utils/xlmAmount';
+import { useXlmUsdcPrice } from '@/hooks/useXlmUsdcPrice';
 
 /** Server times arrive as ISO (completedAt) or raw SQLite UTC text (released_at); Hermes cannot parse the latter as is. */
 const serverMs = (t: string) => Date.parse(t.includes('T') ? t : `${t.replace(' ', 'T')}Z`);
@@ -15,6 +16,7 @@ const serverMs = (t: string) => Date.parse(t.includes('T') ? t : `${t.replace(' 
 export function QuizRewardNote({ passed, completedAt }: { passed: boolean; completedAt: string }) {
   const router = useRouter();
   const [earned, setEarned] = useState<number | null>(null);
+  const xlmUsdc = useXlmUsdcPrice();
   useEffect(() => {
     if (!passed) return;
     let cancelled = false;
@@ -31,7 +33,7 @@ export function QuizRewardNote({ passed, completedAt }: { passed: boolean; compl
   return (
     <View className="gap-2">
       {earned ? (
-        <Text accessibilityRole="alert" className="text-sm text-neutral-800">You earned {stroopsToXlm(earned)}. It stays in your LMS balance until you claim it to your wallet.</Text>
+        <Text accessibilityRole="alert" className="text-sm text-neutral-800">You earned {formatXlm(earned, xlmUsdc)}. It stays in your LMS balance until you claim it to your wallet.</Text>
       ) : earned === 0 ? (
         <Text className="text-sm text-neutral-600">Some rewards need your instructor's approval before they appear in Rewards.</Text>
       ) : null}

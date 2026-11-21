@@ -165,7 +165,7 @@ const CertificateVerification: React.FC = () => {
             <div className="flex justify-between">
               <span className="text-neutral-500">Network</span>
               <span className="text-neutral-700">
-                {credential.network === 'testnet' ? 'Stellar Testnet' : 'Stellar Mainnet'}
+                {credential.network === 'testnet' ? 'Stellar Testnet' : 'Stellar public network'}
               </span>
             </div>
             {credential.sorobanTokenId != null && (

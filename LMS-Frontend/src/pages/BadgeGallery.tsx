@@ -19,7 +19,7 @@ const BadgeGallery: React.FC = () => {
     courseCompletionService
       .getMyCredentials()
       .then(setCredentials)
-      .catch(() => setError('Failed to load badges'))
+      .catch(() => setError('Failed to load certificates'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -89,7 +89,7 @@ const BadgeGallery: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-xl font-bold text-neutral-900">My Badges</h1>
+        <h1 className="text-xl font-bold text-neutral-900">My Certificates</h1>
         {credentials.length > 0 && (
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -98,9 +98,9 @@ const BadgeGallery: React.FC = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search badges..."
+                placeholder="Search certificates..."
                 className="rounded-lg border border-neutral-200 pl-9 pr-8 py-1.5 text-sm text-neutral-700 bg-white w-full sm:w-56"
-                aria-label="Search badges"
+                aria-label="Search certificates"
               />
               {search && (
                 <button
@@ -156,15 +156,15 @@ const BadgeGallery: React.FC = () => {
       {credentials.length === 0 ? (
         <div className="text-center py-16">
           <Award className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-neutral-700 mb-1">No badges yet</h2>
+          <h2 className="text-lg font-semibold text-neutral-700 mb-1">No certificates yet</h2>
           <p className="text-sm text-neutral-500">
-            Complete courses to earn blockchain-verified certificates.
+            Complete a course to earn your first certificate.
           </p>
         </div>
       ) : sorted.length === 0 ? (
         <div className="text-center py-16">
           <Search className="h-12 w-12 text-neutral-300 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-neutral-700 mb-1">No matching badges</h2>
+          <h2 className="text-lg font-semibold text-neutral-700 mb-1">No matching certificates</h2>
           <p className="text-sm text-neutral-500">
             Try a different search term or filter.
           </p>
