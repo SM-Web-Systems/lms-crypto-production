@@ -57,9 +57,17 @@ export const cohortService = {
     return res.data.data;
   },
 
-  async bulkPay(cohortId: string): Promise<{ paymentId: string; amountCents: number; memberCount: number; status: string }> {
-    const res = await api.post<{ success: boolean; data: { paymentId: string; amountCents: number; memberCount: number; status: string } }>(
+  async bulkPay(cohortId: string): Promise<{ paymentId: string; amountCents: number; currency: string; memberCount: number; status: string }> {
+    const res = await api.post<{ success: boolean; data: { paymentId: string; amountCents: number; currency: string; memberCount: number; status: string } }>(
       `/admin/cohorts/${cohortId}/pay`,
+    );
+    return res.data.data;
+  },
+
+  /** What bulkPay would charge, without creating anything (UX-001 confirm dialog). */
+  async quoteBulkPay(cohortId: string): Promise<{ amountCents: number; currency: string; memberCount: number }> {
+    const res = await api.get<{ success: boolean; data: { amountCents: number; currency: string; memberCount: number } }>(
+      `/admin/cohorts/${cohortId}/pay/quote`,
     );
     return res.data.data;
   },

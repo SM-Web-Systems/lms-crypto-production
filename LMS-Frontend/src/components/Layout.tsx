@@ -123,7 +123,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Dashboard', path: '/parent', icon: LayoutDashboard },
       { name: 'Rewards', path: '/parent/rewards', icon: Gift },
       { name: 'Children', path: '/parent/children', icon: Heart },
-      // Wallets, Groups, Billing deferred — FOLLOW-UP(parent-wallet-group-billing-ui)
+      { name: 'Groups', path: '/parent/groups', icon: Users },
+      // Wallets, Billing deferred — FOLLOW-UP(parent-wallet-billing-ui)
     ],
     teacher: [
       { name: 'Dashboard', path: '/teacher', icon: LayoutDashboard },

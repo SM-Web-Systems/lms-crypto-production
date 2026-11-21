@@ -6,7 +6,7 @@ import { Keypair, Networks, TransactionBuilder, type Transaction } from '@stella
 import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
-import { createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
+import { claimableStroops, createRewardClaim, verifyRewardClaim } from '../services/rewards/rewardClaimService.js';
 import {
   ACTIVATION_RESERVE_STROOPS, payRewardClaim, payoutMemo, PayoutSubmitError, setPayoutHorizonForTests, stroopsToXlm, PAYOUT_TIMEOUT_S, type PayoutHorizon,
 } from '../services/rewards/rewardPayoutService.js';
@@ -215,12 +215,14 @@ describe('reward claim payouts (mainnet, guarded)', () => {
     expect(db.prepare('SELECT network FROM reward_claim_payouts WHERE claim_id = ?').get(c.claimId)).toEqual({ network: 'public' });
   });
 
-  it('refuses a payout above the per-claim cap and keeps the claim saved', async () => {
+  it('refuses a claim above the per-claim cap up front, and closes a verified one on payout so its amount is not locked', async () => {
+    const c = verifiedClaim('1000000'); // verified on testnet, before the mainnet cap applied
     mainnet('500000');
-    const c = verifiedClaim('1000000');
-    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/per-claim limit/);
+    expect(() => createRewardClaim(c.userId, '1000000')).toThrow(/at most 0\.05 XLM/);
+    await expect(payRewardClaim(c.userId, c.claimId)).rejects.toThrow(/back in your LMS balance/);
     expect(horizon.submitted).toHaveLength(0);
-    expect(db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(c.claimId)).toEqual({ status: 'verified' });
+    expect(db.prepare('SELECT status FROM reward_claims WHERE id = ?').get(c.claimId)).toEqual({ status: 'cancelled' });
+    expect(claimableStroops(c.userId)).toBe(5_000_000);
   });
 
   it('refuses once the rolling 24-hour cap is used, and allows it again a day later', async () => {

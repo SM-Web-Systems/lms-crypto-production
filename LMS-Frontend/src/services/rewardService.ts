@@ -71,6 +71,8 @@ export interface RewardAllocation {
   id: string;
   reward_id: string;
   student_user_id: string;
+  /** Learner's display name (UX-001); older servers omit it. */
+  student_name?: string | null;
   amount_stroops: number;
   currency_code: string;
   status: AllocationState;
@@ -297,6 +299,12 @@ export const rewardService = {
   async getClaimableBalance(): Promise<string> {
     const res = await api.get<ApiRes<{ claimableStroops: string }>>('/students/me/reward-claims/balance');
     return res.data.data.claimableStroops;
+  },
+
+  /** Student: the most one claim may be (stroops, as a string), or null when there is no limit. */
+  async getMaxClaimStroops(): Promise<string | null> {
+    const res = await api.get<ApiRes<{ claimableStroops: string; maxClaimStroops?: string | null }>>('/students/me/reward-claims/balance');
+    return res.data.data.maxClaimStroops ?? null;
   },
 
   /** Student: start a claim; returns the one-time challenge their wallet must sign. */
