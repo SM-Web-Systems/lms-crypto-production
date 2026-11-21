@@ -134,7 +134,7 @@ export default function ProfileScreen() {
   const shownName = displayName.trim() || user.name;
 
   return (
-    <ScrollView
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
       className="flex-1 bg-neutral-50"
       contentContainerClassName="p-4 gap-4 pb-8"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brand.accent.teal} />}

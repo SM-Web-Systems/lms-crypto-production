@@ -115,8 +115,8 @@ export default function ForumScreen() {
 
   if (selectedTopic) {
     return (
-      <ScrollView className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
-        <Pressable onPress={() => setSelectedTopic(null)} className="flex-row items-center gap-2">
+      <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" className="flex-1 bg-neutral-50" contentContainerClassName="p-4 gap-4 pb-8">
+        <Pressable onPress={() => setSelectedTopic(null)} accessibilityRole="button" className="min-h-[44px] flex-row items-center gap-2 self-start">
           <Ionicons name="arrow-back" size={18} color={brand.primary.dark} />
           <Text className="font-semibold text-neutral-800">Back to discussions</Text>
         </Pressable>
@@ -145,7 +145,7 @@ export default function ForumScreen() {
   }
 
   return (
-    <ScrollView
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled"
       className="flex-1 bg-neutral-50"
       contentContainerClassName="p-4 gap-4 pb-8"
       refreshControl={

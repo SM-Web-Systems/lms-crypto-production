@@ -142,8 +142,9 @@ export default function MessagesScreen() {
     return (
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-neutral-50">
         <View className="border-b border-neutral-200 bg-white px-4 py-3 flex-row items-center gap-3">
-          <Pressable onPress={() => setSelectedConversation(null)}>
-            <Ionicons name="arrow-back" size={22} color={brand.primary.dark} />
+          <Pressable onPress={() => setSelectedConversation(null)} accessibilityRole="button" accessibilityLabel="Back to conversations"
+            className="-ml-2 h-[44px] w-[44px] items-center justify-center">
+            <Ionicons name="arrow-back" size={24} color={brand.primary.dark} />
           </Pressable>
           <View className="h-9 w-9 items-center justify-center rounded-full bg-accent-teal/20">
             <Text className="text-xs font-bold text-accent-teal">{initials(otherUserName)}</Text>

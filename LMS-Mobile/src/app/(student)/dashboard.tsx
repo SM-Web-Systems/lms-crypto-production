@@ -157,7 +157,7 @@ export default function DashboardScreen() {
       <Card>
         <View className="mb-3 flex-row items-center justify-between">
           <CardTitle>Recent submissions</CardTitle>
-          <Pressable onPress={() => router.push('/(student)/submissions')}>
+          <Pressable onPress={() => router.push('/(student)/submissions')} accessibilityRole="button" className="min-h-[44px] justify-center">
             <Text className="text-sm font-semibold text-accent-teal">View all</Text>
           </Pressable>
         </View>
