@@ -3,7 +3,8 @@
  *
  * Tests notification delivery, opt-out, failure isolation, privacy.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import * as authorization from '../services/authorizationService.js';
 import { db } from '../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -179,6 +180,15 @@ describe('Reward Notifications — N7-N8', () => {
     db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)').run(sponsorId, 'role_sponsor');
     notifyRewardExpired(sponsorId, 'Linked');
     expect(getNotifications(sponsorId, 'reward_expired')[0].link).toBe('/sponsor/rewards');
+  });
+
+  it('NOTIF-LINK: a failed link lookup still delivers the creator notification, without a link', () => {
+    const creatorId = createUser('admin');
+    const spy = vi.spyOn(authorization, 'getAuthorizationContext').mockImplementation(() => { throw new Error('db busy'); });
+    try { notifyRewardExpired(creatorId, 'Linked'); } finally { spy.mockRestore(); }
+    const notifs = getNotifications(creatorId, 'reward_expired');
+    expect(notifs.length).toBe(1);
+    expect(notifs[0].link).toBeNull();
   });
 
   it('NOTIF-LINK: refund_blocked opens a page that exists', () => {

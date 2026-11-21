@@ -17,11 +17,19 @@ import { getAuthorizationContext } from '../authorizationService.js';
 const LEARNER_REWARDS = '/student/rewards';
 const CREATOR_REWARDS = { sponsor: '/sponsor/rewards', employer: '/employer/rewards', parent: '/parent/rewards', teacher: '/teacher/rewards', admin: '/admin/rewards' } as const;
 
-/** The Rewards page of the workspace the reward creator manages rewards from; undefined when they have none. */
+/**
+ * The Rewards page of the workspace the reward creator manages rewards from; undefined when they have none.
+ * CREATOR_REWARDS key order is the precedence. A failed lookup never costs the notification itself.
+ */
 function creatorRewardsLink(userId: string): string | undefined {
-  const { workspaces } = getAuthorizationContext(userId);
-  const workspace = (Object.keys(CREATOR_REWARDS) as Array<keyof typeof CREATOR_REWARDS>).find((w) => workspaces.includes(w));
-  return workspace && CREATOR_REWARDS[workspace];
+  try {
+    const { workspaces } = getAuthorizationContext(userId);
+    const workspace = (Object.keys(CREATOR_REWARDS) as Array<keyof typeof CREATOR_REWARDS>).find((w) => workspaces.includes(w));
+    return workspace && CREATOR_REWARDS[workspace];
+  } catch (err) {
+    logger.warn({ module: 'reward-notifications', err, userId }, 'Could not resolve the creator rewards link');
+    return undefined;
+  }
 }
 
 /**

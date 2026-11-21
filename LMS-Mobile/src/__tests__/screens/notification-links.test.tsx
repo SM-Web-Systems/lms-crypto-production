@@ -55,6 +55,13 @@ it('hands a link with no mobile screen off to the web', async () => {
   expect(screen.queryByText('Open in LMS')).toBeNull();
 });
 
+it('hands a learner link off to the web when this learner cannot open that screen', async () => {
+  mockUser = {...student, permissions: ['course.view', 'course.submit']};
+  open('/student/rewards');
+  expect(await screen.findByText('Open on web')).toBeTruthy();
+  expect(screen.queryByText('Open in LMS')).toBeNull();
+});
+
 it('hands an admin or sponsor link off to the web', async () => {
   mockUser = {id: 'a-1', workspaces: ['admin'], defaultWorkspace: 'admin', permissions: []};
   open('/admin/rewards');

@@ -999,7 +999,7 @@ router.post(
       createNotification({
         userId: app.user_id,
         type: 'nft_minted',
-        title: 'Certificate Minted',
+        title: 'Certificate Issued',
         body: `Your certificate for "${courseRow?.title ?? 'course'}" has been issued`,
         link: '/student/badges',
       });
