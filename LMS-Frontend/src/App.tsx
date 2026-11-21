@@ -56,10 +56,15 @@ const ParentGroups = React.lazy(() => import('./pages/ParentGroups'));
 const TeacherDashboard = React.lazy(() => import('./pages/TeacherDashboard'));
 
 export const AccessDenied: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   return <div className="p-8 space-y-4" role="alert"><h1 className="text-xl font-bold">Access unavailable</h1>
     <p>Your current access does not include this page. Contact your administrator if you need access.</p>
-    {availableWorkspaces(user).length > 0 && <Link to={homeForUser(user)}>Return to your workspace</Link>}</div>;
+    <div className="flex flex-wrap items-center gap-4">
+      {availableWorkspaces(user).length > 0 && <Link className="font-medium text-accent-teal underline" to={homeForUser(user)}>Return to your workspace</Link>}
+      {/* UX-025: a user with no workspace has no Layout, so this is their only way to switch account. */}
+      <button type="button" className="font-medium text-accent-teal underline" onClick={() => { logout(); navigate('/login'); }}>Sign out</button>
+    </div></div>;
 };
 
 export const PageNotAvailable: React.FC = () => {

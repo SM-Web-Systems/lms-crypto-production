@@ -133,6 +133,7 @@ const NotificationBell: React.FC = () => {
                 onClick={() => { setOpen(false); navigate('/settings/notifications'); }}
                 className="inline-flex items-center p-1 text-neutral-400 hover:text-neutral-600 rounded hover:bg-neutral-100 transition-colors"
                 title="Notification settings"
+                aria-label="Notification settings"
               >
                 <Settings className="h-4 w-4" aria-hidden="true" />
               </button>
