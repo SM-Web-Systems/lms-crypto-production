@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
 import { Card, CardContent, CardTitle } from '../components/Card';
@@ -10,6 +10,10 @@ import {
   Loader2, BookOpen, AlertCircle,
 } from 'lucide-react';
 import type { Submission } from '../types/api';
+import { useListParams } from '../hooks/useListParams';
+import { Pagination, SkeletonRows } from '../components/Pagination';
+import { SubmissionFilters } from '../components/SubmissionFilters';
+import { SUBMISSION_STATUSES } from '../context/useSubmissionCounts';
 import { courseService } from '../services/courseService';
 import { getErrorMessage } from '../utils/apiError';
 import { StatusBadge, fmtSize } from '../components/StatusBadge';
@@ -30,14 +34,19 @@ interface CourseItem {
 const LecturerSubmissions: React.FC = () => {
   const { user } = useAuth();
   const {
-    submissions, submissionsLoading, submissionsError,
+    submissions, submissionsPagination, submissionsLoading, submissionsError,
     fetchSubmissions, reviewSubmission, downloadSubmission,
   } = useData();
+
+  const list = useListParams();
+  const { page, limit, update } = list;
+  const search = list.get('search');
+  const status = SUBMISSION_STATUSES.find((s) => s === list.get('status'));
 
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState<string | null>(null);
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const selectedCourseId = list.get('courseId') || courses[0]?.id || '';
 
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -45,29 +54,33 @@ const LecturerSubmissions: React.FC = () => {
   const [reviewError, setReviewError] = useState('');
 
   const canGrade = hasCapability(user, 'course.grade');
-  const taGrades = usePendingTaGrades(canGrade);
-  const [showTaGrades, setShowTaGrades] = useState(false);
+  const showTaGrades = canGrade && list.get('gradeStatus') === 'pending_approval';
+  const taGrades = usePendingTaGrades(canGrade, showTaGrades ? page : 1, showTaGrades ? limit : 1);
+  // The list still holds another page (or the badge's 1-row call) until the new page lands.
+  const taGradesStale = taGrades.loading && (taGrades.pagination?.page !== page || taGrades.pagination?.limit !== limit);
 
-  // Load initial data
   useEffect(() => {
-    fetchSubmissions();
     courseService.fetchCourses({access: 'manage'})
       .then((cs) => {
         setCourses(cs);
-        if (cs.length > 0) setSelectedCourseId(cs[0].id);
         setCoursesLoading(false);
       })
       .catch((err) => {
         setCoursesError(getErrorMessage(err, 'Could not load courses.'));
         setCoursesLoading(false);
       });
-  }, [fetchSubmissions]);
+  }, []);
 
-  // Filter submissions by selected course
-  const filteredSubmissions = useMemo(() => {
-    if (!selectedCourseId) return [];
-    return submissions.filter((s) => s.courseId === selectedCourseId);
-  }, [submissions, selectedCourseId]);
+  const load = useCallback(() => fetchSubmissions({
+    courseId: selectedCourseId, page, limit,
+    ...(search ? { search } : {}),
+    ...(status ? { status } : {}),
+  }), [fetchSubmissions, selectedCourseId, page, limit, search, status]);
+
+  useEffect(() => {
+    if (selectedCourseId && !showTaGrades) void load();
+  }, [load, selectedCourseId, showTaGrades]);
+
 
   const handleReview = (sub: Submission) => {
     setReviewingSubmission(sub);
@@ -81,6 +94,7 @@ const LecturerSubmissions: React.FC = () => {
     setReviewError('');
     try {
       await reviewSubmission(reviewingSubmission.id, 'approved', feedback, user.name);
+      void load(); void taGrades.reload();
       setReviewingSubmission(null);
     } catch (err) {
       setReviewError(getErrorMessage(err, 'Could not approve.'));
@@ -96,6 +110,7 @@ const LecturerSubmissions: React.FC = () => {
     setReviewError('');
     try {
       await reviewSubmission(reviewingSubmission.id, 'rejected', feedback, user.name);
+      void load(); void taGrades.reload();
       setReviewingSubmission(null);
     } catch (err) {
       setReviewError(getErrorMessage(err, 'Could not reject.'));
@@ -109,9 +124,9 @@ const LecturerSubmissions: React.FC = () => {
     catch (err) { alert(getErrorMessage(err, 'Could not download.')); }
   };
 
-  const isLoading = submissionsLoading || coursesLoading;
 
-  if (isLoading) {
+
+  if (coursesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -131,7 +146,8 @@ const LecturerSubmissions: React.FC = () => {
       {submissionsError && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" aria-hidden />
-          <span>{submissionsError}</span>
+          <span className="flex-1">{submissionsError}</span>
+          <Button variant="outline" size="sm" onClick={() => void load()}>Retry</Button>
         </div>
       )}
       {coursesError && (
@@ -155,7 +171,7 @@ const LecturerSubmissions: React.FC = () => {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => { setSelectedCourseId(c.id); setShowTaGrades(false); }}
+                onClick={() => update({ courseId: c.id, gradeStatus: undefined })}
                 className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                   selectedCourseId === c.id && !showTaGrades
                     ? 'bg-primary-dark text-white border-primary-dark'
@@ -169,7 +185,7 @@ const LecturerSubmissions: React.FC = () => {
             {canGrade && (
               <button
                 type="button"
-                onClick={() => setShowTaGrades(true)}
+                onClick={() => update({ gradeStatus: 'pending_approval' })}
                 className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                   showTaGrades
                     ? 'bg-primary-dark text-white border-primary-dark'
@@ -187,27 +203,34 @@ const LecturerSubmissions: React.FC = () => {
                 <CardTitle className="border-0 p-0 text-gray-900">TA grades to approve ({taGrades.total})</CardTitle>
               </div>
               <CardContent>
-                <TaGradeApprovals
+                {taGradesStale ? <p role="status" className="py-8 text-center text-sm text-gray-500">Loading…</p> : <TaGradeApprovals
                   submissions={taGrades.submissions}
                   error={taGrades.error}
-                  onDecided={() => { void taGrades.reload(); fetchSubmissions(); }}
+                  onDecided={() => { void taGrades.reload(); void load(); }}
                   onDownload={handleDownload}
+                />}
+                <Pagination
+                  pagination={taGradesStale ? null : taGrades.pagination}
+                  disabled={taGrades.loading}
+                  onPage={(p, replace) => update({ page: p }, { replace })}
+                  onLimit={(l) => update({ limit: l })}
                 />
               </CardContent>
             </Card>
           ) : (
           /* Submissions list */
           <Card>
-            <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4">
               <CardTitle className="border-0 p-0 text-gray-900">
-                {courses.find((c) => c.id === selectedCourseId)?.title ?? 'Course'} — Submissions ({filteredSubmissions.length})
+                {courses.find((c) => c.id === selectedCourseId)?.title ?? 'Course'} — Submissions ({submissionsPagination?.total ?? submissions.length})
               </CardTitle>
+              <SubmissionFilters search={search} status={status ?? ''} onChange={update} />
             </div>
             <CardContent>
-              {filteredSubmissions.length === 0 ? (
+              {submissions.length === 0 && !submissionsLoading ? (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-600">No submissions for this course yet.</p>
+                  <p className="text-gray-600">{search || status ? 'No submissions match' : 'No submissions for this course yet.'}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -220,7 +243,7 @@ const LecturerSubmissions: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredSubmissions.map((sub) => (
+                      {submissionsLoading ? <SkeletonRows cols={6} /> : submissions.map((sub) => (
                         <tr key={sub.id} className="hover:bg-gray-50">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
@@ -258,6 +281,12 @@ const LecturerSubmissions: React.FC = () => {
                   </table>
                 </div>
               )}
+              <Pagination
+                pagination={submissionsPagination}
+                disabled={submissionsLoading}
+                onPage={(p, replace) => update({ page: p }, { replace })}
+                onLimit={(l) => update({ limit: l })}
+              />
             </CardContent>
           </Card>
           )}

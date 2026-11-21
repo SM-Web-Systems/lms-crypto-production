@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Student, StudentResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { likeContains } from '../utils/sqlLike.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,9 +32,10 @@ export async function getStudents(req: AuthRequest, res: Response, next: NextFun
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const offset = (page - 1) * limit;
-    const search = req.query.search as string;
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
     const department = req.query.department as string;
     const semester = req.query.semester as string;
+    const walletStatus = req.query.walletStatus as string;
 
     // Build query with filters
     let whereClause = '';
@@ -41,8 +43,16 @@ export async function getStudents(req: AuthRequest, res: Response, next: NextFun
     const conditions: string[] = [];
 
     if (search) {
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-      conditions.push(`(s.name LIKE ? OR s.email LIKE ? OR s.enrollment_number LIKE ?)`);
+      const like = likeContains(search);
+      params.push(like, like, like, like);
+      conditions.push(`(s.name LIKE ? ESCAPE '\\' OR s.email LIKE ? ESCAPE '\\' OR s.enrollment_number LIKE ? ESCAPE '\\' OR s.department LIKE ? ESCAPE '\\')`);
+    }
+
+    if (walletStatus === 'linked' || walletStatus === 'existing_account') {
+      params.push(walletStatus);
+      conditions.push(`u.wallet_linking_status = ?`);
+    } else if (walletStatus === 'none') {
+      conditions.push(`COALESCE(u.wallet_linking_status, 'none') = 'none'`);
     }
 
     if (department) {
@@ -61,7 +71,7 @@ export async function getStudents(req: AuthRequest, res: Response, next: NextFun
 
     // Get total count
     const countResult = queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM students s ${whereClause}`,
+      `SELECT COUNT(*) as count FROM students s LEFT JOIN users u ON u.id = s.user_id ${whereClause}`,
       params
     );
     const total = countResult?.count || 0;

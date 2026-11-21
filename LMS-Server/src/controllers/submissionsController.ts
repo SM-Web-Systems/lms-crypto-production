@@ -9,6 +9,7 @@ import { AuthRequest, Submission, SubmissionResponse, Student, User, ErrorCodes,
 import { AppError } from '../middleware/errorHandler.js';
 import { deleteFile, getFileUrl, resolveUploadPath } from '../utils/fileUpload.js';
 import { findSectionForItem } from '../utils/courseHelpers.js';
+import { likeContains } from '../utils/sqlLike.js';
 import { parseFlatSections } from '../utils/courseHelpers.js';
 import { canAccessCourse } from '../services/courseAccessService.js';
 import { createNotification } from '../services/notificationService.js';
@@ -66,6 +67,7 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
     const studentId = req.query.studentId as string;
     const courseId = req.query.courseId as string;
     const gradeStatus = req.query.gradeStatus as string;
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
 
     const userId = req.user!.userId;
     const staff = submissionStaffScope(userId);
@@ -98,11 +100,17 @@ export async function getSubmissions(req: AuthRequest, res: Response, next: Next
       conditions.push(`s.grade_status = 'pending_approval' AND s.status = 'pending'`);
     }
 
+    if (search) {
+      const like = likeContains(search);
+      params.push(like, like);
+      conditions.push(`(s.title LIKE ? ESCAPE '\\' OR st.name LIKE ? ESCAPE '\\')`);
+    }
+
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
     // Get total count
     const countResult = queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM submissions s ${whereClause}`,
+      `SELECT COUNT(*) as count FROM submissions s LEFT JOIN students st ON s.student_id = st.id ${whereClause}`,
       params
     );
     const total = countResult?.count || 0;

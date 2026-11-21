@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import { useData } from '../context/DataContext';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/Card';
@@ -9,7 +9,11 @@ import {
   FileText, CheckCircle, XCircle, Eye, Download,
   Loader2, ChevronDown, ChevronRight, Users, BookOpen,
 } from 'lucide-react';
-import { Submission } from '../types/api';
+import { Student, Submission } from '../types/api';
+import { useListParams } from '../hooks/useListParams';
+import { Pagination, SkeletonRows } from '../components/Pagination';
+import { SubmissionFilters } from '../components/SubmissionFilters';
+import { useSubmissionCounts, SUBMISSION_STATUSES } from '../context/useSubmissionCounts';
 import { courseService, type CourseMember } from '../services/courseService';
 import { studentsService } from '../services/studentsService';
 import { getErrorMessage } from '../utils/apiError';
@@ -36,12 +40,15 @@ function MemberRow({
   onReview,
   onDownload,
   onDelete,
+  partial,
 }: {
   member: CourseMember;
   submissions: Submission[];
   onReview: (s: Submission) => void;
   onDownload: (id: string) => void;
   onDelete: (id: string) => void;
+  /** The rows are one page of the course, so the count is for this page only. */
+  partial?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const initials = member.name.split(' ').map((n) => n[0]).join('').toUpperCase();
@@ -63,7 +70,7 @@ function MemberRow({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-500 font-medium">
-            {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+            {submissions.length} submission{submissions.length !== 1 ? 's' : ''}{partial ? ' on this page' : ''}
             {submissions.filter((s) => s.status === 'pending').length > 0 && (
               <span className="ml-1.5 bg-yellow-100 text-yellow-700 rounded-full px-1.5 py-0.5 font-semibold">
                 {submissions.filter((s) => s.status === 'pending').length} pending
@@ -121,13 +128,34 @@ function MemberRow({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+/** Every student, paged through, because the server caps a page at 100 rows. */
+async function fetchAllStudents() {
+  const all: Student[] = [];
+  for (let page = 1; ; page++) {
+    const result = await studentsService.getAll({ page, limit: 100 });
+    all.push(...result.students);
+    if (!result.pagination || page >= result.pagination.totalPages) return all;
+  }
+}
+
 const AdminSubmissions: React.FC = () => {
   const { user } = useAuth();
-  const { submissions, submissionsLoading, submissionsError, fetchSubmissions, reviewSubmission, deleteSubmission, downloadSubmission } = useData();
+  const {
+    submissions, submissionsPagination, submissionsLoading, submissionsError,
+    fetchSubmissions, reviewSubmission, deleteSubmission, downloadSubmission,
+  } = useData();
+
+  const list = useListParams();
+  const { page, limit, update } = list;
+  const search = list.get('search');
+  const status = SUBMISSION_STATUSES.find((s) => s === list.get('status'));
+  const courseId = list.get('courseId');
+  const canGrade = hasCapability(user, 'course.grade');
+  const isTaTab = canGrade && list.get('gradeStatus') === 'pending_approval';
+  const selectedCourseId = isTaTab ? TA_TAB : courseId || '__all__';
 
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('__all__');
   const [members, setMembers] = useState<CourseMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
 
@@ -139,26 +167,32 @@ const AdminSubmissions: React.FC = () => {
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState('');
 
-  const canGrade = hasCapability(user, 'course.grade');
-  const taGrades = usePendingTaGrades(canGrade);
+  const taGrades = usePendingTaGrades(canGrade, isTaTab ? page : 1, isTaTab ? limit : 1);
+  // The list still holds another page (or the badge's 1-row call) until the new page lands.
+  const taGradesStale = taGrades.loading && (taGrades.pagination?.page !== page || taGrades.pagination?.limit !== limit);
+  const counts = useSubmissionCounts(true);
 
-  // Load initial data
+  const load = useCallback(() => fetchSubmissions({
+    page, limit,
+    ...(search ? { search } : {}),
+    ...(status ? { status } : {}),
+    ...(courseId ? { courseId } : {}),
+  }), [fetchSubmissions, page, limit, search, status, courseId]);
+
   useEffect(() => {
-    fetchSubmissions();
+    if (!isTaTab) void load();
+  }, [load, isTaTab]);
+
+  useEffect(() => {
     courseService.fetchCourses().then((cs) => {
       setCourses(cs);
       setCoursesLoading(false);
     }).catch(() => setCoursesLoading(false));
-    studentsService.getAll({ limit: 500 }).then(({ students }) => {
-      const map: Record<string, string> = {};
-      students.forEach((s) => { if (s.userId) map[s.userId] = s.id; });
-      setUserIdToStudentId(map);
-    }).catch(() => {});
-  }, [fetchSubmissions]);
+  }, []);
 
   // Load members when course changes
   useEffect(() => {
-    if (selectedCourseId === '__all__' || selectedCourseId === TA_TAB) {
+    if (!courseId || isTaTab) {
       setMembers([]);
       setMembersLoading(false);
       return;
@@ -166,12 +200,28 @@ const AdminSubmissions: React.FC = () => {
     let cancelled = false;
     setMembers([]);
     setMembersLoading(true);
-    courseService.fetchCourseMembers(selectedCourseId)
+    courseService.fetchCourseMembers(courseId)
       .then(value => { if (!cancelled) setMembers(value); })
       .catch(() => { if (!cancelled) setMembers([]); })
       .finally(() => { if (!cancelled) setMembersLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedCourseId]);
+  }, [courseId, isTaTab]);
+
+  // Older backends send members without studentId; map user.id → student.id for those only.
+  const needsStudentMap = members.some((m) => !m.studentId);
+  useEffect(() => {
+    if (!needsStudentMap) return;
+    let cancelled = false;
+    fetchAllStudents().then((students) => {
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      students.forEach((s) => { if (s.userId) map[s.userId] = s.id; });
+      setUserIdToStudentId(map);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [needsStudentMap]);
+
+  const refresh = () => { void load(); void counts.reload(); void taGrades.reload(); };
 
   // Historical learner membership remains visible even after a role is revoked.
   // The ID map supports Step 2 backends during the client compatibility window.
@@ -199,6 +249,7 @@ const AdminSubmissions: React.FC = () => {
     setReviewError('');
     try {
       await reviewSubmission(reviewingSubmission.id, 'approved', feedback, user.name);
+      refresh();
       setReviewingSubmission(null);
     } catch (err) {
       setReviewError(getErrorMessage(err, 'Could not approve.'));
@@ -214,6 +265,7 @@ const AdminSubmissions: React.FC = () => {
     setReviewError('');
     try {
       await reviewSubmission(reviewingSubmission.id, 'rejected', feedback, user.name);
+      refresh();
       setReviewingSubmission(null);
     } catch (err) {
       setReviewError(getErrorMessage(err, 'Could not reject.'));
@@ -224,7 +276,7 @@ const AdminSubmissions: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this submission?')) return;
-    try { await deleteSubmission(id); }
+    try { await deleteSubmission(id); refresh(); }
     catch (err) { alert(getErrorMessage(err, 'Could not delete.')); }
   };
 
@@ -233,9 +285,7 @@ const AdminSubmissions: React.FC = () => {
     catch (err) { alert(getErrorMessage(err, 'Could not download.')); }
   };
 
-  const isLoading = submissionsLoading || coursesLoading;
-
-  if (isLoading) {
+  if (coursesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -244,8 +294,19 @@ const AdminSubmissions: React.FC = () => {
     );
   }
 
-  // ── "All submissions" flat view ──
-  const allPending = submissions.filter((s) => s.status === 'pending').length;
+  const allPending = counts.counts?.pending ?? 0;
+  const filtered = !!(search || status);
+  const pager = (
+    <Pagination
+      pagination={submissionsPagination}
+      disabled={submissionsLoading}
+      onPage={(p, replace) => update({ page: p }, { replace })}
+      onLimit={(l) => update({ limit: l })}
+    />
+  );
+  const filters = (
+    <SubmissionFilters search={search} status={status ?? ''} counts={courseId || search ? null : counts.counts} onChange={update} />
+  );
 
   return (
     <div>
@@ -255,15 +316,16 @@ const AdminSubmissions: React.FC = () => {
       </div>
 
       {(submissionsError) && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-600">{submissionsError}</p>
+          <Button variant="outline" size="sm" onClick={() => void load()}>Retry</Button>
         </div>
       )}
 
       {/* ── Course tabs ── */}
       <div className="mb-6 flex items-center gap-2 flex-wrap">
         <button
-          onClick={() => setSelectedCourseId('__all__')}
+          onClick={() => update({ courseId: undefined, gradeStatus: undefined })}
           className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
             selectedCourseId === '__all__'
               ? 'bg-primary-dark text-white border-primary-dark'
@@ -279,7 +341,7 @@ const AdminSubmissions: React.FC = () => {
         </button>
         {canGrade && (
           <button
-            onClick={() => setSelectedCourseId(TA_TAB)}
+            onClick={() => update({ courseId: undefined, gradeStatus: 'pending_approval' })}
             className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
               selectedCourseId === TA_TAB
                 ? 'bg-primary-dark text-white border-primary-dark'
@@ -293,7 +355,7 @@ const AdminSubmissions: React.FC = () => {
           return (
             <button
               key={c.id}
-              onClick={() => setSelectedCourseId(c.id)}
+              onClick={() => update({ courseId: c.id, gradeStatus: undefined })}
               className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
                 selectedCourseId === c.id
                   ? 'bg-primary-dark text-white border-primary-dark'
@@ -311,13 +373,16 @@ const AdminSubmissions: React.FC = () => {
       {selectedCourseId === '__all__' && (
         <Card>
           <CardHeader>
-            <CardTitle>All Submissions ({submissions.length})</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>All Submissions ({submissionsPagination?.total ?? submissions.length})</CardTitle>
+              {filters}
+            </div>
           </CardHeader>
           <CardContent>
-            {submissions.length === 0 ? (
+            {submissions.length === 0 && !submissionsLoading ? (
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600">No submissions yet</p>
+                <p className="text-gray-600">{filtered ? 'No submissions match' : 'No submissions yet'}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -330,7 +395,7 @@ const AdminSubmissions: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {submissions.map((sub) => (
+                    {submissionsLoading ? <SkeletonRows cols={6} /> : submissions.map((sub) => (
                       <tr key={sub.id} className="hover:bg-gray-50">
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
@@ -369,6 +434,7 @@ const AdminSubmissions: React.FC = () => {
                 </table>
               </div>
             )}
+            {pager}
           </CardContent>
         </Card>
       )}
@@ -379,11 +445,17 @@ const AdminSubmissions: React.FC = () => {
             <CardTitle>TA grades to approve ({taGrades.total})</CardTitle>
           </CardHeader>
           <CardContent>
-            <TaGradeApprovals
+            {taGradesStale ? <p role="status" className="py-8 text-center text-sm text-gray-500">Loading…</p> : <TaGradeApprovals
               submissions={taGrades.submissions}
               error={taGrades.error}
-              onDecided={() => { void taGrades.reload(); fetchSubmissions(); }}
+              onDecided={refresh}
               onDownload={handleDownload}
+            />}
+            <Pagination
+              pagination={taGradesStale ? null : taGrades.pagination}
+              disabled={taGrades.loading}
+              onPage={(p, replace) => update({ page: p }, { replace })}
+              onLimit={(l) => update({ limit: l })}
             />
           </CardContent>
         </Card>
@@ -393,13 +465,16 @@ const AdminSubmissions: React.FC = () => {
       {selectedCourseId !== '__all__' && selectedCourseId !== TA_TAB && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary-600" />
-              {courses.find((c) => c.id === selectedCourseId)?.title ?? 'Course'} — Members
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary-600" />
+                {courses.find((c) => c.id === selectedCourseId)?.title ?? 'Course'} — Members ({submissionsPagination?.total ?? submissions.length} submissions)
+              </CardTitle>
+              {filters}
+            </div>
           </CardHeader>
           <CardContent>
-            {membersLoading ? (
+            {membersLoading || submissionsLoading ? (
               <div className="flex items-center gap-2 py-8 justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-primary-500" />
                 <span className="text-sm text-gray-500">Loading members…</span>
@@ -420,6 +495,7 @@ const AdminSubmissions: React.FC = () => {
                       key={member.id}
                       member={member}
                       submissions={memberSubs}
+                      partial={filtered || (submissionsPagination?.totalPages ?? 1) > 1}
                       onReview={handleReview}
                       onDownload={handleDownload}
                       onDelete={handleDelete}
@@ -428,6 +504,7 @@ const AdminSubmissions: React.FC = () => {
                 })}
               </div>
             )}
+            {pager}
           </CardContent>
         </Card>
       )}
