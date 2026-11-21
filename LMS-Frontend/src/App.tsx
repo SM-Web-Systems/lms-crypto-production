@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
@@ -16,10 +16,11 @@ import CertificateVerification from './pages/CertificateVerification';
 import CertificatePdfView from './pages/CertificatePdfView';
 import { UserRoleManager } from './components/UserRoleManager';
 import { Loader2 } from 'lucide-react';
+import { rememberSsoReturn, resumeSsoReturn, ssoReturnFor } from './utils/ssoReturn';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { availableWorkspaces, canAccessPath, homeForUser } from './utils/authorization';
-import type { Workspace } from './types/api';
+import type { User, Workspace } from './types/api';
 
 // Lazy-loaded pages — split into separate chunks per route
 const Messages = React.lazy(() => import('./pages/Messages'));
@@ -83,6 +84,8 @@ export const ProtectedRoute: React.FC<{
   }
 
   if (!isAuthenticated) {
+    // Kept through password and AmmaWallet sign-in, so a deep link or a reward-claim return is not lost.
+    rememberSsoReturn(location.pathname + location.search + location.hash);
     return <Navigate to="/login" replace />;
   }
 
@@ -115,21 +118,19 @@ const HomeRoute: React.FC = () => {
   return <Landing />;
 };
 
-const LoginRoute: React.FC = () => {
-  const { isAuthenticated, user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (isAuthenticated && user) {
-    return <Navigate to={homeForUser(user)} replace />;
-  }
-
-  return <Login />;
+/** Sends a just-signed-in user to the page they were sent to sign in from, else to their workspace home. */
+const ReturnAfterSignIn: React.FC<{ user: User }> = ({ user }) => {
+  const navigate = useNavigate();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current) return; // the return path is read once; StrictMode re-runs effects
+    done.current = true;
+    navigate(ssoReturnFor(user, homeForUser(user)), { replace: true });
+  }, [navigate, user]);
+  return null;
 };
 
-const SignUpRoute: React.FC = () => {
+export const LoginRoute: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -137,10 +138,30 @@ const SignUpRoute: React.FC = () => {
   }
 
   if (isAuthenticated && user) {
-    return <Navigate to={homeForUser(user)} replace />;
+    return <ReturnAfterSignIn user={user} />;
   }
 
-  return <SignUp />;
+  return <SignedOut><Login /></SignedOut>;
+};
+
+/** Reaching a sign-in page ends the pause an explicit sign-out set, so later deep links are kept again. */
+const SignedOut: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useEffect(() => { resumeSsoReturn(); }, []);
+  return <>{children}</>;
+};
+
+export const SignUpRoute: React.FC = () => {
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isAuthenticated && user) {
+    return <ReturnAfterSignIn user={user} />;
+  }
+
+  return <SignedOut><SignUp /></SignedOut>;
 };
 
 function App() {
