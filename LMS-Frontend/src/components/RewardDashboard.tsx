@@ -9,7 +9,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardTitle } from './Card';
 import { Button } from './Button';
 import { RewardFundingDialog } from './RewardFundingDialog';
-import { RewardStatusBadge, formatStroopsShort } from './RewardStatusBadge';
+import { RewardStatusBadge, formatStroops, formatStroopsShort } from './RewardStatusBadge';
+import { useConfirmAction, type ConfirmActionOptions } from '../hooks/useConfirmAction';
 import {
   rewardService,
   type Reward,
@@ -76,6 +77,24 @@ const ACTION_CAPABILITY: Record<string, string> = {
   release:  'reward.release',
   refund:   'reward.refund',
 };
+
+/** UX-001 Rev 2 copy for each confirmed action. Amounts keep full precision in the reward's own currency. */
+function confirmCopy(action: string, reward: Reward, alloc: RewardAllocation | undefined, scopeLabel?: string): Omit<ConfirmActionOptions, 'action'> {
+  const amount = formatStroops(alloc?.amount_stroops ?? reward.amount_stroops, alloc?.currency_code ?? reward.currency_code);
+  const learner = alloc?.student_name || 'this learner';
+  switch (action) {
+    case 'release':
+      return { title: 'Release payment?', description: <>Send <strong>{amount}</strong> to <strong>{learner}</strong>. This cannot be undone.</>, confirmLabel: `Release ${amount}`, variant: 'danger' };
+    case 'refund':
+      return { title: 'Refund payment?', description: <>Take back <strong>{amount}</strong> from this reward. This cannot be undone.</>, confirmLabel: `Refund ${amount}`, variant: 'danger' };
+    case 'activate':
+      return { title: 'Activate reward?', description: 'Make this reward live. Learners can start earning it.', confirmLabel: `Activate ${amount} reward`, variant: 'primary' };
+    case 'cancel':
+      return { title: 'Cancel reward?', description: 'Stop this reward. Funds not yet earned are returned.', confirmLabel: 'Cancel reward', cancelLabel: 'Keep reward', variant: 'danger' };
+    default: // approve
+      return { title: 'Approve reward?', description: `Approve ${scopeLabel ? `${scopeLabel}'s reward` : 'this reward'} for payment.`, confirmLabel: `Approve ${amount}`, variant: 'primary' };
+  }
+}
 
 // ──── Create Reward Modal ────
 
@@ -262,7 +281,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const [showCreate, setShowCreate] = useState(false);
   const [fundingReward, setFundingReward] = useState<string | null>(null);
   const fundingOpener = useRef<HTMLButtonElement | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // UX-001: every lifecycle action is confirmed in this dialog; `actionBusy` replaces the per-row flag.
+  const { ask, dialog: confirmDialog, busy: actionBusy, reset: resetConfirm } = useConfirmAction();
 
   // Current effective capability checks — re-derived on every render so
   // capability changes propagate immediately without stale closures.
@@ -329,9 +349,10 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
       ++targetEpochRef.current;
       setShowCreate(false);
       setFundingReward(null);
-      setActionLoading(null);
+      // UX-001: close an open confirm for the old target; its in-flight request cannot touch the new one.
+      resetConfirm();
     };
-  }, [load]);
+  }, [load, resetConfirm]);
 
   // W08-R1: close create form immediately if reward.create is revoked while it is open.
   // This prevents a pending form submission after capability revocation.
@@ -368,28 +389,32 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     }
   }, [expanded, role]);
 
-  const performAction = useCallback(async (action: string, rewardId: string, allocId?: string) => {
+  const performAction = useCallback(async (action: string, reward: Reward, alloc?: RewardAllocation) => {
     // W08-R1/R2: submission guard — verify capability at invocation time.
     // userRef.current is always the user from the latest render (updated every render
     // via `userRef.current = user`), so this guard reflects current permissions even
     // though user is not in the dep array.  Excluding user from deps avoids recreating
     // performAction on every background token refresh (N1 finding, independent review).
     // Explicit !requiredCap guard makes unknown-action fail-closed behaviour clear (N2).
-    const currentUser = userRef.current;
     const requiredCap = ACTION_CAPABILITY[action] ?? '';
-    if (!requiredCap || !hasCapability(currentUser, requiredCap)) return;
+    const allowed = () => !!requiredCap && hasCapability(userRef.current, requiredCap);
+    if (!allowed()) return;
 
-    const key = `${action}-${rewardId}-${allocId ?? ''}`;
-    setActionLoading(key);
+    const rewardId = reward.id;
+    const allocId = alloc?.id;
     const idem = `${action}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     // W06-R1: capture target identity at action start.
     // If the target changes while the mutation is in flight, we skip the post-mutation
     // load and error-set — the mutation itself is preserved on the original target.
     const myTargetKey = targetKey;
-    // W06-R2: capture epoch at action start so the finally spinner-clear can be guarded
-    // against old-target operations clearing a new-target operation's spinner.
+    // W06-R2: capture epoch at action start so post-mutation work can be guarded.
     const myEpoch = targetEpochRef.current;
-    try {
+    const sameTarget = () => targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch;
+
+    let blocked = false;
+    const run = async () => {
+      // Re-check at confirm time: capability may have been revoked while the dialog was open.
+      if (!allowed()) return;
       switch (action) {
         case 'activate':
           await rewardService.activateReward(role, rewardId, idem);
@@ -406,34 +431,23 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
         case 'refund':
           if (allocId) {
             const refundResult = await rewardService.refundAllocation(role, rewardId, allocId, idem);
-            if (refundResult && 'blocked' in refundResult && refundResult.blocked) {
-              // W06-R3: add epoch guard so A→B→A old blocked response does not fire on new visit.
-              if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
-                setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
-              }
-              // W06-R2: removed setActionLoading(null) here — finally handles it with epoch guard.
-              return;
+            blocked = !!(refundResult && 'blocked' in refundResult && refundResult.blocked);
+            if (blocked && sameTarget()) {
+              // W06-R3: epoch guard so A→B→A old blocked response does not fire on new visit.
+              setError('Refund blocked — the recipient has insufficient available balance. The attempt has been recorded for admin review.');
             }
           }
           break;
       }
-      // W06-R1+R2: only reload if still on the same target (key) AND same target visit (epoch).
-      if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
-        await load();
-      }
-    } catch (err) {
-      // W06-R1+R2: only surface error if still on the same target key and epoch.
-      if (targetKeyRef.current === myTargetKey && targetEpochRef.current === myEpoch) {
-        setError(getErrorMessage(err, `Failed to ${action} reward`));
-      }
-    } finally {
-      // W06-R2: only clear spinner if still on the same target visit.
-      // Without this guard an old operation's finally would clear a new operation's spinner.
-      if (targetEpochRef.current === myEpoch) {
-        setActionLoading(null);
-      }
-    }
-  }, [role, scopeId, targetType, targetKey, load]);
+    };
+
+    // UX-001: say what will happen, to whom and how much, before anything is sent.
+    // Errors stay in the dialog so the person can retry.
+    const done = await ask({ ...confirmCopy(action, reward, alloc, scopeLabel), action: run });
+    // W06-R1+R2: only reload if still on the same target (key) AND same target visit (epoch).
+    // A blocked refund changed nothing, so keep its message instead of reloading.
+    if (done && !blocked && sameTarget()) await load();
+  }, [role, targetKey, load, ask, scopeLabel]);
 
   return (
     <div data-testid="reward-dashboard">
@@ -559,22 +573,16 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                               <Button type="button" variant="outline" size="sm" onClick={event => {fundingOpener.current = event.currentTarget; setFundingReward(r.id);}}>Funding options</Button>
                             )}
                             {actions.map((a) => {
-                              const loadKey = `${a.key}-${r.id}-`;
-                              const isLoading = actionLoading === loadKey;
                               return (
                                 <Button
                                   key={a.key}
                                   variant="outline"
                                   size="sm"
                                   type="button"
-                                  disabled={!!actionLoading}
-                                  onClick={() => performAction(a.key, r.id)}
+                                  disabled={actionBusy}
+                                  onClick={() => performAction(a.key, r)}
                                 >
-                                  {isLoading ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                                  ) : (
-                                    <a.icon className="h-3 w-3 mr-1" aria-hidden />
-                                  )}
+                                  <a.icon className="h-3 w-3 mr-1" aria-hidden />
                                   {a.label}
                                 </Button>
                               );
@@ -620,8 +628,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                   <tbody className="divide-y divide-neutral-100">
                                     {allocs.map((a) => (
                                       <tr key={a.id}>
-                                        <td className="py-1.5 text-neutral-600 font-mono text-xs">
-                                          {a.student_user_id.slice(0, 8)}...
+                                        <td className="py-1.5 text-neutral-700 text-xs">
+                                          {a.student_name || 'Unnamed learner'}
                                         </td>
                                         <td className="py-1.5 tabular-nums text-neutral-700">
                                           {formatStroopsShort(a.amount_stroops)}
@@ -636,8 +644,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                                 variant="outline"
                                                 size="sm"
                                                 type="button"
-                                                disabled={!!actionLoading}
-                                                onClick={() => performAction('release', r.id, a.id)}
+                                                disabled={actionBusy}
+                                                onClick={() => performAction('release', r, a)}
                                               >
                                                 <Send className="h-3 w-3 mr-1" aria-hidden />
                                                 Release
@@ -648,8 +656,8 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
                                                 variant="outline"
                                                 size="sm"
                                                 type="button"
-                                                disabled={!!actionLoading}
-                                                onClick={() => performAction('refund', r.id, a.id)}
+                                                disabled={actionBusy}
+                                                onClick={() => performAction('refund', r, a)}
                                               >
                                                 <Undo2 className="h-3 w-3 mr-1" aria-hidden />
                                                 Refund
@@ -684,6 +692,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
             load();
           }} />
       )}
+      {confirmDialog}
       {showCreate && (
         <RewardCreateForm
           role={role}

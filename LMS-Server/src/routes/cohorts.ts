@@ -19,6 +19,7 @@ import {
   removeMember,
   bulkApply,
   bulkPay,
+  quoteBulkPay,
   transitionCohortStatus,
   getStatusLog,
   bulkInviteToCohort,
@@ -392,6 +393,48 @@ router.post('/admin/cohorts/:cohortId/apply', authenticate, requirePermission('c
   }
 });
 
+// GET /admin/cohorts/:cohortId/pay/quote — what Create Payment would charge (UX-001)
+/**
+ * @openapi
+ * /admin/cohorts/{cohortId}/pay/quote:
+ *   get:
+ *     tags: [Cohorts]
+ *     summary: Quote the bulk payment before creating it
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: cohortId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: amountCents, currency and memberCount, as bulk-pay would charge them
+ *       '400':
+ *         description: Free-tier cohort or no applied members
+ *       '404':
+ *         description: Cohort not found
+ *       '409':
+ *         description: Cohort payment already processed
+ */
+router.get('/admin/cohorts/:cohortId/pay/quote', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const owner = getCohortOwner(req.params.cohortId);
+  if (owner === null) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  if (!isAdminTier(req) && owner !== req.user!.userId) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'Not authorized to access this cohort' } });
+    return;
+  }
+  try {
+    res.json({ success: true, data: quoteBulkPay(req.params.cohortId) });
+  } catch (err: any) {
+    sendBulkPayError(res, err);
+  }
+});
+
 // POST /admin/cohorts/:cohortId/pay — bulk payment
 /**
  * @openapi
@@ -432,19 +475,23 @@ router.post('/admin/cohorts/:cohortId/pay', authenticate, requirePermission('coh
     const result = bulkPay(req.params.cohortId, req.user!.userId);
     res.status(201).json({ success: true, data: result });
   } catch (err: any) {
-    if (err.code === 'COHORT_NOT_FOUND') {
-      res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: err.message } });
-    } else if (err.code === 'VALIDATION_ERROR') {
-      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: err.message } });
-    } else if (err.code === 'COHORT_ALREADY_PAID') {
-      res.status(409).json({ success: false, error: { code: ErrorCodes.COHORT_ALREADY_PAID, message: err.message } });
-    } else if (err.code === 'COHORT_EMPTY') {
-      res.status(400).json({ success: false, error: { code: ErrorCodes.COHORT_EMPTY, message: err.message } });
-    } else {
-      res.status(500).json({ success: false, error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Internal error' } });
-    }
+    sendBulkPayError(res, err);
   }
 });
+
+function sendBulkPayError(res: Response, err: any): void {
+  if (err.code === 'COHORT_NOT_FOUND') {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: err.message } });
+  } else if (err.code === 'VALIDATION_ERROR') {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: err.message } });
+  } else if (err.code === 'COHORT_ALREADY_PAID') {
+    res.status(409).json({ success: false, error: { code: ErrorCodes.COHORT_ALREADY_PAID, message: err.message } });
+  } else if (err.code === 'COHORT_EMPTY') {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.COHORT_EMPTY, message: err.message } });
+  } else {
+    res.status(500).json({ success: false, error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Internal error' } });
+  }
+}
 
 // PATCH /admin/cohorts/:cohortId/status — admin override
 /**

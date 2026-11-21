@@ -71,6 +71,8 @@ export interface RewardAllocation {
   id: string;
   reward_id: string;
   student_user_id: string;
+  /** Learner's display name (UX-001); older servers omit it. */
+  student_name?: string | null;
   amount_stroops: number;
   currency_code: string;
   status: AllocationState;

@@ -408,7 +408,17 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
   return { cohortId, applied, skipped };
 }
 
-export function bulkPay(cohortId: string, adminUserId: string): BulkPayResult {
+export interface BulkPayQuote { amountCents: number; currency: string; memberCount: number }
+
+/**
+ * What bulkPay would charge, without creating anything (UX-001: shown in the confirm dialog).
+ * bulkPay uses this same calculation, so the quote and the payment cannot drift apart.
+ */
+export function quoteBulkPay(cohortId: string): BulkPayQuote {
+  return priceBulkPay(cohortId).quote;
+}
+
+function priceBulkPay(cohortId: string): { cohort: SponsorCohort; quote: BulkPayQuote } {
   const cohort = queryOne<SponsorCohort>('SELECT * FROM sponsor_cohorts WHERE id = ?', [cohortId]);
   if (!cohort) throw Object.assign(new Error('Cohort not found'), { code: 'COHORT_NOT_FOUND' });
 
@@ -433,7 +443,11 @@ export function bulkPay(cohortId: string, adminUserId: string): BulkPayResult {
   const pricing = getCoursePricing(cohort.course_id);
   const priceCents = pricing?.price_cents ?? 0;
   const currency = pricing?.currency ?? 'USD';
-  const totalCents = priceCents * appliedCount;
+  return { cohort, quote: { amountCents: priceCents * appliedCount, currency, memberCount: appliedCount } };
+}
+
+export function bulkPay(cohortId: string, adminUserId: string): BulkPayResult {
+  const { cohort, quote: { amountCents: totalCents, currency, memberCount: appliedCount } } = priceBulkPay(cohortId);
 
   // Create single bulk payment (application_id = NULL for bulk)
   const paymentId = uuidv4();

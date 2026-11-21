@@ -23,7 +23,7 @@
  * W8R2-COMPAT-2  — W08-R1 submission guard: revoke before click → service not called
  */
 
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -135,6 +135,12 @@ function renderDashboard(props?: { canRefund?: boolean }) {
   );
 }
 
+/** UX-001: money actions open a confirm dialog first; press its confirm button. */
+async function confirmInDialog() {
+  const buttons = within(await screen.findByRole('alertdialog')).getAllByRole('button');
+  fireEvent.click(buttons[buttons.length - 1]);
+}
+
 async function waitForRewards() {
   await waitFor(() => expect(screen.queryByText('Loading rewards...')).toBeNull());
 }
@@ -174,6 +180,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
 
       // Click → service called
       fireEvent.click(screen.getByRole('button', { name: /activate/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() => expect(vi.mocked(rewardService.activateReward)).toHaveBeenCalledWith('sponsor', 'r-funded', expect.any(String)));
     });
 
@@ -202,6 +209,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
       // Click it — without the fix, performAction has stale user (view_assigned only) and returns early.
       // With the fix, performAction uses current user (has activate) → service called.
       fireEvent.click(screen.getByRole('button', { name: /activate/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() =>
         expect(vi.mocked(rewardService.activateReward)).toHaveBeenCalledWith('sponsor', 'r-funded', expect.any(String)),
       );
@@ -225,6 +233,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument());
 
       fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() =>
         expect(vi.mocked(rewardService.cancelReward)).toHaveBeenCalledWith('sponsor', 'r-funded', '', expect.any(String)),
       );
@@ -248,6 +257,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument());
 
       fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() =>
         expect(vi.mocked(rewardService.approveReward)).toHaveBeenCalledWith('sponsor', 'r-eligible_pending_approval', expect.any(String)),
       );
@@ -281,6 +291,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
 
       // Click it
       fireEvent.click(screen.getByRole('button', { name: /release/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() =>
         expect(vi.mocked(rewardService.releaseAllocation)).toHaveBeenCalledWith('sponsor', 'r1', 'a-eligible', expect.any(String)),
       );
@@ -316,6 +327,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: /refund/i })).toBeInTheDocument());
 
       fireEvent.click(screen.getByRole('button', { name: /refund/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() =>
         expect(vi.mocked(rewardService.refundAllocation)).toHaveBeenCalledWith('sponsor', 'r1', 'a-released', expect.any(String)),
       );
@@ -376,6 +388,7 @@ describe('W08-R2 — performAction stale-user closure fix', () => {
 
       // Click on regrant — service must be called
       fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+      await confirmInDialog(); // UX-001: money actions confirm first
       await waitFor(() =>
         expect(vi.mocked(rewardService.cancelReward)).toHaveBeenCalledWith('sponsor', 'r-funded', '', expect.any(String)),
       );

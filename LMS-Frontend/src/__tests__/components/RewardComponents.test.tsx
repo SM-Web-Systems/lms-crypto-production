@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RewardStatusBadge, formatStroops, formatStroopsShort } from '../../components/RewardStatusBadge';
 
@@ -984,31 +984,40 @@ describe('W06-R2: create and operation ownership guard', () => {
     );
     await waitFor(() => expect(screen.getByText('Child reward')).toBeInTheDocument());
 
-    // Click Cancel on child — spinner starts
-    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled());
+    // Click Cancel on child and confirm (UX-001) — spinner starts in the dialog
+    await clickAndConfirm(/^Cancel$/);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeDisabled());
 
-    // Switch to family — cleanup must clear spinner
+    // Switch to family — cleanup must close the old dialog and clear its spinner
     rerender(<RewardDashboard role="parent" scopeId="shared-scope" targetType="family" />);
     await waitFor(() => expect(screen.getByText('Family reward')).toBeInTheDocument());
+    expect(screen.queryByRole('alertdialog')).toBeNull();
 
     // Family Cancel must be ENABLED (cleanup cleared old spinner)
-    expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cancel$/ })).not.toBeDisabled();
 
-    // Click Cancel on family reward — new spinner starts
-    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled());
+    // Click Cancel on family reward and confirm — new spinner starts
+    await clickAndConfirm(/^Cancel$/);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeDisabled());
 
-    // Resolve old child cancel — epoch-guarded finally must NOT clear family spinner
+    // Resolve old child cancel — guarded finally must NOT clear family spinner
     await act(async () => { resolveOldCancel(); });
-    expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeDisabled();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
 
     // Resolve new family cancel — spinner clears normally, list refreshes
     await act(async () => { resolveNewCancel(); });
     await waitFor(() => expect(screen.getByText('Family reward updated')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cancel$/ })).not.toBeDisabled();
   });
 });
+
+/** UX-001: money actions open a confirm dialog; click the row button, then the dialog's confirm. */
+async function clickAndConfirm(name: RegExp) {
+  fireEvent.click(screen.getByRole('button', { name }));
+  const buttons = within(await screen.findByRole('alertdialog')).getAllByRole('button');
+  fireEvent.click(buttons[buttons.length - 1]);
+}
 
 // Helper: a released reward with one released allocation for refund tests.
 function makeReleasedRewardWithAlloc(rewardId = 'r-refund', allocId = 'a-refund') {
@@ -1052,8 +1061,8 @@ describe('W06-R3: blocked-refund epoch guard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Expand allocations/i }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).toBeInTheDocument());
 
-    // Click Refund — refundAllocation deferred
-    fireEvent.click(screen.getByRole('button', { name: /Refund/i }));
+    // Click Refund and confirm (UX-001) — refundAllocation deferred
+    await clickAndConfirm(/^Refund$/);
     await waitFor(() => expect(vi.mocked(rewardService.refundAllocation)).toHaveBeenCalledTimes(1));
 
     // Switch to scopeB — epoch increments to 1
@@ -1097,14 +1106,15 @@ describe('W06-R3: blocked-refund epoch guard', () => {
     // Refund button must be enabled before click
     expect(screen.getByRole('button', { name: /Refund/i })).not.toBeDisabled();
 
-    // Click Refund — resolves with blocked result
-    fireEvent.click(screen.getByRole('button', { name: /Refund/i }));
+    // Click Refund and confirm (UX-001) — resolves with blocked result
+    await clickAndConfirm(/^Refund$/);
 
     // Blocked message must appear for same-visit blocked response
     await waitFor(() => expect(screen.getByText(/Refund blocked/)).toBeInTheDocument());
 
-    // Spinner must be cleared (button re-enabled) after blocked response
-    await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).not.toBeDisabled());
+    // Spinner must be cleared (dialog closed, button re-enabled) after blocked response
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Refund$/ })).not.toBeDisabled());
   });
 
   // FE-12: old blocked response with new visit's operation pending must not clear new op's spinner.
@@ -1139,7 +1149,7 @@ describe('W06-R3: blocked-refund epoch guard', () => {
     // Expand and click Refund on first scopeA visit — deferred
     fireEvent.click(screen.getByRole('button', { name: /Expand allocations/i }));
     await waitFor(() => expect(screen.getByRole('button', { name: /Refund/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /Refund/i }));
+    await clickAndConfirm(/^Refund$/);
     await waitFor(() => expect(vi.mocked(rewardService.refundAllocation)).toHaveBeenCalledTimes(1));
 
     // Switch to scopeB
@@ -1150,9 +1160,10 @@ describe('W06-R3: blocked-refund epoch guard', () => {
     rerender(<RewardDashboard role="sponsor" scopeId="scopeA" canRefund />);
     await waitFor(() => expect(screen.getByText('ScopeA revisit reward')).toBeInTheDocument());
 
-    // Start new operation on second scopeA visit
-    fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled());
+    // Start new operation on second scopeA visit (confirmed, UX-001)
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await clickAndConfirm(/^Cancel$/);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeDisabled());
 
     // Resolve old blocked refund — must NOT clear new op's spinner, must NOT set error
     await act(async () => {
@@ -1160,12 +1171,12 @@ describe('W06-R3: blocked-refund epoch guard', () => {
     });
 
     // New op's spinner must still be showing (Cancel still disabled)
-    expect(screen.getByRole('button', { name: /Cancel/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeDisabled();
     // No blocked-refund message from old visit
     expect(screen.queryByText(/Refund blocked/)).not.toBeInTheDocument();
 
     // Resolve new cancel — spinner clears normally
     await act(async () => { resolveNewCancel(undefined); });
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cancel/i })).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Cancel$/ })).not.toBeDisabled());
   });
 });
