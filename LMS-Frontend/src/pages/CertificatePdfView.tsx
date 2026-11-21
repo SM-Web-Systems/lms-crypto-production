@@ -25,6 +25,7 @@ const CertificatePdfView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const pdfUrl = certificatePdfApiUrl(credentialId);
   const fileName = `certificate-${credentialId}.pdf`;
   const inline = canShowPdfInline();
@@ -41,6 +42,7 @@ const CertificatePdfView: React.FC = () => {
   // Save without leaving the app: on iPhone this opens the share sheet (Save to Files, Mail, ...).
   const savePdf = useCallback(async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch(pdfUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -64,8 +66,8 @@ const CertificatePdfView: React.FC = () => {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
     } catch {
-      // Last resort: let the browser handle it directly.
-      window.location.assign(pdfUrl);
+      // Never navigate the whole app to the raw PDF: on the iPhone home-screen app that page has no Back button.
+      setSaveError('The certificate could not be saved. Check your connection and try Save again.');
     } finally {
       setSaving(false);
     }
@@ -97,6 +99,9 @@ const CertificatePdfView: React.FC = () => {
         </button>
       </header>
 
+      {saveError && (
+        <p role="alert" className="mx-3 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{saveError}</p>
+      )}
       <main className="flex-1 flex flex-col">
         {inline ? (
           <iframe title="Certificate PDF" src={pdfUrl} className="flex-1 w-full min-h-[80vh] border-0 bg-white" />

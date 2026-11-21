@@ -31,16 +31,21 @@ export const StudentRewardsPanel: React.FC = () => {
   const [claiming, setClaiming] = useState(false);
   const [claims, setClaims] = useState<MyRewardClaim[]>([]);
   const [retrying, setRetrying] = useState<string | null>(null);
-  const [claimNotice, setClaimNotice] = useState<Record<string, string>>({});
+  // What happened to the last payment retry. Kept outside the list: a refused claim can leave the list (back in the balance).
+  const [paymentNotice, setPaymentNotice] = useState<{ text: string; failed: boolean } | null>(null);
+  // A payments list that failed to load is shown as failed, never as no payments.
+  const [claimsError, setClaimsError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setClaimsError('');
     try {
       const [data, balance, myClaims, limit] = await Promise.all([
         rewardService.getMyRewards(),
         Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0'),
-        Promise.resolve().then(() => rewardService.listMyClaims()).catch(() => [] as MyRewardClaim[]),
+        Promise.resolve().then(() => rewardService.listMyClaims())
+          .catch((err) => { setClaimsError(getErrorMessage(err, 'Could not load your payments.')); return [] as MyRewardClaim[]; }),
         Promise.resolve().then(() => rewardService.getMaxClaimStroops()).catch(() => null),
       ]);
       setRewards(data);
@@ -74,13 +79,17 @@ export const StudentRewardsPanel: React.FC = () => {
 
   const retry = async (claimId: string) => {
     setRetrying(claimId);
+    setPaymentNotice(null);
     try {
       const paid = await rewardService.retryPayout(claimId);
-      setClaimNotice(n => ({ ...n, [claimId]: paid.status === 'paid' ? 'Sent to your wallet.' : '' }));
-      await load();
+      setPaymentNotice(paid.status === 'paid' ? { text: 'The reward has been sent to your wallet.', failed: false }
+        : paid.status === 'submitted' ? { text: 'The payment is on its way. Refresh in a minute.', failed: false }
+        : { text: 'The payment was not sent. Your claim is saved; try again.', failed: true });
     } catch (err) {
-      setClaimNotice(n => ({ ...n, [claimId]: getErrorMessage(err, 'The payment could not be sent. Your claim is saved.') }));
+      setPaymentNotice({ text: `The payment was not sent. ${getErrorMessage(err, 'Your claim is saved.')}`, failed: true });
     } finally {
+      // Reload either way: a refusal can close the claim and put the amount back in the balance, so the list must not go stale.
+      await load();
       setRetrying(null);
     }
   };
@@ -168,6 +177,19 @@ export const StudentRewardsPanel: React.FC = () => {
           </div>
         )}
 
+        {paymentNotice && (
+          <p role="status" data-testid="payment-retry-notice"
+            className={`mt-5 rounded-xl border px-4 py-3 text-sm ${paymentNotice.failed ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+            {paymentNotice.text}
+          </p>
+        )}
+        {claimsError && !error && (
+          <div role="alert" className="mt-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900">
+            <AlertCircle className="h-5 w-5 shrink-0" aria-hidden />
+            <p className="flex-1 text-sm">{claimsError}</p>
+            <Button variant="outline" size="sm" type="button" onClick={load}>Try again</Button>
+          </div>
+        )}
         {claims.length > 0 && (
           <div className="mt-5" data-testid="student-reward-claims">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Payments to your wallet</h3>
@@ -182,9 +204,7 @@ export const StudentRewardsPanel: React.FC = () => {
                     <span className="tabular-nums text-sm text-neutral-900">{formatStroopsShort(c.amountStroops)}</span>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${p.tone}`} data-testid="claim-payout-status">{p.label}</span>
                     <span className="text-xs text-neutral-500">to {shortAddress(c.destination)}{c.verifiedAt ? ` · ${new Date(c.verifiedAt).toLocaleDateString()}` : ''}</span>
-                    {(p.note || claimNotice[c.claimId]) && (
-                      <p className="basis-full text-xs text-neutral-600">{claimNotice[c.claimId] || p.note}</p>
-                    )}
+                    {p.note && <p className="basis-full text-xs text-neutral-600">{p.note}</p>}
                     {canRetry && (
                       <Button variant="outline" size="sm" type="button" onClick={() => retry(c.claimId)} disabled={retrying === c.claimId}>
                         {retrying === c.claimId ? 'Trying…' : 'Try payment again'}

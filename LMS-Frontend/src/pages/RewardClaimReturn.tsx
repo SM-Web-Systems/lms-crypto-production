@@ -54,7 +54,7 @@ export default function RewardClaimReturn() {
       {view.kind === 'verified' && view.notSent && (
         <div role="status" data-testid="claim-payout-not-sent" className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
           <AlertCircle className="h-5 w-5 shrink-0" aria-hidden />
-          <p>Your wallet is confirmed, but the reward has <strong>not been sent</strong> to it yet. {view.notSent}</p>
+          <p>Your wallet is confirmed, but the reward has <strong>not been sent</strong> to it. {view.notSent}</p>
         </div>
       )}
       {view.kind === 'verified' && !view.notSent && (
