@@ -299,4 +299,47 @@ describe('InlineQuizTaker', () => {
     await user.click(screen.getByText('Hide'));
     expect(screen.queryByText('Your Answers')).not.toBeInTheDocument();
   });
+  // IQ-13: Flashcards render as option cards and submit the chosen option
+  it('flashcard question shows its options and submits the chosen option', async () => {
+    mockGetById.mockResolvedValue(makeQuiz({
+      questions: [{ id: 'q1', type: 'flashcard', question: 'Consensus means?', options: ['Agreement', 'Mining'], order: 1 }],
+    }));
+    mockSubmitQuiz.mockResolvedValue({
+      id: 'comp-1', quizId: 'quiz-1', userId: 'u1',
+      score: 100, total: 1, passed: true,
+      answers: { q1: 'Agreement' }, completedAt: new Date().toISOString(),
+    });
+    const user = userEvent.setup();
+
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await user.click(await screen.findByText('Begin'));
+
+    expect(screen.queryByPlaceholderText('Your answer')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Option A: Agreement' }));
+    await user.click(screen.getByText('Submit'));
+    await user.click(await screen.findByText('Confirm Submit'));
+
+    expect(mockSubmitQuiz).toHaveBeenCalledWith('quiz-1', '', { q1: 'Agreement' });
+    expect(await screen.findByText('Passed')).toBeInTheDocument();
+  });
+
+  // IQ-14: A question type this page can't render links to Quizzes and doesn't block submit
+  it('unknown question type links to Quizzes and still lets the learner submit', async () => {
+    mockGetById.mockResolvedValue(makeQuiz({
+      questions: [
+        { id: 'q1', type: 'multiple_choice', question: 'Pick one', options: ['A', 'B'], order: 1 },
+        { id: 'q2', type: 'matching', question: 'Match them', order: 2 },
+      ],
+    }));
+    const user = userEvent.setup();
+
+    render(<InlineQuizTaker quizId="quiz-1" />);
+    await user.click(await screen.findByText('Begin'));
+    await user.click(screen.getByLabelText('A'));
+    await user.click(screen.getByText('Next'));
+
+    expect(screen.getByRole('link', { name: /open it in Quizzes/i })).toHaveAttribute('href', '/student/quizzes?quiz=quiz-1');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Submit')).toBeEnabled();
+  });
 });

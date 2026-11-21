@@ -11,7 +11,8 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { Button } from './Button';
-import Input from './Input';
+import QuestionInput from './QuestionInput';
+import { CARD_LETTERS } from '../utils/quizQuestion';
 import type { Quiz, QuizQuestion } from '../types/quiz';
 
 interface AdminQuizPreviewProps {
@@ -21,7 +22,6 @@ interface AdminQuizPreviewProps {
 
 type Step = 'intro' | 'take' | 'result';
 
-const CARD_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 function sortedQuestions(quiz: Quiz): QuizQuestion[] {
   return [...(quiz.questions || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -43,62 +43,6 @@ function scorePreview(
     }
   }
   return { correct, total: questions.length, score: questions.length > 0 ? Math.round((correct / questions.length) * 100) : 100 };
-}
-
-// ─── Flashcard grid (same as student view) ───────────────────────────────────
-
-function FlashcardGrid({
-  questionId,
-  options,
-  selected,
-  onSelect,
-  disabled,
-}: {
-  questionId: string;
-  options: string[];
-  selected: string;
-  onSelect: (val: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div role="radiogroup" aria-label="Answer choices" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {options.map((opt, oi) => {
-        const isSelected = selected === opt;
-        const letter = CARD_LETTERS[oi] ?? String(oi + 1);
-        return (
-          <button
-            key={oi}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            onClick={() => !disabled && onSelect(opt)}
-            disabled={disabled}
-            className={[
-              'relative group flex flex-col items-start gap-3 rounded-2xl border-2 px-5 py-4 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal focus-visible:ring-offset-2 min-h-[7rem]',
-              disabled ? 'cursor-default' : 'cursor-pointer',
-              isSelected
-                ? 'border-accent-teal bg-accent-teal/8 shadow-md shadow-accent-teal/15 ring-2 ring-accent-teal/25'
-                : 'border-neutral-200/90 bg-white hover:border-accent-teal/40 hover:bg-neutral-50/80 hover:shadow-sm',
-            ].join(' ')}
-          >
-            <span
-              className={[
-                'inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold transition-colors shrink-0',
-                isSelected ? 'bg-accent-teal text-white' : 'bg-neutral-100 text-neutral-600',
-              ].join(' ')}
-            >
-              {letter}
-            </span>
-            <span className={`text-sm font-medium leading-snug ${isSelected ? 'text-primary-dark' : 'text-neutral-700'}`}>
-              {opt}
-            </span>
-            {isSelected && <span className="absolute top-3 right-3 h-3 w-3 rounded-full bg-accent-teal shadow-sm" aria-hidden />}
-            <input type="radio" name={questionId} value={opt} checked={isSelected} onChange={() => onSelect(opt)} className="sr-only" tabIndex={-1} />
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 // ─── Preview component ────────────────────────────────────────────────────────
@@ -264,43 +208,7 @@ export function AdminQuizPreview({ quiz, onClose }: AdminQuizPreviewProps) {
                     </div>
                   )}
                   <div className="p-4 sm:p-6 space-y-4">
-                    {currentQ.type === 'multiple_choice' && currentQ.options && (
-                      <div className="space-y-2" role="radiogroup" aria-label="Answer choices">
-                        {currentQ.options.map((opt, oi) => (
-                          <label
-                            key={oi}
-                            className="flex items-center gap-3 cursor-pointer rounded-lg border border-neutral-200/90 px-3 py-2.5 hover:bg-neutral-50/90 has-[:checked]:border-accent-teal/50 has-[:checked]:bg-accent-teal/5"
-                          >
-                            <input
-                              type="radio"
-                              name={currentQ.id}
-                              value={opt}
-                              checked={(answers[currentQ.id] ?? '') === opt}
-                              onChange={() => setAnswer(currentQ.id, opt)}
-                              className="accent-accent-teal"
-                            />
-                            <span className="text-neutral-700">{opt}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    {currentQ.type === 'flashcard' && currentQ.options && (
-                      <FlashcardGrid
-                        questionId={currentQ.id}
-                        options={currentQ.options}
-                        selected={answers[currentQ.id] ?? ''}
-                        onSelect={(val) => setAnswer(currentQ.id, val)}
-                      />
-                    )}
-                    {currentQ.type === 'short_answer' && (
-                      <Input
-                        label="Your answer"
-                        placeholder="Type your answer"
-                        value={answers[currentQ.id] ?? ''}
-                        onChange={(e) => setAnswer(currentQ.id, e.target.value)}
-                        className="max-w-lg"
-                      />
-                    )}
+                    <QuestionInput question={currentQ} value={answers[currentQ.id] ?? ''} onChange={(val) => setAnswer(currentQ.id, val)} />
                   </div>
                 </div>
               </div>

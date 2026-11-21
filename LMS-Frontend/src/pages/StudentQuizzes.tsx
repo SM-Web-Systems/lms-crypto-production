@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
-import Input from '../components/Input';
+import QuestionInput from '../components/QuestionInput';
 import { quizService } from '../services/quizService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import { useAuth } from '../context/useAuth';
@@ -592,43 +592,7 @@ const StudentQuizzes: React.FC = () => {
                 </div>
               ) : null}
               <div className="p-4 sm:p-6 space-y-4">
-                {q.type === 'multiple_choice' && q.options && (
-                  <div className="space-y-2" role="radiogroup" aria-label="Answer choices">
-                    {q.options.map((opt, oi) => (
-                      <label
-                        key={oi}
-                        className="flex items-center gap-3 cursor-pointer rounded-lg border border-neutral-200/90 px-3 py-2.5 hover:bg-neutral-50/90 has-[:checked]:border-accent-teal/50 has-[:checked]:bg-accent-teal/5"
-                      >
-                        <input
-                          type="radio"
-                          name={q.id}
-                          value={opt}
-                          checked={(answers[q.id] ?? '') === opt}
-                          onChange={() => setAnswer(q.id, opt)}
-                          className="rounded border-neutral-300 text-accent-teal focus:ring-accent-teal"
-                        />
-                        <span className="text-neutral-700">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {q.type === 'flashcard' && q.options && (
-                  <FlashcardGrid
-                    questionId={q.id}
-                    options={q.options}
-                    selected={answers[q.id] ?? ''}
-                    onSelect={(val) => setAnswer(q.id, val)}
-                  />
-                )}
-                {q.type === 'short_answer' && (
-                  <Input
-                    label="Your answer"
-                    placeholder="Type your answer"
-                    value={answers[q.id] ?? ''}
-                    onChange={(e) => setAnswer(q.id, e.target.value)}
-                    className="max-w-lg"
-                  />
-                )}
+                <QuestionInput question={q} value={answers[q.id] ?? ''} onChange={(val) => setAnswer(q.id, val)} />
               </div>
             </div>
           </div>
@@ -701,86 +665,5 @@ const StudentQuizzes: React.FC = () => {
     </div>
   );
 };
-
-const CARD_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-function FlashcardGrid({
-  questionId,
-  options,
-  selected,
-  onSelect,
-}: {
-  questionId: string;
-  options: string[];
-  selected: string;
-  onSelect: (val: string) => void;
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Answer choices"
-      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-    >
-      {options.map((opt, oi) => {
-        const isSelected = selected === opt;
-        const letter = CARD_LETTERS[oi] ?? String(oi + 1);
-        return (
-          <button
-            key={oi}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            aria-label={`Option ${letter}: ${opt}`}
-            onClick={() => onSelect(opt)}
-            className={[
-              'relative group flex flex-col items-start gap-3 rounded-2xl border-2 px-5 py-4 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-teal focus-visible:ring-offset-2 min-h-[7rem]',
-              isSelected
-                ? 'border-accent-teal bg-accent-teal/8 shadow-md shadow-accent-teal/15 ring-2 ring-accent-teal/25'
-                : 'border-neutral-200/90 bg-white hover:border-accent-teal/40 hover:bg-neutral-50/80 hover:shadow-sm',
-            ].join(' ')}
-          >
-            {/* Letter badge */}
-            <span
-              className={[
-                'inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold transition-colors shrink-0',
-                isSelected
-                  ? 'bg-accent-teal text-white'
-                  : 'bg-neutral-100 text-neutral-600 group-hover:bg-accent-teal/15 group-hover:text-primary-dark',
-              ].join(' ')}
-            >
-              {letter}
-            </span>
-
-            {/* Option text */}
-            <span
-              className={[
-                'text-sm font-medium leading-snug',
-                isSelected ? 'text-primary-dark' : 'text-neutral-700',
-              ].join(' ')}
-            >
-              {opt}
-            </span>
-
-            {/* Selected indicator dot */}
-            {isSelected && (
-              <span className="absolute top-3 right-3 h-3 w-3 rounded-full bg-accent-teal shadow-sm" aria-hidden />
-            )}
-
-            {/* Hidden radio for a11y */}
-            <input
-              type="radio"
-              name={questionId}
-              value={opt}
-              checked={isSelected}
-              onChange={() => onSelect(opt)}
-              className="sr-only"
-              tabIndex={-1}
-            />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export default StudentQuizzes;
