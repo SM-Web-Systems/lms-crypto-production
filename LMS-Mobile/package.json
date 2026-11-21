@@ -125,6 +125,10 @@
     "@oclif/core": {
       "minimatch": "11.0.1"
     },
+    "chromium-edge-launcher": {
+      "glob": "7.2.3",
+      "minimatch": "3.1.5"
+    },
     "@expo/bunyan": {
       "uuid": "11.1.1"
     },
