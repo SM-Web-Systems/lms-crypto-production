@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '../Button';
 import { courseCompletionService } from '../../services/courseCompletionService';
@@ -84,13 +84,17 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
   const [certState, setCertState] = useState<Record<string, 'idle' | 'loading' | 'applied' | 'error'>>({});
   const [certErrors, setCertErrors] = useState<Record<string, string>>({});
   const { hash } = useLocation();
+  const handledHash = useRef<string | null>(null);
 
-  // UX-025: "Apply for certificate" on Progress links to /student#certificate-<courseId>; bring that course into view.
+  // UX-025: "Apply for certificate" on Progress links to /student#certificate-<courseId>; bring that course into view,
+  // once per link, so a later refetch does not pull focus away from the learner.
   useEffect(() => {
-    if (coursesLoading || !hash.startsWith('#certificate-')) return;
+    if (coursesLoading || !hash.startsWith('#certificate-') || handledHash.current === hash) return;
     const card = document.getElementById(hash.slice(1));
-    card?.scrollIntoView?.({ block: 'center' });
-    card?.focus();
+    if (!card) return;
+    handledHash.current = hash;
+    card.scrollIntoView?.({ block: 'center' });
+    card.focus();
   }, [hash, coursesLoading, courses]);
 
   const handleApplyCertificate = async (courseId: string) => {

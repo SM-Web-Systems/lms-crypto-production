@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -27,6 +27,7 @@ import Landing from '../pages/Landing';
 import CertEligibilitySection from '../components/dashboard/CertEligibilitySection';
 import { AccessDenied } from '../App';
 
+function Where() { return <p data-testid="where">{useLocation().pathname}</p>; }
 const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf-8');
 const progress = { userId: 'l1', courseId: 'c1', totalLessonItems: 1, completedLessonItems: 1, lessonPercentage: 100, requiredQuizzes: [],
   allRequiredQuizzesPassed: true, hasApprovedSubmission: true, meetsAllRequirements: true, canApplyForCertificate: true };
@@ -39,21 +40,20 @@ describe('UX-024 named controls', () => {
     mocks.prefs.mockResolvedValue([{ type: 'submission_reviewed', enabled: true }, { type: 'reward_funded', enabled: false }, { type: 'reward_declined', enabled: true }]);
     render(<MemoryRouter><NotificationSettings /></MemoryRouter>);
     expect(await screen.findByRole('switch', { name: 'Submission Reviewed' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('switch', { name: 'Reward funded' })).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByRole('switch', { name: 'Reward sent back' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Reward Funded' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('switch', { name: 'Reward Sent Back' })).toBeInTheDocument();
   });
 
-  it('the notification settings gear has an accessible name', () => {
-    expect(read('components/NotificationBell.tsx')).toMatch(/aria-label="Notification settings"/);
-  });
+  // The gear's accessible name is covered by NotificationBell.test.tsx (queried by role and name).
 });
 
 describe('UX-025 learner dead ends', () => {
   it('access denied with no workspace still offers Sign out', async () => {
     mocks.user = { ...learner, workspaces: [], defaultWorkspace: null };
-    render(<MemoryRouter><AccessDenied /></MemoryRouter>);
+    render(<MemoryRouter><AccessDenied /><Where /></MemoryRouter>);
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(mocks.logout).toHaveBeenCalled();
+    expect(screen.getByTestId('where')).toHaveTextContent('/login');
   });
 
   it('a learner with no course gets a way forward instead of "contact your instructor"', async () => {
@@ -86,6 +86,20 @@ describe('UX-025 learner dead ends', () => {
     await waitFor(() => expect(document.getElementById('certificate-c1')).toHaveFocus());
   });
 
+  it('does not pull focus back to the card when the courses refetch', async () => {
+    const course = { id: 'c1', title: 'Rust', courseCode: null } as never;
+    const section = (courses: never[]) => <MemoryRouter initialEntries={['/student#certificate-c1']}>
+      <button type="button">Elsewhere</button>
+      <CertEligibilitySection userWalletAddress="G1" courses={courses} coursesLoading={false}
+        progressMap={{ c1: progress }} appStatusMap={{ c1: null }} onAppStatusChange={vi.fn()} />
+    </MemoryRouter>;
+    const view = render(section([course]));
+    await waitFor(() => expect(document.getElementById('certificate-c1')).toHaveFocus());
+    screen.getByRole('button', { name: 'Elsewhere' }).focus();
+    view.rerender(section([{ ...(course as object) } as never]));
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+  });
+
   it('the certificates toolbar wraps on narrow screens', () => {
     expect(read('pages/BadgeGallery.tsx')).toMatch(/<div className="flex flex-wrap items-center gap-\d[^"]*">\s*<div className="relative/);
   });
@@ -95,5 +109,7 @@ describe('UX-025 learner dead ends', () => {
     expect(messages).not.toMatch(/opacity-0 group-hover:opacity-100[^"]*"\s*aria-label="Delete message"/);
     expect(messages).toMatch(/reveal-on-hover[^"]*"\s*aria-label="Delete message"/);
     expect(read('index.css')).toMatch(/@media \(hover: hover\)[^@]*\.reveal-on-hover \{ opacity: 0; \}/);
+    // Focus inside the row (e.g. returning from the delete confirm) keeps it visible too.
+    expect(read('index.css')).toMatch(/\.group:focus-within \.reveal-on-hover/);
   });
 });

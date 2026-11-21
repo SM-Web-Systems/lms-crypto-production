@@ -19,14 +19,14 @@ const TYPE_LABELS: Record<string, string> = {
   cohort_milestone: 'Cohort Milestone',
   team_completion: 'Team Completed',
   grade_approved: 'Grade Approved',
-  reward_released: 'Reward paid',
-  reward_eligible: 'Reward earned',
-  reward_refunded: 'Reward refunded',
-  reward_expired: 'Reward expired',
-  reward_cancelled: 'Reward cancelled',
-  refund_blocked: 'Refund blocked',
-  reward_funded: 'Reward funded',
-  reward_declined: 'Reward sent back',
+  reward_released: 'Reward Paid',
+  reward_eligible: 'Reward Earned',
+  reward_refunded: 'Reward Refunded',
+  reward_expired: 'Reward Expired',
+  reward_cancelled: 'Reward Cancelled',
+  refund_blocked: 'Refund Blocked',
+  reward_funded: 'Reward Funded',
+  reward_declined: 'Reward Sent Back',
 };
 
 const NotificationSettings: React.FC = () => {

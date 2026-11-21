@@ -566,7 +566,7 @@ const StudentCourse: React.FC = () => {
         {/* UX-025: say how to get in, instead of a dead end. */}
         <p className="text-neutral-600 mt-2">
           Course invitations appear on your dashboard. If you were sent an invitation link, open it to join. Otherwise, ask the
-          person who runs your course to invite <strong className="text-neutral-800">{user?.email}</strong>.
+          person who runs your course to invite {user?.email ? <strong className="text-neutral-800">{user.email}</strong> : 'the email address you sign in with'}.
         </p>
         <Link to="/student" className="mt-4 inline-block font-medium text-primary-600 hover:underline">See invitations on your dashboard</Link>
       </div>

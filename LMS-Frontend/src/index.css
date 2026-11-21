@@ -102,7 +102,7 @@
   /* Hidden until hover only where hover exists; touch screens always show it (UX-025: message delete). */
   @media (hover: hover) {
     .reveal-on-hover { opacity: 0; }
-    .group:hover .reveal-on-hover, .reveal-on-hover:focus-visible { opacity: 1; }
+    .group:hover .reveal-on-hover, .group:focus-within .reveal-on-hover { opacity: 1; }
   }
 
   /**

@@ -21,7 +21,8 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
     if (!isOpen) return undefined;
     const opener = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
+    // Leave focus on a field the content auto-focused; otherwise start on the panel.
+    if (!panelRef.current?.contains(document.activeElement)) panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); close.current(); return; }
       if (e.key !== 'Tab' || !panelRef.current) return;
