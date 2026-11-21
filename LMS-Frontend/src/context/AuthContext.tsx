@@ -8,6 +8,11 @@ import { forgetSsoReturn } from '../utils/ssoReturn';
 import { useGeneration } from '../hooks/useGeneration';
 import { AuthContext, LEGACY_TOKEN_KEY, getStoredToken, newMarker, setStoredToken, takeLegacyToken } from './authSession';
 
+// Registered here, not in authSession.ts, so modules that only read the marker do not need the API client.
+// api.ts tags each request with the session marker current when it was sent, so a late 401 from an
+// earlier session cannot sign out a newer one.
+setTokenGetter(async()=>getStoredToken());
+
 /** Move a bearer token into the HttpOnly cookie. Resolves false only when the token is refused (401). */
 async function adoptToken(token: string): Promise<boolean> {
   try {
@@ -18,9 +23,6 @@ async function adoptToken(token: string): Promise<boolean> {
     throw error;
   }
 }
-// api.ts tags each request with the session marker current when it was sent, so a late 401 from an
-// earlier session cannot sign out a newer one.
-setTokenGetter(async()=>getStoredToken());
 
 export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
   const [user,setUser]=useState<User|null>(null);

@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdminPlatformCredit from '../../pages/AdminPlatformCredit';
-import { stellarPayLink } from '../../services/platformCreditService';
-import { xlmToStroops, stroopsToXlm } from '../../services/platformCreditService';
+import { stellarPayLink, xlmToStroops, stroopsToXlm } from '../../services/platformCreditService';
 
 const m = vi.hoisted(() => ({ summary: vi.fn(), beneficiaries: vi.fn(), createBackingIntent: vi.fn(), verifyBackingDeposit: vi.fn(), requestCredit: vi.fn(), approve: vi.fn(), cancel: vi.fn(), releaseReservation: vi.fn(), reconcile: vi.fn() }));
 vi.mock('../../services/platformCreditService', async (orig) => ({ ...(await orig<typeof import('../../services/platformCreditService')>()), platformCreditService: m }));

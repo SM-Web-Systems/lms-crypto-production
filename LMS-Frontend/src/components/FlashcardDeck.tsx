@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import DOMPurify from '../utils/purify';
 import { Loader2, RefreshCw, ChevronLeft, ChevronRight, Shuffle, RotateCcw } from 'lucide-react';
 import { toApprovedRawUrl } from '../utils/approvedContentUrl';
 import { parseFlashcards, type Flashcard } from '../utils/flashcards';

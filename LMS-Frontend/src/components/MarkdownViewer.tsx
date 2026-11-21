@@ -1,16 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import DOMPurify from '../utils/purify';
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { toApprovedRawUrl } from '../utils/approvedContentUrl';
 
-// Force new-tab links to have noopener
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-  if (node.tagName === 'A') {
-    node.setAttribute('target', '_blank');
-    node.setAttribute('rel', 'noopener noreferrer');
-  }
-});
 
 /**
  * Sanitize rendered HTML from markdown.

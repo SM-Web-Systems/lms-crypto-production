@@ -9,7 +9,7 @@ import { useState } from 'react';
 export function useGeneration() {
   const [generation] = useState(() => {
     let n = 0;
-    return { next: () => ++n, current: () => n, isCurrent: (id: number) => id === n };
+    return { next: () => ++n, isCurrent: (id: number) => id === n };
   });
   return generation;
 }

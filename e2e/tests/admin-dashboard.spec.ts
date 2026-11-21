@@ -2,6 +2,8 @@ import { test, expect } from '../fixtures/auth';
 
 test.describe('Admin dashboard', () => {
   test('admin sees the dashboard after login', async ({ adminPage }, testInfo) => {
+    // The waits below add up to more than the default 30 s test timeout; triple it for this first browser test.
+    test.slow();
     // This is the first browser test in the run. Wait on the signals that matter, not on any text matching
     // /dashboard/i: the session check that decides whether the app shows its layout at all, then the
     // admin navigation, which renders as soon as the session is known (the page heading waits on the
