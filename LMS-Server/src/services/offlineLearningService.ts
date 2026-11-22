@@ -5,7 +5,8 @@ import type { JWTPayload } from '../types/index.js';
 import { parseFlatSections } from '../utils/courseHelpers.js';
 import { canAccessCourse } from './courseAccessService.js';
 
-const maxLeaseSeconds = 86_400;
+/** Approved by the product owner on 22 Nov 2026: a saved course stays usable for up to 14 days offline. */
+const maxLeaseSeconds = 14 * 86_400;
 const maxPackageBytes = 512 * 1024;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -78,6 +79,34 @@ function currentCourse(actor: JWTPayload, token: string, courseId: string, now: 
   return {course, sessionHash, authExpiresAt, contentVersion};
 }
 
+const httpsUrl = (value: unknown) => {
+  if (typeof value !== 'string' || value.length > 2048) return undefined;
+  try { return new URL(value.trim()).protocol === 'https:' ? value.trim() : undefined; } catch { return undefined; }
+};
+const mediaFile = /\.(mp4|m4v|webm|mov|mp3|m4a|aac|ogg|oga|wav)(?:[?#].*)?$/i;
+const youtubeIdOf = (value: unknown) => {
+  if (typeof value !== 'string') return undefined;
+  const raw = value.trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
+  return raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|shorts\/|live\/|watch\?(?:.*&)?v=))([A-Za-z0-9_-]{11})/)?.[1];
+};
+
+/**
+ * The file a learner may save for offline playback: the lesson's download link, else a direct media file URL.
+ * YouTube stays the player online; this file is only the offline fallback.
+ */
+function offlineMedia(item: Record<string, unknown>) {
+  const download = httpsUrl(item.downloadUrl);
+  const direct = httpsUrl(item.url);
+  const fileUrl = download ?? (direct && mediaFile.test(new URL(direct).pathname) ? direct : undefined);
+  if (!fileUrl) return undefined;
+  return {fileUrl, youtubeId: youtubeIdOf(item.youtubeUrl) ?? youtubeIdOf(item.url)};
+}
+
+type OfflineItem =
+  | {id: string; type: 'text'; title: string; description?: string; information: string}
+  | {id: string; type: 'video' | 'audio'; title: string; description?: string; information?: string; fileUrl: string; youtubeId?: string};
+
 function offlineSections(course: CourseRow) {
   const sections = parseFlatSections(course.sections).filter(section => section && typeof section.id === 'string'
     && typeof section.title === 'string' && Array.isArray(section.items));
@@ -90,16 +119,23 @@ function offlineSections(course: CourseRow) {
   return sections.map(section => ({
     id: section.id,
     title: section.title,
-    items: section.items.filter(item => item?.type === 'text' && typeof item.id === 'string'
-      && item.id.length > 0 && item.id.length <= 200 && typeof item.title === 'string'
-      && typeof item.information === 'string' && item.information.trim().length > 0 && counts.get(item.id) === 1)
-      .map(item => ({
-        id: item.id,
-        type: 'text' as const,
-        title: item.title,
-        description: typeof item.description === 'string' ? item.description : undefined,
-        information: typeof item.information === 'string' ? item.information : undefined,
-      })),
+    items: section.items.flatMap((item): OfflineItem[] => {
+      if (!item || typeof item.id !== 'string' || item.id.length === 0 || item.id.length > 200
+        || typeof item.title !== 'string' || counts.get(item.id) !== 1) return [];
+      const description = typeof item.description === 'string' ? item.description : undefined;
+      if (item.type === 'text') {
+        return typeof item.information === 'string' && item.information.trim().length > 0
+          ? [{id: item.id, type: 'text', title: item.title, description, information: item.information}] : [];
+      }
+      if (item.type === 'video' || item.type === 'audio') {
+        const media = offlineMedia(item as unknown as Record<string, unknown>);
+        return media ? [{
+          id: item.id, type: item.type, title: item.title, description,
+          information: typeof item.information === 'string' ? item.information : undefined, ...media,
+        }] : [];
+      }
+      return [];
+    }),
   })).filter(section => section.items.length > 0);
 }
 
@@ -109,10 +145,10 @@ export function issueOfflineLease(actor: JWTPayload, token: string, courseId: st
   return db.transaction(() => {
     const now = Date.now();
     const ttl = policy(courseId);
-    const {course, sessionHash, authExpiresAt, contentVersion} = currentCourse(actor, token, courseId, now);
+    const {course, sessionHash, contentVersion} = currentCourse(actor, token, courseId, now);
     const sections = offlineSections(course);
     if (sections.length === 0) {
-      throw new OfflineLearningError(409, 'OFFLINE_NO_CONTENT', 'This course has no offline text lessons with inline reading content.');
+      throw new OfflineLearningError(409, 'OFFLINE_NO_CONTENT', 'This course has no lessons that can be saved for offline use.');
     }
     const items = new Set(sections.flatMap(section => section.items.map(item => item.id)));
     const progress = query<ProgressRow>(
@@ -122,8 +158,8 @@ export function issueOfflineLease(actor: JWTPayload, token: string, courseId: st
     execute('DELETE FROM offline_progress_receipts WHERE retain_until <= ?', [now]);
     let lease = queryOne<LeaseRow>(
       `SELECT * FROM offline_learning_leases
-       WHERE user_id = ? AND course_id = ? AND session_hash = ? AND content_version = ?`,
-      [actor.userId, courseId, sessionHash, contentVersion],
+       WHERE user_id = ? AND course_id = ? AND content_version = ? ORDER BY issued_at DESC LIMIT 1`,
+      [actor.userId, courseId, contentVersion],
     );
     if (lease && lease.issued_at + ttl <= now) {
       execute('DELETE FROM offline_learning_leases WHERE id = ?', [lease.id]);
@@ -132,7 +168,7 @@ export function issueOfflineLease(actor: JWTPayload, token: string, courseId: st
     if (!lease) {
       lease = {
         id: randomUUID(), user_id: actor.userId, course_id: course.id, course_code: course.course_code,
-        session_hash: sessionHash, content_version: contentVersion, issued_at: now, expires_at: Math.min(now + ttl, authExpiresAt),
+        session_hash: sessionHash, content_version: contentVersion, issued_at: now, expires_at: now + ttl,
       };
       execute(`INSERT INTO offline_learning_leases
         (id,user_id,course_id,course_code,session_hash,content_version,issued_at,expires_at) VALUES (?,?,?,?,?,?,?,?)`,
@@ -143,7 +179,7 @@ export function issueOfflineLease(actor: JWTPayload, token: string, courseId: st
       contentVersion,
       issuedAt: lease.issued_at,
       serverTime: now,
-      expiresAt: Math.min(lease.expires_at, lease.issued_at + ttl, authExpiresAt),
+      expiresAt: Math.min(lease.expires_at, lease.issued_at + ttl),
       course: {id: course.id, title: course.title, sections},
       progress,
     };
@@ -171,13 +207,15 @@ function parseMutation(value: unknown): Mutation {
 
 function requireLease(actor: JWTPayload, token: string, courseId: string, leaseId: string, now: number) {
   const ttl = policy(courseId);
-  const {course, sessionHash, authExpiresAt, contentVersion} = currentCourse(actor, token, courseId, now);
+  // Every call still needs a live, unrevoked sign-in for this learner. The lease belongs to the learner rather
+  // than to one sign-in token, so progress saved offline survives the token expiring and the learner signing in again.
+  const {course, contentVersion} = currentCourse(actor, token, courseId, now);
   const lease = queryOne<LeaseRow>(
-    'SELECT * FROM offline_learning_leases WHERE id = ? AND user_id = ? AND course_id = ? AND session_hash = ?',
-    [leaseId, actor.userId, courseId, sessionHash],
+    'SELECT * FROM offline_learning_leases WHERE id = ? AND user_id = ? AND course_id = ?',
+    [leaseId, actor.userId, courseId],
   );
   if (!lease) throw new OfflineLearningError(403, 'OFFLINE_LEASE_INVALID', 'This offline lease is unavailable.');
-  const expiresAt = Math.min(lease.expires_at, lease.issued_at + ttl, authExpiresAt);
+  const expiresAt = Math.min(lease.expires_at, lease.issued_at + ttl);
   if (expiresAt <= now) throw new OfflineLearningError(409, 'OFFLINE_LEASE_EXPIRED', 'This offline lease expired.');
   if (lease.content_version !== contentVersion) {
     throw new OfflineLearningError(409, 'OFFLINE_CONTENT_CHANGED', 'The course changed. Refresh its offline content.');

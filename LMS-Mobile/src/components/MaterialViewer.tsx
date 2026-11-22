@@ -12,6 +12,8 @@ import { LessonAudio, LessonVideo } from './LessonMedia';
 import { LessonYouTube } from './LessonYouTube';
 import { LessonReading, isHtmlContent } from './LessonReading';
 import { createPlayTracker, lessonContentService, type PlaySource } from '@/services/lessonContentService';
+import { offlineMedia } from '@/services/offlineMedia';
+import { supportsOfflineLearning } from '@/services/offlineLearningNative';
 import { LessonQuiz } from './LessonQuiz';
 import { LessonAssignment } from './LessonAssignment';
 import { Button } from './ui/Button';
@@ -40,6 +42,19 @@ function ServerReading({ courseId, itemId, url }: { courseId: string; itemId: st
   if (state === 'loading') return <Text>Loading reading…</Text>;
   if (state === 'fallback') return <ResourcePreview url={toReadableResourceUrl(url)} />;
   return <LessonReading content={state.html} />;
+}
+
+/** The copy of this lesson saved in Offline mode, if any. */
+function useSavedCopy(courseId: string, item: CourseItem) {
+  const [uri, setUri] = useState<string | null>(null);
+  const media = item.type === 'video' || item.type === 'audio';
+  useEffect(() => {
+    if (!supportsOfflineLearning || !media) return;
+    let active = true;
+    void offlineMedia.localUri(courseId, item.id).then(value => { if (active) setUri(value); }, () => undefined);
+    return () => { active = false; };
+  }, [courseId, item.id, media]);
+  return uri;
 }
 
 function AuthenticatedPdfViewer({ documentId }: { documentId: string }) {
@@ -84,7 +99,11 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
   const videoYoutube = item.type === 'video' && !isDirectVideoFileUrl(item.url) ? extractYoutubeId(item.url) : null;
   const audioYoutube = item.type === 'audio' ? extractYoutubeId(item.youtubeUrl || item.url || '') : null;
   const youtubeId = videoYoutube || audioYoutube;
-  const playSource: PlaySource = youtubeId ? 'youtube_embed' : 'direct_file';
+  // YouTube is the player whenever the phone is online. A copy saved in Offline mode is a fallback the learner
+  // chooses (for example on a weak connection) and is counted as an offline play.
+  const savedCopy = useSavedCopy(courseId, item);
+  const [useSaved, setUseSaved] = useState(false);
+  const playSource: PlaySource = useSaved && savedCopy ? 'offline_file' : youtubeId ? 'youtube_embed' : 'direct_file';
   const tracker = useMemo(() => createPlayTracker(courseId, item.id, playSource), [courseId, item.id, playSource]);
   const mediaProps = {
     initialPosition: progress?.lastPositionS ?? 0,
@@ -102,11 +121,21 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     <View className="flex-1"><Button label="Save in YouTube app" variant="outline" size="sm" onPress={openOnYouTube} /></View>
   </View> : null;
 
-  if (item.type === 'video') {
+  const savedCopyToggle = savedCopy ? <Button label={useSaved ? 'Back to YouTube' : 'Play the copy saved on this phone'}
+    variant="ghost" size="sm" onPress={() => setUseSaved(value => !value)} /> : null;
+
+  if (item.type === 'video' && useSaved && savedCopy) {
+    available = true;
+    content = <View className="gap-3"><LessonVideo url={savedCopy} {...mediaProps} />{savedCopyToggle}</View>;
+  } else if (item.type === 'audio' && useSaved && savedCopy) {
+    available = true;
+    content = <View className="gap-3"><LessonAudio url={savedCopy} {...mediaProps} />{savedCopyToggle}</View>;
+  } else if (item.type === 'video') {
     available = isWebResource(item.url);
     if (available) content = <View className="gap-3">
       {isDirectVideoFileUrl(item.url) ? <LessonVideo url={item.url} {...mediaProps} /> : extractYoutubeId(item.url) ? <LessonYouTube url={item.url} {...mediaProps} /> : <ResourcePreview url={getIframeVideoEmbedSrc(item.url)} />}
       {youtubeActions ?? <Button label="Open video" variant="outline" onPress={() => open(item.url)} />}
+      {savedCopyToggle}
       {isWebResource(item.downloadUrl) ? <Button label="Download video" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;
   } else if (item.type === 'audio') {
@@ -118,6 +147,7 @@ export function MaterialViewer({ section, item, courseId, weekId, progress, onCl
     if (available) content = <View className="gap-3">
       {isWebResource(embedded) ? <LessonYouTube url={embedded} {...mediaProps} /> : direct ? <LessonAudio url={direct} {...mediaProps} /> : null}
       {isWebResource(embedded) ? youtubeActions ?? <Button label="Open listening video" variant="outline" onPress={() => open(embedded)} /> : null}
+      {savedCopyToggle}
       {direct ? <Button label="Open audio" variant="outline" onPress={() => open(direct)} /> : null}
       {isWebResource(item.downloadUrl) ? <Button label="Download audio" variant="outline" onPress={() => open(item.downloadUrl!)} /> : null}
     </View>;

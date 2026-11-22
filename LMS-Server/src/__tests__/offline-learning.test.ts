@@ -14,6 +14,10 @@ function fixture(textOnly = false) {
     {id: 'lesson-text', title: 'Text lesson', type: 'text', information: 'Read this offline.', url: 'https://private.invalid/content'},
     ...(textOnly ? [] : [
       {id: 'lesson-audio', title: 'Streaming lesson', type: 'audio', url: 'https://private.invalid/audio'},
+      {id: 'lesson-video', title: 'Video lesson', type: 'video', url: 'https://www.youtube.com/watch?v=SyK8hJVq3_Q',
+        downloadUrl: 'https://raw.githubusercontent.com/org/repo/abc/video.mp4'},
+      {id: 'lesson-listen', title: 'Listening lesson', type: 'audio', youtubeUrl: 'WIDvvPM3DfE', url: 'https://cdn.example/a.mp3'},
+      {id: 'lesson-insecure', title: 'Insecure file', type: 'video', url: 'http://cdn.example/v.mp4'},
       {id: 'lesson-quiz', title: 'Online quiz', type: 'quiz', quizId: 'private-quiz'},
       {id: 'lesson-assignment', title: 'Assignment', type: 'assignment'},
       {id: 'lesson-url-only', title: 'External reading', type: 'text', url: 'https://private.invalid/reading'},
@@ -54,7 +58,7 @@ const complete = (lease: {leaseId: string; contentVersion: string}, itemId = 'le
 });
 
 describe('offline learning API', () => {
-  it('requires an enabled policy, issues a text-only package, and bounds it to the active session', async () => {
+  it('requires an enabled policy and issues text plus downloadable media for a lease of its own length', async () => {
     const f = fixture();
     const a = f.learner();
     vi.stubEnv('OFFLINE_LEARNING_ENABLED', 'false');
@@ -69,9 +73,13 @@ describe('offline learning API', () => {
     const {course, leaseId, expiresAt, serverTime, contentVersion} = result.body.data;
     expect(course.sections[0].items).toEqual([
       {id: 'lesson-text', type: 'text', title: 'Text lesson', information: 'Read this offline.'},
+      {id: 'lesson-video', type: 'video', title: 'Video lesson', youtubeId: 'SyK8hJVq3_Q',
+        fileUrl: 'https://raw.githubusercontent.com/org/repo/abc/video.mp4'},
+      {id: 'lesson-listen', type: 'audio', title: 'Listening lesson', youtubeId: 'WIDvvPM3DfE', fileUrl: 'https://cdn.example/a.mp3'},
     ]);
     expect(contentVersion).toMatch(/^[a-f0-9]{64}$/);
-    expect(expiresAt).toBe(a.sessionExpiry);
+    // The lease follows the policy (30 minutes here), not the sign-in token, which expires after 10 minutes.
+    expect(expiresAt).toBe(serverTime + 1_800_000);
     expect(expiresAt).toBeGreaterThan(serverTime);
     expect((await f.lease(a.token)).body.data.leaseId).toBe(leaseId);
     const status = await f.inspect(a.token, leaseId);
@@ -93,19 +101,32 @@ describe('offline learning API', () => {
     expect(db.prepare('SELECT count(*) AS count FROM lesson_completions').get()).toEqual({count: 0});
   });
 
-  it('reports the shortened active session expiry when rechecking an existing lease', async () => {
+  it('keeps the lease when the learner signs in again with a new token, but never for another account', async () => {
     const f = fixture();
     const a = f.learner();
     const lease = (await f.lease(a.token)).body.data;
-    const shorterExpiry = a.sessionExpiry - 300_000;
-    db.prepare('UPDATE active_sessions SET expires_at = ? WHERE token_hash = ?')
-      .run(new Date(shorterExpiry).toISOString(), hashToken(a.token));
-
-    const status = await f.inspect(a.token, lease.leaseId);
+    // The first token is revoked (it expired or the learner signed in again); a new sign-in for the same learner
+    // can still check the lease and sync what was saved offline.
+    db.prepare("UPDATE active_sessions SET revoked_at = datetime('now') WHERE token_hash = ?").run(hashToken(a.token));
+    expect((await f.inspect(a.token, lease.leaseId)).status).toBe(401);
+    const again = makeToken({userId: a.id, email: a.id + '@test.invalid', role: 'student'});
+    const status = await f.inspect(again, lease.leaseId);
     expect(status.status).toBe(200);
-    expect(status.body.data).toMatchObject({leaseId: lease.leaseId, expiresAt: shorterExpiry});
-    const savedAgain = await f.lease(a.token);
-    expect(savedAgain.body.data).toMatchObject({leaseId: lease.leaseId, expiresAt: shorterExpiry});
+    expect(status.body.data).toMatchObject({leaseId: lease.leaseId, expiresAt: lease.expiresAt});
+    expect((await f.lease(again)).body.data.leaseId).toBe(lease.leaseId);
+    expect((await f.sync(again, complete(lease, 'lesson-video'))).status).toBe(200);
+    const b = f.learner();
+    expect((await f.inspect(b.token, lease.leaseId)).body.error.code).toBe('OFFLINE_LEASE_INVALID');
+  });
+
+  it('accepts a 14-day policy and refuses anything longer', async () => {
+    const f = fixture();
+    const a = f.learner();
+    vi.stubEnv('OFFLINE_LEARNING_TTL_SECONDS', String(14 * 86_400));
+    const lease = (await f.lease(a.token)).body.data;
+    expect(lease.expiresAt - lease.serverTime).toBe(14 * 86_400_000);
+    vi.stubEnv('OFFLINE_LEARNING_TTL_SECONDS', String(14 * 86_400 + 1));
+    expect((await f.lease(a.token)).body.error.code).toBe('OFFLINE_UNAVAILABLE');
   });
 
   it('invalidates expired, revised and revoked leases, even if enrollment is restored', async () => {
@@ -174,7 +195,7 @@ describe('offline learning API', () => {
     expect((await f.sync(a.token, first)).status).toBe(200);
     expect((await f.sync(a.token, {...first, positionSeconds: 80})).body.error.code).toBe('OFFLINE_OPERATION_CONFLICT');
     expect((await f.sync(a.token, {...first, contentVersion: 'a'.repeat(64)})).body.error.code).toBe('OFFLINE_CONTENT_CHANGED');
-    for (const item of ['lesson-audio', 'lesson-quiz', 'lesson-assignment', 'lesson-url-only']) {
+    for (const item of ['lesson-audio', 'lesson-insecure', 'lesson-quiz', 'lesson-assignment', 'lesson-url-only']) {
       expect((await f.sync(a.token, complete(lease, item))).body.error.code).toBe('OFFLINE_ITEM_NOT_APPROVED');
     }
     expect(db.prepare('SELECT count(*) AS count FROM offline_progress_receipts').get()).toEqual({count: 2});
