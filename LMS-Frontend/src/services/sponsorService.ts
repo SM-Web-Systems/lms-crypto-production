@@ -55,6 +55,8 @@ export interface SponsorBilling {
     paymentMethod: string;
     status: string;
     createdAt: string;
+    cohortName?: string;
+    declineReason?: string;
   }>;
   total: number;
 }
@@ -96,6 +98,8 @@ interface BillingRaw {
     payment_method: string;
     status: string;
     created_at: string;
+    cohort_name?: string | null;
+    decline_reason?: string | null;
   }>;
   total: number;
 }
@@ -187,6 +191,8 @@ export const sponsorService = {
         paymentMethod: p.payment_method,
         status: p.status,
         createdAt: p.created_at,
+        cohortName: p.cohort_name ?? undefined,
+        declineReason: p.decline_reason ?? undefined,
       })),
       total: raw.total,
     };

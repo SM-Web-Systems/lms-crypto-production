@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import TextInputModal from '../components/TextInputModal';
+import { CohortPaymentRequests } from '../components/CohortPaymentRequests';
 import { adminCertificateService } from '../services/adminCertificateService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { NftApplication, NftApplicationStatus, CourseProgress, IssuedCredential } from '../types/api';
@@ -997,6 +998,9 @@ const AdminCertificates: React.FC = () => {
           Manage certificate applications and view all issued certificates.
         </p>
       </div>
+
+      {/* Sponsor cohort payments waiting for an administrator (billing.confirm only). */}
+      <CohortPaymentRequests />
 
       {/* Top-level tabs */}
       <div className="flex gap-1 rounded-xl bg-neutral-100 p-1 w-fit">

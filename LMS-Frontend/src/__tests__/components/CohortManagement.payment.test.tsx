@@ -52,8 +52,8 @@ describe('Create Payment (UX-001)', () => {
     const result = await screen.findByText(/Payment created/);
     expect(result).toHaveTextContent('50.00 EUR (pending)');
     expect(result.textContent).not.toContain('$');
-    // UX-019: no online payment exists for cohorts, so say what happens next instead of leaving the sponsor stuck.
-    expect(screen.getByText(/An administrator arranges payment with you/)).toBeInTheDocument();
+    // The payment is a request an administrator approves; say so, and where to follow it.
+    expect(screen.getByText(/An administrator reviews the request/)).toBeInTheDocument();
     expect(screen.getByText(/Billing/)).toBeInTheDocument();
   });
 
