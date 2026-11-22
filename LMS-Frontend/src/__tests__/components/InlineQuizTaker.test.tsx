@@ -1,4 +1,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+vi.mock('../../services/rewardService', () => ({ rewardService: { getMyRewards: vi.fn().mockResolvedValue([]) } }));
+vi.mock('../../hooks/useXlmUsdcPrice', () => ({ useXlmUsdcPrice: () => null }));
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -46,7 +49,7 @@ describe('InlineQuizTaker', () => {
     const quiz = makeQuiz();
     mockGetById.mockResolvedValue(quiz);
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     expect(screen.getByText('Loading quiz...')).toBeInTheDocument();
 
     await waitFor(() => {
@@ -65,7 +68,7 @@ describe('InlineQuizTaker', () => {
       answers: {}, completedAt: new Date().toISOString(),
     });
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('80%')).toBeInTheDocument();
       expect(screen.getByText('Passed')).toBeInTheDocument();
@@ -77,7 +80,7 @@ describe('InlineQuizTaker', () => {
   it('displays intro screen with description and Begin button', async () => {
     mockGetById.mockResolvedValue(makeQuiz({ description: 'Learn the fundamentals' }));
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('Learn the fundamentals')).toBeInTheDocument();
       expect(screen.getByText('Begin')).toBeInTheDocument();
@@ -88,7 +91,7 @@ describe('InlineQuizTaker', () => {
   it('shows error state when quiz not found', async () => {
     mockGetById.mockResolvedValue(null);
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('Quiz not found.')).toBeInTheDocument();
       expect(screen.getByText('Try again')).toBeInTheDocument();
@@ -100,7 +103,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(makeQuiz());
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
 
     await user.click(screen.getByText('Begin'));
@@ -133,7 +136,7 @@ describe('InlineQuizTaker', () => {
     });
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
 
     await user.click(screen.getByText('Begin'));
@@ -166,7 +169,7 @@ describe('InlineQuizTaker', () => {
     });
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
     await user.click(screen.getByText('Begin'));
     await user.click(screen.getByLabelText('X'));
@@ -195,7 +198,7 @@ describe('InlineQuizTaker', () => {
     });
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
     await user.click(screen.getByText('Begin'));
     await user.click(screen.getByLabelText('A'));
@@ -218,7 +221,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(quiz);
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
     await user.click(screen.getByText('Begin'));
     await user.click(screen.getByLabelText('A'));
@@ -239,7 +242,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(makeQuiz());
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
     await user.click(screen.getByText('Begin'));
 
@@ -256,7 +259,7 @@ describe('InlineQuizTaker', () => {
     mockGetById.mockResolvedValue(makeQuiz());
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Begin')).toBeInTheDocument());
     await user.click(screen.getByText('Begin'));
 
@@ -282,7 +285,7 @@ describe('InlineQuizTaker', () => {
     });
 
     const user = userEvent.setup();
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Passed')).toBeInTheDocument());
 
     // Click review
@@ -311,7 +314,7 @@ describe('InlineQuizTaker', () => {
     });
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await user.click(await screen.findByText('Begin'));
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
@@ -333,7 +336,7 @@ describe('InlineQuizTaker', () => {
     }));
     const user = userEvent.setup();
 
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await user.click(await screen.findByText('Begin'));
     await user.click(screen.getByLabelText('A'));
     await user.click(screen.getByText('Next'));
@@ -348,7 +351,7 @@ describe('InlineQuizTaker', () => {
       questions: [{ id: 'q1', type: 'flashcard', question: 'Consensus means?', options: ['Agreement', 'Mining'], order: 1 }],
     }));
     const user = userEvent.setup();
-    render(<InlineQuizTaker quizId="quiz-1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="quiz-1" /></MemoryRouter>);
     await user.click(await screen.findByText('Begin'));
 
     fireEvent.keyDown(window, { key: '2' });

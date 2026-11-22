@@ -1,4 +1,7 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+vi.mock('../../services/rewardService', () => ({ rewardService: { getMyRewards: vi.fn().mockResolvedValue([]) } }));
+vi.mock('../../hooks/useXlmUsdcPrice', () => ({ useXlmUsdcPrice: () => null }));
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../context/useAuth', () => ({ useAuth: () => ({ user: { id: 'learner-b' } }) }));
@@ -21,7 +24,7 @@ import InlineQuizTaker from '../../components/InlineQuizTaker';
 
 describe('InlineQuizTaker result', () => {
   it('shows 100% (not 10000%) and 1 of 1 correct for a one-question pass', async () => {
-    render(<InlineQuizTaker quizId="q1" />);
+    render(<MemoryRouter><InlineQuizTaker quizId="q1" /></MemoryRouter>);
     expect(await screen.findByText('100%')).toBeInTheDocument();
     expect(screen.queryByText('10000%')).not.toBeInTheDocument();
     expect(screen.getByText('1 of 1 correct')).toBeInTheDocument();
