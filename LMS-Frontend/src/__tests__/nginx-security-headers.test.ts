@@ -45,3 +45,16 @@ describe('nginx.docker.conf security headers', () => {
     expect(own).toEqual(expect.arrayContaining(['Content-Security-Policy-Report-Only', 'Permissions-Policy']));
   });
 });
+
+describe('nginx.docker.conf caching after a deploy', () => {
+  const body = (name: string) => locations.find(l => l.name === name)?.body ?? '';
+  it('makes browsers revalidate index.html so a deploy reaches them on the next load', () => {
+    expect(body('= /index.html')).toMatch(/expires\s+-1;/);
+    // SPA routes fall back to /index.html, which then matches the exact location above.
+    expect(body('/')).toMatch(/try_files\s+\$uri\s+\$uri\/\s+\/index\.html;/);
+  });
+  it('caches hashed bundles long-term and never answers a missing one with index.html', () => {
+    expect(body('/assets/')).toMatch(/expires\s+1y;/);
+    expect(body('/assets/')).toMatch(/try_files\s+\$uri\s+=404;/);
+  });
+});
