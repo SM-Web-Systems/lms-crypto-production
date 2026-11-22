@@ -255,9 +255,9 @@ export function ssoWalletConfig(): { network: 'mainnet' | 'testnet'; issuer: str
       validIssuer = parsed.protocol === 'https:' && parsed.origin === issuer && !parsed.username && !parsed.password && issuer === base;
     } catch { validIssuer = false; }
   }
-  if (!validIssuer
-    || (network === 'testnet' && !issuer)
-    || (process.env.NODE_ENV === 'production' && !issuer && base !== 'https://ammawallet.com')) {
+  // Opt-in only: with AMMA_SSO_WALLET_NETWORK and AMMA_SSO_ISSUER unset this is the existing mainnet
+  // behaviour (unscoped bindings), whatever AMMA_WALLET_URL is. Testnet always needs its exact issuer.
+  if (!validIssuer || (network === 'testnet' && !issuer)) {
     throw new Error('SSO requires the configured HTTPS Wallet issuer');
   }
   return {network, issuer};

@@ -93,6 +93,16 @@ describe('Amma identity and explicit linking policy', () => {
     vi.mocked(sso.verifyAssertion).mockResolvedValue({...identity, mainnetWalletAddress: null});
     expectError(await callback(), 'verify_failed');
   });
+  it('leaves the default mainnet SSO unchanged when nothing new is configured, whatever the Wallet URL', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AMMA_SSO_WALLET_NETWORK', '');
+    vi.stubEnv('AMMA_SSO_ISSUER', '');
+    for (const url of ['https://ammawallet.com', 'https://ammawallet.com/', 'https://staging-wallet.example.invalid']) {
+      vi.stubEnv('AMMA_WALLET_URL', url);
+      expect(sso.ssoWalletConfig()).toEqual({network: 'mainnet', issuer: null});
+      expect(sso.parseSsoIdentity({...identity})).toMatchObject({userId: identity.userId});
+    }
+  });
   it('refuses testnet SSO without a matching HTTPS issuer', () => {
     vi.stubEnv('AMMA_SSO_WALLET_NETWORK', 'testnet');
     vi.stubEnv('AMMA_WALLET_URL', 'https://wallet-test.example.invalid');
