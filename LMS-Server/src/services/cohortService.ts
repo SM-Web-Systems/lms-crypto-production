@@ -393,6 +393,13 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
       continue;
     }
 
+    // Same gate as a learner's own apply: only members who meet the certificate requirements get an
+    // application (a 0% learner was applied and their checklist said "Apply for your certificate: Done").
+    if (!getCourseProgress(member.user_id, cohort.course_id).meetsAllRequirements) {
+      skipped.push({ userId: member.user_id, reason: 'requirements_not_met' });
+      continue;
+    }
+
     // Create application
     const walletAddress = cohort.selected_tier === 'paid'
       ? (queryOne<{ walletAddress: string }>('SELECT walletAddress FROM users WHERE id = ?', [member.user_id])?.walletAddress ?? '')
@@ -458,6 +465,11 @@ function priceBulkPay(cohortId: string): { cohort: SponsorCohort; quote: BulkPay
   const pricing = getCoursePricing(cohort.course_id);
   const priceCents = pricing?.price_cents ?? 0;
   const currency = pricing?.currency ?? 'USD';
+  // A paid cohort for a course with no certificate price quoted "0.00 USD". Ask for the price instead.
+  if (priceCents <= 0) {
+    throw Object.assign(new Error('This course has no verified-certificate price set, so there is nothing to request yet. Ask an administrator to set the course price first.'),
+      { code: 'VALIDATION_ERROR' });
+  }
   return { cohort, quote: { amountCents: priceCents * appliedCount, currency, memberCount: appliedCount } };
 }
 

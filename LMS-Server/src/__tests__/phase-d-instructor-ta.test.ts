@@ -208,6 +208,22 @@ describe('D2: TA Assignment System', () => {
     expect(assignment).not.toBeNull();
   });
 
+  it('D2-TA-1b: assigns by email and refuses an account without the TA role', async () => {
+    const byEmail = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${instructor.token}`).send({ email: ta.email.toUpperCase() });
+    expect(byEmail.status).toBe(201);
+    expect(byEmail.body.data.userId).toBe(ta.userId);
+
+    const learner = createUserWithRole('role_student', 'student');
+    const notTa = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${instructor.token}`).send({ email: learner.email });
+    expect(notTa.status).toBe(422);
+
+    const unknown = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${instructor.token}`).send({ email: 'nobody@example.invalid' });
+    expect(unknown.status).toBe(404);
+  });
+
   it('D2-TA-2: TA can view assigned course submissions', async () => {
     execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, ta.userId, instructor.userId]);
 
@@ -287,6 +303,14 @@ describe('D3: TA Grading (Decision #4: Always Explicit)', () => {
       "INSERT INTO submissions (id, student_id, title, description, file_name, file_size, file_path, course_id, status) VALUES (?, ?, 'My Assignment', 'desc', 'file.pdf', 1024, '/tmp/file.pdf', ?, 'pending')",
       [submissionId, studentRecordId, courseId],
     );
+  });
+
+  it('D3-COUNTS: the course list carries pending and awaiting-approval counts for the dashboard totals', async () => {
+    const before = await request(app).get('/api/v1/ta/courses').set('Authorization', `Bearer ${ta.token}`);
+    expect(before.body.data.courses[0]).toMatchObject({ pending_count: 1, awaiting_approval_count: 0 });
+    await request(app).post(`/api/v1/ta/submissions/${submissionId}/grade`).set('Authorization', `Bearer ${ta.token}`).send({ status: 'approved' });
+    const after = await request(app).get('/api/v1/ta/courses').set('Authorization', `Bearer ${ta.token}`);
+    expect(after.body.data.courses[0]).toMatchObject({ pending_count: 1, awaiting_approval_count: 1 });
   });
 
   it('D3-GRADE-1: TA grade sets grade_status=pending_approval, submission status unchanged', async () => {

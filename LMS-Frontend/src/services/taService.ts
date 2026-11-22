@@ -9,6 +9,9 @@ export interface TACourse {
   title: string;
   course_code: string;
   assigned_at: string;
+  /** Absent from older servers. */
+  pending_count?: number;
+  awaiting_approval_count?: number;
 }
 
 export interface TASubmission {
@@ -30,7 +33,30 @@ export interface GradeResult {
   gradeStatus: string;
 }
 
+export interface CourseTA {
+  user_id: string;
+  name: string;
+  email: string;
+  assigned_at: string;
+}
+
 export const taService = {
+  /** GET /courses/:id/tas — teaching assistants of a course (course managers) */
+  async listCourseTAs(courseId: string): Promise<CourseTA[]> {
+    const res = await api.get<{ success: boolean; data: { tas: CourseTA[] } }>(`/courses/${courseId}/tas`);
+    return res.data.data.tas;
+  },
+
+  /** POST /courses/:id/tas — assign a teaching assistant by email */
+  async assignCourseTA(courseId: string, email: string): Promise<void> {
+    await api.post(`/courses/${courseId}/tas`, { email });
+  },
+
+  /** DELETE /courses/:id/tas/:userId — remove a teaching assistant */
+  async removeCourseTA(courseId: string, userId: string): Promise<void> {
+    await api.delete(`/courses/${courseId}/tas/${encodeURIComponent(userId)}`);
+  },
+
   /** GET /ta/courses — list courses where the user is assigned TA */
   async getCourses(): Promise<TACourse[]> {
     const res = await api.get<{ success: boolean; data: { courses: TACourse[] } }>('/ta/courses');

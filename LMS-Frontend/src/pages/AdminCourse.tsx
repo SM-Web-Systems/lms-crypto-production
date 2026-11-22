@@ -30,6 +30,7 @@ import { AdminCoursePreview } from '../components/AdminCoursePreview';
 import { quizService } from '../services/quizService';
 import type { Quiz } from '../types/quiz';
 import { courseCompletionService, type CourseRequirements } from '../services/courseCompletionService';
+import CourseTAPanel from '../components/CourseTAPanel';
 import { toastSuccess } from '../utils/toastBus';
 import BulkUploadModal from '../components/BulkUploadModal';
 import ImportWizard from '../components/ImportWizard';
@@ -1337,6 +1338,8 @@ const AdminCourse: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {editingId && <CourseTAPanel courseId={editingId} />}
 
               {/* Certificate Requirements — only shown when editing an existing course */}
               {editingId && (

@@ -348,6 +348,12 @@ export const rewardService = {
     return res.data.data.maxClaimStroops ?? null;
   },
 
+  /** Student: when their new wallet's cooling-off period ends (ISO time), or null when they can claim to it now. */
+  async getWalletReadyAt(): Promise<string | null> {
+    const res = await api.get<ApiRes<{ walletReadyAt?: string | null }>>('/students/me/reward-claims/balance');
+    return res.data.data.walletReadyAt ?? null;
+  },
+
   /** Student: start a claim; returns the one-time challenge their wallet must sign. */
   async startClaim(amountStroops: string): Promise<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }> {
     const res = await api.post<ApiRes<{ claimId: string; destination: string; amountStroops: number; expiresAt: string; message: string }>>(

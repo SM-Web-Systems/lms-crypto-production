@@ -29,8 +29,11 @@ function canDecideTaGrade(userId: string, submissionId: string, courseId: string
 router.get('/ta/courses', authenticate, requirePermission('course.grade_pending'), (req, res: Response) => {
   const userId = (req as AuthRequest).user!.userId;
 
-  const courses = query<{ id: string; title: string; course_code: string; assigned_at: string }>(
-    `SELECT c.id, c.title, c.course_code, ct.assigned_at
+  // Per-course counts so the dashboard totals are right before a course is opened.
+  const courses = query<{ id: string; title: string; course_code: string; assigned_at: string; pending_count: number; awaiting_approval_count: number }>(
+    `SELECT c.id, c.title, c.course_code, ct.assigned_at,
+       (SELECT COUNT(*) FROM submissions s WHERE s.course_id = c.id AND s.status = 'pending') AS pending_count,
+       (SELECT COUNT(*) FROM submissions s WHERE s.course_id = c.id AND (${SENT_BACK_SQL}) = 'pending_approval') AS awaiting_approval_count
      FROM courses c
      JOIN course_tas ct ON ct.course_id = c.id
      WHERE ct.user_id = ?

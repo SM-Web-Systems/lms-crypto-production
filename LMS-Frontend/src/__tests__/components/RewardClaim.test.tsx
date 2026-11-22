@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const svc = vi.hoisted(() => ({
-  getMyRewards: vi.fn(), getClaimableBalance: vi.fn(), startClaim: vi.fn(), verifyClaim: vi.fn(), listMyClaims: vi.fn(), retryPayout: vi.fn(), getMaxClaimStroops: vi.fn(),
+  getMyRewards: vi.fn(), getClaimableBalance: vi.fn(), startClaim: vi.fn(), verifyClaim: vi.fn(), listMyClaims: vi.fn(), retryPayout: vi.fn(), getMaxClaimStroops: vi.fn(), getWalletReadyAt: vi.fn(),
 }));
 vi.mock('../../services/rewardService', () => ({ rewardService: svc }));
 
@@ -44,6 +44,34 @@ describe('claiming rewards to the wallet', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Claim 0\.1.* to my wallet/ }));
     await waitFor(() => expect(svc.startClaim).toHaveBeenCalledWith('1000000'));
     expect(screen.getByTestId('claim-limit-note').textContent).toMatch(/at most 0\.1.*Claim again for the rest/);
+  });
+
+  it('holds the claim button while a new wallet cools off and shows the end in local time', async () => {
+    const readyAt = new Date(Date.now() + 23 * 3_600_000).toISOString();
+    svc.getClaimableBalance.mockResolvedValue('1000000');
+    svc.getWalletReadyAt.mockResolvedValue(readyAt);
+    render(<StudentRewardsPanel />);
+    const button = await screen.findByRole('button', { name: /Claim to my wallet/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    const note = screen.getByTestId('wallet-cooling-off-note').textContent ?? '';
+    expect(note).toContain(new Date(readyAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+    expect(note).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(svc.startClaim).not.toHaveBeenCalled();
+  });
+
+  it('after the first try starts the cooling-off period, holds the button instead of showing the raw time', async () => {
+    const { ApiRequestError } = await import('../../utils/apiError');
+    const readyAt = new Date(Date.now() + 24 * 3_600_000).toISOString();
+    svc.getClaimableBalance.mockResolvedValue('1000000');
+    svc.getWalletReadyAt.mockResolvedValueOnce(null).mockResolvedValue(readyAt);
+    svc.startClaim.mockRejectedValue(new ApiRequestError({ message: 'For your security, a new wallet can claim rewards after 23 Nov 2026, 19:39 UTC.', status: 409, code: 'WALLET_COOLING_OFF' }));
+    render(<StudentRewardsPanel />);
+    const button = await screen.findByRole('button', { name: /Claim to my wallet/ });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(screen.getByTestId('wallet-cooling-off-note')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('tells the learner what is needed to restore their wallet on another device', async () => {
