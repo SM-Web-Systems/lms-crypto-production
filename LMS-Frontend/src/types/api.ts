@@ -287,6 +287,8 @@ export interface CourseProgress {
   requiredQuizzes: QuizProgressItem[];
   allRequiredQuizzesPassed: boolean;
   hasApprovedSubmission: boolean;
+  /** Absent from older servers; treat as not required. */
+  submissionRequired?: boolean;
   meetsAllRequirements: boolean;
   canApplyForCertificate: boolean;
 }

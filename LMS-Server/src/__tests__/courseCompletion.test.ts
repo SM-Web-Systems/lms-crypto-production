@@ -127,6 +127,24 @@ describe('B3 — getCourseProgress()', () => {
     expect(progress.allRequiredQuizzesPassed).toBe(true);
   });
 
+  it('a course with no saved requirements needs every lesson and does not claim a submission', () => {
+    const { studentId, courseId } = seedBase();
+    db.prepare('UPDATE courses SET sections = ? WHERE id = ?').run(JSON.stringify([
+      { id: 's1', title: 'Section', items: [{ id: 'l1', type: 'lesson', title: 'One' }, { id: 'l2', type: 'lesson', title: 'Two' }] },
+    ]), courseId);
+    db.prepare("INSERT INTO lesson_completions (id,user_id,course_id,item_id,section_id,completed_at) VALUES (?,?,?,'l1','s1',datetime('now'))")
+      .run(uuidv4(), studentId, courseId);
+    const half = getCourseProgress(studentId, courseId);
+    expect(half.completedLessonItems).toBe(1);
+    expect(half.totalLessonItems).toBe(2);
+    expect(half.canApplyForCertificate).toBe(false);
+    expect(half.submissionRequired).toBe(false);
+    // An admin can still allow fewer lessons by saving "Require all lessons" off.
+    db.prepare("INSERT INTO course_completion_requirements (id, course_id, require_all_lessons, required_quiz_ids, min_quiz_score, require_submissions) VALUES (?, ?, 0, '[]', 70, 0)")
+      .run(uuidv4(), courseId);
+    expect(getCourseProgress(studentId, courseId).canApplyForCertificate).toBe(true);
+  });
+
   it('returns meetsAllRequirements=false for non-existent course', () => {
     const { studentId } = seedBase();
     const progress = getCourseProgress(studentId, 'non-existent-course-id');

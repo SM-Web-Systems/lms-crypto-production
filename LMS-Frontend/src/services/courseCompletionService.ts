@@ -14,14 +14,35 @@ export interface CourseRequirements {
   requireSubmissions: boolean;
 }
 
+/** The API returns the stored row (snake_case, quiz ids as JSON text). */
+interface RequirementsRow {
+  require_all_lessons?: number | boolean;
+  required_quiz_ids?: string | string[] | null;
+  min_quiz_score?: number | null;
+  require_submissions?: number | boolean;
+}
+
+export function requirementsFromRow(row: RequirementsRow): CourseRequirements {
+  let quizIds: unknown = row.required_quiz_ids ?? [];
+  if (typeof quizIds === 'string') {
+    try { quizIds = JSON.parse(quizIds); } catch { quizIds = []; }
+  }
+  return {
+    requireAllLessons: !!row.require_all_lessons,
+    requiredQuizIds: Array.isArray(quizIds) ? quizIds.filter((id): id is string => typeof id === 'string') : [],
+    minQuizScore: typeof row.min_quiz_score === 'number' ? row.min_quiz_score : 70,
+    requireSubmissions: !!row.require_submissions,
+  };
+}
+
 export const courseCompletionService = {
   /** GET /courses/:courseId/requirements — fetch cert requirements (admin) */
   async getRequirements(courseId: string): Promise<CourseRequirements | null> {
     try {
-      const res = await api.get<{ success: boolean; data: CourseRequirements | null }>(
+      const res = await api.get<{ success: boolean; data: RequirementsRow | null }>(
         `/courses/${courseId}/requirements`
       );
-      return res.data.data ?? null;
+      return res.data.data ? requirementsFromRow(res.data.data) : null;
     } catch {
       return null;
     }

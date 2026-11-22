@@ -207,9 +207,9 @@ const LecturerCourseStudents: React.FC = () => {
                           <span>
                             Submission:{' '}
                             <strong
-                              className={prog.hasApprovedSubmission ? 'text-emerald-700' : 'text-neutral-500'}
+                              className={prog.submissionRequired && prog.hasApprovedSubmission ? 'text-emerald-700' : 'text-neutral-500'}
                             >
-                              {prog.hasApprovedSubmission ? 'Approved' : 'N/A'}
+                              {!prog.submissionRequired ? 'Not required' : prog.hasApprovedSubmission ? 'Approved' : 'Not yet'}
                             </strong>
                           </span>
                         </div>

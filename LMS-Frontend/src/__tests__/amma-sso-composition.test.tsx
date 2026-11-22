@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
-import { AxiosHeaders } from 'axios';
+import { AxiosError, AxiosHeaders } from 'axios';
 import api from '../services/api';
 import { AuthProvider } from '../context/AuthContext';
 import { useAuth } from '../context/useAuth';
@@ -111,5 +111,30 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     await act(async()=>finish({status:200,statusText:'OK',headers:{},config:requestConfig,data:{success:true,data:walletUser}}));
     expect(screen.getByTestId('current-identity')).toHaveTextContent('Signed out');
     expect(localStorage.getItem('lms_session_marker')).toBeNull();
+  });
+  it('a background session check during a fresh wallet sign-in does not wipe it (first-try "Unable to verify")',async()=>{
+    window.history.replaceState({},'','/sso-callback#token=wallet-token');
+    const adapter=api.defaults.adapter as (config:any)=>Promise<any>;
+    let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+    let sessionPosts=0;
+    api.defaults.adapter=async(config)=>{
+      // The cookie only exists once POST /auth/session completes; until then /auth/me is a 401, as on the server.
+      if(config.url==='/auth/session'){sessionPosts++;await gate;}
+      if(config.url==='/auth/me'&&!cookieToken){
+        reads.push('cookie:null');
+        throw new AxiosError('Unauthorized','ERR_BAD_REQUEST',config,undefined,{status:401,statusText:'Unauthorized',headers:{},config,data:{success:false}} as any);
+      }
+      return adapter(config);
+    };
+    render(<MemoryRouter initialEntries={['/sso-callback']}><AuthProvider><Session/></AuthProvider></MemoryRouter>);
+    await waitFor(()=>expect(sessionPosts).toBe(1));
+    // The wallet tab regains focus while the session is being established.
+    await act(async()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();});
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+    release();
+    expect(await screen.findByText('Wallet dashboard')).toBeInTheDocument();
+    expect(screen.getByTestId('current-identity')).toHaveTextContent('wallet-user');
+    expect(screen.queryByText('Sign-in failed')).not.toBeInTheDocument();
+    expect(reads).not.toContain('cookie:null');
   });
 });

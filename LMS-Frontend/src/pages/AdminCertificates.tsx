@@ -533,9 +533,11 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             <div className="rounded-lg border border-neutral-200 bg-white p-3 text-center">
                               <p className="text-xs text-neutral-500 mb-1">Submission</p>
                               <p className="text-sm font-bold">
-                                {prog.hasApprovedSubmission
-                                  ? <span className="text-emerald-700">Approved</span>
-                                  : <span className="text-neutral-500">N/A</span>}
+                                {!prog.submissionRequired
+                                  ? <span className="text-neutral-500">Not required</span>
+                                  : prog.hasApprovedSubmission
+                                    ? <span className="text-emerald-700">Approved</span>
+                                    : <span className="text-amber-700">Not yet</span>}
                               </p>
                             </div>
                             <div className="rounded-lg border border-neutral-200 bg-white p-3 text-center">

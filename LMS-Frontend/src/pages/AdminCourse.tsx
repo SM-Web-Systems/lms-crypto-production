@@ -279,6 +279,14 @@ function writeAdminCourseStored(userId: string | undefined, data: AdminCourseSto
   }
 }
 
+/** Shown for a course with no saved requirements; matches the server default (every lesson). */
+const DEFAULT_CERT_REQUIREMENTS: CourseRequirements = {
+  requireAllLessons: true,
+  requiredQuizIds: [],
+  minQuizScore: 70,
+  requireSubmissions: false,
+};
+
 const AdminCourse: React.FC = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -326,12 +334,7 @@ const AdminCourse: React.FC = () => {
 
   // Certificate requirements state
   const [quizList, setQuizList] = useState<{ id: string; title: string }[]>([]);
-  const [reqDraft, setReqDraft] = useState<CourseRequirements>({
-    requireAllLessons: false,
-    requiredQuizIds: [],
-    minQuizScore: 70,
-    requireSubmissions: false,
-  });
+  const [reqDraft, setReqDraft] = useState<CourseRequirements>(DEFAULT_CERT_REQUIREMENTS);
   const [reqSaving, setReqSaving] = useState(false);
   const [reqError, setReqError] = useState('');
   const [reqScoreError, setReqScoreError] = useState('');
@@ -367,7 +370,7 @@ const AdminCourse: React.FC = () => {
     if (!editingId) return;
     quizService.getAll().then((qs) => setQuizList(qs.map((q) => ({ id: q.id, title: q.title })))).catch(() => setQuizList([]));
     courseCompletionService.getRequirements(editingId).then((r) => {
-      if (r) setReqDraft(r);
+      setReqDraft(r ?? DEFAULT_CERT_REQUIREMENTS);
     }).catch(() => {});
   }, [editingId]);
 
