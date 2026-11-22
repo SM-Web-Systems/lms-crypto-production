@@ -126,7 +126,9 @@ jobs:
       - name: Audit frontend including build tools
         # Same single, expiring exception as the backend audit.
         run: node ../scripts/audit-gate.mjs --level moderate --allow GHSA-fc5q-39xc-vjpf=2026-12-01
-      - run: npx tsc --noEmit
+      # Type check with TypeScript 7 (the native compiler). TypeScript 5 stays installed for typescript-eslint,
+      # which does not support 7 yet.
+      - run: npm run typecheck
       # Two known warnings remain (react-refresh in context/DataContext.tsx and components/StatusBadge.tsx's fmtSize,
       # both waiting on the submissions/students paging files). Lower to `npm run lint` (--max-warnings 0) once fixed.
       - name: Lint (no new warnings)
