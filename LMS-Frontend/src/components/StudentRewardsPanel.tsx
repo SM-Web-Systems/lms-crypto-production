@@ -43,10 +43,13 @@ export const StudentRewardsPanel: React.FC = () => {
     setLoading(true);
     setError('');
     setClaimsError('');
+    // A balance that failed to load is shown as failed, never as zero.
+    setClaimable('0');
     try {
       const [data, balance, myClaims, limit] = await Promise.all([
         rewardService.getMyRewards(),
-        Promise.resolve().then(() => rewardService.getClaimableBalance()).catch(() => '0'),
+        Promise.resolve().then(() => rewardService.getClaimableBalance())
+          .catch(() => { setError('Could not load your claimable balance. Refresh to try again.'); return '0'; }),
         Promise.resolve().then(() => rewardService.listMyClaims())
           .catch((err) => { setClaimsError(getErrorMessage(err, 'Could not load your payments.')); return [] as MyRewardClaim[]; }),
         Promise.resolve().then(() => rewardService.getMaxClaimStroops()).catch(() => null),
@@ -130,7 +133,7 @@ export const StudentRewardsPanel: React.FC = () => {
           </div>
         )}
         {error && (
-          <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 mb-4">
+          <div role="alert" className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 mb-4">
             <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" aria-hidden />
             <p className="text-sm">{error}</p>
           </div>

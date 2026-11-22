@@ -10,21 +10,26 @@ interface NftBadgesSectionProps {
 const NftBadgesSection: React.FC<NftBadgesSectionProps> = ({ walletAddress }) => {
   const [nftBadges, setNftBadges] = useState<NFTResponse | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const loadNfts = async () => {
+      setNftBadges(null);
+      setUnavailable(false);
       if (!walletAddress) {
-        setNftBadges(null);
-        setUnavailable(false);
+        setLoading(false);
         return;
       }
+      setLoading(true);
       try {
         const result = await getUserNfts();
         if (!cancelled) { setNftBadges(result.nfts); setUnavailable(result.unavailable); }
       } catch (error) {
         console.error('Failed to load NFT badges:', error);
         if (!cancelled) setUnavailable(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -41,7 +46,10 @@ const NftBadgesSection: React.FC<NftBadgesSectionProps> = ({ walletAddress }) =>
     <section>
       <h2 className="text-lg font-bold text-neutral-900 mb-4">Certificates in your wallet</h2>
       <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {nftTokens.length > 0 ? (
+        {loading ? (
+          // Never show "no certificates" before the wallet has answered.
+          <li className="col-span-full text-sm text-neutral-500">Loading certificates…</li>
+        ) : nftTokens.length > 0 ? (
           nftTokens.map((token) => (<li key={token.id}><NftCard token={token} /></li>))
         ) : (
           <li className="col-span-full rounded-xl border border-neutral-200/90 bg-gradient-to-br p-4 shadow-card ring-1 ring-neutral-900/[0.03] text-sm text-neutral-500">
