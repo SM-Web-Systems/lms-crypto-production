@@ -6,7 +6,7 @@ import { User, LoginResponse, ApiResponse } from '../types/api';
 import { resyncWebPush } from '../lib/webPush';
 import { forgetSsoReturn } from '../utils/ssoReturn';
 import { useGeneration } from '../hooks/useGeneration';
-import { AuthContext, LEGACY_TOKEN_KEY, getStoredToken, newMarker, setStoredToken, takeLegacyToken } from './authSession';
+import { AuthContext, LEGACY_TOKEN_KEY, clearSessionPending, getStoredToken, isSessionPending, markSessionPending, newMarker, setStoredToken, takeLegacyToken } from './authSession';
 
 // Registered here, not in authSession.ts, so modules that only read the marker do not need the API client.
 // api.ts tags each request with the session marker current when it was sent, so a late 401 from an
@@ -31,9 +31,9 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
   const generation=useRef(0), request=useGeneration(), mounted=useRef(true);
   // Counts wallet sign-ins in flight. The callback's effect runs before this provider's mount effect, and a
   // background check sent before POST /auth/session sets the cookie gets a 401 that would wipe the new sign-in.
-  const ssoPending=useRef(0);
+  const ssoPending=useRef(0), retryRefresh=useRef<()=>void>(()=>{});
   const invalidate=useCallback((token:string)=>{
-    if(!mounted.current || token!==getStoredToken())return;
+    if(!mounted.current || token!==getStoredToken() || isSessionPending(token))return;
     generation.current++;request.next();setStoredToken(null);setUser(null);setSessionError(null);setIsLoading(false);
   },[request]);
   const refresh=useCallback(async()=>{
@@ -52,6 +52,8 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     const started=generation.current, ticket=request.next(), token=getStoredToken();
     const current=()=>mounted.current && started===generation.current && request.isCurrent(ticket) && token===getStoredToken();
     if(!token){if(current()){setUser(null);setSessionError(null);setIsLoading(false);}return;}
+    // Another tab is finishing a wallet sign-in with this marker; check again once it has the cookie.
+    if(isSessionPending(token)){window.setTimeout(()=>{if(mounted.current)retryRefresh.current();},2000);return;}
     try{
       const response=await api.get<ApiResponse<User>>('/auth/me');
       if(!response.data.success || !response.data.data)throw new Error('Could not verify your saved session. Please retry.');
@@ -62,6 +64,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
       else setSessionError(getErrorMessage(error,'Could not reach the server. Your saved session is being kept.'));
     }finally{if(current())setIsLoading(false);}
   },[invalidate,request]);
+  useEffect(()=>{retryRefresh.current=()=>{void refresh();};},[refresh]);
   useEffect(()=>{
     mounted.current=true;
     const unsubscribe=onUnauthorized(invalidate);
@@ -88,7 +91,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     const marker=newMarker();
     setStoredToken(marker);setUser(null);setSessionError(null);setIsLoading(true);
     const current=()=>mounted.current && generation.current===started && getStoredToken()===marker;
-    ssoPending.current++;
+    ssoPending.current++;markSessionPending(marker);
     try{
       if(!await adoptToken(token))throw new ApiRequestError({message:'This session has expired or was revoked. Please sign in again.',status:401});
       if(!current())throw new Error('The active session changed. Please sign in again.');
@@ -98,12 +101,13 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
       setUser(currentSessionUser(response.data.data));setSessionError(null);
       return currentSessionUser(response.data.data);
     }catch(error){
+      clearSessionPending(marker);
       if(current()){
         if(error instanceof ApiRequestError && error.status===401)invalidate(marker);
         else setSessionError(getErrorMessage(error,'Could not reach the server. Your wallet session is being kept.'));
       }
       throw error;
-    }finally{ssoPending.current--;if(current())setIsLoading(false);}
+    }finally{ssoPending.current--;clearSessionPending(marker);if(current())setIsLoading(false);}
   },[invalidate,request]);
   const logout=useCallback(async()=>{
     forgetSsoReturn();

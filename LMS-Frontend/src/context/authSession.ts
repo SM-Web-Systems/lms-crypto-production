@@ -22,6 +22,24 @@ export function setStoredToken(marker: string | null): void {
     storageFallback=undefined;
   } catch { storageFallback=marker; }
 }
+// A wallet sign-in in progress, shared with the browser's other LMS tabs. Its marker is already stored, but
+// the cookie only exists once POST /auth/session completes, so a 401 for that marker in the meantime is not
+// a sign-out. Without this, another open tab's background check wiped the new sign-in ("Unable to verify").
+const PENDING_KEY = 'lms_session_pending';
+const PENDING_MS = 30_000;
+export function markSessionPending(marker: string): void {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify({ marker, at: Date.now() })); } catch { /* storage unavailable */ }
+}
+export function clearSessionPending(marker: string): void {
+  try { if (isSessionPending(marker)) localStorage.removeItem(PENDING_KEY); } catch { /* storage unavailable */ }
+}
+export function isSessionPending(marker: string | null): boolean {
+  if (!marker) return false;
+  try {
+    const value = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null') as { marker?: unknown; at?: unknown } | null;
+    return value?.marker === marker && typeof value.at === 'number' && Date.now() - value.at < PENDING_MS;
+  } catch { return false; }
+}
 export function takeLegacyToken(): string | null {
   try {
     const token = localStorage.getItem(LEGACY_TOKEN_KEY);

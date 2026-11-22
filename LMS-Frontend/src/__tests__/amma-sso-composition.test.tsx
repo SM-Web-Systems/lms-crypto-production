@@ -137,4 +137,23 @@ describe('real AuthProvider and AmmaWallet callback composition',()=>{
     expect(screen.queryByText('Sign-in failed')).not.toBeInTheDocument();
     expect(reads).not.toContain('cookie:null');
   });
+  it('another tab does not wipe a wallet sign-in that is still being established', async()=>{
+    // This tab was already open; the wallet sign-in is finishing in a second tab that shares localStorage.
+    const adapter=api.defaults.adapter as (config:any)=>Promise<any>;
+    api.defaults.adapter=async(config)=>{
+      if(config.url==='/auth/me'&&!cookieToken){
+        reads.push('cookie:null');
+        throw new AxiosError('Unauthorized','ERR_BAD_REQUEST',config,undefined,{status:401,statusText:'Unauthorized',headers:{},config,data:{success:false}} as any);
+      }
+      return adapter(config);
+    };
+    render(<MemoryRouter initialEntries={['/internal']}><AuthProvider><Session/></AuthProvider></MemoryRouter>);
+    await waitFor(()=>expect(screen.getByTestId('current-identity')).toHaveTextContent('Signed out'));
+    localStorage.setItem('lms_session_marker','other-tab-marker');
+    localStorage.setItem('lms_session_pending',JSON.stringify({marker:'other-tab-marker',at:Date.now()}));
+    reads.length=0;
+    await act(async()=>{window.dispatchEvent(new Event('focus'));await new Promise(resolve=>setTimeout(resolve,20));});
+    expect(reads).not.toContain('cookie:null');
+    expect(localStorage.getItem('lms_session_marker')).toBe('other-tab-marker');
+  });
 });
