@@ -119,9 +119,14 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
 
     // QR Code (buffer generated above, before Promise)
     doc.moveDown(1);
-    const qrX = (595.28 - 120) / 2; // Center on A4 page
-    doc.image(qrBuffer, qrX, doc.y, { width: 120, height: 120 });
-    doc.moveDown(8); // Move past QR image (~120px / ~15px per line)
+    const qrSize = 120;
+    const qrX = (595.28 - qrSize) / 2; // Center on A4 page
+    const qrY = doc.y;
+    doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
+    // Place the caption just below the image, back in the full-width column (the rows above
+    // left doc.x at the value column), so it and the footer never overlap the QR code.
+    doc.x = 50;
+    doc.y = qrY + qrSize + 6;
     doc.fontSize(7).fillColor('#999999')
       .text('Scan to verify', { align: 'center' });
 
