@@ -323,7 +323,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                             : `${prog.requiredQuizzes.filter((q) => q.passed).length}/${prog.requiredQuizzes.length}`}
                         </strong>
                       </span>
-                      {prog.hasApprovedSubmission && (
+                      {prog.submissionRequired && prog.hasApprovedSubmission && (
                         <span>
                           Submission: <strong className="text-emerald-700">Approved</strong>
                         </span>

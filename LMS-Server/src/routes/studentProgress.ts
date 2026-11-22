@@ -72,6 +72,7 @@ router.get('/students/me/progress', authenticate, (req: AuthRequest, res: Respon
       requiredQuizzes: progress.requiredQuizzes,
       allRequiredQuizzesPassed: progress.allRequiredQuizzesPassed,
       hasApprovedSubmission: progress.hasApprovedSubmission,
+      submissionRequired: progress.submissionRequired,
       meetsAllRequirements: progress.meetsAllRequirements,
       canApplyForCertificate: progress.canApplyForCertificate,
       certificateStatus: certStatus,

@@ -30,7 +30,7 @@ import {
 import WalletLinkingBanner from './WalletLinkingBanner';
 import NotificationBell from './NotificationBell';
 import GlobalSearchBar from './GlobalSearchBar';
-import { activeWorkspace, availableWorkspaces, canAccessPath, workspacePaths } from '../utils/authorization';
+import { activeWorkspace, availableWorkspaces, canAccessPath, rememberWorkspace, rememberedWorkspace, workspacePaths } from '../utils/authorization';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -40,7 +40,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const workspace = activeWorkspace(user, location.pathname);
+  // Shared pages (Profile, Messages) stay in the workspace the user came from, not the default one.
+  const workspace = activeWorkspace(user, location.pathname, rememberedWorkspace());
+  useEffect(() => { if (workspace) rememberWorkspace(workspace); }, [workspace]);
   const workspaces = availableWorkspaces(user);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);

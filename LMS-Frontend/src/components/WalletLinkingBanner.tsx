@@ -1,5 +1,6 @@
 import React from 'react';
 import { Wallet, ExternalLink, X } from 'lucide-react';
+import { AMMA_WALLET_URL } from '../utils/walletSignIn';
 
 interface WalletLinkingBannerProps {
   onDismiss: () => void;
@@ -21,7 +22,7 @@ const WalletLinkingBanner: React.FC<WalletLinkingBannerProps> = ({ onDismiss }) 
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <a
-              href="https://ammawallet.com"
+              href={AMMA_WALLET_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
@@ -30,7 +31,7 @@ const WalletLinkingBanner: React.FC<WalletLinkingBannerProps> = ({ onDismiss }) 
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
             <a
-              href="https://ammawallet.com/forgot-password"
+              href={`${AMMA_WALLET_URL}/forgot-password`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md border border-amber-400 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-200 transition-colors"

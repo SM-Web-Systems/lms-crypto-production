@@ -185,7 +185,7 @@ router.post(
       if (!userRow?.walletAddress || userRow.wallet_linking_status !== 'linked') {
         res.status(422).json({
           success: false,
-          error: { code: ErrorCodes.WALLET_NOT_LINKED, message: 'Wallet not linked. Link your wallet at ammawallet.com first.' },
+          error: { code: ErrorCodes.WALLET_NOT_LINKED, message: 'Wallet not linked. Create a Stellar wallet in AmmaWallet, then sign in to the LMS again to link it.' },
         });
         return;
       }

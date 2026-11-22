@@ -29,11 +29,15 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
   const [isLoading,setIsLoading]=useState(true);
   const [sessionError,setSessionError]=useState<string|null>(null);
   const generation=useRef(0), request=useGeneration(), mounted=useRef(true);
+  // Counts wallet sign-ins in flight. The callback's effect runs before this provider's mount effect, and a
+  // background check sent before POST /auth/session sets the cookie gets a 401 that would wipe the new sign-in.
+  const ssoPending=useRef(0);
   const invalidate=useCallback((token:string)=>{
     if(!mounted.current || token!==getStoredToken())return;
     generation.current++;request.next();setStoredToken(null);setUser(null);setSessionError(null);setIsLoading(false);
   },[request]);
   const refresh=useCallback(async()=>{
+    if(ssoPending.current)return; // completeSso verifies the new session itself.
     const legacy=takeLegacyToken();
     if(legacy){
       // One-time migration: a token saved by an older version moves into the HttpOnly cookie.
@@ -84,6 +88,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
     const marker=newMarker();
     setStoredToken(marker);setUser(null);setSessionError(null);setIsLoading(true);
     const current=()=>mounted.current && generation.current===started && getStoredToken()===marker;
+    ssoPending.current++;
     try{
       if(!await adoptToken(token))throw new ApiRequestError({message:'This session has expired or was revoked. Please sign in again.',status:401});
       if(!current())throw new Error('The active session changed. Please sign in again.');
@@ -98,7 +103,7 @@ export const AuthProvider: React.FC<{children:ReactNode}> = ({children}) => {
         else setSessionError(getErrorMessage(error,'Could not reach the server. Your wallet session is being kept.'));
       }
       throw error;
-    }finally{if(current())setIsLoading(false);}
+    }finally{ssoPending.current--;if(current())setIsLoading(false);}
   },[invalidate,request]);
   const logout=useCallback(async()=>{
     forgetSsoReturn();

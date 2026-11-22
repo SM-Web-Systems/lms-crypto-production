@@ -15,10 +15,31 @@ export function homeForUser(user: User | null | undefined): string {
   const selected = user?.defaultWorkspace && workspaces.includes(user.defaultWorkspace) ? user.defaultWorkspace : workspaces[0];
   return selected ? workspacePaths[selected] : '/access-denied';
 }
-export function activeWorkspace(user: User | null | undefined, pathname: string): Workspace | undefined {
+/**
+ * The workspace a route belongs to. Shared routes (/profile, /messages, ...) have none, so they keep
+ * `preferred` (the workspace the user was last in) when the user still has it, else the default.
+ */
+export function activeWorkspace(user: User | null | undefined, pathname: string, preferred?: Workspace | null): Workspace | undefined {
   const available = availableWorkspaces(user);
   return available.find(w => pathname === workspacePaths[w] || pathname.startsWith(workspacePaths[w] + '/'))
+    ?? (preferred && available.includes(preferred) ? preferred : undefined)
     ?? available.find(w => w === user?.defaultWorkspace) ?? available[0];
+}
+
+// Kept in memory and, where allowed, in sessionStorage so a reload of /profile stays in the same workspace.
+const LAST_WORKSPACE_KEY = 'lms_last_workspace';
+let lastWorkspace: Workspace | null = null;
+export function rememberedWorkspace(): Workspace | null {
+  if (lastWorkspace) return lastWorkspace;
+  try {
+    const stored = sessionStorage.getItem(LAST_WORKSPACE_KEY);
+    if (stored && Object.prototype.hasOwnProperty.call(workspacePaths, stored)) lastWorkspace = stored as Workspace;
+  } catch { /* storage unavailable */ }
+  return lastWorkspace;
+}
+export function rememberWorkspace(workspace: Workspace): void {
+  lastWorkspace = workspace;
+  try { sessionStorage.setItem(LAST_WORKSPACE_KEY, workspace); } catch { /* storage unavailable */ }
 }
 const requirements: Record<string, string[]> = {
   '/admin/students': ['user.view_all'], '/admin/submissions': ['course.grade'],

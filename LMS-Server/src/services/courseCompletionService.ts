@@ -40,6 +40,8 @@ export interface CourseProgress {
   requiredQuizzes: QuizProgressItem[];
   allRequiredQuizzesPassed: boolean;
   hasApprovedSubmission: boolean;
+  /** True only when the course requires an approved submission; hasApprovedSubmission is then meaningful. */
+  submissionRequired: boolean;
   meetsAllRequirements: boolean;
   canApplyForCertificate: boolean;
 }
@@ -139,15 +141,18 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
       userId, courseId,
       totalLessonItems: 0, completedLessonItems: 0, lessonPercentage: 100,
       requiredQuizzes: [], allRequiredQuizzesPassed: true,
-      hasApprovedSubmission: true, meetsAllRequirements: false,
+      hasApprovedSubmission: true, submissionRequired: false, meetsAllRequirements: false,
       canApplyForCertificate: false,
     };
   }
 
-  const reqs = (queryOne<CourseCompletionRequirements>(
+  const configured = queryOne<CourseCompletionRequirements>(
     'SELECT * FROM course_completion_requirements WHERE course_id = ?',
     [courseId]
-  ) ?? DEFAULT_REQS) as CourseCompletionRequirements;
+  );
+  // A course with no saved certificate requirements needs every lesson, the same rule rewards use
+  // (isCourseCompleteForReward). Only an admin's saved "Require all lessons" off allows fewer.
+  const reqs = (configured ?? {...DEFAULT_REQS, require_all_lessons: 1}) as CourseCompletionRequirements;
 
   // 1. Count all lesson items from sections JSON
   const sections: CourseSection[] = parseFlatSections(course.sections || '[]');
@@ -246,6 +251,7 @@ export function getCourseProgress(userId: string, courseId: string): CourseProgr
     userId, courseId,
     totalLessonItems, completedLessonItems, lessonPercentage,
     requiredQuizzes, allRequiredQuizzesPassed,
-    hasApprovedSubmission, meetsAllRequirements, canApplyForCertificate,
+    hasApprovedSubmission, submissionRequired: !!reqs.require_submissions,
+    meetsAllRequirements, canApplyForCertificate,
   };
 }
