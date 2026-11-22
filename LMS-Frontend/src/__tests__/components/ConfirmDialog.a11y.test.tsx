@@ -109,4 +109,12 @@ describe('a field in the description (UX-018 reason)', () => {
     await userEvent.tab();
     expect(reason).toHaveFocus();
   });
+  it('does not pull focus back to the panel once the person is already inside the dialog', async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'Open it' }));
+    const confirm = screen.getByRole('button', { name: 'Release 0.2000000 XLM' });
+    confirm.focus();
+    await new Promise(r => setTimeout(r, 60));
+    expect(confirm).toHaveFocus();
+  });
 });

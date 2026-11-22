@@ -43,7 +43,11 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   useEffect(() => {
     if (!isOpen) return undefined;
     const opener = document.activeElement as HTMLElement | null;
-    const t = setTimeout(() => panelRef.current?.focus(), 30);
+    // Move focus into the dialog, unless the person already clicked or tabbed into it.
+    const t = setTimeout(() => {
+      const panel = panelRef.current;
+      if (panel && !panel.contains(document.activeElement)) panel.focus();
+    }, 30);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (!live.current.loading) live.current.onCancel();
