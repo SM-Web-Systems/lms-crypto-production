@@ -4,6 +4,7 @@ import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, Student, StudentResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { likeContains } from '../utils/sqlLike.js';
+import { getPendingCourseCodes } from './usersController.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,6 +25,8 @@ function toStudentResponse(student: Student & {
     updatedAt: student.updated_at as unknown as string,
     walletAddress: student.walletAddress ?? null,
     walletLinkingStatus: (student.wallet_linking_status as StudentResponse['walletLinkingStatus']) ?? 'none',
+    // No LMS account yet: the course access the admin chose, given when the account is made.
+    ...(student.user_id ? {} : { pendingCourseCodes: getPendingCourseCodes(student.email) }),
   };
 }
 

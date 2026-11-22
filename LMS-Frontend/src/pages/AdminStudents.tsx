@@ -132,6 +132,10 @@ const AdminStudents: React.FC = () => {
     }).catch(() => {});
   }, []);
 
+  // Course access: the account's codes, or for a student with no LMS account yet, the codes waiting for them.
+  const courseAccessOf = (student: Student): string[] =>
+    courseCodesMap[student.userId || student.id] ?? (student.userId ? [] : student.pendingCourseCodes ?? []);
+
   const handleOpenModal = (student?: Student) => {
     if (student) {
       setEditingStudent(student);
@@ -142,7 +146,7 @@ const AdminStudents: React.FC = () => {
         department: student.department,
         semester: student.semester,
       });
-      setSelectedCourseCodes(courseCodesMap[student.userId || student.id] ?? []);
+      setSelectedCourseCodes(courseAccessOf(student));
     } else {
       setEditingStudent(null);
       setFormData({ name: '', email: '', enrollmentNumber: '', department: 'Computer Science', semester: 1 });
@@ -168,13 +172,17 @@ const AdminStudents: React.FC = () => {
         await updateStudent(editingStudent.id, updateData);
         const userId = editingStudent.userId || editingStudent.id;
         if (userId) await usersService.patchUserCourseCodes(userId, selectedCourseCodes);
+        setCourseCodesMap((prev) => ({ ...prev, [userId || editingStudent.id]: selectedCourseCodes }));
         userDirectoryService.update(userId || editingStudent.id, { name: formData.name, email: formData.email, courseCodes: selectedCourseCodes });
       } else {
         const student = await addStudent(formData);
         const userId = student.userId || student.id;
-        if (userId && selectedCourseCodes.length > 0) await usersService.patchUserCourseCodes(userId, selectedCourseCodes);
-        userDirectoryService.add({ id: userId || student.id, name: student.name, email: student.email, courseCodes: selectedCourseCodes });
+        // The student is saved now: whatever happens to the course access, the dialog must not offer to add them again.
+        setEditingStudent(student);
         void loadStudents();
+        if (userId && selectedCourseCodes.length > 0) await usersService.patchUserCourseCodes(userId, selectedCourseCodes);
+        setCourseCodesMap((prev) => ({ ...prev, [userId]: selectedCourseCodes }));
+        userDirectoryService.add({ id: userId || student.id, name: student.name, email: student.email, courseCodes: selectedCourseCodes });
       }
       setIsModalOpen(false);
     } catch (error) {
@@ -342,9 +350,12 @@ const AdminStudents: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">Semester {student.semester}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {(courseCodesMap[student.userId || student.id] ?? []).length === 0
+                        {courseAccessOf(student).length === 0
                           ? '—'
-                          : (courseCodesMap[student.userId || student.id] ?? []).join(', ')}
+                          : courseAccessOf(student).join(', ')}
+                        {!student.userId && courseAccessOf(student).length > 0 && (
+                          <span className="block text-xs text-gray-400">Given when they first sign in</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {student.walletAddress ? (

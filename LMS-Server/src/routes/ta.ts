@@ -11,6 +11,7 @@ import { createNotification } from '../services/notificationService.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { canAccessCourse } from '../services/courseAccessService.js';
 import { canAccessSubmission } from '../services/submissionAccessService.js';
+import { findItem } from '../services/courseContentService.js';
 
 const router = Router();
 
@@ -178,18 +179,24 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
     }
   }
 
-  // F6: Notify the TA whose grade was approved (best-effort)
+  // F6: Tell the TA that their grade was approved (best-effort). Named by the assignment and learner, never by an internal id;
+  // the learner hears about it separately below ("Submission Approved").
   try {
-    const sub = queryOne<{ graded_by: string | null; item_id: string | null }>(
-      'SELECT graded_by, item_id FROM submissions WHERE id = ?',
-      [submissionId],
+    const who = queryOne<{ name: string | null }>(
+      'SELECT COALESCE(u.name, st.name) AS name FROM students st LEFT JOIN users u ON u.id = st.user_id WHERE st.id = ?',
+      [submission.student_id],
     );
-    if (sub?.graded_by) {
+    const course = submission.course_id
+      ? queryOne<{ id: string; sections: string }>('SELECT id, sections FROM courses WHERE id = ?', [submission.course_id]) : undefined;
+    const itemTitle = course && submission.item_id ? findItem(course, submission.item_id)?.item.title : undefined;
+    const what = typeof itemTitle === 'string' && itemTitle.trim() ? itemTitle.trim() : submission.title;
+    if (submission.graded_by && submission.graded_by !== submission.student_user_id) {
       createNotification({
-        userId: sub.graded_by,
+        userId: submission.graded_by,
         type: 'grade_approved',
-        title: 'Grade Approved',
-        body: `Your grade for submission ${sub.item_id ?? submissionId} was approved by the instructor.`,
+        title: 'Your grade was approved',
+        body: `The instructor approved your grade for "${what}"${who?.name ? ` by ${who.name}` : ''}.`,
+        link: '/ta',
       });
     }
   } catch { /* best-effort */ }

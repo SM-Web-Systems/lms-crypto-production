@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { query, queryOne, execute } from '../config/database.js';
+import { db, query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, UserDirectoryItem, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { compatibleRoleSummary, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
@@ -152,6 +152,27 @@ export async function getUsers(req: AuthRequest, res: Response, next: NextFuncti
   }
 }
 
+/** Normalised, de-duplicated course codes that all exist; throws a 400 otherwise. */
+function validCourseCodes(courseCodes: unknown): string[] {
+  if (!Array.isArray(courseCodes)) {
+    throw new AppError('courseCodes must be an array', 400, ErrorCodes.VALIDATION_ERROR);
+  }
+  const normalized = (courseCodes as unknown[]).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+  const unique = [...new Set(normalized)];
+  for (const code of unique) {
+    const exists = queryOne<{ id: string }>('SELECT id FROM courses WHERE course_code = ?', [code]);
+    if (!exists) {
+      throw new AppError(`Course code "${code}" does not exist`, 400, ErrorCodes.VALIDATION_ERROR);
+    }
+  }
+  return unique;
+}
+
+export function getPendingCourseCodes(email: string): string[] {
+  return (query<{ course_code: string }>('SELECT course_code FROM pending_course_codes WHERE email = ? COLLATE NOCASE ORDER BY course_code', [email]))
+    .map((r) => r.course_code);
+}
+
 export async function patchUser(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     let targetUserId = req.params.id;
@@ -166,8 +187,25 @@ export async function patchUser(req: AuthRequest, res: Response, next: NextFunct
         user = queryOne<{ id: string }>('SELECT id FROM users WHERE id = ?', [targetUserId]);
       }
     }
-    if (!user) {
+    // A student an admin added before they have an LMS account: keep the access until the account is made.
+    const pendingStudent = user ? undefined
+      : queryOne<{ email: string }>('SELECT email FROM students WHERE id = ? AND user_id IS NULL', [req.params.id]);
+    if (!user && !pendingStudent) {
       throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
+    }
+
+    if (pendingStudent) {
+      if (courseCodes === undefined) {
+        res.json({ success: true, data: { id: req.params.id, courseCodes: getPendingCourseCodes(pendingStudent.email), pending: true } });
+        return;
+      }
+      const codes = validCourseCodes(courseCodes);
+      db.transaction(() => {
+        execute('DELETE FROM pending_course_codes WHERE email = ? COLLATE NOCASE', [pendingStudent.email]);
+        for (const code of codes) execute('INSERT INTO pending_course_codes (email, course_code) VALUES (?, ?)', [pendingStudent.email, code]);
+      })();
+      res.json({ success: true, data: { id: req.params.id, courseCodes: codes, pending: true } });
+      return;
     }
 
     if (courseCodes === undefined) {
@@ -179,19 +217,7 @@ export async function patchUser(req: AuthRequest, res: Response, next: NextFunct
       return;
     }
 
-    if (!Array.isArray(courseCodes)) {
-      throw new AppError('courseCodes must be an array', 400, ErrorCodes.VALIDATION_ERROR);
-    }
-
-    const normalized = (courseCodes as string[]).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
-    const unique = [...new Set(normalized)];
-
-    for (const code of unique) {
-      const exists = queryOne<{ id: string }>('SELECT id FROM courses WHERE course_code = ?', [code]);
-      if (!exists) {
-        throw new AppError(`Course code "${code}" does not exist`, 400, ErrorCodes.VALIDATION_ERROR);
-      }
-    }
+    const unique = validCourseCodes(courseCodes);
 
     execute('DELETE FROM user_course_codes WHERE user_id = ?', [targetUserId]);
     for (const code of unique) {

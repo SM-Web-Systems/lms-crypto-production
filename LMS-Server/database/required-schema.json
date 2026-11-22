@@ -1037,6 +1037,11 @@
       "percent",
       "platform",
       "created_at"
+    ],
+    "pending_course_codes": [
+      "email",
+      "course_code",
+      "created_at"
     ]
   },
   "indexes": [
@@ -3655,6 +3660,19 @@
           "CASCADE"
         ]
       ]
+    },
+    "pending_course_codes": {
+      "primary": [
+        "email",
+        "course_code"
+      ],
+      "unique": [
+        [
+          "email",
+          "course_code"
+        ]
+      ],
+      "foreign": []
     }
   }
 }

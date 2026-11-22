@@ -8,7 +8,8 @@ import { Button } from './Button';
 import { parentInvitationService, type MyParentInvitation } from '../services/parentInvitationService';
 import { getErrorMessage } from '../utils/apiError';
 
-export const ParentInvitationsPanel: React.FC = () => {
+/** onAnswered: called after the learner answers, so a list of their links can refresh. */
+export const ParentInvitationsPanel: React.FC<{ onAnswered?: () => void }> = ({ onAnswered }) => {
   const [items, setItems] = useState<MyParentInvitation[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -20,7 +21,7 @@ export const ParentInvitationsPanel: React.FC = () => {
 
   const answer = async (id: string, accept: boolean) => {
     setBusyId(id); setError('');
-    try { await parentInvitationService.respond(id, accept); await load(); }
+    try { await parentInvitationService.respond(id, accept); await load(); onAnswered?.(); }
     catch (err) { setError(getErrorMessage(err, 'Could not answer the request.')); }
     finally { setBusyId(null); }
   };

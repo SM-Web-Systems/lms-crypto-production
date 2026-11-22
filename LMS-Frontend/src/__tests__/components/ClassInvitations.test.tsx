@@ -75,6 +75,6 @@ describe('where learners see their invitations', () => {
     // the main dashboard's copy comes before its wallet status card, so it is near the top
     expect(source.indexOf('<InvitationRequests />', source.indexOf('pb-10 space-y-8'))).toBeLessThan(source.indexOf('<StudentWalletStatusCard'));
     const requests = fs.readFileSync(path.resolve(__dirname, '../../components/InvitationRequests.tsx'), 'utf-8');
-    expect(requests).toContain('<ClassInvitationsPanel />');
+    expect(requests).toContain('<ClassInvitationsPanel onAnswered={onAnswered} />');
   });
 });

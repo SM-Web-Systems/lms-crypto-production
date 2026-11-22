@@ -94,6 +94,8 @@ export interface Student {
   updatedAt?: string;
   walletAddress?: string | null;
   walletLinkingStatus?: 'none' | 'linked' | 'existing_account';
+  /** No LMS account yet: the course access they get when their account is made. */
+  pendingCourseCodes?: string[];
 }
 
 export interface WalletStatusResponse {
