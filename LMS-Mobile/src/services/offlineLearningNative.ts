@@ -10,12 +10,27 @@ import { isStorageFull, STORAGE_FULL_MESSAGE } from '../utils/storageErrors';
 import type { LessonProgress } from './courseCompletionService';
 import { OfflineLearning, type LeaseStatus, type OfflinePackage, type OfflineStore, type SavedCourse } from './offlineLearning';
 import { offlineSQLite as sqlite } from './offlineSQLite';
+import { offlineMedia } from './offlineMedia';
 
 export const supportsOfflineLearning = (Platform.OS === 'android' || Platform.OS === 'ios')
   && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient
   && Constants.expoConfig?.extra?.encryptedOfflineLearning === true;
 
 const fingerprint = (value: string) => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
+
+/**
+ * Saved courses belong to the learner, not to one sign-in token, so they survive the token expiring and the
+ * learner signing in again (the server ties the 14-day lease to the learner too). The user id is read from the
+ * token only to pick the vault; the server verifies the token on every sync.
+ */
+export function vaultOwner(token: string) {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return token;
+    const json = JSON.parse(globalThis.atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')));
+    return typeof json?.userId === 'string' && json.userId ? 'user:' + json.userId : token;
+  } catch { return token; }
+}
 const storageKey = async () => 'lms.offline.v1.' + await fingerprint(API_BASE_URL);
 const options = {keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY};
 const path = (courseId: string) => '/courses/' + encodeURIComponent(courseId) + '/offline-';
@@ -45,6 +60,8 @@ async function clear() {
   active = null;
   await db?.closeAsync().catch(() => undefined);
   if (previous) await sqlite().deleteDatabaseAsync(previous.file).catch(() => undefined);
+  // Saved video and audio go with the vault: signing out, or another account opening it, removes them too.
+  await offlineMedia.clear().catch(() => undefined);
 }
 
 function repository(db: SQLiteDatabase): OfflineStore {
@@ -127,7 +144,8 @@ async function open(scope: string, create: boolean, verified: boolean) {
 }
 
 export const offlineLearning = new OfflineLearning({
-  open, clear, fingerprint, id: () => Crypto.randomUUID(), now: () => Date.now(),
+  open, clear, fingerprint: token => fingerprint(vaultOwner(token)), id: () => Crypto.randomUUID(), now: () => Date.now(),
+  media: offlineMedia,
   download: async (token, id) => assertApiSuccess(
     await api.post<ApiResponse<OfflinePackage>>(path(id) + 'lease', undefined, auth(token)), 'Could not save this course.',
   ),
@@ -151,4 +169,9 @@ export const offlineLearning = new OfflineLearning({
 
 export function setOfflineSession(token: string | null, verified = false) {
   return supportsOfflineLearning ? offlineLearning.setSession(token, verified) : Promise.resolve(true);
+}
+
+/** Session expired or was revoked: hide saved courses but keep them for the same learner's next sign-in. */
+export function lockOfflineSession() {
+  if (supportsOfflineLearning) offlineLearning.lock();
 }

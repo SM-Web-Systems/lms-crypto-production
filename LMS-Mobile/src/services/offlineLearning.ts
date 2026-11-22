@@ -1,11 +1,32 @@
 import type { LessonProgress } from './courseCompletionService';
 
-export interface OfflineLesson {
+export interface OfflineTextLesson {
   id: string;
   type: 'text';
   title: string;
   description?: string;
   information: string;
+}
+
+/** A video or audio lesson. YouTube plays it online; `fileUrl` is the copy saved for offline playback in Offline mode. */
+export interface OfflineMediaLesson {
+  id: string;
+  type: 'video' | 'audio';
+  title: string;
+  description?: string;
+  information?: string;
+  fileUrl: string;
+  youtubeId?: string;
+}
+
+export type OfflineLesson = OfflineTextLesson | OfflineMediaLesson;
+
+/** Saved video and audio files, kept outside the encrypted vault (they are large and are public course files). */
+export interface OfflineMediaFiles {
+  save(pack: OfflinePackage, onProgress?: (done: number, total: number) => void): Promise<void>;
+  /** Delete saved files of every course not in `courseIds`. */
+  retain(courseIds: string[]): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export interface LeaseStatus {
@@ -60,6 +81,7 @@ interface OfflineDependencies {
   random?(): number;
   setTimer?(run: () => void, ms: number): unknown;
   clearTimer?(timer: unknown): void;
+  media?: OfflineMediaFiles;
 }
 
 const retryBaseMs = 1_000;
@@ -70,7 +92,15 @@ export function backoffDelay(attempt: number, random: () => number = Math.random
 }
 
 interface Session { token: string; verified: boolean }
-const maxLease = 86_400_000;
+
+const https = (value: unknown) => typeof value === 'string' && /^https:\/\/[^\s]+$/i.test(value);
+function validLesson(item: OfflineLesson) {
+  if (item.type === 'text') return typeof item.information === 'string' && item.information.length > 0;
+  return (item.type === 'video' || item.type === 'audio') && https(item.fileUrl)
+    && (item.youtubeId === undefined || /^[A-Za-z0-9_-]{11}$/.test(item.youtubeId));
+}
+/** Matches the server's 14-day maximum. */
+const maxLease = 14 * 86_400_000;
 const expired = 'Offline access expired. Reconnect and save the course again. Pending updates for this lease were discarded.';
 const empty = {courses: [] as SavedCourse[], notice: null as string | null};
 
@@ -120,9 +150,23 @@ export class OfflineLearning {
     return cleanup;
   }
 
+  /**
+   * Stop using saved courses without erasing them, for example when the sign-in token expired or was revoked.
+   * Signing in again as the same learner reopens them and syncs what was saved offline; signing in as another
+   * account erases them, and signing out (setSession(null)) erases them.
+   */
+  lock() {
+    if (!this.session) return;
+    this.session = null;
+    this.cancelRetry();
+    this.failures = 0;
+    this.publish();
+  }
+
   private async clearPrevious() {
     if (!this.cleanupRequired) return;
     await this.deps.clear();
+    await this.deps.media?.clear().catch(() => undefined);
     this.cleanupRequired = false;
   }
 
@@ -168,13 +212,15 @@ export class OfflineLearning {
         if (course.deadline <= now) await store.discard(course.pack.course.id, expired);
         else courses.push(course);
       }
+      await this.deps.media?.retain(courses.map(course => course.pack.course.id)).catch(() => undefined);
       const notice = await store.notice();
       this.current(session);
       return {courses, notice};
     });
   }
 
-  async download(courseId: string) {
+  /** Save a course. With `withMedia` (Offline mode) its video and audio files are downloaded too. */
+  async download(courseId: string, options: {withMedia?: boolean; onProgress?: (done: number, total: number) => void} = {}) {
     const session = this.session;
     if (!session?.verified) throw new Error('Connect and verify your session to save a course.');
     const version = this.version;
@@ -182,7 +228,7 @@ export class OfflineLearning {
     const pack = await this.deps.download(session.token, courseId);
     this.current(session);
     if (pack.course.id !== courseId || !pack.course.sections.length || !pack.leaseId || !pack.contentVersion
-      || pack.course.sections.some(section => section.items.some(item => item.type !== 'text' || !item.information))) {
+      || pack.course.sections.some(section => section.items.some(item => !validLesson(item)))) {
       throw new Error('This course package is invalid.');
     }
     await this.serialize(async () => {
@@ -202,6 +248,10 @@ export class OfflineLearning {
       this.current(session);
     });
     this.publish();
+    if (options.withMedia && this.deps.media) {
+      await this.deps.media.save(pack, options.onProgress);
+      this.publish();
+    }
   }
 
   async queue(courseId: string, itemId: string, action: OfflineAction) {

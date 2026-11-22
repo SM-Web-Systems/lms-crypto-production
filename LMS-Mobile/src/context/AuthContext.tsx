@@ -5,7 +5,7 @@ import { getErrorMessage, ApiRequestError } from '../utils/apiError';
 import { authService } from '../services/authService';
 import { ammaWalletService } from '../services/ammaWalletService';
 import { setPushSession } from '../services/pushNotifications';
-import { setOfflineSession } from '../services/offlineLearningNative';
+import { lockOfflineSession, setOfflineSession } from '../services/offlineLearningNative';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/token';
 import { canStudy } from '../utils/authorization';
 import { currentSessionUser } from '../../../LMS-Frontend/src/utils/rolePresentation';
@@ -46,15 +46,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (await getStoredToken().catch(() => null) !== token || started !== generation.current || !mounted.current) return;
     generation.current++; request.current++;
     const pushCleanup = setPushSession(null);
-    const offlineCleanup = setOfflineSession(null);
+    // Keep saved courses (and progress saved offline) for this learner's next sign-in; signing out erases them.
+    lockOfflineSession();
     setUser(null); setSessionError(null); setIsLoading(false);
     setNotice('Your session expired or was revoked. Please sign in again.');
     await clearStoredToken().catch(() => setWarning('This device could not remove the saved session. Please retry signing out.'));
     if (!await pushCleanup && generation.current === started + 1 && mounted.current) {
       setWarning(current => current ?? 'This device could not save notification cleanup. Reopen the app when connected to retry.');
-    }
-    if (!await offlineCleanup && generation.current === started + 1 && mounted.current) {
-      setWarning(current => current ?? 'This device could not erase saved lessons. Retry signing out to clear them.');
     }
   }, []);
 
@@ -67,7 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       token = await getStoredToken();
       if (!current()) return;
-      if (!token) { void setPushSession(null); void setOfflineSession(null); setUser(null); setSessionError(null); return; }
+      if (!token) { void setPushSession(null); lockOfflineSession(); setUser(null); setSessionError(null); return; }
       const me = await authService.getMe();
       if (current()) {
         const user = currentSessionUser(me);
@@ -108,7 +106,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const result = await work();
     if (!mounted.current || generation.current !== started) throw new Error('Sign-in was cancelled. Please try again.');
     void setPushSession(null);
-    void setOfflineSession(null);
+    // A different account erases the saved courses when the new session opens the vault; the same learner keeps them.
+    lockOfflineSession();
     const persisted = await setStoredToken(result.token);
     if (!mounted.current || generation.current !== started) throw new Error('Sign-in was cancelled. Please try again.');
     void setPushSession(result.user.deletionStatus === 'pending_deletion' ? null : result.user.id, result.token);

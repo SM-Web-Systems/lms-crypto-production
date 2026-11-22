@@ -61,3 +61,17 @@ for (const name of ['Text', 'Pressable', 'View', 'ActivityIndicator', 'TextInput
 
 // react-native-webview needs its native module; tests that care about the WebView mock it themselves.
 jest.mock('react-native-webview', () => ({ WebView: 'WebView' }));
+
+// In-memory AsyncStorage (learning mode and plays saved while offline).
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+
+// Native players are not available in Jest; suites that test playback mock these themselves.
+jest.mock('expo-video', () => ({
+  useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn(), addListener: () => ({ remove: jest.fn() }), currentTime: 0, duration: 0 }),
+  VideoView: 'VideoView',
+}));
+jest.mock('expo-audio', () => ({
+  useAudioPlayer: () => ({ play: jest.fn(), pause: jest.fn(), seekTo: jest.fn(), remove: jest.fn() }),
+  useAudioPlayerStatus: () => ({ currentTime: 0, duration: 0, playing: false, didJustFinish: false }),
+}));
