@@ -4,6 +4,7 @@ import { Card, CardContent } from '../components/Card';
 import { Button } from '../components/Button';
 import QuestionInput from '../components/QuestionInput';
 import { quizService } from '../services/quizService';
+import { QuizRewardNote } from '../components/QuizRewardNote';
 import { courseCompletionService } from '../services/courseCompletionService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
@@ -344,6 +345,8 @@ const StudentQuizzes: React.FC = () => {
                   ? 'Great work. You reached the passing score for this quiz.'
                   : `You need at least ${passingScore}% to pass — you scored ${result.score}%. Review the correct answers below and retake when you are ready.`}
               </p>
+
+              <QuizRewardNote passed={result.passed} completedAt={result.completedAt} />
 
               <div className="rounded-lg border border-neutral-200/90 bg-neutral-50/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-3">Your answers</p>

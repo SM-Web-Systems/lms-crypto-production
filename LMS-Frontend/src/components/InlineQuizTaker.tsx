@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { QuizRewardNote } from './QuizRewardNote';
 import { quizService } from '../services/quizService';
 import { useAuth } from '../context/useAuth';
 import type { Quiz, QuizCompletion, QuizQuestion } from '../types/quiz';
@@ -204,6 +205,8 @@ export default function InlineQuizTaker({ quizId }: InlineQuizTakerProps) {
         <p className="text-sm text-neutral-500">
           {quizCorrectCount(result.score, result.total)} of {result.total} correct
         </p>
+
+        <QuizRewardNote passed={result.passed} completedAt={result.completedAt} />
 
         {/* Review answers toggle */}
         {!showReview ? (

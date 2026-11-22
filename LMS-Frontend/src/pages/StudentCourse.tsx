@@ -309,9 +309,19 @@ const StudentCourse: React.FC = () => {
 
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<Set<string>>(() => new Set());
+  // UX-015: items the server has recorded as complete. These cannot be un-ticked, because
+  // completion can already have counted towards a reward or certificate.
+  const [serverDoneIds, setServerDoneIds] = useState<Set<string>>(() => new Set());
+  const [savingItemIds, setSavingItemIds] = useState<Set<string>>(() => new Set());
+  const [completionNotice, setCompletionNotice] = useState<
+    { kind: 'error' | 'info'; itemId: string; message: string } | null
+  >(null);
   const [itemProgressMap, setItemProgressMap] = useState<Record<string, { positionSeconds: number; progressPercent: number }>>({});
 
   useEffect(() => {
+    setServerDoneIds(new Set());
+    setSavingItemIds(new Set());
+    setCompletionNotice(null);
     if (!selectedCourseId) {
       setDoneItemIds(new Set());
       return;
@@ -327,6 +337,11 @@ const StudentCourse: React.FC = () => {
     const sync = () => {
       courseCompletionService.getLessonCompletions(selectedCourseId).then((items) => {
         if (cancelled) return;
+        setServerDoneIds((prev) => {
+          const next = new Set(items.filter((item) => item.completedAt).map((item) => item.itemId));
+          const same = next.size === prev.size && [...next].every((id) => prev.has(id));
+          return same ? prev : next;
+        });
         setDoneItemIds((prev) => {
           const merged = new Set(prev);
           // Assessments are authoritative on the server, including old locally checked items.
@@ -466,42 +481,96 @@ const StudentCourse: React.FC = () => {
     setSearchParams(p, { replace: false });
   }, [searchParams, setSearchParams]);
 
-  const toggleDoneItem = useCallback(
-    (itemId: string) => {
-      if (!selectedCourseId) return;
-      const item = selectedCourse && getCourseWeeks(selectedCourse).flatMap((week) => week.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
-      if (item?.type === 'quiz' || item?.type === 'assignment') return;
-      setDoneItemIds((prev) => {
-        const next = new Set(prev);
-        const adding = !prev.has(itemId);
-        if (adding) next.add(itemId);
-        else next.delete(itemId);
-        writeDoneIds(user?.id, selectedCourseId, next);
-        // Sync to server when marking done (fire-and-forget; no un-complete endpoint)
-        if (adding) {
-          courseCompletionService.markLessonComplete(selectedCourseId, itemId).catch(() => {/* best-effort */});
-        }
-        return next;
-      });
-    },
-    [selectedCourseId, selectedCourse, user?.id]
+  const findCourseItem = useCallback(
+    (itemId: string) =>
+      selectedCourse
+        ? getCourseWeeks(selectedCourse).flatMap((week) => week.sections).flatMap((section) => section.items).find((item) => item.id === itemId)
+        : undefined,
+    [selectedCourse]
   );
 
-  const markItemEngaged = useCallback(
+  /**
+   * UX-015: save a completion to the server and only keep the tick if the save worked.
+   * A failed save removes the tick again and says so, with a way to retry.
+   */
+  const completeItem = useCallback(
     (itemId: string) => {
       if (!selectedCourseId) return;
-      const item = selectedCourse && getCourseWeeks(selectedCourse).flatMap((week) => week.sections).flatMap((section) => section.items).find((item) => item.id === itemId);
+      const courseId = selectedCourseId;
+      const item = findCourseItem(itemId);
       if (item?.type === 'quiz' || item?.type === 'assignment') return;
+      if (serverDoneIds.has(itemId) || savingItemIds.has(itemId)) return;
+      const wasDoneLocally = doneItemIds.has(itemId);
+      setCompletionNotice(null);
+      setSavingItemIds((prev) => new Set(prev).add(itemId));
       setDoneItemIds((prev) => {
         if (prev.has(itemId)) return prev;
         const next = new Set(prev);
         next.add(itemId);
-        writeDoneIds(user?.id, selectedCourseId, next);
-        courseCompletionService.markLessonComplete(selectedCourseId, itemId).catch(() => {/* best-effort */});
+        writeDoneIds(user?.id, courseId, next);
         return next;
       });
+      courseCompletionService
+        .markLessonComplete(courseId, itemId)
+        .then(() => {
+          setServerDoneIds((prev) => new Set(prev).add(itemId));
+        })
+        .catch((err: unknown) => {
+          if (!wasDoneLocally) {
+            setDoneItemIds((prev) => {
+              if (!prev.has(itemId)) return prev;
+              const next = new Set(prev);
+              next.delete(itemId);
+              writeDoneIds(user?.id, courseId, next);
+              return next;
+            });
+          }
+          const title = item?.title ? `“${item.title}”` : 'this material';
+          setCompletionNotice({
+            kind: 'error',
+            itemId,
+            message: `We couldn't save that you finished ${title}. ${getErrorMessage(err, 'Check your connection and try again.')}`,
+          });
+        })
+        .finally(() => {
+          setSavingItemIds((prev) => {
+            const next = new Set(prev);
+            next.delete(itemId);
+            return next;
+          });
+        });
     },
-    [selectedCourseId, selectedCourse, user?.id]
+    [selectedCourseId, findCourseItem, serverDoneIds, savingItemIds, doneItemIds, user?.id]
+  );
+
+  const toggleDoneItem = useCallback(
+    (itemId: string) => {
+      if (!selectedCourseId) return;
+      const item = findCourseItem(itemId);
+      if (item?.type === 'quiz' || item?.type === 'assignment') return;
+      if (serverDoneIds.has(itemId)) {
+        // The server keeps completions (they can count towards rewards and certificates),
+        // so say that instead of un-ticking locally and having the tick come back on the next sync.
+        setCompletionNotice({
+          kind: 'info',
+          itemId,
+          message: 'This material is saved as done in your progress. Finished materials stay done.',
+        });
+        return;
+      }
+      if (doneItemIds.has(itemId)) {
+        // Ticked on this device only (never reached the server): un-tick it here.
+        setDoneItemIds((prev) => {
+          const next = new Set(prev);
+          next.delete(itemId);
+          writeDoneIds(user?.id, selectedCourseId, next);
+          return next;
+        });
+        return;
+      }
+      completeItem(itemId);
+    },
+    [selectedCourseId, findCourseItem, serverDoneIds, doneItemIds, completeItem, user?.id]
   );
 
   const handleProgressUpdate = useCallback(
@@ -518,10 +587,11 @@ const StudentCourse: React.FC = () => {
   );
 
   const openMaterialViewer = useCallback((section: CourseSection, item: CourseItem) => {
+    // UX-015: opening a material no longer counts as finishing it. Media that plays to the end,
+    // a submitted answer, or the learner's own "Mark as done" completes it.
     setMaterialViewer({ section, item });
     setFocusItemId(item.id);
-    markItemEngaged(item.id);
-  }, [markItemEngaged]);
+  }, []);
 
   useEffect(() => {
     const openId = materialViewer?.item.id;
@@ -785,6 +855,35 @@ const StudentCourse: React.FC = () => {
 
           {/* Section content or embedded material (outcome + iframe/video/PDF) */}
           <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-neutral-50/50">
+            {completionNotice && (
+              <div
+                role={completionNotice.kind === 'error' ? 'alert' : 'status'}
+                className={[
+                  'mb-4 flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 text-sm max-w-6xl',
+                  completionNotice.kind === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-800'
+                    : 'border-sky-200 bg-sky-50 text-sky-900',
+                ].join(' ')}
+              >
+                <span className="flex-1 min-w-0">{completionNotice.message}</span>
+                {completionNotice.kind === 'error' && (
+                  <button
+                    type="button"
+                    onClick={() => completeItem(completionNotice.itemId)}
+                    className="rounded-md border border-red-300 bg-white px-3 py-1.5 font-semibold text-red-800 hover:bg-red-100"
+                  >
+                    Try again
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCompletionNotice(null)}
+                  className="rounded-md px-2 py-1.5 font-medium underline-offset-2 hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             {selectedWeeks.length === 0 && (
               <p className="text-neutral-600 text-sm">This course does not have any weeks yet.</p>
             )}
@@ -800,7 +899,10 @@ const StudentCourse: React.FC = () => {
                 onNext={goNextMaterial}
                 prevDisabled={pathIndex <= 0}
                 nextDisabled={pathIndex < 0 || pathIndex >= flatPath.length - 1}
-                onItemComplete={markItemEngaged}
+                onItemComplete={completeItem}
+                isDone={doneItemIds.has(materialViewer.item.id)}
+                doneSaving={savingItemIds.has(materialViewer.item.id)}
+                onMarkDone={toggleDoneItem}
                 onProgressUpdate={handleProgressUpdate}
                 itemProgress={materialViewer ? itemProgressMap[materialViewer.item.id] ?? null : null}
                 courseId={selectedCourseId || undefined}
@@ -820,6 +922,7 @@ const StudentCourse: React.FC = () => {
                       }
                       focusItemId={focusItemId}
                       doneItemIds={doneItemIds}
+                      savedDoneItemIds={serverDoneIds}
                       onToggleDone={toggleDoneItem}
                       onMaterialFocus={setFocusItemId}
                       onOpenMaterial={(item) => openMaterialViewer(section, item)}
@@ -923,6 +1026,7 @@ interface SectionBlockProps {
   onToggleObjective: () => void;
   focusItemId: string | null;
   doneItemIds: Set<string>;
+  savedDoneItemIds?: Set<string>;
   onToggleDone: (itemId: string) => void;
   onMaterialFocus: (itemId: string) => void;
   onOpenMaterial: (item: CourseItem) => void;
@@ -934,6 +1038,7 @@ function SectionBlock({
   onToggleObjective,
   focusItemId,
   doneItemIds,
+  savedDoneItemIds,
   onToggleDone,
   onMaterialFocus,
   onOpenMaterial,
@@ -947,8 +1052,12 @@ function SectionBlock({
       ? 'ring-2 ring-accent-teal/50 border-accent-teal/40 shadow-md'
       : 'border-neutral-200/90';
 
-  /** Use span+role="button" so we never nest a native <button> inside another control (invalid HTML). */
-  const MaterialDoneToggle = ({ itemId }: { itemId: string }) => {
+  /**
+   * Use span+role="button" so we never nest a native <button> inside another control (invalid HTML).
+   * Called as a function, not rendered as <Component/>: a component declared inside render is a new
+   * type on every render, so React remounted it and a click landing during a re-render was lost.
+   */
+  const renderDoneToggle = (itemId: string) => {
     const done = doneItemIds.has(itemId);
     const item = section.items.find((item) => item.id === itemId);
     if (item?.type === 'quiz' || item?.type === 'assignment') {
@@ -956,6 +1065,8 @@ function SectionBlock({
         {done ? <CheckCircle className="h-6 w-6 text-green-600" aria-label="Assessment complete" /> : <Circle className="h-6 w-6 text-neutral-400" aria-label="Assessment pending" />}
       </span>;
     }
+    const saved = savedDoneItemIds?.has(itemId) ?? false;
+    const doneLabel = !done ? 'Mark as done' : saved ? 'Done (saved to your progress)' : 'Mark as not done';
     const toggle = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       onToggleDone(itemId);
@@ -972,8 +1083,8 @@ function SectionBlock({
           }
         }}
         className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:text-green-700 hover:bg-green-50 transition-colors cursor-pointer"
-        aria-label={done ? 'Mark as not done' : 'Mark as done'}
-        title={done ? 'Mark as not done' : 'Mark as done'}
+        aria-label={doneLabel}
+        title={doneLabel}
       >
         {done ? (
           <CheckCircle className="h-6 w-6 text-green-600" aria-hidden />
@@ -1056,7 +1167,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-primary-dark text-white group-hover:scale-[1.02] transition-transform`}>
                       <Play className="h-5 w-5 ml-0.5" aria-hidden />
                     </div>
@@ -1079,7 +1190,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div
                       className={`${ICON_BOX} ${
                         openInPlayer
@@ -1113,7 +1224,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id, 'w-full')}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-red-50 text-red-600 border border-red-100`}>
                       <FileText className="h-5 w-5" aria-hidden />
                     </div>
@@ -1135,7 +1246,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-accent-teal/10 text-accent-teal border border-accent-teal/20 group-hover:bg-accent-teal group-hover:text-white transition-colors`}>
                       <AlignLeft className="h-5 w-5" aria-hidden />
                     </div>
@@ -1157,7 +1268,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-purple-50 text-purple-600 border border-purple-100`}>
                       <Headphones className="h-5 w-5" aria-hidden />
                     </div>
@@ -1179,7 +1290,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-amber-50 text-amber-600 border border-amber-100`}>
                       <ClipboardCheck className="h-5 w-5" aria-hidden />
                     </div>
@@ -1201,7 +1312,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-blue-50 text-blue-600 border border-blue-100`}>
                       <Upload className="h-5 w-5" aria-hidden />
                     </div>
@@ -1223,7 +1334,7 @@ function SectionBlock({
                     {...materialRowA11y(item)}
                     className={materialRowClass(item.id)}
                   >
-                    <MaterialDoneToggle itemId={item.id} />
+                    {renderDoneToggle(item.id)}
                     <div className={`${ICON_BOX} bg-green-50 text-green-600 border border-green-100`}>
                       <Download className="h-5 w-5" aria-hidden />
                     </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import DOMPurify from 'dompurify';
-import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, ExternalLink, Info, Music, ClipboardCheck, Upload, Download as DownloadIcon } from 'lucide-react';
 import InlineQuizTaker from './InlineQuizTaker';
 import InlineAssignmentForm from './InlineAssignmentForm';
 import type { CourseItem, CourseSection } from '../types/course';
@@ -165,6 +165,10 @@ interface EmbeddedMaterialViewerProps {
   prevDisabled?: boolean;
   nextDisabled?: boolean;
   onItemComplete?: (itemId: string) => void;
+  /** UX-015: whether this material is already done, and the learner's own "Mark as done". */
+  isDone?: boolean;
+  doneSaving?: boolean;
+  onMarkDone?: (itemId: string) => void;
   onProgressUpdate?: (itemId: string, positionSeconds: number, progressPercent: number) => void;
   itemProgress?: { positionSeconds: number; progressPercent: number } | null;
   courseId?: string;
@@ -184,6 +188,9 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
   prevDisabled = true,
   nextDisabled = true,
   onItemComplete,
+  isDone = false,
+  doneSaving = false,
+  onMarkDone,
   onProgressUpdate,
   itemProgress,
   courseId,
@@ -249,6 +256,27 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
             Open in new tab
           </button>
+        ) : null}
+        {onMarkDone && item.type !== 'quiz' && item.type !== 'assignment' ? (
+          isDone ? (
+            <span
+              className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800"
+              role="status"
+            >
+              <CheckCircle className="h-4 w-4 shrink-0" aria-hidden />
+              Done
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onMarkDone(item.id)}
+              disabled={doneSaving}
+              className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-white px-3 py-2 text-sm font-semibold text-green-800 shadow-sm hover:bg-green-50 disabled:opacity-60 transition-colors"
+            >
+              <CheckCircle className="h-4 w-4 shrink-0" aria-hidden />
+              {doneSaving ? 'Saving…' : 'Mark as done'}
+            </button>
+          )
         ) : null}
         {(onPrev || onNext) ? (
           <div className="ml-auto flex items-center gap-2">
