@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { prepareVerifiedFundingIntent, consumeFundingIntent, assertFundingIntentReplay, validateFundingRequest, fundingLedgerReference, stellarIntentForVerification } from './rewardFundingIntentService.js';
+import { prepareVerifiedFundingIntent, consumeFundingIntent, assertFundingIntentReplay, validateFundingRequest, fundingLedgerReference, stellarIntentForVerification, assertFunderNotRecipient } from './rewardFundingIntentService.js';
 import { db } from '../../config/database.js';
 import { RewardError } from './rewardErrors.js';
 import { validateScope, resolveAudienceMembers, createAudienceSnapshot } from './rewardScopeService.js';
@@ -91,6 +91,17 @@ export function createReward(actorId: string, params: CreateRewardParams): Rewar
 
   if (!validateScope(actorId, params.scopeType, params.scopeId)) {
     throw new RewardError('SCOPE_DENIED', `Actor does not have access to scope ${params.scopeType}:${params.scopeId}`, 403);
+  }
+
+  // Staging bug 21: a reward funded for fewer learners than its group has can never be activated
+  // ("Audience has 2 members but effective cap is 1"). Refuse it now, with the numbers, instead of after funding.
+  const audience = resolveAudienceMembers(params.scopeType, params.scopeId, actorId);
+  const cap = params.maxRecipients ?? 1;
+  if (audience.length > cap) {
+    const self = audience.includes(actorId) ? ' (you are one of them)' : '';
+    throw new RewardError('AUDIENCE_EXCEEDS_CAP',
+      `This group has ${audience.length} learners${self}, but the reward is set for ${cap}. `
+      + `Set the number of learners to at least ${audience.length}, so every learner can be paid.`, 400);
   }
 
   const existing = checkRewardIdempotency(params.idempotencyKey);
@@ -194,6 +205,8 @@ export function fundReward(
   if (!rewardForAuth) {
     throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
   }
+  // Someone who would receive this reward cannot fund it (checked first, so the refusal says why).
+  assertFunderNotRecipient(rewardForAuth, actorId);
   const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
 
   // W01: Synchronous verification gate — reference checks, source-type
@@ -337,6 +350,8 @@ export async function fundRewardAsync(
   if (!rewardForAuth) {
     throw new RewardError('REWARD_NOT_FOUND', `Reward ${rewardId} not found`, 404);
   }
+  // Someone who would receive this reward cannot fund it (checked first, so the refusal says why).
+  assertFunderNotRecipient(rewardForAuth, actorId);
   const authContext = { actorId, rewardCreatorId: rewardForAuth.creator_user_id };
 
   // W01-R2: Build Paystack binding context from the reward's authoritative state.

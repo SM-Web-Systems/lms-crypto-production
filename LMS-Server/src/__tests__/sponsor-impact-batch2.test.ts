@@ -169,6 +169,20 @@ describe('Sponsor Impact Report — Batch 2 Enhancements', () => {
     expect(Array.isArray(res.body.data.dropOff)).toBe(true);
   });
 
+  it('D3B2-05b: drop-off names each lesson by its title, not its id', async () => {
+    db.prepare('UPDATE courses SET sections = ? WHERE id = ?').run(JSON.stringify([
+      { id: 'sec-1', title: 'Week 1', items: [{ id: 'lesson-1', title: 'What is a wallet?', type: 'text' }] },
+    ]), course.id);
+    const cohortId = seedCohort(sponsor.userId, course.id, 'Titles Cohort', '2026-03-01');
+    const memberId = seedMember(cohortId, '2026-03-05');
+    seedLessonCompletion(memberId, course.id, 'lesson-1', '2026-03-10');
+    seedLessonCompletion(memberId, course.id, 'mws2000y4uzl0er43a9', '2026-03-12');
+    const res = await request(app).get('/api/v1/sponsor/impact-report').set('Authorization', `Bearer ${sponsor.token}`);
+    const titles = Object.fromEntries(res.body.data.dropOff.map((d: { itemId: string; itemTitle: string }) => [d.itemId, d.itemTitle]));
+    expect(titles['lesson-1']).toBe('What is a wallet?');
+    expect(titles['mws2000y4uzl0er43a9']).toBe('Lesson (removed)');
+  });
+
   it('D3B2-06: drop-off is empty array when no lesson completions exist', async () => {
     seedCohort(sponsor.userId, course.id, 'Empty Cohort', '2026-04-01');
 

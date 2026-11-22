@@ -412,6 +412,22 @@ describe('B5 — PATCH approve / reject', () => {
     expect(res.body.data.status).toBe('rejected');
   });
 
+  it('keeps the reason the admin screen sends (as `reason`) and shows it to the learner', async () => {
+    const { adminId, studentId, courseId, appId } = seedWithPendingApp();
+    const token = makeToken({ userId: adminId, email: 'admin-b@test.com', role: 'admin' });
+    const res = await request(app)
+      .patch(`/api/v1/courses/${courseId}/completions/applications/${appId}/reject`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reason: '  Quiz 3 is missing.  ' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.notes).toBe('Quiz 3 is missing.');
+    const studentToken = makeToken({ userId: studentId, email: 'student-b@test.com', role: 'student' });
+    const own = await request(app).get(`/api/v1/courses/${courseId}/completions/applications`).query({ view: 'own' }).set('Authorization', `Bearer ${studentToken}`);
+    expect(own.body.data.applications[0].reviewNotes).toBe('Quiz 3 is missing.');
+    const notice = db.prepare("SELECT body FROM notifications WHERE user_id = ? AND type = 'nft_rejected'").get(studentId) as { body: string } | undefined;
+    expect(notice?.body).toContain('Reason: Quiz 3 is missing.');
+  });
+
   it('student cannot approve', async () => {
     const { studentId, courseId, appId } = seedWithPendingApp();
     const token = makeToken({ userId: studentId, email: 'student-b@test.com', role: 'student' });

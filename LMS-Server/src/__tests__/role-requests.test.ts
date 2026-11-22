@@ -61,6 +61,15 @@ describe('requesting a role', () => {
     expect(hasRole(s, 'role_ta')).toBe(true);
   });
 
+  it('does not offer roles the user already has or is already waiting on', async () => {
+    const l = user(['role_student', 'role_parent']);
+    await ask(l, 'role_employer');
+    const roles = (await request(app).get('/api/v1/role-requests/mine').set(auth(l))).body.data.roles.map((r: { id: string }) => r.id);
+    expect(roles).not.toContain('role_parent');
+    expect(roles).not.toContain('role_employer');
+    expect(roles).toContain('role_sponsor');
+  });
+
   it('no duplicates, a reason is required, and the user can withdraw', async () => {
     const l = user(['role_student']);
     expect((await ask(l, 'role_teacher', '')).status).toBe(400);

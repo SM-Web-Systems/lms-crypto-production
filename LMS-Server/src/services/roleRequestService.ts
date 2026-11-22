@@ -22,10 +22,13 @@ const REQUIRES: Record<string, { roleId: string; message: string }> = {
   role_ta: { roleId: 'role_supporter_student', message: 'Only super students can ask to become a teaching assistant.' },
 };
 
-/** The roles this user may ask for now. */
+/** The roles this user may ask for now: never one they already hold or are already waiting on. */
 export function requestableRolesFor(userId: string): Array<{ id: string; label: string }> {
+  const has = (roleId: string) => !!db.prepare('SELECT 1 FROM user_roles WHERE user_id = ? AND role_id = ?').get(userId, roleId);
+  const waiting = (roleId: string) => !!db.prepare("SELECT 1 FROM role_requests WHERE user_id = ? AND role_id = ? AND status = 'pending'").get(userId, roleId);
   return Object.entries(REQUESTABLE_ROLES)
-    .filter(([id]) => !REQUIRES[id] || !!db.prepare('SELECT 1 FROM user_roles WHERE user_id = ? AND role_id = ?').get(userId, REQUIRES[id].roleId))
+    .filter(([id]) => !REQUIRES[id] || has(REQUIRES[id].roleId))
+    .filter(([id]) => !has(id) && !waiting(id))
     .map(([id, label]) => ({ id, label }));
 }
 

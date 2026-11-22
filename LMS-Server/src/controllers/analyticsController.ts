@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { query, queryOne } from '../config/database.js';
+import { lessonTitle } from '../services/courseContentService.js';
 import { AuthRequest, DashboardAnalytics, SubmissionStatus } from '../types/index.js';
 
 export interface CourseAnalyticsRow {
@@ -505,12 +506,13 @@ export function getCohortInsights(req: AuthRequest, res: Response, next: NextFun
     const dropOff = query<{
       course_id: string;
       course_name: string;
+      course_sections: string | null;
       item_id: string;
       section_id: string;
       completions: number;
       total_enrolled: number;
     }>(
-      `SELECT lc.course_id, c.title AS course_name, lc.item_id, lc.section_id,
+      `SELECT lc.course_id, c.title AS course_name, c.sections AS course_sections, lc.item_id, lc.section_id,
               COUNT(*) AS completions,
               (SELECT COUNT(DISTINCT ucc.user_id) FROM user_course_codes ucc WHERE ucc.course_code = c.course_code) AS total_enrolled
        FROM lesson_completions lc
@@ -527,6 +529,7 @@ export function getCohortInsights(req: AuthRequest, res: Response, next: NextFun
       courseId: r.course_id,
       courseName: r.course_name,
       itemId: r.item_id,
+      itemTitle: lessonTitle(r.course_id, r.course_sections, r.item_id),
       sectionId: r.section_id,
       completions: r.completions,
       totalEnrolled: r.total_enrolled,

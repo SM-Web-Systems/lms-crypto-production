@@ -90,7 +90,7 @@ const sampleImpact: ImpactReport = {
     { cohortId: 'c2', cohortName: 'Beta Program', memberCount: 20, completedCount: 12, certificateCount: 10 },
   ],
   dropOff: [
-    { courseId: 'course1', courseName: 'Blockchain 101', itemId: 'lesson-3', sectionId: 'sec-1', completions: 5, totalMembers: 25, completionRate: 20 },
+    { courseId: 'course1', courseName: 'Blockchain 101', itemId: 'lesson-3', itemTitle: 'Smart contracts', sectionId: 'sec-1', completions: 5, totalMembers: 25, completionRate: 20 },
     { courseId: 'course1', courseName: 'Blockchain 101', itemId: 'lesson-5', sectionId: 'sec-2', completions: 8, totalMembers: 25, completionRate: 32 },
   ],
 };
@@ -234,7 +234,8 @@ describe('SponsorDashboard — Batch 2 Enhancements', () => {
     await waitFor(() => {
       expect(screen.getByText(/drop-off analysis/i)).toBeInTheDocument();
       expect(screen.getAllByText('Blockchain 101').length).toBeGreaterThan(0);
-      expect(screen.getByText('lesson-3')).toBeInTheDocument();
+      expect(screen.getByText('Smart contracts')).toBeInTheDocument();
+      expect(screen.queryByText('lesson-3')).toBeNull();
       expect(screen.getByText('20%')).toBeInTheDocument();
     });
   });

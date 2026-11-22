@@ -36,8 +36,11 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
     courseCompletionService.getTiers(courseId)
       .then((info) => {
         setTierInfo(info);
+        // A sponsor cohort pays for this learner: apply for its certificate without asking.
+        if (info.sponsoredTier) {
+          onSelectRef.current(info.sponsoredTier);
         // Auto-select if only one tier available
-        if (info.tiersEnabled === 'free_only') {
+        } else if (info.tiersEnabled === 'free_only') {
           onSelectRef.current('free');
         } else if (info.tiersEnabled === 'paid_only') {
           onSelectRef.current('paid');
@@ -72,7 +75,7 @@ export function TierSelector({ courseId, onSelect, onCancel }: TierSelectorProps
     );
   }
 
-  if (!tierInfo || tierInfo.tiersEnabled !== 'both') {
+  if (!tierInfo || tierInfo.tiersEnabled !== 'both' || tierInfo.sponsoredTier) {
     return null; // Auto-selected
   }
 

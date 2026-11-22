@@ -179,4 +179,28 @@ describe('Cohort payment requests with administrator approval', () => {
   it('CPA-9: unknown or non-cohort payments are not found', async () => {
     expect((await approve(uuidv4())).status).toBe(404);
   });
+
+  it('CPA-REAPPLY: a sponsored learner who re-applies after a rejection gets the cohort certificate, with no payment of their own', async () => {
+    const { paymentId } = (await submit()).body.data;
+    expect((await approve(paymentId)).status).toBe(200);
+    const learner = learners[0];
+    const old = (db.prepare('SELECT application_id FROM cohort_members WHERE cohort_id = ? AND user_id = ?').get(cohortId, learner) as { application_id: string }).application_id;
+    db.prepare("UPDATE course_nft_applications SET status = 'rejected' WHERE id = ?").run(old);
+    db.prepare("UPDATE users SET walletAddress = ?, wallet_linking_status = 'linked' WHERE id = ?").run('GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H', learner);
+    const email = (db.prepare('SELECT email FROM users WHERE id = ?').get(learner) as { email: string }).email;
+    const token = makeToken({ userId: learner, email, role: 'student' });
+
+    const tiers = await request(app).get(`/api/v1/courses/${courseId}/tiers`).set('Authorization', `Bearer ${token}`);
+    expect(tiers.body.data.sponsoredTier).toBe('paid');
+
+    const res = await request(app).post(`/api/v1/courses/${courseId}/completions/apply`).set('Authorization', `Bearer ${token}`).send({});
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ selectedTier: 'paid', sponsoredByCohort: true });
+    expect(res.body.data.payment).toBeUndefined();
+    const fresh = res.body.data.applicationId;
+    expect(db.prepare('SELECT application_id FROM cohort_members WHERE cohort_id = ? AND user_id = ?').get(cohortId, learner)).toEqual({ application_id: fresh });
+    expect(isPaymentSatisfied(fresh)).toBe(true);
+    const learnerPayments = db.prepare("SELECT amount_cents, status FROM payments WHERE user_id = ? AND application_id = ?").all(learner, fresh);
+    expect(learnerPayments).toEqual([{ amount_cents: 0, status: 'confirmed' }]);
+  });
 });

@@ -11,6 +11,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission, getUserPermissions } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { query, queryOne } from '../config/database.js';
+import { lessonTitle } from '../services/courseContentService.js';
 import { sponsorCourseOptions, sponsorCourses, sponsorStudents, ownsSponsorCourse, csvCell } from '../services/sponsorPortalService.js';
 import { getSpendingReport } from '../services/cohortService.js';
 import { getCourseProgress } from '../services/courseCompletionService.js';
@@ -174,10 +175,10 @@ router.get(
       : 0;
 
     // Deduplicate shared membership and match the sponsored course, not every course a member takes.
-    const dropOff = query<{course_id:string;course_name:string;item_id:string;section_id:string;completions:number;total_members:number}>(
+    const dropOff = query<{course_id:string;course_name:string;course_sections:string|null;item_id:string;section_id:string;completions:number;total_members:number}>(
       `WITH members AS (SELECT DISTINCT sc.course_id,cm.user_id FROM sponsor_cohorts sc
         JOIN cohort_members cm ON cm.cohort_id = sc.id WHERE sc.sponsor_user_id = ?${dateClause})
-       SELECT lc.course_id,c.title AS course_name,lc.item_id,lc.section_id,COUNT(DISTINCT lc.user_id) AS completions,
+       SELECT lc.course_id,c.title AS course_name,c.sections AS course_sections,lc.item_id,lc.section_id,COUNT(DISTINCT lc.user_id) AS completions,
         (SELECT COUNT(*) FROM members m2 WHERE m2.course_id = lc.course_id) AS total_members
        FROM lesson_completions lc JOIN members m ON m.user_id = lc.user_id AND m.course_id = lc.course_id
        JOIN courses c ON c.id = lc.course_id WHERE lc.completed_at IS NOT NULL
@@ -187,6 +188,7 @@ router.get(
       courseId: r.course_id,
       courseName: r.course_name,
       itemId: r.item_id,
+      itemTitle: lessonTitle(r.course_id, r.course_sections, r.item_id),
       sectionId: r.section_id,
       completions: r.completions,
       totalMembers: r.total_members,

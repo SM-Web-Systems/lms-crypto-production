@@ -441,6 +441,8 @@ export interface TierInfo {
   priceCents: number;
   currency: string;
   isFree: boolean;
+  /** Set when a sponsor cohort already covers this learner's certificate: applied for without asking or charging. */
+  sponsoredTier?: CertificateTier | null;
 }
 
 export interface CertificateBadgeData {

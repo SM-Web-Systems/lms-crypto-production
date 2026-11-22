@@ -336,6 +336,9 @@ const AdminStudents: React.FC = () => {
                           </div>
                           <div className="ml-3">
                             <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                            {!student.userId && (
+                              <div className="text-xs text-amber-700" title="Roles can be given on the Users page after their first sign-in">No LMS account yet</div>
+                            )}
                             <div className="text-xs text-gray-500 flex items-center gap-1">
                               <Mail className="h-3 w-3" />{student.email}
                             </div>

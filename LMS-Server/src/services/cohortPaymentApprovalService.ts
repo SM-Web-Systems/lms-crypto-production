@@ -180,3 +180,43 @@ export function declineCohortPayment(paymentId: string, adminUserId: string, rea
   } catch { /* best-effort */ }
   return toRequest(queryOne<RequestRow>(`${REQUEST_SELECT} WHERE p.id = ?`, [paymentId])!);
 }
+
+export interface LearnerSponsorship {
+  cohortId: string;
+  tier: 'free' | 'paid';
+  paymentId: string | null;
+  paymentStatus: string | null;
+}
+
+/**
+ * The sponsor cohort that pays for this learner's certificate in this course, if any: the most recent cohort
+ * they belong to whose payment request was not declined. Used when the learner applies (or re-applies after a
+ * rejection) on their own, so they are never asked to pay for a certificate their sponsor covers.
+ */
+export function learnerSponsorship(userId: string, courseId: string): LearnerSponsorship | null {
+  const row = queryOne<{ cohort_id: string; selected_tier: 'free' | 'paid'; payment_id: string | null; payment_status: string | null }>(
+    `SELECT sc.id AS cohort_id, sc.selected_tier, sc.payment_id, p.status AS payment_status
+     FROM cohort_members cm JOIN sponsor_cohorts sc ON sc.id = cm.cohort_id
+     LEFT JOIN payments p ON p.id = sc.payment_id
+     WHERE cm.user_id = ? AND sc.course_id = ? AND (p.status IS NULL OR p.status <> 'failed')
+     ORDER BY sc.created_at DESC LIMIT 1`, [userId, courseId]);
+  return row ? { cohortId: row.cohort_id, tier: row.selected_tier, paymentId: row.payment_id, paymentStatus: row.payment_status } : null;
+}
+
+/**
+ * Put a learner's new application under their sponsor cohort (replacing a rejected one). When the cohort's payment
+ * is already approved and covers this member, settle the application the same way approval does (a zero-amount
+ * confirmed record); while the request is pending, approval will settle it. Returns whether it is settled now.
+ */
+export function attachToSponsorship(s: LearnerSponsorship, userId: string, courseId: string, applicationId: string): boolean {
+  execute('UPDATE cohort_members SET application_id = ? WHERE cohort_id = ? AND user_id = ?', [applicationId, s.cohortId, userId]);
+  if (!s.paymentId || (s.paymentStatus !== 'confirmed' && s.paymentStatus !== 'waived')) return false;
+  const payment = queryOne<{ created_at: string; currency: string; confirmed_by: string | null }>(
+    'SELECT created_at, currency, confirmed_by FROM payments WHERE id = ?', [s.paymentId]);
+  if (!payment?.confirmed_by) return false;
+  const covered = queryOne('SELECT 1 FROM cohort_members WHERE cohort_id = ? AND user_id = ? AND added_at <= ?', [s.cohortId, userId, payment.created_at]);
+  if (!covered || isPaymentSatisfied(applicationId)) return !!covered;
+  const learnerPayment = createPayment(userId, courseId, applicationId, 0, payment.currency);
+  confirmPayment(learnerPayment.id, payment.confirmed_by, `Covered by cohort payment ${s.paymentId}`);
+  return true;
+}

@@ -183,6 +183,9 @@ export function UserRoleManager() {
         <Shield className="h-6 w-6 text-accent-teal" />
         <h1 className="text-2xl font-bold text-neutral-800">User Role Management</h1>
       </div>
+      <p className="text-sm text-neutral-500" data-testid="users-account-note">
+        This list shows LMS accounts. A student added on the Students page appears here after they first sign in; their course access is already waiting for them.
+      </p>
 
       <RoleRequestQueue />
 
