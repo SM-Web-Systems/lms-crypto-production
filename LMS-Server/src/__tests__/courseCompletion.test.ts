@@ -448,7 +448,7 @@ describe('B5 — PATCH approve / reject', () => {
 });
 
 describe('B5 — POST .../mint', () => {
-  it('returns 502 when NFT secrets not configured', async () => {
+  it('returns 409 NFT_NOT_CONFIGURED with a readable reason when no NFT contract is configured', async () => {
     const ids = seedBase();
     const appId = uuidv4();
     db.exec(`
@@ -462,8 +462,9 @@ describe('B5 — POST .../mint', () => {
     const res = await request(app)
       .post(`/api/v1/courses/${ids.courseId}/completions/applications/${appId}/mint`)
       .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('MINT_FAILED');
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NFT_NOT_CONFIGURED');
+    expect(res.body.error.message).toMatch(/not set up on this server/);
   });
 
   it('returns 409 when application is not approved', async () => {

@@ -489,5 +489,7 @@ export interface CohortCompletionStats {
 export interface BulkApplyResult {
   cohortId: string;
   applied: number;
+  /** Members' own earlier applications attached to the cohort (counted as applied). */
+  linked?: number;
   skipped: { userId: string; reason: string }[];
 }

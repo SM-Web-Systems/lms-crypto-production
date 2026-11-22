@@ -13,7 +13,7 @@ import type {
   BulkPayResult,
   CertificateTier,
 } from '../types/index.js';
-import { getCoursePricing } from './paymentService.js';
+import { getCoursePricing, isPaymentSatisfied } from './paymentService.js';
 import { getTiersEnabled } from './badgeService.js';
 import { getCourseProgress } from './courseCompletionService.js';
 import { sendEnrollmentEmail, sendCourseInviteEmail, sendPaymentReminderEmail } from './emailService.js';
@@ -345,8 +345,8 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
   const cohort = queryOne<SponsorCohort>('SELECT * FROM sponsor_cohorts WHERE id = ?', [cohortId]);
   if (!cohort) throw Object.assign(new Error('Cohort not found'), { code: 'COHORT_NOT_FOUND' });
 
-  const members = query<{ user_id: string }>(
-    'SELECT user_id FROM cohort_members WHERE cohort_id = ?',
+  const members = query<{ user_id: string; application_id: string | null }>(
+    'SELECT user_id, application_id FROM cohort_members WHERE cohort_id = ?',
     [cohortId],
   );
   if (members.length === 0) throw Object.assign(new Error('Cohort has no members'), { code: 'COHORT_EMPTY' });
@@ -357,6 +357,7 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
   );
 
   let applied = 0;
+  let linked = 0;
   const skipped: { userId: string; reason: string }[] = [];
 
   for (const member of members) {
@@ -371,12 +372,24 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
     }
 
     // Check existing non-rejected application
-    const existingApp = queryOne<{ id: string }>(
-      "SELECT id FROM course_nft_applications WHERE user_id = ? AND course_id = ? AND status NOT IN ('rejected')",
+    const existingApp = queryOne<{ id: string; status: string; selected_tier: string | null }>(
+      "SELECT id, status, selected_tier FROM course_nft_applications WHERE user_id = ? AND course_id = ? AND status NOT IN ('rejected')",
       [member.user_id, cohort.course_id],
     );
     if (existingApp) {
-      skipped.push({ userId: member.user_id, reason: 'application_exists' });
+      // A member who applied on their own before the bulk apply: attach that application to the cohort so
+      // it counts as applied and the sponsor's payment request covers it. Never take over an application
+      // that is already in this or another cohort, already paid for, already issued, or on another tier.
+      if (member.application_id === existingApp.id) { skipped.push({ userId: member.user_id, reason: 'already_in_cohort' }); continue; }
+      if (queryOne('SELECT 1 FROM cohort_members WHERE application_id = ? AND cohort_id <> ?', [existingApp.id, cohortId])) {
+        skipped.push({ userId: member.user_id, reason: 'in_other_cohort' }); continue;
+      }
+      if (existingApp.status === 'minted') { skipped.push({ userId: member.user_id, reason: 'already_issued' }); continue; }
+      if ((existingApp.selected_tier || 'paid') !== cohort.selected_tier) { skipped.push({ userId: member.user_id, reason: 'tier_mismatch' }); continue; }
+      if (isPaymentSatisfied(existingApp.id)) { skipped.push({ userId: member.user_id, reason: 'already_paid' }); continue; }
+      execute('UPDATE cohort_members SET application_id = ? WHERE cohort_id = ? AND user_id = ?',
+        [existingApp.id, cohortId, member.user_id]);
+      linked++;
       continue;
     }
 
@@ -400,12 +413,12 @@ export function bulkApply(cohortId: string, adminUserId: string): BulkApplyResul
     applied++;
   }
 
-  // Update cohort status to 'active' if any applications created
-  if (applied > 0) {
-    transitionCohortStatus(cohortId, 'active', 'system:bulkApply', `${applied} applications created`);
+  // Update cohort status to 'active' if any applications were created or attached
+  if (applied + linked > 0) {
+    transitionCohortStatus(cohortId, 'active', 'system:bulkApply', `${applied} applications created, ${linked} existing attached`);
   }
 
-  return { cohortId, applied, skipped };
+  return { cohortId, applied, linked, skipped };
 }
 
 export interface BulkPayQuote { amountCents: number; currency: string; memberCount: number }
