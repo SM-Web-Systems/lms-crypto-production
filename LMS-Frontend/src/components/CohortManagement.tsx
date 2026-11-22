@@ -191,7 +191,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
     const learners = `${quote.memberCount} learner${quote.memberCount === 1 ? '' : 's'}`;
     const done = await ask({
       title: 'Create payment?',
-      description: <>Create a pending payment of <strong>{amount}</strong> for <strong>{learners}</strong>. Nothing is charged now: an administrator arranges payment with you and confirms it once it is paid.</>,
+      description: <>Create a pending payment of <strong>{amount}</strong> for <strong>{learners}</strong>. Nothing is charged now: this sends a payment request that an administrator reviews and approves.</>,
       confirmLabel: `Create payment of ${amount}`,
       variant: 'primary',
       action: async () => { setPayResult(await cohortService.bulkPay(cohortId)); },
@@ -294,8 +294,8 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
           <CreditCard className="w-4 h-4 shrink-0" aria-hidden />
           <span>
             Payment created: {formatMoney(payResult.amountCents, payResult.currency)} (pending).{' '}
-            {/* UX-019: cohorts have no online checkout; the payment is a manual invoice an administrator confirms. */}
-            Nothing has been charged. An administrator arranges payment with you and marks it paid; you can follow it under Billing.
+            {/* Cohorts have no online checkout; the payment is a request an administrator approves (UX-019). */}
+            Nothing has been charged. An administrator reviews the request and approves or declines it; you can follow it under Billing.
           </span>
         </div>
       )}

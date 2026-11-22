@@ -407,6 +407,9 @@ CREATE TABLE IF NOT EXISTS payments (
   stellar_tx_hash TEXT,
   stellar_memo    TEXT,
   stellar_expected_amount REAL,
+  decline_reason  TEXT,
+  declined_by     TEXT,
+  declined_at     TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );

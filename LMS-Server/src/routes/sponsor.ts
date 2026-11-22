@@ -243,7 +243,8 @@ router.get(
     if (range.from) {conditions.push('p.created_at >= ?');params.push(range.from);}
     if (range.to) {conditions.push('p.created_at < ?');params.push(range.to);}
     const payments = query(`SELECT p.id,p.course_id,c.title AS course_name,u.name AS payer_name,
-      p.amount_cents,p.currency,p.payment_method,p.status,p.created_at
+      p.amount_cents,p.currency,p.payment_method,p.status,p.created_at,
+      (SELECT sc.name FROM sponsor_cohorts sc WHERE sc.payment_id = p.id LIMIT 1) AS cohort_name,p.decline_reason
       FROM payments p LEFT JOIN courses c ON c.id = p.course_id LEFT JOIN users u ON u.id = p.user_id
       WHERE ${conditions.join(' AND ')} ORDER BY p.created_at DESC,p.id`,params);
     res.json({success:true,data:{payments,total:payments.length,scope}});

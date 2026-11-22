@@ -38,6 +38,14 @@ import {
 } from '../services/paymentService.js';
 import { getTiersEnabled, getBadge } from '../services/badgeService.js';
 import {
+  approveCohortPayment,
+  declineCohortPayment,
+  isCohortPayment,
+  listCohortPaymentRequests,
+  CohortPaymentError,
+  type CohortPaymentStatus,
+} from '../services/cohortPaymentApprovalService.js';
+import {
   initializeTransaction,
   isPaystackConfigured,
   verifyWebhookSignature,
@@ -276,6 +284,10 @@ router.post(
     const { paymentId } = req.params;
     const { notes } = req.body ?? {};
 
+    if (isCohortPayment(paymentId)) {
+      res.status(409).json({ success: false, error: { code: 'COHORT_PAYMENT_REQUEST', message: 'This is a cohort payment request: approve it from Cohort payment requests so its learners are settled' } });
+      return;
+    }
     const payment = confirmPayment(paymentId, req.user!.userId, notes);
     if (!payment) {
       res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });
@@ -311,6 +323,138 @@ router.post(
         confirmedAt: payment.confirmed_at,
       },
     });
+  },
+);
+
+// ─── Cohort payment requests (sponsor bulk pay, administrator approval) ──────
+
+function sendCohortPaymentError(res: Response, err: unknown): void {
+  if (err instanceof CohortPaymentError) {
+    res.status(err.status).json({ success: false, error: { code: err.code, message: err.message } });
+    return;
+  }
+  logger.error({ module: 'cohort-payment-approval', err }, 'Cohort payment decision failed');
+  res.status(500).json({ success: false, error: { code: ErrorCodes.INTERNAL_ERROR, message: 'Internal error' } });
+}
+
+/**
+ * @openapi
+ * /admin/cohort-payments:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Sponsor cohort payment requests for administrator approval
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, declined]
+ *     responses:
+ *       '200':
+ *         description: Requests with sponsor, cohort, amount, learner count and decision
+ */
+router.get(
+  '/admin/cohort-payments',
+  requirePermission('billing.confirm'),
+  requireAdministrator,
+  (req: AuthRequest, res: Response): void => {
+    const status = req.query.status as string | undefined;
+    if (status !== undefined && !['pending', 'approved', 'declined'].includes(status)) {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'status must be pending, approved or declined' } });
+      return;
+    }
+    res.json({ success: true, data: { requests: listCohortPaymentRequests(status as CohortPaymentStatus | undefined) } });
+  },
+);
+
+/**
+ * @openapi
+ * /admin/cohort-payments/{paymentId}/approve:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Approve a cohort payment request and settle its learners (idempotent)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       '200':
+ *         description: Approved; learnersSettled counts learners settled by this call
+ *       '403':
+ *         description: Not an administrator with billing.confirm, or the administrator sponsors the cohort
+ *       '404':
+ *         description: Not a cohort payment request
+ *       '409':
+ *         description: The request was declined or refunded
+ */
+router.post(
+  '/admin/cohort-payments/:paymentId/approve',
+  requirePermission('billing.confirm'),
+  requireAdministrator,
+  (req: AuthRequest, res: Response): void => {
+    try {
+      const { request, learnersSettled } = approveCohortPayment(req.params.paymentId, req.user!.userId);
+      res.json({ success: true, data: { ...request, learnersSettled } });
+    } catch (err) {
+      sendCohortPaymentError(res, err);
+    }
+  },
+);
+
+/**
+ * @openapi
+ * /admin/cohort-payments/{paymentId}/decline:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Decline a pending cohort payment request with a reason
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       '200':
+ *         description: Declined; the sponsor is notified with the reason
+ *       '400':
+ *         description: A reason is required
+ *       '409':
+ *         description: The request is no longer pending
+ */
+router.post(
+  '/admin/cohort-payments/:paymentId/decline',
+  requirePermission('billing.confirm'),
+  requireAdministrator,
+  (req: AuthRequest, res: Response): void => {
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    if (!reason) {
+      res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'A reason for the sponsor is required' } });
+      return;
+    }
+    try {
+      res.json({ success: true, data: declineCohortPayment(req.params.paymentId, req.user!.userId, reason.slice(0, 500)) });
+    } catch (err) {
+      sendCohortPaymentError(res, err);
+    }
   },
 );
 
@@ -366,6 +510,10 @@ router.post(
       return;
     }
 
+    if (isCohortPayment(paymentId)) {
+      res.status(409).json({ success: false, error: { code: 'COHORT_PAYMENT_REQUEST', message: 'This is a cohort payment request: approve or decline it from Cohort payment requests' } });
+      return;
+    }
     const payment = waivePayment(paymentId, req.user!.userId, notes.trim());
     if (!payment) {
       res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Payment not found' } });

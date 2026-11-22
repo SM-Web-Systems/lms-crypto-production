@@ -379,6 +379,9 @@
       "stellar_tx_hash",
       "stellar_memo",
       "stellar_expected_amount",
+      "decline_reason",
+      "declined_by",
+      "declined_at",
       "created_at",
       "updated_at"
     ],

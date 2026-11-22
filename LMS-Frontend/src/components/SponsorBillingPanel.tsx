@@ -99,11 +99,14 @@ function BillingHistory({
               {data.payments.map((p) => (
                 <tr key={p.id} className="border-b last:border-0">
                   <td className="p-3 whitespace-nowrap">{new Date(p.createdAt).toLocaleDateString()}</td>
-                  <td className="p-3">{p.courseName ?? p.courseId}</td>
+                  <td className="p-3">
+                    {p.courseName ?? p.courseId}
+                    {p.cohortName && <span className="block text-xs text-neutral-500">Cohort: {p.cohortName}</span>}
+                  </td>
                   {scope === 'cohort' && <td className="p-3">{p.payerName}</td>}
                   <td className="p-3 whitespace-nowrap">{formatPayment(p.amountCents, p.currency)}</td>
                   <td className="p-3">{p.paymentMethod}</td>
-                  <td className="p-3">{p.status}</td>
+                  <td className="p-3">{paymentStatusLabel(p)}</td>
                   <td className="p-3">
                     {['confirmed', 'waived'].includes(p.status) ? (
                       <Button
@@ -132,6 +135,16 @@ function BillingHistory({
       )}
     </section>
   );
+}
+
+/** A cohort payment is a request an administrator approves or declines; other payments keep their status. */
+function paymentStatusLabel(p: { status: string; cohortName?: string; declineReason?: string }) {
+  // A declined request keeps its reason even after a newer request replaced it on the cohort.
+  if (p.status === 'failed' && p.declineReason) return `Declined: ${p.declineReason}`;
+  if (!p.cohortName) return p.status;
+  if (p.status === 'pending') return 'Waiting for administrator approval';
+  if (p.status === 'confirmed' || p.status === 'waived') return 'Approved';
+  return p.status;
 }
 
 function formatPayment(cents: number, currency: string) {

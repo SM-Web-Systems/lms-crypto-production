@@ -4,7 +4,7 @@ import { Loader2, Wallet, ArrowRight } from 'lucide-react';
 import { authService } from '../services/authService';
 import { getErrorMessage } from '../utils/apiError';
 
-const AMMA_WALLET_URL = 'https://ammawallet.com';
+import { AMMA_WALLET_URL } from '../utils/walletSignIn';
 
 type Method = 'wallet' | 'email';
 
