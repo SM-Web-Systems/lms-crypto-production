@@ -20,8 +20,11 @@ export const LessonViewsPanel: React.FC = () => {
     void (async () => {
       let data: MediaLessonStats[] = [];
       try {
-        const res = await api.get<{ success: boolean; data: MediaLessonStats[] }>('/analytics/media');
-        data = res?.data?.data ?? [];
+        // The server answers { data: { lessons: [...] } }; accept a bare array too so a shape change can't crash the dashboard.
+        const res = await api.get<{ success: boolean; data: { lessons?: MediaLessonStats[] } | MediaLessonStats[] }>('/analytics/media');
+        const body = res?.data?.data;
+        const list = Array.isArray(body) ? body : body?.lessons;
+        data = Array.isArray(list) ? list : [];
       } catch { /* the panel shows an empty state */ }
       if (!cancelled) setRows(data);
     })();
