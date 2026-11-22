@@ -217,5 +217,11 @@ describe('a refused payout is never shown as sent or released', () => {
     render(<StudentRewardsPanel />);
     expect((await screen.findByRole('alert')).textContent).toMatch(/Could not load your payments/);
   });
-});
 
+  it('My Rewards shows a failed balance load as an error, never as nothing to claim', async () => {
+    svc.getClaimableBalance.mockRejectedValue(new Error('network'));
+    render(<StudentRewardsPanel />);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not load your claimable balance/);
+    expect(screen.queryByRole('button', { name: /Claim/ })).toBeNull();
+  });
+});

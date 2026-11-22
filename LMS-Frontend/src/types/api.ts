@@ -1,6 +1,6 @@
 export interface NFTResponse {
   indexed: {
-    tokens: [
+    tokens: Array<
       {
         token: {
           id: number;
@@ -45,7 +45,7 @@ export interface NFTResponse {
           updatedAt: string;
         }
       }
-    ];
+    >;
   }
 }
 
