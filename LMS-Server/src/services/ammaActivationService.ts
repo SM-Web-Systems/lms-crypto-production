@@ -43,10 +43,17 @@ export function signedHeaders(cfg: ActivationConfig, method: string, path: strin
   return { 'content-type': 'application/json', 'x-api-key': cfg.apiKey, 'x-amma-key-id': cfg.keyId, 'x-amma-timestamp': timestamp, 'x-amma-signature': `ed25519=${signature}` };
 }
 
-/** Adds one activation to the queue. Idempotent: the same completion is queued once, and its idempotency key never changes. */
+/**
+ * Adds one activation to the queue. Idempotent: the same completion is queued once, and its idempotency key never changes.
+ * AmmaWallet allows each task once per user, so once a user's activation for a task is done (confirmed, including an
+ * ALREADY_COMPLETED answer) a new completion for the same task is not queued: it could only ever get ALREADY_COMPLETED back.
+ */
 export function enqueueActivation(input: ActivationInput, nowMs = Date.now()): { id: string; created: boolean } {
   const existing = db.prepare('SELECT id FROM amma_activations WHERE completion_id = ?').get(input.completionId) as { id: string } | undefined;
   if (existing) return { id: existing.id, created: false };
+  const done = db.prepare(`SELECT id FROM amma_activations WHERE amma_user_id = ? AND task_key = ? AND status = 'confirmed' ORDER BY created_at LIMIT 1`)
+    .get(input.ammaUserId, input.taskKey ?? 'lms:course-complete') as { id: string } | undefined;
+  if (done) return { id: done.id, created: false };
   const id = uuid();
   db.prepare(`INSERT INTO amma_activations (id, completion_id, idempotency_key, user_id, amma_user_id, task_key, completed_at, status, attempts, next_attempt_at, created_at, updated_at)
     VALUES (?,?,?,?,?,?,?,'queued',0,?,?,?)`).run(id, input.completionId, `lms-activate-${input.completionId}`, input.userId, input.ammaUserId,
@@ -98,7 +105,8 @@ function applyResult(row: Row, remote: Remote, nowMs: number) {
     return;
   }
   const code = remote.body?.error?.code ?? `http_${remote.status ?? 'unknown'}`;
-  // The learner already completed this task for the LMS (for example a second course): the wallet was activated before, so there is nothing to do.
+  // The user already completed this task for the LMS (a learner's second course, or a sponsor onboarded before): the wallet was
+  // activated before and nothing was charged. This is a final, done state: the row is never sent again.
   if (code === 'ALREADY_COMPLETED') {
     update(row, { attempts, status: 'confirmed', remote_state: 'already_completed', next_attempt_at: nowMs, last_error: null }, nowMs);
     return;
