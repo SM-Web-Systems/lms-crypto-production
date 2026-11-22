@@ -21,6 +21,26 @@ describe('LessonViewsPanel', () => {
     await waitFor(() => expect(mocks.download).toHaveBeenCalledWith('/analytics/media', 'lesson-media-views.csv', { format: 'csv' }));
   });
 
+  it('reads the server shape { data: { lessons } } without crashing (prod: "t.slice is not a function")', async () => {
+    mocks.get.mockResolvedValue({ data: { success: true, data: { lessons: [{
+      courseId: 'c', courseTitle: 'Stellar Vibe Coding', itemId: 'a', itemTitle: 'Audio lesson', itemType: 'audio',
+      plays: 2, learners: 2, completions: 1, averagePercentWatched: 50,
+      youtubeEmbedPlays: 0, youtubeAppOpens: 0, directFilePlays: 2, offlineFilePlays: 0,
+    }] } } });
+    render(<LessonViewsPanel />);
+    expect(await screen.findByText('Audio lesson')).toBeInTheDocument();
+  });
+
+  it('shows an empty state for { lessons: [] } and for an unexpected body', async () => {
+    mocks.get.mockResolvedValueOnce({ data: { success: true, data: { lessons: [] } } });
+    const first = render(<LessonViewsPanel />);
+    expect(await screen.findByText(/no video or audio plays/i)).toBeInTheDocument();
+    first.unmount();
+    mocks.get.mockResolvedValueOnce({ data: { success: true, data: { something: 'else' } } });
+    render(<LessonViewsPanel />);
+    expect(await screen.findByText(/no video or audio plays/i)).toBeInTheDocument();
+  });
+
   it('shows an empty state when nothing has been played or the request fails', async () => {
     mocks.get.mockRejectedValue(new Error('offline'));
     render(<LessonViewsPanel />);
