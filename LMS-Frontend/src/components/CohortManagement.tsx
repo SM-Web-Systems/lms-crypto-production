@@ -27,6 +27,23 @@ import {
   Download,
 } from 'lucide-react';
 
+const SKIP_REASONS: Record<string, string> = {
+  not_enrolled: 'not enrolled in the course',
+  already_in_cohort: 'already applied in this cohort',
+  in_other_cohort: 'their application belongs to another cohort',
+  already_issued: 'certificate already issued',
+  tier_mismatch: 'applied on a different certificate tier',
+  already_paid: 'certificate already paid for',
+  application_exists: 'already has an application',
+};
+
+/** One line per skip reason, e.g. "2 members: not enrolled in the course". */
+function summarizeSkips(skipped: BulkApplyResult['skipped']): string[] {
+  const counts = new Map<string, number>();
+  for (const s of skipped) counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1);
+  return [...counts].map(([reason, n]) => `${n} member${n === 1 ? '' : 's'}: ${SKIP_REASONS[reason] ?? reason.replace(/_/g, ' ')}`);
+}
+
 // ─── Create Cohort Modal ────────────────────────────────────────────────────
 
 interface CreateCohortModalProps {
@@ -283,11 +300,24 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
       {confirmDialog}
       {error && <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm flex items-center gap-1"><AlertCircle className="w-4 h-4" />{error}</div>}
 
-      {applyResult && (
-        <div className="mb-2 p-2 bg-green-50 text-green-800 rounded text-sm flex items-center gap-1">
-          <CheckCircle className="w-4 h-4" /> Applied: {applyResult.applied}, Skipped: {applyResult.skipped.length}
-        </div>
-      )}
+      {applyResult && (() => {
+        const added = applyResult.applied + (applyResult.linked ?? 0);
+        return (
+          <div role="status" className={`mb-2 p-2 rounded text-sm ${added > 0 ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
+            <p className="flex items-center gap-1">
+              {added > 0 ? <CheckCircle className="w-4 h-4 shrink-0" aria-hidden /> : <AlertCircle className="w-4 h-4 shrink-0" aria-hidden />}
+              {added > 0
+                ? <>Applied: {applyResult.applied}{applyResult.linked ? <>, existing applications added: {applyResult.linked}</> : null}{applyResult.skipped.length ? <>, skipped: {applyResult.skipped.length}</> : null}</>
+                : <>No members were applied.</>}
+            </p>
+            {applyResult.skipped.length > 0 && (
+              <ul className="mt-1 list-disc pl-6 text-xs">
+                {summarizeSkips(applyResult.skipped).map(line => <li key={line}>{line}</li>)}
+              </ul>
+            )}
+          </div>
+        );
+      })()}
 
       {payResult && (
         <div className="mb-2 p-2 bg-blue-50 text-blue-800 rounded text-sm flex items-center gap-1">

@@ -889,9 +889,11 @@ router.post(
 
     const contractId = process.env.NFT_CONTRACT_ID;
     if (!contractId) {
-      res.status(502).json({
+      // Not a gateway failure: nothing was sent. A 4xx keeps the reason visible, because the edge proxy
+      // replaces 502 bodies and this case stores no failed credential row to read the reason back from.
+      res.status(409).json({
         success: false,
-        error: { code: 'MINT_FAILED', message: 'NFT contract not configured', applicationId: appId },
+        error: { code: 'NFT_NOT_CONFIGURED', message: 'Certificate minting is not set up on this server: no NFT contract is configured (NFT_CONTRACT_ID).', applicationId: appId },
       });
       return;
     }

@@ -443,7 +443,8 @@ export async function remintCredential(
     const targetWallet = walletOverride || existing.wallet_address;
     const contractId = process.env.NFT_CONTRACT_ID;
     if (!contractId) {
-      throw new AppError('NFT contract not configured', 502, ErrorCodes.INTERNAL_ERROR);
+      // 4xx, not 502: the edge proxy replaces 502 bodies, and nothing was sent on-chain.
+      throw new AppError('Certificate minting is not set up on this server: no NFT contract is configured (NFT_CONTRACT_ID).', 409, 'NFT_NOT_CONFIGURED');
     }
 
     // Call mint service (throws on failure)

@@ -223,8 +223,8 @@ describe('Sponsor Cohorts (C3)', () => {
     expect(res.body.data.skipped).toEqual([{ userId: studentId2, reason: 'not_enrolled' }]);
   });
 
-  // COH-B9: bulkApply skips members with existing applications
-  it('COH-B9 — bulk-apply skips members with existing applications', async () => {
+  // COH-B9: bulkApply attaches a member's own earlier application instead of silently skipping it
+  it('COH-B9 — bulk-apply attaches members\' existing applications to the cohort', async () => {
     seedEnrollment(studentId1, courseCode);
 
     const existingAppId = uuidv4();
@@ -243,7 +243,40 @@ describe('Sponsor Cohorts (C3)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.applied).toBe(0);
-    expect(res.body.data.skipped[0].reason).toBe('application_exists');
+    expect(res.body.data.linked).toBe(1);
+    expect(res.body.data.skipped).toEqual([]);
+    const member = db.prepare('SELECT application_id FROM cohort_members WHERE cohort_id = ? AND user_id = ?').get(cohortId, studentId1) as { application_id: string };
+    expect(member.application_id).toBe(existingAppId);
+
+    // Running it again reports the member as already in the cohort.
+    const again = await request(app).post(`/api/v1/admin/cohorts/${cohortId}/apply`).set('Authorization', `Bearer ${adminToken}`);
+    expect(again.body.data.linked).toBe(0);
+    expect(again.body.data.skipped).toEqual([{ userId: studentId1, reason: 'already_in_cohort' }]);
+  });
+
+  it('COH-B9b — bulk-apply does not take over an application that is paid for or in another cohort', async () => {
+    seedEnrollment(studentId1, courseCode);
+    seedEnrollment(studentId2, courseCode);
+    const paidApp = uuidv4(), otherApp = uuidv4();
+    db.exec(`
+      INSERT INTO course_nft_applications (id, user_id, course_id, wallet_address, status, selected_tier, applied_at)
+      VALUES ('${paidApp}', '${studentId1}', '${courseId}', '', 'pending', 'free', datetime('now')),
+             ('${otherApp}', '${studentId2}', '${courseId}', '', 'pending', 'free', datetime('now'));
+      INSERT INTO payments (id, user_id, course_id, application_id, amount_cents, currency, payment_method, status, created_at, updated_at)
+      VALUES ('${uuidv4()}', '${studentId1}', '${courseId}', '${paidApp}', 100, 'USD', 'manual', 'confirmed', datetime('now'), datetime('now'));
+    `);
+    const first = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Owner Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId2] });
+    await request(app).post(`/api/v1/admin/cohorts/${first.body.data.cohortId}/apply`).set('Authorization', `Bearer ${adminToken}`);
+
+    const second = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Second Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId1, studentId2] });
+    const res = await request(app).post(`/api/v1/admin/cohorts/${second.body.data.cohortId}/apply`).set('Authorization', `Bearer ${adminToken}`);
+    expect(res.body.data.linked).toBe(0);
+    expect(res.body.data.skipped).toEqual(expect.arrayContaining([
+      { userId: studentId1, reason: 'already_paid' },
+      { userId: studentId2, reason: 'in_other_cohort' },
+    ]));
   });
 
   // COH-B10: bulkPay creates single payment with correct total
