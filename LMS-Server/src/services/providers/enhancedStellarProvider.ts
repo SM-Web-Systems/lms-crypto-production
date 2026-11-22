@@ -182,6 +182,9 @@ export class EnhancedStellarProvider implements NftProvider {
     const contractId = process.env.NFT_CONTRACT_ID;
     const network = process.env.NFT_STELLAR_NETWORK || 'public';
 
+    const wallet = db.prepare('SELECT wallet_network FROM users WHERE id = ?').get(params.userId) as {wallet_network: string | null} | undefined;
+    if (wallet?.wallet_network === 'testnet' && network !== 'testnet') throw new Error('Testnet wallet cannot receive a mainnet mint');
+
     if (contractId && hasOperationKeyColumn(db)) {
       const opKey = deriveOperationKey({
         userId: params.userId,

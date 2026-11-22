@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   description TEXT,
   clerk_user_id TEXT,
   walletAddress TEXT UNIQUE,
+  ammawallet_issuer TEXT,
+  wallet_network TEXT CHECK (wallet_network IN ('mainnet', 'testnet')),
   -- Wallet linking state machine (written only in authController.register):
   --   'none'             — default; wallet not attempted yet, OR transient failure (timeout/5xx/CAPTCHA).
   --                        walletAddress is NULL. No banner shown.
