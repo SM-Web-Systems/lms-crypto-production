@@ -4,6 +4,7 @@ import CourseScreen from '@/app/(student)/course';
 import { courseService } from '@/services/courseService';
 import { courseCompletionService } from '@/services/courseCompletionService';
 import { getCourseWeeks } from '@/types/course';
+import { runInScreenBack } from '@/utils/navigation';
 
 let mockSessionError: string | null = null;
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ sessionError: mockSessionError }) }));
@@ -89,5 +90,37 @@ describe('course screen while offline',()=>{
     mockCourse.fetchCourses.mockRejectedValueOnce(new Error('Could not load courses.'));
     render(<CourseScreen/>);
     await waitFor(()=>expect(screen.getByText('Could not load courses.')).toBeTruthy());
+  });
+});
+
+describe('Android Back inside the Course tab',()=>{
+  it('steps lesson -> materials -> course list before leaving the tab',async()=>{
+    const second={id:'c2',title:'Second course',weeks:[]};
+    mockCourse.fetchCourses.mockResolvedValue([{...course,weeks:getCourseWeeks(course)},second]);
+    render(<CourseScreen/>);
+    fireEvent.press(await screen.findByText('Learning'));
+    fireEvent.press(await screen.findByText('Listen'));
+    await waitFor(()=>expect(screen.getByText('Viewing Listen')).toBeTruthy());
+    let handled=false;
+    await act(async()=>{handled=runInScreenBack();});
+    expect(handled).toBe(true);
+    expect(screen.getByText('Foundations week')).toBeTruthy();
+    await act(async()=>{handled=runInScreenBack();});
+    expect(handled).toBe(true);
+    expect(screen.getByText('Your courses')).toBeTruthy();
+    // On the course list, Back belongs to the tabs again.
+    await act(async()=>{handled=runInScreenBack();});
+    expect(handled).toBe(false);
+  });
+  it('with a single course, Back from a lesson returns to its materials, then leaves the tab',async()=>{
+    render(<CourseScreen/>);
+    fireEvent.press(await screen.findByText('Listen'));
+    await waitFor(()=>expect(screen.getByText('Viewing Listen')).toBeTruthy());
+    let handled=false;
+    await act(async()=>{handled=runInScreenBack();});
+    expect(handled).toBe(true);
+    expect(screen.getByText('Foundations week')).toBeTruthy();
+    await act(async()=>{handled=runInScreenBack();});
+    expect(handled).toBe(false);
   });
 });

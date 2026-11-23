@@ -8,6 +8,7 @@ import { LoadingView } from '@/components/LoadingView';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
 import { KeyboardAvoid } from '@/components/KeyboardAvoid';
+import { useInScreenBack } from '@/utils/navigation';
 import { OfflineLearningPanel } from '@/components/OfflineLearningPanel';
 import { getCourseWeeks, type Course, type CourseItem, type CourseSection } from '@/types/course';
 import { getErrorMessage } from '@/utils/apiError';
@@ -72,6 +73,15 @@ export default function CourseScreen() {
     setSelectedMaterial(null);
     setRefreshing(false);
   };
+
+  // Android Back: lesson -> course materials -> course list, before leaving the tab.
+  const flushProgress = learning.flush;
+  const stepBack = useCallback(() => {
+    if (selectedMaterial) { void flushProgress(); setSelectedMaterial(null); return true; }
+    if (selectedCourseId && courses.length > 1) { setSelectedCourseId(null); setSelectedWeekId(null); return true; }
+    return false;
+  }, [selectedMaterial, selectedCourseId, courses.length, flushProgress]);
+  useInScreenBack(stepBack);
 
   if (loading && !refreshing) return <LoadingView message="Loading courses…" />;
 

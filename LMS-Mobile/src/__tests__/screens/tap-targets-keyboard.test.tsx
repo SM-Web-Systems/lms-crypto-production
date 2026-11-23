@@ -70,6 +70,23 @@ describe('keyboard on Android', () => {
     expect(typeof kav.props.keyboardVerticalOffset).toBe('number');
   });
 
+  it('keeps the Messages reply box above the keyboard', async () => {
+    Platform.OS = 'android';
+    (messageService.getConversationsForUser as jest.Mock).mockResolvedValue([
+      { id: 'c-1', participantIds: ['me', 'pat'], participantNames: ['Me', 'Pat Lee'], updatedAt: '2026-11-21T09:00:00Z' },
+    ]);
+    render(<MessagesScreen />);
+    fireEvent.press(await screen.findByText('Pat Lee'));
+    const box = await screen.findByPlaceholderText('Write a message…');
+    const padded = screen.UNSAFE_getAllByType(KeyboardAvoidingView).find(kav => kav.props.behavior === 'padding');
+    expect(padded).toBeTruthy();
+    expect(typeof padded!.props.keyboardVerticalOffset).toBe('number');
+    // The reply box sits inside the padded view, so it moves up with the keyboard.
+    let node: { parent: unknown } | null = box as unknown as { parent: unknown };
+    while (node && node !== padded) node = node.parent as { parent: unknown } | null;
+    expect(node).toBe(padded);
+  });
+
   it('leaves iOS to the ScrollView keyboard insets', () => {
     Platform.OS = 'ios';
     render(<KeyboardAvoid><Text>Reply</Text></KeyboardAvoid>);

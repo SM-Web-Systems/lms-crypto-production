@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { canStudy, canOpenStudentPath } from '@/utils/authorization';
 import { brand } from '@/theme/colors';
-import { backOr } from '@/utils/navigation';
+import { backOr, runInScreenBack } from '@/utils/navigation';
 
 /** Header Back for screens without a tab of their own. */
 function HiddenTabBack() {
@@ -28,6 +28,8 @@ export default function StudentTabsLayout() {
   // A tab opened straight from a link has no history, so Android back would close the app. Go to Dashboard first.
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      // A lesson or course open inside the Course tab steps back to its list first.
+      if (runInScreenBack()) return true;
       if (router.canGoBack() || path === '/dashboard') return false;
       router.navigate('/(student)/dashboard');
       return true;

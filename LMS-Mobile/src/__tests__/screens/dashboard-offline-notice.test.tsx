@@ -43,3 +43,12 @@ describe('Dashboard while offline', () => {
     await waitFor(() => expect(mockGetAll).toHaveBeenCalledTimes(2));
   });
 });
+
+describe('Dashboard submission counts', () => {
+  it("counts only the learner's own submissions", async () => {
+    mockAuth = { ...base, sessionError: null };
+    mockGetAll.mockResolvedValue({ submissions: [] });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(mockGetAll).toHaveBeenCalledWith(expect.objectContaining({ view: 'own' })));
+  });
+});
