@@ -10,6 +10,15 @@ const labels: Record<string, string> = {
 
 const RATE_LIMIT_MESSAGE = 'Too many requests right now. Your payment is safe. Wait a few minutes, then press the button again with the same details.';
 const isRateLimited = (err: unknown) => (err as {response?: {status?: number}})?.response?.status === 429;
+/** Bug 22: the server's own words when the payment must come from the funder's linked wallet. */
+const WALLET_CODES = new Set(['FUNDER_WALLET_REQUIRED', 'FUNDING_WRONG_SOURCE']);
+const walletErrorMessage = (err: unknown): string | null => {
+  const body = (err as {response?: {data?: {error?: {code?: unknown; message?: unknown}}}})?.response?.data?.error;
+  const direct = err as {code?: unknown; message?: unknown};
+  const code = typeof body?.code === 'string' ? body.code : typeof direct?.code === 'string' ? direct.code : null;
+  const message = typeof body?.message === 'string' ? body.message : typeof direct?.message === 'string' ? direct.message : null;
+  return code && WALLET_CODES.has(code) && message ? message : null;
+};
 
 const networkLabel = (network?: string | null) => network === 'public' ? 'Public network — real XLM' : network === 'testnet' ? 'Testnet — test XLM' : 'Network unknown';
 
@@ -75,7 +84,7 @@ export function RewardFundingDialog({role, rewardId, rewardName, onClose, onFund
       setPreparedSource(sourceType);
       setInstructions(result);
       setPrepared(true);
-    } catch (err) { if (alive.current) setError(isRateLimited(err) ? RATE_LIMIT_MESSAGE : sourceType === 'stellar' ? 'Could not prepare Stellar payment instructions. Please retry.' : 'Could not prepare this grant. Please retry.'); }
+    } catch (err) { if (alive.current) setError(isRateLimited(err) ? RATE_LIMIT_MESSAGE : sourceType === 'stellar' ? (walletErrorMessage(err) ?? 'Could not prepare Stellar payment instructions. Please retry.') : 'Could not prepare this grant. Please retry.'); }
     finally { if (alive.current) setBusy(false); }
   };
   const authorize = async () => {
@@ -93,7 +102,7 @@ export function RewardFundingDialog({role, rewardId, rewardName, onClose, onFund
       if (alive.current) {
         const status = (err as {response?: {status?: number}})?.response?.status;
         if (preparedSource==='stellar' && (status === 400 || status === 402)) {submittedReference.current = null; setReferenceLocked(false);}
-        setError(status === 429 ? RATE_LIMIT_MESSAGE : preparedSource === 'stellar' ? 'Payment was not confirmed. Check the operation ID and retry the same request.' : 'Grant was not confirmed. Retry to check the same request.');
+        setError(status === 429 ? RATE_LIMIT_MESSAGE : preparedSource === 'stellar' ? walletErrorMessage(err) ?? 'Payment was not confirmed. Check the operation ID and retry the same request.' : 'Grant was not confirmed. Retry to check the same request.');
       }
     }
     finally { if (alive.current) setBusy(false); }
@@ -144,7 +153,8 @@ export function RewardFundingDialog({role, rewardId, rewardName, onClose, onFund
       </div>}
       {prepared && preparedSource === 'stellar' && instructions && <div className="space-y-3 text-sm">
         <p className="font-semibold">{networkLabel(instructions.network)}</p>
-        <p>Send exactly {exactAmount} as native XLM from your wallet.</p>
+        <p>Send exactly {exactAmount} as native XLM from your own linked wallet.</p>
+        {instructions.source_wallet && <p data-testid="funding-source-wallet">Send from: <code className="break-all">{instructions.source_wallet}</code>. A payment from any other account is not accepted.</p>}
         <p>Receiving account: <code className="break-all">{instructions.destination}</code></p>
         <p>Memo type: hash. Memo value (hex): <code className="break-all">{instructions.memo_hash}</code></p>
         <p>Use these instructions only for this reward. They expire at {new Date(instructions.expires_at).toLocaleString()}. This dialog verifies your payment after you send it.</p>

@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'node:crypto';
+import { StrKey } from '@stellar/stellar-sdk';
 import { db } from '../../config/database.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { RewardError } from './rewardErrors.js';
@@ -35,11 +36,30 @@ export interface FundingIntent {
   created_at: string;
   destination?: string;
   memo_hash?: string;
+  /** Stellar only: the funder's own linked wallet, the one account this payment is accepted from. */
+  source_wallet?: string | null;
 }
 
 function readIntent(id: string): FundingIntent | undefined {
-  return db.prepare(`SELECT i.*, s.destination, s.memo_hash FROM reward_funding_intents i
+  const intent = db.prepare(`SELECT i.*, s.destination, s.memo_hash FROM reward_funding_intents i
     LEFT JOIN reward_stellar_funding_bindings s ON s.intent_id = i.id WHERE i.id = ?`).get(id) as FundingIntent | undefined;
+  if (intent?.source_type === 'stellar') intent.source_wallet = funderWallet(intent.actor_user_id);
+  return intent;
+}
+
+/** The funder's own linked Stellar wallet, or null. A Stellar transfer that funds a reward is accepted only from it. */
+export function funderWallet(userId: string): string | null {
+  const user = db.prepare('SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?').get(userId) as
+    {walletAddress: string | null; wallet_linking_status: string | null} | undefined;
+  return user?.walletAddress && user.wallet_linking_status === 'linked' && StrKey.isValidEd25519PublicKey(user.walletAddress)
+    ? user.walletAddress : null;
+}
+
+const FUNDER_WALLET_MESSAGE = 'A Stellar payment for a reward must come from your own linked wallet. Link your wallet first, then send the payment from it.';
+function requireFunderWallet(userId: string): string {
+  const wallet = funderWallet(userId);
+  if (!wallet) throw new RewardError('FUNDER_WALLET_REQUIRED', FUNDER_WALLET_MESSAGE, 409);
+  return wallet;
 }
 
 export function authorizedFundingReward(rewardId: string, actorId: string): RewardRow {
@@ -55,7 +75,8 @@ export function authorizedFundingReward(rewardId: string, actorId: string): Rewa
 export function getFundingAvailability(rewardId: string, actorId: string) {
   const reward = authorizedFundingReward(rewardId, actorId);
   const independent = hasPermission(actorId, 'reward.manage') && actorId !== reward.creator_user_id;
-  const stellar = !!stellarFundingConfiguration() && hasPermission(actorId, 'reward.fund');
+  const stellarConfigured = !!stellarFundingConfiguration() && hasPermission(actorId, 'reward.fund');
+  const stellar = stellarConfigured && funderWallet(actorId) !== null;
   const exposure=Number(calculateMaxExposure(BigInt(reward.amount_stroops),BigInt(reward.max_recipients??1)));
   const credits=independent?availablePlatformCredits(reward.creator_user_id).filter(grant=>grant.availableStroops>=exposure):[];
   return FUNDING_SOURCE_TYPES.map(sourceType => ({
@@ -65,7 +86,7 @@ export function getFundingAvailability(rewardId: string, actorId: string) {
     // UX-018: an administrator grant is an LMS ledger entry; say which network learners will be paid on.
     ...(sourceType==='admin_grant'?{payoutNetwork:['public','testnet'].includes(process.env.REWARD_STELLAR_NETWORK??'')?process.env.REWARD_STELLAR_NETWORK:null}:{}),
     reason: reward.status !== 'draft' ? 'This reward is no longer awaiting funding.'
-      : sourceType === 'stellar' ? (stellar ? null : 'Stellar funding is not configured.')
+      : sourceType === 'stellar' ? (stellar ? null : stellarConfigured ? FUNDER_WALLET_MESSAGE : 'Stellar funding is not configured.')
       : sourceType === 'paystack' ? 'Card payments are available for course purchases only.'
       : sourceType === 'platform_credit' ? (credits.length?null:independent?'Insufficient backed platform credit.':'An independent reward administrator must authorize platform credit.')
       : !independent ? 'An independent reward administrator must authorize this grant.' : null,
@@ -89,6 +110,7 @@ export async function createFundingIntentVerified(rewardId: string, actorId: str
   const existing = db.prepare('SELECT 1 FROM reward_funding_intents WHERE actor_user_id = ? AND idempotency_key = ?').get(actorId, key);
   if (source.type !== 'stellar' || existing) return createFundingIntent(rewardId, actorId, source, key);
   if (!hasPermission(actorId, 'reward.fund')) throw new RewardError('SCOPE_DENIED', 'Reward funding permission is required.', 403);
+  requireFunderWallet(actorId);
   const config = stellarFundingConfiguration();
   if (!config) throw new RewardError('FUNDING_UNVERIFIED', 'Stellar funding is not configured.', 402);
   const readiness = await stellarReceiverReadiness(config);
@@ -152,6 +174,7 @@ export function createFundingIntent(rewardId: string, actorId: string, source: F
     }
     if (reward.status !== 'draft') throw new RewardError('INVALID_STATE_TRANSITION', 'Reward is not awaiting funding.', 409);
     const stellar = source.type === 'stellar' ? stellarFundingConfiguration() : null;
+    if (stellar) requireFunderWallet(actorId);
     // Reopening the funding dialog sends a new idempotency key. Hand back the live Stellar offer instead of
     // making a new memo, so a payment already sent to the first one is not orphaned.
     if (stellar) {
@@ -213,7 +236,9 @@ export function stellarIntentForVerification(rewardId: string, actorId: string, 
   if (!intent) throw new RewardError('FUNDING_UNVERIFIED', 'Create a Stellar funding intent before sending payment.', 402);
   assertBinding(intent, reward, actorId, source);
   if (intent.status !== 'pending' || Date.parse(intent.expires_at) <= Date.now()) throw new RewardError('FUNDING_UNVERIFIED', 'Funding intent is consumed or expired.', 409);
-  return {network: intent.network as 'testnet' | 'public', destination: intent.destination!, memoHash: intent.memo_hash!,
+  // Bug 22: the payment must come from the funder's own linked wallet, not from any account that knows the memo.
+  const funder = requireFunderWallet(actorId);
+  return {network: intent.network as 'testnet' | 'public', destination: intent.destination!, source: funder, explainWrongSource: true, memoHash: intent.memo_hash!,
     amountStroops: intent.amount_stroops, createdAt: intent.created_at.includes('T') ? intent.created_at : intent.created_at.replace(' ', 'T') + 'Z', expiresAt: intent.expires_at};
 }
 

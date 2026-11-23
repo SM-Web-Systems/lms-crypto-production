@@ -130,6 +130,33 @@ describe('reward funding availability and confirmation', () => {
     expect(mocks.fund.mock.calls[0][4]).toBe(mocks.fund.mock.calls[1][4]);
   });
 
+  it('bug 22: shows the funder wallet to pay from and explains a payment from another account', async () => {
+    const user = userEvent.setup();
+    const from = 'GAXL6BWZWJ3WXZDJ2B4YXDY5W5O3JBLTTFXNMEJEVPUVP3LUBTFZ4K3D';
+    mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);
+    mocks.prepare.mockResolvedValue({id: 'stellar-intent', amount_stroops: 1, network: 'testnet', source_wallet: from,
+      destination: 'GDJT327MIBUOVRXKDDSBOIT7J2ORZB2Y4FDIVAXM7UUVHFPVU4LW7JHE', memo_hash: 'a'.repeat(64), expires_at: new Date(Date.now() + 60000).toISOString()});
+    const message = `That payment was sent from GB, but it must come from ${from}. Send the payment from that wallet.`;
+    mocks.fund.mockRejectedValue({response: {status: 402, data: {error: {code: 'FUNDING_WRONG_SOURCE', message}}}});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
+    await user.click(await screen.findByRole('button', {name: 'Prepare Stellar payment'}));
+    expect(await screen.findByTestId('funding-source-wallet')).toHaveTextContent(from);
+    const field = screen.getByLabelText('Stellar payment operation ID');
+    await user.type(field, '123'); await user.click(screen.getByRole('button', {name: 'Verify payment'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    await waitFor(() => expect(field).not.toBeDisabled());
+  });
+
+  it('bug 22: says to link a wallet first when the server refuses Stellar instructions for that reason', async () => {
+    const user = userEvent.setup();
+    const message = 'A Stellar payment for a reward must come from your own linked wallet. Link your wallet first, then send the payment from it.';
+    mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);
+    mocks.prepare.mockRejectedValue({response: {status: 409, data: {error: {code: 'FUNDER_WALLET_REQUIRED', message}}}});
+    render(<RewardFundingDialog role="sponsor" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
+    await user.click(await screen.findByRole('button', {name: 'Prepare Stellar payment'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+  });
+
   it('refuses malformed deposit instructions and does not offer verification', async () => {
     const user = userEvent.setup();
     mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);

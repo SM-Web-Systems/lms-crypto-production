@@ -35,6 +35,8 @@ export interface FundingIntent {
   network?: 'public' | 'testnet' | 'internal';
   destination?: string;
   memo_hash?: string;
+  /** Stellar only: the funder's linked wallet; the payment is accepted only from it. */
+  source_wallet?: string | null;
   reference?: string | null;
 }
 
