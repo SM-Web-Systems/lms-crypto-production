@@ -9,6 +9,7 @@ import { startPushWorker, stopPushWorker } from './services/pushDeliveryService.
 import { startWebPushWorker, stopWebPushWorker } from './services/webPushService.js';
 import { startScheduler, stopScheduler } from './services/rewards/rewardScheduler.js';
 import { startEmailRetryWorker, stopEmailRetryWorker } from './services/emailRetryWorker.js';
+import { startNftTtlKeeper, stopNftTtlKeeper } from './services/nftTtlKeeper.js';
 import { processExpiredDeletions } from './services/deletionService.js';
 import { runWhenWriterHoldReleased } from './services/writerHold.js';
 import { startRewardReconciliation } from './services/rewards/rewardReconciliationService.js';
@@ -77,6 +78,8 @@ function startServer() {
         startRewardReconciliation();
         startBackingDepositWatcher();
         startAmmaActivationWorker();
+        // Keeps the certificate NFT contract from archiving (off unless NFT_TTL_KEEPER_ENABLED=true)
+        startNftTtlKeeper();
       });
     });
   } catch (error) {
@@ -101,6 +104,7 @@ process.on('SIGINT', async () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
   stopEmailRetryWorker();
+  stopNftTtlKeeper();
   stopDeletionScheduler();
   await stopPushWorker();
   await stopWebPushWorker();
@@ -112,6 +116,7 @@ process.on('SIGTERM', async () => {
   logger.info('Shutting down gracefully...');
   stopScheduler();
   stopEmailRetryWorker();
+  stopNftTtlKeeper();
   stopDeletionScheduler();
   await stopPushWorker();
   await stopWebPushWorker();
