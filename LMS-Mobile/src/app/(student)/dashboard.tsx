@@ -42,7 +42,8 @@ export default function DashboardScreen() {
     setError(null);
     try {
       const [subsRes, completions] = await Promise.all([
-        submissionsService.getAll({ limit: 50 }),
+        // Own only: a learner who can also grade must not count other people's work as theirs.
+        submissionsService.getAll({ view: 'own', limit: 50 }),
         user?.id ? quizService.getCompletionsForUser(user.id) : Promise.resolve([]),
       ]);
       setSubmissions(subsRes.submissions);

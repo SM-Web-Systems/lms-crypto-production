@@ -34,6 +34,7 @@ jest.mock('expo-clipboard', () => ({
 jest.mock('expo-router', () => ({
   useRouter: jest.fn(() => ({ push: jest.fn(), back: jest.fn() })),
   useLocalSearchParams: jest.fn(() => ({})),
+  useNavigation: jest.fn(() => ({ getState: () => undefined, reset: jest.fn(), setOptions: jest.fn() })),
   // Screens load on focus; in tests the first render is the focus.
   useFocusEffect: jest.fn((cb) => require('react').useEffect(() => cb(), [cb])),
   Link: 'Link',

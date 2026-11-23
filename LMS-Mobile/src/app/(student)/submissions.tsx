@@ -42,7 +42,8 @@ export default function SubmissionsScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await submissionsService.getAll({ limit: 100 });
+      // 'own': staff who also study (admins, lecturers, TAs) would otherwise get every submission they can grade.
+      const res = await submissionsService.getAll({ view: 'own', limit: 100 });
       setSubmissions(res.submissions);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not load submissions.'));

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { KeyboardAvoid } from '@/components/KeyboardAvoid';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { messageService } from '@/services/messageService';
@@ -140,6 +141,9 @@ export default function MessagesScreen() {
   if (selectedConversation) {
     const { otherUserName } = messageService.getOtherDisplayName(selectedConversation, userId, canBrowseDirectory);
     return (
+      // Android draws edge-to-edge, so the window no longer shrinks for the keyboard: KeyboardAvoid pads the
+      // thread instead, keeping the message box and Send above the keyboard.
+      <KeyboardAvoid>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-neutral-50">
         <View className="border-b border-neutral-200 bg-white px-4 py-3 flex-row items-center gap-3">
           <Pressable onPress={() => setSelectedConversation(null)} accessibilityRole="button" accessibilityLabel="Back to conversations"
@@ -170,6 +174,7 @@ export default function MessagesScreen() {
           <Button label={sending ? 'Sending…' : 'Send'} onPress={handleSend} disabled={sending || !newMessageBody.trim()} />
         </View>
       </KeyboardAvoidingView>
+      </KeyboardAvoid>
     );
   }
 
