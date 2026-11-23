@@ -9,8 +9,10 @@ import { createFundingIntent, getFundingAvailability, createFundingIntentVerifie
 afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks();});
 function fixture() {
   const owner = uuidv4(), stranger = uuidv4(), course = uuidv4(), cohort = uuidv4();
+  const ownerWallet = Keypair.random().publicKey();
   for (const id of [owner, stranger]) {
-    db.prepare("INSERT INTO users(id,name,email,password_hash,role) VALUES (?,'Synthetic',?,'hash','lecturer')").run(id, `${id}@test.invalid`);
+    db.prepare("INSERT INTO users(id,name,email,password_hash,role,walletAddress,wallet_linking_status) VALUES (?,'Synthetic',?,'hash','lecturer',?,'linked')")
+      .run(id, `${id}@test.invalid`, id === owner ? ownerWallet : Keypair.random().publicKey());
     db.prepare("INSERT INTO user_roles(user_id,role_id) VALUES (?,'role_sponsor')").run(id);
   }
   db.prepare("INSERT INTO courses(id,title,course_code) VALUES (?,'Stellar',?)").run(course, course);
@@ -21,7 +23,7 @@ function fixture() {
   const reference = {type: 'stellar' as const, intentId: intent.id, reference: '123'};
   const responses: Record<string, Record<string, unknown>> = {
     '/': {network_passphrase: Networks.TESTNET, history_latest_ledger: 30},
-    '/operations/123': {id: '123', type: 'payment', transaction_successful: true, to: intent.destination,
+    '/operations/123': {id: '123', type: 'payment', transaction_successful: true, from: ownerWallet, to: intent.destination,
       asset_type: 'native', amount: '0.3703701', transaction_hash: 'b'.repeat(64)},
     [`/transactions/${'b'.repeat(64)}`]: {hash: 'b'.repeat(64), successful: true, ledger: 30, created_at: intent.created_at.replace(' ', 'T') + 'Z',
       memo_type: 'hash', memo: Buffer.from(intent.memo_hash!, 'hex').toString('base64')},
@@ -29,7 +31,7 @@ function fixture() {
   };
   const fetcher = vi.fn(async (url: string) => new Response(JSON.stringify(responses[new URL(url).pathname]), {status: 200}));
   vi.stubGlobal('fetch', fetcher);
-  return {owner, stranger, reward, intent, reference, responses, fetcher};
+  return {owner, stranger, ownerWallet, reward, intent, reference, responses, fetcher};
 }
 const counts = () => ({ledger: (db.prepare('SELECT COUNT(*) AS n FROM reward_transactions').get() as {n: number}).n,
   evidence: (db.prepare('SELECT COUNT(*) AS n FROM reward_funding_evidence').get() as {n: number}).n,
@@ -53,6 +55,41 @@ describe('reopening the funding dialog keeps the live payment instructions', () 
     expect(fresh.id).not.toBe(f.intent.id);
     expect(fresh.memo_hash).not.toBe(f.intent.memo_hash);
     expect(() => createFundingIntent(f.reward.id, f.stranger, {type: 'stellar'}, 'someone-else')).toThrow();
+  });
+});
+
+describe('bug 22: a Stellar funding payment must come from the funder\'s own linked wallet', () => {
+  it('shows the funder\'s wallet on the payment instructions', () => {
+    const f = fixture();
+    expect(f.intent.source_wallet).toBe(f.ownerWallet);
+  });
+
+  it('refuses a payment sent from any other account, and names both accounts', async () => {
+    const f = fixture();
+    const other = Keypair.random().publicKey();
+    f.responses['/operations/123'].from = other;
+    await expect(fundRewardAsync(f.reward.id, f.owner, f.reference, 'fund')).rejects.toMatchObject({
+      code: 'FUNDING_WRONG_SOURCE', statusCode: 402, message: expect.stringContaining(f.ownerWallet)});
+    expect(counts()).toEqual({ledger: 0, evidence: 0, stellar: 0});
+    expect(db.prepare('SELECT status FROM reward_funding_intents WHERE id=?').get(f.intent.id)).toEqual({status: 'pending'});
+    f.responses['/operations/123'].from = f.ownerWallet;
+    f.responses['/operations/123'].from_muxed = 'M' + 'A'.repeat(68);
+    await expect(fundRewardAsync(f.reward.id, f.owner, f.reference, 'fund')).rejects.toMatchObject({code: 'FUNDING_WRONG_SOURCE'});
+    delete f.responses['/operations/123'].from_muxed;
+    await expect(fundRewardAsync(f.reward.id, f.owner, f.reference, 'fund')).resolves.toMatchObject({status: 'funded'});
+  });
+
+  it('offers no Stellar payment to a funder without a linked wallet, and refuses one already prepared', async () => {
+    const f = fixture();
+    db.prepare("UPDATE users SET wallet_linking_status='none' WHERE id=?").run(f.owner);
+    const stellar = getFundingAvailability(f.reward.id, f.owner).find(option => option.sourceType === 'stellar')!;
+    expect(stellar).toMatchObject({available: false, reason: expect.stringMatching(/own linked wallet/)});
+    expect(() => createFundingIntent(f.reward.id, f.owner, {type: 'stellar'}, 'no-wallet')).toThrow(expect.objectContaining({code: 'FUNDER_WALLET_REQUIRED'}));
+    await expect(createFundingIntentVerified(f.reward.id, f.owner, {type: 'stellar'}, 'no-wallet-2')).rejects.toMatchObject({code: 'FUNDER_WALLET_REQUIRED', statusCode: 409});
+    f.fetcher.mockClear();
+    await expect(fundRewardAsync(f.reward.id, f.owner, f.reference, 'fund')).rejects.toMatchObject({code: 'FUNDER_WALLET_REQUIRED'});
+    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(counts()).toEqual({ledger: 0, evidence: 0, stellar: 0});
   });
 });
 

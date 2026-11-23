@@ -22,6 +22,8 @@ function fixture(network: 'testnet' | 'public' = 'testnet') {
   const destination=Keypair.random().publicKey();vi.stubEnv('REWARD_STELLAR_NETWORK',network);vi.stubEnv('REWARD_STELLAR_DESTINATION',destination);
   const source = Keypair.random().publicKey();
   vi.stubEnv('REWARD_TREASURY_SOURCE_ACCOUNT', source);
+  // Bug 22: a direct Stellar reward payment must come from the funder's linked wallet; the proofs below send from `source`.
+  db.prepare("UPDATE users SET walletAddress=?, wallet_linking_status='linked' WHERE id=?").run(source, owner);
   const records=new Map<string,unknown>();records.set('/',{network_passphrase:network === 'public' ? Networks.PUBLIC : Networks.TESTNET,history_latest_ledger:50});records.set(`/accounts/${destination}`,{account_id:destination});
   const fetcher=vi.fn(async(url:string)=>new Response(JSON.stringify(records.get(new URL(url).pathname)??{}),{status:records.has(new URL(url).pathname)?200:404}));vi.stubGlobal('fetch',fetcher);
   function proof(intent:{memo_hash?:string;amount_stroops:number;created_at:string},operation:string, from = source) {
