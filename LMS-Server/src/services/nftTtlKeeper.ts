@@ -117,7 +117,12 @@ export async function collectEntries(server: Rpc, contractId: string, minter: st
   let counter = 0;
   for (const e of instance.storage() ?? []) {
     const k = e.key();
-    if (k.switch().name === 'scvVec' && k.vec()?.[0]?.sym().toString() === 'TokenIdCounter') counter = e.val().u32();
+    if (k.switch().name !== 'scvVec') continue;
+    const head = k.vec()?.[0];
+    // Other instance keys can start with a non-symbol value; .sym() would throw on them.
+    if (head?.switch().name === 'scvSymbol' && head.sym().toString() === 'TokenIdCounter' && e.val().switch().name === 'scvU32') {
+      counter = e.val().u32();
+    }
   }
 
   const items: { label: string; key: StellarSdk.xdr.LedgerKey }[] = [
