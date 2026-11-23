@@ -13,9 +13,10 @@ for (const width of [320,390,768]) {
         VALUES (?,?,'sponsor_cohort','e2e-cohort-a','custom',1234567,?,?)`).run(id,owner,id,id);
     });
     const destination = 'GDJT327MIBUOVRXKDDSBOIT7J2ORZB2Y4FDIVAXM7UUVHFPVU4LW7JHE';
+    const sourceWallet = 'GAXL6BWZWJ3WXZDJ2B4YXDY5W5O3JBLTTFXNMEJEVPUVP3LUBTFZ4K3D';
     await page.route(`**/rewards/${id}/funding-options`, route => route.fulfill({json: {success: true, data: [{sourceType: 'stellar',available: true,reason: null}]}}));
     await page.route(`**/rewards/${id}/funding-intents`, route => route.fulfill({status: 201, json: {success: true, data: {
-      id: `${id}-intent`,amount_stroops: 1234567,currency_code: 'XLM',network: 'public',destination,memo_hash: 'a'.repeat(64),expires_at: new Date(Date.now()+60000).toISOString(),
+      id: `${id}-intent`,amount_stroops: 1234567,currency_code: 'XLM',network: 'public',destination,source_wallet: sourceWallet,memo_hash: 'a'.repeat(64),expires_at: new Date(Date.now()+60000).toISOString(),
     }}}));
     const attempts: any[] = [];
     await page.route(`**/rewards/${id}/fund`, route => {
@@ -30,7 +31,9 @@ for (const width of [320,390,768]) {
     const dialog = page.getByRole('dialog',{name: `Fund “${id}”`});
     await dialog.getByRole('button',{name: 'Prepare Stellar payment'}).click();
     await expect(dialog.getByText('Public network — real XLM')).toBeVisible();
-    await expect(dialog.getByText(/^Send exactly 0\.1234567 XLM( \(.*USDC\))? as native XLM from your wallet\.$/)).toBeVisible();
+    await expect(dialog.getByText(/^Send exactly 0\.1234567 XLM( \(.*USDC\))? as native XLM from your own linked wallet\.$/)).toBeVisible();
+    // Bug 22: the payment is accepted only from the funder's own linked wallet, so the dialog names it.
+    await expect(dialog.getByTestId('funding-source-wallet')).toContainText(sourceWallet);
     await expect(dialog.getByText(destination)).toBeVisible();
     await expect(dialog.getByText('a'.repeat(64))).toBeVisible();
     const operation = dialog.getByLabel('Stellar payment operation ID');
