@@ -157,6 +157,65 @@ describe('CohortManagement', () => {
     await waitFor(() => {
       expect(mockBulkApply).toHaveBeenCalledWith('coh1');
     });
+    // The summary must still be on screen after the list refresh that follows the apply.
+    await waitFor(() => expect(mockListCohorts).toHaveBeenCalledTimes(2));
+    const result = await screen.findByTestId('apply-result');
+    expect(result).toHaveTextContent('Apply for All finished: 1 applied, 0 attached, 0 skipped.');
+    expect(result).toHaveTextContent('Applied: 1 new certificate application created for this cohort.');
+  });
+
+  it('COH-F4b — bulk-apply summary shows applied, attached and skipped counts with reasons, and survives refreshes', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: null, applicationStatus: null, isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 100, meetsRequirements: true, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 5, completedCount: 1, certifiedCount: 0, avgLessonProgress: 60 },
+    });
+    mockBulkApply.mockResolvedValue({
+      cohortId: 'coh1', applied: 2, linked: 1,
+      skipped: [
+        { userId: 'u3', reason: 'not_enrolled' },
+        { userId: 'u4', reason: 'requirements_not_met' },
+        { userId: 'u5', reason: 'requirements_not_met' },
+      ],
+    });
+    mockListCohorts.mockResolvedValue([sampleCohort]);
+    const onChanged = vi.fn();
+
+    const { rerender } = render(<CohortManagement courses={sampleCourses} refreshTick={0} onChanged={onChanged} />);
+    await user.click(await screen.findByText('Acme Cohort'));
+    await user.click(await screen.findByText('Apply for All'));
+
+    const result = await screen.findByTestId('apply-result');
+    expect(result).toHaveTextContent('Apply for All finished: 2 applied, 1 attached, 3 skipped.');
+    expect(result).toHaveTextContent('Attached: 1 member already had an application, now linked to this cohort.');
+    expect(result).toHaveTextContent('1 member: not enrolled in the course');
+    expect(result).toHaveTextContent('2 members: has not finished the course requirements yet');
+    expect(onChanged).toHaveBeenCalled();
+
+    // The sponsor dashboard bumps refreshTick after onChanged; the open cohort and its message must stay.
+    rerender(<CohortManagement courses={sampleCourses} refreshTick={1} onChanged={onChanged} />);
+    await waitFor(() => expect(mockListCohorts).toHaveBeenCalledTimes(3));
+    expect(screen.getByTestId('apply-result')).toHaveTextContent('2 applied, 1 attached, 3 skipped');
+  });
+
+  it('COH-F4c — bulk-apply with nobody applied says so and lists why', async () => {
+    const user = userEvent.setup();
+    mockGetCohort.mockResolvedValue({
+      cohort: sampleCohort,
+      members: [{ userId: 'u1', userName: 'Alice', userEmail: 'a@t.com', applicationId: 'app1', applicationStatus: 'pending', isEnrolled: true, addedAt: '2026-08-05', lessonProgress: 100, meetsRequirements: true, certificateStatus: 'none' as const }],
+      completionStats: { totalMembers: 1, completedCount: 1, certifiedCount: 0, avgLessonProgress: 100 },
+    });
+    mockBulkApply.mockResolvedValue({ cohortId: 'coh1', applied: 0, linked: 0, skipped: [{ userId: 'u1', reason: 'already_in_cohort' }] });
+    mockListCohorts.mockResolvedValue([sampleCohort]);
+
+    render(<CohortManagement courses={sampleCourses} />);
+    await user.click(await screen.findByText('Acme Cohort'));
+    await user.click(await screen.findByText('Apply for All'));
+
+    const result = await screen.findByTestId('apply-result');
+    expect(result).toHaveTextContent('Apply for All finished: 0 applied, 0 attached, 1 skipped.');
+    expect(result).toHaveTextContent('1 member: already applied in this cohort');
   });
 
   // COH-F5: Payment button visible for paid tier

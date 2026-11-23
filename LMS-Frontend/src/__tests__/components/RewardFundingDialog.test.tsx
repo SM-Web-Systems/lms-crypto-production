@@ -157,6 +157,18 @@ describe('reward funding availability and confirmation', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
   });
 
+  it('bug 22: an administrator with no linked wallet sees "link your wallet first" on the Stellar option and cannot prepare it', async () => {
+    const message = 'A Stellar payment for a reward must come from your own linked wallet. Link your wallet first, then send the payment from it.';
+    mocks.options.mockResolvedValue([
+      {sourceType: 'admin_grant', available: true, reason: null, payoutNetwork: 'testnet'},
+      {sourceType: 'stellar', available: false, reason: message},
+    ]);
+    render(<RewardFundingDialog role="admin" rewardId="reward" onClose={vi.fn()} onFunded={vi.fn()} />);
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(screen.queryByRole('button', {name: 'Prepare Stellar payment'})).not.toBeInTheDocument();
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
   it('refuses malformed deposit instructions and does not offer verification', async () => {
     const user = userEvent.setup();
     mocks.options.mockResolvedValue([{sourceType: 'stellar', available: true, reason: null}]);

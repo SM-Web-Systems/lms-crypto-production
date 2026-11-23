@@ -148,6 +148,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
   const [members, setMembers] = useState<CohortMemberDetail[]>([]);
   const [completionStats, setCompletionStats] = useState<CohortCompletionStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [membersLoaded, setMembersLoaded] = useState(false);
   const [applyResult, setApplyResult] = useState<BulkApplyResult | null>(null);
   const [payResult, setPayResult] = useState<{ paymentId: string; amountCents: number; currency: string } | null>(null);
   const { ask, dialog: confirmDialog, busy: confirming } = useConfirmAction();
@@ -168,6 +169,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
       setMembers(data.members);
       setCompletionStats(data.completionStats);
       setStatusLog(log);
+      setMembersLoaded(true);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -180,6 +182,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
   const handleBulkApply = async () => {
     setActionLoading('apply');
     setError(null);
+    setApplyResult(null);
     try {
       const result = await cohortService.bulkApply(cohortId);
       setApplyResult(result);
@@ -294,7 +297,8 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
     }
   };
 
-  if (loading) return <div className="p-3 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading members...</div>;
+  // Only the first load replaces the panel; later refreshes keep the result messages on screen.
+  if (loading && !membersLoaded) return <div className="p-3 text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading members...</div>;
 
   return (
     <div className="p-3 bg-gray-50 border-t">
@@ -302,20 +306,26 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
       {error && <div className="mb-2 p-2 bg-red-50 text-red-700 rounded text-sm flex items-center gap-1"><AlertCircle className="w-4 h-4" />{error}</div>}
 
       {applyResult && (() => {
-        const added = applyResult.applied + (applyResult.linked ?? 0);
+        const linked = applyResult.linked ?? 0;
+        const skipped = applyResult.skipped.length;
+        const added = applyResult.applied + linked;
         return (
-          <div role="status" className={`mb-2 p-2 rounded text-sm ${added > 0 ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
-            <p className="flex items-center gap-1">
+          <div role="status" data-testid="apply-result" className={`mb-2 p-2 rounded text-sm ${added > 0 ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900'}`}>
+            <p className="flex items-center gap-1 font-medium">
               {added > 0 ? <CheckCircle className="w-4 h-4 shrink-0" aria-hidden /> : <AlertCircle className="w-4 h-4 shrink-0" aria-hidden />}
-              {added > 0
-                ? <>Applied: {applyResult.applied}{applyResult.linked ? <>, existing applications added: {applyResult.linked}</> : null}{applyResult.skipped.length ? <>, skipped: {applyResult.skipped.length}</> : null}</>
-                : <>No members were applied.</>}
+              {added + skipped === 0
+                ? <>Apply for All finished: there were no members to apply for.</>
+                : <>Apply for All finished: {applyResult.applied} applied, {linked} attached, {skipped} skipped.</>}
             </p>
-            {applyResult.skipped.length > 0 && (
-              <ul className="mt-1 list-disc pl-6 text-xs">
-                {summarizeSkips(applyResult.skipped).map(line => <li key={line}>{line}</li>)}
-              </ul>
-            )}
+            <ul className="mt-1 list-disc pl-6 text-xs">
+              {applyResult.applied > 0 && <li>Applied: {applyResult.applied} new certificate application{applyResult.applied === 1 ? '' : 's'} created for this cohort.</li>}
+              {linked > 0 && <li>Attached: {linked} member{linked === 1 ? '' : 's'} already had an application, now linked to this cohort.</li>}
+              {skipped > 0 && <li>Skipped: {skipped} member{skipped === 1 ? '' : 's'}, because:
+                <ul className="list-[circle] pl-5">
+                  {summarizeSkips(applyResult.skipped).map(line => <li key={line}>{line}</li>)}
+                </ul>
+              </li>}
+            </ul>
           </div>
         );
       })()}
@@ -495,6 +505,7 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, own
   const generation = useGeneration();
   const [cohorts, setCohorts] = useState<SponsorCohortSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -505,7 +516,7 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, own
     setError(null);
     try {
       const data = await cohortService.listCohorts(undefined,ownerOnly ? 'own' : undefined);
-      if (generation.isCurrent(current)) setCohorts(data);
+      if (generation.isCurrent(current)) { setCohorts(data); setLoaded(true); }
     } catch (err) {
       if (generation.isCurrent(current)) setError(getErrorMessage(err));
     } finally {
@@ -526,9 +537,11 @@ export const CohortManagement: React.FC<CohortManagementProps> = ({ courses, own
 
       {showCreate && <CreateCohortModal courses={courses} onCreated={() => { setShowCreate(false); load(); onChanged?.(); }} onClose={() => setShowCreate(false)} />}
 
-      {loading ? (
+      {/* Only the first load swaps the table for a spinner. A refresh after an action (Apply for All, payment,
+          invite) keeps the open cohort mounted, so its result message stays on screen. */}
+      {loading && !loaded ? (
         <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading cohorts...</div>
-      ) : error ? <Button variant="outline" size="sm" onClick={load}>Retry cohorts</Button> : cohorts.length === 0 ? (
+      ) : error && !loaded ? <Button variant="outline" size="sm" onClick={load}>Retry cohorts</Button> : cohorts.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-gray-500">No cohorts yet. Create one to get started.</CardContent></Card>
       ) : (
         <div className="border rounded-lg overflow-x-auto">

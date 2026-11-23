@@ -102,3 +102,36 @@ describe('second-administrator authorization over HTTP (PR #219 rule)', () => {
     expect(fundB.body.data.status).toBe('funded');
   });
 });
+
+describe('bug 22 over HTTP: an administrator with no linked wallet is told to link one first', () => {
+  const linkFirst = 'A Stellar payment for a reward must come from your own linked wallet. Link your wallet first, then send the payment from it.';
+
+  it('shows the "link your wallet first" reason on the Stellar option and refuses Stellar instructions with 409', async () => {
+    const f = fixture(), url = `/api/v1/sponsor/rewards/${f.reward.id}`, authorization = `Bearer ${f.token(f.admin)}`;
+    const prevNetwork = process.env.REWARD_STELLAR_NETWORK, prevDestination = process.env.REWARD_STELLAR_DESTINATION;
+    process.env.REWARD_STELLAR_NETWORK = 'testnet';
+    process.env.REWARD_STELLAR_DESTINATION = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
+    try {
+      // The fixture's admin has no wallet at all.
+      expect(db.prepare('SELECT walletAddress FROM users WHERE id = ?').get(f.admin)).toEqual({walletAddress: null});
+      const options = await request(app).get(`${url}/funding-options`).set('Authorization', authorization);
+      expect(options.status).toBe(200);
+      expect(options.body.data.find((o: {sourceType: string}) => o.sourceType === 'stellar')).toMatchObject({available: false, reason: linkFirst});
+
+      const prepare = await request(app).post(`${url}/funding-intents`).set('Authorization', authorization)
+        .send({sourceType: 'stellar', idempotencyKey: 'no-wallet-admin'});
+      expect(prepare.status).toBe(409);
+      expect(prepare.body.error).toMatchObject({code: 'FUNDER_WALLET_REQUIRED', message: linkFirst});
+      expect(db.prepare('SELECT COUNT(*) AS n FROM reward_funding_intents WHERE reward_id = ?').get(f.reward.id)).toEqual({n: 0});
+
+      // An address left on the account after the link was removed (status none) does not count either.
+      db.prepare("UPDATE users SET walletAddress = ?, wallet_linking_status = 'none' WHERE id = ?")
+        .run('GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H', f.admin);
+      const pending = await request(app).get(`${url}/funding-options`).set('Authorization', authorization);
+      expect(pending.body.data.find((o: {sourceType: string}) => o.sourceType === 'stellar')).toMatchObject({available: false, reason: linkFirst});
+    } finally {
+      if (prevNetwork === undefined) delete process.env.REWARD_STELLAR_NETWORK; else process.env.REWARD_STELLAR_NETWORK = prevNetwork;
+      if (prevDestination === undefined) delete process.env.REWARD_STELLAR_DESTINATION; else process.env.REWARD_STELLAR_DESTINATION = prevDestination;
+    }
+  });
+});
