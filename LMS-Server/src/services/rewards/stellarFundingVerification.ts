@@ -5,6 +5,8 @@ export interface StellarFundingBinding {
   network: 'testnet' | 'public';
   destination: string;
   source?: string;
+  /** Reward funding only: name both accounts when the payment came from the wrong one (the source is the funder's own wallet). */
+  explainWrongSource?: boolean;
   memoHash: string;
   /** Optional one-time text memo (for wallets that cannot send a hash memo). Hash memo stays accepted. */
   textMemo?: string;
@@ -81,11 +83,15 @@ export async function verifyStellarFunding(binding: StellarFundingBinding, opera
   const operation = await read(`/operations/${operationId}`, false, true);
   if (operation.id !== operationId || operation.type !== 'payment' || operation.transaction_successful !== true
     || operation.asset_type !== 'native' || operation.asset_code !== undefined || operation.asset_issuer !== undefined
-    || (binding.source !== undefined && (operation.from !== binding.source
-      || operation.from_muxed !== undefined || operation.from_muxed_id !== undefined))
     || operation.to !== binding.destination || operation.to_muxed !== undefined || operation.to_muxed_id !== undefined
     || typeof operation.amount !== 'string' || !/^(0|[1-9][0-9]*)\.[0-9]{7}$/.test(operation.amount)
     || typeof operation.transaction_hash !== 'string' || !hashPattern.test(operation.transaction_hash)) throw deny();
+  if (binding.source !== undefined && (operation.from !== binding.source
+    || operation.from_muxed !== undefined || operation.from_muxed_id !== undefined)) {
+    if (!binding.explainWrongSource) throw deny();
+    const from = typeof operation.from === 'string' && StrKey.isValidEd25519PublicKey(operation.from) ? operation.from : 'another account';
+    throw new RewardError('FUNDING_WRONG_SOURCE', `That payment was sent from ${from}, but it must come from ${binding.source}. Send the payment from that wallet.`, 402);
+  }
   const [whole, fraction] = operation.amount.split('.');
   if (BigInt(whole) * 10_000_000n + BigInt(fraction) !== BigInt(binding.amountStroops)) {
     throw new RewardError('FUNDING_AMOUNT_MISMATCH', 'Stellar operation amount does not match the funding intent.', 402);
