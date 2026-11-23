@@ -101,7 +101,7 @@ describe('refused reward payouts are reported truthfully', () => {
     expect(start.status).toBe(409);
     expect(start.body.error).toEqual({ code: 'PAYOUT_CAP_EXCEEDED', message: expect.stringMatching(/at most 0\.1 XLM/) });
     const balance = await request(app).get('/api/v1/students/me/reward-claims/balance').set('Authorization', `Bearer ${l.token}`);
-    expect(balance.body.data).toEqual({ claimableStroops: '5000000', maxClaimStroops: '1000000' });
+    expect(balance.body.data).toEqual({ claimableStroops: '5000000', maxClaimStroops: '1000000', walletReadyAt: null });
     // Up to the cap still works.
     const ok = await claimAndVerify(l, '1000000');
     expect(ok.verify.body.data.payout.status).toBe('paid');

@@ -1202,24 +1202,38 @@ export function listCourseTAs(req: AuthRequest, res: Response): void {
 
 export function assignTA(req: AuthRequest, res: Response): void {
   const { id } = req.params;
-  const { userId: taUserId } = req.body;
+  const { userId: bodyUserId, email } = req.body as { userId?: unknown; email?: unknown };
   const assignerId = req.user!.userId;
 
+  // The course page assigns by email; API callers may still pass userId.
+  let taUserId = typeof bodyUserId === 'string' && bodyUserId ? bodyUserId : null;
+  if (!taUserId && typeof email === 'string' && email.trim()) {
+    taUserId = queryOne<{ id: string }>('SELECT id FROM users WHERE email = ? COLLATE NOCASE', [email.trim()])?.id ?? null;
+    if (!taUserId) {
+      res.status(404).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'No LMS account uses that email' } });
+      return;
+    }
+  }
   if (!taUserId) {
-    res.status(400).json({ success: false, error: 'userId is required' });
+    res.status(400).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'userId or email is required' } });
     return;
   }
 
   const course = queryOne<{ id: string }>('SELECT id FROM courses WHERE id = ?', [id]);
   if (!course) {
-    res.status(404).json({ success: false, error: 'Course not found' });
+    res.status(404).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'Course not found' } });
+    return;
+  }
+  // Without the Teaching assistant role the person could never open the TA workspace.
+  if (!getUserPermissions(taUserId).includes('course.grade_pending')) {
+    res.status(422).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'That person does not have the Teaching assistant role yet. Give them the role first (User Roles), then assign them.' } });
     return;
   }
 
   try {
     execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [id, taUserId, assignerId]);
   } catch {
-    res.status(409).json({ success: false, error: 'TA already assigned to this course' });
+    res.status(409).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'TA already assigned to this course' } });
     return;
   }
 

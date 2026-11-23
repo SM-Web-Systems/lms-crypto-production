@@ -10,7 +10,7 @@ import { RewardStatusBadge } from './RewardStatusBadge';
 import { useXlmUsdcPrice } from '../hooks/useXlmUsdcPrice';
 import { formatXlm } from '../utils/xlmAmount';
 import { rewardService, type MyRewardClaim, type StudentReward } from '../services/rewardService';
-import { getErrorMessage } from '../utils/apiError';
+import { ApiRequestError, getErrorMessage } from '../utils/apiError';
 import { Gift, RefreshCw, AlertCircle, Loader2, Send } from 'lucide-react';
 import { rememberClaim, walletClaimNavigation, walletClaimUrl } from '../utils/rewardClaim';
 
@@ -21,6 +21,9 @@ const CLAIM_PAYOUT: Record<MyRewardClaim['payout'], { label: string; tone: strin
   failed: { label: 'Payment failed', tone: 'bg-red-100 text-red-800', note: 'The network did not accept the payment. Nothing was sent; try again.' },
   not_sent: { label: 'Not paid yet', tone: 'bg-amber-100 text-amber-900', note: 'Your claim is saved, but the payment has not been sent to your wallet.' },
 };
+
+/** The cooling-off end time in the learner's own time zone, e.g. "Mon, 23 Nov, 21:39". */
+const localTime = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 const shortAddress = (a: string) => (a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
 
@@ -37,6 +40,9 @@ export const StudentRewardsPanel: React.FC = () => {
   const [paymentNotice, setPaymentNotice] = useState<{ text: string; failed: boolean } | null>(null);
   // A payments list that failed to load is shown as failed, never as no payments.
   const [claimsError, setClaimsError] = useState('');
+  // While a new wallet is cooling off (24 h after its first claim attempt), claiming waits until this time.
+  const [walletReadyAt, setWalletReadyAt] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const xlmUsdc = useXlmUsdcPrice();
 
   const load = useCallback(async () => {
@@ -53,7 +59,9 @@ export const StudentRewardsPanel: React.FC = () => {
         Promise.resolve().then(() => rewardService.listMyClaims())
           .catch((err) => { setClaimsError(getErrorMessage(err, 'Could not load your payments.')); return [] as MyRewardClaim[]; }),
         Promise.resolve().then(() => rewardService.getMaxClaimStroops()).catch(() => null),
+        Promise.resolve().then(() => rewardService.getWalletReadyAt()).then(r => setWalletReadyAt(r ?? null)).catch(() => setWalletReadyAt(null)),
       ]);
+      setNow(Date.now());
       setRewards(data);
       setClaimable(balance);
       setMaxClaim(typeof limit === 'string' && /^[1-9][0-9]*$/.test(limit) ? limit : null);
@@ -67,6 +75,15 @@ export const StudentRewardsPanel: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  const coolingOff = walletReadyAt !== null && Date.parse(walletReadyAt) > now;
+  // Let the button come back by itself when the period ends, without a reload.
+  useEffect(() => {
+    if (!coolingOff || walletReadyAt === null) return;
+    const wait = Math.min(Date.parse(walletReadyAt) - Date.now() + 1000, 2_147_000_000);
+    const t = setTimeout(() => setNow(Date.now()), Math.max(wait, 1000));
+    return () => clearTimeout(t);
+  }, [coolingOff, walletReadyAt]);
+
   // A claim above the per-payment limit can never be paid, so claim at most the limit; the rest stays claimable.
   const claimAmount = maxClaim !== null && BigInt(claimable) > BigInt(maxClaim) ? maxClaim : claimable;
 
@@ -78,7 +95,15 @@ export const StudentRewardsPanel: React.FC = () => {
       rememberClaim(started.claimId, started.message);
       walletClaimNavigation.go(walletClaimUrl(started.message, `${window.location.origin}/student/rewards/claim`));
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not start the claim'));
+      if (err instanceof ApiRequestError && err.code === 'WALLET_COOLING_OFF') {
+        // The first try starts the period: show its end in local time and hold the button, rather than the server's UTC text.
+        const readyAt = (await Promise.resolve().then(() => rewardService.getWalletReadyAt()).catch(() => null)) ?? null;
+        setWalletReadyAt(readyAt);
+        setNow(Date.now());
+        if (!readyAt) setError(getErrorMessage(err, 'Could not start the claim'));
+      } else {
+        setError(getErrorMessage(err, 'Could not start the claim'));
+      }
       setClaiming(false);
     }
   };
@@ -118,13 +143,18 @@ export const StudentRewardsPanel: React.FC = () => {
         {claimable !== '0' && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
             <p className="text-sm text-emerald-900">Ready to claim: <strong className="tabular-nums">{formatXlm(claimable, xlmUsdc)}</strong></p>
-            <Button size="sm" type="button" onClick={claim} disabled={claiming}>
+            <Button size="sm" type="button" onClick={claim} disabled={claiming || coolingOff}>
               <Send className="h-3.5 w-3.5 mr-1" aria-hidden />
               {claiming ? 'Opening AmmaWallet…' : claimAmount === claimable ? 'Claim to my wallet' : `Claim ${formatXlm(claimAmount, xlmUsdc)} to my wallet`}
             </Button>
             {claimAmount !== claimable && (
               <p className="basis-full text-xs text-emerald-800" data-testid="claim-limit-note">
                 One payment can be at most {formatXlm(claimAmount, xlmUsdc)}. Claim again for the rest.
+              </p>
+            )}
+            {coolingOff && walletReadyAt && (
+              <p className="basis-full text-xs text-amber-900" data-testid="wallet-cooling-off-note">
+                For your security, a new wallet can claim rewards from {localTime(walletReadyAt)}. Nothing is lost; your rewards stay in your LMS balance.
               </p>
             )}
             <p className="basis-full text-xs text-emerald-800" data-testid="restore-wallet-note">

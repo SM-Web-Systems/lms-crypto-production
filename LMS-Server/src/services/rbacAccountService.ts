@@ -20,6 +20,17 @@ export function ensureLearnerProfile(userId: string): string | undefined {
   return id;
 }
 
+/**
+ * An admin may add a student (and their course access) before the person has an LMS account. When the account is made
+ * with that email, link the student record to it and give it the course access that was waiting.
+ */
+export function claimAdminAddedStudent(userId: string, email: string): void {
+  execute('UPDATE students SET user_id = ? WHERE user_id IS NULL AND email = ? COLLATE NOCASE', [userId, email]);
+  execute(`INSERT OR IGNORE INTO user_course_codes (user_id, course_code)
+    SELECT ?, course_code FROM pending_course_codes WHERE email = ? COLLATE NOCASE`, [userId, email]);
+  execute('DELETE FROM pending_course_codes WHERE email = ? COLLATE NOCASE', [email]);
+}
+
 /** Caller selects a trusted canonical grant, never a public role/display label. */
 export function createRbacAccount(input: {
   id?: string; name: string; email: string; passwordHash: string;
@@ -44,6 +55,7 @@ export function createRbacAccount(input: {
         VALUES(?,?,?,?,1,?,?)`,[id,input.name,input.email,input.passwordHash,input.walletAddress ?? null,input.walletLinkingStatus ?? 'none']);
     }
     execute('INSERT INTO user_roles(user_id,role_id) VALUES(?,?)', [id,input.initialRoleId]);
+    claimAdminAddedStudent(id, input.email);
     return {id,studentId:ensureLearnerProfile(id)};
   }).immediate();
 }

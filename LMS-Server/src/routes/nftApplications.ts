@@ -26,6 +26,7 @@ import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services
 import { getTiersEnabled, createBadge } from '../services/badgeService.js';
 import logger from '../utils/logger.js';
 import { sendCertificateMintedEmail } from '../services/emailService.js';
+import { learnerSponsorship, attachToSponsorship } from '../services/cohortPaymentApprovalService.js';
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -153,8 +154,11 @@ router.post(
       return;
     }
 
+    // A learner in a sponsor cohort for this course gets the cohort's certificate (and its payment) when they
+    // apply on their own, including a re-apply after a rejection: no tier carried over, no learner payment.
+    const sponsorship = learnerSponsorship(userId, courseId);
     // Phase 11 C2: Tier selection (default 'paid' for backward compat with pre-C2 callers)
-    const selectedTier = (req.body.selectedTier as string) || 'paid';
+    const selectedTier = (req.body.selectedTier as string) || sponsorship?.tier || 'paid';
     if (selectedTier !== 'free' && selectedTier !== 'paid') {
       res.status(400).json({
         success: false,
@@ -220,9 +224,12 @@ router.post(
       [appId]
     );
 
-    // Phase 11 C1a: create payment record for paid courses (paid tier only)
+    const sponsored = !!sponsorship && sponsorship.tier === selectedTier;
+    if (sponsored) attachToSponsorship(sponsorship!, userId, courseId, appId);
+
+    // Phase 11 C1a: create payment record for paid courses (paid tier only; a sponsor cohort pays for its members)
     let paymentData: { paymentId: string; amountCents: number; currency: string; status: string } | undefined;
-    if (selectedTier === 'paid') {
+    if (selectedTier === 'paid' && !sponsored) {
       const pricing = getCoursePricing(courseId);
       if (pricing && pricing.price_cents > 0) {
         const payment = createPayment(userId, courseId, appId, pricing.price_cents, pricing.currency);
@@ -244,6 +251,7 @@ router.post(
         selectedTier,
         walletAddress: walletAddress ?? null,
         appliedAt: inserted?.applied_at ?? new Date().toISOString(),
+        ...(sponsored ? { sponsoredByCohort: true } : {}),
         ...(paymentData ? { payment: paymentData } : {}),
       },
     });
@@ -709,7 +717,10 @@ router.patch(
   requirePermission('certificate.reject'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
-    const { notes } = req.body as { notes?: string };
+    // The admin screen sends the reason as `reason`; older clients send `notes`. Either is the reason the learner sees.
+    const body = req.body as { notes?: unknown; reason?: unknown };
+    const given = typeof body.notes === 'string' && body.notes.trim() ? body.notes : body.reason;
+    const notes = typeof given === 'string' && given.trim() ? given.trim().slice(0, 2000) : undefined;
     const userId = req.user!.userId;
 
     const app = queryOne<{ id: string; status: string; user_id: string }>(
@@ -745,7 +756,7 @@ router.patch(
         userId: app.user_id,
         type: 'nft_rejected',
         title: 'Certificate Rejected',
-        body: `Your certificate application for "${courseRow?.title ?? 'course'}" was rejected`,
+        body: `Your certificate application for "${courseRow?.title ?? 'course'}" was rejected${notes ? `. Reason: ${notes}` : ''}`,
         link: '/student/badges',
       });
     } catch (err) {

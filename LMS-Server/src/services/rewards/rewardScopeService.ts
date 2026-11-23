@@ -67,6 +67,30 @@ export function resolveAudienceMembers(scopeType: ScopeType, scopeId: string, ac
 }
 
 /**
+ * Would this person receive the reward: in its audience now (no scope check: this asks about the person, not the actor),
+ * or already holding one of its allocations or a place in its audience snapshot.
+ */
+export function isRewardRecipient(reward: { id: string; scope_type: string; scope_id: string }, userId: string): boolean {
+  const inScope = (() => {
+    switch (reward.scope_type) {
+      case 'sponsor_cohort':
+        return !!db.prepare('SELECT 1 FROM cohort_members WHERE cohort_id = ? AND user_id = ?').get(reward.scope_id, userId);
+      case 'employer_team':
+      case 'parent_family':
+      case 'teacher_class':
+        return !!db.prepare('SELECT 1 FROM user_group_members WHERE group_id = ? AND user_id = ?').get(reward.scope_id, userId);
+      case 'parent_child':
+        return reward.scope_id === userId;
+      default:
+        return false;
+    }
+  })();
+  return inScope
+    || !!db.prepare('SELECT 1 FROM reward_allocations WHERE reward_id = ? AND student_user_id = ?').get(reward.id, userId)
+    || !!db.prepare('SELECT 1 FROM reward_audience_snapshots WHERE reward_id = ? AND student_user_id = ?').get(reward.id, userId);
+}
+
+/**
  * Create an audience snapshot for a reward by inserting member records.
  * Returns the number of members snapshotted.
  */

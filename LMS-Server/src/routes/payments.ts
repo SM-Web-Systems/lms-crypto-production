@@ -43,6 +43,7 @@ import {
   isCohortPayment,
   listCohortPaymentRequests,
   CohortPaymentError,
+  learnerSponsorship,
   type CohortPaymentStatus,
 } from '../services/cohortPaymentApprovalService.js';
 import {
@@ -1180,6 +1181,8 @@ router.get(
 
     const tiersEnabled = getTiersEnabled(courseId);
     const pricing = getCoursePricing(courseId);
+    // The certificate a sponsor cohort already covers for this learner: the app applies for it without asking or charging.
+    const sponsorship = req.user ? learnerSponsorship(req.user.userId, courseId) : null;
 
     res.json({
       success: true,
@@ -1188,6 +1191,7 @@ router.get(
         priceCents: pricing?.price_cents ?? 0,
         currency: pricing?.currency ?? 'USD',
         isFree: !pricing || pricing.price_cents === 0,
+        sponsoredTier: sponsorship?.tier ?? null,
       },
     });
   },

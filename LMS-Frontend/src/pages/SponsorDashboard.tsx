@@ -339,7 +339,7 @@ const ImpactReportTab: React.FC<{ refreshTick: number }> = ({ refreshTick }) => 
               <thead>
                 <tr className="bg-neutral-50 border-b border-neutral-100 text-left text-xs text-neutral-500 uppercase tracking-wide">
                   <th className="px-4 py-2.5 font-medium">Course</th>
-                  <th className="px-4 py-2.5 font-medium">Lesson Item</th>
+                  <th className="px-4 py-2.5 font-medium">Lesson</th>
                   <th className="px-4 py-2.5 font-medium text-right">Completions</th>
                   <th className="px-4 py-2.5 font-medium text-right">Total Members</th>
                   <th className="px-4 py-2.5 font-medium text-right">Rate</th>
@@ -349,7 +349,7 @@ const ImpactReportTab: React.FC<{ refreshTick: number }> = ({ refreshTick }) => 
                 {impact.dropOff.map((d) => (
                   <tr key={`${d.courseId}-${d.itemId}`} className="hover:bg-neutral-50/60 transition-colors">
                     <td className="px-4 py-3 font-medium text-neutral-900">{d.courseName}</td>
-                    <td className="px-4 py-3 text-neutral-700 font-mono text-xs">{d.itemId}</td>
+                    <td className="px-4 py-3 text-neutral-700">{d.itemTitle || 'Lesson'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{d.completions}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{d.totalMembers}</td>
                     <td className="px-4 py-3 text-right tabular-nums">

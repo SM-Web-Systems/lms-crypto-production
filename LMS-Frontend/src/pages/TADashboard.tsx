@@ -78,6 +78,7 @@ const TADashboard: React.FC = () => {
       setGradingId(null);
       setFeedback('');
       if (selectedCourseId) loadSubmissions(selectedCourseId);
+      void loadCourses(); // refresh the totals
     } catch (e) {
       setError(getErrorMessage(e, 'Grading failed.'));
     }
@@ -92,8 +93,13 @@ const TADashboard: React.FC = () => {
   };
 
   const firstName = (user?.name ?? 'there').trim().split(/\s+/)[0] || 'there';
-  const pendingCount = submissions.filter((s) => s.status === 'pending').length;
-  const gradedCount = submissions.filter((s) => s.grade_status === 'pending_approval').length;
+  // Totals across every assigned course come from the course list, so they are right before a course is
+  // opened. An older server without the counts falls back to the open course's submissions.
+  const hasCounts = courses.length > 0 && courses.every((c) => typeof c.pending_count === 'number');
+  const pendingCount = hasCounts ? courses.reduce((n, c) => n + (c.pending_count ?? 0), 0)
+    : submissions.filter((s) => s.status === 'pending').length;
+  const gradedCount = hasCounts ? courses.reduce((n, c) => n + (c.awaiting_approval_count ?? 0), 0)
+    : submissions.filter((s) => s.grade_status === 'pending_approval').length;
 
   return (
     <div className="pb-10 space-y-6">

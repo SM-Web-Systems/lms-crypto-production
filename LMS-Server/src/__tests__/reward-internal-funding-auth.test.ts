@@ -193,6 +193,25 @@ describe('W01-R1: Internal funding authorization', () => {
       expect(funded.status).toBe('funded');
     });
 
+    it('rejects an admin who is in the reward\'s audience (admin grant, platform credit and Stellar intent)', async () => {
+      const sponsor = createSponsor();
+      const admin = createAdmin();
+      const cohortId = createCohort(sponsor);
+      const rewardId = draftReward(sponsor, cohortId);
+      db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, admin); // joined after the draft
+      const refusal = (fn: () => unknown) => { try { fn(); } catch (err) { return err as RewardError; } return null; };
+      for (const type of ['admin_grant', 'platform_credit'] as const) {
+        const err = refusal(() => fundReward(rewardId, admin, { type }, `fund-${uuidv4()}`));
+        expect(err?.code).toBe('CONFLICT_OF_INTEREST');
+        expect(err?.message).toMatch(/one of the people this reward pays/);
+      }
+      const { createFundingIntent } = await import('../services/rewards/rewardFundingIntentService.js');
+      expect(refusal(() => createFundingIntent(rewardId, admin, { type: 'stellar' }, `intent-${uuidv4()}`))?.code).toBe('CONFLICT_OF_INTEREST');
+      expect(getReward(rewardId)!.status).toBe('draft');
+      // Another administrator who is not in the audience still can.
+      expect(fundReward(rewardId, createAdmin(), { type: 'admin_grant' }, `fund-${uuidv4()}`).status).toBe('funded');
+    });
+
     it('records authorizer as actor_user_id in ledger', () => {
       const sponsor = createSponsor();
       const admin = createAdmin();

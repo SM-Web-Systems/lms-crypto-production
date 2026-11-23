@@ -29,6 +29,7 @@ import {
 
 const SKIP_REASONS: Record<string, string> = {
   not_enrolled: 'not enrolled in the course',
+  requirements_not_met: 'has not finished the course requirements yet (run Apply for All again once they have)',
   already_in_cohort: 'already applied in this cohort',
   in_other_cohort: 'their application belongs to another cohort',
   already_issued: 'certificate already issued',

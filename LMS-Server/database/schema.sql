@@ -192,6 +192,14 @@ CREATE TABLE IF NOT EXISTS user_course_codes (
 CREATE INDEX IF NOT EXISTS idx_user_course_codes_user ON user_course_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_course_codes_code ON user_course_codes(course_code);
 
+-- Course access an admin gave a student who has no LMS account yet; moved to user_course_codes when the account is made.
+CREATE TABLE IF NOT EXISTS pending_course_codes (
+  email TEXT NOT NULL COLLATE NOCASE,
+  course_code TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (email, course_code)
+);
+
 -- Course enrollments (legacy/roster; kept for compatibility; members can be derived from user_course_codes)
 CREATE TABLE IF NOT EXISTS course_enrollments (
   course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,

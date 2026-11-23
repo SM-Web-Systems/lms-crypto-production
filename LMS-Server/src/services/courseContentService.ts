@@ -147,6 +147,17 @@ export function findItem(course: CourseRow, itemId: string) {
   return items(course).find(entry => entry.item.id === itemId) ?? null;
 }
 
+/** A lesson's title for reports, never its internal id: "Lesson (removed)" when the item is no longer in the course. */
+export function lessonTitle(courseId: string, sections: string | null, itemId: string): string {
+  try {
+    const title = findItem({ id: courseId, sections: sections ?? '[]' }, itemId)?.item.title;
+    if (typeof title === 'string' && title.trim()) return title.trim();
+    return findItem({ id: courseId, sections: sections ?? '[]' }, itemId) ? 'Untitled lesson' : 'Lesson (removed)';
+  } catch {
+    return 'Lesson';
+  }
+}
+
 const str = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : undefined;
 export function youtubeId(url: string | undefined): string | undefined {
   if (!url) return undefined;

@@ -11,6 +11,7 @@ import { createNotification } from '../services/notificationService.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { canAccessCourse } from '../services/courseAccessService.js';
 import { canAccessSubmission } from '../services/submissionAccessService.js';
+import { findItem } from '../services/courseContentService.js';
 
 const router = Router();
 
@@ -29,8 +30,11 @@ function canDecideTaGrade(userId: string, submissionId: string, courseId: string
 router.get('/ta/courses', authenticate, requirePermission('course.grade_pending'), (req, res: Response) => {
   const userId = (req as AuthRequest).user!.userId;
 
-  const courses = query<{ id: string; title: string; course_code: string; assigned_at: string }>(
-    `SELECT c.id, c.title, c.course_code, ct.assigned_at
+  // Per-course counts so the dashboard totals are right before a course is opened.
+  const courses = query<{ id: string; title: string; course_code: string; assigned_at: string; pending_count: number; awaiting_approval_count: number }>(
+    `SELECT c.id, c.title, c.course_code, ct.assigned_at,
+       (SELECT COUNT(*) FROM submissions s WHERE s.course_id = c.id AND s.status = 'pending') AS pending_count,
+       (SELECT COUNT(*) FROM submissions s WHERE s.course_id = c.id AND (${SENT_BACK_SQL}) = 'pending_approval') AS awaiting_approval_count
      FROM courses c
      JOIN course_tas ct ON ct.course_id = c.id
      WHERE ct.user_id = ?
@@ -175,18 +179,24 @@ router.post('/ta/submissions/:id/approve-grade', authenticate, requirePermission
     }
   }
 
-  // F6: Notify the TA whose grade was approved (best-effort)
+  // F6: Tell the TA that their grade was approved (best-effort). Named by the assignment and learner, never by an internal id;
+  // the learner hears about it separately below ("Submission Approved").
   try {
-    const sub = queryOne<{ graded_by: string | null; item_id: string | null }>(
-      'SELECT graded_by, item_id FROM submissions WHERE id = ?',
-      [submissionId],
+    const who = queryOne<{ name: string | null }>(
+      'SELECT COALESCE(u.name, st.name) AS name FROM students st LEFT JOIN users u ON u.id = st.user_id WHERE st.id = ?',
+      [submission.student_id],
     );
-    if (sub?.graded_by) {
+    const course = submission.course_id
+      ? queryOne<{ id: string; sections: string }>('SELECT id, sections FROM courses WHERE id = ?', [submission.course_id]) : undefined;
+    const itemTitle = course && submission.item_id ? findItem(course, submission.item_id)?.item.title : undefined;
+    const what = typeof itemTitle === 'string' && itemTitle.trim() ? itemTitle.trim() : submission.title;
+    if (submission.graded_by && submission.graded_by !== submission.student_user_id) {
       createNotification({
-        userId: sub.graded_by,
+        userId: submission.graded_by,
         type: 'grade_approved',
-        title: 'Grade Approved',
-        body: `Your grade for submission ${sub.item_id ?? submissionId} was approved by the instructor.`,
+        title: 'Your grade was approved',
+        body: `The instructor approved your grade for "${what}"${who?.name ? ` by ${who.name}` : ''}.`,
+        link: '/ta',
       });
     }
   } catch { /* best-effort */ }

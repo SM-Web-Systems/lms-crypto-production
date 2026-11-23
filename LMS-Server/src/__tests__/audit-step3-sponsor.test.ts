@@ -292,7 +292,7 @@ describe('A05 — impact course boundary', () => {
       {
         courseId: own,
         courseName: 'Course',
-        itemId: 'complete',
+        itemId: 'complete', itemTitle: 'Lesson (removed)',
         sectionId: 'section',
         completions: 1,
         totalMembers: 1,

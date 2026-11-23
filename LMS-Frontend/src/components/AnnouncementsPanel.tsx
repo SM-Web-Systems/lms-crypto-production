@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { announcementService, type Announcement, type CreateAnnouncementData } from '../services/announcementService';
+import { parseServerTime } from '../utils/serverTime';
 import { courseService } from '../services/courseService';
 import type { Course } from '../types/course';
 import { Button } from './Button';
@@ -22,7 +23,7 @@ interface Props {
 }
 
 function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff = Date.now() - parseServerTime(dateStr).getTime();
   const s = Math.floor(diff / 1000);
   if (s < 60) return 'just now';
   const m = Math.floor(s / 60);
@@ -31,7 +32,7 @@ function timeAgo(dateStr: string): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   if (d < 30) return `${d}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return parseServerTime(dateStr).toLocaleDateString();
 }
 
 const EMPTY_DRAFT: CreateAnnouncementData = {

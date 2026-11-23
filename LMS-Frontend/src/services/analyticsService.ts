@@ -66,6 +66,7 @@ export interface CohortInsightsData {
     courseId: string;
     courseName: string;
     itemId: string;
+    itemTitle?: string;
     sectionId: string;
     completions: number;
     totalEnrolled: number;

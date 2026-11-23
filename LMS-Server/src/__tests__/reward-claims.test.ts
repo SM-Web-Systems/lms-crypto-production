@@ -6,7 +6,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import app from '../app.js';
 import { db } from '../config/database.js';
 import { makeToken } from './helpers/auth.js';
-import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS, newWalletCooldownMs, claimNetworkLine, challengeMessage } from '../services/rewards/rewardClaimService.js';
+import { createRewardClaim, verifyRewardClaim, cancelFailedClaim, claimableStroops, overCommittedLearners, CLAIM_CHALLENGE_TTL_MS, MAX_OPEN_CLAIMS, newWalletCooldownMs, walletCoolingOffUntil, claimNetworkLine, challengeMessage } from '../services/rewards/rewardClaimService.js';
 
 const HASH = bcrypt.hashSync('password123', 4);
 
@@ -167,6 +167,23 @@ describe('reward claims: cooling-off for a wallet the learner has not claimed to
     expect(() => createRewardClaim(l.id, '100000', t0 + 23 * 3_600_000)).toThrow(/after /);
     const c = createRewardClaim(l.id, '100000', t0 + 24 * 3_600_000 + 1);
     expect(c.destination).toBe(l.keypair.publicKey());
+  });
+
+  it('reports when a cooling-off wallet is ready, in the balance and in the refusal (readable UTC, ISO in details)', async () => {
+    const l = learner(1_000_000);
+    expect(walletCoolingOffUntil(l.id)).toBeNull(); // never tried: the first try starts the period
+    let before = await request(app).get('/api/v1/students/me/reward-claims/balance').set('Authorization', `Bearer ${l.token}`);
+    expect(before.body.data.walletReadyAt).toBeNull();
+    const refused = await request(app).post('/api/v1/students/me/reward-claims').set('Authorization', `Bearer ${l.token}`).send({ amountStroops: '100000' });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('WALLET_COOLING_OFF');
+    expect(refused.body.error.message).toMatch(/after \d{1,2} \w{3} \d{4}, \d{2}:\d{2} UTC\./);
+    expect(refused.body.error.message).not.toMatch(/T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
+    const readyAt = Date.parse(refused.body.error.details.readyAt);
+    expect(readyAt).toBeGreaterThan(Date.now() + 23 * 3_600_000);
+    before = await request(app).get('/api/v1/students/me/reward-claims/balance').set('Authorization', `Bearer ${l.token}`);
+    expect(before.body.data.walletReadyAt).toBe(refused.body.error.details.readyAt);
+    expect(walletCoolingOffUntil(l.id, readyAt + 1)).toBeNull();
   });
 
   it('does not delay a wallet the learner has already claimed to', () => {

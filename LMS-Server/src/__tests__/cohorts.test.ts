@@ -254,6 +254,31 @@ describe('Sponsor Cohorts (C3)', () => {
     expect(again.body.data.skipped).toEqual([{ userId: studentId1, reason: 'already_in_cohort' }]);
   });
 
+  it('COH-B9c — bulk-apply skips members who have not met the certificate requirements', async () => {
+    seedEnrollment(studentId1, courseCode);
+    db.prepare('UPDATE courses SET sections = ? WHERE id = ?').run(JSON.stringify([
+      { id: 's1', title: 'Section', items: [{ id: 'l1', type: 'lesson', title: 'One' }] },
+    ]), courseId);
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Unfinished Cohort', courseId, selectedTier: 'free', memberUserIds: [studentId1] });
+    const res = await request(app).post(`/api/v1/admin/cohorts/${createRes.body.data.cohortId}/apply`).set('Authorization', `Bearer ${adminToken}`);
+    expect(res.body.data.applied).toBe(0);
+    expect(res.body.data.skipped).toEqual([{ userId: studentId1, reason: 'requirements_not_met' }]);
+    expect(db.prepare('SELECT id FROM course_nft_applications WHERE user_id = ? AND course_id = ?').get(studentId1, courseId)).toBeUndefined();
+  });
+
+  it('COH-B10b — bulk-pay refuses a course with no certificate price instead of quoting 0.00', async () => {
+    seedEnrollment(studentId1, courseCode);
+    db.exec(`DELETE FROM course_pricing WHERE course_id = '${courseId}'`);
+    const createRes = await request(app).post('/api/v1/admin/cohorts').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'No Price', courseId, selectedTier: 'paid', memberUserIds: [studentId1] });
+    const cohortId = createRes.body.data.cohortId;
+    await request(app).post(`/api/v1/admin/cohorts/${cohortId}/apply`).set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app).post(`/api/v1/admin/cohorts/${cohortId}/pay`).set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/no verified-certificate price/);
+  });
+
   it('COH-B9b — bulk-apply does not take over an application that is paid for or in another cohort', async () => {
     seedEnrollment(studentId1, courseCode);
     seedEnrollment(studentId2, courseCode);

@@ -8,14 +8,15 @@ import { ConfirmButton } from './ConfirmButton';
 import { connectionService, type MyConnections } from '../services/connectionService';
 import { getErrorMessage } from '../utils/apiError';
 
-export const MyConnectionsPanel: React.FC = () => {
+/** refreshKey: change it to load the list again (after the learner accepts a parent or class/team request). */
+export const MyConnectionsPanel: React.FC<{ refreshKey?: number }> = ({ refreshKey = 0 }) => {
   const [data, setData] = useState<MyConnections>({ parents: [], groups: [] });
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     try { setData(await connectionService.mine()); } catch { setData({ parents: [], groups: [] }); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const run = async (action: () => Promise<void>) => {
     setError('');

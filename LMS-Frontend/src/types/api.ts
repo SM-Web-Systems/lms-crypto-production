@@ -94,6 +94,8 @@ export interface Student {
   updatedAt?: string;
   walletAddress?: string | null;
   walletLinkingStatus?: 'none' | 'linked' | 'existing_account';
+  /** No LMS account yet: the course access they get when their account is made. */
+  pendingCourseCodes?: string[];
 }
 
 export interface WalletStatusResponse {
@@ -439,6 +441,8 @@ export interface TierInfo {
   priceCents: number;
   currency: string;
   isFree: boolean;
+  /** Set when a sponsor cohort already covers this learner's certificate: applied for without asking or charging. */
+  sponsoredTier?: CertificateTier | null;
 }
 
 export interface CertificateBadgeData {

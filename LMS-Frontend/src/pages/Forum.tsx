@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getErrorMessage } from '../utils/apiError';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { parseServerTime } from '../utils/serverTime';
 
 // Channel type: 'general' or a course id
 type ChannelId = 'general' | string;
@@ -754,7 +755,7 @@ function PostAuthor({
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
+  const d = parseServerTime(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);

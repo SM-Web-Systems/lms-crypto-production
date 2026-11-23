@@ -18,6 +18,8 @@ export interface DropOffItem {
   courseId: string;
   courseName: string;
   itemId: string;
+  /** The lesson's title (the server names removed lessons "Lesson (removed)"). */
+  itemTitle?: string;
   sectionId: string;
   completions: number;
   totalMembers: number;

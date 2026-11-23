@@ -43,6 +43,30 @@ function destinationReadyAt(userId: string, destination: string, amount: number,
     return now + cooldown;
   }).immediate();
 }
+/** A readable UTC time for messages ("23 Nov 2026, 19:39 UTC"); the web app shows details.readyAt in the learner's own time. */
+function utcLabel(ms: number): string {
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
+    .format(new Date(ms)) + ' UTC';
+}
+
+/**
+ * When the learner's current wallet may be claimed to, if it is still cooling off (read only: does not start the period).
+ * Null when it can be claimed to now, has never been tried (the first try starts the period), or no wallet is linked.
+ */
+export function walletCoolingOffUntil(userId: string, now = Date.now()): number | null {
+  const cooldown = newWalletCooldownMs();
+  if (cooldown === 0) return null;
+  const user = db.prepare('SELECT walletAddress, wallet_linking_status FROM users WHERE id = ?').get(userId) as
+    { walletAddress: string | null; wallet_linking_status: string | null } | undefined;
+  if (!user?.walletAddress || user.wallet_linking_status !== 'linked') return null;
+  const trusted = db.prepare("SELECT 1 FROM reward_claims WHERE user_id = ? AND destination = ? AND status = 'verified' LIMIT 1").get(userId, user.walletAddress);
+  if (trusted) return null;
+  const first = db.prepare('SELECT MIN(created_at) AS first FROM reward_claims WHERE user_id = ? AND destination = ?').get(userId, user.walletAddress) as { first: number | null };
+  if (first.first === null) return null;
+  const readyAt = first.first + cooldown;
+  return readyAt > now ? readyAt : null;
+}
+
 const PREFIX = 'SM Web Systems LMS reward claim';
 
 interface ClaimRow {
@@ -111,7 +135,8 @@ export function createRewardClaim(userId: string, amount: unknown, now = Date.no
   const wallet = currentAddress(userId);
   const readyAt = destinationReadyAt(userId, wallet, amountStroops, now);
   if (readyAt > now) {
-    throw new RewardError('WALLET_COOLING_OFF', `For your security, a new wallet can claim rewards after ${new Date(readyAt).toISOString()}. Nothing is lost; your rewards stay in your LMS balance.`, 409);
+    throw new RewardError('WALLET_COOLING_OFF', `For your security, a new wallet can claim rewards after ${utcLabel(readyAt)}. Nothing is lost; your rewards stay in your LMS balance.`, 409,
+      { readyAt: new Date(readyAt).toISOString() });
   }
   return db.transaction(() => {
     const destination = currentAddress(userId);

@@ -746,7 +746,7 @@ describe('F6: Notification Preferences Per Role', () => {
     ]);
     execute(
       'INSERT INTO courses (id, title, description, course_code, sections) VALUES (?, ?, ?, ?, ?)',
-      [courseId, 'Test Course', 'desc', courseCode, sections],
+      [courseId, 'Test Course', 'desc', courseCode, sections.replace('"title":"Assignment"', '"title":"Week 1 essay"')],
     );
 
     // Assign TA to course (course_tas uses user_id, no id column)
@@ -777,11 +777,16 @@ describe('F6: Notification Preferences Per Role', () => {
       .post(`/api/v1/ta/submissions/${submissionId}/approve-grade`)
       .set('Authorization', `Bearer ${instructorToken}`);
 
-    // TA should get grade_approved notification
-    const notif = queryOne<{ type: string }>(
-      "SELECT type FROM notifications WHERE user_id = ? AND type = 'grade_approved'",
+    // TA should get grade_approved notification, named by the assignment title and learner, never by an item id
+    const notif = queryOne<{ type: string; body: string }>(
+      "SELECT type, body FROM notifications WHERE user_id = ? AND type = 'grade_approved'",
       [taId],
     );
     expect(notif).not.toBeNull();
+    expect(notif!.body).toContain('"Week 1 essay" by Test student');
+    expect(notif!.body).not.toContain('item1');
+    // The learner who submitted is told too
+    const learner = queryOne<{ title: string }>("SELECT title FROM notifications WHERE user_id = ? AND type = 'submission_reviewed'", [studentUserId]);
+    expect(learner?.title).toBe('Submission Approved');
   });
 });

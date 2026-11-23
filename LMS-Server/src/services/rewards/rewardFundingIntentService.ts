@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { db } from '../../config/database.js';
 import { hasPermission } from '../../middleware/rbac.js';
 import { RewardError } from './rewardErrors.js';
-import { validateScope } from './rewardScopeService.js';
+import { validateScope, isRewardRecipient } from './rewardScopeService.js';
 import { calculateMaxExposure } from './currencyConfig.js';
 import { normalizeReference, verifyInternalAuthorization } from './rewardFundingVerifier.js';
 import { FUNDING_SOURCE_TYPES, type FundingSourceType, type RewardRow } from './rewardTypes.js';
@@ -121,10 +121,22 @@ function assertBinding(intent: FundingIntent, reward: RewardRow, actorId: string
   }
 }
 
+/**
+ * Someone who would receive a reward must not fund (authorize) it for someone else's reward, the same separation as the
+ * creator rule for internal funding: covers admin grants, platform credit and Stellar transfers.
+ */
+export function assertFunderNotRecipient(reward: RewardRow, actorId: string): void {
+  if (actorId !== reward.creator_user_id && isRewardRecipient(reward, actorId)) {
+    throw new RewardError('CONFLICT_OF_INTEREST',
+      'You are one of the people this reward pays, so you cannot fund it. Ask another administrator to fund it.', 403);
+  }
+}
+
 export function createFundingIntent(rewardId: string, actorId: string, source: FundingRequest, key: string): FundingIntent {
   validateFundingRequest(source, key);
   return db.transaction(() => {
     const reward = authorizedFundingReward(rewardId, actorId);
+    assertFunderNotRecipient(reward, actorId);
     if (source.type === 'admin_grant') verifyInternalAuthorization({actorId, rewardCreatorId: reward.creator_user_id}, source.type);
     else if(source.type==='platform_credit') assertPlatformCredit(actorId,reward.creator_user_id,source.reference);
     else if (source.type === 'stellar') {
@@ -180,6 +192,7 @@ export function createFundingIntent(rewardId: string, actorId: string, source: F
 export function prepareVerifiedFundingIntent(reward: RewardRow, actorId: string, source: FundingRequest, key: string): FundingIntent {
   if (!db.inTransaction) throw new Error('Funding intent requires a ledger transaction');
   validateFundingRequest(source, key);
+  assertFunderNotRecipient(reward, actorId);
   if (source.type === 'stellar' && !hasPermission(actorId, 'reward.fund')) throw new RewardError('SCOPE_DENIED', 'Reward funding permission is required.', 403);
   const intent = source.intentId
     ? readIntent(source.intentId)

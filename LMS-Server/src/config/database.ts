@@ -13,6 +13,7 @@ import { parentInvitationSchema } from './parentInvitationSchema.js';
 import { emailInvitationSchema } from './emailInvitationSchema.js';
 import { roleRequestSchema } from './roleRequestSchema.js';
 import { ammaWalletLinkSchema } from './ammaWalletLinkSchema.js';
+import { pendingCourseCodeSchema } from './pendingCourseCodeSchema.js';
 import { pushSchema } from './pushSchema.js';
 import { webPushSchema } from './webPushSchema.js';
 import { offlineLearningSchema } from './offlineLearningSchema.js';
@@ -1999,6 +2000,9 @@ function ensureDeletionTables(): void {
   `);
 }
 startupMigrations.push(ensureDeletionTables);
+
+// Course access an admin gave a student who has no LMS account yet (additive).
+startupMigrations.push(() => db.exec(pendingCourseCodeSchema));
 
 // One transaction owns schema changes, RBAC seeds, and default data. Preflight
 // ran read-only; a failed upgrade must not leave earlier writes committed.

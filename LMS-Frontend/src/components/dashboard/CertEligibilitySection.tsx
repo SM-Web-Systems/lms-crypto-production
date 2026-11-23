@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '../Button';
 import { courseCompletionService } from '../../services/courseCompletionService';
-import type { CourseProgress, NftApplication } from '../../types/api';
+import type { CertificateTier, CourseProgress, NftApplication, TierInfo } from '../../types/api';
+import { TierSelector } from '../TierSelector';
 import type { Course } from '../../types/course';
 import { CertEligibilitySkeleton } from '../PageSkeletons';
 import { CertificatePaymentPanel } from './CertificatePaymentPanel';
@@ -97,14 +98,29 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
     card.focus();
   }, [hash, coursesLoading, courses]);
 
-  const handleApplyCertificate = async (courseId: string) => {
+  // The learner picks free or verified first (TierSelector skips the question when there is one choice or a sponsor pays).
+  const [choosingTierFor, setChoosingTierFor] = useState<string | null>(null);
+
+  // Ask free or verified only when both are offered and no sponsor pays; otherwise apply straight away.
+  // A failed lookup applies as before (the server picks the sponsor's or the default tier).
+  const startApply = async (courseId: string) => {
+    if (appErrorIds?.has(courseId) || appLoadingIds?.has(courseId)) return;
+    let info: TierInfo | null = null;
+    try { info = await courseCompletionService.getTiers(courseId); } catch { info = null; }
+    if (info && !info.sponsoredTier && info.tiersEnabled === 'both') { setChoosingTierFor(courseId); return; }
+    const tier: CertificateTier | undefined = info?.sponsoredTier
+      ?? (info?.tiersEnabled === 'free_only' ? 'free' : info?.tiersEnabled === 'paid_only' ? 'paid' : undefined);
+    await handleApplyCertificate(courseId, tier);
+  };
+
+  const handleApplyCertificate = async (courseId: string, tier?: CertificateTier) => {
     // W09-R4/R5: enforce action gate — do not apply when application status is unknown.
     // appErrorIds: fetch failed; appLoadingIds: retry in flight. Both mean status unknown.
     if (appErrorIds?.has(courseId) || appLoadingIds?.has(courseId)) return;
     setCertState((s) => ({ ...s, [courseId]: 'loading' }));
     setCertErrors((e) => ({ ...e, [courseId]: '' }));
     try {
-      const newApp = await courseCompletionService.applyForCertificate(courseId);
+      const newApp = await courseCompletionService.applyForCertificate(courseId, tier);
       onAppStatusChange(courseId, newApp);
       setCertState((s) => ({ ...s, [courseId]: 'applied' }));
     } catch (e: unknown) {
@@ -162,6 +178,13 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
 
   return (
     <section>
+      {choosingTierFor && (
+        <TierSelector
+          courseId={choosingTierFor}
+          onSelect={(tier) => { const id = choosingTierFor; setChoosingTierFor(null); void handleApplyCertificate(id, tier); }}
+          onCancel={() => setChoosingTierFor(null)}
+        />
+      )}
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-neutral-900">Certificate eligibility</h2>
@@ -412,7 +435,7 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
                       size="sm"
                       type="button"
                       className="text-xs"
-                      onClick={() => handleApplyCertificate(course.id)}
+                      onClick={() => { void startApply(course.id); }}
                     >
                       <Award className="h-3.5 w-3.5 mr-1" aria-hidden />
                       {displayState === 'rejected' ? 'Re-apply' : 'Request certificate'}

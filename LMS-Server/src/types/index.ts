@@ -74,6 +74,8 @@ export interface StudentResponse {
   updatedAt?: string;
   walletAddress?: string | null;
   walletLinkingStatus?: 'none' | 'linked' | 'existing_account';
+  /** Course access waiting for a student who has no LMS account yet. */
+  pendingCourseCodes?: string[];
 }
 
 // Submission Types

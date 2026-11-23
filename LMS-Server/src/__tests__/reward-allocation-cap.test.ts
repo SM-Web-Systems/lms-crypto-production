@@ -67,6 +67,16 @@ function makeCohortWithMembers(sponsorId: string, memberCount: number): { cohort
   return { cohortId, studentIds };
 }
 
+function addMembers(cohortId: string, count: number): string[] {
+  const ids: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const sid = makeStudent();
+    db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, sid);
+    ids.push(sid);
+  }
+  return ids;
+}
+
 interface FundedScenario {
   rewardId: string;
   sponsorId: string;
@@ -79,7 +89,8 @@ interface FundedScenario {
 function seedFundedReward(maxRecipients: number | null, audienceSize: number): FundedScenario {
   const sponsorId = makeSponsor();
   const adminId = makeAdmin();          // independent funder
-  const { cohortId, studentIds } = makeCohortWithMembers(sponsorId, audienceSize);
+  // Creation refuses an audience already larger than the cap, so the learners join after creation (as they can in real life).
+  const { cohortId } = makeCohortWithMembers(sponsorId, 0);
   const reward = createReward(sponsorId, {
     scopeType: 'sponsor_cohort',
     scopeId: cohortId,
@@ -89,6 +100,7 @@ function seedFundedReward(maxRecipients: number | null, audienceSize: number): F
     idempotencyKey: uuidv4(),
   });
   fundReward(reward.id, adminId, { type: 'admin_grant' }, uuidv4());
+  const studentIds = addMembers(cohortId, audienceSize);
   return { rewardId: reward.id, sponsorId, cohortId, studentIds };
 }
 
@@ -373,11 +385,26 @@ describe('W03 — Replay and idempotency', () => {
 // Monetary backing isolation
 // ──────────────────────────────────────────────
 
+describe('Staging bug 21 — audience larger than the cap is refused at creation', () => {
+  it('says how many learners the group has (counting the sponsor) and what to set', () => {
+    const sponsorId = makeSponsor();
+    const { cohortId } = makeCohortWithMembers(sponsorId, 1);
+    db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, sponsorId);
+    let err: { code?: string; message?: string } | null = null;
+    try {
+      createReward(sponsorId, { scopeType: 'sponsor_cohort', scopeId: cohortId, rewardType: 'course_completion', amountStroops: '100', idempotencyKey: uuidv4() });
+    } catch (e) { err = e as { code?: string; message?: string }; }
+    expect(err?.code).toBe('AUDIENCE_EXCEEDS_CAP');
+    expect(err?.message).toBe('This group has 2 learners (you are one of them), but the reward is set for 1. Set the number of learners to at least 2, so every learner can be paid.');
+    expect(createReward(sponsorId, { scopeType: 'sponsor_cohort', scopeId: cohortId, rewardType: 'course_completion', amountStroops: '100', maxRecipients: 2, idempotencyKey: uuidv4() }).status).toBe('draft');
+  });
+});
+
 describe('W03 — Monetary backing isolation (pooled funder)', () => {
   it('CAP-POOL-1: reward A cap exceeded → reward B activation unaffected; A reservation intact', () => {
     const sponsorId = makeSponsor();
     // Reward A: cap=1, 3 members → will fail activation
-    const { cohortId: cohortA } = makeCohortWithMembers(sponsorId, 3);
+    const { cohortId: cohortA } = makeCohortWithMembers(sponsorId, 0);
     const rA = createReward(sponsorId, {
       scopeType: 'sponsor_cohort',
       scopeId: cohortA,
@@ -387,6 +414,7 @@ describe('W03 — Monetary backing isolation (pooled funder)', () => {
       idempotencyKey: uuidv4(),
     });
     fundReward(rA.id, makeAdmin(), { type: 'admin_grant' }, uuidv4());
+    addMembers(cohortA, 3); // joined after creation
     // Reward B: cap=1, 1 member → will succeed
     const { cohortId: cohortB } = makeCohortWithMembers(sponsorId, 1);
     const rB = createReward(sponsorId, {
@@ -479,7 +507,6 @@ describe('W03 — Recovery after AUDIENCE_EXCEEDS_CAP', () => {
     const s1 = makeStudent();
     const s2 = makeStudent();
     db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, s1);
-    db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, s2);
     const reward = createReward(sponsorId, {
       scopeType: 'sponsor_cohort',
       scopeId: cohortId,
@@ -489,6 +516,7 @@ describe('W03 — Recovery after AUDIENCE_EXCEEDS_CAP', () => {
       idempotencyKey: uuidv4(),
     });
     fundReward(reward.id, makeAdmin(), { type: 'admin_grant' }, uuidv4());
+    db.prepare('INSERT INTO cohort_members (cohort_id, user_id) VALUES (?, ?)').run(cohortId, s2); // joined after creation
     // First attempt: 2 members, cap=1 → fail
     expect(() => activateReward(reward.id, sponsorId, uuidv4())).toThrow(
       expect.objectContaining({ code: 'AUDIENCE_EXCEEDS_CAP' })

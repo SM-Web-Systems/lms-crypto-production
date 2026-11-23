@@ -13,6 +13,9 @@ import { getErrorMessage } from '../utils/apiError';
 export const InvitationRequests: React.FC = () => {
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState('');
+  // Bumped when a request is answered, so "Who can see your progress" shows the new link without a reload.
+  const [answered, setAnswered] = useState(0);
+  const onAnswered = () => setAnswered((n) => n + 1);
 
   useEffect(() => {
     let live = true;
@@ -28,9 +31,9 @@ export const InvitationRequests: React.FC = () => {
   return (
     <>
       {notice ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">{notice}</p> : null}
-      <ParentInvitationsPanel />
-      <ClassInvitationsPanel />
-      <MyConnectionsPanel />
+      <ParentInvitationsPanel onAnswered={onAnswered} />
+      <ClassInvitationsPanel onAnswered={onAnswered} />
+      <MyConnectionsPanel refreshKey={answered} />
     </>
   );
 };
