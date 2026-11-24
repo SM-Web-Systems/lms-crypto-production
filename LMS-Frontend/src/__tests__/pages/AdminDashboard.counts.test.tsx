@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('../../context/useAuth', () => ({ useAuth: () => ({ user: { name: 'Ada Admin', permissions: ['course.grade', 'user.view_all', 'system.view_audit_log'] } }) }));
+vi.mock('../../context/useAuth', () => ({ useAuth: () => ({ user: { name: 'Ada Admin', permissions: ['course.grade', 'user.view_all', 'user.manage', 'system.view_audit_log'] } }) }));
 const sub = (id: string, gradeStatus: string) => ({ id, status: 'pending', gradeStatus, submittedAt: '2026-11-01T10:00:00Z', studentName: 'Sam', title: id });
 vi.mock('../../context/DataContext', () => ({
   useData: () => ({

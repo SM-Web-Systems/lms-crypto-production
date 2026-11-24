@@ -416,6 +416,8 @@ export interface UserDirectoryItem {
   role: LegacyRole;
   rbacRoles?: string[];
   roleSummaries?: import('../services/roleSummaryService.js').RoleSummary[];
+  /** True when the account sits above the viewer's level: email masked, higher roles hidden. */
+  restricted?: boolean;
   /** Roster profile membership; does not confer current learning access. */
   studentId?: string | null;
   courseCodes?: string[];

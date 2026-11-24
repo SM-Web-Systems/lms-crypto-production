@@ -42,7 +42,7 @@ export function rememberWorkspace(workspace: Workspace): void {
   try { sessionStorage.setItem(LAST_WORKSPACE_KEY, workspace); } catch { /* storage unavailable */ }
 }
 const requirements: Record<string, string[]> = {
-  '/admin/students': ['user.view_all'], '/admin/submissions': ['course.grade'],
+  '/admin/students': ['user.manage'], '/admin/submissions': ['course.grade'],
   '/admin/documents': ['document.manage'], '/admin/course': ['course.manage'],
   '/admin/quizzes': ['quiz.manage'], '/admin/certificates': ['certificate.approve'],
   '/admin/sponsor': ['cohort.manage', 'system.view_audit_log'], '/admin/users': ['user.assign_role', 'user.view_all'],

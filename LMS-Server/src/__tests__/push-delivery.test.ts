@@ -152,6 +152,8 @@ describe('durable outbox and current authorization',()=>{
     const f=fixture();f.register();f.note();await processPushOutbox({provider:f.provider});
     let resolve!:(value:any)=>void;f.provider.receipt.mockImplementation(()=>new Promise(r=>{resolve=r;}));
     const pending=processPushOutbox({provider:f.provider,now:()=>Date.now()+16*60_000});
+    // The receipt call is async; on slow runners (Windows CI) resolve was not yet set.
+    await vi.waitFor(()=>expect(f.provider.receipt).toHaveBeenCalled());
     registerInstallation({...f.binding,generation:2,expoToken:'ExpoPushToken[new-token]'},f.other.token);
     resolve({status:'error',details:{error:'DeviceNotRegistered'}});await pending;
     expect(db.prepare('SELECT enabled,user_id,expo_token FROM push_installations').get()).toEqual({enabled:1,user_id:f.other.id,expo_token:'ExpoPushToken[new-token]'});

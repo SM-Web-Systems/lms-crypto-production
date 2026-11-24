@@ -28,6 +28,19 @@ function renderLayout(u: User, path: string) {
 beforeEach(() => { vi.clearAllMocks(); mocks.user = null; });
 
 describe('UX-017 capability rules', () => {
+  it('main is not a scroll box on wide screens, so sticky side panels stay on screen', () => {
+    // overflow:auto on <main> made it the sticky container while the window scrolled, so the
+    // Manage Roles panel scrolled away. Checked in Chromium: with these classes it stays put.
+    renderLayout(user('admin', []), '/admin');
+    const classes = screen.getByRole('main').className.split(' ');
+    expect(classes).toEqual(expect.arrayContaining(['lg:overflow-visible', 'lg:overflow-x-clip']));
+  });
+
+  it('/admin/students needs user.manage; lecturer-level user.view_all is not enough', () => {
+    expect(canAccessPath(user('admin', ['user.view_all']), '/admin/students')).toBe(false);
+    expect(canAccessPath(user('admin', ['user.manage']), '/admin/students')).toBe(true);
+  });
+
   it.each(['/admin/rewards', '/admin/platform-credit'])('%s needs reward.manage', path => {
     expect(canAccessPath(user('admin', []), path)).toBe(false);
     expect(canAccessPath(user('admin', ['reward.manage']), path)).toBe(true);

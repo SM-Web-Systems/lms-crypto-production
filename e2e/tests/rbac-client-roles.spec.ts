@@ -36,6 +36,8 @@ for (const width of [320, 390, 768]) {
     })).toBe(true);
     await search.focus();
     await page.keyboard.press('Tab');
+    await expect(page.getByRole('combobox', { name: 'Filter users by access' })).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(manage).toBeFocused();
     await page.keyboard.press('Enter');
 

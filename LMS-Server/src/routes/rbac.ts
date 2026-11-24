@@ -5,7 +5,8 @@ import { authenticate } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { auditLog } from '../services/auditService.js';
-import { revokeUserRole, getRoleManagementOptions, assignUserRole, replaceUserRoles, updateCustomRolePermissions, deleteCustomRole } from '../services/roleSecurityService.js';
+import { RESTRICTED_ROLE } from '../services/directoryVisibilityService.js';
+import { privilegeLevel, roleLevelsById, revokeUserRole, getRoleManagementOptions, assignUserRole, replaceUserRoles, updateCustomRolePermissions, deleteCustomRole } from '../services/roleSecurityService.js';
 
 const router = Router();
 
@@ -365,7 +366,17 @@ router.get(
        WHERE ur.user_id = ?`,
       [req.params.id],
     );
-    res.json({ success: true, data: roles });
+    // Roles above the viewer's own level are not shown; one "Higher access" entry stands in.
+    const levels = roleLevelsById();
+    const viewerLevel = privilegeLevel(req.user!.userId, levels);
+    if (req.params.id === req.user!.userId || privilegeLevel(req.params.id, levels) <= viewerLevel) {
+      res.json({ success: true, data: roles });
+      return;
+    }
+    const visible = roles.filter(r => (levels.get(r.role_id) ?? 0) <= viewerLevel);
+    res.json({ success: true, data: [...visible, {
+      role_id: RESTRICTED_ROLE.id, role_name: RESTRICTED_ROLE.name, role_label: RESTRICTED_ROLE.label, granted_at: null,
+    }] });
   },
 );
 

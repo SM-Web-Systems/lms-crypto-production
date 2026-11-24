@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { compatibleRoleSummary, compatibleRoleSummaries } from '../services/roleCompatibilityService.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { courseAccessScope } from '../services/courseAccessService.js';
+import { canSeeFullDirectory, lecturerLearnerScope, redactAboveViewer } from '../services/directoryVisibilityService.js';
 
 function getUserCourseCodes(userId: string): string[] {
   const rows = query<{ course_code: string }>(
@@ -65,10 +66,8 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
 
     // Admin (user.manage): full access with email
     if (callerPerms.has('user.manage')) {
-      res.json({
-        success: true,
-        data: { id: row.id, name: row.name, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) },
-      });
+      const [visible] = redactAboveViewer(callerId, [{ id: row.id, name: row.name, displayName: row.name, email: row.email, ...compatibleRoleSummary(row.id) }]);
+      res.json({ success: true, data: visible });
       return;
     }
 
@@ -83,10 +82,8 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
         [id, callerId],
       );
       if ((inScope?.cnt ?? 0) > 0) {
-        res.json({
-          success: true,
-          data: { id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) },
-        });
+        const [visible] = redactAboveViewer(callerId, [{ id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) }]);
+        res.json({ success: true, data: visible });
         return;
       }
       throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
@@ -102,10 +99,8 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
         [id, callerId],
       );
       if ((inCohort?.cnt ?? 0) > 0) {
-        res.json({
-          success: true,
-          data: { id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) },
-        });
+        const [visible] = redactAboveViewer(callerId, [{ id: row.id, name: row.name, displayName: row.name, ...compatibleRoleSummary(row.id) }]);
+        res.json({ success: true, data: visible });
         return;
       }
       throw new AppError('Access denied', 403, ErrorCodes.FORBIDDEN);
@@ -120,14 +115,23 @@ export async function getUser(req: AuthRequest, res: Response, next: NextFunctio
 
 export async function getUsers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const rows = query<{ id: string; name: string; email: string; role: string }>(
-      'SELECT id, name, email FROM users ORDER BY name'
+    const viewerId = req.user!.userId;
+    const full = canSeeFullDirectory(viewerId);
+    // Lecturers (user.view_all without user.manage) only get learners on courses they lecture,
+    // with no email; the full directory with emails and roles is for admin levels only.
+    const scope = full ? { sql: '1 = 1', params: [] as unknown[] } : lecturerLearnerScope(viewerId);
+    const rows = query<{ id: string; name: string; email: string }>(
+      `SELECT u.id, u.name, u.email FROM users u WHERE ${scope.sql} ORDER BY u.name`, scope.params,
     );
 
     // LMS-ADM-007: batch course code lookup to eliminate N+1
-    const allCodes = query<{ user_id: string; course_code: string }>(
-      'SELECT user_id, course_code FROM user_course_codes ORDER BY course_code'
-    );
+    const allCodes = full
+      ? query<{ user_id: string; course_code: string }>('SELECT user_id, course_code FROM user_course_codes ORDER BY course_code')
+      : query<{ user_id: string; course_code: string }>(
+        `SELECT ucc.user_id, ucc.course_code FROM user_course_codes ucc
+         JOIN courses c ON c.course_code = ucc.course_code
+         JOIN course_lecturers cl ON cl.course_id = c.id AND cl.user_id = ?
+         ORDER BY ucc.course_code`, [viewerId]);
     const codeMap = new Map<string, string[]>();
     for (const { user_id, course_code } of allCodes) {
       if (!codeMap.has(user_id)) codeMap.set(user_id, []);
@@ -138,14 +142,14 @@ export async function getUsers(req: AuthRequest, res: Response, next: NextFuncti
     const users: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
-      email: r.email,
+      ...(full ? { email: r.email } : {}),
       ...summaries.get(r.id)!,
       courseCodes: codeMap.get(r.id) || [],
     }));
 
     res.json({
       success: true,
-      data: { users },
+      data: { users: redactAboveViewer(viewerId, users) },
     });
   } catch (error) {
     next(error);

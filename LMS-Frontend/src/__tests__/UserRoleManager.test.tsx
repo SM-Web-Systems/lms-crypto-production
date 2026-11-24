@@ -443,4 +443,41 @@ describe('UserRoleManager', () => {
     expect(within(row).queryByText('Student')).not.toBeInTheDocument();
     expect(rbacService.removeUserRole).toHaveBeenCalledWith('u2','r2');
   });
+
+  it('URM-20: search matches role labels, and the role filter shows counts', async () => {
+    const user = userEvent.setup();
+    (usersService.getUsers as Mock).mockResolvedValueOnce([
+      { id: 'a', name: 'Ann', email: 'ann@x.invalid', courseCodes: [], roleSummaries: [{ id: 'r1', name: 'admin', label: 'Administrator' }, { id: 'r2', name: 'student', label: 'Student' }] },
+      { id: 'b', name: 'Ben', email: 'ben@x.invalid', courseCodes: [], roleSummaries: [{ id: 'r2', name: 'student', label: 'Student' }] },
+      { id: 'c', name: 'Cy', email: 'cy@x.invalid', courseCodes: [], roleSummaries: [{ id: 'r5', name: 'super-student', label: 'Super Student' }] },
+    ]);
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('Ann')).toBeTruthy());
+    await user.type(screen.getByLabelText('Search users'), 'administr');
+    expect(screen.getByText('Ann')).toBeTruthy();
+    expect(screen.queryByText('Ben')).toBeNull();
+    expect(screen.getByTestId('users-match-count').textContent).toBe('1 of 3 users shown.');
+    await user.clear(screen.getByLabelText('Search users'));
+    const filter = screen.getByLabelText('Filter users by access') as HTMLSelectElement;
+    expect([...filter.options].map(o => o.textContent)).toEqual(['All roles (3)', 'Administrator (1)', 'Student (2)', 'Super Student (1)']);
+    await user.selectOptions(filter, 'Student');
+    expect(screen.getByText('Ann')).toBeTruthy();
+    expect(screen.getByText('Ben')).toBeTruthy();
+    expect(screen.queryByText('Cy')).toBeNull();
+  });
+
+  it('URM-21: an account above your level shows Higher access and cannot be opened', async () => {
+    (usersService.getUsers as Mock).mockResolvedValueOnce([
+      { id: 's', name: 'Sam Super', email: 's***@x.invalid', courseCodes: [], restricted: true, roleSummaries: [{ id: 'restricted', name: 'restricted', label: 'Higher access' }] },
+      { id: 'b', name: 'Ben', email: 'ben@x.invalid', courseCodes: [], restricted: false, roleSummaries: [{ id: 'r2', name: 'student', label: 'Student' }] },
+    ]);
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('Sam Super')).toBeTruthy());
+    const row = screen.getByText('Sam Super').closest('tr')!;
+    expect(within(row).getByText('Higher access')).toBeTruthy();
+    expect(within(row).getByText('Above your level')).toBeTruthy();
+    expect(within(row).queryByRole('button', { name: /manage roles/i })).toBeNull();
+    const benRow = screen.getByText('Ben').closest('tr')!;
+    expect(within(benRow).getByRole('button', { name: /manage roles/i })).toBeTruthy();
+  });
 });

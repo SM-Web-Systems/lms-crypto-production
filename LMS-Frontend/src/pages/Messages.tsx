@@ -27,7 +27,7 @@ const Messages: React.FC = () => {
   const { user } = useAuth();
   const userId = user?.id ?? '';
   const userName = user?.name ?? 'Me';
-  const isAdmin = hasCapability(user, 'user.view_all');
+  const isAdmin = hasCapability(user, 'user.manage');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);

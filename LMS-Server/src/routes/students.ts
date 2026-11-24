@@ -12,9 +12,10 @@ import { requirePermission } from '../middleware/rbac.js';
 
 const router = Router();
 
-// All student routes require admin authentication
+// All student routes are admin-only. user.view_all alone (lecturers) is not enough: the roster
+// carries emails and wallet status, and these routes create, edit, import and delete records.
 router.use(authenticate);
-router.use(requirePermission('user.view_all'));
+router.use(requirePermission('user.manage'));
 
 /**
  * @openapi
@@ -35,7 +36,7 @@ router.use(requirePermission('user.view_all'));
  *         schema: { type: string }
  *     responses:
  *       200: { description: Paginated student list }
- *       403: { description: Requires user.view_all permission }
+ *       403: { description: Requires user.manage permission }
  */
 // GET /students - Get all students with pagination/filtering
 router.get('/', getStudents);
