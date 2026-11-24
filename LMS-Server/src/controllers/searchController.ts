@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { query } from '../config/database.js';
 import { getUserPermissions } from '../middleware/rbac.js';
 import { searchCourseScope, searchDirectoryScope } from '../services/searchScopeService.js';
+import { lecturerLearnerScope, redactAboveViewer } from '../services/directoryVisibilityService.js';
 import type { AuthRequest } from '../types/index.js';
 import logger from '../utils/logger.js';
 
@@ -68,20 +69,22 @@ export function globalSearch(req: AuthRequest, res: Response): void {
     }
 
     if (requestedTypes.includes('users') && permissions.has('user.view_all')) {
-      const directoryScope = searchDirectoryScope(userId, permissions);
+      // Admin levels search the directory; lecturers only their own learners, and never by email.
+      const full = permissions.has('user.manage');
+      const directoryScope = full ? searchDirectoryScope(userId, permissions) : lecturerLearnerScope(userId);
       const users = query<{ id: string; name: string; email: string; role: string }>(
         `SELECT u.id, u.name, u.email FROM users u
-         WHERE (u.name LIKE ? OR u.email LIKE ?) AND ${directoryScope.sql}
+         WHERE (u.name LIKE ?${full ? ' OR u.email LIKE ?' : ''}) AND ${directoryScope.sql}
          ORDER BY name LIMIT ?`,
-        [pattern, pattern, ...directoryScope.params, limit],
+        [pattern, ...(full ? [pattern] : []), ...directoryScope.params, limit],
       );
       const summaries=compatibleRoleSummaries(users.map(user=>user.id));
-      results.users = users.map((u) => ({
+      results.users = redactAboveViewer(userId, users.map((u) => ({
         id: u.id,
         name: u.name,
-        email: u.email,
+        ...(full ? { email: u.email } : {}),
         ...summaries.get(u.id)!,
-      }));
+      })));
       counts.users = users.length;
     }
 

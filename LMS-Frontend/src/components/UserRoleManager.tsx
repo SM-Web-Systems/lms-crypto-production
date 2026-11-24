@@ -1,8 +1,12 @@
 /**
  * UserRoleManager — Admin UI for viewing and managing RBAC user-role assignments.
  *
- * Left panel:  user directory with client-side search.
- * Right panel: selected user's RBAC roles with assign / remove actions.
+ * Left panel:  user directory with client-side search (name, email or role) and a role filter.
+ * Right panel: selected user's RBAC roles with assign / remove actions. It stays on screen
+ *              beside the list on wide screens (Layout's <main> must not be a scroll box).
+ *
+ * Accounts above your own level come back from the server as `restricted`: masked email and one
+ * "Higher access" badge. Their roles can't be opened or changed here.
  *
  * All mutations are authoritative on the backend; the frontend shows every
  * assignable role and displays backend 403 rejections verbatim.
@@ -15,6 +19,7 @@ import { Users, Shield, Search, AlertCircle, Loader2, Info, X } from 'lucide-rea
 import { usersService, type UserDirectoryItem } from '../services/usersService';
 import { rbacService, type RbacRole, type UserRole, type RoleManagementOptions } from '../services/rbacService';
 import { RoleBadges } from './RoleBadges';
+import { roleLabels } from '../utils/rolePresentation';
 import { RoleRequestQueue } from './RoleRequestQueue';
 import { getErrorMessage } from '../utils/apiError';
 
@@ -33,6 +38,7 @@ export function UserRoleManager() {
   const [listState, setListState] = useState<LoadState>('idle');
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
 
   // ── Selected user state ────────────────────────────────────────────────
   const [selectedUser, setSelectedUser] = useState<UserDirectoryItem | null>(null);
@@ -161,13 +167,25 @@ export function UserRoleManager() {
   }, [selectedUser, confirmAction, loadUserRoles, roleOptions]);
 
   // ── Derived data ───────────────────────────────────────────────────────
+  /** Every role shown in the list, with how many people hold it (for the filter). */
+  const roleCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const u of users) for (const label of new Set(roleLabels(u))) counts.set(label, (counts.get(label) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [users]);
+
   const filteredUsers = useMemo(() => {
-    if (!search.trim()) return users;
-    const q = search.toLowerCase();
-    return users.filter(
-      (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
-    );
-  }, [users, search]);
+    const q = search.trim().toLowerCase();
+    return users.filter((u) => {
+      const labels = roleLabels(u);
+      if (roleFilter && !labels.includes(roleFilter)) return false;
+      if (!q) return true;
+      return u.name.toLowerCase().includes(q)
+        || (u.email ?? '').toLowerCase().includes(q)
+        || labels.some(label => label.toLowerCase().includes(q))
+        || (u.rbacRoles ?? []).some(name => name.toLowerCase().includes(q));
+    });
+  }, [users, search, roleFilter]);
 
   const assignedRoleIds = useMemo(() => new Set(userRoles.map((r) => r.role_id)), [userRoles]);
 
@@ -199,18 +217,36 @@ export function UserRoleManager() {
                 Users
               </CardTitle>
 
-              {/* Search */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                <input
-                  type="search"
-                  aria-label="Search users"
-                  placeholder="Search by name or email..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent-teal focus:border-accent-teal"
-                />
+              {/* Search and role filter */}
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <input
+                    type="search"
+                    aria-label="Search users"
+                    placeholder="Search by name, email or role..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent-teal focus:border-accent-teal"
+                  />
+                </div>
+                <select
+                  aria-label="Filter users by access"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="border border-neutral-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-teal sm:w-56"
+                >
+                  <option value="">All roles ({users.length})</option>
+                  {roleCounts.map(([label, count]) => (
+                    <option key={label} value={label}>{label} ({count})</option>
+                  ))}
+                </select>
               </div>
+              {listState === 'data' && (search.trim() || roleFilter) && (
+                <p className="mb-2 text-xs text-neutral-500" role="status" data-testid="users-match-count">
+                  {filteredUsers.length} of {users.length} users shown.
+                </p>
+              )}
 
               {/* Loading */}
               {listState === 'loading' && (
@@ -236,7 +272,7 @@ export function UserRoleManager() {
                 <>
                   {filteredUsers.length === 0 ? (
                     <p className="text-sm text-neutral-500 py-4 text-center">
-                      {search ? 'No users match your search.' : 'No users found.'}
+                      {search || roleFilter ? 'No users match your search.' : 'No users found.'}
                     </p>
                   ) : (
                     <div className="overflow-x-auto">
@@ -264,15 +300,21 @@ export function UserRoleManager() {
                                 <RoleBadges subject={u} />
                               </td>
                               <td className="block sm:table-cell sm:py-2">
-                                <Button
-                                  variant={selectedUser?.id === u.id ? 'primary' : 'outline'}
-                                  size="sm"
-                                  className="w-full sm:w-auto"
-                                  onClick={() => handleSelectUser(u)}
-                                  aria-label={`Manage roles for ${u.name}`}
-                                >
-                                  Manage Roles
-                                </Button>
+                                {u.restricted ? (
+                                  <span className="text-xs text-neutral-500" title="This account is above your level.">
+                                    Above your level
+                                  </span>
+                                ) : (
+                                  <Button
+                                    variant={selectedUser?.id === u.id ? 'primary' : 'outline'}
+                                    size="sm"
+                                    className="w-full sm:w-auto"
+                                    onClick={() => handleSelectUser(u)}
+                                    aria-label={`Manage roles for ${u.name}`}
+                                  >
+                                    Manage Roles
+                                  </Button>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -287,7 +329,7 @@ export function UserRoleManager() {
         </div>
 
         {/* ── Right panel: Role management ──────────────────────────────── */}
-        <div ref={panelRef} className="lg:col-span-1 lg:sticky lg:top-4 lg:self-start scroll-mt-4" aria-label="Role management">
+        <div ref={panelRef} className="lg:col-span-1 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto scroll-mt-4" aria-label="Role management">
           <Card>
             <CardContent>
               {!selectedUser ? (

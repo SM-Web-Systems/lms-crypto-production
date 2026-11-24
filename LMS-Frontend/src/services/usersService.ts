@@ -12,6 +12,8 @@ export interface UserDirectoryItem extends RolePresentation {
   name: string;
   email: string;
   courseCodes: string[];
+  /** Account above your level: email masked, higher roles shown as one "Higher access" badge. */
+  restricted?: boolean;
 }
 
 interface UsersResponse {

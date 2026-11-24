@@ -66,7 +66,7 @@ function pickAdminLine(): string {
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canReadStudents = hasCapability(user, 'user.view_all');
+  const canReadStudents = hasCapability(user, 'user.manage');
   const canGrade = hasCapability(user, 'course.grade');
   const canAudit = hasCapability(user, 'system.view_audit_log');
   const {

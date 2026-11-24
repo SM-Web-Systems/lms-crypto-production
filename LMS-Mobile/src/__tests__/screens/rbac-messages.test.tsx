@@ -11,7 +11,8 @@ jest.mock('@/services/enrollmentService', () => ({enrollmentService: {getPeersIn
 
 beforeEach(() => jest.clearAllMocks());
 it.each([
-  ['custom directory capability', {permissions:['user.view_all'],rbacRoles:['support-desk']}, true],
+  ['custom directory capability', {permissions:['user.manage'],rbacRoles:['support-desk']}, true],
+  ['lecturer directory view only', {permissions:['user.view_all'],rbacRoles:['instructor']}, false],
   ['stale admin hint', {role:'admin',permissions:[],rbacRoles:[]}, false],
   ['ordinary learner without legacy field', {permissions:['course.view'],rbacRoles:['student']}, false],
 ])('mobile peer discovery uses current capability: %s', async (_name, context, allowed) => {

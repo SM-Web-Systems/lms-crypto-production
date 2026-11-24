@@ -306,7 +306,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+        {/* lg: clip sideways overflow instead of making <main> a scroll box, so sticky panels (Manage Roles) stick to the window. */}
+        <main className="flex-1 min-w-0 overflow-auto lg:overflow-visible lg:overflow-x-clip p-4 sm:p-6 lg:p-8">
           {workspace === 'student' &&
             user?.walletLinkingStatus === 'existing_account' &&
             !walletBannerDismissed && (

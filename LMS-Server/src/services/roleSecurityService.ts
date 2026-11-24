@@ -10,8 +10,49 @@ export const ROLE_PRIVILEGE_LEVEL: Record<string, number> = {
   'super-student': 20, 'teaching-assistant': 15, student: 10, 'custom-user': 10,
 };
 
-export function privilegeLevel(userId: string): number {
-  return Math.max(0, ...getUserRoles(userId).map(role => ROLE_PRIVILEGE_LEVEL[role] ?? 0));
+/**
+ * Level of every role, by role id. Built-in roles use ROLE_PRIVILEGE_LEVEL. A custom role ranks
+ * like the lowest built-in role that already holds every one of its permissions (100 when only
+ * Super admin does), so a custom role can't be used to hand out more than its holder could.
+ */
+export function roleLevelsById(): Map<string, number> {
+  const roles = query<{id: string; name: string}>('SELECT id, name FROM roles');
+  const grants = query<{role_id: string; permission_id: string}>('SELECT role_id, permission_id FROM role_permissions');
+  const permsByRole = new Map<string, Set<string>>(roles.map(r => [r.id, new Set<string>()]));
+  for (const g of grants) permsByRole.get(g.role_id)?.add(g.permission_id);
+  const builtIn = roles.filter(r => Object.hasOwn(ROLE_PRIVILEGE_LEVEL, r.name));
+  const levels = new Map<string, number>();
+  for (const role of roles) {
+    if (Object.hasOwn(ROLE_PRIVILEGE_LEVEL, role.name)) { levels.set(role.id, ROLE_PRIVILEGE_LEVEL[role.name]); continue; }
+    const needed = [...permsByRole.get(role.id)!];
+    const covering = builtIn
+      .filter(b => needed.every(p => permsByRole.get(b.id)!.has(p)))
+      .map(b => ROLE_PRIVILEGE_LEVEL[b.name]);
+    levels.set(role.id, covering.length ? Math.min(...covering) : ROLE_PRIVILEGE_LEVEL['super-admin']);
+  }
+  return levels;
+}
+
+export function roleLevel(roleId: string, levels: Map<string, number> = roleLevelsById()): number {
+  return levels.get(roleId) ?? 0;
+}
+
+export function privilegeLevel(userId: string, levels: Map<string, number> = roleLevelsById()): number {
+  const roleIds = query<{role_id: string}>('SELECT role_id FROM user_roles WHERE user_id = ?', [userId]).map(r => r.role_id);
+  return Math.max(0, ...roleIds.map(id => levels.get(id) ?? 0));
+}
+
+/** Levels for many users at once (directory lists). Users with no roles are 0. */
+export function privilegeLevels(userIds: string[], levels: Map<string, number> = roleLevelsById()): Map<string, number> {
+  const out = new Map<string, number>(userIds.map(id => [id, 0]));
+  const ids = [...new Set(userIds)];
+  for (let offset = 0; offset < ids.length; offset += 400) {
+    const chunk = ids.slice(offset, offset + 400);
+    const rows = query<{user_id: string; role_id: string}>(
+      `SELECT user_id, role_id FROM user_roles WHERE user_id IN (${chunk.map(() => '?').join(',')})`, chunk);
+    for (const r of rows) out.set(r.user_id, Math.max(out.get(r.user_id) ?? 0, levels.get(r.role_id) ?? 0));
+  }
+  return out;
 }
 
 export function assertCanModifyUser(actorId: string, targetId: string): void {
@@ -27,12 +68,14 @@ export function getRoleManagementOptions(actorId: string, targetId: string) {
   if (!queryOne('SELECT id FROM users WHERE id = ?', [targetId])) {
     throw new AppError('User not found', 404, ErrorCodes.NOT_FOUND);
   }
-  const canModify = actorId !== targetId && privilegeLevel(targetId) < privilegeLevel(actorId);
+  const levels = roleLevelsById();
+  const actorLevel = privilegeLevel(actorId, levels);
+  const canModify = actorId !== targetId && privilegeLevel(targetId, levels) < actorLevel;
   const assigned = query<{role_id: string}>('SELECT role_id FROM user_roles WHERE user_id = ?', [targetId]).map(r => r.role_id);
   const roles = query<{id: string; name: string; label: string; description: string | null; is_system: number; created_at: string}>(
     'SELECT id, name, label, description, is_system, created_at FROM roles ORDER BY name',
   );
-  const allowed = roles.filter(r => canModify && r.name !== 'super-admin' && (ROLE_PRIVILEGE_LEVEL[r.name] ?? 0) < privilegeLevel(actorId));
+  const allowed = roles.filter(r => canModify && r.name !== 'super-admin' && roleLevel(r.id, levels) < actorLevel);
   return {
     canModify,
     reason: canModify ? null : 'You can manage roles only for users below your administrative level.',
@@ -66,7 +109,7 @@ export function revokeUserRole(actorId: string, targetId: string, roleId: string
        WHERE ur.user_id = ? AND r.id = ?`, [targetId, roleId],
     );
     if (!assignment) throw new AppError('User role assignment not found', 404, ErrorCodes.NOT_FOUND);
-    if ((ROLE_PRIVILEGE_LEVEL[assignment.name] ?? 0) >= privilegeLevel(actorId)) {
+    if (roleLevel(roleId) >= privilegeLevel(actorId)) {
       throw new AppError('Cannot remove a role with equal or higher privilege', 403, ErrorCodes.FORBIDDEN);
     }
     if (assignment.name === 'super-admin') assertNotLastSuperAdmin(targetId);
@@ -99,7 +142,7 @@ function roleForAssignment(actorId:string,roleId:string) {
   const role=queryOne<{id:string;name:string}>('SELECT id,name FROM roles WHERE id=?',[roleId]);
   if(!role) throw new AppError('Role not found',404,ErrorCodes.NOT_FOUND);
   if(role.name==='super-admin') throw new AppError('super-admin role cannot be assigned via API',403,ErrorCodes.FORBIDDEN);
-  if((ROLE_PRIVILEGE_LEVEL[role.name] ?? 0)>=privilegeLevel(actorId)) {
+  if(roleLevel(role.id)>=privilegeLevel(actorId)) {
     throw new AppError('Cannot assign a role with equal or higher privilege than your own',403,ErrorCodes.FORBIDDEN);
   }
   return role;

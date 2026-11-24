@@ -212,7 +212,8 @@ describe('A07 — independent search capabilities and resource scopes', () => {
     execute("INSERT INTO user_roles (user_id,role_id) VALUES (?,'directory-only')", [a.id]);
     const target = actor('role_student');
     credential(target.id,null);
-    expect(await search(a,'users')).toContain(target.id);
+    // user.view_all without user.manage is lecturer-level: no whole-directory search.
+    expect(await search(a,'users')).not.toContain(target.id);
     expect(await search(a,'credentials')).toEqual([]);
     expect(await search(a,'quizzes')).toEqual([]);
   });

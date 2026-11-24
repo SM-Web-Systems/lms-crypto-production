@@ -28,7 +28,7 @@ export default function MessagesScreen() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
   const userName = user?.name ?? 'Me';
-  const canBrowseDirectory = user?.permissions?.includes('user.view_all') ?? false;
+  const canBrowseDirectory = user?.permissions?.includes('user.manage') ?? false;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
