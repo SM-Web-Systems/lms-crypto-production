@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { createRbacAccount } from '../services/rbacAccountService.js';
 import { db, query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { requireWorkspace } from '../middleware/workspace.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
 import {
@@ -25,6 +26,8 @@ import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
+// Only parent accounts (and admins) may use the /parent API, whatever permissions another role shares with it.
+router.use('/parent', authenticate, requireWorkspace('parent'));
 registerRewardFundingRoutes(router, '/parent');
 
 // GET /parent/dashboard — linked children count + progress overview

@@ -3,6 +3,7 @@ import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne, execute } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { requireWorkspace } from '../middleware/workspace.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AuthRequest } from '../types/index.js';
 import {
@@ -26,6 +27,8 @@ import { validateScope } from '../services/rewards/rewardScopeService.js';
 import type { ScopeType } from '../services/rewards/rewardTypes.js';
 
 const router = Router();
+// Only teacher accounts (and admins) may use the /teacher API, whatever permissions another role shares with it.
+router.use('/teacher', authenticate, requireWorkspace('teacher'));
 registerRewardFundingRoutes(router, '/teacher');
 
 // GET /teacher/dashboard — class stats overview

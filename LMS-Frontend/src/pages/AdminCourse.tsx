@@ -30,6 +30,8 @@ import { AdminCoursePreview } from '../components/AdminCoursePreview';
 import { quizService } from '../services/quizService';
 import type { Quiz } from '../types/quiz';
 import { courseCompletionService, type CourseRequirements } from '../services/courseCompletionService';
+import CourseApprovalPanel, { ApprovalStatusBadge } from '../components/CourseApprovalPanel';
+import CertificateTierPanel from '../components/CertificateTierPanel';
 import CourseTAPanel from '../components/CourseTAPanel';
 import { toastSuccess } from '../utils/toastBus';
 import BulkUploadModal from '../components/BulkUploadModal';
@@ -958,7 +960,7 @@ const AdminCourse: React.FC = () => {
                 <Card key={c.id}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
-                      <h3 className="font-semibold text-neutral-800">{c.title}</h3>
+                      <h3 className="font-semibold text-neutral-800 flex flex-wrap items-center gap-2">{c.title} <ApprovalStatusBadge status={c.approvalStatus} /></h3>
                       <p className="text-sm text-neutral-500 mt-0.5">
                         Code: <span className="font-medium text-neutral-700">{c.courseCode ?? c.id}</span>
                         {' · '}
@@ -1339,7 +1341,19 @@ const AdminCourse: React.FC = () => {
                 </div>
               </div>
 
+              {editingId && (
+                <CourseApprovalPanel
+                  courseId={editingId}
+                  status={courses.find((c) => c.id === editingId)?.approvalStatus}
+                  onChanged={() => loadCourses({ silent: true })}
+                />
+              )}
+
               {editingId && <CourseTAPanel courseId={editingId} />}
+
+              {editingId && (
+                <CertificateTierPanel courseId={editingId} status={courses.find((c) => c.id === editingId)?.approvalStatus} />
+              )}
 
               {/* Certificate Requirements — only shown when editing an existing course */}
               {editingId && (

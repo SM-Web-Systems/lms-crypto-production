@@ -17,6 +17,7 @@ import {
   submitForApproval,
   approveCourse,
   rejectCourse,
+  setCertificateTiers,
   listCourseTAs,
   assignTA,
   removeTA,
@@ -205,6 +206,8 @@ router.delete('/:id/lecturers/:lecturerUserId', requirePermission('user.manage')
 router.post('/:id/submit-for-approval', requirePermission('course.manage'), requireCourseManagementScope, submitForApproval);
 router.post('/:id/approve', requirePermission('course.approve'), requireCourseManagementScope, approveCourse);
 router.post('/:id/reject', requirePermission('course.approve'), requireCourseManagementScope, rejectCourse);
+// Certificate tier from the course editor (lecturers while draft or rejected; administrators any time)
+router.put('/:id/certificate-tiers', requirePermission('course.manage'), requireCourseManagementScope, setCertificateTiers);
 // Phase D: TA assignment
 router.get('/:id/tas', requirePermission('course.manage'), requireCourseManagementScope, listCourseTAs);
 router.post('/:id/tas', requirePermission('course.manage'), requireCourseManagementScope, assignTA);

@@ -368,6 +368,8 @@ export interface Course {
   sections: CourseSection[];
   weeks?: CourseWeek[];
   sponsorLabel?: string;
+  /** draft | submitted | approved | rejected | published. Only in the course-staff (access=manage) list. */
+  approvalStatus?: string;
 }
 
 // Messages API Types (BACKEND_UPDATE_REQUIREMENTS)

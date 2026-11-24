@@ -8,6 +8,7 @@ import { registerRewardFundingRoutes } from './rewardFunding.js';
 import { Router, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
+import { requireWorkspace } from '../middleware/workspace.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import { ErrorCodes } from '../types/index.js';
@@ -32,6 +33,8 @@ import { inviteLearner, listClassInvitations, cancelClassInvitation, ownsClassGr
 import { deliverInvitationEmail, listEmailInvitations, cancelEmailInvitation } from '../services/emailInvitationService.js';
 
 const router = Router();
+// Only employer accounts (and admins) may use the /employer API, whatever permissions another role shares with it.
+router.use('/employer', authenticate, requireWorkspace('employer'));
 registerRewardFundingRoutes(router, '/employer');
 
 // GET /employer/dashboard — team stats
