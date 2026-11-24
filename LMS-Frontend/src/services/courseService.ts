@@ -2,14 +2,14 @@ import api from './api';
 import type { CourseMember } from '../types/directory';
 export type { CourseMember } from '../types/directory';
 import type { ApiResponse } from '../types/api';
-import type { Course, CourseSection, CourseWeek } from '../types/course';
+import type { CertificateTiers, Course, CourseApprovalStatus, CourseSection, CourseWeek } from '../types/course';
 import { ApiRequestError, assertApiSuccess } from '../utils/apiError';
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown; weeks?: unknown; sponsorLabel?: string }): Course {
+function fromApiCourse(c: { id: string; title: string; description?: string; courseCode?: string; sections?: unknown; weeks?: unknown; sponsorLabel?: string; approvalStatus?: string }): Course {
   const sections = Array.isArray(c.sections) ? c.sections as CourseSection[] : [];
   const weeks = Array.isArray(c.weeks) ? c.weeks as CourseWeek[] : undefined;
   return {
@@ -20,6 +20,7 @@ function fromApiCourse(c: { id: string; title: string; description?: string; cou
     sections,
     ...(weeks ? { weeks } : {}),
     ...(c.sponsorLabel ? { sponsorLabel: c.sponsorLabel } : {}),
+    ...(c.approvalStatus ? { approvalStatus: c.approvalStatus as CourseApprovalStatus } : {}),
   };
 }
 
@@ -109,6 +110,31 @@ export const courseService = {
 
   async deleteCourse(id: string): Promise<void> {
     await api.delete(`/courses/${id}`);
+  },
+
+  /** Lecturer: send a draft (or rejected) course to an administrator for approval. */
+  async submitForApproval(id: string): Promise<void> {
+    await api.post(`/courses/${encodeURIComponent(id)}/submit-for-approval`);
+  },
+
+  /** Administrator: approve a submitted course. */
+  async approveCourse(id: string): Promise<void> {
+    await api.post(`/courses/${encodeURIComponent(id)}/approve`);
+  },
+
+  /** Administrator: send a submitted course back to its lecturer, with an optional note. */
+  async rejectCourse(id: string, reviewNote?: string): Promise<void> {
+    await api.post(`/courses/${encodeURIComponent(id)}/reject`, { reviewNote: reviewNote?.trim() || undefined });
+  },
+
+  async getCertificateTiers(id: string): Promise<CertificateTiers> {
+    const res = await api.get<{ success?: boolean; data?: { tiersEnabled?: CertificateTiers } }>(`/courses/${encodeURIComponent(id)}/tiers`);
+    return res.data?.data?.tiersEnabled ?? 'both';
+  },
+
+  async setCertificateTiers(id: string, tiersEnabled: CertificateTiers): Promise<CertificateTiers> {
+    const res = await api.put<{ success?: boolean; data?: { tiersEnabled?: CertificateTiers } }>(`/courses/${encodeURIComponent(id)}/certificate-tiers`, { tiersEnabled });
+    return res.data?.data?.tiersEnabled ?? tiersEnabled;
   },
 
   async getAll(): Promise<Course[]> {

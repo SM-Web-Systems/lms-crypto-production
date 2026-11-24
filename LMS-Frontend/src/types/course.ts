@@ -109,7 +109,12 @@ export interface Course {
   sections?: CourseSection[];
   /** Optional sponsor or cohort label (e.g. "USAID Cohort 2026"). */
   sponsorLabel?: string;
+  /** draft | submitted | approved | rejected | published. Only sent to course staff (access=manage). */
+  approvalStatus?: CourseApprovalStatus;
 }
+
+export type CourseApprovalStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'published';
+export type CertificateTiers = 'free_only' | 'paid_only' | 'both';
 
 /** Returns weeks for a course; normalizes legacy courses that only have sections into a single "Week 1". */
 export function getCourseWeeks(course: Course): CourseWeek[] {

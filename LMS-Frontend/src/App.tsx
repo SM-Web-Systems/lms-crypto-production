@@ -552,6 +552,16 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/lecturer/quizzes"
+        element={
+          <ProtectedRoute allowedWorkspace="lecturer">
+            <Layout>
+              <AdminQuizzes />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/lecturer/submissions"
         element={
           <ProtectedRoute allowedWorkspace="lecturer">

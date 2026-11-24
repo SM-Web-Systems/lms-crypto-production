@@ -40,10 +40,18 @@ function canReadQuiz(userId: string, row: QuizRow): boolean {
   const permissions = new Set(getUserPermissions(userId));
   return permissions.has('quiz.view') && (!row.course_id || (permissions.has('course.view') && canAccessCourse(userId,row.course_id,permissions)));
 }
-function canReadAnswerKeys(userId: string, row: QuizRow): boolean {
+/**
+ * Who may create, change or delete a quiz attached to `courseId`: someone who manages that course.
+ * A quiz with no course is platform-wide, so only an administrator (course.delete) may manage it.
+ */
+function canManageQuizForCourse(userId: string, courseId: string | null): boolean {
   const permissions = new Set(getUserPermissions(userId));
-  return permissions.has('quiz.manage') && (row.course_id ? canAccessCourse(userId,row.course_id,permissions,'manage') : permissions.has('course.delete'));
+  return permissions.has('quiz.manage') && (courseId ? canAccessCourse(userId,courseId,permissions,'manage') : permissions.has('course.delete'));
 }
+function canReadAnswerKeys(userId: string, row: QuizRow): boolean {
+  return canManageQuizForCourse(userId, row.course_id);
+}
+const NOT_YOUR_COURSE = 'You can only add or change quizzes on courses you manage';
 
 function canReadCompletion(actorId: string, targetId: string, quizId: string): boolean {
   if (actorId === targetId) return true;
@@ -249,6 +257,10 @@ export async function createQuiz(req: AuthRequest, res: Response, next: NextFunc
         ? String(body.id).trim()
         : uuidv4();
 
+    if (!canManageQuizForCourse(req.user!.userId, courseId)) {
+      throw new AppError(NOT_YOUR_COURSE, 403, ErrorCodes.FORBIDDEN);
+    }
+
     const existing = queryOne<{ id: string }>('SELECT id FROM quizzes WHERE id = ?', [id]);
     if (existing) {
       throw new AppError('A quiz with this id already exists', 400, ErrorCodes.DUPLICATE_ENTRY);
@@ -281,6 +293,9 @@ export async function updateQuiz(req: AuthRequest, res: Response, next: NextFunc
     if (!existing) {
       throw new AppError('Quiz not found', 404, ErrorCodes.NOT_FOUND);
     }
+    if (!canManageQuizForCourse(req.user!.userId, existing.course_id)) {
+      throw new AppError(NOT_YOUR_COURSE, 403, ErrorCodes.FORBIDDEN);
+    }
 
     const body = (req.body || {}) as Record<string, unknown>;
     const updates: string[] = [];
@@ -307,10 +322,13 @@ export async function updateQuiz(req: AuthRequest, res: Response, next: NextFunc
       );
     }
     if (body.courseId !== undefined) {
+      const nextCourseId = body.courseId !== null && String(body.courseId).trim() !== '' ? String(body.courseId).trim() : null;
+      // Moving a quiz needs the right to manage the course it moves to, as well as the one it is on.
+      if (nextCourseId !== existing.course_id && !canManageQuizForCourse(req.user!.userId, nextCourseId)) {
+        throw new AppError(NOT_YOUR_COURSE, 403, ErrorCodes.FORBIDDEN);
+      }
       updates.push('course_id = ?');
-      params.push(
-        body.courseId !== null && String(body.courseId).trim() !== '' ? String(body.courseId).trim() : null
-      );
+      params.push(nextCourseId);
     }
     if (body.passingScore !== undefined) {
       const ps = body.passingScore;
@@ -348,9 +366,12 @@ export async function updateQuiz(req: AuthRequest, res: Response, next: NextFunc
 export async function deleteQuiz(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const id = parseQuizIdParam(req.params.id);
-    const existing = queryOne<{ id: string }>('SELECT id FROM quizzes WHERE id = ?', [id]);
+    const existing = queryOne<{ id: string; course_id: string | null }>('SELECT id, course_id FROM quizzes WHERE id = ?', [id]);
     if (!existing) {
       throw new AppError('Quiz not found', 404, ErrorCodes.NOT_FOUND);
+    }
+    if (!canManageQuizForCourse(req.user!.userId, existing.course_id)) {
+      throw new AppError(NOT_YOUR_COURSE, 403, ErrorCodes.FORBIDDEN);
     }
     execute('DELETE FROM quizzes WHERE id = ?', [id]);
     res.json({ success: true });

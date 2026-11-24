@@ -15,6 +15,7 @@ import { renderMarkdownToSafeHtml } from '../utils/markdownProcessor.js';
 import { parseGitHubUrl, isAllowedOrg, fetchGitHubZip } from '../services/githubImportService.js';
 
 import { canAccessCourse, courseAccessScope } from '../services/courseAccessService.js';
+import { getTiersEnabled } from '../services/badgeService.js';
 
 interface CourseRow {
   id: string;
@@ -23,6 +24,7 @@ interface CourseRow {
   course_code: string;
   sections: string;
   sponsor_label: string | null;
+  approval_status?: string | null;
 }
 
 /**
@@ -80,6 +82,7 @@ function rowToCourse(row: CourseRow): Course {
     sections: fixedSections,
     ...(weeks ? { weeks: ensurePdfFileUrlsWeeks(weeks) } : {}),
     ...(row.sponsor_label ? { sponsorLabel: row.sponsor_label } : {}),
+    ...(row.approval_status ? { approvalStatus: row.approval_status } : {}),
   };
 }
 
@@ -96,7 +99,10 @@ export async function getCourses(req: AuthRequest, res: Response, next: NextFunc
     }
     const scope = courseAccessScope(userId, permissions, access === 'manage' || access === 'members' || access === 'enrolled' ? access : 'read');
     const rows = query<CourseRow>(
-      'SELECT c.id, c.title, c.description, c.course_code, c.sections, c.sponsor_label FROM courses c WHERE ' + scope.sql + ' ORDER BY c.title',
+      // Course staff see each course's approval status so they can submit, approve or reject it on screen.
+      'SELECT c.id, c.title, c.description, c.course_code, c.sections, c.sponsor_label'
+        + (access === 'manage' ? ', c.approval_status' : '')
+        + ' FROM courses c WHERE ' + scope.sql + ' ORDER BY c.title',
       scope.params,
     );
     const courses = rows.map(rowToCourse);
@@ -1185,6 +1191,44 @@ export function rejectCourse(req: AuthRequest, res: Response): void {
   );
 
   res.json({ success: true, data: { courseId: id, approvalStatus: 'rejected' } });
+}
+
+// Certificate tier (free, paid or both) for a course, set from the course editor.
+
+const CERTIFICATE_TIERS = ['free_only', 'paid_only', 'both'] as const;
+/** A lecturer may choose the tier while the course is still theirs to change; after that only an administrator can. */
+const LECTURER_TIER_STATUSES = ['draft', 'rejected'];
+
+export function setCertificateTiers(req: AuthRequest, res: Response): void {
+  const { id } = req.params;
+  const tiersEnabled = (req.body as Record<string, unknown> | undefined)?.tiersEnabled;
+  if (typeof tiersEnabled !== 'string' || !(CERTIFICATE_TIERS as readonly string[]).includes(tiersEnabled)) {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: "tiersEnabled must be 'free_only', 'paid_only', or 'both'" } });
+    return;
+  }
+  const course = queryOne<{ id: string; approval_status: string | null }>('SELECT id, approval_status FROM courses WHERE id = ?', [id]);
+  if (!course) {
+    res.status(404).json({ success: false, error: { code: ErrorCodes.NOT_FOUND, message: 'Course not found' } });
+    return;
+  }
+  const status = course.approval_status ?? 'published';
+  if (!isAdminTier(req) && !LECTURER_TIER_STATUSES.includes(status)) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'The certificate tier is locked once the course is submitted. Ask an administrator to change it.' } });
+    return;
+  }
+  const pricing = queryOne<{ id: string }>('SELECT id FROM course_pricing WHERE course_id = ?', [id]);
+  const now = new Date().toISOString();
+  if (pricing) {
+    execute('UPDATE course_pricing SET tiers_enabled = ?, updated_at = ? WHERE id = ?', [tiersEnabled, now, pricing.id]);
+  } else {
+    // No price yet: the paid certificate's price stays an administrator's decision (admin pricing route).
+    execute(
+      `INSERT INTO course_pricing (id, course_id, price_cents, currency, is_active, tiers_enabled, created_at, updated_at)
+       VALUES (?, ?, 0, 'USD', 1, ?, ?, ?)`,
+      [uuidv4(), id, tiersEnabled, now, now],
+    );
+  }
+  res.json({ success: true, data: { courseId: id, tiersEnabled: getTiersEnabled(id) } });
 }
 
 // Phase D: TA assignment

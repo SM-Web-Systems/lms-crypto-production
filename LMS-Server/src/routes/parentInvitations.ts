@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { requireWorkspace } from '../middleware/workspace.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
 import {
@@ -9,6 +10,8 @@ import { myConnections, unlinkParent, leaveGroup } from '../services/connectionS
 import { deliverInvitationEmail, listEmailInvitations, cancelEmailInvitation, claimEmailInvitation } from '../services/emailInvitationService.js';
 
 const router = Router();
+// Only parent accounts (and admins) may use the /parent API, whatever permissions another role shares with it.
+router.use('/parent', authenticate, requireWorkspace('parent'));
 
 // POST /parent/children/invite — invite a learner who already has an account. They are linked only after accepting.
 // The answer never says whether the email belongs to an account, so the endpoint can't be used to find users.

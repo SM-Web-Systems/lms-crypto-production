@@ -106,6 +106,7 @@ const GlobalSearchBar: React.FC = () => {
   const credentialPath = canAccessPath(user, '/admin/certificates') ? '/admin/certificates'
     : canAccessPath(user, '/student/badges') ? '/student/badges' : null;
   const quizPath = canAccessPath(user, '/admin/quizzes') ? '/admin/quizzes'
+    : canAccessPath(user, '/lecturer/quizzes') ? '/lecturer/quizzes'
     : canAccessPath(user, '/student/quizzes') ? '/student/quizzes' : null;
 
   const totalResults = results

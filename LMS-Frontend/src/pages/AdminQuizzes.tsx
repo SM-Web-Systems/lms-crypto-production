@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { ApiRequestError, getErrorMessage } from '../utils/apiError';
 import { AdminQuizPreview } from '../components/AdminQuizPreview';
+import { useAuth } from '../context/useAuth';
+import { hasCapability } from '../utils/authorization';
 
 function newTempId(): string {
   return 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -197,6 +199,9 @@ function parseQuizCSV(raw: string): ParsedCSV {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const AdminQuizzes: React.FC = () => {
+  const { user } = useAuth();
+  // Admins manage every quiz; a lecturer manages only quizzes on courses they manage (the server enforces this too).
+  const isAdmin = hasCapability(user, 'course.delete');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -227,7 +232,7 @@ const AdminQuizzes: React.FC = () => {
       try {
         const [quizList, courseList] = await Promise.all([
           quizService.getAll(),
-          courseService.fetchCourses().catch(() => []),
+          courseService.fetchCourses(isAdmin ? undefined : { access: 'manage' }).catch(() => []),
         ]);
         setQuizzes(quizList);
         setCourses(courseList);
@@ -238,7 +243,9 @@ const AdminQuizzes: React.FC = () => {
       }
     };
     load();
-  }, []);
+  }, [isAdmin]);
+
+  const shownQuizzes = isAdmin ? quizzes : quizzes.filter((q) => q.courseId && courses.some((c) => c.id === q.courseId));
 
   const startNew = () => {
     setEditingId(null);
@@ -369,6 +376,10 @@ const AdminQuizzes: React.FC = () => {
 
   const handleSave = async () => {
     if (!title.trim()) return;
+    if (!isAdmin && !courseId.trim()) {
+      setFormError('Choose one of your courses for this quiz.');
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
@@ -470,7 +481,7 @@ const AdminQuizzes: React.FC = () => {
             </Button>
           </div>
           <div className="space-y-4">
-            {quizzes.map((q) => (
+            {shownQuizzes.map((q) => (
               <Card key={q.id}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
@@ -540,13 +551,14 @@ const AdminQuizzes: React.FC = () => {
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Course (optional)</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1" htmlFor="quiz-course">{isAdmin ? 'Course (optional)' : 'Course'}</label>
                   <select
+                    id="quiz-course"
                     value={courseId}
                     onChange={(e) => setCourseId(e.target.value)}
                     className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
                   >
-                    <option value="">— None —</option>
+                    <option value="">{isAdmin ? '— None —' : '— Choose a course —'}</option>
                     {courses.map((c) => (
                       <option key={c.id} value={c.id}>{c.title}</option>
                     ))}
