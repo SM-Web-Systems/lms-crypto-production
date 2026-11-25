@@ -3,7 +3,8 @@ import request from 'supertest';
 import { v4 as uuidv4 } from 'uuid';
 import './setup.js';
 import app from '../app.js';
-import { db, execute, queryOne } from '../config/database.js';
+import { db, execute, queryOne, seedRbacData } from '../config/database.js';
+import { getUserPermissions } from '../middleware/rbac.js';
 import { generateToken } from '../config/jwt.js';
 
 function createUserWithRole(roleId: string, roleName: string) {
@@ -196,10 +197,10 @@ describe('D2: TA Assignment System', () => {
     execute('INSERT INTO course_lecturers (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, instructor.userId, instructor.userId]);
   });
 
-  it('D2-TA-1: instructor can assign TA to course', async () => {
+  it('D2-TA-1: admin can assign TA to course', async () => {
     const res = await request(app)
       .post(`/api/v1/courses/${courseId}/tas`)
-      .set('Authorization', `Bearer ${instructor.token}`)
+      .set('Authorization', `Bearer ${admin.token}`)
       .send({ userId: ta.userId });
 
     expect(res.status).toBe(201);
@@ -210,18 +211,65 @@ describe('D2: TA Assignment System', () => {
 
   it('D2-TA-1b: assigns by email and refuses an account without the TA role', async () => {
     const byEmail = await request(app).post(`/api/v1/courses/${courseId}/tas`)
-      .set('Authorization', `Bearer ${instructor.token}`).send({ email: ta.email.toUpperCase() });
+      .set('Authorization', `Bearer ${admin.token}`).send({ email: ta.email.toUpperCase() });
     expect(byEmail.status).toBe(201);
     expect(byEmail.body.data.userId).toBe(ta.userId);
 
     const learner = createUserWithRole('role_student', 'student');
     const notTa = await request(app).post(`/api/v1/courses/${courseId}/tas`)
-      .set('Authorization', `Bearer ${instructor.token}`).send({ email: learner.email });
+      .set('Authorization', `Bearer ${admin.token}`).send({ email: learner.email });
     expect(notTa.status).toBe(422);
 
     const unknown = await request(app).post(`/api/v1/courses/${courseId}/tas`)
-      .set('Authorization', `Bearer ${instructor.token}`).send({ email: 'nobody@example.invalid' });
+      .set('Authorization', `Bearer ${admin.token}`).send({ email: 'nobody@example.invalid' });
     expect(unknown.status).toBe(404);
+  });
+
+  it('D2-TA-1c: the course lecturer (instructor) cannot assign a TA, even one with the TA role', async () => {
+    const res = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${instructor.token}`).send({ userId: ta.userId });
+    expect(res.status).toBe(403);
+    expect(queryOne('SELECT 1 FROM course_tas WHERE course_id = ? AND user_id = ?', [courseId, ta.userId])).toBeFalsy();
+  });
+
+  it('D2-TA-1d: a Super Student is not a TA: no grading permission and cannot be assigned', async () => {
+    const superStudent = createUserWithRole('role_supporter_student', 'super-student');
+    expect(getUserPermissions(superStudent.userId)).not.toContain('course.grade_pending');
+
+    const res = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${admin.token}`).send({ email: superStudent.email });
+    expect(res.status).toBe(422);
+
+    // Even a leftover assignment row gives a Super Student no TA workspace or TA API access.
+    execute('INSERT INTO course_tas (course_id, user_id, assigned_by) VALUES (?, ?, ?)', [courseId, superStudent.userId, instructor.userId]);
+    const subs = await request(app).get(`/api/v1/ta/courses/${courseId}/submissions`)
+      .set('Authorization', `Bearer ${superStudent.token}`);
+    expect(subs.status).toBe(403);
+    const me = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${superStudent.token}`);
+    expect(me.status).toBe(200);
+    expect(me.body.data.workspaces).not.toContain('teaching-assistant');
+
+    const list = await request(app).get(`/api/v1/courses/${courseId}/tas`).set('Authorization', `Bearer ${admin.token}`);
+    expect(list.body.data.tas.find((t: { user_id: string }) => t.user_id === superStudent.userId).has_ta_role).toBe(false);
+  });
+
+  it('D2-TA-1e: extended admin can assign; sponsor cannot', async () => {
+    const extAdmin = createUserWithRole('role_admin2', 'admin2');
+    const ok = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${extAdmin.token}`).send({ userId: ta.userId });
+    expect(ok.status).toBe(201);
+
+    const sponsor = createUserWithRole('role_sponsor', 'sponsor');
+    const other = createUserWithRole('role_ta', 'ta2');
+    const denied = await request(app).post(`/api/v1/courses/${courseId}/tas`)
+      .set('Authorization', `Bearer ${sponsor.token}`).send({ userId: other.userId });
+    expect(denied.status).toBe(403);
+  });
+
+  it('D2-TA-1f: seeding removes grading from Super Student on an older database', () => {
+    execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES ('role_supporter_student', 'perm_course_grade_pending')");
+    seedRbacData();
+    expect(queryOne("SELECT 1 FROM role_permissions WHERE role_id = 'role_supporter_student' AND permission_id = 'perm_course_grade_pending'")).toBeFalsy();
   });
 
   it('D2-TA-2: TA can view assigned course submissions', async () => {

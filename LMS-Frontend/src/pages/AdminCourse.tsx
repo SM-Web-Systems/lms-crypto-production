@@ -1349,7 +1349,7 @@ const AdminCourse: React.FC = () => {
                 />
               )}
 
-              {editingId && <CourseTAPanel courseId={editingId} />}
+              {editingId && <CourseTAPanel courseId={editingId} isAdmin={!!user?.adminTier} />}
 
               {editingId && (
                 <CertificateTierPanel courseId={editingId} status={courses.find((c) => c.id === editingId)?.approvalStatus} />

@@ -38,13 +38,21 @@ export interface CourseTA {
   name: string;
   email: string;
   assigned_at: string;
+  /** False when the person no longer holds the Teaching assistant role (assignment is inactive). Absent from older servers. */
+  has_ta_role?: boolean;
+}
+
+export interface CourseTAList {
+  tas: CourseTA[];
+  /** Only administrators (admin, extended admin, super admin) may assign. Absent from older servers. */
+  canAssign?: boolean;
 }
 
 export const taService = {
   /** GET /courses/:id/tas — teaching assistants of a course (course managers) */
-  async listCourseTAs(courseId: string): Promise<CourseTA[]> {
-    const res = await api.get<{ success: boolean; data: { tas: CourseTA[] } }>(`/courses/${courseId}/tas`);
-    return res.data.data.tas;
+  async listCourseTAs(courseId: string): Promise<CourseTAList> {
+    const res = await api.get<{ success: boolean; data: CourseTAList }>(`/courses/${courseId}/tas`);
+    return res.data.data;
   },
 
   /** POST /courses/:id/tas — assign a teaching assistant by email */
