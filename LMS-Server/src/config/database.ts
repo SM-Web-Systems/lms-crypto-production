@@ -1014,8 +1014,9 @@ export function seedRbacData(): void {
       'perm_session_manage_own',
       'perm_message_delete_own',
     ],
+    // Super Student is an earned learner role: no grading. TA work needs the Teaching Assistant role.
     role_supporter_student: [
-      'perm_course_view', 'perm_course_enroll', 'perm_course_submit', 'perm_course_grade_pending',
+      'perm_course_view', 'perm_course_enroll', 'perm_course_submit',
       'perm_billing_view_own', 'perm_wallet_view_own', 'perm_user_view_self',
       'perm_certificate_view_own', 'perm_certificate_apply', 'perm_certificate_badge_view',
       'perm_quiz_view', 'perm_quiz_submit',
@@ -1255,6 +1256,11 @@ export function seedRbacData(): void {
       insertMapping.run(roleId, permId);
     }
   }
+  // Older databases gave Super Student "Grade (Pending Approval)", which let an earned learner role
+  // act as a course TA. Grading belongs to the Teaching Assistant role only, granted by an admin.
+  db.prepare(
+    "DELETE FROM role_permissions WHERE role_id = 'role_supporter_student' AND permission_id = 'perm_course_grade_pending'"
+  ).run();
 }
 // Only seed at module load if the users table already exists (production DB).
 // For test DBs (empty in-memory), setup.ts calls seedRbacData() explicitly after loading schema.sql.

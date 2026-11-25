@@ -1233,6 +1233,15 @@ export function setCertificateTiers(req: AuthRequest, res: Response): void {
 
 // Phase D: TA assignment
 
+/** Only the explicit built-in Teaching Assistant role makes someone eligible to be a course TA. */
+function holdsTeachingAssistantRole(userId: string): boolean {
+  return !!queryOne(
+    `SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+     WHERE ur.user_id = ? AND r.id = 'role_ta' AND r.name = 'teaching-assistant' AND r.is_system = 1`,
+    [userId],
+  );
+}
+
 export function listCourseTAs(req: AuthRequest, res: Response): void {
   const { id } = req.params;
   const tas = query<{ user_id: string; name: string; email: string; assigned_at: string }>(
@@ -1240,14 +1249,20 @@ export function listCourseTAs(req: AuthRequest, res: Response): void {
      FROM course_tas ct JOIN users u ON u.id = ct.user_id
      WHERE ct.course_id = ?`,
     [id],
-  );
-  res.json({ success: true, data: { tas } });
+  ).map(ta => ({ ...ta, has_ta_role: holdsTeachingAssistantRole(ta.user_id) }));
+  res.json({ success: true, data: { tas, canAssign: isAdminTier(req) } });
 }
 
 export function assignTA(req: AuthRequest, res: Response): void {
   const { id } = req.params;
   const { userId: bodyUserId, email } = req.body as { userId?: unknown; email?: unknown };
   const assignerId = req.user!.userId;
+
+  // Making someone a TA is an escalation: administrators (admin, extended admin, super admin) only.
+  if (!isAdminTier(req)) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only an administrator can assign teaching assistants.' } });
+    return;
+  }
 
   // The course page assigns by email; API callers may still pass userId.
   let taUserId = typeof bodyUserId === 'string' && bodyUserId ? bodyUserId : null;
@@ -1268,8 +1283,9 @@ export function assignTA(req: AuthRequest, res: Response): void {
     res.status(404).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'Course not found' } });
     return;
   }
-  // Without the Teaching assistant role the person could never open the TA workspace.
-  if (!getUserPermissions(taUserId).includes('course.grade_pending')) {
+  // The person must already hold the Teaching assistant role (granted in User Roles). Other roles
+  // that can grade, such as Super Student on older databases, do not count.
+  if (!holdsTeachingAssistantRole(taUserId)) {
     res.status(422).json({ success: false, error: { code: 'TA_ASSIGN_FAILED', message: 'That person does not have the Teaching assistant role yet. Give them the role first (User Roles), then assign them.' } });
     return;
   }
