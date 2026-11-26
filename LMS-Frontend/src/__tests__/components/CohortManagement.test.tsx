@@ -28,6 +28,7 @@ vi.mock('../../services/cohortService', () => ({
     transitionStatus: vi.fn(),
     getStatusLog: vi.fn(),
     bulkInviteToCohort: vi.fn(),
+    sponsorInviteToCohort: vi.fn(),
     sendPaymentReminder: vi.fn(),
   },
 }));
@@ -42,6 +43,7 @@ const mockBulkApply = cohortService.bulkApply as ReturnType<typeof vi.fn>;
 const mockTransitionStatus = cohortService.transitionStatus as ReturnType<typeof vi.fn>;
 const mockGetStatusLog = cohortService.getStatusLog as ReturnType<typeof vi.fn>;
 const mockBulkInvite = cohortService.bulkInviteToCohort as ReturnType<typeof vi.fn>;
+const mockSponsorInvite = cohortService.sponsorInviteToCohort as ReturnType<typeof vi.fn>;
 const mockSendReminder = cohortService.sendPaymentReminder as ReturnType<typeof vi.fn>;
 
 const sampleCourses = [
@@ -432,14 +434,21 @@ describe('CohortManagement', () => {
     });
   });
 
-  it('directs sponsors to an administrator for roster additions', async () => {
+  // F7 (user decision 26 Nov 2026): sponsors invite; learners join only after accepting.
+  it('lets a sponsor invite learners, who join only after accepting', async () => {
     const user = userEvent.setup();
     mockGetCohort.mockResolvedValue({ cohort: sampleCohort, members: [] });
+    mockSponsorInvite.mockResolvedValue({ sent: 2, invalid: [] });
     render(<CohortManagement courses={sampleCourses} ownerOnly />);
     await user.click(await screen.findByText('Acme Cohort'));
 
-    expect(await screen.findByText(/ask an lms administrator to add or invite learners/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('invite-form')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('invite-form')).toBeInTheDocument();
+    expect(screen.getByText(/join \(and enrol in the course\) only if they accept/i)).toBeInTheDocument();
+    await user.type(screen.getByTestId('invite-emails-input'), 'alice@test.com, bob@test.com');
+    await user.click(screen.getByTestId('btn-invite'));
+    await waitFor(() => expect(mockSponsorInvite).toHaveBeenCalledWith('coh1', ['alice@test.com', 'bob@test.com']));
+    expect(mockBulkInvite).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('sponsor-invite-result')).toHaveTextContent('Sent 2 invitations. Learners join once they accept.');
   });
 
   // SP-F2: Invite button calls bulkInviteToCohort

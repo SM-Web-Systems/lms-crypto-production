@@ -72,12 +72,13 @@ function auth(token: string) {
 test.describe('Admin Message Audit', () => {
   test('E2E-ADMIN-01: admin views deleted message content and metadata', async ({ request }) => {
     const alice = await registerAndLogin(request, 'alice');
-    const bob = await registerAndLogin(request, 'bob');
+    const admin = await loginAsAdmin(request);
 
-    // Alice creates conversation with Bob
+    // Alice writes to the admin: since #325 a new conversation needs a relationship,
+    // and anyone may message an administrator.
     const convRes = await request.post(`${API}/messages/conversations`, {
       headers: auth(alice.token),
-      data: { otherUserId: bob.userId },
+      data: { otherUserId: admin.userId },
     });
     expect(convRes.ok()).toBeTruthy();
     const conv = (await convRes.json()).data;
@@ -97,7 +98,6 @@ test.describe('Admin Message Audit', () => {
     expect(delRes.ok()).toBeTruthy();
 
     // Admin views the conversation audit endpoint
-    const admin = await loginAsAdmin(request);
 
     // Admin conversation list includes the conversation with deleted count
     const listRes = await request.get(`${API}/messages/admin/conversations`, {

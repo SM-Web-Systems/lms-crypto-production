@@ -221,7 +221,9 @@ describe('AUTH-03: Sponsor Cohort Ownership', () => {
     const attempt = paths[method as keyof typeof paths];
     const result = await request(app).post(attempt.path).set('Authorization', authorization).send(attempt.body);
     const after = await request(app).get(receipt).set('Authorization', authorization);
-    expect({ mutation: result.status, receipt: after.status }).toEqual({ mutation: 403, receipt: 403 });
+    // F7 (26 Nov 2026): a sponsor's invite is accepted (200) but only records a pending invitation, so
+    // nothing becomes visible to the sponsor until the learner accepts.
+    expect({ mutation: result.status, receipt: after.status }).toEqual({ mutation: method === 'invite' ? 200 : 403, receipt: 403 });
     expect(db.prepare('SELECT 1 FROM cohort_members WHERE cohort_id = ? AND user_id = ?')
       .get(cohortA, studentB1.userId)).toBeUndefined();
     expect(db.prepare('SELECT 1 FROM sponsor_cohorts WHERE name = ?').get('Unauthorized roster')).toBeUndefined();

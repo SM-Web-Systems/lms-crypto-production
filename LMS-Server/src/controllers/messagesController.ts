@@ -5,6 +5,7 @@ import { AuthRequest, ConversationResponse, MessageResponse, AdminMessageRespons
 import { AppError } from '../middleware/errorHandler.js';
 import { auditLog } from '../services/auditService.js';
 import { createNotification } from '../services/notificationService.js';
+import { canStartConversation } from '../services/messagingPolicy.js';
 import logger from '../utils/logger.js';
 
 /** Escape HTML special characters to prevent stored XSS. */
@@ -83,6 +84,10 @@ export async function postConversations(req: AuthRequest, res: Response, next: N
 
     let created = false;
     if (!row) {
+      // Privacy: a new conversation needs a real relationship (shared course, class/team, parent link, cohort).
+      if (!canStartConversation(userId, otherUserId.trim())) {
+        throw new AppError('You can only message people you share a course, class, team or family with', 403, ErrorCodes.FORBIDDEN);
+      }
       created = true;
       const id = uuidv4();
       execute(

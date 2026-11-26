@@ -76,6 +76,10 @@ export default function InlineAssignmentForm({
         <span className="inline-block rounded-full bg-green-100 px-4 py-1 text-sm font-semibold text-green-700">
           Submitted successfully
         </span>
+        {/* F13: an assignment completes when it is graded, not on upload, so say so instead of leaving the learner guessing. */}
+        <p className="text-sm text-neutral-600 text-center max-w-sm">
+          This lesson counts as done, and your course progress updates, once your work has been graded.
+        </p>
         <a href="/student/submissions" className="text-xs text-accent-teal hover:underline">
           View all submissions
         </a>

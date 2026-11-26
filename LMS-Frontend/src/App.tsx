@@ -49,6 +49,7 @@ const SponsorDashboard = React.lazy(() => import('./pages/SponsorDashboard'));
 const LecturerDashboard = React.lazy(() => import('./pages/LecturerDashboard'));
 const LecturerCourseStudents = React.lazy(() => import('./pages/LecturerCourseStudents'));
 const LecturerSubmissions = React.lazy(() => import('./pages/LecturerSubmissions'));
+const LecturerCertificates = React.lazy(() => import('./pages/LecturerCertificates'));
 const TADashboard = React.lazy(() => import('./pages/TADashboard'));
 const EmployerDashboard = React.lazy(() => import('./pages/EmployerDashboard'));
 const ParentDashboard = React.lazy(() => import('./pages/ParentDashboard'));
@@ -567,6 +568,16 @@ export function AppRoutes() {
           <ProtectedRoute allowedWorkspace="lecturer">
             <Layout>
               <LecturerSubmissions />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lecturer/certificates"
+        element={
+          <ProtectedRoute allowedWorkspace="lecturer">
+            <Layout>
+              <LecturerCertificates />
             </Layout>
           </ProtectedRoute>
         }

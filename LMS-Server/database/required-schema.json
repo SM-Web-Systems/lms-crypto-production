@@ -949,6 +949,15 @@
       "created_at",
       "responded_at"
     ],
+    "cohort_invitations": [
+      "id",
+      "cohort_id",
+      "invited_user_id",
+      "invited_by",
+      "status",
+      "created_at",
+      "responded_at"
+    ],
     "web_push_subscriptions": [
       "id",
       "user_id",
@@ -1160,6 +1169,8 @@
     "idx_reward_claim_payouts_network",
     "idx_class_invitations_user",
     "idx_class_invitations_group",
+    "idx_cohort_invitations_user",
+    "idx_cohort_invitations_cohort",
     "idx_web_push_outbox_due",
     "idx_web_push_subscriptions_user",
     "idx_parent_invitations_user",
@@ -3426,6 +3437,39 @@
         [
           "group_id",
           "user_groups",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ]
+      ]
+    },
+    "cohort_invitations": {
+      "primary": [
+        "id"
+      ],
+      "unique": [
+        [
+          "id"
+        ]
+      ],
+      "foreign": [
+        [
+          "invited_by",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "invited_user_id",
+          "users",
+          "id",
+          "NO ACTION",
+          "CASCADE"
+        ],
+        [
+          "cohort_id",
+          "sponsor_cohorts",
           "id",
           "NO ACTION",
           "CASCADE"

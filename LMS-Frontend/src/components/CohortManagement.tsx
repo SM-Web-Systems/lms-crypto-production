@@ -157,6 +157,7 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
   const [statusLog, setStatusLog] = useState<Array<{ id: string; fromStatus: string; toStatus: string; triggeredBy: string; reason: string | null; createdAt: string }>>([]);
   const [inviteEmails, setInviteEmails] = useState('');
   const [inviteResult, setInviteResult] = useState<{ added: number; invited: number; alreadyInCohort: number; errors: string[] } | null>(null);
+  const [sponsorInviteResult, setSponsorInviteResult] = useState<{ sent: number; invalid: string[] } | null>(null);
   const [reminderResult, setReminderResult] = useState<{ sent: number } | null>(null);
 
   const loadMembers = useCallback(async () => {
@@ -251,8 +252,12 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
     setError(null);
     setInviteResult(null);
     try {
-      const result = await cohortService.bulkInviteToCohort(cohortId, emails);
-      setInviteResult(result);
+      if (allowRosterInvites) {
+        setInviteResult(await cohortService.bulkInviteToCohort(cohortId, emails));
+      } else {
+        // F7: sponsors invite; nobody joins until they accept.
+        setSponsorInviteResult(await cohortService.sponsorInviteToCohort(cohortId, emails));
+      }
       setInviteEmails('');
       loadMembers();
       onRefresh();
@@ -389,8 +394,15 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
         )}
       </div>
 
-      {allowRosterInvites ? (
-        <div className="mb-3" data-testid="invite-form">
+      {!allowRosterInvites && sponsorInviteResult && (
+        <div className="mb-2 p-2 bg-green-50 text-green-800 rounded text-sm flex items-center gap-1" data-testid="sponsor-invite-result">
+          <Mail className="w-4 h-4" /> Sent {sponsorInviteResult.sent} invitation{sponsorInviteResult.sent === 1 ? '' : 's'}. Learners join once they accept.
+          {sponsorInviteResult.invalid.length > 0 && <span className="text-red-600 ml-1"> {sponsorInviteResult.invalid.length} address(es) were not valid.</span>}
+        </div>
+      )}
+
+      {/* F7: admins add straight away; a sponsor's invitation waits for the learner to accept. */}
+      <div className="mb-3" data-testid="invite-form">
           <label htmlFor={`invite-emails-${cohortId}`} className="block text-xs font-medium text-gray-600 mb-1">Invite by Email</label>
           <textarea
             id={`invite-emails-${cohortId}`}
@@ -405,10 +417,10 @@ const CohortDetail: React.FC<CohortDetailProps> = ({ cohortId, selectedTier, coh
             {actionLoading === 'invite' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Mail className="w-3 h-3 mr-1" />}
             Invite
           </Button>
+          {!allowRosterInvites && (
+            <p className="mt-1 text-xs text-gray-500">Learners get an invitation on their dashboard and join (and enrol in the course) only if they accept.</p>
+          )}
         </div>
-      ) : (
-        <p className="mb-3 text-sm text-gray-600">Ask an LMS administrator to add or invite learners to this cohort.</p>
-      )}
 
       {completionStats && completionStats.totalMembers > 0 && (
         <div className="mb-3 flex gap-4 text-xs text-gray-600" data-testid="completion-stats">

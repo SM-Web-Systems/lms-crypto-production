@@ -95,6 +95,15 @@ export const cohortService = {
     return res.data.data;
   },
 
+  /** F7: a sponsor's invitation; learners join only after accepting. Every valid address counts as sent. */
+  async sponsorInviteToCohort(cohortId: string, emails: string[]): Promise<{ sent: number; invalid: string[] }> {
+    const res = await api.post<{ success: boolean; data: { sent: number; invalid: string[] } }>(
+      `/admin/cohorts/${cohortId}/invite`,
+      { emails },
+    );
+    return res.data.data;
+  },
+
   async getSpendingReport(): Promise<CohortSpendingReport> {
     const res = await api.get<{ success: boolean; data: CohortSpendingReport }>(
       '/admin/cohorts/spending-report',

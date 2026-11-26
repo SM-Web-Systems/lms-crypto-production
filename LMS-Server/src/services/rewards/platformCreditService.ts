@@ -62,7 +62,7 @@ export function reconcilePlatformCredit(actor: string, network: string) {
 
 export function platformCreditSummary(actor:string) {
   manage(actor);
-  return {
+  const summary = {
     pools:[platformPool('testnet'),platformPool('public')],
     requests:db.prepare(`SELECT *,CASE WHEN status='pending' AND expires_at<=? THEN 'expired' ELSE status END effective_status
       FROM platform_credit_requests ORDER BY created_at DESC,id DESC LIMIT 100`).all(now()),
@@ -74,6 +74,23 @@ export function platformCreditSummary(actor:string) {
       FROM platform_credit_reservations c JOIN reward_funding_intents i ON i.id=c.intent_id ORDER BY c.created_at DESC,c.intent_id DESC LIMIT 100`).all(now()),
     audit:db.prepare('SELECT * FROM platform_credit_audit ORDER BY created_at DESC,id DESC LIMIT 100').all(),
   };
+  return { ...summary, names: userNamesFor(summary) };
+}
+
+/** Display names for every user the summary mentions, so screens never fall back to a raw id (F33: requesting admins
+ * are not in the beneficiary list). Names only: this goes to admins who manage credit, but emails add nothing here. */
+function userNamesFor(summary: Record<string, unknown>): Record<string, string> {
+  const ids = new Set<string>();
+  for (const rows of Object.values(summary)) {
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows as Record<string, unknown>[]) {
+      for (const [k, v] of Object.entries(row)) if (k.endsWith('user_id') && typeof v === 'string' && v) ids.add(v);
+    }
+  }
+  if (ids.size === 0) return {};
+  const list = [...ids];
+  const rows = db.prepare(`SELECT id, name FROM users WHERE id IN (${list.map(() => '?').join(',')})`).all(...list) as { id: string; name: string | null }[];
+  return Object.fromEntries(rows.filter(r => r.name).map(r => [r.id, r.name as string]));
 }
 
 function configuredTreasurySource() {

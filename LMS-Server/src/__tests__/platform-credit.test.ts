@@ -7,7 +7,7 @@ import {db} from '../config/database.js';
 import {activateReward,createReward,fundReward,fundRewardAsync,releaseAllocation} from '../services/rewards/rewardService.js';
 import {createFundingIntent,getFundingAvailability} from '../services/rewards/rewardFundingIntentService.js';
 import {detectBackingDeposits,createBackingIntent,verifyBackingDeposit,platformPool,requestPlatformCredit,approvePlatformCredit,cancelPlatformCreditRequest,
-  creditGrant,releasePlatformCreditReservation,availablePlatformCredits,reconcilePlatformCredit} from '../services/rewards/platformCreditService.js';
+  creditGrant,releasePlatformCreditReservation,availablePlatformCredits,reconcilePlatformCredit,platformCreditSummary} from '../services/rewards/platformCreditService.js';
 
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 function fixture(network: 'testnet' | 'public' = 'testnet') {
@@ -40,6 +40,15 @@ function fixture(network: 'testnet' | 'public' = 'testnet') {
 const count=(table:string)=>(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get() as {n:number}).n;
 
 describe('backed platform credit',()=>{
+  it('F33: the summary names the requesting admin and the beneficiary, without emails',async()=>{
+    const f=fixture();await f.deposit();
+    db.prepare("UPDATE users SET name='Admin Ada' WHERE id=?").run(f.a);
+    requestPlatformCredit(f.a,f.owner,'100','Budget',uuid());
+    const s=platformCreditSummary(f.b) as {names:Record<string,string>};
+    expect(s.names[f.a]).toBe('Admin Ada');
+    expect(s.names[f.owner]).toBe('Synthetic');
+    expect(JSON.stringify(s.names)).not.toContain('@test.invalid');
+  });
   it('creates no backing from an intent or administrator assertion; only verified native deposit adds capacity',async()=>{
     const f=fixture(),intent=await createBackingIntent(f.a,'1000','Capital','deposit');
     expect(platformPool('testnet').availableStroops).toBe(0);

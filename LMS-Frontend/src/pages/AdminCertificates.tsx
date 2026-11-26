@@ -22,6 +22,7 @@ import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import TextInputModal from '../components/TextInputModal';
 import { CohortPaymentRequests } from '../components/CohortPaymentRequests';
+import { MinterBalanceCard } from '../components/MinterBalanceCard';
 import { adminCertificateService } from '../services/adminCertificateService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { NftApplication, NftApplicationStatus, CourseProgress, IssuedCredential } from '../types/api';
@@ -63,7 +64,7 @@ function exportApplicationsCSV(applications: NftApplication[]): void {
 }
 
 function exportIssuedCSV(credentials: IssuedCredential[]): void {
-  const headers = 'Student Name,Email,Course,Wallet Address,Mint Status,Tx Hash,Minted At,Mint Path';
+  const headers = 'Student Name,Email,Course,Wallet Address,Mint Status,Tx Hash,Token ID,Minted At,Mint Path';
   const rows = credentials.map((c) =>
     [
       csvEscape(c.userName),
@@ -72,6 +73,7 @@ function exportIssuedCSV(credentials: IssuedCredential[]): void {
       csvEscape(c.walletAddress),
       csvEscape(c.mintStatus),
       csvEscape(c.txHash),
+      csvEscape(c.sorobanTokenId != null ? String(c.sorobanTokenId) : ''),
       csvEscape(c.mintedAt ? new Date(c.mintedAt).toISOString() : ''),
       csvEscape(c.mintPath),
     ].join(',')
@@ -154,7 +156,9 @@ interface ApplicationsPanelProps {
   role: 'admin' | 'lecturer';
 }
 
-const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) => {
+export const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role }) => {
+  // Lecturers decide applications for their own courses (the API scopes the list); payments and issuing stay with admins.
+  const adminActions = role === 'admin';
   const [applications, setApplications] = useState<NftApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -350,6 +354,8 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
         </div>
       )}
 
+      {adminActions && <MinterBalanceCard />}
+
       {/* Status legend (PHASE 4) */}
       <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 flex flex-wrap gap-x-5 gap-y-1.5">
         <span className="flex items-center gap-1 text-xs text-blue-800 font-medium">
@@ -475,7 +481,10 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.selectedTier !== 'free' && app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
+                        {!adminActions && app.selectedTier !== 'free' && app.status === 'approved' && (
+                          <span className="text-xs text-neutral-500">An administrator confirms payment and issues the certificate.</span>
+                        )}
+                        {adminActions && app.selectedTier !== 'free' && app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
                           <>
                             <Button size="sm" type="button" disabled={isActing} onClick={() => handleConfirmPayment(app)}
                               className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
@@ -488,7 +497,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.selectedTier !== 'free' && app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
+                        {adminActions && app.selectedTier !== 'free' && app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
                           <Button size="sm" type="button" disabled={isActing || recentPaymentAction === app.applicationId} onClick={() => handleMint(app)}
                             className="text-xs bg-violet-600 hover:bg-violet-700 text-white">
                             <Coins className="h-3.5 w-3.5 mr-1" aria-hidden />
@@ -511,6 +520,9 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             tx: {app.txHash.slice(0, 8)}…
                             <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                           </a>
+                        )}
+                        {app.status === 'minted' && app.sorobanTokenId != null && (
+                          <span className="text-xs text-neutral-600 font-mono" title="On-chain token ID">Token #{app.sorobanTokenId}</span>
                         )}
 
                         <button type="button" onClick={() => handleExpand(app)}
@@ -860,6 +872,9 @@ const IssuedCredentialsPanel: React.FC = () => {
                                 ? <Check className="h-3 w-3 text-emerald-600" aria-hidden />
                                 : <Copy className="h-3 w-3" aria-hidden />}
                             </button>
+                            {cred.sorobanTokenId != null && (
+                              <span className="ml-1 text-xs text-neutral-600 font-mono" title="On-chain token ID">#{cred.sorobanTokenId}</span>
+                            )}
                           </div>
                         ) : (
                           <span className="text-neutral-400 text-xs">—</span>

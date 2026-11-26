@@ -872,10 +872,13 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
       [course.course_code]
     );
     const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
+    // Privacy: only the course's staff (lecturer, TA, administrator in scope) see members' emails.
+    // A learner sees classmates' names only.
+    const seesEmails = canAccessCourse(userId, courseId, new Set(getUserPermissions(userId)), 'staff');
     const members: UserDirectoryItem[] = rows.map((r) => ({
       id: r.id,
       name: r.name,
-      email: r.email,
+      email: seesEmails || r.id === userId ? r.email : '',
       ...summaries.get(r.id)!,
       studentId: r.studentId,
     }));

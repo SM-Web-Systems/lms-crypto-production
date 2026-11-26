@@ -2,7 +2,7 @@
  * cohorts — Phase 11 C3: sponsor cohort admin endpoints.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type Response, type NextFunction } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { requireAdministrator, requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
@@ -11,6 +11,7 @@ import { isAdminTier } from '../services/administratorPolicy.js';
 import { sponsorCourseOptions } from '../services/sponsorPortalService.js';
 import { queryOne } from '../config/database.js';
 import { createNotification } from '../services/notificationService.js';
+import { sponsorInviteToCohort, listCohortInvitations, cancelCohortInvitation } from '../services/cohortInvitationService.js';
 import {
   createCohort,
   listCohorts,
@@ -635,6 +636,40 @@ router.get('/admin/cohorts/:cohortId/status-log', authenticate, requirePermissio
  *       '404':
  *         description: Cohort not found
  */
+// F7: a sponsor (not an administrator) invites learners to their own cohort; learners join only after accepting.
+router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (isAdminTier(req)) { next(); return; }
+  const { emails } = req.body ?? {};
+  if (!Array.isArray(emails) || emails.length === 0) {
+    res.status(400).json({ success: false, error: { code: ErrorCodes.VALIDATION_ERROR, message: 'emails array is required' } });
+    return;
+  }
+  const result = sponsorInviteToCohort(req.params.cohortId, req.user!.userId, emails);
+  if (!result) {
+    // Same contract as the other cohort routes: 404 when it doesn't exist, 403 when it is another sponsor's.
+    const exists = getCohortOwner(req.params.cohortId) !== null;
+    res.status(exists ? 403 : 404).json({ success: false, error: exists
+      ? { code: ErrorCodes.FORBIDDEN, message: 'Not your cohort' }
+      : { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });
+    return;
+  }
+  res.json({ success: true, data: { ...result, pendingAcceptance: true } });
+});
+
+router.get('/admin/cohorts/:cohortId/invitations', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  const rows = listCohortInvitations(req.params.cohortId, req.user!.userId);
+  if (!rows) { res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } }); return; }
+  res.json({ success: true, data: { invitations: rows } });
+});
+
+router.delete('/admin/cohorts/:cohortId/invitations/:invitationId', authenticate, requirePermission('cohort.manage'), (req: AuthRequest, res: Response): void => {
+  if (!cancelCohortInvitation(req.params.cohortId, req.user!.userId, req.params.invitationId)) {
+    res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Invitation not found or already answered.' } });
+    return;
+  }
+  res.json({ success: true, data: { status: 'cancelled' } });
+});
+
 router.post('/admin/cohorts/:cohortId/invite', authenticate, requirePermission('cohort.manage'), requireAdministrator, (req: AuthRequest, res: Response): void => {
   if (getCohortOwner(req.params.cohortId) === null) {
     res.status(404).json({ success: false, error: { code: ErrorCodes.COHORT_NOT_FOUND, message: 'Cohort not found' } });

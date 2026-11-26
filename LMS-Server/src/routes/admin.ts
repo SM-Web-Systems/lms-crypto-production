@@ -12,6 +12,8 @@ import {
   handleReconcile,
 } from '../controllers/adminController.js';
 import { db } from '../config/database.js';
+import { getMinterBalance } from '../services/minterBalanceService.js';
+import logger from '../utils/logger.js';
 import { reconcileAccount } from '../services/rewards/rewardLedger.js';
 import type { AccountType } from '../services/rewards/rewardTypes.js';
 
@@ -192,6 +194,24 @@ router.get(
         checkedAt: new Date().toISOString(),
       },
     });
+  },
+);
+
+// GET /admin/minter-balance — F24: the NFT minter wallet's XLM balance, for whoever can mint.
+// The secret never leaves the server; only the public key and balance are returned.
+router.get(
+  '/minter-balance',
+  diagLimiter,
+  authenticate,
+  requirePermission('certificate.mint'),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const balance = await getMinterBalance({ fresh: req.query.fresh === '1' });
+      res.json({ success: true, data: balance });
+    } catch (err) {
+      logger.warn({ module: 'minter-balance', error: err instanceof Error ? err.message : String(err) }, 'Minter balance lookup failed');
+      res.status(503).json({ success: false, error: { code: 'MINTER_BALANCE_UNAVAILABLE', message: 'Could not read the minter wallet balance right now.' } });
+    }
   },
 );
 
