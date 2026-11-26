@@ -121,3 +121,8 @@ export function getTiersEnabled(courseId: string): TiersEnabled {
   if (val === 'free_only' || val === 'paid_only' || val === 'both') return val;
   return 'both';
 }
+
+/** Whether a course with these tier settings still offers the given tier. */
+export function tierOffered(tier: 'free' | 'paid', tiersEnabled: TiersEnabled): boolean {
+  return tiersEnabled === 'both' || (tier === 'free' ? tiersEnabled === 'free_only' : tiersEnabled === 'paid_only');
+}

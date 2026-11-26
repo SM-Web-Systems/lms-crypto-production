@@ -23,7 +23,7 @@ import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
 import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
-import { getTiersEnabled, createBadge } from '../services/badgeService.js';
+import { getTiersEnabled, createBadge, tierOffered } from '../services/badgeService.js';
 import logger from '../utils/logger.js';
 import { sendCertificateMintedEmail } from '../services/emailService.js';
 import { learnerSponsorship, attachToSponsorship } from '../services/cohortPaymentApprovalService.js';
@@ -156,9 +156,14 @@ router.post(
 
     // A learner in a sponsor cohort for this course gets the cohort's certificate (and its payment) when they
     // apply on their own, including a re-apply after a rejection: no tier carried over, no learner payment.
-    const sponsorship = learnerSponsorship(userId, courseId);
+    // F20: a cohort's tier only counts while the course still offers it. A Free cohort on a course
+    // that has since become Paid only applies for the course's tier, like any other learner.
+    const tiersEnabled = getTiersEnabled(courseId);
+    const cohortSponsorship = learnerSponsorship(userId, courseId);
+    const sponsorship = cohortSponsorship && tierOffered(cohortSponsorship.tier, tiersEnabled) ? cohortSponsorship : null;
     // Phase 11 C2: Tier selection (default 'paid' for backward compat with pre-C2 callers)
-    const selectedTier = (req.body.selectedTier as string) || sponsorship?.tier || 'paid';
+    const selectedTier = (req.body.selectedTier as string) || sponsorship?.tier
+      || (tiersEnabled === 'free_only' ? 'free' : 'paid');
     if (selectedTier !== 'free' && selectedTier !== 'paid') {
       res.status(400).json({
         success: false,
@@ -168,7 +173,6 @@ router.post(
     }
 
     // Validate tier is available for this course
-    const tiersEnabled = getTiersEnabled(courseId);
     if (
       (selectedTier === 'free' && tiersEnabled === 'paid_only') ||
       (selectedTier === 'paid' && tiersEnabled === 'free_only')
@@ -765,6 +769,16 @@ router.patch(
        SET status = 'rejected', reviewed_by = ?, reviewed_at = datetime('now'), review_notes = ?
        WHERE id = ?`,
       [userId, notes ?? null, appId]
+    );
+
+    // F22: a rejected application no longer owes its fee. Close the unpaid manual
+    // placeholder so it stops showing as "waiting". Card and Stellar attempts stay
+    // pending, because money may still arrive for them and must be matched.
+    execute(
+      `UPDATE payments SET status = 'failed', notes = COALESCE(notes, 'Closed: certificate application rejected'),
+              updated_at = datetime('now')
+       WHERE application_id = ? AND status = 'pending' AND payment_method = 'manual'`,
+      [appId]
     );
 
     // C2: Notify student (best-effort)

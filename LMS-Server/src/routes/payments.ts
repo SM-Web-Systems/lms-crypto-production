@@ -36,7 +36,7 @@ import {
   listPaymentsForSponsor,
   isSponsorScopedBadge,
 } from '../services/paymentService.js';
-import { getTiersEnabled, getBadge } from '../services/badgeService.js';
+import { getTiersEnabled, getBadge, tierOffered } from '../services/badgeService.js';
 import {
   approveCohortPayment,
   declineCohortPayment,
@@ -1191,7 +1191,8 @@ router.get(
         priceCents: pricing?.price_cents ?? 0,
         currency: pricing?.currency ?? 'USD',
         isFree: !pricing || pricing.price_cents === 0,
-        sponsoredTier: sponsorship?.tier ?? null,
+        // F20: only while the course still offers the cohort's tier.
+        sponsoredTier: sponsorship && tierOffered(sponsorship.tier, tiersEnabled) ? sponsorship.tier : null,
       },
     });
   },

@@ -49,3 +49,52 @@ describe('F21 - certificate review is limited to courses the reviewer teaches', 
     expect(queryOne<{ status: string }>('SELECT status FROM course_nft_applications WHERE id = ?', [appId])?.status).toBe('approved');
   });
 });
+
+describe('F22 - rejecting an application closes its unpaid manual payment', () => {
+  it('marks the pending manual placeholder failed but leaves card attempts alone', async () => {
+    const courseId = course();
+    const learner = actor(), lecturer = actor('role_instructor');
+    execute('INSERT INTO course_lecturers (course_id,user_id) VALUES (?,?)', [courseId, lecturer.id]);
+    const appId = randomUUID(), manualId = randomUUID(), cardId = randomUUID();
+    execute("INSERT INTO course_nft_applications (id,user_id,course_id,wallet_address,status) VALUES (?,?,?,'GTESTWALLET','pending')", [appId, learner.id, courseId]);
+    execute("INSERT INTO payments (id,user_id,course_id,application_id,amount_cents,payment_method,status) VALUES (?,?,?,?,100,'manual','pending')", [manualId, learner.id, courseId, appId]);
+    execute("INSERT INTO payments (id,user_id,course_id,application_id,amount_cents,payment_method,status) VALUES (?,?,?,?,100,'paystack','pending')", [cardId, learner.id, courseId, appId]);
+    const res = await request(app)
+      .patch(`/api/v1/courses/${courseId}/completions/applications/${appId}/reject`)
+      .auth(lecturer.token, { type: 'bearer' }).send({ reason: 'Not ready' });
+    expect(res.status).toBe(200);
+    expect(queryOne<{ status: string }>('SELECT status FROM payments WHERE id = ?', [manualId])?.status).toBe('failed');
+    expect(queryOne<{ status: string }>('SELECT status FROM payments WHERE id = ?', [cardId])?.status).toBe('pending');
+  });
+});
+
+describe('F20 - a Free cohort member can apply after the course becomes Paid only', () => {
+  function seed() {
+    const courseId = course();
+    const learner = actor(), sponsor = actor('role_sponsor');
+    execute("UPDATE users SET walletAddress = 'GLEARNERWALLETF20', wallet_linking_status = 'linked' WHERE id = ?", [learner.id]);
+    execute('INSERT INTO user_course_codes (user_id,course_code) SELECT ?, course_code FROM courses WHERE id = ?', [learner.id, courseId]);
+    execute("INSERT INTO course_pricing (id,course_id,price_cents,currency,is_active,tiers_enabled) VALUES (?,?,100,'USD',1,'paid_only')", [randomUUID(), courseId]);
+    const cohortId = randomUUID();
+    execute("INSERT INTO sponsor_cohorts (id,name,sponsor_user_id,course_id,selected_tier,status) VALUES (?,'Old free cohort',?,?,'free','active')", [cohortId, sponsor.id, courseId]);
+    execute('INSERT INTO cohort_members (cohort_id,user_id) VALUES (?,?)', [cohortId, learner.id]);
+    return { courseId, learner };
+  }
+
+  it('tiers no longer offer the cohort tier as sponsored', async () => {
+    const { courseId, learner } = seed();
+    const res = await request(app).get(`/api/v1/courses/${courseId}/tiers`).auth(learner.token, { type: 'bearer' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.tiersEnabled).toBe('paid_only');
+    expect(res.body.data.sponsoredTier).toBeNull();
+  });
+
+  it('apply without a tier uses the course tier and the learner payment', async () => {
+    const { courseId, learner } = seed();
+    const res = await request(app).post(`/api/v1/courses/${courseId}/completions/apply`).auth(learner.token, { type: 'bearer' }).send({});
+    expect(res.status).toBe(201);
+    expect(res.body.data.selectedTier).toBe('paid');
+    expect(res.body.data.sponsoredByCohort).toBeUndefined();
+    expect(res.body.data.payment.amountCents).toBe(100);
+  });
+});
