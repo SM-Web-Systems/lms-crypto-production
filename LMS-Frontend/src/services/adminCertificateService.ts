@@ -6,7 +6,10 @@ import api from './api';
 import type { NftApplication, IssuedCredential, CoursePricing, PaymentRecord, TiersEnabled } from '../types/api';
 
 export interface MinterBalance {
+  configured: boolean;
+  funded: boolean;
   network: string;
+  contractId: string;
   publicKey: string;
   balanceXlm: string;
   availableXlm: string;

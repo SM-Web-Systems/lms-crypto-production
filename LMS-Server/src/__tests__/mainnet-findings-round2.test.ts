@@ -285,9 +285,19 @@ describe('F24 - minter balance for admins', () => {
     const admin = actor('role_admin', 'admin');
     const res = await request(app).get('/api/v1/admin/minter-balance').auth(admin.token, { type: 'bearer' });
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ network: 'testnet', publicKey: kp.publicKey(), balanceXlm: '7.4350000', availableXlm: '6.4350000', low: false });
+    expect(res.body.data).toMatchObject({ configured: true, funded: true, network: 'testnet', publicKey: kp.publicKey(), balanceXlm: '7.4350000', availableXlm: '6.4350000', low: false });
     expect(res.body.data.estimatedMintsLeft).toBe(53);
     expect(JSON.stringify(res.body)).not.toContain(kp.secret());
+
+    clearMinterBalanceCache();
+    vi.spyOn(StellarSdk.rpc.Server.prototype, 'getAccountEntry').mockRejectedValue(new Error('Account not found: G...'));
+    const unfunded = await request(app).get('/api/v1/admin/minter-balance').auth(admin.token, { type: 'bearer' });
+    expect(unfunded.body.data).toMatchObject({ funded: false, balanceXlm: '0.0000000', low: true });
+
+    clearMinterBalanceCache();
+    delete process.env.NFT_MINTER_SECRET;
+    const notSetUp = await request(app).get('/api/v1/admin/minter-balance').auth(admin.token, { type: 'bearer' });
+    expect(notSetUp.body.data.configured).toBe(false);
 
     const instructor = actor('role_instructor');
     expect((await request(app).get('/api/v1/admin/minter-balance').auth(instructor.token, { type: 'bearer' })).status).toBe(403);

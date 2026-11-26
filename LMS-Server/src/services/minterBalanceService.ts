@@ -3,7 +3,12 @@ import { getNftNetworkConfig } from './mintService.js';
 
 /** F24: what admins need to know before minting: is there enough XLM in the minter wallet? */
 export interface MinterBalance {
+  /** False when this server has no minter or contract configured; the other fields are then empty. */
+  configured: boolean;
+  /** False when the minter account does not exist on the network yet (never funded). */
+  funded: boolean;
   network: string;
+  contractId: string;
   publicKey: string;
   balanceXlm: string;
   /** Balance above the account's minimum reserve, which is what minting can spend. */
@@ -26,17 +31,32 @@ const toXlm = (stroops: bigint) => {
 
 export async function getMinterBalance(opts: { fresh?: boolean } = {}): Promise<MinterBalance> {
   if (!opts.fresh && cache && Date.now() - cache.at < 60_000) return cache.value;
-  const cfg = getNftNetworkConfig();
+  let cfg: ReturnType<typeof getNftNetworkConfig>;
+  try {
+    cfg = getNftNetworkConfig();
+  } catch {
+    return { configured: false, funded: false, network: '', contractId: '', publicKey: '', balanceXlm: '0.0000000', availableXlm: '0.0000000', estimatedMintsLeft: 0, low: true, checkedAt: new Date().toISOString() };
+  }
   const publicKey = StellarSdk.Keypair.fromSecret(cfg.minterSecret).publicKey();
-  const entry = await new StellarSdk.rpc.Server(cfg.rpcUrl).getAccountEntry(publicKey);
-  const balance = BigInt(entry.balance().toString());
-  const subEntries = BigInt(entry.numSubEntries());
+  let balance = 0n, subEntries = 0n, funded = true;
+  try {
+    const entry = await new StellarSdk.rpc.Server(cfg.rpcUrl).getAccountEntry(publicKey);
+    balance = BigInt(entry.balance().toString());
+    subEntries = BigInt(entry.numSubEntries());
+  } catch (err) {
+    // An unfunded account does not exist on the ledger yet; anything else (RPC down) is a real error.
+    if (!/not found/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    funded = false;
+  }
   const reserve = (2n + subEntries) * BASE_RESERVE_STROOPS;
   const available = balance > reserve ? balance - reserve : 0n;
   const perMint = BigInt(Math.round(Number(process.env.NFT_MINT_COST_ESTIMATE_XLM || '0.12') * 1e7)) || 1_200_000n;
   const lowXlm = Number(process.env.NFT_MINTER_LOW_BALANCE_XLM || '2');
   const value: MinterBalance = {
+    configured: true,
+    funded,
     network: cfg.network,
+    contractId: cfg.contractId,
     publicKey,
     balanceXlm: toXlm(balance),
     availableXlm: toXlm(available),
