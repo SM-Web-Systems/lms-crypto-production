@@ -1,4 +1,6 @@
 import { db } from '../config/database.js';
+import { createNotification } from './notificationService.js';
+import logger from '../utils/logger.js';
 
 /**
  * Links between a learner and the people who can see their records: parents (user_links) and the owners of
@@ -31,10 +33,30 @@ export function unlinkParent(parentId: string, childId: string): boolean {
   }).immediate();
 }
 
-/** The learner leaves a class or team. */
+/** The learner leaves a class or team. The owner (teacher or employer) is told (F31). */
 export function leaveGroup(userId: string, groupId: string): boolean {
-  return db.prepare(`DELETE FROM user_group_members WHERE user_id = ? AND group_id = ?
+  const left = db.prepare(`DELETE FROM user_group_members WHERE user_id = ? AND group_id = ?
     AND group_id IN (SELECT id FROM user_groups WHERE group_type IN ('class', 'team'))`).run(userId, groupId).changes > 0;
+  if (left) {
+    try {
+      const row = db.prepare(`SELECT g.name, g.group_type, g.owner_user_id, u.name AS learner_name
+        FROM user_groups g, users u WHERE g.id = ? AND u.id = ?`).get(groupId, userId) as
+        { name: string; group_type: 'class' | 'team'; owner_user_id: string; learner_name: string | null } | undefined;
+      if (row && row.owner_user_id !== userId) {
+        const kind = row.group_type === 'team' ? 'team' : 'class';
+        createNotification({
+          userId: row.owner_user_id,
+          type: 'group_member_left',
+          title: `A learner left your ${kind}`,
+          body: `${row.learner_name ?? 'A learner'} left "${row.name}"`,
+          link: kind === 'team' ? '/employer/teams' : '/teacher/classes',
+        });
+      }
+    } catch (err) {
+      logger.error({ module: 'notification', err }, 'Group leave notification failed');
+    }
+  }
+  return left;
 }
 
 /** A teacher removes one learner from their own class. */

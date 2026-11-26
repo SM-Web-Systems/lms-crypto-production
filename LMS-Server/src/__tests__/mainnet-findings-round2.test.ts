@@ -98,3 +98,33 @@ describe('F20 - a Free cohort member can apply after the course becomes Paid onl
     expect(res.body.data.payment.amountCents).toBe(100);
   });
 });
+
+describe('F30 - Teacher dashboard counts each student once', () => {
+  it('a learner in two of the teacher classes counts once', async () => {
+    const teacher = actor('role_teacher', 'lecturer');
+    const learners = [actor(), actor(), actor()];
+    for (const name of ['Class 1', 'Class 2']) {
+      const groupId = randomUUID();
+      execute("INSERT INTO user_groups (id,name,group_type,owner_user_id) VALUES (?,?,'class',?)", [groupId, name, teacher.id]);
+      for (const l of learners) execute('INSERT INTO user_group_members (group_id,user_id) VALUES (?,?)', [groupId, l.id]);
+    }
+    const res = await request(app).get('/api/v1/teacher/dashboard').auth(teacher.token, { type: 'bearer' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalClasses).toBe(2);
+    expect(res.body.data.totalStudents).toBe(3);
+  });
+});
+
+describe('F31 - the team owner is notified when a learner leaves', () => {
+  it('creates a notification for the employer', async () => {
+    const employer = actor('role_employer', 'lecturer');
+    const learner = actor();
+    const groupId = randomUUID();
+    execute("INSERT INTO user_groups (id,name,group_type,owner_user_id) VALUES (?,'Team A','team',?)", [groupId, employer.id]);
+    execute('INSERT INTO user_group_members (group_id,user_id) VALUES (?,?)', [groupId, learner.id]);
+    const res = await request(app).delete(`/api/v1/students/me/groups/${groupId}`).auth(learner.token, { type: 'bearer' });
+    expect(res.status).toBe(200);
+    const n = queryOne<{ type: string; link: string }>('SELECT type, link FROM notifications WHERE user_id = ?', [employer.id]);
+    expect(n).toMatchObject({ type: 'group_member_left', link: '/employer/teams' });
+  });
+});
