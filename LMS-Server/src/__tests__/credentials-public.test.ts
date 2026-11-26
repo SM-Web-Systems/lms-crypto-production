@@ -188,7 +188,7 @@ describe('GET /api/v1/credentials/public', () => {
     expect(res.body.error.code).toBe('BAD_REQUEST');
   });
 
-  it('CA-8: response includes courseTitle and courseCode when credential is course-linked', async () => {
+  it('CA-8: response includes courseTitle but never the course (enrolment) code', async () => {
     const userId = seedUser();
     const { courseId, courseTitle, courseCode } = seedCourse();
 
@@ -206,6 +206,22 @@ describe('GET /api/v1/credentials/public', () => {
     expect(cred.sorobanTokenId).toBe(7);
     expect(cred.courseId).toBe(courseId);
     expect(cred.courseTitle).toBe(courseTitle);
-    expect(cred.courseCode).toBe(courseCode);
+    expect(cred.courseCode).toBeNull();
+    expect(JSON.stringify(res.body)).not.toContain(courseCode);
+  });
+
+  it('F28: public verify page does not reveal the course (enrolment) code', async () => {
+    const userId = seedUser();
+    const { courseId, courseTitle, courseCode } = seedCourse();
+    const credId = uuidv4();
+    db.prepare(
+      `INSERT INTO nft_credentials
+         (id, user_id, course_id, wallet_address, tx_hash, soroban_token_id, mint_status, contract_id, network)
+       VALUES (?, ?, ?, ?, 'txhash-f28', 8, 'minted', 'CCONTRACT', 'public')`
+    ).run(credId, userId, courseId, TEST_WALLET);
+
+    const res = await request(app).get(`/api/v1/credentials/verify/${credId}`).expect(200);
+    expect(res.body.data.credential.courseTitle).toBe(courseTitle);
+    expect(JSON.stringify(res.body)).not.toContain(courseCode);
   });
 });

@@ -611,6 +611,15 @@ router.patch(
   requirePermission('certificate.approve'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
+    // F21: holding the permission is not enough; the reviewer must manage this
+    // course (admin in scope, or a lecturer of the course).
+    if (!canAccessCourse(req.user!.userId, courseId, new Set(getUserPermissions(req.user!.userId)), 'manage')) {
+      res.status(403).json({
+        success: false,
+        error: { code: ErrorCodes.FORBIDDEN, message: 'You can only approve certificates for courses you teach' },
+      });
+      return;
+    }
     const { notes } = req.body as { notes?: string };
     const userId = req.user!.userId;
 
@@ -717,6 +726,15 @@ router.patch(
   requirePermission('certificate.reject'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
+    // F21: holding the permission is not enough; the reviewer must manage this
+    // course (admin in scope, or a lecturer of the course).
+    if (!canAccessCourse(req.user!.userId, courseId, new Set(getUserPermissions(req.user!.userId)), 'manage')) {
+      res.status(403).json({
+        success: false,
+        error: { code: ErrorCodes.FORBIDDEN, message: 'You can only reject certificates for courses you teach' },
+      });
+      return;
+    }
     // The admin screen sends the reason as `reason`; older clients send `notes`. Either is the reason the learner sees.
     const body = req.body as { notes?: unknown; reason?: unknown };
     const given = typeof body.notes === 'string' && body.notes.trim() ? body.notes : body.reason;

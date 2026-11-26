@@ -50,7 +50,6 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
     tx_hash: string | null;
     course_id: string | null;
     course_title: string | null;
-    course_code: string | null;
     quiz_id: string | null;
     quiz_title: string | null;
     network: string | null;
@@ -58,7 +57,7 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
     soroban_token_id: number | null;
   }>(
     `SELECT nc.id, nc.wallet_address, nc.tx_hash,
-            nc.course_id, c.title AS course_title, c.course_code,
+            nc.course_id, c.title AS course_title,
             nc.quiz_id, q.title AS quiz_title,
             nc.network, nc.created_at, nc.soroban_token_id
      FROM nft_credentials nc
@@ -78,7 +77,9 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
         txHash: r.tx_hash,
         courseId: r.course_id,
         courseTitle: r.course_title,
-        courseCode: r.course_code,
+        // The course code doubles as the enrolment code, so it is never
+        // exposed on public endpoints (mainnet test F28).
+        courseCode: null,
         quizId: r.quiz_id,
         quizTitle: r.quiz_title,
         network: r.network,
@@ -187,12 +188,11 @@ router.get('/credentials/verify/:credentialId', (req: Request, res: Response): v
     created_at: string;
     soroban_token_id: number | null;
     course_title: string | null;
-    course_code: string | null;
     student_name: string | null;
   }>(
     `SELECT nc.id, nc.wallet_address, nc.tx_hash, nc.contract_id,
             nc.network, nc.created_at, nc.soroban_token_id,
-            c.title AS course_title, c.course_code,
+            c.title AS course_title,
             u.name AS student_name
      FROM nft_credentials nc
      LEFT JOIN courses c ON c.id = nc.course_id
@@ -216,7 +216,8 @@ router.get('/credentials/verify/:credentialId', (req: Request, res: Response): v
         credentialId: row.id,
         studentName: row.student_name ?? 'Student',
         courseTitle: row.course_title ?? 'Course',
-        courseCode: row.course_code ?? '',
+        // Never expose the enrolment code on the public page (F28).
+        courseCode: '',
         walletAddress: row.wallet_address,
         txHash: row.tx_hash,
         contractId: row.contract_id,
@@ -266,12 +267,11 @@ router.get('/credentials/:credentialId/pdf', async (req: Request, res: Response)
     created_at: string;
     soroban_token_id: number | null;
     course_title: string | null;
-    course_code: string | null;
     student_name: string | null;
   }>(
     `SELECT nc.id, nc.wallet_address, nc.tx_hash, nc.contract_id,
             nc.network, nc.created_at, nc.soroban_token_id,
-            c.title AS course_title, c.course_code,
+            c.title AS course_title,
             u.name AS student_name
      FROM nft_credentials nc
      LEFT JOIN courses c ON c.id = nc.course_id
@@ -293,7 +293,7 @@ router.get('/credentials/:credentialId/pdf', async (req: Request, res: Response)
       credentialId: row.id,
       studentName: row.student_name ?? 'Student',
       courseTitle: row.course_title ?? 'Course',
-      courseCode: row.course_code ?? '',
+      courseCode: '', // enrolment code stays off public PDFs (F28)
       walletAddress: row.wallet_address,
       txHash: row.tx_hash,
       contractId: row.contract_id,
@@ -453,7 +453,7 @@ router.post('/credentials/bulk-export', bulkExportLimiter, authenticate, async (
     credentialId: r.id,
     studentName: r.student_name ?? 'Student',
     courseTitle: r.course_title ?? 'Course',
-    courseCode: r.course_code ?? '',
+    courseCode: '', // certificates get shared; keep the enrolment code off them (F28)
     walletAddress: r.wallet_address,
     txHash: r.tx_hash,
     contractId: r.contract_id,
