@@ -236,6 +236,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
   }, []);
 
   const [waiveNotesModal, setWaiveNotesModal] = useState<NftApplication | null>(null);
+  // F23: "Issue certificate" appears where Confirm/Waive just were. Hold it briefly so the same press can't land on it.
+  const [recentPaymentAction, setRecentPaymentAction] = useState<string | null>(null);
+  const holdMintButton = useCallback((applicationId: string) => {
+    setRecentPaymentAction(applicationId);
+    setTimeout(() => setRecentPaymentAction((id) => (id === applicationId ? null : id)), 1500);
+  }, []);
 
   const handleConfirmPayment = useCallback(async (app: NftApplication) => {
     if (!app.paymentId) return;
@@ -243,11 +249,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
     setActionError((e) => ({ ...e, [app.applicationId]: '' }));
     try {
       await adminCertificateService.confirmPayment(app.paymentId);
+      holdMintButton(app.applicationId);
       await load();
     } catch (e) {
       setActionError((err) => ({ ...err, [app.applicationId]: getErrorMessage(e, 'Payment confirmation failed.') }));
     } finally { setActionLoading(null); }
-  }, [load]);
+  }, [load, holdMintButton]);
 
   const submitWaivePayment = useCallback(async (app: NftApplication, notes: string) => {
     if (!app.paymentId) return;
@@ -256,11 +263,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
     setActionError((e) => ({ ...e, [app.applicationId]: '' }));
     try {
       await adminCertificateService.waivePayment(app.paymentId, notes);
+      holdMintButton(app.applicationId);
       await load();
     } catch (e) {
       setActionError((err) => ({ ...err, [app.applicationId]: getErrorMessage(e, 'Waive failed.') }));
     } finally { setActionLoading(null); }
-  }, [load]);
+  }, [load, holdMintButton]);
 
   const counts = {
     pending:  applications.filter((a) => a.status === 'pending').length,
@@ -329,7 +337,8 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
               </button>
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-neutral-100">
-              <Button type="button" variant="outline" size="sm" onClick={() => setMintModal(null)}>
+              {/* F23: focus Cancel so a stray Enter or double click after Waive never mints. */}
+              <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setMintModal(null)}>
                 Cancel
               </Button>
               <Button type="button" size="sm" onClick={() => submitMint(mintModal)}>
@@ -480,7 +489,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                           </>
                         )}
                         {app.selectedTier !== 'free' && app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
-                          <Button size="sm" type="button" disabled={isActing} onClick={() => handleMint(app)}
+                          <Button size="sm" type="button" disabled={isActing || recentPaymentAction === app.applicationId} onClick={() => handleMint(app)}
                             className="text-xs bg-violet-600 hover:bg-violet-700 text-white">
                             <Coins className="h-3.5 w-3.5 mr-1" aria-hidden />
                             {isActing ? 'Issuing…' : 'Issue certificate'}
