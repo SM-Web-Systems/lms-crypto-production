@@ -20,6 +20,11 @@ import {
 } from 'lucide-react';
 
 /** NM-C1: Plain-English descriptions for each cert application state. */
+/** Whether the course still offers this certificate tier. */
+function tierOffered(tier: CertificateTier, tiersEnabled: TierInfo['tiersEnabled']): boolean {
+  return tier === 'free' ? tiersEnabled !== 'paid_only' : tiersEnabled !== 'free_only';
+}
+
 const CERT_STATE_MSGS: Record<string, { desc: string; next: string }> = {
   not_eligible: {
     desc: 'You have not yet met the course requirements for a certificate.',
@@ -107,8 +112,11 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
     if (appErrorIds?.has(courseId) || appLoadingIds?.has(courseId)) return;
     let info: TierInfo | null = null;
     try { info = await courseCompletionService.getTiers(courseId); } catch { info = null; }
-    if (info && !info.sponsoredTier && info.tiersEnabled === 'both') { setChoosingTierFor(courseId); return; }
-    const tier: CertificateTier | undefined = info?.sponsoredTier
+    // A sponsored tier the course no longer offers (Free cohort, course now Paid only) is ignored, so the
+    // learner applies for the course's own tier instead of getting "This tier is not available".
+    const sponsored = info?.sponsoredTier && tierOffered(info.sponsoredTier, info.tiersEnabled) ? info.sponsoredTier : null;
+    if (info && !sponsored && info.tiersEnabled === 'both') { setChoosingTierFor(courseId); return; }
+    const tier: CertificateTier | undefined = sponsored
       ?? (info?.tiersEnabled === 'free_only' ? 'free' : info?.tiersEnabled === 'paid_only' ? 'paid' : undefined);
     await handleApplyCertificate(courseId, tier);
   };

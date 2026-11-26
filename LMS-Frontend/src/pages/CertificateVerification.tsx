@@ -9,7 +9,7 @@ interface VerifiedCredential {
   credentialId: string;
   studentName: string;
   courseTitle: string;
-  courseCode: string;
+  courseCode?: string;
   walletAddress: string;
   txHash: string | null;
   contractId: string;

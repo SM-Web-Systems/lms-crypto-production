@@ -23,10 +23,24 @@ import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
 import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
-import { getTiersEnabled, createBadge } from '../services/badgeService.js';
+import { getTiersEnabled, createBadge, isTierEnabled } from '../services/badgeService.js';
 import logger from '../utils/logger.js';
 import { sendCertificateMintedEmail } from '../services/emailService.js';
 import { learnerSponsorship, attachToSponsorship } from '../services/cohortPaymentApprovalService.js';
+
+/**
+ * Certificate decisions belong to the people who teach the course (or an administrator).
+ * The certificate.approve / certificate.reject permission alone let any instructor decide another course's applications.
+ */
+function requireCertificateReviewScope(req: AuthRequest, res: Response, next: () => void): void {
+  const userId = req.user!.userId;
+  const permissions = new Set(getUserPermissions(userId));
+  if (!canAccessCourse(userId, req.params.courseId, permissions, 'staff')) {
+    res.status(403).json({ success: false, error: { code: ErrorCodes.FORBIDDEN, message: 'You do not teach this course' } });
+    return;
+  }
+  next();
+}
 
 /**
  * DEMO ONLY — records a pending demo_sponsor_transfer row when an NFT is minted.
@@ -158,7 +172,11 @@ router.post(
     // apply on their own, including a re-apply after a rejection: no tier carried over, no learner payment.
     const sponsorship = learnerSponsorship(userId, courseId);
     // Phase 11 C2: Tier selection (default 'paid' for backward compat with pre-C2 callers)
-    const selectedTier = (req.body.selectedTier as string) || sponsorship?.tier || 'paid';
+    // A cohort tier the course no longer offers (Free cohort, course now Paid only) does not choose the tier:
+    // fall back to the course's own tier instead of refusing the learner.
+    const tiersEnabled = getTiersEnabled(courseId);
+    const usableSponsorTier = sponsorship && isTierEnabled(sponsorship.tier, tiersEnabled) ? sponsorship.tier : null;
+    const selectedTier = (req.body.selectedTier as string) || usableSponsorTier || (tiersEnabled === 'free_only' ? 'free' : 'paid');
     if (selectedTier !== 'free' && selectedTier !== 'paid') {
       res.status(400).json({
         success: false,
@@ -168,7 +186,6 @@ router.post(
     }
 
     // Validate tier is available for this course
-    const tiersEnabled = getTiersEnabled(courseId);
     if (
       (selectedTier === 'free' && tiersEnabled === 'paid_only') ||
       (selectedTier === 'paid' && tiersEnabled === 'free_only')
@@ -609,6 +626,7 @@ router.patch(
   '/courses/:courseId/completions/applications/:appId/approve',
   authenticate,
   requirePermission('certificate.approve'),
+  requireCertificateReviewScope,
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
     const { notes } = req.body as { notes?: string };
@@ -715,6 +733,7 @@ router.patch(
   '/courses/:courseId/completions/applications/:appId/reject',
   authenticate,
   requirePermission('certificate.reject'),
+  requireCertificateReviewScope,
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
     // The admin screen sends the reason as `reason`; older clients send `notes`. Either is the reason the learner sees.
@@ -747,6 +766,13 @@ router.patch(
        SET status = 'rejected', reviewed_by = ?, reviewed_at = datetime('now'), review_notes = ?
        WHERE id = ?`,
       [userId, notes ?? null, appId]
+    );
+    // The rejected application's own unpaid manual payment request is closed, so it no longer shows as owed.
+    // A Paystack or Stellar checkout may still settle, so only a manual request that was never paid is closed.
+    execute(
+      `UPDATE payments SET status = 'failed', notes = 'Closed: certificate application rejected', updated_at = datetime('now')
+       WHERE application_id = ? AND status = 'pending' AND payment_method = 'manual'`,
+      [appId]
     );
 
     // C2: Notify student (best-effort)
@@ -975,6 +1001,13 @@ router.post(
       if (dup) {
         throw new Error('ALREADY_MINTED');
       }
+      // A failed attempt for this application (for example a gateway timeout before a successful retry)
+      // stays as history but is superseded, so admin lists do not show a failed and a minted row side by side.
+      execute(
+        `UPDATE nft_credentials SET is_superseded = 1, updated_at = datetime('now')
+         WHERE course_id = ? AND application_id = ? AND mint_status = 'failed'`,
+        [courseId, appId]
+      );
 
       execute(
         `INSERT INTO nft_credentials

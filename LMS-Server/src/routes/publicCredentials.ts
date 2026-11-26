@@ -78,7 +78,7 @@ router.get('/credentials/public', (req: Request, res: Response): void => {
         txHash: r.tx_hash,
         courseId: r.course_id,
         courseTitle: r.course_title,
-        courseCode: r.course_code,
+        // No courseCode on this unauthenticated endpoint: the code is the course's enrolment secret.
         quizId: r.quiz_id,
         quizTitle: r.quiz_title,
         network: r.network,
@@ -216,7 +216,7 @@ router.get('/credentials/verify/:credentialId', (req: Request, res: Response): v
         credentialId: row.id,
         studentName: row.student_name ?? 'Student',
         courseTitle: row.course_title ?? 'Course',
-        courseCode: row.course_code ?? '',
+        // No courseCode: this verification page is public and the code is the course's enrolment secret.
         walletAddress: row.wallet_address,
         txHash: row.tx_hash,
         contractId: row.contract_id,

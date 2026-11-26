@@ -111,6 +111,13 @@ export function getBadgeForUser(userId: string, courseId: string): CertificateBa
 
 // ─── Tier Configuration ──────────────────────────────────────────────────────
 
+/** Whether a certificate tier can be applied for on a course with these tier settings. */
+export function isTierEnabled(tier: string, tiersEnabled: TiersEnabled): boolean {
+  if (tier === 'free') return tiersEnabled !== 'paid_only';
+  if (tier === 'paid') return tiersEnabled !== 'free_only';
+  return false;
+}
+
 export function getTiersEnabled(courseId: string): TiersEnabled {
   const pricing = queryOne<{ tiers_enabled: string }>(
     'SELECT tiers_enabled FROM course_pricing WHERE course_id = ? AND is_active = 1',

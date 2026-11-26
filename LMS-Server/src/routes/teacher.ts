@@ -42,12 +42,19 @@ router.get('/teacher/dashboard', authenticate, requirePermission('student.view_a
      WHERE ug.owner_user_id = ? AND ug.group_type = 'class'`,
     [userId]
   );
+  // Distinct learners: someone in two of this teacher's classes is one student, not two.
+  const distinctStudents = queryOne<{ n: number }>(
+    `SELECT COUNT(DISTINCT ugm.user_id) AS n FROM user_group_members ugm
+     JOIN user_groups ug ON ug.id = ugm.group_id
+     WHERE ug.owner_user_id = ? AND ug.group_type = 'class'`,
+    [userId]
+  )?.n ?? 0;
 
   res.json({
     success: true,
     data: {
       totalClasses: classes.length,
-      totalStudents: classes.reduce((sum, c) => sum + c.member_count, 0),
+      totalStudents: distinctStudents,
       classes: classes.map(c => ({ id: c.id, name: c.name, studentCount: c.member_count })),
     },
   });

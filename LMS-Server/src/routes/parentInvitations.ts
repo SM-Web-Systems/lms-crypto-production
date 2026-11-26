@@ -3,6 +3,8 @@ import { authenticate } from '../middleware/auth.js';
 import { requireWorkspace } from '../middleware/workspace.js';
 import { requirePermission } from '../middleware/rbac.js';
 import type { AuthRequest } from '../types/index.js';
+import { queryOne } from '../config/database.js';
+import { createNotification } from '../services/notificationService.js';
 import {
   inviteChild, listParentInvitations, cancelParentInvitation, myPendingParentInvitations, respondToParentInvitation,
 } from '../services/parentInvitationService.js';
@@ -89,6 +91,22 @@ router.delete('/students/me/groups/:groupId', authenticate, (req: AuthRequest, r
     res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'You are not in that class or team' } });
     return;
   }
+  // Tell the teacher or employer, who otherwise only notices the smaller member count (best-effort).
+  try {
+    const group = queryOne<{ owner_user_id: string; name: string; group_type: string }>(
+      'SELECT owner_user_id, name, group_type FROM user_groups WHERE id = ?', [req.params.groupId]);
+    const learner = queryOne<{ name: string | null }>('SELECT name FROM users WHERE id = ?', [req.user!.userId]);
+    if (group) {
+      const kind = group.group_type === 'team' ? 'team' : 'class';
+      createNotification({
+        userId: group.owner_user_id,
+        type: 'group_member_left',
+        title: `A learner left your ${kind}`,
+        body: `${learner?.name ?? 'A learner'} left the ${kind} "${group.name}".`,
+        link: kind === 'team' ? '/employer/teams' : '/teacher/classes',
+      });
+    }
+  } catch { /* best-effort */ }
   res.json({ success: true, data: { removed: true } });
 });
 

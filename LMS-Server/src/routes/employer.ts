@@ -58,7 +58,13 @@ router.get(
     );
 
     const totalTeams = teams.length;
-    const totalMembers = teams.reduce((sum, t) => sum + t.member_count, 0);
+    // Distinct people: someone in two of this employer's teams is one member, not two.
+    const totalMembers = queryOne<{ n: number }>(
+      `SELECT COUNT(DISTINCT ugm.user_id) AS n FROM user_group_members ugm
+       JOIN user_groups ug ON ug.id = ugm.group_id
+       WHERE ug.owner_user_id = ? AND ug.group_type = 'team'`,
+      [userId],
+    )?.n ?? 0;
 
     res.json({
       success: true,

@@ -188,7 +188,7 @@ describe('GET /api/v1/credentials/public', () => {
     expect(res.body.error.code).toBe('BAD_REQUEST');
   });
 
-  it('CA-8: response includes courseTitle and courseCode when credential is course-linked', async () => {
+  it('CA-8: response includes courseTitle (not the enrolment courseCode) when credential is course-linked', async () => {
     const userId = seedUser();
     const { courseId, courseTitle, courseCode } = seedCourse();
 
@@ -206,6 +206,8 @@ describe('GET /api/v1/credentials/public', () => {
     expect(cred.sorobanTokenId).toBe(7);
     expect(cred.courseId).toBe(courseId);
     expect(cred.courseTitle).toBe(courseTitle);
-    expect(cred.courseCode).toBe(courseCode);
+    // The course code is the enrolment secret; a public wallet lookup must not reveal it.
+    expect(cred).not.toHaveProperty('courseCode');
+    expect(JSON.stringify(res.body)).not.toContain(courseCode);
   });
 });

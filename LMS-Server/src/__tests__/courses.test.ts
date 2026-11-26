@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../app.js';
 import { seedTestData, type TestIds } from './helpers/seed.js';
 import { makeToken } from './helpers/auth.js';
+import { execute } from '../config/database.js';
 
 let ids: TestIds;
 let adminToken: string;
@@ -281,6 +282,19 @@ describe('GET /api/v1/courses/:id/members', () => {
       .set('Authorization', `Bearer ${studentToken}`);
 
     expect(res.status).toBe(403);
+  });
+
+  it("lists the course's lecturers, so a learner can find and message their instructor", async () => {
+    // The admin user stands in as the course's lecturer; they are not enrolled with the course code.
+    execute('INSERT OR IGNORE INTO course_lecturers (course_id, user_id) VALUES (?, ?)', [ids.courseId, ids.adminId]);
+    const res = await request(app)
+      .get(`/api/v1/courses/${ids.courseId}/members`)
+      .set('Authorization', `Bearer ${studentToken}`);
+
+    expect(res.status).toBe(200);
+    const memberIds = res.body.data.members.map((m: { id: string }) => m.id);
+    expect(memberIds).toContain(ids.adminId);
+    expect(memberIds).toContain(ids.studentUserId);
   });
 });
 

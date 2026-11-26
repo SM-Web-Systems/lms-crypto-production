@@ -866,10 +866,11 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
       `SELECT u.id, u.name, u.email, s.id AS studentId
        FROM users u
        LEFT JOIN students s ON s.user_id = u.id
-       INNER JOIN user_course_codes c ON c.user_id = u.id
-       WHERE c.course_code = ?
+       WHERE u.id IN (SELECT user_id FROM user_course_codes WHERE course_code = ?)
+          -- The course's lecturers are members too: learners could not find their instructor to message them.
+          OR u.id IN (SELECT user_id FROM course_lecturers WHERE course_id = ?)
        ORDER BY u.name`,
-      [course.course_code]
+      [course.course_code, courseId]
     );
     const summaries=compatibleRoleSummaries(rows.map(row=>row.id));
     const members: UserDirectoryItem[] = rows.map((r) => ({

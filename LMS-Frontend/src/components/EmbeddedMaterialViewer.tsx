@@ -644,6 +644,9 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
               </div>
             );
           })()
+        ) : item.information?.trim() ? (
+          // A text lesson written in its Information field has no link to show: the information above is the lesson.
+          null
         ) : (
           <p className="text-sm text-neutral-600 px-4 py-8 text-center">This material has nothing to display.</p>
         )}

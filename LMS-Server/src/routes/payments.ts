@@ -36,7 +36,7 @@ import {
   listPaymentsForSponsor,
   isSponsorScopedBadge,
 } from '../services/paymentService.js';
-import { getTiersEnabled, getBadge } from '../services/badgeService.js';
+import { getTiersEnabled, getBadge, isTierEnabled } from '../services/badgeService.js';
 import {
   approveCohortPayment,
   declineCohortPayment,
@@ -1183,6 +1183,9 @@ router.get(
     const pricing = getCoursePricing(courseId);
     // The certificate a sponsor cohort already covers for this learner: the app applies for it without asking or charging.
     const sponsorship = req.user ? learnerSponsorship(req.user.userId, courseId) : null;
+    // A cohort tier the course no longer offers (a Free cohort after the course became Paid only) is not a
+    // sponsorship the learner can use: report none, so the app offers the course's own tier instead of failing.
+    const sponsoredTierUsable = !!sponsorship && isTierEnabled(sponsorship.tier, tiersEnabled);
 
     res.json({
       success: true,
@@ -1191,7 +1194,7 @@ router.get(
         priceCents: pricing?.price_cents ?? 0,
         currency: pricing?.currency ?? 'USD',
         isFree: !pricing || pricing.price_cents === 0,
-        sponsoredTier: sponsorship?.tier ?? null,
+        sponsoredTier: sponsoredTierUsable ? sponsorship!.tier : null,
       },
     });
   },
