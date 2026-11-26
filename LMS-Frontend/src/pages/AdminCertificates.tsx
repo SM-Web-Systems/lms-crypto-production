@@ -22,6 +22,7 @@ import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import TextInputModal from '../components/TextInputModal';
 import { CohortPaymentRequests } from '../components/CohortPaymentRequests';
+import { MinterBalanceCard } from '../components/MinterBalanceCard';
 import { adminCertificateService } from '../services/adminCertificateService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { NftApplication, NftApplicationStatus, CourseProgress, IssuedCredential } from '../types/api';
@@ -350,6 +351,8 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
           </div>
         </div>
       )}
+
+      <MinterBalanceCard />
 
       {/* Status legend (PHASE 4) */}
       <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 flex flex-wrap gap-x-5 gap-y-1.5">

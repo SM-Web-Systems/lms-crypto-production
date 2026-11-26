@@ -265,3 +265,31 @@ describe('Privacy - classmates do not see each other\'s emails', () => {
     expect(asLecturer.body.data.members.find((m: { id: string }) => m.id === b.id).email).toBe(`${b.id}@mainnet2.invalid`);
   });
 });
+
+describe('F24 - minter balance for admins', () => {
+  afterEach(() => { vi.restoreAllMocks(); delete process.env.NFT_STELLAR_NETWORK; delete process.env.NFT_MINTER_SECRET; delete process.env.NFT_CONTRACT_ID; });
+
+  it('returns balance and available XLM to someone who can mint, and refuses an instructor', async () => {
+    const StellarSdk = await import('@stellar/stellar-sdk');
+    const { clearMinterBalanceCache } = await import('../services/minterBalanceService.js');
+    clearMinterBalanceCache();
+    const kp = StellarSdk.Keypair.random();
+    process.env.NFT_STELLAR_NETWORK = 'testnet';
+    process.env.NFT_MINTER_SECRET = kp.secret();
+    process.env.NFT_CONTRACT_ID = 'CDPKSOOE4UZFM4TS52H7LMP2TYNLJBFAMT6M4E2H67KZEAH6UF54H524';
+    vi.spyOn(StellarSdk.rpc.Server.prototype, 'getAccountEntry').mockResolvedValue({
+      balance: () => ({ toString: () => '74350000' }), // 7.435 XLM
+      numSubEntries: () => 0,
+    } as never);
+
+    const admin = actor('role_admin', 'admin');
+    const res = await request(app).get('/api/v1/admin/minter-balance').auth(admin.token, { type: 'bearer' });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ network: 'testnet', publicKey: kp.publicKey(), balanceXlm: '7.4350000', availableXlm: '6.4350000', low: false });
+    expect(res.body.data.estimatedMintsLeft).toBe(53);
+    expect(JSON.stringify(res.body)).not.toContain(kp.secret());
+
+    const instructor = actor('role_instructor');
+    expect((await request(app).get('/api/v1/admin/minter-balance').auth(instructor.token, { type: 'bearer' })).status).toBe(403);
+  });
+});

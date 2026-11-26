@@ -5,7 +5,27 @@
 import api from './api';
 import type { NftApplication, IssuedCredential, CoursePricing, PaymentRecord, TiersEnabled } from '../types/api';
 
+export interface MinterBalance {
+  network: string;
+  publicKey: string;
+  balanceXlm: string;
+  availableXlm: string;
+  estimatedMintsLeft: number;
+  low: boolean;
+  checkedAt: string;
+}
+
 export const adminCertificateService = {
+  /** GET /admin/minter-balance — F24: minter wallet XLM; null when the caller can't mint or it can't be read. */
+  async getMinterBalance(fresh = false): Promise<MinterBalance | null> {
+    try {
+      const res = await api.get<{ success: boolean; data: MinterBalance }>(`/admin/minter-balance${fresh ? '?fresh=1' : ''}`);
+      return res.data?.data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
   /** GET /admin/certificates — all applications with optional filters */
   async getAllCertificates(params?: {
     status?: 'pending' | 'approved' | 'rejected' | 'minted';
