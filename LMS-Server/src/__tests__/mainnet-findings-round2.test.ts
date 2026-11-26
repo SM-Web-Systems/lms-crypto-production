@@ -116,6 +116,22 @@ describe('F30 - Teacher dashboard counts each student once', () => {
   });
 });
 
+describe('F30 (employer) - Employer dashboard counts each member once', () => {
+  it('a learner in two of the employer teams counts once', async () => {
+    const employer = actor('role_employer', 'lecturer');
+    const learner = actor();
+    for (const name of ['Team 1', 'Team 2']) {
+      const groupId = randomUUID();
+      execute("INSERT INTO user_groups (id,name,group_type,owner_user_id) VALUES (?,?,'team',?)", [groupId, name, employer.id]);
+      execute('INSERT INTO user_group_members (group_id,user_id) VALUES (?,?)', [groupId, learner.id]);
+    }
+    const res = await request(app).get('/api/v1/employer/dashboard').auth(employer.token, { type: 'bearer' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalTeams).toBe(2);
+    expect(res.body.data.totalMembers).toBe(1);
+  });
+});
+
 describe('F31 - the team owner is notified when a learner leaves', () => {
   it('creates a notification for the employer', async () => {
     const employer = actor('role_employer', 'lecturer');

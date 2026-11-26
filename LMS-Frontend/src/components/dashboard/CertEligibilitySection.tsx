@@ -107,8 +107,12 @@ const CertEligibilitySection: React.FC<CertEligibilitySectionProps> = ({
     if (appErrorIds?.has(courseId) || appLoadingIds?.has(courseId)) return;
     let info: TierInfo | null = null;
     try { info = await courseCompletionService.getTiers(courseId); } catch { info = null; }
-    if (info && !info.sponsoredTier && info.tiersEnabled === 'both') { setChoosingTierFor(courseId); return; }
-    const tier: CertificateTier | undefined = info?.sponsoredTier
+    // F20: ignore a sponsored tier the course no longer offers (Free cohort, course now Paid only); the
+    // server also stops reporting it, this guards an older server.
+    const sponsored = info?.sponsoredTier && (info.tiersEnabled === 'both'
+      || info.tiersEnabled === (info.sponsoredTier === 'free' ? 'free_only' : 'paid_only')) ? info.sponsoredTier : null;
+    if (info && !sponsored && info.tiersEnabled === 'both') { setChoosingTierFor(courseId); return; }
+    const tier: CertificateTier | undefined = sponsored
       ?? (info?.tiersEnabled === 'free_only' ? 'free' : info?.tiersEnabled === 'paid_only' ? 'paid' : undefined);
     await handleApplyCertificate(courseId, tier);
   };
