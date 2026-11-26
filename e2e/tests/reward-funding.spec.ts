@@ -19,7 +19,7 @@ for (const width of [320, 390, 768]) {
     // UX-018: the dialog is titled with the reward's name (its description, the id here).
     const dialog = page.getByRole('dialog', {name: `Fund “${id}”`});
     await expect(dialog.getByText('Card payments are available for course purchases only.')).toBeVisible();
-    await expect(dialog.getByText('An independent reward administrator must authorize this grant.')).toBeVisible();
+    await expect(dialog.getByText("An administrator other than the reward's creator funds this from Rewards to authorize (Funding options, Administrator grant).")).toBeVisible();
     await expect(dialog.getByRole('button', {name: 'Prepare grant'})).toHaveCount(0);
     await dialog.getByRole('button', {name: 'Close'}).focus();
     await page.keyboard.press('Tab');

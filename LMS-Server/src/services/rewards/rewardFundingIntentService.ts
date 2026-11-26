@@ -88,8 +88,8 @@ export function getFundingAvailability(rewardId: string, actorId: string) {
     reason: reward.status !== 'draft' ? 'This reward is no longer awaiting funding.'
       : sourceType === 'stellar' ? (stellar ? null : stellarConfigured ? FUNDER_WALLET_MESSAGE : 'Stellar funding is not configured.')
       : sourceType === 'paystack' ? 'Card payments are available for course purchases only.'
-      : sourceType === 'platform_credit' ? (credits.length?null:independent?'Insufficient backed platform credit.':'An independent reward administrator must authorize platform credit.')
-      : !independent ? 'An independent reward administrator must authorize this grant.' : null,
+      : sourceType === 'platform_credit' ? (credits.length?null:independent?'Insufficient backed platform credit.':"An administrator other than the reward's creator funds this from Rewards to authorize (Funding options, Platform credit).")
+      : !independent ? "An administrator other than the reward's creator funds this from Rewards to authorize (Funding options, Administrator grant)." : null,
   }));
 }
 
