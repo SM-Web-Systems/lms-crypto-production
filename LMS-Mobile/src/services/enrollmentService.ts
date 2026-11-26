@@ -19,7 +19,8 @@ export const enrollmentService = {
       const seen = new Set<string>();
       const peers: { id: string; name: string }[] = [];
       for (const courseId of courseIds) {
-        const members = await courseService.fetchCourseMembers(courseId);
+        // Includes the course's instructors, so a learner can start a conversation with them.
+        const members = await courseService.fetchCourseContacts(courseId);
         for (const m of members) {
           if (m.id !== userId && !seen.has(m.id)) {
             seen.add(m.id);

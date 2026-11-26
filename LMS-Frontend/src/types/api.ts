@@ -334,6 +334,8 @@ export interface NftApplication {
   selectedTier?: CertificateTier;
   /** Network the certificate was issued on ('public' | 'testnet'); null before it is issued. */
   network?: string | null;
+  /** On-chain token id of the minted certificate (F29); null before minting or if not recorded. */
+  sorobanTokenId?: number | null;
 }
 
 export type CredentialMintStatus = 'pending' | 'minted' | 'failed';
@@ -355,6 +357,8 @@ export interface IssuedCredential {
   txHash: string | null;
   contractId: string | null;
   network: string | null;
+  /** On-chain token id (F29); null if not recorded. */
+  sorobanTokenId?: number | null;
   mintedAt: string | null;
   mintError: string | null;
   /** Null for legacy quiz-triggered mints that bypassed the application workflow. */

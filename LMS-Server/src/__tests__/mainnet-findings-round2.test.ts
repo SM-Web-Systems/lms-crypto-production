@@ -158,7 +158,8 @@ describe('F32 - learners can find their instructor and messages notify', () => {
   });
 
   it('a new message creates one notification per unread run', async () => {
-    const a = actor(), b = actor();
+    const a = actor(), b = actor(), courseId = course();
+    for (const u of [a, b]) execute('INSERT INTO user_course_codes (user_id,course_code) SELECT ?, course_code FROM courses WHERE id = ?', [u.id, courseId]);
     const conv = await request(app).post('/api/v1/messages/conversations').auth(a.token, { type: 'bearer' }).send({ otherUserId: b.id });
     expect([200, 201]).toContain(conv.status);
     for (const body of ['hello', 'again']) {
@@ -208,5 +209,59 @@ describe('F27/F29 - mint retry and token id', () => {
     expect(mintModule.tokenIdFromNative(36n)).toBe(36);
     expect(mintModule.tokenIdFromNative('x')).toBeNull();
     expect(mintModule.tokenIdFromNative(-1n)).toBeNull();
+  });
+});
+
+describe('Privacy - starting a conversation needs a relationship', () => {
+  const start = (from: { token: string }, otherUserId: string) =>
+    request(app).post('/api/v1/messages/conversations').auth(from.token, { type: 'bearer' }).send({ otherUserId });
+
+  it('refuses two strangers', async () => {
+    const a = actor(), b = actor();
+    expect((await start(a, b.id)).status).toBe(403);
+  });
+
+  it('allows a learner to message the lecturer of their course', async () => {
+    const courseId = course();
+    const learner = actor(), lecturer = actor('role_instructor');
+    execute('INSERT INTO user_course_codes (user_id,course_code) SELECT ?, course_code FROM courses WHERE id = ?', [learner.id, courseId]);
+    execute('INSERT INTO course_lecturers (course_id,user_id) VALUES (?,?)', [courseId, lecturer.id]);
+    expect((await start(learner, lecturer.id)).status).toBe(201);
+  });
+
+  it('allows a team owner and member, and a parent and child', async () => {
+    const employer = actor('role_employer', 'lecturer'), member = actor(), parent = actor('role_parent', 'lecturer'), child = actor();
+    const groupId = randomUUID();
+    execute("INSERT INTO user_groups (id,name,group_type,owner_user_id) VALUES (?,'T','team',?)", [groupId, employer.id]);
+    execute('INSERT INTO user_group_members (group_id,user_id) VALUES (?,?)', [groupId, member.id]);
+    execute("INSERT INTO user_links (id,parent_user_id,child_user_id,link_type) VALUES (?,?,?,'parent')", [randomUUID(), parent.id, child.id]);
+    expect((await start(member, employer.id)).status).toBe(201);
+    expect((await start(child, parent.id)).status).toBe(201);
+  });
+
+  it('still lets either side reply in an existing conversation', async () => {
+    const a = actor(), b = actor(), courseId = course();
+    for (const u of [a, b]) execute('INSERT INTO user_course_codes (user_id,course_code) SELECT ?, course_code FROM courses WHERE id = ?', [u.id, courseId]);
+    const conv = await start(a, b.id);
+    execute('DELETE FROM user_course_codes WHERE user_id = ?', [b.id]);
+    expect((await start(b, a.id)).status).toBe(200);
+    const sent = await request(app).post(`/api/v1/messages/conversations/${conv.body.data.id}/messages`).auth(b.token, { type: 'bearer' }).send({ body: 'hi' });
+    expect(sent.status).toBe(201);
+  });
+});
+
+describe('Privacy - classmates do not see each other\'s emails', () => {
+  it('a learner gets names only, the lecturer gets emails', async () => {
+    const courseId = course();
+    const a = actor(), b = actor(), lecturer = actor('role_instructor');
+    for (const u of [a, b]) execute('INSERT INTO user_course_codes (user_id,course_code) SELECT ?, course_code FROM courses WHERE id = ?', [u.id, courseId]);
+    execute('INSERT INTO course_lecturers (course_id,user_id) VALUES (?,?)', [courseId, lecturer.id]);
+    const asLearner = await request(app).get(`/api/v1/courses/${courseId}/members`).auth(a.token, { type: 'bearer' });
+    expect(asLearner.status).toBe(200);
+    const other = asLearner.body.data.members.find((m: { id: string }) => m.id === b.id);
+    expect(other.email).toBe('');
+    expect(JSON.stringify(asLearner.body)).not.toContain(`${b.id}@mainnet2.invalid`);
+    const asLecturer = await request(app).get(`/api/v1/courses/${courseId}/members`).auth(lecturer.token, { type: 'bearer' });
+    expect(asLecturer.body.data.members.find((m: { id: string }) => m.id === b.id).email).toBe(`${b.id}@mainnet2.invalid`);
   });
 });

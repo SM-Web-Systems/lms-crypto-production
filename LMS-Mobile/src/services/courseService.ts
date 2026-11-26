@@ -36,6 +36,16 @@ export const courseService = {
     return Array.isArray(members) ? members : [];
   },
 
+  /** Enrolled members plus the course's instructors (name only), for picking a message recipient. */
+  async fetchCourseContacts(courseId: string): Promise<{ id: string; name: string }[]> {
+    const response = await api.get<{ success?: boolean; data?: { members?: CourseMember[]; instructors?: { id: string; name: string }[] } }>(
+      `/courses/${courseId}/members`
+    );
+    const members = Array.isArray(response.data?.data?.members) ? response.data!.data!.members! : [];
+    const instructors = Array.isArray(response.data?.data?.instructors) ? response.data!.data!.instructors! : [];
+    return [...instructors, ...members].map((m) => ({ id: m.id, name: m.name }));
+  },
+
   toBackendSections(course: Course): CourseSection[] {
     const weeks = course.weeks ?? (course.sections ? [{ id: 'week-1', title: 'Week 1', order: 1, sections: course.sections }] : []);
     return weeks.flatMap((w) => w.sections ?? []);

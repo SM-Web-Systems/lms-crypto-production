@@ -63,7 +63,7 @@ function exportApplicationsCSV(applications: NftApplication[]): void {
 }
 
 function exportIssuedCSV(credentials: IssuedCredential[]): void {
-  const headers = 'Student Name,Email,Course,Wallet Address,Mint Status,Tx Hash,Minted At,Mint Path';
+  const headers = 'Student Name,Email,Course,Wallet Address,Mint Status,Tx Hash,Token ID,Minted At,Mint Path';
   const rows = credentials.map((c) =>
     [
       csvEscape(c.userName),
@@ -72,6 +72,7 @@ function exportIssuedCSV(credentials: IssuedCredential[]): void {
       csvEscape(c.walletAddress),
       csvEscape(c.mintStatus),
       csvEscape(c.txHash),
+      csvEscape(c.sorobanTokenId != null ? String(c.sorobanTokenId) : ''),
       csvEscape(c.mintedAt ? new Date(c.mintedAt).toISOString() : ''),
       csvEscape(c.mintPath),
     ].join(',')
@@ -512,6 +513,9 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
                           </a>
                         )}
+                        {app.status === 'minted' && app.sorobanTokenId != null && (
+                          <span className="text-xs text-neutral-600 font-mono" title="On-chain token ID">Token #{app.sorobanTokenId}</span>
+                        )}
 
                         <button type="button" onClick={() => handleExpand(app)}
                           className="p-1 rounded-md text-neutral-400 hover:text-accent-teal hover:bg-neutral-50 transition-colors"
@@ -860,6 +864,9 @@ const IssuedCredentialsPanel: React.FC = () => {
                                 ? <Check className="h-3 w-3 text-emerald-600" aria-hidden />
                                 : <Copy className="h-3 w-3" aria-hidden />}
                             </button>
+                            {cred.sorobanTokenId != null && (
+                              <span className="ml-1 text-xs text-neutral-600 font-mono" title="On-chain token ID">#{cred.sorobanTokenId}</span>
+                            )}
                           </div>
                         ) : (
                           <span className="text-neutral-400 text-xs">—</span>
