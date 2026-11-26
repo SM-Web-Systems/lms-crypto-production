@@ -22,6 +22,7 @@ import { Card, CardContent, CardTitle } from '../components/Card';
 import { Button } from '../components/Button';
 import TextInputModal from '../components/TextInputModal';
 import { CohortPaymentRequests } from '../components/CohortPaymentRequests';
+import { MinterStatusCard } from '../components/MinterStatusCard';
 import { adminCertificateService } from '../services/adminCertificateService';
 import { courseCompletionService } from '../services/courseCompletionService';
 import type { NftApplication, NftApplicationStatus, CourseProgress, IssuedCredential } from '../types/api';
@@ -1009,6 +1010,9 @@ const AdminCertificates: React.FC = () => {
           Manage certificate applications and view all issued certificates.
         </p>
       </div>
+
+      {/* Minter wallet balance, so a run of mints does not stop for lack of fees (certificate.mint only). */}
+      <MinterStatusCard />
 
       {/* Sponsor cohort payments waiting for an administrator (billing.confirm only). */}
       <CohortPaymentRequests />

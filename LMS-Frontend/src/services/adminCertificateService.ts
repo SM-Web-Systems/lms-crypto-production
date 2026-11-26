@@ -147,4 +147,20 @@ export const adminCertificateService = {
     );
     return res.data.data;
   },
+
+  /** GET /admin/minter-status — NFT minter wallet address and XLM balance (certificate.mint only, read-only) */
+  async getMinterStatus(): Promise<MinterStatus> {
+    const res = await api.get<{ success: boolean; data: MinterStatus }>('/admin/minter-status');
+    return res.data.data;
+  },
 };
+
+export interface MinterStatus {
+  configured: boolean;
+  network: 'public' | 'testnet' | null;
+  minterAddress: string | null;
+  contractId: string | null;
+  balanceXlm: string | null;
+  low: boolean;
+  error: string | null;
+}
