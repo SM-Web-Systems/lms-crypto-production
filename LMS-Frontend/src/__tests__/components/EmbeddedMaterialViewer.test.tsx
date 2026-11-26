@@ -739,3 +739,19 @@ describe('EmbeddedMaterialViewer — text item markdown rendering', () => {
     expect(screen.queryByText('Open resource')).not.toBeInTheDocument();
   });
 });
+
+// F10 (mainnet test): a text lesson written in place shows its text without an empty panel.
+describe('EmbeddedMaterialViewer — text lesson without a file', () => {
+  it('does not show "nothing to display" under the lesson text', () => {
+    const item = { id: 't-1', type: 'text', title: 'Reading', order: 1, url: '', description: 'Read this carefully.' } as CourseItemText;
+    render(<EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />);
+    expect(screen.getByText('Read this carefully.')).toBeInTheDocument();
+    expect(screen.queryByText('This material has nothing to display.')).not.toBeInTheDocument();
+  });
+
+  it('still says so when a text lesson has no text and no file', () => {
+    const item = { id: 't-2', type: 'text', title: 'Empty', order: 1, url: '' } as CourseItemText;
+    render(<EmbeddedMaterialViewer section={mockSection} item={item} onClose={mockOnClose} />);
+    expect(screen.getByText('This material has nothing to display.')).toBeInTheDocument();
+  });
+});
