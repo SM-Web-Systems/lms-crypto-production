@@ -40,6 +40,16 @@ describe('platform credit asks before moving value (UX-001)', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Credit approved.');
   });
 
+  it('F33: names a requesting admin who is not a beneficiary, from the summary names', async () => {
+    m.summary.mockResolvedValue({ ...summary, names: { u1: 'Admin Ada' } });
+    m.beneficiaries.mockResolvedValue([people[1]]);
+    render(<AdminPlatformCredit />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Requested by Admin Ada.');
+    expect(dialog).not.toHaveTextContent('u1…');
+  });
+
   it('cancel and Escape send nothing and return focus to Approve', async () => {
     render(<AdminPlatformCredit />);
     const approve = await screen.findByRole('button', { name: 'Approve' });

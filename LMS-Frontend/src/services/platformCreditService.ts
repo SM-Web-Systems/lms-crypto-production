@@ -25,7 +25,7 @@ export interface CreditReservation {
   intent_id: string; status: string; effective_status: string; amount_stroops: number; reward_id: string; owner_user_id: string; actor_user_id: string; expires_at: string;
 }
 export interface AuditRow { id: string; event_type: string; actor_user_id: string; network: string; amount_stroops: number; reason: string; created_at: string }
-export interface Summary { pools: Pool[]; requests: CreditRequest[]; backingIntents: BackingIntent[]; reservations: CreditReservation[]; audit: AuditRow[] }
+export interface Summary { pools: Pool[]; requests: CreditRequest[]; backingIntents: BackingIntent[]; reservations: CreditReservation[]; audit: AuditRow[]; names?: Record<string, string> }
 export interface Beneficiary { id: string; name: string; email: string }
 export interface Reconciliation { depositedStroops?: number; [key: string]: unknown }
 

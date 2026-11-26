@@ -97,8 +97,10 @@ export default function AdminPlatformCredit() {
 
   const nameOf = useMemo(() => {
     const m = new Map(people.map(p => [p.id, p.name || p.email]));
-    return (id: string) => m.get(id) ?? `${id.slice(0, 8)}…`;
-  }, [people]);
+    const names = summary?.names ?? {};
+    // Requesting admins are not beneficiaries, so the summary's names cover them (F33).
+    return (id: string) => m.get(id) ?? names[id] ?? `${id.slice(0, 8)}…`;
+  }, [people, summary]);
 
   const depositStroops = xlmToStroops(depositXlm);
   const creditStroops = xlmToStroops(creditXlm);
