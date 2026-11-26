@@ -6,13 +6,14 @@ import { paystackPaymentTables } from './paystackCheckoutSchema.js';
 import { rewardClaimTables } from './rewardClaimSchema.js';
 import { ammaActivationTables } from './ammaActivationSchema.js';
 import { classInvitationTables } from './classInvitationSchema.js';
+import { cohortInvitationTables } from './cohortInvitationSchema.js';
 import { parentInvitationTables } from './parentInvitationSchema.js';
 import { emailInvitationTables } from './emailInvitationSchema.js';
 import { roleRequestTables } from './roleRequestSchema.js';
 import { ammaWalletLinkTables } from './ammaWalletLinkSchema.js';
 import { courseContentTables } from './courseContentSchema.js';
 import { pendingCourseCodeTables } from './pendingCourseCodeSchema.js';
-const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...webPushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...ammaActivationTables, ...classInvitationTables, ...parentInvitationTables, ...emailInvitationTables, ...roleRequestTables, ...ammaWalletLinkTables, ...courseContentTables, ...pendingCourseCodeTables];
+const additiveSchemaTables = [...fundingSchemaTables, ...pushSchemaTables, ...webPushSchemaTables, ...offlineLearningSchemaTables, ...paystackPaymentTables, ...rewardClaimTables, ...ammaActivationTables, ...classInvitationTables, ...cohortInvitationTables, ...parentInvitationTables, ...emailInvitationTables, ...roleRequestTables, ...ammaWalletLinkTables, ...courseContentTables, ...pendingCourseCodeTables];
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -105,6 +106,7 @@ export function validateDatabase(db: SqliteDatabase, afterMigrations = false, fo
         : rewardClaimTables.includes(table.name) ? 'reward claims'
         : ammaActivationTables.includes(table.name) ? 'wallet activation'
         : classInvitationTables.includes(table.name) ? 'class invitations'
+        : cohortInvitationTables.includes(table.name) ? 'cohort invitations'
         : parentInvitationTables.includes(table.name) ? 'parent invitations'
         : emailInvitationTables.includes(table.name) ? 'email invitations'
         : roleRequestTables.includes(table.name) ? 'role requests'

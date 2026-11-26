@@ -1,6 +1,6 @@
 import api from './api';
 
-export interface MyClassInvitation { id: string; className: string; groupType?: 'class' | 'team'; invitedBy: string; createdAt: string }
+export interface MyClassInvitation { id: string; className: string; groupType?: 'class' | 'team' | 'cohort'; invitedBy: string; createdAt: string }
 
 export const classInvitationService = {
   async mine(): Promise<MyClassInvitation[]> {

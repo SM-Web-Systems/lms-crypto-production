@@ -303,3 +303,49 @@ describe('F24 - minter balance for admins', () => {
     expect((await request(app).get('/api/v1/admin/minter-balance').auth(instructor.token, { type: 'bearer' })).status).toBe(403);
   });
 });
+
+describe('F7 - sponsor invites to own cohort, learner accepts', () => {
+  function seed() {
+    const courseId = course();
+    const sponsor = actor('role_sponsor', 'lecturer'), other = actor('role_sponsor', 'lecturer'), learner = actor();
+    const cohortId = randomUUID();
+    execute("INSERT INTO sponsor_cohorts (id,name,sponsor_user_id,course_id,selected_tier,status) VALUES (?,'Sponsor A cohort',?,?,'free','active')", [cohortId, sponsor.id, courseId]);
+    return { courseId, sponsor, other, learner, cohortId };
+  }
+  const email = (id: string) => `${id}@mainnet2.invalid`;
+
+  it('creates a pending invitation, not a membership, and the learner joins on accept', async () => {
+    const { courseId, sponsor, learner, cohortId } = seed();
+    const res = await request(app).post(`/api/v1/admin/cohorts/${cohortId}/invite`).auth(sponsor.token, { type: 'bearer' })
+      .send({ emails: [email(learner.id), 'nobody@nowhere.invalid', 'not-an-email'] });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ sent: 2, invalid: ['not-an-email'], pendingAcceptance: true });
+    expect(queryOne('SELECT 1 AS x FROM cohort_members WHERE cohort_id = ? AND user_id = ?', [cohortId, learner.id])).toBeFalsy();
+
+    const mine = await request(app).get('/api/v1/students/me/class-invitations').auth(learner.token, { type: 'bearer' });
+    const inv = mine.body.data.invitations.find((i: { groupType: string }) => i.groupType === 'cohort');
+    expect(inv.className).toBe('Sponsor A cohort');
+    const accept = await request(app).post(`/api/v1/students/me/class-invitations/${inv.id}/accept`).auth(learner.token, { type: 'bearer' });
+    expect(accept.status).toBe(200);
+    expect(queryOne('SELECT 1 AS x FROM cohort_members WHERE cohort_id = ? AND user_id = ?', [cohortId, learner.id])).toBeTruthy();
+    expect(queryOne('SELECT 1 AS x FROM user_course_codes uc JOIN courses c ON c.course_code = uc.course_code WHERE uc.user_id = ? AND c.id = ?', [learner.id, courseId])).toBeTruthy();
+  });
+
+  it('declining changes nothing, and a sponsor cannot invite into another sponsor\'s cohort', async () => {
+    const { other, learner, cohortId, sponsor } = seed();
+    expect((await request(app).post(`/api/v1/admin/cohorts/${cohortId}/invite`).auth(other.token, { type: 'bearer' }).send({ emails: [email(learner.id)] })).status).toBe(403);
+    await request(app).post(`/api/v1/admin/cohorts/${cohortId}/invite`).auth(sponsor.token, { type: 'bearer' }).send({ emails: [email(learner.id)] });
+    const mine = await request(app).get('/api/v1/students/me/class-invitations').auth(learner.token, { type: 'bearer' });
+    const inv = mine.body.data.invitations.find((i: { groupType: string }) => i.groupType === 'cohort');
+    expect((await request(app).post(`/api/v1/students/me/class-invitations/${inv.id}/decline`).auth(learner.token, { type: 'bearer' })).status).toBe(200);
+    expect(queryOne('SELECT 1 AS x FROM cohort_members WHERE cohort_id = ? AND user_id = ?', [cohortId, learner.id])).toBeFalsy();
+    const list = await request(app).get(`/api/v1/admin/cohorts/${cohortId}/invitations`).auth(sponsor.token, { type: 'bearer' });
+    expect(list.body.data.invitations[0]).toMatchObject({ status: 'declined', name: 'Person' });
+    expect(JSON.stringify(list.body)).not.toContain(email(learner.id));
+  });
+
+  it('sponsors still cannot add members directly', async () => {
+    const { sponsor, learner, cohortId } = seed();
+    expect((await request(app).post(`/api/v1/admin/cohorts/${cohortId}/members`).auth(sponsor.token, { type: 'bearer' }).send({ userIds: [learner.id] })).status).toBe(403);
+  });
+});
