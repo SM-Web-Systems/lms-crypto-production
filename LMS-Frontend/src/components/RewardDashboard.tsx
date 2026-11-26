@@ -322,13 +322,18 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
   const targetEpoch = useGeneration();
   const capturedEpoch = targetEpoch.current();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { reopen?: string[] }) => {
     // Increment first: invalidates any outstanding request for the previous identity.
     const myReqId = reqGen.next();
     if (!scopeId) { setState('empty'); return; }
-    setState('loading');
+    // F36: a refresh after an action keeps the open rows open (and the table on screen), so a parent can
+    // release several learners in a row without re-opening the reward each time.
+    const reopen = opts?.reopen ?? [];
+    if (reopen.length === 0) {
+      setState('loading');
+      setExpanded({});
+    }
     setError('');
-    setExpanded({});
     try {
       // W06: pass targetType so parent child/family list uses the correct scope
       const data = await rewardService.listRewards(role, scopeId, targetType);
@@ -336,6 +341,16 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
       if (!reqGen.isCurrent(myReqId)) return;
       setRewards(data);
       setState(data.length > 0 ? 'data' : 'empty');
+      const stillThere = reopen.filter((id) => data.some((r) => r.id === id));
+      setExpanded((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => stillThere.includes(id))));
+      await Promise.all(stillThere.map(async (id) => {
+        try {
+          const allocs = await rewardService.getAllocations(role, id);
+          if (reqGen.isCurrent(myReqId)) setExpanded((prev) => (id in prev ? { ...prev, [id]: allocs } : prev));
+        } catch (err) {
+          if (reqGen.isCurrent(myReqId)) setExpanded((prev) => (id in prev ? { ...prev, [id]: { error: getErrorMessage(err, 'Could not load allocations.') } } : prev));
+        }
+      }));
     } catch (err) {
       if (!reqGen.isCurrent(myReqId)) return;
       setError(getErrorMessage(err, 'Could not load rewards'));
@@ -365,6 +380,10 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
       setShowCreate(false);
     }
   }, [showCreate, canCreate]);
+
+  // F36: performAction reads the open rows at the time it reloads, without re-creating itself on every toggle.
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
 
   const toggleAllocations = useCallback(async (rewardId: string) => {
     const current = expanded[rewardId];
@@ -451,7 +470,9 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
     const done = await ask({ ...confirmCopy(action, reward, alloc, scopeLabel, xlmUsdc), action: run });
     // W06-R1+R2: only reload if still on the same target (key) AND same target visit (epoch).
     // A blocked refund changed nothing, so keep its message instead of reloading.
-    if (done && !blocked && sameTarget()) await load();
+    if (done && !blocked && sameTarget()) {
+      await load({ reopen: Object.keys(expandedRef.current).filter((id) => Array.isArray(expandedRef.current[id])) });
+    }
   }, [role, targetKey, load, ask, scopeLabel, xlmUsdc, targetEpoch]);
 
   return (
@@ -465,7 +486,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
           </CardTitle>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" type="button" onClick={load} disabled={state === 'loading'}>
+          <Button variant="outline" size="sm" type="button" onClick={() => load()} disabled={state === 'loading'}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1 ${state === 'loading' ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
           </Button>
@@ -502,7 +523,7 @@ export const RewardDashboard: React.FC<RewardDashboardProps> = ({
 
         {state === 'error' && !error && (
           <div className="py-12 text-center">
-            <Button variant="outline" size="sm" type="button" onClick={load}>
+            <Button variant="outline" size="sm" type="button" onClick={() => load()}>
               <RefreshCw className="h-4 w-4 mr-1" aria-hidden />
               Retry
             </Button>

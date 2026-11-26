@@ -78,6 +78,22 @@ describe('RewardDashboard asks before money moves (UX-001)', () => {
     await waitFor(() => expect(svc.releaseAllocation).toHaveBeenCalledWith('sponsor', 'r1', 'a1', expect.any(String)));
   });
 
+  it('F36: after a release the reward row stays open with fresh allocations, so the next learner can be released', async () => {
+    const second = { ...allocation('eligible'), id: 'a2', student_user_id: 'bbbbbbbb-1111-2222-3333-444444444444', student_name: 'Learner C' };
+    svc.listRewards.mockResolvedValue([reward('active')] as never);
+    svc.getAllocations.mockResolvedValueOnce([allocation('eligible'), second] as never)
+      .mockResolvedValue([allocation('released'), second] as never);
+    render(<MemoryRouter><RewardDashboard role="parent" scopeId="s1" scopeLabel="Family" /></MemoryRouter>);
+    await openAllocations();
+    expect(screen.getAllByRole('button', { name: 'Release' })).toHaveLength(2);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Release' })[0]);
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /^Release / }));
+    await waitFor(() => expect(svc.getAllocations).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Release' })).toHaveLength(1));
+    expect(screen.getByText('Learner C')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expand allocations' })).toBeNull();
+  });
+
   it('Refund says it takes money back and cannot be undone', async () => {
     renderWith('released', 'released');
     await openAllocations();
