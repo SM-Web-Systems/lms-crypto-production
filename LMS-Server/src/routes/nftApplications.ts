@@ -997,7 +997,13 @@ router.post(
     }
 
     // LMS-MINT-J2-004: wrap credential insert + application update in transaction
-    const credId = uuidv4();
+    // F27: a retry after a failed attempt turns that failed row into the minted one, so the
+    // admin list does not keep a stale "failed" record next to the certificate.
+    const failedRow = queryOne<{ id: string }>(
+      "SELECT id FROM nft_credentials WHERE course_id = ? AND application_id = ? AND mint_status = 'failed' ORDER BY created_at DESC LIMIT 1",
+      [courseId, appId]
+    );
+    const credId = failedRow?.id ?? uuidv4();
     const persistMint = db.transaction(() => {
       // Re-check idempotency inside transaction (TOCTOU guard)
       const dup = queryOne<{ id: string }>(
@@ -1008,12 +1014,27 @@ router.post(
         throw new Error('ALREADY_MINTED');
       }
 
-      execute(
-        `INSERT INTO nft_credentials
-           (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
-         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?)`,
-        [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), courseId, appId]
-      );
+      if (failedRow) {
+        execute(
+          `UPDATE nft_credentials
+           SET mint_status = 'minted', wallet_address = ?, tx_hash = ?, soroban_token_id = ?, contract_id = ?,
+               network = ?, error = NULL, updated_at = datetime('now')
+           WHERE id = ?`,
+          [userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), credId]
+        );
+        // Older duplicate failed rows for the same application are just noise now.
+        execute(
+          "DELETE FROM nft_credentials WHERE application_id = ? AND course_id = ? AND mint_status = 'failed' AND id <> ?",
+          [appId, courseId, credId]
+        );
+      } else {
+        execute(
+          `INSERT INTO nft_credentials
+             (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
+           VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?)`,
+          [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), courseId, appId]
+        );
+      }
 
       execute(
         `UPDATE course_nft_applications

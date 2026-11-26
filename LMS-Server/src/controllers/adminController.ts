@@ -98,13 +98,15 @@ export async function listCertificates(
       payment_status: string | null; payment_id: string | null;
       price_cents: number | null; selected_tier: string | null;
       network: string | null;
+      soroban_token_id: number | null;
     }>(
       `SELECT a.*,
               u.name AS user_name, u.email AS user_email,
               c.title AS course_title,
               p.status AS payment_status, p.id AS payment_id,
               cp.price_cents,
-              (SELECT nc.network FROM nft_credentials nc WHERE nc.application_id = a.id AND nc.mint_status = 'minted' ORDER BY nc.created_at DESC LIMIT 1) AS network
+              (SELECT nc.network FROM nft_credentials nc WHERE nc.application_id = a.id AND nc.mint_status = 'minted' ORDER BY nc.created_at DESC LIMIT 1) AS network,
+              (SELECT nc.soroban_token_id FROM nft_credentials nc WHERE nc.application_id = a.id AND nc.mint_status = 'minted' ORDER BY nc.created_at DESC LIMIT 1) AS soroban_token_id
        FROM course_nft_applications a
        INNER JOIN users u ON u.id = a.user_id
        INNER JOIN courses c ON c.id = a.course_id
@@ -139,6 +141,7 @@ export async function listCertificates(
       priceCents: r.price_cents ?? 0,
       selectedTier: r.selected_tier,
       network: r.network,
+      sorobanTokenId: r.soroban_token_id ?? null, // F29
     }));
 
     res.json({ success: true, data: { certificates, total: certificates.length } });
@@ -217,7 +220,7 @@ export async function listIssuedCredentials(
       course_id: string | null; application_id: string | null;
       wallet_address: string; mint_status: string; tx_hash: string | null;
       contract_id: string | null; network: string | null; error: string | null;
-      created_at: string; updated_at: string; is_superseded: number;
+      created_at: string; updated_at: string; is_superseded: number; soroban_token_id: number | null;
       user_name: string | null; user_email: string | null;
       course_title: string | null; quiz_title: string | null;
       app_status: string | null; app_applied_at: string | null;
@@ -265,6 +268,7 @@ export async function listIssuedCredentials(
       reviewedAt: r.app_reviewed_at,
       mintPath: r.application_id ? 'course_application' : ('quiz_trigger' as const),
       isSuperseded: r.is_superseded === 1,
+      sorobanTokenId: r.soroban_token_id ?? null, // F29
     }));
 
     res.json({ success: true, data: { credentials, total: credentials.length } });

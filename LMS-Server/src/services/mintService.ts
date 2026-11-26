@@ -248,8 +248,7 @@ export async function mintCredentialForQuiz(params: {
       let sorobanTokenId: number | null = null;
       try {
         if (getResult.returnValue) {
-          const native = StellarSdk.scValToNative(getResult.returnValue);
-          if (typeof native === 'number') sorobanTokenId = native;
+          sorobanTokenId = tokenIdFromNative(StellarSdk.scValToNative(getResult.returnValue));
         }
       } catch { /* non-fatal: legacy behaviour if extraction fails */ }
 
@@ -276,6 +275,21 @@ export async function mintCredentialForQuiz(params: {
   }
 }
 
+/** F26: course mints answer within the edge proxy's 60 s timeout. */
+const COURSE_MINT_TX_TIMEOUT_S = 35;
+const COURSE_MINT_EXPIRY_MARGIN_MS = 7_000;
+const MINT_POLL_INTERVAL_MS = process.env.NODE_ENV === 'test' ? 5 : 4000;
+
+/**
+ * F29: the contract returns the token id as an integer ScVal. u32 converts to a number, but u64/u128 convert to a
+ * bigint, which the old `typeof native === 'number'` check silently dropped, so no token id was stored.
+ */
+export function tokenIdFromNative(native: unknown): number | null {
+  if (typeof native === 'number' && Number.isSafeInteger(native) && native >= 0) return native;
+  if (typeof native === 'bigint' && native >= 0n && native <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(native);
+  return null;
+}
+
 /**
  * Synchronous course-level mint for the new application → approve → mint flow.
  *
@@ -283,7 +297,8 @@ export async function mintCredentialForQuiz(params: {
  * Unlike mintCredentialForQuiz, this function THROWS on failure so the caller can return 502.
  * The route handler is responsible for all DB operations (updating application + inserting nft_credentials).
  *
- * Poll loop: 15 × 4s = up to 60s (longer than quiz path to match admin UX timeout).
+ * Poll loop: every 4 s until the transaction lands or its 35 s time bound has passed (about 45 s at most),
+ * so the admin request finishes inside the edge proxy's 60 s limit with a definite result (F26).
  */
 export async function mintCredential(params: {
   userId: string;
@@ -322,7 +337,9 @@ export async function mintCredential(params: {
         new StellarSdk.Address(minterKeypair.publicKey()).toScVal()
       )
     )
-    .setTimeout(120)
+    // F26: a short validity window that ends before the edge proxy's 60 s limit, so the poll below
+    // always reaches a definite answer: landed, failed, or expired (never "maybe later").
+    .setTimeout(COURSE_MINT_TX_TIMEOUT_S)
     .build();
 
   const simulated = await server.simulateTransaction(tx);
@@ -365,12 +382,19 @@ export async function mintCredential(params: {
 
   type GetTxResult = Awaited<ReturnType<typeof server.getTransaction>>;
   let getResult: GetTxResult | null = null;
-  for (let i = 0; i < 15; i++) {
-    await new Promise<void>((r) => setTimeout(r, 4000));
+  // Poll until the transaction lands or its validity window has passed (plus a ledger of margin).
+  const maxTimeS = Number(prepared.timeBounds?.maxTime ?? 0);
+  const pollUntil = maxTimeS > 0 ? maxTimeS * 1000 + COURSE_MINT_EXPIRY_MARGIN_MS : Date.now() + 60_000;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await new Promise<void>((r) => setTimeout(r, MINT_POLL_INTERVAL_MS));
     getResult = await server.getTransaction(txHash);
-    if (getResult.status !== 'NOT_FOUND') break;
+    if (getResult.status !== 'NOT_FOUND' || Date.now() >= pollUntil) break;
   }
 
+  if (getResult?.status === 'NOT_FOUND' && maxTimeS > 0 && Date.now() >= maxTimeS * 1000) {
+    // Past its time bound, the network can no longer include it: nothing was minted and a retry is safe.
+    throw new Error(`Transaction expired before it was included (status=NOT_FOUND after ${COURSE_MINT_TX_TIMEOUT_S} s). Nothing was minted; it is safe to try again.`);
+  }
   if (getResult?.status !== 'SUCCESS') {
     throw new Error(`Transaction not confirmed: status=${getResult?.status ?? 'unknown'}`);
   }
@@ -379,8 +403,7 @@ export async function mintCredential(params: {
   let sorobanTokenId: number | null = null;
   try {
     if (getResult.returnValue) {
-      const native = StellarSdk.scValToNative(getResult.returnValue);
-      if (typeof native === 'number') sorobanTokenId = native;
+      sorobanTokenId = tokenIdFromNative(StellarSdk.scValToNative(getResult.returnValue));
     }
   } catch {
     logger.warn({ module: 'mint-course' }, 'Could not extract soroban token ID from return value');
