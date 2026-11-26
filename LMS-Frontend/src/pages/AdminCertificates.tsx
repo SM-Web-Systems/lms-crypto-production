@@ -154,7 +154,9 @@ interface ApplicationsPanelProps {
   role: 'admin' | 'lecturer';
 }
 
-const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) => {
+export const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role }) => {
+  // Lecturers decide applications for their own courses (the API scopes the list); payments and issuing stay with admins.
+  const adminActions = role === 'admin';
   const [applications, setApplications] = useState<NftApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -475,7 +477,10 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.selectedTier !== 'free' && app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
+                        {!adminActions && app.selectedTier !== 'free' && app.status === 'approved' && (
+                          <span className="text-xs text-neutral-500">An administrator confirms payment and issues the certificate.</span>
+                        )}
+                        {adminActions && app.selectedTier !== 'free' && app.status === 'approved' && app.paymentStatus === 'pending' && app.paymentId && (
                           <>
                             <Button size="sm" type="button" disabled={isActing} onClick={() => handleConfirmPayment(app)}
                               className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
@@ -488,7 +493,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ role: _role }) =>
                             </Button>
                           </>
                         )}
-                        {app.selectedTier !== 'free' && app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
+                        {adminActions && app.selectedTier !== 'free' && app.status === 'approved' && (app.paymentStatus !== 'pending' || !app.priceCents) && (
                           <Button size="sm" type="button" disabled={isActing || recentPaymentAction === app.applicationId} onClick={() => handleMint(app)}
                             className="text-xs bg-violet-600 hover:bg-violet-700 text-white">
                             <Coins className="h-3.5 w-3.5 mr-1" aria-hidden />
