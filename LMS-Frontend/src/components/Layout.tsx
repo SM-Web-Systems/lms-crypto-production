@@ -127,6 +127,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { name: 'Course Editor', path: '/lecturer/course', icon: BookOpen },
       { name: 'Quizzes', path: '/lecturer/quizzes', icon: ClipboardList },
       { name: 'Submissions', path: '/lecturer/submissions', icon: FileText },
+      { name: 'Certificates', path: '/lecturer/certificates', icon: Award },
       { name: 'Course members', path: '/lecturer/course-members', icon: Users },
       { name: 'Messages', path: '/lecturer/messages', icon: Mail },
       { name: 'Profile', path: '/lecturer/profile', icon: User },
