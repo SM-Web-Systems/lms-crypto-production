@@ -880,9 +880,16 @@ export async function getCourseMembers(req: AuthRequest, res: Response, next: Ne
       studentId: r.studentId,
     }));
 
+    // F32: learners also need their course instructors (name only) to start a conversation with them.
+    const instructors = query<{ id: string; name: string }>(
+      `SELECT u.id, u.name FROM course_lecturers cl JOIN users u ON u.id = cl.user_id
+       WHERE cl.course_id = ? ORDER BY u.name`,
+      [courseId]
+    );
+
     res.json({
       success: true,
-      data: { members },
+      data: { members, instructors },
     });
   } catch (error) {
     next(error);

@@ -4,6 +4,8 @@ import { query, queryOne, execute } from '../config/database.js';
 import { AuthRequest, ConversationResponse, MessageResponse, AdminMessageResponse, AdminConversationResponse, ErrorCodes } from '../types/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { auditLog } from '../services/auditService.js';
+import { createNotification } from '../services/notificationService.js';
+import logger from '../utils/logger.js';
 
 /** Escape HTML special characters to prevent stored XSS. */
 function escapeHtml(str: string): string {
@@ -336,6 +338,22 @@ export async function postMessage(req: AuthRequest, res: Response, next: NextFun
       [messageId, conversationId, userId, bodyText, now]
     );
     execute('UPDATE conversations SET updated_at = ? WHERE id = ?', [now, conversationId]);
+
+    // F32: tell the other person, once per unread run from this sender (no message text in the notification).
+    try {
+      const recipientId = convCheck.user1_id === userId ? convCheck.user2_id : convCheck.user1_id;
+      const sender = queryOne<{ name: string | null }>('SELECT name FROM users WHERE id = ?', [userId]);
+      const title = `New message from ${sender?.name || 'someone'}`;
+      const pending = queryOne(
+        "SELECT 1 FROM notifications WHERE user_id = ? AND type = 'new_message' AND title = ? AND read = 0",
+        [recipientId, title]
+      );
+      if (recipientId !== userId && !pending) {
+        createNotification({ userId: recipientId, type: 'new_message', title, body: 'Open Messages to read and reply.', link: '/messages' });
+      }
+    } catch (err) {
+      logger.error({ module: 'notification', err }, 'New message notification failed');
+    }
 
     const message: MessageResponse = {
       id: messageId,

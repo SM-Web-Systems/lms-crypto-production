@@ -128,3 +128,27 @@ describe('F31 - the team owner is notified when a learner leaves', () => {
     expect(n).toMatchObject({ type: 'group_member_left', link: '/employer/teams' });
   });
 });
+
+describe('F32 - learners can find their instructor and messages notify', () => {
+  it('course members include the instructors by name, without email', async () => {
+    const courseId = course();
+    const learner = actor(), lecturer = actor('role_instructor');
+    execute('INSERT INTO user_course_codes (user_id,course_code) SELECT ?, course_code FROM courses WHERE id = ?', [learner.id, courseId]);
+    execute('INSERT INTO course_lecturers (course_id,user_id) VALUES (?,?)', [courseId, lecturer.id]);
+    const res = await request(app).get(`/api/v1/courses/${courseId}/members`).auth(learner.token, { type: 'bearer' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.instructors).toEqual([{ id: lecturer.id, name: 'Person' }]);
+  });
+
+  it('a new message creates one notification per unread run', async () => {
+    const a = actor(), b = actor();
+    const conv = await request(app).post('/api/v1/messages/conversations').auth(a.token, { type: 'bearer' }).send({ otherUserId: b.id });
+    expect([200, 201]).toContain(conv.status);
+    for (const body of ['hello', 'again']) {
+      const sent = await request(app).post(`/api/v1/messages/conversations/${conv.body.data.id}/messages`).auth(a.token, { type: 'bearer' }).send({ body });
+      expect(sent.status).toBe(201);
+    }
+    const rows = queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND type = 'new_message'", [b.id]);
+    expect(rows?.n).toBe(1);
+  });
+});
