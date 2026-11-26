@@ -46,7 +46,7 @@ const requirements: Record<string, string[]> = {
   '/admin/documents': ['document.manage'], '/admin/course': ['course.manage'],
   '/admin/quizzes': ['quiz.manage'], '/admin/certificates': ['certificate.approve'],
   '/admin/sponsor': ['cohort.manage', 'system.view_audit_log'], '/admin/users': ['user.assign_role', 'user.view_all'],
-  '/lecturer/course': ['course.manage'], '/lecturer/quizzes': ['quiz.manage'], '/lecturer/submissions': ['course.grade'],
+  '/lecturer/course': ['course.manage'], '/lecturer/quizzes': ['quiz.manage'], '/lecturer/submissions': ['course.grade'], '/lecturer/certificates': ['certificate.approve'],
   '/admin/rewards': ['reward.manage'], '/admin/platform-credit': ['reward.manage'],
   '/student/submissions': ['course.submit'], '/student/payments': ['billing.view_own'],
   '/student/rewards': ['reward.view_own'], '/student/badges': ['certificate.view_own'],
