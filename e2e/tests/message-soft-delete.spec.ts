@@ -35,6 +35,37 @@ async function registerAndLogin(request: any, suffix: string) {
   return { token, userId, name, email };
 }
 
+async function loginAsAdmin(request: any) {
+  const email = 'admin@test.com';
+  const password = 'password123';
+
+  const loginRes = await request.post(`${API}/auth/login`, {
+    data: { email, password },
+  });
+
+  if (!loginRes.ok()) {
+    // Register — ADMIN_EMAILS env var auto-promotes to admin role
+    const regRes = await request.post(`${API}/auth/register`, {
+      data: { name: 'Test Admin', email, password },
+    });
+    expect([200, 201]).toContain(regRes.status());
+
+    const retryLogin = await request.post(`${API}/auth/login`, {
+      data: { email, password },
+    });
+    expect(retryLogin.ok()).toBeTruthy();
+    const body = await retryLogin.json();
+    const token = body.data?.token ?? body.token;
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    return { token, userId: payload.userId ?? payload.sub ?? payload.id };
+  }
+
+  const body = await loginRes.json();
+  const token = body.data?.token ?? body.token;
+  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+  return { token, userId: payload.userId ?? payload.sub ?? payload.id };
+}
+
 function auth(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
@@ -42,13 +73,14 @@ function auth(token: string) {
 test.describe('DM Soft-Delete', () => {
   test('E2E-01: sender can delete own message, re-fetch shows tombstone', async ({ request }) => {
     // Set up two users
+    // A new conversation needs a relationship (#325); anyone may message an administrator.
     const alice = await registerAndLogin(request, 'alice');
-    const bob = await registerAndLogin(request, 'bob');
+    const admin = await loginAsAdmin(request);
 
-    // Alice creates a conversation with Bob
+    // Alice creates a conversation with the admin
     const convRes = await request.post(`${API}/messages/conversations`, {
       headers: auth(alice.token),
-      data: { otherUserId: bob.userId },
+      data: { otherUserId: admin.userId },
     });
     expect(convRes.ok()).toBeTruthy();
     const conv = (await convRes.json()).data;
@@ -82,7 +114,8 @@ test.describe('DM Soft-Delete', () => {
   });
 
   test('E2E-02: cannot delete another user\'s message', async ({ request }) => {
-    const alice = await registerAndLogin(request, 'alice2');
+    // Alice is the administrator here (admins may start any conversation, #325); Bob is a learner.
+    const alice = await loginAsAdmin(request);
     const bob = await registerAndLogin(request, 'bob2');
 
     // Alice creates conversation and sends a message
