@@ -88,7 +88,7 @@ describe('GET /credentials/verify/:credentialId', () => {
     expect(cred.credentialId).toBe(mintedCredId);
     expect(cred.studentName).toBe('Alice Badge');
     expect(cred.courseTitle).toBe('Blockchain 101');
-    expect(cred.courseCode).toBe('BVC-101');
+    expect(cred.courseCode).toBe(''); // enrolment code is never public (F28)
     expect(cred.txHash).toBe('abc123txhash');
     expect(cred.sorobanTokenId).toBe(42);
     expect(cred.issuer).toBe('SM Web Systems Blockchain Academy');

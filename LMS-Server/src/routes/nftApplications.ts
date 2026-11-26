@@ -23,7 +23,7 @@ import { getCourseProgress } from '../services/courseCompletionService.js';
 import { AuthRequest, ErrorCodes } from '../types/index.js';
 import { createNotification } from '../services/notificationService.js';
 import { getCoursePricing, createPayment, isPaymentSatisfied } from '../services/paymentService.js';
-import { getTiersEnabled, createBadge } from '../services/badgeService.js';
+import { getTiersEnabled, createBadge, tierOffered } from '../services/badgeService.js';
 import logger from '../utils/logger.js';
 import { sendCertificateMintedEmail } from '../services/emailService.js';
 import { learnerSponsorship, attachToSponsorship } from '../services/cohortPaymentApprovalService.js';
@@ -156,9 +156,14 @@ router.post(
 
     // A learner in a sponsor cohort for this course gets the cohort's certificate (and its payment) when they
     // apply on their own, including a re-apply after a rejection: no tier carried over, no learner payment.
-    const sponsorship = learnerSponsorship(userId, courseId);
+    // F20: a cohort's tier only counts while the course still offers it. A Free cohort on a course
+    // that has since become Paid only applies for the course's tier, like any other learner.
+    const tiersEnabled = getTiersEnabled(courseId);
+    const cohortSponsorship = learnerSponsorship(userId, courseId);
+    const sponsorship = cohortSponsorship && tierOffered(cohortSponsorship.tier, tiersEnabled) ? cohortSponsorship : null;
     // Phase 11 C2: Tier selection (default 'paid' for backward compat with pre-C2 callers)
-    const selectedTier = (req.body.selectedTier as string) || sponsorship?.tier || 'paid';
+    const selectedTier = (req.body.selectedTier as string) || sponsorship?.tier
+      || (tiersEnabled === 'free_only' ? 'free' : 'paid');
     if (selectedTier !== 'free' && selectedTier !== 'paid') {
       res.status(400).json({
         success: false,
@@ -168,7 +173,6 @@ router.post(
     }
 
     // Validate tier is available for this course
-    const tiersEnabled = getTiersEnabled(courseId);
     if (
       (selectedTier === 'free' && tiersEnabled === 'paid_only') ||
       (selectedTier === 'paid' && tiersEnabled === 'free_only')
@@ -611,6 +615,15 @@ router.patch(
   requirePermission('certificate.approve'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
+    // F21: holding the permission is not enough; the reviewer must manage this
+    // course (admin in scope, or a lecturer of the course).
+    if (!canAccessCourse(req.user!.userId, courseId, new Set(getUserPermissions(req.user!.userId)), 'manage')) {
+      res.status(403).json({
+        success: false,
+        error: { code: ErrorCodes.FORBIDDEN, message: 'You can only approve certificates for courses you teach' },
+      });
+      return;
+    }
     const { notes } = req.body as { notes?: string };
     const userId = req.user!.userId;
 
@@ -717,6 +730,15 @@ router.patch(
   requirePermission('certificate.reject'),
   (req: AuthRequest, res: Response): void => {
     const { courseId, appId } = req.params;
+    // F21: holding the permission is not enough; the reviewer must manage this
+    // course (admin in scope, or a lecturer of the course).
+    if (!canAccessCourse(req.user!.userId, courseId, new Set(getUserPermissions(req.user!.userId)), 'manage')) {
+      res.status(403).json({
+        success: false,
+        error: { code: ErrorCodes.FORBIDDEN, message: 'You can only reject certificates for courses you teach' },
+      });
+      return;
+    }
     // The admin screen sends the reason as `reason`; older clients send `notes`. Either is the reason the learner sees.
     const body = req.body as { notes?: unknown; reason?: unknown };
     const given = typeof body.notes === 'string' && body.notes.trim() ? body.notes : body.reason;
@@ -747,6 +769,16 @@ router.patch(
        SET status = 'rejected', reviewed_by = ?, reviewed_at = datetime('now'), review_notes = ?
        WHERE id = ?`,
       [userId, notes ?? null, appId]
+    );
+
+    // F22: a rejected application no longer owes its fee. Close the unpaid manual
+    // placeholder so it stops showing as "waiting". Card and Stellar attempts stay
+    // pending, because money may still arrive for them and must be matched.
+    execute(
+      `UPDATE payments SET status = 'failed', notes = COALESCE(notes, 'Closed: certificate application rejected'),
+              updated_at = datetime('now')
+       WHERE application_id = ? AND status = 'pending' AND payment_method = 'manual'`,
+      [appId]
     );
 
     // C2: Notify student (best-effort)
@@ -965,7 +997,13 @@ router.post(
     }
 
     // LMS-MINT-J2-004: wrap credential insert + application update in transaction
-    const credId = uuidv4();
+    // F27: a retry after a failed attempt turns that failed row into the minted one, so the
+    // admin list does not keep a stale "failed" record next to the certificate.
+    const failedRow = queryOne<{ id: string }>(
+      "SELECT id FROM nft_credentials WHERE course_id = ? AND application_id = ? AND mint_status = 'failed' ORDER BY created_at DESC LIMIT 1",
+      [courseId, appId]
+    );
+    const credId = failedRow?.id ?? uuidv4();
     const persistMint = db.transaction(() => {
       // Re-check idempotency inside transaction (TOCTOU guard)
       const dup = queryOne<{ id: string }>(
@@ -976,12 +1014,27 @@ router.post(
         throw new Error('ALREADY_MINTED');
       }
 
-      execute(
-        `INSERT INTO nft_credentials
-           (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
-         VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?)`,
-        [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), courseId, appId]
-      );
+      if (failedRow) {
+        execute(
+          `UPDATE nft_credentials
+           SET mint_status = 'minted', wallet_address = ?, tx_hash = ?, soroban_token_id = ?, contract_id = ?,
+               network = ?, error = NULL, updated_at = datetime('now')
+           WHERE id = ?`,
+          [userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), credId]
+        );
+        // Older duplicate failed rows for the same application are just noise now.
+        execute(
+          "DELETE FROM nft_credentials WHERE application_id = ? AND course_id = ? AND mint_status = 'failed' AND id <> ?",
+          [appId, courseId, credId]
+        );
+      } else {
+        execute(
+          `INSERT INTO nft_credentials
+             (id, user_id, quiz_id, wallet_address, mint_status, tx_hash, soroban_token_id, contract_id, network, course_id, application_id)
+           VALUES (?, ?, NULL, ?, 'minted', ?, ?, ?, ?, ?, ?)`,
+          [credId, app.user_id, userRow.walletAddress, txHash, sorobanTokenId, contractId, mintNetwork(), courseId, appId]
+        );
+      }
 
       execute(
         `UPDATE course_nft_applications

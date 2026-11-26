@@ -75,10 +75,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     doc.moveDown(0.5);
     doc.fontSize(16).font('Helvetica-Bold')
       .text(data.courseTitle, { align: 'center' });
-    if (data.courseCode) {
-      doc.fontSize(10).font('Helvetica').fillColor('#666666')
-        .text(`(${data.courseCode})`, { align: 'center' });
-    }
+    // F28: the course code is the enrolment code, and certificates get shared, so it is never printed.
     doc.moveDown(0.5);
     doc.fontSize(11).font('Helvetica').fillColor('#333333')
       .text(`Completed on ${formatDate(data.issuedAt)}`, { align: 'center' });

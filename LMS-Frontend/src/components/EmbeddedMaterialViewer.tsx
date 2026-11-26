@@ -333,6 +333,9 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
         ) : null}
       </div>
 
+      {/* F10: a text lesson written in place (no linked file) is complete once its text shows above;
+          don't add an empty "nothing to display" panel under it. */}
+      {item.type === 'text' && !ext && (item.description?.trim() || item.information?.trim()) ? null : (
       <div className="rounded-xl border border-neutral-200/90 bg-neutral-100/50 p-2 sm:p-3 ring-1 ring-neutral-900/5">
         {item.type === 'pdf' ? (
           item.documentId ? (
@@ -648,6 +651,7 @@ export const EmbeddedMaterialViewer: React.FC<EmbeddedMaterialViewerProps> = ({
           <p className="text-sm text-neutral-600 px-4 py-8 text-center">This material has nothing to display.</p>
         )}
       </div>
+      )}
     </div>
   );
 };
