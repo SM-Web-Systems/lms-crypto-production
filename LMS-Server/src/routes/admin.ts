@@ -12,6 +12,7 @@ import {
   handleReconcile,
 } from '../controllers/adminController.js';
 import { db } from '../config/database.js';
+import { getMinterStatus } from '../services/minterStatusService.js';
 import { reconcileAccount } from '../services/rewards/rewardLedger.js';
 import type { AccountType } from '../services/rewards/rewardTypes.js';
 
@@ -72,6 +73,28 @@ router.get(
   authenticate,
   requirePermission('certificate.approve'),
   listCertificates,
+);
+
+/**
+ * @openapi
+ * /admin/minter-status:
+ *   get:
+ *     tags: [Admin]
+ *     summary: NFT minter wallet address and XLM balance (read-only)
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Minter status; balanceXlm is null when the network could not be read }
+ *       403: { description: Requires certificate.mint }
+ */
+// GET /admin/minter-status — admins could not see whether the minter can pay for the next mints.
+router.get(
+  '/minter-status',
+  diagLimiter,
+  authenticate,
+  requirePermission('certificate.mint'),
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    res.json({ success: true, data: await getMinterStatus() });
+  },
 );
 
 /**
