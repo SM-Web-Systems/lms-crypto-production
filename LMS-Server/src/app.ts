@@ -227,7 +227,7 @@ const readLimiter = rateLimit({
 
 /**
  * Global read limiter — GET/HEAD on /api/v1, per IP. Generous on purpose: a classroom behind one NAT address
- * shares it. Override with READ_RATE_LIMIT_MAX. Counted once per request, like apiLimiter.
+ * shares it (4,000 per 15 min since the 26 Nov mainnet test). Override with READ_RATE_LIMIT_MAX. Counted once per request, like apiLimiter.
  */
 function readGlobalReadMax(): number {
   const raw = process.env.READ_RATE_LIMIT_MAX;
@@ -235,7 +235,7 @@ function readGlobalReadMax(): number {
     const n = Number.parseInt(raw, 10);
     if (Number.isFinite(n) && n > 0) return n;
   }
-  return isDev ? 10_000 : 1200;
+  return isDev ? 10_000 : 4000;
 }
 const globalReadMax = readGlobalReadMax();
 const globalReadLimiter = rateLimit({
