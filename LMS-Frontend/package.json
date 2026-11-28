@@ -59,7 +59,7 @@
     "eslint-plugin-react-refresh": "^0.4.5",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.32",
-    "rollup-plugin-visualizer": "^6.0.11",
+    "rollup-plugin-visualizer": "^7.3.0",
     "size-limit": "^14.3.0",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
