@@ -55,7 +55,7 @@
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.10",
     "express": "^4.22.3",
     "express-rate-limit": "^8.7.2",
     "helmet": "^8.1.0",
